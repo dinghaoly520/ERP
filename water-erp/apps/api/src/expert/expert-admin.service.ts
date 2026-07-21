@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmbeddingService } from '../local-ai/embedding.service';
+import { LlmService } from '../local-ai/llm.service';
+import { OcrService } from '../local-ai/ocr.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
-import type { LlmSpecialtyQuota, ExpertExtractionLlmResult } from './expert-extraction-ai.service';
+import type { LlmSpecialtyQuota, ExpertExtractionLlmResult, ExtractMode } from './expert-extraction-ai.service';
 import type { CreateExpertDto } from './dto/create-expert.dto';
 import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
@@ -20,6 +24,9 @@ export class ExpertAdminService {
     private prisma: PrismaService,
     private extractionAi: ExpertExtractionAiService,
     private notification: NotificationService,
+    private embedding: EmbeddingService,
+    private llm: LlmService,
+    private ocr: OcrService,
   ) {}
 
   /* ── 专家库 ── */
@@ -159,6 +166,9 @@ export class ExpertAdminService {
               employer: dto.employer,
               phone: dto.phone,
               idNumber: dto.idNumber,
+              ethnicity: dto.ethnicity,
+              education: dto.education,
+              licenseNo: dto.licenseNo,
               availability: '可用',
               notes: dto.notes,
             },
@@ -166,7 +176,9 @@ export class ExpertAdminService {
         },
         include: { expertProfile: true },
       });
-      return user;
+      // 剥离密码哈希，避免敏感字段外泄
+      const { passwordHash, ...safeUser } = user;
+      return safeUser;
     });
   }
 
@@ -243,7 +255,8 @@ export class ExpertAdminService {
   /** 启用/停用专家（停用 = isActive=false + availability 停用） */
   async setAvailability(userId: string, available: boolean) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('专家不存在');
+    // 仅限专家角色，防止越权停用任意账户（含 admin/员工）
+    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { isActive: available } }),
       this.prisma.expertProfile.updateMany({ where: { userId }, data: { availability: available ? '可用' : '停用' } }),
@@ -254,7 +267,8 @@ export class ExpertAdminService {
   /** 更新专家资料 */
   async updateProfile(userId: string, dto: Partial<CreateExpertDto>) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('专家不存在');
+    // 仅限专家角色，防止给非专家用户 upsert 出 ExpertProfile
+    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { ...(dto.displayName && { displayName: dto.displayName }), ...(dto.email !== undefined && { email: dto.email }) } }),
       this.prisma.expertProfile.upsert({
@@ -265,9 +279,12 @@ export class ExpertAdminService {
           ...(dto.employer !== undefined && { employer: dto.employer }),
           ...(dto.phone !== undefined && { phone: dto.phone }),
           ...(dto.idNumber !== undefined && { idNumber: dto.idNumber }),
+          ...(dto.ethnicity !== undefined && { ethnicity: dto.ethnicity }),
+          ...(dto.education !== undefined && { education: dto.education }),
+          ...(dto.licenseNo !== undefined && { licenseNo: dto.licenseNo }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
         },
-        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: dto.phone, idNumber: dto.idNumber, notes: dto.notes },
+        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: dto.phone, idNumber: dto.idNumber, ethnicity: dto.ethnicity, education: dto.education, licenseNo: dto.licenseNo, notes: dto.notes },
       }),
     ]);
     return { success: true };
@@ -402,25 +419,45 @@ export class ExpertAdminService {
       };
     });
 
-    // AI 分析（带模式指令）；any error → undefined → falls back to rules engine
-    const llm = await this.extractionAi.analyzeAndScore(
-      { name: project.name, procurementMethod: project.procurementMethod, scope: project.riskNote || project.name, budget: undefined },
-      candidates,
-      totalNeeded,
-      extractMode,
-    );
+    // 上下文增强：注入项目真实招标范围/资质要求/质量目标（而非仅 riskNote||name），提升专业匹配准确度
+    const scopeParts = [project.scope, project.qualification, project.qualityRequirement, project.riskNote].filter(Boolean) as string[];
+    const scopeText = scopeParts.length > 0 ? scopeParts.join('；') : project.name;
 
     let analysis: string;
     let requiredSpecialties: LlmSpecialtyQuota[];
     const scoreMap = new Map<string, { matchScore: number; fitSpecialty: string; reason: string }>();
+    let engine: 'deepseek' | 'rules' = 'deepseek';
 
-    // 纯 AI 模式：analyzeAndScore 失败时抛错，不降级
-    const engine = 'deepseek';
-    analysis = llm.analysis;
-    requiredSpecialties = dto.manualQuotas?.length
-      ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
-      : llm.requiredSpecialties;
-    for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
+    try {
+      const llm = await this.extractionAi.analyzeAndScore(
+        { name: project.name, procurementMethod: project.procurementMethod, scope: scopeText, budget: project.budget ? Number(project.budget) : undefined },
+        candidates,
+        totalNeeded,
+        extractMode,
+      );
+      analysis = llm.analysis;
+      requiredSpecialties = dto.manualQuotas?.length
+        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
+        : llm.requiredSpecialties;
+      for (const s of llm.scoredExperts) scoreMap.set(s.id, { matchScore: s.matchScore, fitSpecialty: s.fitSpecialty, reason: s.reason });
+    } catch (err) {
+      // 规则降级：AI 不可用（缺 key / 超时 / 解析失败）时启用本地规则引擎兜底，保证抽取核心功能始终可用
+      engine = 'rules';
+      this.extractionAi.recordFallback();
+      new Logger(ExpertAdminService.name).warn(`抽取 AI 不可用，已降级规则引擎: ${(err as Error)?.message ?? err}`);
+      analysis = '（AI 分析暂不可用，已按候选库专业分布与履职数据由规则引擎自动组建专家组）';
+      requiredSpecialties = dto.manualQuotas?.length
+        ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '' }))
+        : this.ruleComposition(candidates, totalNeeded);
+      for (const c of candidates) {
+        scoreMap.set(c.id, {
+          matchScore: this.extendedRuleScore(c),
+          fitSpecialty: c.specialty,
+          reason: `规则评分：专业「${c.specialty}」${c.title ? '、' + c.title : ''}，履职等级 ${c.evaluationLevel ?? '—'}，历史项目 ${c.pastProjects} 个。`,
+        });
+      }
+    }
+
     for (const c of candidates) {
       if (!scoreMap.has(c.id)) {
         scoreMap.set(c.id, {
@@ -430,6 +467,11 @@ export class ExpertAdminService {
         });
       }
     }
+
+    // 白名单纠偏：把 AI 推荐的专业构成映射到专家库中真实有候选的专业，避免推荐无候选专业
+    requiredSpecialties = this.reconcileSpecialties(requiredSpecialties, candidates);
+    // 语义召回：项目需求 vs 专家专长向量相似度，对候选匹配分做微调（失败不阻断，优雅降级）
+    await this.applySemanticBoost(scoreMap, candidates, scopeText, extractMode);
 
     // 归一化配额
     const quotas = this.normalizeQuotas(requiredSpecialties, totalNeeded);
@@ -546,28 +588,31 @@ export class ExpertAdminService {
       }),
     );
 
-    const [created] = await Promise.all([
-      this.prisma.$transaction([...expertCreates, ...candidateCreates]),
-      // 审计日志（不阻断主流程）
-      this.prisma.auditLog.create({
-        data: {
-          userId: operatorId ?? 'system',
-          action: 'EXPERT_EXTRACTION_CONFIRMED',
-          resourceType: 'BidProject',
-          resourceId: projectId,
-          details: {
-            projectName: project.name,
-            expertCount: dto.experts.length,
-            experts: dto.experts.map(e => ({ userId: e.userId, name: e.expertName, major: e.major, isLead: e.isLead ?? false })),
+    // 审计日志与抽取写入同一事务，确保留痕原子性：
+    // 专家抽取是采购法高风险环节，审计是唯一追溯凭证——要么连同抽取一起成功，要么一起回滚，绝不静默丢审计。
+    const ops: Prisma.PrismaPromise<unknown>[] = [...expertCreates, ...candidateCreates];
+    if (operatorId) {
+      ops.push(
+        this.prisma.auditLog.create({
+          data: {
+            userId: operatorId,
+            action: 'EXPERT_EXTRACTION_CONFIRMED',
+            resourceType: 'BidProject',
+            resourceId: projectId,
+            details: {
+              projectName: project.name,
+              expertCount: dto.experts.length,
+              experts: dto.experts.map(e => ({ userId: e.userId, name: e.expertName, major: e.major, isLead: e.isLead ?? false })),
+            },
           },
-        },
-      }).catch((err) => {
-        // 审计日志失败不阻断主流程，但必须留痕（专家抽取是采购法高风险环节，审计是唯一追溯凭证）
-        new Logger(ExpertAdminService.name).error('专家抽取审计日志写入失败', err);
-      }),
-    ]);
+        }),
+      );
+    } else {
+      new Logger(ExpertAdminService.name).warn(`专家抽取确认缺少操作人ID，审计留痕跳过: project=${projectId}`);
+    }
+    await this.prisma.$transaction(ops);
 
-    return { success: true, count: created.length, expertIds: dto.experts.map(e => e.userId) };
+    return { success: true, count: expertCreates.length + candidateCreates.length, expertIds: dto.experts.map(e => e.userId) };
   }
 
   /** 查询项目专家邀请状态（正选+候补） */
@@ -598,18 +643,47 @@ export class ExpertAdminService {
     };
   }
 
-  /** 自动递补：将第一个待确认的候补提升为正选 */
+  /** 自动递补：从待确认候补中按综合评分（extendedRuleScore）择优转正，而非简单按创建时间。
+   *  递补发生在抽取之后，期间专家状态可能变化，故此处基于最新履职数据重新评分。 */
   async autoPromoteCandidate(projectId: string) {
-    const candidate = await this.prisma.bidExpert.findFirst({
+    const candidates = await this.prisma.bidExpert.findMany({
       where: { projectId, expertRole: '候补', invitationStatus: 'pending' },
-      orderBy: { createdAt: 'asc' },
+      include: {
+        user: {
+          include: {
+            expertProfile: true,
+            _count: { select: { bidExperts: true } },
+            expertEvaluations: { orderBy: { createdAt: 'desc' }, take: 1 },
+          },
+        },
+      },
     });
-    if (!candidate) return null;
+    if (candidates.length === 0) return null;
+
+    const scored = candidates.map(c => {
+      const latest = c.user.expertEvaluations[0];
+      return {
+        c,
+        score: this.extendedRuleScore({
+          specialty: c.user.expertProfile?.specialty || '综合',
+          title: c.user.expertProfile?.title ?? undefined,
+          pastProjects: c.user._count.bidExperts,
+          pastAvgScore: latest?.overallScore ?? 0,
+          evaluationLevel: latest?.level,
+          attendanceScore: latest?.attendanceScore,
+          qualityScore: latest?.qualityScore,
+          disciplineScore: latest?.disciplineScore,
+        }),
+      };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0].c;
+
     await this.prisma.bidExpert.update({
-      where: { id: candidate.id },
+      where: { id: best.id },
       data: { expertRole: '正选' },
     });
-    return { userId: candidate.userId, expertName: candidate.expertName, major: candidate.major };
+    return { userId: best.userId, expertName: best.expertName, major: best.major };
   }
 
   /** 标记专家已拒绝参与评审，并自动递补候补 */
@@ -1039,7 +1113,8 @@ export class ExpertAdminService {
   /** 人工确认退库：写入停用 + retiredAt + retireReason，同步禁用登录。 */
   async confirmRetire(userId: string, reason: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('专家不存在');
+    // 仅限专家角色，防止越权停用任意账户
+    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     await Promise.all([
       this.prisma.expertProfile.updateMany({
         where: { userId },
@@ -1149,7 +1224,8 @@ export class ExpertAdminService {
       if (e.level === 'A') rec.aCount++;
     }
 
-    const rows = [...byExpert.values()].map(r => ({
+    const rows = [...byExpert.entries()].map(([expertUserId, r]) => ({
+      expertUserId,
       displayName: r.displayName,
       specialty: r.specialty,
       avgScore: r.scores.length > 0 ? Math.round(r.scores.reduce((s, x) => s + x, 0) / r.scores.length) : 0,
@@ -1158,8 +1234,7 @@ export class ExpertAdminService {
     }));
     rows.sort((a, b) => b.avgScore - a.avgScore || b.aCount - a.aCount || b.evalCount - a.evalCount);
 
-    const expertUserIds = [...byExpert.keys()];
-    return rows.map((r, i) => ({ expertUserId: expertUserIds[i], ...r, rank: i + 1 }));
+    return rows.map((r, i) => ({ ...r, rank: i + 1 }));
   }
 
   /** 专家负荷分布（按活跃评审项目数） */
@@ -1266,6 +1341,9 @@ export class ExpertAdminService {
           employer: pick(row, ['工作单位', '单位']) || undefined,
           phone: pick(row, ['手机号', '手机', '电话']) || undefined,
           idNumber: pick(row, ['身份证号', '身份证']) || undefined,
+          ethnicity: pick(row, ['民族']) || undefined,
+          education: pick(row, ['学历']) || undefined,
+          licenseNo: pick(row, ['证书编号', '证书号', '资格证']) || undefined,
           email: pick(row, ['邮箱', 'email', '电子邮箱']) || undefined,
           notes: pick(row, ['备注']) || undefined,
         });
@@ -1354,7 +1432,128 @@ export class ExpertAdminService {
         adoptionRate: total > 0 ? Math.round((accepted / total) * 100) : 0,
       },
       byExpert,
+      // 可观测：LLM 调用/错误/降级计数与最近耗时（供前端评估 AI 健康度）
+      llm: this.extractionAi.getMetrics(),
     };
+  }
+
+  /* ── AI 深化能力（OCR 录入 / 风险预警 / 抽取复盘，均带规则兜底降级）── */
+
+  /** 资质 OCR 自动录入：识别证书/证件图片 → LLM 结构化 → 返回表单字段供前端回填。
+   *  OCR 服务不可用时抛 503 友好提示；LLM 不可用时返回原始识别文本（降级）。 */
+  async ocrIntake(imageBase64: string, mimeType = 'image/jpeg', filename = 'cert.jpg') {
+    if (!imageBase64) throw new BadRequestException({ error: '请提供证件图片', code: 'NO_IMAGE' });
+    if (!(await this.ocr.isAvailable())) {
+      throw new ServiceUnavailableException({ error: 'OCR 服务不可用，请启动 OCR 微服务（pnpm dev:ocr）或手动填写', code: 'OCR_UNAVAILABLE' });
+    }
+    const buffer = Buffer.from(imageBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    let text = '';
+    try {
+      const r = await this.ocr.ocrImage(buffer, mimeType, filename);
+      text = r.text ?? '';
+    } catch (err) {
+      new Logger(ExpertAdminService.name).warn(`OCR 识别失败: ${(err as Error)?.message ?? err}`);
+      throw new BadRequestException({ error: '证件识别失败，请确认图片清晰、完整且为 JPG/PNG 格式', code: 'OCR_FAILED' });
+    }
+    if (!text || text.trim().length < 2) throw new BadRequestException({ error: '未识别到文字，请确认图片清晰且为证件照', code: 'OCR_EMPTY' });
+
+    let fields: Record<string, string> = {};
+    try {
+      fields = await this.llm.chatJson<Record<string, string>>(
+        '你是证件证书信息抽取助手。从 OCR 文本中抽取字段并以 JSON 返回；无法确定的字段返回空字符串，绝不编造。',
+        '请从以下证件 OCR 文本抽取专家信息，返回 JSON：{"displayName":"姓名","gender":"性别","ethnicity":"民族","birthYear":"出生年份","education":"学历","title":"职称","specialty":"专业领域","employer":"工作单位","idNumber":"身份证号","phone":"手机号","licenseNo":"证书编号"}。\nOCR 文本：\n' + text.slice(0, 4000),
+        0,
+      ) ?? {};
+    } catch (err) {
+      new Logger(ExpertAdminService.name).warn(`OCR 结构化降级（LLM 不可用），返回原始文本: ${(err as Error)?.message ?? err}`);
+    }
+    return { rawText: text.slice(0, 2000), fields };
+  }
+
+  /** 评标风险预警：融合评分偏离度 + 履职评价 + 违规记录，生成专家级风险简报（规则简报为底，LLM 增强）。 */
+  async getRiskBrief(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { expertProfile: true } });
+    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
+
+    const [scoreRecords, evals, violations] = await Promise.all([
+      this.prisma.bidScoreRecord.findMany({ where: { expert: { userId } }, select: { score: true, scoreItemId: true, supplierId: true } }),
+      this.prisma.expertEvaluation.findMany({ where: { expertUserId: userId }, orderBy: { createdAt: 'desc' }, take: 10, select: { level: true, overallScore: true } }),
+      this.prisma.auditLog.findMany({ where: { action: 'EXPERT_VIOLATION_RECORDED', resourceId: userId }, select: { id: true } }),
+    ]);
+
+    const deviations = computeExpertMeanDeviations(
+      scoreRecords.map(r => ({ expertId: userId, scoreItemId: r.scoreItemId, supplierId: r.supplierId, score: Number(r.score) })),
+    );
+    const meanDeviation = deviations.length > 0 ? Math.round(deviations[0].meanDeviation * 10) / 10 : null;
+    const recentDCount = evals.filter(e => e.level === 'D').length;
+    const signals = {
+      meanDeviation,
+      deviationRisk: meanDeviation != null && Math.abs(meanDeviation) > 10 ? 'high' : meanDeviation != null && Math.abs(meanDeviation) > 6 ? 'medium' : 'low',
+      recentDCount,
+      violationCount: violations.length,
+      recentEvalAvg: evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.overallScore, 0) / evals.length) : null,
+    };
+    const ruleBrief = this.buildRuleRiskBrief(signals, user.displayName);
+
+    let aiBrief: string | null = null;
+    try {
+      aiBrief = await this.llm.chat(
+        '你是评标监督风险分析助手。根据专家履职数据给出简明中文风险简报（150字内），点明风险与处置建议，客观中立，不加格式符号。',
+        `专家：${user.displayName}。评分偏离度 ${signals.meanDeviation ?? '无数据'}（风险等级 ${signals.deviationRisk}）；近 ${evals.length} 次履职评价中 D 级 ${recentDCount} 次；违规记录 ${signals.violationCount} 条；近期评价均分 ${signals.recentEvalAvg ?? '无数据'}。`,
+        0.3,
+      );
+    } catch {
+      aiBrief = null; // LLM 不可用时以规则简报为准
+    }
+    return { expertId: userId, displayName: user.displayName, signals, ruleBrief, aiBrief };
+  }
+
+  private buildRuleRiskBrief(s: { meanDeviation: number | null; deviationRisk: string; recentDCount: number; violationCount: number; recentEvalAvg: number | null }, name: string): string {
+    const parts: string[] = [];
+    if (s.deviationRisk === 'high') parts.push(`评分偏离较大（${s.meanDeviation}），与评审共识存在偏差，建议重点关注或调整`);
+    else if (s.deviationRisk === 'medium') parts.push(`评分偏离略大（${s.meanDeviation}），建议关注`);
+    else parts.push(`评分偏离正常（${s.meanDeviation ?? '暂无数据'}）`);
+    if (s.recentDCount > 0) parts.push(`近期出现 ${s.recentDCount} 次 D 级履职评价，建议按退库规则研判`);
+    if (s.violationCount > 0) parts.push(`累计 ${s.violationCount} 条违规记录`);
+    if (s.recentEvalAvg != null) parts.push(`近期评价均分 ${s.recentEvalAvg}`);
+    return `${name}：${parts.join('；')}。`;
+  }
+
+  /** 抽取质量复盘：回顾某项目"最终专家组构成 vs 履职/进度表现"，LLM 生成复盘总结（失败给规则汇总）。 */
+  async retrospectExtraction(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true } });
+    if (!project) throw new NotFoundException('项目不存在');
+    const experts = await this.prisma.bidExpert.findMany({
+      where: { projectId },
+      select: {
+        expertName: true, expertRole: true, isLead: true, major: true, progress: true, invitationStatus: true,
+        user: { select: { expertEvaluations: { orderBy: { createdAt: 'desc' }, take: 1, select: { level: true, overallScore: true } } } },
+      },
+    });
+    const summary = {
+      projectName: project.name,
+      total: experts.length,
+      regular: experts.filter(e => e.expertRole === '正选').length,
+      alternative: experts.filter(e => e.expertRole === '候补').length,
+      declined: experts.filter(e => e.invitationStatus === 'declined').length,
+      avgProgress: experts.length > 0 ? Math.round(experts.reduce((s, e) => s + (e.progress ?? 0), 0) / experts.length) : 0,
+    };
+    const rows = experts.map(e => ({
+      name: e.expertName, role: e.expertRole, isLead: e.isLead, major: e.major,
+      progress: e.progress ?? 0, status: e.invitationStatus, latestEvalLevel: e.user?.expertEvaluations[0]?.level ?? null,
+    }));
+
+    let aiSummary: string | null = null;
+    try {
+      aiSummary = await this.llm.chat(
+        '你是专家抽取复盘分析助手。根据某项目专家组构成与履职数据，给出简明中文复盘（150字内）：评价本次抽取的合理性，并提出改进建议，不加格式符号。',
+        `项目「${project.name}」：专家 ${summary.total} 名（正选 ${summary.regular}、候补 ${summary.alternative}），拒绝 ${summary.declined} 名，平均进度 ${summary.avgProgress}%。成员：${rows.map(r => `${r.name}(${r.role}/${r.major},进度${r.progress}%,近期等级${r.latestEvalLevel ?? '无'})`).join('、')}`,
+        0.3,
+      );
+    } catch {
+      aiSummary = null;
+    }
+    return { summary, experts: rows, aiSummary };
   }
 
   /* ── 通知偏好（UserSettings.notificationPrefs）── */
@@ -1507,6 +1706,60 @@ export class ExpertAdminService {
     // if (c.recentProjects12m != null && c.recentProjects12m > 0) s += Math.min(5, c.recentProjects12m);
 
     return Math.max(0, Math.min(100, Math.round(s)));
+  }
+
+  /** 白名单纠偏：把 AI 推荐的专业归一化到候选库中真实存在（有候选）的专业，丢弃无候选专业并将其配额并入首位 */
+  private reconcileSpecialties(quotas: LlmSpecialtyQuota[], candidates: { specialty: string }[]): LlmSpecialtyQuota[] {
+    const available = [...new Set(candidates.map(c => (c.specialty || '').trim()).filter(Boolean))];
+    if (available.length === 0 || quotas.length === 0) return quotas;
+    const merged = new Map<string, LlmSpecialtyQuota>();
+    let dropped = 0;
+    for (const q of quotas) {
+      const name = (q.specialty || '').trim();
+      if (!name) { dropped += q.count; continue; }
+      const hit = available.find(a => a === name) ?? available.find(a => a.includes(name) || name.includes(a));
+      if (!hit) { dropped += q.count; continue; }
+      const ex = merged.get(hit);
+      if (ex) ex.count += q.count;
+      else merged.set(hit, { ...q, specialty: hit });
+    }
+    const list = [...merged.values()];
+    if (dropped > 0 && list.length > 0) list[0].count += dropped;
+    return list;
+  }
+
+  /** 语义召回：用「项目需求」与「专家专长(专业+职称+单位)」的向量相似度对匹配分微调（最高 +8）。
+   *  random 模式不干预（保公平）；embedding 不可用/失败时静默跳过，不阻断抽取。 */
+  private async applySemanticBoost(
+    scoreMap: Map<string, { matchScore: number; fitSpecialty: string; reason: string }>,
+    candidates: { id: string; specialty: string; title?: string; employer?: string }[],
+    scopeText: string,
+    mode: ExtractMode,
+  ): Promise<void> {
+    if (mode === 'random' || !scopeText || scopeText.trim().length < 4 || candidates.length === 0) return;
+    try {
+      const texts = [scopeText.slice(0, 1000), ...candidates.map(c => [c.specialty, c.title, c.employer].filter(Boolean).join(' '))];
+      const vectors = await this.embedding.embed(texts);
+      if (!Array.isArray(vectors) || vectors.length !== texts.length) return;
+      const [scopeVec, ...candVecs] = vectors;
+      candidates.forEach((c, i) => {
+        const sim = this.cosine(scopeVec, candVecs[i]);
+        if (sim <= 0) return;
+        const rec = scoreMap.get(c.id);
+        if (rec) rec.matchScore = Math.max(0, Math.min(100, rec.matchScore + Math.round(sim * 8)));
+      });
+    } catch (err) {
+      new Logger(ExpertAdminService.name).warn(`语义召回降级（embedding 不可用）: ${(err as Error)?.message ?? err}`);
+    }
+  }
+
+  /** 余弦相似度 */
+  private cosine(a: number[], b: number[]): number {
+    if (!a || !b || a.length === 0 || a.length !== b.length) return 0;
+    let dot = 0, na = 0, nb = 0;
+    for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+    if (na === 0 || nb === 0) return 0;
+    return dot / (Math.sqrt(na) * Math.sqrt(nb));
   }
 
   /** 归一化配额：使 count 之和 = totalNeeded */

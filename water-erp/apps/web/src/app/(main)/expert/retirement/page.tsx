@@ -13,7 +13,9 @@ export default function RetirementPage() {
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
   const [reason, setReason] = useState('');
-  const [confirming, setConfirming] = useState<string | null>(null);
+  // 退库二次确认
+  const [pendingRetire, setPendingRetire] = useState<{ id: string; name: string } | null>(null);
+  const [retiring, setRetiring] = useState(false);
 
   const load = async () => {
     setLoading(true); setErrored(false);
@@ -23,16 +25,23 @@ export default function RetirementPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const doRetire = async (id: string, name: string) => {
+  const openRetire = (id: string, name: string) => {
     if (!reason.trim()) { toast.error('请输入退库原因'); return; }
-    setConfirming(id);
+    setPendingRetire({ id, name });
+  };
+
+  const doRetire = async () => {
+    if (!pendingRetire || !reason.trim()) return;
+    const { id, name } = pendingRetire;
+    setRetiring(true);
     try {
       await confirmRetire(id, reason.trim());
       toast.success(`${name} 已退库`);
       setReason('');
+      setPendingRetire(null);
       load();
     } catch (e: any) { toast.error(e?.message || '退库失败'); }
-    setConfirming(null);
+    setRetiring(false);
   };
 
   return (
@@ -98,14 +107,46 @@ export default function RetirementPage() {
                 <p className="text-xs text-[var(--muted-foreground)] mt-0.5">预警原因：{c.reason}</p>
               </div>
               <button
-                onClick={() => doRetire(c.userId, c.displayName)}
-                disabled={confirming === c.userId || !reason.trim()}
+                onClick={() => openRetire(c.userId, c.displayName)}
+                disabled={!reason.trim() || retiring}
                 className="neu-btn-soft is-danger shrink-0"
               >
-                {confirming === c.userId ? '处理中...' : '确认退库'}
+                确认退库
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ══════ 退库二次确认 ══════ */}
+      {pendingRetire && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => !retiring && setPendingRetire(null)} />
+          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+            <div className="flex items-center gap-3">
+              <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"><UserX size={18} className="text-[var(--danger)]" /></div>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">确认退库</h3>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">退库后该专家将移出评审专家库，此操作不可撤销</p>
+              </div>
+            </div>
+            <hr className="wb-section-rule my-4" />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-[var(--muted-foreground)]">专家姓名</span>
+                <span className="text-sm font-semibold text-[var(--foreground)]">{pendingRetire.name}</span>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-[var(--muted-foreground)]">退库原因</span>
+                <p className="rounded-lg bg-[var(--muted)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground)]">{reason}</p>
+              </div>
+            </div>
+            <hr className="wb-section-rule my-4" />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setPendingRetire(null)} disabled={retiring} className="neu-btn-soft h-[38px]">取消</button>
+              <button onClick={doRetire} disabled={retiring} className="neu-btn-primary !h-[38px] is-danger">{retiring ? '处理中...' : '确认退库'}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

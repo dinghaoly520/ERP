@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useAutoSave } from '@/composables'
+import { uploadFile } from '@/api/upload'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -114,13 +115,21 @@ function addQualification() {
 }
 
 const uploadRefs: any[] = []
-function handleQualFileChange(index: number, e: Event) {
+// 真实上传资质文件到 MinIO（此前仅存 file.name 假路径，导致点击查看必 404）。
+// 存后端返回的 asset.url；上传失败则清空 fileUrl 并提示，避免提交一个不存在的文件。
+async function handleQualFileChange(index: number, e: Event) {
   const input = e.target as HTMLInputElement
   const file = input?.files?.[0]
   if (!file) return
   if (file.size > 50 * 1024 * 1024) { ElMessage.warning('文件不能超过50MB'); return }
-  qualifications.value[index].fileUrl = file.name
-  ElMessage.success(`已选择：${file.name}（注册后可在资质管理中补充）`)
+  try {
+    const asset = await uploadFile(file, 'qualification')
+    qualifications.value[index].fileUrl = asset.url
+    ElMessage.success(`已上传：${asset.originalName || file.name}`)
+  } catch (err: any) {
+    qualifications.value[index].fileUrl = ''
+    ElMessage.error(err?.message || '资质文件上传失败，请重试')
+  }
 }
 
 function removeQualification(index: number) {

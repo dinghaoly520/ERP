@@ -53,6 +53,11 @@ export class AuthController {
     const requestPortal = portalFromRequest(req);
     const result = await this.authService.login(dto, requestPortal);
     if (!result) throw new UnauthorizedException('用户名或密码错误');
+    // 待审核/停用账号：密码正确但不可登录，返回专用码供前端引导「查询审核进度」。
+    // pending 变体为字面量 pending:true，用 'pending' in result 判别即可让 TS 正确收窄类型。
+    if ('pending' in result) {
+      throw new UnauthorizedException({ error: '账号待审核，尚未激活', code: 'ACCOUNT_PENDING' });
+    }
     const cookiePortal = portalForRole(result.role) || portalFromRequest(req);
     res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
 

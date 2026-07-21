@@ -18,7 +18,8 @@ const DIMENSIONS: { key: keyof EvalScores; label: string; hint: string; max: num
 ];
 type EvalScores = { completenessScore: number; responsivenessScore: number; cooperationScore: number; complianceScore: number; overallScore: number };
 
-const DEFAULTS: EvalScores = { completenessScore: 16, responsivenessScore: 24, cooperationScore: 16, complianceScore: 16, overallScore: 8 };
+// 从 0 起评，而非预填≈80 分：避免评审者未逐维打分即误提交一份"默认好评"，污染均分与淘汰预警。
+const DEFAULTS: EvalScores = { completenessScore: 0, responsivenessScore: 0, cooperationScore: 0, complianceScore: 0, overallScore: 0 };
 
 export default function SupplierEvaluationPage() {
   const router = useRouter();

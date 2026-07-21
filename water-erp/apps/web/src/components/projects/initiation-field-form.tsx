@@ -130,7 +130,7 @@ export function InitiationFieldForm({
           onChange={(event) =>
             onChange({ ...values, requesterName: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
@@ -140,7 +140,7 @@ export function InitiationFieldForm({
           onChange={(event) =>
             onChange({ ...values, requesterDepartment: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)] md:col-span-2">
@@ -150,7 +150,7 @@ export function InitiationFieldForm({
           onChange={(event) =>
             onChange({ ...values, procurementTitle: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
@@ -163,10 +163,8 @@ export function InitiationFieldForm({
             onChange({ ...values, procurementMethod: event.target.value })
           }
           className={[
-            'rounded-[16px] bg-white/78 px-4 py-3',
-            values.procurementMethod
-              ? 'border border-white/60'
-              : 'border border-[rgba(215,89,89,0.36)] bg-[rgba(255,245,245,0.92)] text-[color:var(--danger)]',
+            'workbench-input w-full',
+            values.procurementMethod ? '' : 'is-invalid text-[color:var(--danger)]',
           ].join(' ')}
         >
           <option value="">请选择采购方式</option>
@@ -184,7 +182,7 @@ export function InitiationFieldForm({
           onChange={(event) =>
             onChange({ ...values, procurementCategory: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         >
           <option value="">请选择采购类别</option>
           {PROCUREMENT_CATEGORY_OPTIONS.map((option) => (
@@ -202,7 +200,7 @@ export function InitiationFieldForm({
           onChange={(event) =>
             onChange({ ...values, budgetAmount: Number(event.target.value) })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
@@ -211,7 +209,7 @@ export function InitiationFieldForm({
           type="text"
           value={values.initiationDate || '未识别'}
           readOnly
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3 text-[color:var(--muted-foreground)]"
+          className="workbench-input w-full text-[color:var(--muted-foreground)]"
         />
       </label>
       {/* 参考预算 */}
@@ -225,7 +223,7 @@ export function InitiationFieldForm({
           <button
             type="button"
             onClick={() => setShowReferencePopover(!showReferencePopover)}
-            className="relative w-full rounded-[16px] border border-[rgba(147,112,219,0.3)] bg-[rgba(147,112,219,0.04)] px-4 py-3 text-left"
+            className="neu-opt relative w-full px-4 py-3 text-left"
           >
             {loadingReference ? (
               <span className="flex items-center gap-2 text-[color:var(--muted-foreground)]">
@@ -233,7 +231,7 @@ export function InitiationFieldForm({
                 正在分析历史数据...
               </span>
             ) : referenceBudget !== null ? (
-              <span className="text-[rgba(147,112,219,1)] font-semibold">
+              <span className="text-[color:var(--accent-strong,var(--accent))] font-semibold">
                 {formatAmount(referenceBudget)}
                 {referenceReasoning && (
                   <span className="ml-2 text-[11px] font-normal text-[color:var(--muted-foreground)]">
@@ -255,15 +253,15 @@ export function InitiationFieldForm({
 
         {/* 参考项目列表弹窗 */}
         {showReferencePopover && referenceProjects.length > 0 && (
-          <div className="absolute z-50 mt-2 w-full max-w-full rounded-[16px] border border-white/60 bg-white/95 shadow-lg">
-            <div className="flex items-center justify-between border-b border-white/40 px-4 py-3">
+          <div className="neu-surface absolute z-50 mt-2 w-full max-w-full overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.12)] px-4 py-3">
               <span className="text-sm font-semibold text-[color:var(--foreground)]">
                 参考历史项目（{referenceProjects.length}个）
               </span>
               <button
                 type="button"
                 onClick={() => setShowReferencePopover(false)}
-                className="p-1 rounded-full hover:bg-white/60"
+                className="neu-opt h-7 w-7 grid place-items-center"
               >
                 <X size={14} />
               </button>
@@ -273,17 +271,17 @@ export function InitiationFieldForm({
                 {referenceProjects.map((project, index) => (
                   <div
                     key={index}
-                    className="rounded-[12px] border border-white/40 bg-white/60 px-3 py-2.5 text-sm"
+                    className="neu-surface px-3 py-2.5 text-sm"
                   >
                     <div className="font-medium text-[color:var(--foreground)] line-clamp-1">
                       {project.projectName}
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-[color:var(--muted-foreground)]">
-                      <span className="rounded-full bg-[rgba(96,139,239,0.08)] px-2 py-0.5">
+                      <span className="rounded-full bg-[var(--accent-tint)] px-2 py-0.5">
                         {project.procurementMethod}
                       </span>
                       <span>{project.departmentName}</span>
-                      <span className="text-[rgba(92,181,150,1)]">
+                      <span className="text-[var(--success)]">
                         成交: {formatAmount(project.awardAmount)}
                       </span>
                       <span className="text-[color:var(--muted-foreground)]">
@@ -304,7 +302,7 @@ export function InitiationFieldForm({
           onChange={(event) =>
             onChange({ ...values, projectReason: event.target.value })
           }
-          className="min-h-[120px] rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="neu-input text-sm min-h-[120px]"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)] md:col-span-2">
@@ -314,7 +312,7 @@ export function InitiationFieldForm({
           onChange={(event) =>
             onChange({ ...values, supplierRequirements: event.target.value })
           }
-          className="min-h-[120px] rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="neu-input text-sm min-h-[120px]"
         />
       </label>
     </div>

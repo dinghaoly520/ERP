@@ -4,8 +4,8 @@ import { useEffect, useRef, useId, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-type ModalSize = 'sm' | 'md' | 'lg';
-const SIZE_PX: Record<ModalSize, number> = { sm: 420, md: 560, lg: 720 };
+type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+const SIZE_PX: Record<ModalSize, number> = { sm: 420, md: 560, lg: 720, xl: 820 };
 
 type ModalProps = {
   open: boolean;
@@ -115,7 +115,8 @@ export function Modal({
         aria-labelledby={title ? titleId : undefined}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className={`relative w-full max-w-[min(${width}px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)] outline-none ${className}`}
+        style={{ maxWidth: `min(${width}px, 92vw)` }}
+        className={`relative w-full max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)] outline-none ${className}`}
       >
         <div className="flex items-start justify-between gap-4 pb-4">
           <div className="min-w-0">

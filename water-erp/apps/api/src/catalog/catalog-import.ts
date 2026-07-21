@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Readable } from 'stream';
 import { Workbook } from 'exceljs';
 
+import { CATALOG_STATUSES } from './dto';
 import type { CatalogItemAdminDto, CatalogStatus } from './dto';
 
 export interface CatalogImportRowResult {
@@ -140,7 +141,9 @@ function normalizeDate(value: unknown): string | null {
   const text = cellText(value);
   if (!text) return null;
   const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? text : parsed.toISOString();
+  // 非法日期绝不能原样穿透（否则 service 里 new Date(非法串) → Invalid Date → Prisma 抛错），统一置 null
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
 }
 
 function parseNumber(value: unknown, fallback: number, field: string, errors: string[]): number {
@@ -198,7 +201,18 @@ export function normalizeCatalogImportRow(
   data.freightIncluded = normalized.freightIncluded === undefined || cellText(normalized.freightIncluded) === ''
     ? false
     : parseBoolean(normalized.freightIncluded);
-  data.status = (cellText(normalized.status) || '有效') as CatalogStatus;
+  // status 必须落在枚举内，非法值计入该行错误、不入库（原先 `as CatalogStatus` 强转不校验）
+  const statusText = cellText(normalized.status) || '有效';
+  if (!(CATALOG_STATUSES as readonly string[]).includes(statusText)) {
+    errors.push(`status必须是 ${CATALOG_STATUSES.join('、')} 之一`);
+  }
+  data.status = statusText as CatalogStatus;
+
+  // validUntil 提供了但非法 → 计入该行错误（normalizeDate 会把它置 null，二者保持一致）
+  const validUntilText = cellText(normalized.validUntil);
+  if (validUntilText && Number.isNaN(new Date(validUntilText).getTime())) {
+    errors.push('validUntil必须是有效日期');
+  }
   data.validUntil = normalizeDate(normalized.validUntil);
   data.remark = cellText(normalized.remark) || null;
 

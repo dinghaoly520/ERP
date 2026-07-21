@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { listExperts, getExpertEvalStats, createExpertEvaluation, getExpertEvaluations, getExpertDimensionStats } from '@/lib/api/expert';
+import { listExperts, getExpertEvalStats, createExpertEvaluation, getExpertEvaluations, getExpertDimensionStats, getAiAdoptionRate } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvalStats } from '@/lib/api/expert';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { SortableTh } from '@/lib/hooks/use-sort';
@@ -26,6 +26,7 @@ export default function ExpertEvaluationPage() {
   const [dimStats, setDimStats] = useState<{ attendanceAvg: number; qualityAvg: number; disciplineAvg: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
@@ -40,7 +41,12 @@ export default function ExpertEvaluationPage() {
   const [aiError, setAiError] = useState('');
   const [aiSuggested, setAiSuggested] = useState(false);
 
-  const load = useCallback(async () => { setLoading(true); setErrored(false); try { setExperts(await listExperts({ search: search || undefined }) as ExpertListItem[]); } catch (e: any) { setErrored(true); toast.error(e?.message || '加载专家列表失败'); } setLoading(false); }, [search]);
+  // 搜索防抖：停止击键 300ms 后才发起请求，避免每次击键触发查询
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const load = useCallback(async () => { setLoading(true); setErrored(false); try { setExperts(await listExperts({ search: debouncedSearch || undefined }) as ExpertListItem[]); } catch (e: any) { setErrored(true); toast.error(e?.message || '加载专家列表失败'); } setLoading(false); }, [debouncedSearch]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { getExpertEvalStats().then(setStats).catch(() => toast.error('加载评价统计失败')); }, [experts.length]);
   useEffect(() => { getExpertDimensionStats().then(setDimStats).catch(() => toast.error('加载维度分布失败')); }, [experts.length]);
@@ -78,7 +84,7 @@ export default function ExpertEvaluationPage() {
     try {
       const [evals, adoption] = await Promise.all([
         getExpertEvaluations(target.id).catch(() => [] as any[]),
-        fetch(`http://localhost:4001/api/expert-admin/ai-adoption?expertId=${target.id}`, { credentials: 'include' }).then(r => r.json()).catch(() => null),
+        getAiAdoptionRate(target.id).catch(() => null),
       ]);
       // 从历史评价计算各维度均分，作为 AI 建议
       if (evals.length > 0) {
@@ -181,7 +187,7 @@ export default function ExpertEvaluationPage() {
                 <tr><td colSpan={7} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <p className="text-sm font-semibold text-[var(--danger)]">专家列表加载失败</p>
-                    <button onClick={load} className="neu-btn-xs is-info">重试</button>
+                    <button onClick={load} className="neu-btn-soft">重试</button>
                   </div>
                 </td></tr>
               ) : sortedExperts.length === 0 ? (

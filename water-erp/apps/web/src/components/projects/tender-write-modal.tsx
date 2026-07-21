@@ -32,7 +32,7 @@ import TenderReviewWorkspace from '@/components/tender-review/tender-review-work
 import { uploadReviewDocument, executeReview } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
 import { fetchKnowledgeBases } from '@/lib/api/knowledge';
-import { uploadProjectStageAttachment } from '@/lib/api/project-management';
+import { uploadProjectStageAttachment, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { buildTenderSectionProgress } from '@/lib/tender-write/progress';
 import type {
   ReadyTenderDocumentType,
@@ -52,9 +52,11 @@ type Props = {
   procurementMethod: string | null | undefined;
   projectTitle?: string;
   project: ProjectManagementItem | null;
+  /** 文件上传至项目阶段成功后回调，供父面板即时刷新附件列表（无需手动刷新页面） */
+  onAttachmentUploaded?: (result: UploadStageAttachmentResult) => void;
 };
 
-export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTitle, project }: Props) {
+export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTitle, project, onAttachmentUploaded }: Props) {
   const [exporting, setExporting] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -312,7 +314,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         const file = new File([result.blob], result.fileName, {
           type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
-        await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
+        const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
+        onAttachmentUploaded?.(uploaded);
         toast.success('采购文件已上传至项目采购文件阶段');
       } catch {
         // 上传失败不阻塞导出
@@ -323,7 +326,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       setExporting(false);
       setShowExportDialog(false);
     }
-  }, [selectedType, currentDraft, project]);
+  }, [selectedType, currentDraft, project, onAttachmentUploaded]);
 
   /** 导出并导入审查：生成 DOCX → 上传审查服务 → 启动审查 → 打开审查窗口。 */
   const handleExportAndReview = useCallback(async () => {
@@ -378,7 +381,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       const file = new File([result.blob], result.fileName, {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       });
-      await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
+      const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
+      onAttachmentUploaded?.(uploaded);
       toast.success('采购文件已提交至项目采购文件阶段');
       setShowReview(false);
       setSuccessMessage('已提交至项目阶段');
@@ -386,7 +390,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '提交失败');
     }
-  }, [selectedType, currentDraft, project]);
+  }, [selectedType, currentDraft, project, onAttachmentUploaded]);
 
   // ----------
 

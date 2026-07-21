@@ -13,6 +13,9 @@ dist/
 .worktrees/
 water-erp/apps/api/uploads/
 
+# 采购业务文档（PDF 标书/合同等，非代码，勿入库）
+/4.17*
+
 # Build artifacts & caches (auto-generated; do not track)
 *.tsbuildinfo
 next-env.d.ts

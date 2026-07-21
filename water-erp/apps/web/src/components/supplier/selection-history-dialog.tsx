@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock3, History, Loader2, Trash2, Search, RotateCcw } from "lucide-react";
+import { Clock3, History, Loader2, Trash2, Search, RotateCcw, X } from "lucide-react";
 import { getSelectionHistory, deleteSelectionHistory, restoreShortlist } from "@/lib/api/supplier";
 import type { SupplierSelectionHistoryRecord, SupplierRecommendation } from "@/lib/api/supplier";
 import { Modal } from "@/components/workbench";

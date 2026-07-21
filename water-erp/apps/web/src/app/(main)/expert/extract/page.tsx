@@ -3,11 +3,11 @@
 import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { STAGE_LABEL } from '@water-erp/shared';
-import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search } from 'lucide-react';
+import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, Columns2, ClipboardList } from 'lucide-react';
 
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 interface SpecialtyQuota { specialty: string; count: number; }
@@ -21,6 +21,8 @@ const MODE_DESCS: Record<ExtractMode, string> = {
   merit_best: '综合履职评价/偏离度/经验等多维度择优',
   manual: '直接搜索专家姓名/专业/单位，人工精确指定评审组成员',
 };
+// 可用于 A/B 对比的抽取模式（手动选取不参与自动抽取对比）
+const COMPARE_MODES: ApiExtractMode[] = ['specialty_match', 'random', 'merit_best'];
 
 export function ExpertExtractPage({
   hideHeader,
@@ -92,20 +94,34 @@ export function ExpertExtractPage({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyData, setHistoryData] = useState<{ total: number; page: number; pageSize: number; items: any[] } | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
+  // 抽取质量复盘
+  const [retrospect, setRetrospect] = useState<{ loading: boolean; data: Awaited<ReturnType<typeof retrospectExtraction>> | null } | null>(null);
   // 专家确认状态
   const [invitationData, setInvitationData] = useState<Awaited<ReturnType<typeof getProjectInvitations>> | null>(null);
   const autoAnalyzedRef = useRef(false);
+  // 会话恢复标记：本次 pid 由 sessionStorage 恢复写入时记录，[pid] effect 对该 pid 跳过一次重置
+  const restoredPidRef = useRef('');
+  // [pid] effect 是否已以非空 pid 真正执行过（首次挂载时状态均为初始值，无需重置）
+  const pidEffectRanRef = useRef(false);
   const storageKey = 'expert-extract-session';
 
-  // 步骤5：轮询专家确认状态
+  // 步骤5：轮询专家确认状态（全部邀请达终态后停止轮询）
   useEffect(() => {
     if (step !== 5 || !pid) return;
+    let timer: ReturnType<typeof setInterval> | undefined;
     const poll = async () => {
-      try { setInvitationData(await getProjectInvitations(pid)); } catch {}
+      try {
+        const data = await getProjectInvitations(pid);
+        setInvitationData(data);
+        // 所有邀请均为终态（confirmed/declined，无 pending）时清除轮询定时器
+        if (data.experts.length > 0 && data.experts.every(e => e.invitationStatus !== 'pending') && timer) {
+          clearInterval(timer);
+        }
+      } catch {}
     };
     poll();
-    const t = setInterval(poll, 5000);
-    return () => clearInterval(t);
+    timer = setInterval(poll, 5000);
+    return () => clearInterval(timer);
   }, [step, pid]);
 
   // 状态变更时自动保存到 sessionStorage（页面切换后恢复）
@@ -126,7 +142,7 @@ export function ExpertExtractPage({
       const raw = sessionStorage.getItem(storageKey);
       if (!raw || autoAnalyzedRef.current) return;
       const snap = JSON.parse(raw);
-      if (snap.pid) setPid(snap.pid);
+      if (snap.pid) { restoredPidRef.current = snap.pid; setPid(snap.pid); }
       if (snap.extractMode) setExtractMode(snap.extractMode);
       if (snap.quotas?.length) setQuotas(snap.quotas);
       if (snap.selectedExperts?.length) setSelectedExperts(snap.selectedExperts);
@@ -165,6 +181,8 @@ export function ExpertExtractPage({
       p => p.name === defaultProjectTitle || p.name.includes(defaultProjectTitle) || defaultProjectTitle.includes(p.name),
     );
     if (!match) return;
+    // 会话已恢复同一项目的抽取状态（名单/预览/完成态）时不再自动重抽覆盖
+    if (match.id === pid && (preview || selectedExperts.length > 0 || done)) return;
     autoAnalyzedRef.current = true;
     setPid(match.id);
 
@@ -213,6 +231,12 @@ export function ExpertExtractPage({
   useEffect(() => {
     if (!pid) { setPd(null); return; }
     getBidProjectDetail(pid).then(setPd).catch(() => setPd(null));
+    const firstRealRun = !pidEffectRanRef.current;
+    pidEffectRanRef.current = true;
+    // 跳过重置的两种情形：
+    // 1) 首次以非空 pid 执行（挂载时各状态均为初始值，无内容可清）；
+    // 2) 该 pid 来自 sessionStorage 恢复——必须保留刚恢复的名单/预览/完成态，否则恢复等于无效
+    if (firstRealRun || restoredPidRef.current === pid) { restoredPidRef.current = ''; return; }
     // 切换项目后清空已选专家和抽取结果，避免跨项目混淆
     setSelectedExperts([]);
     setAlternativeExperts([]);
@@ -359,9 +383,15 @@ export function ExpertExtractPage({
 
   const sendNotify = async () => {
     if (confirmedExpertIds.length === 0) return;
+    // 开标时间必填校验：留空会导致文案中的时间占位无法替换
+    if (!openTimeDate || !openTimeTime) {
+      toast.warning('请先填写开标日期与时间（必填）后再发送通知');
+      return;
+    }
     setNotifying(true);
     try {
       const allResults: any[] = [];
+      let sentCount = 0;
       for (const eid of confirmedExpertIds) {
         const msg = notifyMessages.get(eid) || '';
         if (!msg) continue;
@@ -369,13 +399,19 @@ export function ExpertExtractPage({
         if (channels.length === 0) continue;
         const result = await sendExtractionNotify({ projectId: pid, expertIds: [eid], channels, message: msg });
         if (result.results) allResults.push(...result.results);
+        sentCount++;
+      }
+      // 全员无文案时实际 0 条发送：不置完成态、不进步骤5，提示用户先生成文案
+      if (sentCount === 0) {
+        toast.warning('未发送任何通知：无可用通知文案，请先生成文案');
+        return;
       }
       setNotifyResults(allResults);
       setDone(true);
       setStep(5);
-      toast.success(`通知已发送（${confirmedExpertIds.length} 名专家）`);
+      toast.success(`通知已发送（${sentCount} 名专家）`);
     } catch (e: any) { toast.error(e?.message || '通知发送失败'); }
-    setNotifying(false);
+    finally { setNotifying(false); }
   };
 
   const toggleChannelForExpert = (expertId: string, ch: string) => {
@@ -395,6 +431,18 @@ export function ExpertExtractPage({
       setHistoryData(data);
     } catch { setHistoryData(null); }
     setHistoryLoading(false);
+  };
+
+  // 抽取质量复盘（AI 总结，失败降级）
+  const openRetrospect = async (projectId: string) => {
+    setRetrospect({ loading: true, data: null });
+    try {
+      const data = await retrospectExtraction(projectId);
+      setRetrospect({ loading: false, data });
+    } catch (e: any) {
+      toast.error(e?.message || '复盘生成失败');
+      setRetrospect(null);
+    }
   };
 
   // 手动调整
@@ -783,12 +831,54 @@ export function ExpertExtractPage({
             {/* 抽取模式 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(Object.entries(MODE_LABELS) as [ExtractMode, string][]).map(([key, label]) => (
-                <button key={key} onClick={() => setExtractMode(key)} className={`neu-tab flex-col gap-0.5 py-2.5 ${extractMode === key ? 'is-active' : ''}`}>
+                <button
+                  key={key}
+                  onClick={() => {
+                    setExtractMode(key);
+                    // 避免方案 A/B 抽中同一模式导致对比无意义
+                    if (key === compareMode2) setCompareMode2(COMPARE_MODES.find(m => m !== key) ?? compareMode2);
+                  }}
+                  className={`neu-tab flex-col gap-0.5 py-2.5 ${extractMode === key ? 'is-active' : ''}`}
+                >
                   <span className="text-xs font-bold">{label}</span>
                   <span className="text-[10px] text-[var(--muted-foreground)] leading-tight">{MODE_DESCS[key]}</span>
                 </button>
               ))}
             </div>
+
+            {/* 对比模式（A/B）：并行执行两种抽取方案，抽取后在审核步择优采用 */}
+            {extractMode !== 'manual' && (
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface)] px-3 py-2.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--foreground)]">
+                    <Columns2 size={13} className="shrink-0 text-[var(--accent)]" />对比模式（A/B）
+                    {compareMode && <StatusBadge tone="blue">已开启</StatusBadge>}
+                  </div>
+                  <p className="mt-0.5 text-[10px] leading-tight text-[var(--muted-foreground)]">
+                    {compareMode
+                      ? `抽取时并行执行「${MODE_LABELS[extractMode]}（A）」与「${MODE_LABELS[compareMode2]}（B）」，完成后对比择优采用`
+                      : '同时执行两种抽取方案，对比正选/候补构成与平均匹配度后择优采用'}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {compareMode && (
+                    <label className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--muted-foreground)]">
+                      方案 B
+                      <select value={compareMode2} onChange={e => setCompareMode2(e.target.value as ExtractMode)} className="neu-input !h-8 !w-auto text-xs">
+                        {COMPARE_MODES.filter(m => m !== extractMode).map(m => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  <button
+                    onClick={() => { const next = !compareMode; setCompareMode(next); if (!next) setCompareResult2(null); }}
+                    className={`neu-btn-xs ${compareMode ? 'is-active' : ''}`}
+                    title={compareMode ? '关闭对比模式' : '开启后开始抽取将同时生成 A/B 两个方案'}
+                  >
+                    {compareMode ? '关闭对比' : '开启对比'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* 专业配额 */}
             {extractMode === 'specialty_match' && (
@@ -1272,6 +1362,14 @@ export function ExpertExtractPage({
                             </div>
                           )}
                         </div>
+                        <button
+                          onClick={() => item.resourceId && openRetrospect(item.resourceId)}
+                          disabled={!item.resourceId}
+                          className="neu-btn-xs shrink-0"
+                          title="对本次抽取做质量复盘"
+                        >
+                          <ClipboardList size={12} />复盘
+                        </button>
                       </div>
                     </div>
                   );
@@ -1303,6 +1401,58 @@ export function ExpertExtractPage({
                 </div>
               )}
             </>
+          )}
+        </Modal>
+      )}
+
+      {retrospect && (
+        <Modal
+          open
+          onClose={() => setRetrospect(null)}
+          size="md"
+          title={
+            <span className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-[10px] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258/0.12),inset_-2px_-2px_5px_oklch(1_0_0/0.55)]">
+                <ClipboardList size={15} className="text-[var(--accent)]" />
+              </span>
+              抽取质量复盘
+            </span>
+          }
+          description={retrospect.data ? retrospect.data.summary.projectName : '回顾专家组构成与履职表现'}
+        >
+          {retrospect.loading || !retrospect.data ? (
+            <div className="flex items-center justify-center gap-2 py-14 text-sm font-bold text-[var(--accent)]">
+              <RefreshCw size={14} className="animate-spin" />正在生成复盘...
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['专家总数', retrospect.data.summary.total],
+                  ['平均进度', `${retrospect.data.summary.avgProgress}%`],
+                  ['拒绝人数', retrospect.data.summary.declined],
+                ] as [string, string | number][]).map(([label, value]) => (
+                  <div key={label} className="rounded-[12px] bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-3 py-2.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.65),1.5px_1.5px_3px_oklch(0.55_0.03_258/0.08),-1px_-1px_2.5px_oklch(1_0_0/0.8)]">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</div>
+                    <div className="text-[1.3rem] font-black tabular-nums text-[var(--foreground)]">{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--surface)_55%,transparent)] p-3.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.6),1px_1px_2.5px_oklch(0.55_0.03_258/0.07),-1px_-1px_2px_oklch(1_0_0/0.75)]">
+                <div className="mb-1.5 text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">复盘总结{retrospect.data.aiSummary ? '（AI）' : '（规则）'}</div>
+                <p className="text-sm leading-relaxed text-[var(--foreground)]">
+                  {retrospect.data.aiSummary || `本项目共组建 ${retrospect.data.summary.total} 人专家组（正选 ${retrospect.data.summary.regular}、候补 ${retrospect.data.summary.alternative}），平均完成进度 ${retrospect.data.summary.avgProgress}%。`}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {retrospect.data.experts.map((e, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 rounded-[7px] bg-[color-mix(in_oklch,var(--surface)_50%,transparent)] px-2 py-0.5 text-[10px] font-medium text-[var(--foreground)] shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5),0.5px_0.5px_1.5px_oklch(0.55_0.03_258/0.06)]">
+                    {e.name}
+                    <span className="text-[var(--muted-foreground)]/70">{e.role}·{e.major}·进度{e.progress}%{e.latestEvalLevel ? `·${e.latestEvalLevel}级` : ''}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
         </Modal>
       )}

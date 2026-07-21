@@ -1,14 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { LlmService } from '../local-ai/llm.service';
 
 /* =================================================================
-   专家智能抽取 — DeepSeek LLM 分析引擎
+   专家智能抽取 — LLM 分析引擎（统一走 LlmService 网关）
    AI 负责"理解项目 + 评估专家匹配度 + 推荐专家组构成"，
    "谁中选"由调用方的确定层决定（模式驱动：专业匹配/随机/综合择优）。
-   无 key / 失败时返回 undefined，调用方降级到规则评分。
+   无 key / 失败时抛错，调用方（previewExtraction）降级到规则评分。
    ================================================================= */
-
-const DEEPSEEK_API_URL = process.env.DEEPSEEK_API_URL ?? 'https://api.deepseek.com';
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash';
 
 /** 送入 LLM 的合规候选专家（含多维度履职数据） */
 export interface ExtractionCandidate {
@@ -60,6 +58,50 @@ export type ExtractMode = 'specialty_match' | 'random' | 'merit_best';
 @Injectable()
 export class ExpertExtractionAiService {
   private readonly logger = new Logger(ExpertExtractionAiService.name);
+  /** 通知文案缓存（按项目维度去重，省 token）：key → {content, at} */
+  private readonly notifyCache = new Map<string, { content: string; at: number }>();
+  private static readonly NOTIFY_CACHE_TTL = 30 * 60 * 1000;
+  /** 轻量可观测指标（内存态，供 ai-adoption 端点输出） */
+  private metrics = {
+    llmCalls: 0,
+    llmErrors: 0,
+    fallbackCount: 0,
+    lastLatencyMs: null as number | null,
+    lastModel: null as string | null,
+  };
+
+  constructor(private readonly llm: LlmService) {}
+
+  /** 可观测快照（含当前模型名） */
+  getMetrics() {
+    return { ...this.metrics, model: this.llm.getModel() };
+  }
+
+  /** 规则降级计数（由 previewExtraction 在降级时调用） */
+  recordFallback() {
+    this.metrics.fallbackCount += 1;
+  }
+
+  /** 带指数退避的 chatJson 重试（2 次额外重试），并记录耗时/模型 */
+  private async chatJsonWithRetry<T>(system: string, user: string, temperature: number, attempts = 3): Promise<T> {
+    let lastErr: unknown;
+    for (let i = 0; i < attempts; i++) {
+      const start = Date.now();
+      try {
+        this.metrics.llmCalls += 1;
+        const result = await this.llm.chatJson<T>(system, user, temperature);
+        this.metrics.lastLatencyMs = Date.now() - start;
+        this.metrics.lastModel = this.llm.getModel();
+        return result;
+      } catch (err) {
+        lastErr = err;
+        this.metrics.llmErrors += 1;
+        this.logger.warn(`LLM chatJson 第 ${i + 1}/${attempts} 次失败: ${(err as Error)?.message ?? err}`);
+        if (i < attempts - 1) await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  }
 
   async analyzeAndScore(
     project: { name: string; procurementMethod: string; procurementType?: string; scope: string; budget?: number | string },
@@ -103,41 +145,23 @@ export class ExpertExtractionAiService {
 
     const system = this.buildSystemPrompt(extractMode, totalNeeded);
 
+    const userPrompt =
+      `招标项目：${project.name}\n` +
+      `采购方式：${project.procurementMethod}${project.procurementType ? '（' + project.procurementType + '）' : ''}\n` +
+      `项目概况/范围：${project.scope}\n` +
+      (project.budget ? `预算：${project.budget}\n` : '') +
+      `\n合规候选专家清单（编号 | 姓名 | 专业 | 职称 | 单位 | 历史项目 | 历史评分 | 履职等级 | 出勤 | 质量 | 廉洁 | 偏离度 | 近期次数 | 负荷状态）：\n${lines.join('\n')}`;
+
+    let parsed: any;
     try {
-      const response = await fetch(`${DEEPSEEK_API_URL.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: DEEPSEEK_MODEL,
-          messages: [
-            { role: 'system', content: system },
-            {
-              role: 'user',
-              content:
-                `招标项目：${project.name}\n` +
-                `采购方式：${project.procurementMethod}${project.procurementType ? '（' + project.procurementType + '）' : ''}\n` +
-                `项目概况/范围：${project.scope}\n` +
-                (project.budget ? `预算：${project.budget}\n` : '') +
-                `\n合规候选专家清单（编号 | 姓名 | 专业 | 职称 | 单位 | 历史项目 | 历史评分 | 履职等级 | 出勤 | 质量 | 廉洁 | 偏离度 | 近期次数 | 负荷状态）：\n${lines.join('\n')}`,
-            },
-          ],
-          temperature: 0.2,
-          max_tokens: 8000,
-        }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        this.logger.warn(`DeepSeek expert-extraction failed: ${response.status} ${errText}`);
-        throw new Error(`AI 服务响应失败（HTTP ${response.status}）`);
-      }
-
-      const data = await response.json();
-      const content: string | undefined = data?.choices?.[0]?.message?.content;
-      if (typeof content !== 'string') throw new Error('AI 未返回有效文本内容');
-
-      const parsed = this.parseJson(content);
-      if (!parsed) throw new Error('AI 返回数据解析失败（非 JSON 格式）');
+      // 统一走 LlmService 网关（response_format 结构化 JSON + 重试 + 耗时埋点）
+      parsed = await this.chatJsonWithRetry<any>(system, userPrompt, 0.2);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`DeepSeek expert-extraction error: ${msg}`);
+      throw new Error(`AI 抽取失败：${msg}`);
+    }
+    if (!parsed) throw new Error('AI 返回数据解析失败（非 JSON 格式）');
 
       const scoredExperts: LlmExpertScore[] = Array.isArray(parsed.scoredExperts)
         ? parsed.scoredExperts
@@ -160,18 +184,13 @@ export class ExpertExtractionAiService {
             .filter((q: LlmSpecialtyQuota) => q.specialty && q.count > 0)
         : [];
 
-      if (scoredExperts.length === 0 && requiredSpecialties.length === 0) throw new Error('AI 未返回有效评分数据');
+    if (scoredExperts.length === 0 && requiredSpecialties.length === 0) throw new Error('AI 未返回有效评分数据');
 
-      return {
-        analysis: String(parsed.analysis || '').slice(0, 500),
-        requiredSpecialties,
-        scoredExperts,
-      };
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`DeepSeek expert-extraction error: ${msg}`);
-      throw new Error(`AI 抽取失败：${msg}`);
-    }
+    return {
+      analysis: String(parsed.analysis || '').slice(0, 500),
+      requiredSpecialties,
+      scoredExperts,
+    };
   }
 
   /** 按抽取模式构建不同的 system prompt */
@@ -219,16 +238,7 @@ export class ExpertExtractionAiService {
     ].join('\n');
   }
 
-  private parseJson(content: string): any | undefined {
-    try { return JSON.parse(content); } catch { /* not pure json */ }
-    const cleaned = content.replace(/```json/gi, '').replace(/```/g, '').trim();
-    try { return JSON.parse(cleaned); } catch { /* fall through */ }
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) { try { return JSON.parse(match[0]); } catch { /* ignore */ } }
-    return undefined;
-  }
-
-  /** AI 生成单专家个性化通知内容 */
+  /** AI 生成单专家个性化通知内容（按项目维度缓存去重 + 占位符校验，走 LlmService 网关） */
   async generateNotification(params: {
     projectName: string;
     expertName: string;
@@ -237,13 +247,13 @@ export class ExpertExtractionAiService {
     extractMode: string;
     openTime: string;
   }): Promise<string | null> {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      this.logger.warn('DEEPSEEK_API_KEY not configured, cannot generate notification via AI');
-      return null;
+    // 缓存去重：通知模板只与项目/角色/人数/开标时间相关（占位符 [[专家姓名]] 原样保留，不按个人区分）
+    const cacheKey = [params.projectName, params.isLead ? 'lead' : 'member', params.totalExperts, params.extractMode, params.openTime || ''].join('|');
+    const cached = this.notifyCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < ExpertExtractionAiService.NOTIFY_CACHE_TTL) {
+      return cached.content;
     }
 
-    const roleText = params.isLead ? '评审组长' : '评审专家组成员';
     const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
     const prompt = `你是四川水发集团采购中心的评审专家邀请通知撰写人。请撰写一封评审邀请通知模板。
 
@@ -264,29 +274,31 @@ export class ExpertExtractionAiService {
 - 直接输出通知全文，不要加任何前缀、说明或标头`;
 
     try {
-      const response = await fetch(`${DEEPSEEK_API_URL.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: DEEPSEEK_MODEL,
-          messages: [
-            { role: 'system', content: '你是一位专业的政府企业采购评审管理专家，擅长撰写正式、诚恳的通知文书。' },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.5,
-          max_tokens: 1200,
-        }),
-      });
-
-      if (!response.ok) {
-        this.logger.warn(`DeepSeek notification generation failed: ${response.status}`);
-        return null;
+      this.metrics.llmCalls += 1;
+      const start = Date.now();
+      const raw = await this.llm.chat(
+        '你是一位专业的政府企业采购评审管理专家，擅长撰写正式、诚恳的通知文书。',
+        prompt,
+        0.5,
+      );
+      this.metrics.lastLatencyMs = Date.now() - start;
+      this.metrics.lastModel = this.llm.getModel();
+      let content = typeof raw === 'string' ? raw.trim() : '';
+      if (!content) return null;
+      // 占位符校验：模型若漏掉 [[专家姓名]]，自动补默认抬头，保证后续按人替换不失效
+      if (!content.includes('[[专家姓名]]')) {
+        this.logger.warn('AI 通知缺失 [[专家姓名]] 占位符，已自动补默认抬头');
+        content = `[[专家姓名]]专家您好！\n${content}`;
       }
-
-      const data = await response.json();
-      const content: string | undefined = data?.choices?.[0]?.message?.content;
-      return typeof content === 'string' ? content.trim() : null;
+      this.notifyCache.set(cacheKey, { content, at: Date.now() });
+      // 缓存上限保护（LRU 近似：淘汰最早一条）
+      if (this.notifyCache.size > 200) {
+        const oldest = [...this.notifyCache.entries()].sort((a, b) => a[1].at - b[1].at)[0]?.[0];
+        if (oldest) this.notifyCache.delete(oldest);
+      }
+      return content;
     } catch (err) {
+      this.metrics.llmErrors += 1;
       this.logger.warn(`DeepSeek notification generation error: ${String(err)}`);
       return null;
     }

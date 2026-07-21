@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { SupplierService } from './supplier.service';
 import { AuthGuard } from '../auth/auth.guard';
@@ -37,6 +37,17 @@ export class SupplierController {
     return this.supplierService.getRegisterStatus(req.user.sub);
   }
 
+  // 公开（无需登录）：注册后、审批前，供应商凭统一社会信用代码查询审核进度。
+  // 仅回传 name/status/rejectReason，不泄漏敏感字段；按信用代码精确匹配，不可枚举。
+  @Get('register/status/public')
+  @Public()
+  @ApiOperation({ summary: '凭信用代码公开查询注册审核进度' })
+  async getRegisterStatusPublic(@Query('creditCode') creditCode?: string) {
+    const code = (creditCode ?? '').trim();
+    if (!code) throw new BadRequestException({ error: '请提供统一社会信用代码', code: 'MISSING_CREDIT_CODE' });
+    return this.supplierService.getRegisterStatusByCreditCode(code);
+  }
+
   @Get('stats')
   @ApiOperation({ summary: '供应商统计数据（Dashboard用）' })
   async getStats() {
@@ -44,8 +55,10 @@ export class SupplierController {
   }
 
   @Get('list')
-  @ApiOperation({ summary: '供应商库列表' })
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: '供应商库列表（supplier 角色仅见本企业，杜绝枚举他企与主联系人 PII）' })
   async list(
+    @Request() req: any,
     @Query('status') status?: string,
     @Query('classificationId') classificationId?: string,
     @Query('search') search?: string,
@@ -62,6 +75,7 @@ export class SupplierController {
       status, classificationId, search, page, pageSize, sort,
       enterpriseTypes: enterpriseTypes ? enterpriseTypes.split(',').filter(Boolean) : undefined,
       dateFrom, dateTo, evalLevel, qualificationStatus,
+      scopeUserId: req?.user?.role === 'supplier' ? req.user.sub : undefined,
     });
   }
 
@@ -125,7 +139,7 @@ export class SupplierController {
   @Put(':id/classifications')
   @UseGuards(AuthGuard)
   @Roles('admin', 'procurement_staff', 'leader', 'staff')
-  @ApiOperation({ summary: '设置供应商的分类标签（替换全部）' })
+  @ApiOperation({ summary: '设置供应商的分类标签（替换全部，仅采购侧角色）' })
   async setSupplierClassifications(
     @Param('id') id: string,
     @Body() dto: { classificationIds: string[] },
@@ -185,9 +199,15 @@ export class SupplierController {
   // ─── 动态路由 ───
 
   @Get(':id')
-  @ApiOperation({ summary: '供应商详情' })
-  async get(@Param('id') id: string) {
-    return this.supplierService.get(id);
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: '供应商详情（supplier 角色仅见本企业，防跨企枚举与联系人 PII 泄露）' })
+  async get(@Param('id') id: string, @Request() req: any) {
+    const detail = await this.supplierService.get(id);
+    // get() 用 include 返回关联 user，供应商归属 userId 在 detail.user.id（标量 userId 不在 select 顶层）。
+    if (req?.user?.role === 'supplier' && detail?.user?.id && detail.user.id !== req.user.sub) {
+      throw new ForbiddenException({ error: '只能查看本企业详情', code: 'FORBIDDEN' });
+    }
+    return detail;
   }
 
   @Post(':id/approve')
@@ -220,7 +240,18 @@ export class SupplierController {
     @Body() dto: UpdateSupplierStatusDto,
     @Request() req: any,
   ) {
+    // 运行时枚举校验：@Query 无 class-validator 校验，非法值会让 Prisma 抛 500。
+    if (status !== 'DISABLED' && status !== 'BLACKLIST') {
+      throw new BadRequestException({ error: 'status 仅可为 DISABLED 或 BLACKLIST', code: 'INVALID_STATUS' });
+    }
     return this.supplierService.updateStatus(id, status, dto.reason, req.user?.sub);
+  }
+
+  @Post(':id/restore')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '恢复/解禁供应商（停用或黑名单 → 已入库）' })
+  async restoreStatus(@Param('id') id: string, @Request() req: any) {
+    return this.supplierService.restoreStatus(id, req.user?.sub);
   }
 
   @Get(':id/changes')
@@ -259,21 +290,24 @@ export class SupplierController {
   }
 
   @Post(':id/qualifications')
-  @UseGuards(OwnerGuard)
-  @ApiOperation({ summary: '上传资质材料' })
+  @UseGuards(AuthGuard, OwnerGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff', 'supplier')
+  @ApiOperation({ summary: '上传资质材料（supplier 仅本企业；他角色须采购侧）' })
   async addQualification(@Param('id') id: string, @Body() dto: CreateQualificationDto, @Request() req: any) {
     if (req.user.role === 'supplier') {
       const supplier = await this.prisma.supplier.findUnique({ where: { userId: req.user.sub } });
       if (!supplier || supplier.id !== id) {
-        return { statusCode: 403, code: 'FORBIDDEN', error: '只能上传自己的资质材料' };
+        // 抛真实 403，而非 HTTP200+body403，使前端拦截器能统一捕获。
+        throw new ForbiddenException({ error: '只能上传自己的资质材料', code: 'FORBIDDEN' });
       }
     }
     return this.supplierService.addQualification(id, dto);
   }
 
   @Delete(':id/qualifications/:qid')
-  @UseGuards(OwnerGuard)
-  @ApiOperation({ summary: '删除资质材料' })
+  @UseGuards(AuthGuard, OwnerGuard)
+  @Roles('admin', 'procurement_staff', 'leader', 'staff', 'supplier')
+  @ApiOperation({ summary: '删除资质材料（supplier 仅本企业；他角色须采购侧）' })
   async deleteQualification(@Param('id') id: string, @Param('qid') qid: string) {
     return this.supplierService.deleteQualification(id, qid);
   }
@@ -287,9 +321,10 @@ export class SupplierController {
 
   @Post(':id/evaluations')
   @UseGuards(AuthGuard)
-  @ApiOperation({ summary: '发起评价（任何登录用户均可评价，系统记录评价人）' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @ApiOperation({ summary: '发起评价（采购侧角色；supplier 角色禁止评价，杜绝自评刷分）' })
   async createEvaluation(@Param('id') id: string, @Body() dto: CreateEvaluationDto, @Request() req: any) {
-    return this.supplierService.createEvaluation(id, req.user.sub, dto);
+    return this.supplierService.createEvaluation(id, req.user.sub, dto, req.user.role);
   }
 
   @Get(':id/portrait')

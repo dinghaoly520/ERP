@@ -1,4 +1,6 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
 import { NotificationService } from '../notification/notification.service';
@@ -11,7 +13,7 @@ import type {
   SupplierRecommendation,
   SupplierSelectionResult,
 } from './ai.types';
-import { computeRiskFactors, riskLevel } from './risk-score.compute';
+import { computeRiskFactors, riskLevel, predictDefaultRisk } from './risk-score.compute';
 import { buildCalibration } from '../ai-bid-analysis/utils/calibration';
 
 /* =================================================================
@@ -64,6 +66,55 @@ export class AiService {
 只输出润色后的文本，不要添加任何解释或标记。`;
 
     const input = text + projectContext;
+    const polished = await this.llm.chat(system, input, 0.3);
+    return { polished: polished.trim() || text };
+  }
+
+  /**
+   * 优化立项事由 / 供方要求 —— 基于已上传的采购需求表与采购立项申请表原文
+   * 对用户当前填写的内容进行润色、补全、规范化。
+   */
+  async polishInitiationField(params: {
+    field: 'projectReason' | 'supplierRequirements';
+    text: string;
+    demandDocText?: string;
+    initiationDocText?: string;
+    projectContext?: { title?: string; category?: string; method?: string };
+  }): Promise<{ polished: string }> {
+    const { field, text, demandDocText, initiationDocText, projectContext } = params;
+    const fieldLabel = field === 'projectReason' ? '立项事由' : '供方要求';
+
+    const docParts: string[] = [];
+    if (initiationDocText?.trim()) {
+      docParts.push(`【采购立项申请表 原文】\n${initiationDocText.trim()}`);
+    }
+    if (demandDocText?.trim()) {
+      docParts.push(`【采购需求表 原文】\n${demandDocText.trim()}`);
+    }
+    const docContext = docParts.length > 0
+      ? `\n\n以下是已上传的原始文档内容，请作为优化依据（不要照抄，而是抽取关键信息融入优化结果）：\n${docParts.join('\n\n')}`
+      : '';
+
+    const ctxParts: string[] = [];
+    if (projectContext?.title) ctxParts.push(`采购事项名称：${projectContext.title}`);
+    if (projectContext?.category) ctxParts.push(`采购类别：${projectContext.category}`);
+    if (projectContext?.method) ctxParts.push(`采购方式：${projectContext.method}`);
+    const ctxLine = ctxParts.length > 0 ? `\n\n【项目背景】\n${ctxParts.join('\n')}` : '';
+
+    const fieldGuide = field === 'projectReason'
+      ? `「立项事由」应说明：项目背景与必要性、采购目标、预期成效，行文正式、逻辑清晰，一般 150-400 字。`
+      : `「供方要求」应说明：对供应商的资质、业绩、技术能力、服务、交付等方面的核心要求，条理清晰、可量化处尽量量化。`;
+
+    const system = `你是一名政府采购招标文件撰写专家。请优化用户填写的「${fieldLabel}」内容：
+1. 修正语法错误、错别字和不规范表达
+2. 结合上传的原始文档抽取关键信息，补全用户遗漏但应有的内容
+3. ${fieldGuide}
+4. 保持专业、正式的政府采购文风，避免口语化
+5. 不要输出标题、编号或分节标记，直接输出正文内容
+6. 如果用户原文已经完善，仅做轻微润色即可，不要过度改写
+只输出优化后的文本，不要添加任何解释、前后缀或标记。`;
+
+    const input = `当前「${fieldLabel}」内容：\n${text}${ctxLine}${docContext}`;
     const polished = await this.llm.chat(system, input, 0.3);
     return { polished: polished.trim() || text };
   }
@@ -271,7 +322,11 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     return {
       supplierName: supplier.supplierName,
       generatedAt: new Date().toISOString(),
-      model: 'WaterERP-AI v2.0 (Rules + Statistics Engine)',
+      // 诚实标注：本接口为「规则预检」，非大模型结论——此前以 "WaterERP-AI" 名义呈现 hash 模拟数据会误导评标专家。
+      model: '规则预检引擎 v2.0（Rules + Statistics，非 LLM）',
+      isAi: false,
+      methodology:
+        '本结果为确定性规则与统计预检（符合性核对 + 风险因子 + 评分区间提示），未调用大模型，部分明细为占位示例，仅供评标参考，不得作为 AI 评审结论。',
       overall: overallScore,
       complianceCheck,
       riskAnalysis,
@@ -747,6 +802,11 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       qualificationText: (s.qualifications || []).map((q) => q.name).join('；'),
       enterpriseType: s.enterpriseType,
       legalPerson: s.legalPerson,
+      // C3：把规则阶段已算出的履约/评价数据喂给 LLM，使排序真正体现「择优」而非仅语义匹配。
+      evalLevel: evalMap.get(s.id)?.level,
+      evalAvgScore: evalMap.get(s.id)?.avgScore,
+      evalCount: evalMap.get(s.id)?.count,
+      activeProjects: activeMap.get(s.id) ?? 0,
     }));
 
     // 3. LLM 排序（无 key / 失败 → 规则兜底）
@@ -773,7 +833,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         .filter(Boolean);
     }
 
-    return {
+    const result = {
       requirement,
       engine,
       model: engine === 'deepseek'
@@ -784,6 +844,16 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       recommendations,
       generatedAt: new Date().toISOString(),
     };
+
+    // 自动落取选取历史（A2），供「选取历史/恢复候选名单」使用；失败不影响主流程。
+    void this.saveSelectionHistoryRecord({
+      requirement,
+      resultSummary: summary,
+      recommendations,
+      candidatePool: candidates.length,
+    }).catch(() => {});
+
+    return result;
   }
 
   private supplierText(s: any): string {
@@ -2212,11 +2282,106 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     }
   }
 
-  async updateSelectionShortlist(_historyId: string, _shortlistedIds: string[]) {
-    return null;
+  // ── 选取历史持久化（A2）：无 DB 模型，落 JSON 文件，使选取历史/候选名单/分享真正可用 ──
+  private readonly selectionHistoryFile = path.join(process.cwd(), 'data', 'supplier-selection-history.json');
+
+  private loadSelectionHistory(): any[] {
+    try {
+      if (fs.existsSync(this.selectionHistoryFile)) return JSON.parse(fs.readFileSync(this.selectionHistoryFile, 'utf-8'));
+    } catch { /* 损坏/不可读 → 当空集合，避免阻塞 */ }
+    return [];
   }
 
-  async deleteSelectionHistory(_id: string) {
-    return null;
+  private saveSelectionHistory(records: any[]): void {
+    try {
+      fs.mkdirSync(path.dirname(this.selectionHistoryFile), { recursive: true });
+      fs.writeFileSync(this.selectionHistoryFile, JSON.stringify(records, null, 2));
+    } catch (e: any) {
+      this.logger.warn(`选取历史落盘失败: ${e?.message}`);
+    }
+  }
+
+  async saveSelectionHistoryRecord(rec: { requirement: string; classificationId?: string; classificationName?: string; resultSummary: string; recommendations: any[]; candidatePool: number }) {
+    const records = this.loadSelectionHistory();
+    const record = {
+      id: `sh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      requirement: rec.requirement,
+      classificationId: rec.classificationId,
+      classificationName: rec.classificationName,
+      resultSummary: rec.resultSummary,
+      recommendationCount: rec.recommendations.length,
+      candidatePool: rec.candidatePool,
+      shortlistedIds: [] as string[],
+      recommendations: rec.recommendations,
+      createdAt: new Date().toISOString(),
+    };
+    records.unshift(record);
+    this.saveSelectionHistory(records.slice(0, 100)); // 仅保留最近 100 条
+    return record;
+  }
+
+  async listSelectionHistory() {
+    return this.loadSelectionHistory().map(({ recommendations: _r, ...rest }) => rest);
+  }
+
+  async getSelectionHistoryDetail(id: string) {
+    const rec = this.loadSelectionHistory().find((r) => r.id === id);
+    if (!rec) throw new ServiceUnavailableException('选取历史记录不存在');
+    const { recommendations: _r, ...rest } = rec;
+    return rest;
+  }
+
+  async getSelectionHistoryShortlist(id: string) {
+    const rec = this.loadSelectionHistory().find((r) => r.id === id);
+    if (!rec) throw new ServiceUnavailableException('选取历史记录不存在');
+    // 返回候选推荐（含 name/matchScore/reason），供「恢复候选名单」回填比选面板。
+    return (rec.recommendations ?? []) as SupplierRecommendation[];
+  }
+
+  async updateSelectionShortlist(historyId: string, shortlistedIds: string[]) {
+    const records = this.loadSelectionHistory();
+    const rec = records.find((r) => r.id === historyId);
+    if (!rec) throw new ServiceUnavailableException('选取历史记录不存在');
+    rec.shortlistedIds = Array.isArray(shortlistedIds) ? shortlistedIds : [];
+    this.saveSelectionHistory(records);
+    return { success: true };
+  }
+
+  async deleteSelectionHistory(id: string) {
+    this.saveSelectionHistory(this.loadSelectionHistory().filter((r) => r.id !== id));
+    return { success: true };
+  }
+
+  /** 分享候选名单给采购主管：以站内通知下发（无独立分享表，复用通知中心）。 */
+  async shareShortlist(data: { requirement: string; shortlist: { name: string; matchScore: number; reason: string }[]; note?: string }) {
+    const names = (data.shortlist || []).map((s) => s.name).filter(Boolean).join('、');
+    await this.notificationService.sendToRole('procurement_staff', {
+      type: 'SELECTION_SHARED',
+      title: '收到一份供应商候选名单分享',
+      content: `需求：${(data.requirement || '').slice(0, 60)}；推荐：${names || '（空）'}${data.note ? `；备注：${data.note}` : ''}`,
+      link: '/supplier/selection',
+    }).catch(() => {});
+    return { success: true };
+  }
+
+  /** C8 履约违约风险预测：基于评价时序 + 资质状态，规则预测下阶段违约/失约风险（诚实置信度，非 LLM）。 */
+  async predictSupplierDefaultRisk(supplierId: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: {
+        id: true,
+        name: true,
+        evaluations: { orderBy: { createdAt: 'asc' }, select: { score: true, level: true } },
+        qualifications: { select: { validTo: true } },
+      },
+    });
+    if (!supplier) throw new ServiceUnavailableException('供应商不存在');
+    const now = new Date();
+    const expiredQualifications = supplier.qualifications.filter((q) => q.validTo && new Date(q.validTo) < now).length;
+    const prediction = predictDefaultRisk({
+      evalSeries: supplier.evaluations.map((e) => ({ score: Number(e.score), level: e.level })),
+      expiredQualifications,
+    });
+    return { supplierId, supplierName: supplier.name, ...prediction };
   }
 }

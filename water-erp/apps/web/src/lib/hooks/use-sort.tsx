@@ -13,12 +13,14 @@ export function useSort<T>(defaultKey: string, defaultDir: SortDir = 'desc') {
     else { setSortKey(key); setSortDir('asc'); }
   };
 
-  /** 纯函数：不调用 useMemo，由消费者决定是否 memoize */
+  /** 纯函数：不调用 useMemo，由消费者决定是否 memoize。支持点路径（如 expertProfile.specialty / _count.expertEvaluations） */
   const sorted = (items: T[]): T[] => {
     if (!items.length) return items;
+    const getByPath = (obj: unknown, path: string): unknown =>
+      path.split('.').reduce<unknown>((acc, key) => (acc == null ? acc : (acc as Record<string, unknown>)[key]), obj);
     return [...items].sort((a, b) => {
-      const va = (a as any)[sortKey] ?? '';
-      const vb = (b as any)[sortKey] ?? '';
+      const va = getByPath(a, sortKey) ?? '';
+      const vb = getByPath(b, sortKey) ?? '';
       if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va;
       if (va instanceof Date && vb instanceof Date) return sortDir === 'asc' ? va.getTime() - vb.getTime() : vb.getTime() - va.getTime();
       const sa = String(va).toLowerCase();

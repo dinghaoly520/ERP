@@ -34,13 +34,10 @@ const routeToKey: Record<string, string> = {
   "/expert/extract": "expert-extract",
   "/expert/evaluation": "expert-eval",
   "/expert": "expert-entry",
-  // 集中目录管理
-  "/mall-management/central-catalog": "mall-central-catalog",
-  "/mall-management/approval": "mall-approval",
-  "/mall-management/price-entry": "mall-price",
-  "/mall-management/catalog": "mall-catalog",
-  "/mall-management/logs": "mall-logs",
-  "/mall-management": "mall-central-catalog",
+  // 集中目录管理：9 个页签收敛在 /mall-management/catalog?tab=…；
+  // 旧子路由（central-catalog/approval/price-entry/logs 等）为 redirect 兼容壳，
+  // startsWith 匹配统一落到存活的 mall-catalog 侧边键
+  "/mall-management": "mall-catalog",
 };
 
 const routeToModule: Record<string, string> = {

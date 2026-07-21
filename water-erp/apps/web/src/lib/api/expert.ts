@@ -303,3 +303,29 @@ export function getLoadDistribution() {
 export function importCsv(rows: Array<Record<string, string>>) {
   return api.post<any>('/expert-admin/import-csv', { rows });
 }
+
+/* ── AI 深化：OCR 录入 / 风险预警 / 抽取复盘 ── */
+export function ocrIntake(data: { imageBase64: string; mimeType?: string; filename?: string }) {
+  return api.post<{ rawText: string; fields: Record<string, string> }>('/expert-admin/ocr-intake', data);
+}
+
+export interface ExpertRiskBrief {
+  expertId: string;
+  displayName: string;
+  signals: {
+    meanDeviation: number | null;
+    deviationRisk: 'high' | 'medium' | 'low';
+    recentDCount: number;
+    violationCount: number;
+    recentEvalAvg: number | null;
+  };
+  ruleBrief: string;
+  aiBrief: string | null;
+}
+export function getRiskBrief(id: string) {
+  return api.get<ExpertRiskBrief>(`/expert-admin/${id}/risk-brief`);
+}
+
+export function retrospectExtraction(projectId: string) {
+  return api.get<{ summary: { projectName: string; total: number; regular: number; alternative: number; declined: number; avgProgress: number }; experts: { name: string; role: string; isLead: boolean; major: string; progress: number; status: string; latestEvalLevel: string | null }[]; aiSummary: string | null }>(`/expert-admin/extract/retrospect?projectId=${projectId}`);
+}

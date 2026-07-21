@@ -18,6 +18,11 @@ export interface SelectionCandidate {
   qualificationText?: string;
   enterpriseType?: string;
   legalPerson?: string;
+  // 履约/评价表现（规则阶段已算出）——喂给 LLM 让排序体现择优。
+  evalLevel?: string;
+  evalAvgScore?: number;
+  evalCount?: number;
+  activeProjects?: number;
 }
 
 export interface LlmRecommendation {
@@ -55,6 +60,9 @@ export class SupplierSelectionAiService {
         c.enterpriseType || '',
         (c.businessScope || '').slice(0, 90),
         c.qualificationText ? `资质:${c.qualificationText.slice(0, 60)}` : '',
+        // 履约/评价表现：让 LLM 在语义匹配之外真正择优（历史评分高、等级好、在建项目适中者优先）。
+        c.evalAvgScore != null ? `历史均分:${c.evalAvgScore}/${c.evalLevel || '-'}(${c.evalCount || 0}次)` : '历史评价:无',
+        `在建项目:${c.activeProjects ?? 0}`,
       ]
         .filter(Boolean)
         .join(' | ');
@@ -63,15 +71,19 @@ export class SupplierSelectionAiService {
     const system = [
       '你是四川水发集团招采系统的供应商智能推荐引擎。',
       '根据采购需求，从候选供应商清单中挑选最匹配的供应商，按匹配度从高到低排序，最多推荐 ' + maxCount + ' 家。',
-      '对每家给出：匹配度评分(0-100的整数)和一条20-50字的中文推荐理由，须结合其经营范围/资质/分类与需求的相关性。',
+      '对每家给出：匹配度评分(0-100的整数)和一条20-50字的中文推荐理由，须综合其经营范围/资质/分类与需求的相关性，并参考历史评价均分/等级与在建项目数体现择优（评分高、等级好者优先；无历史评价者不得虚构口碑）。',
       '严格基于候选清单中的已有信息判断，不得编造清单外不存在的供应商或能力。',
       '必须只输出一个 JSON 对象，不要输出任何其它文字或代码块标记，格式：',
       '{"summary":"对整体匹配情况的一句话分析(40-80字)","recommendations":[{"id":"c0","score":92,"reason":"..."}]}',
     ].join('\n');
 
     try {
+      // C1 超时收口：此前直连 fetch 无 AbortController，LLM 挂起会拖死请求线程。60s 上限，超时即降级规则引擎。
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 60_000);
       const response = await fetch(`${DEEPSEEK_API_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
@@ -91,6 +103,7 @@ export class SupplierSelectionAiService {
           max_tokens: 4000, // deepseek-v4-flash 是推理模型，先输出 reasoning_content 再输出 content，需预留充足额度
         }),
       });
+      clearTimeout(timer);
 
       if (!response.ok) {
         this.logger.warn(`DeepSeek supplier-selection failed: ${response.status} ${await response.text()}`);

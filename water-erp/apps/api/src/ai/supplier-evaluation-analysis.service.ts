@@ -1,6 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
+
+const EVAL_CACHE_PREFIX = 'supplier:evaluation:analysis:';
+const EVAL_CACHE_TTL = 24 * 3600;
 
 /** AI 对供应商某维度的评价建议 */
 export interface DimensionAnalysis {
@@ -27,6 +31,7 @@ export class SupplierEvaluationAnalysisService {
   constructor(
     private prisma: PrismaService,
     private llm: LlmService,
+    @Inject('REDIS_CLIENT') private redis: Redis,
   ) {}
 
   async analyze(supplierId: string): Promise<EvaluationAnalysisResult> {
@@ -48,6 +53,14 @@ export class SupplierEvaluationAnalysisService {
       },
     });
     if (!supplier) throw new Error('供应商不存在');
+
+    // C2 缓存：评价数 + 最新评价时间为版本号，命中免调 LLM。
+    const latestEvalAt = supplier.evaluations[0]?.createdAt?.getTime() ?? 0;
+    const evalCacheKey = `${EVAL_CACHE_PREFIX}${supplierId}:${supplier.evaluations.length}-${latestEvalAt}`;
+    try {
+      const hit = await this.redis.get(evalCacheKey);
+      if (hit) return JSON.parse(hit) as EvaluationAnalysisResult;
+    } catch { /* redis 不可用 → 跳过缓存 */ }
 
     // 收集资质状态统计
     const now = new Date();
@@ -88,7 +101,7 @@ export class SupplierEvaluationAnalysisService {
       const jsonMatch = analysis.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        return {
+        const result: EvaluationAnalysisResult = {
           supplierId,
           supplierName: supplier.name,
           analyzedAt: new Date().toISOString(),
@@ -96,6 +109,8 @@ export class SupplierEvaluationAnalysisService {
           overallSuggestion: parsed.overallSuggestion ?? 80,
           summary: parsed.summary || 'AI 分析已完成，请参考各维度建议',
         };
+        try { await this.redis.set(evalCacheKey, JSON.stringify(result), 'EX', EVAL_CACHE_TTL); } catch { /* ignore */ }
+        return result;
       }
     } catch (e: any) {
       this.logger.warn(`LLM 分析失败，降级为规则引擎: ${e.message}`);

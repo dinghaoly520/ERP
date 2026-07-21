@@ -1,5 +1,5 @@
 import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -22,6 +22,8 @@ import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 
 @Injectable()
 export class ExpertService {
+  private readonly logger = new Logger(ExpertService.name);
+
   constructor(
     private prisma: PrismaService,
     private aiService: AiService,
@@ -69,7 +71,11 @@ export class ExpertService {
       });
     }
 
-    return this.prisma.user.findUnique({ where: { id: userId } });
+    const updated = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!updated) return null;
+    // 剥离密码哈希，避免敏感字段外泄（对齐 getProfile）
+    const { passwordHash, ...safeUser } = updated;
+    return safeUser;
   }
 
   /* ── 统计概览 ── */
@@ -494,24 +500,29 @@ export class ExpertService {
     return { buffer: this.maybeConvertDocxToPdf(plaintext, doc.fileAsset.originalName), fileName: this.pdfFileName(doc.fileAsset.originalName), mimeType: 'application/pdf' };
   }
 
-  /** 如果 plaintext 是 .docx/.doc，则用 LibreOffice 转换为 PDF；否则原样返回。 */
+  /** 如果 plaintext 是 .docx/.doc，则用 LibreOffice 转换为 PDF；否则原样返回。
+   *  安全要点：临时文件使用固定安全名（mkdtemp 目录本身唯一），用户可控的 originalName
+   *  绝不进入文件路径或命令行；用 execFileSync 数组参数，杜绝 shell 注入与路径穿越。 */
   private maybeConvertDocxToPdf(plaintext: Buffer, originalName: string): Buffer {
-    if (!/\.docx?$/i.test(originalName)) return plaintext;
+    const ext = /\.docx$/i.test(originalName) ? '.docx' : /\.doc$/i.test(originalName) ? '.doc' : null;
+    if (!ext) return plaintext;
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tender-docx-'));
+    const safeBase = 'input';
+    const docxPath = path.join(tmpDir, `${safeBase}${ext}`);
     try {
-      const docxPath = path.join(tmpDir, originalName);
       fs.writeFileSync(docxPath, plaintext);
-      execSync(`libreoffice --headless --convert-to pdf --outdir "${tmpDir}" "${docxPath}"`, {
-        timeout: 60_000,
-        stdio: 'pipe',
-      });
-      const pdfPath = path.join(tmpDir, originalName.replace(/\.docx?$/i, '.pdf'));
+      execFileSync(
+        'libreoffice',
+        ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, docxPath],
+        { timeout: 60_000, stdio: 'pipe' },
+      );
+      const pdfPath = path.join(tmpDir, `${safeBase}.pdf`);
       if (fs.existsSync(pdfPath)) {
         return fs.readFileSync(pdfPath);
       }
       return plaintext;
     } catch (err: any) {
-      console.warn(`[ExpertService] LibreOffice docx→pdf failed for ${originalName}: ${err?.message ?? err}`);
+      this.logger.warn(`LibreOffice docx→pdf failed for ${originalName}: ${err?.message ?? err}`);
       return plaintext;
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });

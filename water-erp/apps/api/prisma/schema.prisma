@@ -71,6 +71,10 @@ model User {
   catalogVersions                CatalogVersion[]
   catalogInquiries               CatalogInquiry[]
 
+  // ── 即时聊天 ──
+  chatSent     ChatMessage[] @relation("ChatMessageSender")
+  chatReceived ChatMessage[] @relation("ChatMessageReceiver")
+
   @@unique([username, role])
 }
 
@@ -716,6 +720,8 @@ model Supplier {
   classificationId  String?
   rejectReason      String?
   returnReason      String?
+  disableReason     String?    // 停用/拉黑原因（B6：替代 returnReason 的语义错用）
+  eliminatedAt      DateTime?  // 淘汰确认时间（B12：非空=经淘汰流程，区分手动停用）
   sm2PublicKey      String? // SM2 公钥（04 开头 hex，用于验证投标签名）
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -733,6 +739,7 @@ model Supplier {
   bidInvalidBids      BidInvalidBid[]
   catalogApplications SupplierCatalogApplication[]
   catalogSupplies     CatalogSupplier[]
+  alertAcks           QualificationAlertAck[]
   clarifications      BidClarification[]
   contractPrices       ContractPrice[]
 
@@ -772,6 +779,7 @@ model SupplierQualification {
   updatedAt  DateTime  @updatedAt
 
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  acks     QualificationAlertAck[]
 
   @@index([supplierId])
   @@index([validTo])
@@ -1040,9 +1048,33 @@ model FileAsset {
 
   announcementAttachments AnnouncementAttachment[]
   bidDocuments            BidDocument[]
+  chatMessages            ChatMessage[]
 
   @@index([category])
   @@index([uploaderId])
+}
+
+// ── 即时聊天 ──
+
+model ChatMessage {
+  id          String    @id @default(cuid())
+  senderId    String
+  receiverId  String
+  type        String    @default("text") // text | image | file
+  content     String                          // text: 正文；image/file: 文件名
+  fileAssetId String?
+  fileUrl     String?                         // 缓存 /api/upload/files/:id，避免前端再查
+  fileMime    String?
+  fileSize    Int?
+  readAt      DateTime?
+  createdAt   DateTime   @default(now())
+
+  sender    User      @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User      @relation("ChatMessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  fileAsset FileAsset? @relation(fields: [fileAssetId], references: [id], onDelete: SetNull)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, readAt])
 }
 
 // ── 采购管理 ──

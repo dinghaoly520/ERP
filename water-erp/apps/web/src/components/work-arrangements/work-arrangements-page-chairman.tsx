@@ -35,6 +35,12 @@ import {
 } from "@/lib/work-arrangements/workbench";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
+import { OverdueTasksDialog } from "@/components/work-arrangements/overdue-tasks-dialog";
+import {
+  getOverdueTasks,
+  hasShownOverdueDialogToday,
+  markOverdueDialogShownToday,
+} from "@/lib/work-arrangements/overdue";
 
 type EditorState = {
   title: string;
@@ -146,6 +152,14 @@ export function WorkArrangementsPageChairman({
   const [noteDraft, setNoteDraft] = useState("");
   const [noteType, setNoteType] = useState<WorkArrangementNoteType>("PROGRESS");
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showOverdueDialog, setShowOverdueDialog] = useState(false);
+  const [overdueTasks, setOverdueTasks] = useState<WorkArrangementItem[]>([]);
+  const [isOverview, setIsOverview] = useState(false);
+
+  const overdueCount = useMemo(
+    () => getOverdueTasks(allItems).length,
+    [allItems],
+  );
 
   const linkedProject = useMemo(
     () =>
@@ -161,8 +175,9 @@ export function WorkArrangementsPageChairman({
         if (!item.dueAt) return false;
         if (item.status === 'COMPLETED' || item.status === 'CANCELLED') return false;
         const dueDate = new Date(item.dueAt);
-        const selEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + 1);
-        return dueDate < selEnd;
+        const selStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+        const selEnd = new Date(selStart.getTime() + 24 * 60 * 60 * 1000);
+        return dueDate >= selStart && dueDate < selEnd;
       }),
     [allItems, selectedDate],
   );
@@ -171,6 +186,14 @@ export function WorkArrangementsPageChairman({
     () => allItems.filter((item) => !item.dueAt),
     [allItems],
   );
+
+  // 总览模式：已开始但未完成的任务（IN_PROGRESS / BLOCKED）
+  const overviewTasks = useMemo(
+    () => allItems.filter((item) => item.status === 'IN_PROGRESS' || item.status === 'BLOCKED'),
+    [allItems],
+  );
+
+  const displayTasks = isOverview ? overviewTasks : tasksForSelectedDate;
 
   const selectedItem = useMemo(
     () => allItems.find((item) => item.id === selectedItemId) ?? null,
@@ -214,6 +237,17 @@ export function WorkArrangementsPageChairman({
   useEffect(() => {
     void loadWorkspace();
   }, []);
+
+  // 逾期任务检查：每天首次进入页面时弹出一次
+  useEffect(() => {
+    if (allItems.length === 0 || hasShownOverdueDialogToday()) return;
+    const overdue = getOverdueTasks(allItems);
+    if (overdue.length > 0) {
+      setOverdueTasks(overdue);
+      setShowOverdueDialog(true);
+      markOverdueDialogShownToday();
+    }
+  }, [allItems]);
 
   // 后台静默刷新每日计划（页面打开后滞后执行）
   useEffect(() => {
@@ -333,6 +367,42 @@ export function WorkArrangementsPageChairman({
     }
   };
 
+  // ── 逾期任务对话框回调 ──
+  const handleOverdueStatusUpdate = async (id: string, status: WorkArrangementStatus) => {
+    await updateWorkArrangement(id, { status });
+    await refreshTasksOnly();
+    setOverdueTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleOverduePostpone = async (id: string) => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await updateWorkArrangement(id, { dueAt: tomorrow });
+    await refreshTasksOnly();
+    setOverdueTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleOverdueViewDetails = (id: string) => {
+    setShowOverdueDialog(false);
+    handleSelectTask(id);
+  };
+
+  const handleShowOverdue = () => {
+    const overdue = getOverdueTasks(allItems);
+    if (overdue.length > 0) {
+      setOverdueTasks(overdue);
+      setShowOverdueDialog(true);
+    }
+  };
+
+  const handleToggleOverview = () => {
+    setIsOverview(prev => !prev);
+  };
+
+  const handleDateSelect = (date: Date) => {
+    setIsOverview(false);
+    setSelectedDate(date);
+  };
+
   return (
     <>
     <div className="flex flex-col gap-4">
@@ -361,10 +431,10 @@ export function WorkArrangementsPageChairman({
       <div className="relative flex min-h-0 gap-4 items-start">
         <div className="w-[calc(40%-0.5rem)] shrink-0 hidden xl:block" aria-hidden />
         <div className="absolute left-0 top-0 bottom-0 w-[calc(40%-0.5rem)] hidden xl:block">
-          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => {}} />
+          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => {}} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
         </div>
         <div className="w-full xl:hidden">
-          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => {}} />
+          <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => {}} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-4">
           <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={true} showProjectBrief={false} onSelectTimeBlock={() => {}} onRefreshPlan={handleRefreshPlan} />
@@ -399,6 +469,16 @@ export function WorkArrangementsPageChairman({
         onDelete={() => void handleDelete()}
         onChange={setEditor}
       />
+      {/* 逾期任务对话框 */}
+      <OverdueTasksDialog
+        open={showOverdueDialog}
+        overdueTasks={overdueTasks}
+        onClose={() => setShowOverdueDialog(false)}
+        onStatusUpdate={handleOverdueStatusUpdate}
+        onPostpone={handleOverduePostpone}
+        onViewDetails={handleOverdueViewDetails}
+      />
+
       {/* Task Detail Modal */}
     <TaskDetailModal
       open={showTaskModal}
@@ -417,6 +497,7 @@ export function WorkArrangementsPageChairman({
       onUnblock={() => void handleQuickStatusUpdate('TODO')}
       onCancel={() => void handleQuickStatusUpdate('CANCELLED')}
       onPostponeReminder={() => {}}
+      onResetReminder={() => {}}
       onOpenFullEditor={() => {
         setShowTaskModal(false);
         handleOpenEditor();

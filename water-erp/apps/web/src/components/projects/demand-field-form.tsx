@@ -39,7 +39,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, requesterName: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
@@ -49,7 +49,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, requesterDepartment: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)] md:col-span-2">
@@ -59,7 +59,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, procurementTitle: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
@@ -69,7 +69,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, 所属项目: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
@@ -79,7 +79,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, 合同及编号: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
@@ -89,7 +89,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, procurementCategory: event.target.value })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         >
           <option value="">请选择采购类别</option>
           {PROCUREMENT_CATEGORY_OPTIONS.map((option) => (
@@ -107,7 +107,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, budgetAmount: Number(event.target.value) })
           }
-          className="rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="workbench-input w-full"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)] md:col-span-2">
@@ -117,7 +117,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, projectReason: event.target.value })
           }
-          className="min-h-[120px] rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="neu-input text-sm min-h-[120px]"
         />
       </label>
       <label className="grid gap-2 text-sm text-[color:var(--foreground)] md:col-span-2">
@@ -127,7 +127,7 @@ export function DemandFieldForm({
           onChange={(event) =>
             onChange({ ...values, supplierRequirements: event.target.value })
           }
-          className="min-h-[120px] rounded-[16px] border border-white/60 bg-white/78 px-4 py-3"
+          className="neu-input text-sm min-h-[120px]"
         />
       </label>
     </div>

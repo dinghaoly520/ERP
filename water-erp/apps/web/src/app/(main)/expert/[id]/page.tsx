@@ -4,10 +4,10 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getAiAdoptionRate, confirmInvitation, declineInvitation, type ExpertPortrait } from '@/lib/api/expert';
+import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief } from '@/lib/api/expert';
 import { AlertBanner, Breadcrumb, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -21,7 +21,7 @@ interface Assignment {
 interface ExpertDetail {
   id: string; username: string; displayName: string; email: string | null;
   department: { id: string; name: string } | null; createdAt: string; isActive: boolean;
-  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string };
+  expertProfile?: { specialty?: string; title?: string; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string };
   assignments: Assignment[];
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
 }
@@ -30,15 +30,30 @@ const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
 const levelLabel: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
 const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'red' };
 
-type Tab = 'overview' | 'timeline' | 'portrait' | 'evaluations' | 'ai-adoption' | 'violations' | 'notify';
+type Tab = 'overview' | 'timeline' | 'portrait' | 'evaluations' | 'ai-adoption' | 'risk' | 'violations' | 'notify';
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'overview', label: '评审项目', icon: TrendingUp },
   { key: 'timeline', label: '大事记', icon: Award },
   { key: 'portrait', label: '专家画像', icon: TrendingUp },
   { key: 'evaluations', label: '评价历史', icon: History },
   { key: 'ai-adoption', label: 'AI采纳率', icon: Sparkles },
+  { key: 'risk', label: '风险预警', icon: AlertTriangle },
   { key: 'violations', label: '违规记录', icon: ShieldAlert },
   { key: 'notify', label: '通知偏好', icon: Bell },
+];
+
+type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; employer: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; notes: string };
+const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes'>; label: string; placeholder: string }[] = [
+  { key: 'displayName', label: '姓名', placeholder: '专家姓名' },
+  { key: 'email', label: '邮箱', placeholder: '用于登录与通知触达' },
+  { key: 'specialty', label: '专业', placeholder: '如 水利水电工程' },
+  { key: 'title', label: '职称', placeholder: '如 高级工程师' },
+  { key: 'employer', label: '工作单位', placeholder: '所在单位全称' },
+  { key: 'phone', label: '手机', placeholder: '用于短信 / 电话通知' },
+  { key: 'idNumber', label: '身份证号', placeholder: '18 位身份证号码' },
+  { key: 'ethnicity', label: '民族', placeholder: '如 汉族' },
+  { key: 'education', label: '学历', placeholder: '如 硕士研究生' },
+  { key: 'licenseNo', label: '证书编号', placeholder: '执业资格证书编号' },
 ];
 
 export default function ExpertDetailPage() {
@@ -59,12 +74,18 @@ export default function ExpertDetailPage() {
   const [notifyPrefs, setNotifyPrefs] = useState({ inApp: true, sms: false, phone: false });
   // AI 采纳率
   const [aiAdoption, setAiAdoption] = useState<any>(null);
+  const [risk, setRisk] = useState<ExpertRiskBrief | null>(null);
+  const [riskError, setRiskError] = useState('');
   // Violation form
   const [showViolationForm, setShowViolationForm] = useState(false);
   const [vioType, setVioType] = useState('');
   const [vioDetail, setVioDetail] = useState('');
   const [vioSeverity, setVioSeverity] = useState<'warning' | 'danger'>('warning');
   const [vioSaving, setVioSaving] = useState(false);
+  // 编辑资料弹窗
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', notes: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     setLoading(true); setLoadError(false);
@@ -98,6 +119,7 @@ export default function ExpertDetailPage() {
     if (tab === 'timeline') { tasks.push(getExpertEvaluations(expertId).then(setEvaluations)); tasks.push(getViolations(expertId).then(setViolations)); }
     if (tab === 'violations') tasks.push(getViolations(expertId).then(setViolations));
     if (tab === 'ai-adoption') tasks.push(getAiAdoptionRate(expertId).then(setAiAdoption));
+    if (tab === 'risk') tasks.push(getRiskBrief(expertId).then(setRisk).catch((e: any) => setRiskError(e?.message || '风险简报生成失败')));
     if (tab === 'notify') tasks.push(getNotifyPrefs(expertId).then(setNotifyPrefs));
     Promise.all(tasks.map(p => p.catch(() => {})))
       .finally(() => { setTabLoading(false); loadedTabsRef.current = new Set(loadedTabsRef.current).add(tab); });
@@ -123,6 +145,36 @@ export default function ExpertDetailPage() {
       await updateNotifyPrefs(expertId, notifyPrefs);
       toast.success('通知偏好已保存');
     } catch (e: any) { toast.error(e?.message || '保存失败'); }
+  };
+
+  const openEditProfile = () => {
+    if (!expert) return;
+    const p = expert.expertProfile;
+    setEditForm({
+      displayName: expert.displayName || '',
+      email: expert.email || '',
+      specialty: p?.specialty || '',
+      title: p?.title || '',
+      employer: p?.employer || '',
+      phone: p?.phone || '',
+      idNumber: p?.idNumber || '',
+      ethnicity: p?.ethnicity || '',
+      education: p?.education || '',
+      licenseNo: p?.licenseNo || '',
+      notes: p?.notes || '',
+    });
+    setShowEditModal(true);
+  };
+
+  const saveProfile = async () => {
+    setEditSaving(true);
+    try {
+      await updateExpertProfile(expertId, { ...editForm });
+      toast.success('专家资料已保存');
+      setShowEditModal(false);
+      reload();
+    } catch (e: any) { toast.error(e?.message || '保存失败'); }
+    setEditSaving(false);
   };
 
   if (loading) return (
@@ -161,6 +213,7 @@ export default function ExpertDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <button onClick={openEditProfile} className="neu-btn-soft"><Pencil size={13} />编辑资料</button>
             <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
               返回专家库</button>
@@ -366,6 +419,35 @@ export default function ExpertDetailPage() {
         <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">加载画像数据中...</div>
       )}
 
+      {tab === 'risk' && risk && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              ['评分偏离度', risk.signals.meanDeviation != null ? `${risk.signals.meanDeviation > 0 ? '+' : ''}${risk.signals.meanDeviation}` : '—'],
+              ['偏离风险', risk.signals.deviationRisk === 'high' ? '高' : risk.signals.deviationRisk === 'medium' ? '中' : '低'],
+              ['近期D级评价', `${risk.signals.recentDCount} 次`],
+              ['违规记录', `${risk.signals.violationCount} 条`],
+            ].map(([label, value]) => (
+              <div key={label} className="kpi-card flex flex-col gap-1 p-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
+                <span className="text-[1.35rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{value}</span>
+              </div>
+            ))}
+          </div>
+          <div className="neu-table-card p-4 space-y-2">
+            <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">风险简报{risk.aiBrief ? '（AI 生成）' : '（规则判定）'}</span>
+            <p className="text-sm leading-relaxed text-[var(--foreground)]">{risk.aiBrief || risk.ruleBrief}</p>
+            {risk.aiBrief && <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">规则兜底：{risk.ruleBrief}</p>}
+          </div>
+        </div>
+      )}
+      {tab === 'risk' && !risk && !riskError && (
+        <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">正在生成风险简报...</div>
+      )}
+      {tab === 'risk' && riskError && (
+        <div className="neu-table-card py-14 text-center text-sm text-[var(--danger)]">{riskError}</div>
+      )}
+
       {tab === 'evaluations' && (
         <div className="neu-table-card">
           {tabLoading ? (
@@ -517,6 +599,45 @@ export default function ExpertDetailPage() {
             ))}
           </div>
           <button onClick={saveNotifyPrefs} className="neu-btn-soft w-full justify-center">保存偏好设置</button>
+        </div>
+      )}
+
+      {/* ════ 编辑资料弹窗 ════ */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowEditModal(false)} />
+          <div className="relative w-full max-w-[min(672px,92vw)] max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+            <div className="flex items-start justify-between gap-3 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="neu-icon-well flex h-9 w-9 items-center justify-center rounded-[10px]"><Pencil size={15} className="text-[var(--accent)]" /></div>
+                <div>
+                  <h2 className="text-sm font-extrabold text-[var(--foreground)]">编辑专家资料</h2>
+                  <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">基础信息用于评审抽取匹配与通知触达</p>
+                </div>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="neu-btn-xs" aria-label="关闭"><X size={14} /></button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {PROFILE_FIELDS.map(f => (
+                <label key={f.key} className="space-y-1 block">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">{f.label}</span>
+                  <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
+                </label>
+              ))}
+              <label className="space-y-1 block sm:col-span-2">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span>
+                <textarea value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="履职备注、回避事项等（可选）" className="neu-input text-sm w-full" rows={3} />
+              </label>
+            </div>
+
+            <hr className="wb-section-rule" />
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowEditModal(false)} disabled={editSaving} className="neu-btn-soft h-[38px]">取消</button>
+              <button onClick={saveProfile} disabled={editSaving} className="neu-btn-primary !h-[38px]">{editSaving ? '保存中...' : '保存'}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

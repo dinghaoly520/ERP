@@ -1,6 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
+
+const CACHE_PREFIX = 'supplier:portrait:analysis:';
+const CACHE_TTL = 24 * 3600; // 24h；评价/资质变动时 cacheVer 改变即自然失效
 
 export interface PortraitInsight {
   label: string;
@@ -30,6 +34,7 @@ export class SupplierPortraitAnalysisService {
   constructor(
     private prisma: PrismaService,
     private llm: LlmService,
+    @Inject('REDIS_CLIENT') private redis: Redis,
   ) {}
 
   async analyze(supplierId: string): Promise<SupplierPortraitAnalysis> {
@@ -51,6 +56,16 @@ export class SupplierPortraitAnalysisService {
       },
     });
     if (!supplier) throw new Error('供应商不存在');
+
+    // C2 缓存：以「评价数 + 最新评价时间 + 最新资质变动」为版本号，命中则免调 LLM（成本/延迟大降）。
+    const latestEvalAt = supplier.evaluations[0]?.createdAt?.getTime() ?? 0;
+    const latestQualAt = supplier.qualifications.reduce((m, q) => Math.max(m, (q as any).updatedAt?.getTime() ?? (q as any).validTo ? new Date((q as any).validTo || 0).getTime() : 0), 0);
+    const cacheVer = `${supplier.evaluations.length}-${latestEvalAt}-${latestQualAt}`;
+    const cacheKey = CACHE_PREFIX + supplierId + ':' + cacheVer;
+    try {
+      const hit = await this.redis.get(cacheKey);
+      if (hit) return JSON.parse(hit) as SupplierPortraitAnalysis;
+    } catch { /* redis 不可用 → 跳过缓存，继续实时分析 */ }
 
     const now = new Date();
     const qualValid = supplier.qualifications.filter(q => !q.validTo || new Date(q.validTo) >= now).length;
@@ -93,6 +108,7 @@ export class SupplierPortraitAnalysisService {
       result.supplierId = supplierId;
       result.supplierName = supplier.name;
       result.analyzedAt = new Date().toISOString();
+      try { await this.redis.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL); } catch { /* ignore */ }
       return result;
     } catch (e: any) {
       this.logger.warn(`LLM portrait 分析失败，降级规则引擎: ${e.message}`);

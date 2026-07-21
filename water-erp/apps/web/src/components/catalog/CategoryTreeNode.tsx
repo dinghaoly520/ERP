@@ -12,13 +12,14 @@ interface Props {
   onEdit?: (node: CategoryNode) => void;
   onDelete?: (node: CategoryNode) => void;
   onToggleStatus?: (node: CategoryNode) => void;
+  onMove?: (node: CategoryNode) => void;
   onAddChild?: (parentNode: CategoryNode) => void;
   onConfigureAttrs?: (node: CategoryNode) => void;
 }
 
 export function CategoryTreeNode({
   node, depth = 0, selectedId, onSelect,
-  onEdit, onDelete, onToggleStatus, onAddChild, onConfigureAttrs,
+  onEdit, onDelete, onToggleStatus, onMove, onAddChild, onConfigureAttrs,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -27,6 +28,8 @@ export function CategoryTreeNode({
   const hasChildren = node.children && node.children.length > 0;
   const isSelected = selectedId === node.id;
   const isInactive = node.status === 'INACTIVE';
+  // 无写权限（回调未传入）时整个操作菜单不渲染，避免「看得到点不动」
+  const hasActions = !!(onEdit || onDelete || onToggleStatus || onMove || onAddChild || onConfigureAttrs);
 
   // 操作菜单：外部点击 / Esc 关闭
   useEffect(() => {
@@ -99,28 +102,33 @@ export function CategoryTreeNode({
           : <span className="w-3.5 h-3.5 rounded-full border-2 border-[var(--muted-foreground)] flex-shrink-0" aria-hidden />}
         <span className={`text-sm font-medium truncate ${isSelected ? 'font-semibold' : ''}`}>{node.name}</span>
         {node.code && <span className="text-[10px] text-[var(--muted-foreground)] font-mono ml-auto hidden group-hover:inline">{node.code}</span>}
-        <div ref={menuRef} className="relative ml-auto hidden group-hover:flex items-center" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setMenuOpen(!menuOpen)} aria-haspopup="true" aria-expanded={menuOpen} aria-label={`「${node.name}」操作`} className="p-0.5 rounded hover:bg-[var(--accent-tint)]">
-            <MoreHorizontal size={14} className="text-[var(--muted-foreground)]" />
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 z-20 w-36 neu-card p-1 rounded-xl">
-              <button onClick={() => { onAddChild?.(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">新增子节点</button>
-              <button onClick={() => { onEdit?.(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">编辑</button>
-              {node.isLeaf && <button onClick={() => { onConfigureAttrs?.(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">属性模板</button>}
-              <button onClick={() => { onToggleStatus?.(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">{isInactive ? '启用' : '停用'}</button>
-              <div className="border-t border-[var(--border-color)] my-0.5" />
-              <button onClick={() => { onDelete?.(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[var(--danger)] hover:bg-[var(--danger-soft)]">删除</button>
-            </div>
-          )}
-        </div>
+        {hasActions && (
+          <div ref={menuRef} className="relative ml-auto hidden group-hover:flex items-center" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setMenuOpen(!menuOpen)} aria-haspopup="true" aria-expanded={menuOpen} aria-label={`「${node.name}」操作`} className="p-0.5 rounded hover:bg-[var(--accent-tint)]">
+              <MoreHorizontal size={14} className="text-[var(--muted-foreground)]" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 z-20 w-36 neu-card p-1 rounded-xl">
+                {onAddChild && <button onClick={() => { onAddChild(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">新增子节点</button>}
+                {onEdit && <button onClick={() => { onEdit(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">编辑</button>}
+                {onMove && <button onClick={() => { onMove(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">移动 / 排序</button>}
+                {node.isLeaf && onConfigureAttrs && <button onClick={() => { onConfigureAttrs(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">属性模板</button>}
+                {onToggleStatus && <button onClick={() => { onToggleStatus(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-[var(--accent-tint)]">{isInactive ? '启用' : '停用'}</button>}
+                {onDelete && <>
+                  <div className="my-0.5" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)' }} />
+                  <button onClick={() => { onDelete(node); setMenuOpen(false); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[var(--danger)] hover:bg-[var(--danger-soft)]">删除</button>
+                </>}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {expanded && hasChildren && (
         <div role="group">
           {node.children.map(child => (
             <CategoryTreeNode key={child.id} node={child} depth={depth + 1}
               selectedId={selectedId} onSelect={onSelect} onEdit={onEdit}
-              onDelete={onDelete} onToggleStatus={onToggleStatus}
+              onDelete={onDelete} onToggleStatus={onToggleStatus} onMove={onMove}
               onAddChild={onAddChild} onConfigureAttrs={onConfigureAttrs} />
           ))}
         </div>

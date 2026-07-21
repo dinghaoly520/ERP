@@ -36,4 +36,9 @@ export const authApi = {
   getMe() {
     return api.get('/auth/me')
   },
+
+  /** 公开：凭统一社会信用代码查询注册审核进度（无需登录）。 */
+  getRegisterStatusPublic(creditCode: string) {
+    return api.get('/supplier/register/status/public', { params: { creditCode } })
+  },
 }

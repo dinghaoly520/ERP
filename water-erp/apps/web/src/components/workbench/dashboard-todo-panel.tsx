@@ -15,7 +15,7 @@ export function DashboardTodoPanel() {
   const todoDefs = [
     { key: 'supplier', label: '供应商审批', hint: '待审核', icon: UserCheck, toneBg: '#eff6ff', toneColor: '#064ea2', link: '/supplier/approval', count: supplierPendingCount },
     { key: 'qual',     label: '资质到期',    hint: '90天内', icon: AlertTriangle, toneBg: '#fff7ed', toneColor: '#f5a623', link: '/supplier/repository', count: derivedTodo.expiringQualifications },
-    { key: 'price',    label: '价格复核',    hint: '待审批', icon: Tag,            toneBg: '#f5f3ff', toneColor: '#7c3aed', link: '/mall-management/approval', count: derivedTodo.priceReview },
+    { key: 'price',    label: '价格复核',    hint: '待审批', icon: Tag,            toneBg: '#f5f3ff', toneColor: '#7c3aed', link: '/mall-management/catalog?tab=approval', count: derivedTodo.priceReview },
   ];
   const total = todoDefs.reduce((s, d) => s + d.count, 0);
 

@@ -15,6 +15,8 @@ import { TabActivityLog } from './tab-activity-log';
 import { TabPreferences } from './tab-preferences';
 import { TabWorkOverview } from './tab-work-overview';
 import { clearWorkPortraitCache } from './tab-work-portrait';
+import { MemberListDialog } from '../chat/member-list-dialog';
+import { ChatDialog } from '../chat/chat-dialog';
 
 export function PersonalCenterPage() {
   const router = useRouter();
@@ -23,6 +25,7 @@ export function PersonalCenterPage() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [departments, setDepartments] = useState<DepartmentItem[]>([]);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [dialogState, setDialogState] = useState<{ kind: 'closed' } | { kind: 'members' } | { kind: 'chat'; peerId: string }>({ kind: 'closed' });
 
   useEffect(() => {
     const load = async () => {
@@ -116,8 +119,7 @@ export function PersonalCenterPage() {
         <div className="hidden w-[240px] shrink-0 xl:block">
           <PersonalCenterHero
             user={user}
-            onEdit={() => setActiveTab('basic-info')}
-            onChangePassword={() => setActiveTab('security')}
+            onOpenMemberList={() => setDialogState({ kind: 'members' })}
             onLogout={handleLogout}
             loggingOut={loggingOut}
           />
@@ -128,6 +130,21 @@ export function PersonalCenterPage() {
           {renderTabContent()}
         </div>
       </div>
+
+      {/* 人员列表 / 聊天 弹窗 */}
+      {dialogState.kind === 'members' && (
+        <MemberListDialog
+          onClose={() => setDialogState({ kind: 'closed' })}
+          onSelectPeer={(peerId) => setDialogState({ kind: 'chat', peerId })}
+        />
+      )}
+      {dialogState.kind === 'chat' && (
+        <ChatDialog
+          peerId={dialogState.peerId}
+          onClose={() => setDialogState({ kind: 'closed' })}
+          onBack={() => setDialogState({ kind: 'members' })}
+        />
+      )}
     </div>
   );
 }

@@ -16,10 +16,10 @@ const COMMANDS: CommandItem[] = [
   { label: '专家库', path: '/expert/repository', keywords: '专家 列表 库' },
   { label: '专家抽取', path: '/expert/extract', keywords: '抽取 智能 组建 评审组' },
   { label: '专家评价', path: '/expert/evaluation', keywords: '评价 履职 专家' },
-  { label: '价格审批', path: '/mall-management/approval', keywords: '审批 价格 报价 商城' },
-  { label: '价格录入', path: '/mall-management/price-entry', keywords: '录入 导入 新增 目录 商城' },
+  { label: '价格审批', path: '/mall-management/catalog?tab=approval', keywords: '审批 价格 报价 商城' },
+  { label: '价格录入', path: '/mall-management/catalog?tab=entry', keywords: '录入 导入 新增 目录 商城' },
   { label: '集中采购目录', path: '/mall-management/catalog', keywords: '目录 采购 品类' },
-  { label: '操作日志', path: '/mall-management/logs', keywords: '日志 审计 同步' },
+  { label: '操作日志', path: '/mall-management/catalog?tab=logs', keywords: '日志 审计 同步' },
   { label: '通知中心', path: '/notifications', keywords: '通知 待办 消息' },
 ];
 

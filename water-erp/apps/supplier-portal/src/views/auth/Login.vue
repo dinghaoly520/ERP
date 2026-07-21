@@ -2,12 +2,14 @@
 import { onMounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { authApi } from '@/api/auth'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-const form = reactive({ username: '中科院成都信息技术股份有限公司', password: 'supplier@2026' })
+// 不预填任何演示账号——硬编码真实种子凭证会让访客一键登录他企，属安全事故。
+const form = reactive({ username: '', password: '' })
 const loading = ref(false)
 const formRef = ref()
 
@@ -39,6 +41,38 @@ async function handleLogin() {
     ElMessage.error('登录失败，请检查账号密码')
   } finally {
     loading.value = false
+  }
+}
+
+// 注册审核进度查询（无需登录）——配合后端 ACCOUNT_PENDING 拦截提示，
+// 让被供应商在审批前能看到自己的审核状态，而非被无声锁在门外。
+const showQuery = ref(false)
+const queryCode = ref('')
+const querying = ref(false)
+const queryResult = ref<{ found: boolean; name?: string | null; status?: string | null; reason?: string | null } | null>(null)
+const STATUS_TEXT: Record<string, string> = {
+  PENDING: '待审核：您的注册申请正在审核中，请耐心等待。',
+  RETURNED: '退回补正：申请被退回，请按原因补充材料后重新提交。',
+  APPROVED: '已通过：账号已激活，请使用注册账号登录。',
+  DISABLED: '已停用：账号已被停用，如有疑问请联系采购中心。',
+  BLACKLISTED: '已拉黑：账号已被列入黑名单，如有疑问请联系采购中心。',
+}
+function openQuery() {
+  showQuery.value = true
+  queryResult.value = null
+}
+async function handleQueryStatus() {
+  const code = queryCode.value.trim()
+  if (!code) { ElMessage.warning('请输入统一社会信用代码'); return }
+  querying.value = true
+  queryResult.value = null
+  try {
+    const res = await authApi.getRegisterStatusPublic(code) as any
+    queryResult.value = res
+  } catch {
+    ElMessage.error('查询失败，请稍后重试')
+  } finally {
+    querying.value = false
   }
 }
 </script>
@@ -92,8 +126,29 @@ async function handleLogin() {
           </el-form-item>
         </el-form>
 
+        <!-- 待审核拦截提示 + 审核进度查询（A4 闭环） -->
+        <div v-if="authStore.pendingInfo || showQuery" class="lp-pending">
+          <p v-if="authStore.pendingInfo" class="lp-pending__hint">
+            该账号尚未激活（待审核或已停用）。可凭统一社会信用代码查询审核进度：
+          </p>
+          <div class="lp-query">
+            <el-input v-model="queryCode" placeholder="统一社会信用代码（18 位）" maxlength="18" @keyup.enter="handleQueryStatus" />
+            <button type="button" class="lp-secondary" :disabled="querying" @click="handleQueryStatus">
+              {{ querying ? '查询中…' : '查询进度' }}
+            </button>
+          </div>
+          <div v-if="queryResult" class="lp-query__result">
+            <template v-if="queryResult.found">
+              <strong>{{ queryResult.name }}</strong>
+              <span>— {{ STATUS_TEXT[queryResult.status as string] || queryResult.status }}</span>
+              <span v-if="queryResult.reason" class="lp-query__reason">原因：{{ queryResult.reason }}</span>
+            </template>
+            <template v-else>未查询到该信用代码对应的注册记录，请核对后重试，或先完成注册。</template>
+          </div>
+        </div>
+
         <div class="lp-foot">
-          <router-link to="/login" style="font-size:13px;color:var(--sp-gray-400)">忘记密码？</router-link>
+          <a href="#" style="font-size:13px;color:var(--sp-gray-400)" @click.prevent="openQuery">查询审核进度 / 忘记密码？</a>
           <span style="margin:0 12px;color:var(--sp-gray-300)">|</span>
           还没有账号？<router-link to="/register">立即注册供应商</router-link>
         </div>
@@ -594,4 +649,39 @@ async function handleLogin() {
     padding: 80px 18px 18px;
   }
 }
+
+/* 待审核提示 + 审核进度查询（A4） */
+.lp-pending {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: oklch(0.97 0.03 80 / 0.5);
+  border: 1px solid oklch(0.8 0.08 80 / 0.5);
+  font-size: 13px;
+  color: var(--sp-gray-500, #6b7280);
+}
+.lp-pending__hint { margin: 0 0 10px; line-height: 1.5; }
+.lp-query { display: flex; gap: 8px; }
+.lp-query .el-input { flex: 1; }
+.lp-secondary {
+  flex: none;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--sp-brand, #064ea2);
+  background: transparent;
+  color: var(--sp-brand, #064ea2);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lp-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.lp-query__result {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.lp-query__reason { color: var(--sp-gray-400, #9ca3af); }
 </style>

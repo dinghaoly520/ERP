@@ -52,6 +52,15 @@ export class AuthService {
       priority.map((role) => candidates.find((u) => u.role === role)).find(Boolean) ??
       candidates[0];
     if (!user || !user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
+      // 凭证不匹配时，再查「是否存在但待审核/停用」的同名账号——若是，给出专用码而非泛泛的「密码错误」，
+      // 让被供应商在管理员审批前能看到自己在审核，而非被无声锁在门外。
+      const inactive = await this.prisma.user.findFirst({
+        where: { username: dto.username, isActive: false },
+        select: { id: true, role: true },
+      });
+      if (inactive) {
+        return { pending: true as const, role: inactive.role, code: 'ACCOUNT_PENDING' };
+      }
       return null;
     }
     return this.issueToken(user.id, user.username, user.role);

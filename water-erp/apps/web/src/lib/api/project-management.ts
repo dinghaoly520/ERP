@@ -168,34 +168,95 @@ export async function aiIdentifyField(fieldName: string, documentText: string, t
   return parseJsonResponse<FieldCandidate[]>(response);
 }
 
+export type BudgetReferenceAdjustment = {
+  factor: number; // 小数，如 0.05 表示 +5%、-0.03 表示 -3%
+  reason: string;
+};
+
+// ── 方法 C：置信分层估算新增类型 ──
+export type BudgetEstimatedLine = {
+  name: string;
+  unit: string | null;
+  qty: number | null;
+  match: 'exact' | 'contained' | 'budget' | 'none';
+  catalogName: string | null;
+  specification: string | null;
+  unitPrice: number | null;
+  lineLow: number | null;
+  lineHigh: number | null;
+  lineTotal: number | null;
+  specWarning: string | null;
+};
+
+export type BudgetHistoricalBand = { min: number; max: number; median: number; count: number };
+
+export type BudgetReferenceLineInput = {
+  name: string;
+  specification?: string | null;
+  unit?: string | null;
+  qty?: number | null;
+};
+
+export type BudgetReferenceItem = {
+  title: string;
+  category: string | null;
+  amount: number;
+  contractAmount: number | null;
+  date: string;
+  method: string;
+  source: string;
+  heuristicScore: number; // 启发式相似度 [0,1]
+  aiRelevance: number; // AI 业务相关度 [0,1]
+  relevance: number; // 综合相关度 [0,1]
+  weight: number; // 归一化权重 = relevance² / Σ
+  contribution: number; // 对主锚点的贡献金额
+  aiReason: string; // AI 给的打分理由
+};
+
+export type BudgetReferencePricing = {
+  weightedContractPrice: number | null; // 主锚点：加权合同价（可空）
+  weightedBudgetPrice: number; // 辅锚点：加权预算价
+  anchor: 'contract' | 'budget';
+  anchorPrice: number;
+  adjustmentFactor: number; // 最终调整因子（已夹紧到 [0.85,1.20]）
+  adjustments: BudgetReferenceAdjustment[];
+  clamped: boolean; // 因子是否触达上下限被夹紧
+  suggestedBudget: number; // 最终建议价 = anchorPrice × adjustmentFactor
+};
+
 export type BudgetReferenceResult = {
   hasReference: boolean;
   message: string;
-  references: Array<{
-    title: string;
-    category: string | null;
-    amount: number;
-    contractAmount: number | null;
-    date: string;
-    method: string;
-    source: string;
-  }>;
-  suggestedBudget: number | null;
+  references: BudgetReferenceItem[];
+  pricing: BudgetReferencePricing | null;
+  suggestedBudget: number | null; // 兼容旧 UI；= pricing?.suggestedBudget（仅 Tier 1/2 有值）
   analysis: string | null;
   confidence: number;
+  confidenceReason: string;
   statistics?: {
     average: number;
     max: number;
     min: number;
     count: number;
-  };
+    avgContract?: number | null;
+  } | null;
+  // ── 方法 C 新增 ──
+  tier?: 1 | 2 | 3 | 4;
+  tierLabel?: string;
+  rangeLow?: number | null;
+  rangeHigh?: number | null;
+  lines?: BudgetEstimatedLine[];
+  historicalBand?: BudgetHistoricalBand | null;
 };
 
 export async function analyzeBudgetReference(data: {
   procurementTitle: string;
   procurementCategory?: string;
+  procurementType?: string;
   projectReason?: string;
   supplierRequirements?: string;
+  lines?: BudgetReferenceLineInput[];
+  budgetListId?: string;
 }): Promise<BudgetReferenceResult> {
   const response = await fetch(`${API_BASE}/project-management/analyze-budget-reference`, {
     method: 'POST',
@@ -205,6 +266,23 @@ export async function analyzeBudgetReference(data: {
   });
 
   return parseJsonResponse<BudgetReferenceResult>(response);
+}
+
+// AI 优化立项事由 / 供方要求 —— 基于已上传的需求表与立项表原文
+export async function polishInitiationField(data: {
+  field: 'projectReason' | 'supplierRequirements';
+  text: string;
+  demandDocText?: string;
+  initiationDocText?: string;
+  projectContext?: { title?: string; category?: string; method?: string };
+}): Promise<{ polished: string }> {
+  const response = await fetch(`${API_BASE}/ai/polish-initiation-field`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  return parseJsonResponse<{ polished: string }>(response);
 }
 
 export function compareFields(
@@ -393,6 +471,11 @@ export type ExtractedInfoPayload = {
   bidOpeningTime?: string;
   invitedSuppliers?: string;
   paymentPerformance?: string;
+  requesterName?: string;
+  requesterDepartment?: string;
+  procurementMethod?: string;
+  procurementCategory?: string;
+  budgetAmount?: number;
 };
 
 export async function updateProjectExtractedInfo(

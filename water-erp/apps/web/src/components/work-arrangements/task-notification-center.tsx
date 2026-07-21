@@ -41,14 +41,14 @@ const TYPE_LINKS: Record<string, string> = {
   SUPPLIER_APPROVED:      '/supplier/repository',
   SUPPLIER_REJECTED:      '/supplier/approval',
   SUPPLIER_RETURNED:      '/supplier/approval',
-  PRICE_REVIEW:           '/mall-management/approval',
+  PRICE_REVIEW:           '/mall-management/catalog?tab=approval',
   QUALIFICATION_EXPIRING: '/supplier/repository',
   BID_PUBLISHED:          '/projects',
   BID_REMINDER:           '/projects',
   BID_OPENING:            '/bid',
   BID_EVALUATION_RESULT:  '/bid',
   CLARIFICATION_REPLIED:  '/bid/clarifications',
-  CATALOG_APPLICATION:    '/mall-management/approval',
+  CATALOG_APPLICATION:    '/mall-management/catalog?tab=approval',
   SYSTEM:                 '/notifications',
 };
 

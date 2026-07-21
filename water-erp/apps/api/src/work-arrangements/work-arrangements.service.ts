@@ -1093,7 +1093,10 @@ export class WorkArrangementsService {
       throw new BadRequestException('当前工作尚未设置提醒时间。');
     }
 
-    const anchor = new Date(reminderAt);
+    const original = new Date(reminderAt);
+    const now = new Date();
+    // 原提醒时间已过期时，以当前时间为锚点，确保新时间一定在未来
+    const anchor = original.getTime() < now.getTime() ? now : original;
 
     if (dto.preset === 'PLUS_30_MINUTES') {
       return addMinutes(anchor, 30);
@@ -1102,6 +1105,10 @@ export class WorkArrangementsService {
     if (dto.preset === 'THIS_AFTERNOON') {
       const target = new Date(anchor);
       target.setHours(15, 0, 0, 0);
+      // 如果当天 15:00 已过，推到下一天
+      if (target.getTime() <= anchor.getTime()) {
+        target.setDate(target.getDate() + 1);
+      }
       return target;
     }
 

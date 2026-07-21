@@ -856,9 +856,11 @@ a {
   position: relative;
   overflow: hidden;
   border-radius: 22px;
-  border: 1px solid rgba(179, 196, 228, 0.64);
-  background: rgba(255, 255, 255, 0.5);
-  box-shadow: 0 10px 24px rgba(62, 92, 150, 0.05);
+  border: 1px solid oklch(0.78 0.03 258 / 0.4);
+  background: oklch(1 0 0 / 0.62);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    inset -2px -2px 5px oklch(1 0 0 / 0.65);
   transition:
     transform 240ms var(--ease-out-quint),
     border-color 240ms var(--ease-out-quint),
@@ -871,7 +873,8 @@ a {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 0;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7);
   pointer-events: none;
 }
 
@@ -880,7 +883,7 @@ a {
   position: absolute;
   inset: auto 18px 0 18px;
   height: 1px;
-  background: rgba(98, 122, 166, 0.08);
+  background: oklch(0.5 0.03 258 / 0.1);
   opacity: 1;
   transform: none;
   transition:
@@ -908,12 +911,12 @@ a {
 }
 
 .login-field-shell__icon-rail--accent {
-  color: rgba(151, 128, 73, 0.72);
+  color: oklch(0.6 0.1 75);
 }
 
 .login-field-shell__icon {
   position: relative;
-  color: rgba(88, 112, 152, 0.68);
+  color: var(--muted-foreground);
 }
 
 .login-field-shell__line {
@@ -922,33 +925,33 @@ a {
   right: 16px;
   bottom: 0;
   height: 1px;
-  background: rgba(98, 122, 166, 0.18);
+  background: oklch(0.5 0.03 258 / 0.18);
   transition:
     background 240ms var(--ease-out-quint),
     box-shadow 240ms var(--ease-out-quint);
 }
 
 .login-field-shell:focus-within {
-  transform: translateY(-1px);
-  border-color: rgba(124, 162, 238, 0.7);
+  border-color: oklch(0.62 0.128 247 / 0.6);
   box-shadow:
-    0 16px 28px rgba(72, 105, 168, 0.08),
-    0 0 0 4px rgba(136, 172, 255, 0.06);
+    inset 2px 2px 6px oklch(0.55 0.03 258 / 0.14),
+    inset -2px -2px 6px oklch(1 0 0 / 0.7),
+    0 0 0 3px color-mix(in oklch, var(--accent) 16%, transparent);
 }
 
 .login-field-shell:focus-within::after {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0),
-    rgba(92, 141, 242, 0.7),
-    rgba(255, 255, 255, 0)
+    oklch(1 0 0 / 0),
+    oklch(0.62 0.128 247 / 0.7),
+    oklch(1 0 0 / 0)
   );
-  box-shadow: 0 0 10px rgba(107, 151, 245, 0.14);
+  box-shadow: 0 0 10px oklch(0.62 0.128 247 / 0.18);
 }
 
 .login-field-shell:focus-within .login-field-shell__icon-rail {
   transform: translateY(calc(-50% - 1px));
-  color: rgba(98, 137, 214, 0.82);
+  color: var(--accent);
 }
 
 .login-field-shell:focus-within .login-field-shell__line {
@@ -957,7 +960,7 @@ a {
 }
 
 .login-field-input::selection {
-  background: rgba(127, 164, 246, 0.24);
+  background: color-mix(in oklch, var(--accent) 24%, transparent);
 }
 
 .login-field-input {
@@ -984,11 +987,11 @@ a {
   height: 18px;
   width: 18px;
   border-radius: 6px;
-  border: 1px solid rgba(164, 185, 223, 0.72);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(240, 246, 255, 0.74));
+  border: 1px solid oklch(0.78 0.03 258 / 0.4);
+  background: oklch(0.99 0.004 258);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.74),
-    0 8px 18px rgba(77, 110, 172, 0.08);
+    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.12),
+    inset -1px -1px 3px oklch(1 0 0 / 0.7);
   transition:
     border-color 220ms var(--ease-out-quint),
     background-color 220ms var(--ease-out-quint),
@@ -1003,7 +1006,7 @@ a {
   top: 2px;
   height: 9px;
   width: 5px;
-  border: solid rgba(255, 255, 255, 0.98);
+  border: solid oklch(1 0 0 / 0.98);
   border-width: 0 2px 2px 0;
   opacity: 0;
   transform: rotate(45deg) scale(0.7);
@@ -1013,11 +1016,11 @@ a {
 }
 
 .login-remember__checkbox:checked {
-  border-color: rgba(102, 148, 245, 0.88);
-  background: linear-gradient(135deg, rgba(96, 145, 246, 0.96), rgba(138, 176, 251, 0.9));
+  border-color: oklch(0.56 0.153 251 / 0.85);
+  background: linear-gradient(135deg, oklch(0.62 0.128 247), oklch(0.7 0.12 250));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    0 10px 22px rgba(74, 109, 175, 0.18);
+    inset 0 1px 0 oklch(1 0 0 / 0.32),
+    1px 2px 6px oklch(0.46 0.07 258 / 0.22);
 }
 
 .login-remember__checkbox:checked::after {
@@ -1027,11 +1030,11 @@ a {
 
 .login-remember__checkbox:hover,
 .login-remember__checkbox:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(122, 162, 241, 0.8);
+  border-color: oklch(0.62 0.128 247 / 0.7);
   box-shadow:
-    var(--shadow-focus),
-    0 10px 22px rgba(74, 109, 175, 0.12);
+    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.14),
+    inset -1px -1px 3px oklch(1 0 0 / 0.8),
+    0 0 0 3px color-mix(in oklch, var(--accent) 14%, transparent);
   outline: none;
 }
 
@@ -1053,16 +1056,19 @@ a {
 .login-utility-button:hover,
 .login-utility-button:focus-visible {
   transform: translateY(-1px);
-  color: rgba(76, 100, 141, 0.92);
+  color: var(--foreground);
   outline: none;
 }
 
 .login-submit-button {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(176, 194, 228, 0.72);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(239, 245, 255, 0.78));
-  box-shadow: 0 16px 28px rgba(69, 102, 165, 0.08);
+  border: 0;
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.88), oklch(0.985 0.006 258 / 0.82));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    3px 4px 12px oklch(0.46 0.07 258 / 0.16),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 
 .login-submit-button::before {
@@ -1076,20 +1082,21 @@ a {
   height: 1px;
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0),
-    rgba(120, 150, 214, 0.58),
-    rgba(255, 255, 255, 0)
+    oklch(1 0 0 / 0),
+    oklch(0.62 0.128 247 / 0.55),
+    oklch(1 0 0 / 0)
   );
-  box-shadow: 0 0 10px rgba(89, 137, 245, 0.12);
+  box-shadow: 0 0 10px oklch(0.62 0.128 247 / 0.16);
   pointer-events: none;
 }
 
 .login-submit-button:hover,
 .login-submit-button:focus-visible {
-  border-color: rgba(126, 164, 241, 0.8);
   box-shadow:
-    0 18px 30px rgba(69, 102, 165, 0.1),
-    0 0 0 4px rgba(136, 172, 255, 0.06);
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    4px 6px 16px oklch(0.46 0.07 258 / 0.2),
+    -2px -2px 8px oklch(1 0 0 / 0.95),
+    0 0 0 3px color-mix(in oklch, var(--accent) 14%, transparent);
   outline: none;
 }
 
@@ -1123,7 +1130,7 @@ a {
   font-size: 0.84rem;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: rgba(95, 114, 148, 0.92);
+  color: var(--muted-foreground);
   cursor: inherit;
   transition:
     filter 0.3s ease,
@@ -9670,8 +9677,457 @@ select.workbench-input {
 .search-box .neu-input { padding-left: 2.25rem; }
 
 /* ══════════════════════════════════════════════════════════════════
+   即时聊天 — .chat-* (cgzxui neumorphic, 无外侧 border)
+   弹窗蒙层 / 卡片 / 在线点 / 气泡 / 文件卡片 / 输入栏
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── 蒙层 + 窗口（人员列表 / 聊天对话框共用骨架）── */
+.chat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 4vw, 56px);
+  background: oklch(0.4 0.04 258 / 0.32);
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  animation: chat-overlay-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes chat-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 主窗口 — 玻璃渐变 + 方向性双影（与 wb-panel 同语言，但更挺立）*/
+.chat-window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: calc(100vh - clamp(32px, 8vw, 112px));
+  border-radius: 22px;
+  background:
+    linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.004 258 / 0.72) 40%, oklch(1 0 0 / 0.4) 100%);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 16px oklch(0.5 0.06 258 / 0.18),
+    -4px -4px 14px oklch(1 0 0 / 0.95),
+    0 24px 60px oklch(0.4 0.08 258 / 0.22);
+  animation: chat-window-in 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+@keyframes chat-window-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 顶栏 */
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: oklch(1 0 0 / 0.32);
+  box-shadow: inset 0 -1px 0 oklch(0.6 0.04 258 / 0.16);
+}
+
+/* 列表项 / 头像 */
+.chat-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    1px 1px 3px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 2px oklch(1 0 0 / 0.85);
+}
+
+/* 在线状态圆点 */
+.chat-presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1.5px oklch(1 0 0 / 0.55);
+}
+.chat-presence-dot--online {
+  background: var(--success);
+  box-shadow:
+    inset 0 0 0 1.5px oklch(1 0 0 / 0.45),
+    0 0 0 2px color-mix(in oklch, var(--success) 25%, transparent),
+    0 0 8px color-mix(in oklch, var(--success) 65%, transparent);
+}
+.chat-presence-dot--offline {
+  background: oklch(0.7 0.02 258 / 0.55);
+}
+
+/* 列表项行 — 凸起浅底 + hover 抬升 + active 内凹 */
+.chat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 12px;
+  cursor: pointer;
+  background: oklch(1 0 0 / 0.42);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.55),
+    1px 1px 2px oklch(0.55 0.03 258 / 0.06);
+  transition:
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.chat-row:hover {
+  background: oklch(1 0 0 / 0.7);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 8px oklch(0.5 0.06 258 / 0.12),
+    -1px -1px 4px oklch(1 0 0 / 0.85);
+}
+.chat-row:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+
+/* ── 消息气泡 ── */
+.chat-bubble {
+  position: relative;
+  max-width: min(72%, 480px);
+  padding: 0.625rem 0.875rem;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  animation: chat-bubble-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes chat-bubble-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 我的消息 — brand 色 + 内高光 */
+.chat-bubble-me {
+  color: oklch(0.99 0.005 258);
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.28),
+    2px 2px 6px color-mix(in oklch, var(--accent-strong) 32%, transparent),
+    -1px -1px 3px oklch(1 0 0 / 0.18);
+  border-bottom-right-radius: 5px;
+}
+
+/* 对方消息 — 浅凸起 */
+.chat-bubble-peer {
+  color: var(--foreground);
+  background: oklch(1 0 0 / 0.78);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  border-bottom-left-radius: 5px;
+}
+
+/* 图片 / 文件消息：气泡 padding 收紧，让媒体更突出 */
+.chat-bubble--media { padding: 4px; }
+
+/* 图片消息容器 — 凸起浅底 + 内高光 */
+.chat-msg-image {
+  padding: 4px;
+  border-radius: 16px;
+  background: oklch(1 0 0 / 0.55);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  cursor: zoom-in;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.chat-msg-image:hover { transform: translateY(-1px); }
+.chat-msg-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+/* 文件消息卡片 — 凸起 + hover 抬升 */
+.chat-msg-file {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 14px;
+  text-decoration: none;
+  color: var(--foreground);
+  background: oklch(1 0 0 / 0.72);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition:
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.25s ease;
+}
+.chat-msg-file:hover {
+  transform: translateY(-1px);
+  color: var(--accent-strong);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    3px 3px 8px oklch(0.5 0.06 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.chat-msg-file:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+
+/* 我的文件/图片消息叠加 brand 描边浅底（仍凸起，不抢气泡风）*/
+.chat-bubble-me .chat-msg-file {
+  background: oklch(1 0 0 / 0.18);
+  color: oklch(0.99 0.005 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.32),
+    inset 0 0 0 1px oklch(1 0 0 / 0.18);
+}
+.chat-bubble-me .chat-msg-file:hover { color: oklch(1 0 0); }
+.chat-bubble-me .chat-msg-image {
+  background: oklch(1 0 0 / 0.16);
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.2);
+}
+
+/* 输入栏 surface — 内凹接收 */
+.chat-input-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: oklch(0.985 0.004 258 / 0.7);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    inset -2px -2px 5px oklch(1 0 0 / 0.7);
+}
+.chat-input-bar textarea {
+  flex: 1;
+  resize: none;
+  min-height: 40px;
+  max-height: 140px;
+  padding: 0.5rem 0.75rem;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--foreground);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+.chat-input-bar textarea::placeholder { color: oklch(0.7 0.02 258 / 0.7); }
+
+/* 输入栏图标按钮 — 凸起小圆钮 */
+.chat-input-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  color: var(--muted-foreground);
+  background: oklch(1 0 0 / 0.6);
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    1px 1px 3px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 2px oklch(1 0 0 / 0.85);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.chat-input-icon:hover {
+  color: var(--accent-strong);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
+}
+.chat-input-icon:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+.chat-input-icon.is-disabled { opacity: 0.4; pointer-events: none; }
+
+/* 空会话提示 */
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* 已读字样 */
+.chat-read-mark {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  letter-spacing: 0.02em;
+}
+
+/* ══════════════════════════════════════════════════════════════════
    reduced-motion — 补充新增类的降级
    ══════════════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
   .stage-pill__indicator-bar { animation: none !important; }
+  .chat-overlay,
+  .chat-window,
+  .chat-bubble,
+  .chat-row,
+  .chat-msg-image,
+  .chat-msg-file,
+  .chat-input-icon { animation: none !important; transition: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   cgzxui 拟态组件 —— 新建采购项目对话框（create-project-dialog）补充
+   方向性双影（光源左上 / 暗影右下）+ 顶部内高光线；块级表面无外侧框线；
+   交互表面三态完整（凸→抬升→内凹）；色彩走 oklch / CSS 变量，禁用 rgba/hex 阴影。
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 弹窗外壳：玻璃渐变 + 方向性浮起，无 border
+   （替代旧 password-dialog 壳的 1px 白边 + 0 30px 70px 扁平投影 + 琥珀光晕） */
+.neu-dialog {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 1.7rem;
+  background: linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 4px 16px oklch(0.46 0.07 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+}
+
+/* 只读拟态面：凸起浅玻璃底（只读盒 / 下拉面板 / 参考卡 / AI 推荐区） */
+.neu-surface {
+  border-radius: 14px;
+  background: oklch(1 0 0 / 0.5);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 3px 7px oklch(0.5 0.04 258 / 0.12),
+    -1px -1px 4px oklch(1 0 0 / 0.85);
+}
+
+/* 可选项拟态面：默认凸起 → hover 抬升 → active 内凹；选中(aria-pressed) = 内凹 + accent 环 */
+.neu-opt {
+  border-radius: 12px;
+  background: oklch(1 0 0 / 0.5);
+  color: var(--foreground);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition:
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.25s ease;
+  cursor: pointer;
+}
+.neu-opt:hover {
+  background: oklch(1 0 0 / 0.74);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.neu-opt:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+.neu-opt[aria-pressed="true"],
+.neu-opt.is-on {
+  background: color-mix(in oklch, var(--accent) 14%, oklch(1 0 0 / 0.62));
+  color: var(--accent-strong, var(--accent));
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.16),
+    inset -2px -2px 5px oklch(1 0 0 / 0.62),
+    inset 0 0 0 1.5px color-mix(in oklch, var(--accent) 45%, transparent);
+}
+
+/* 文件选择面：凸起浅底 → hover 抬升；is-done = success 内描边（替代描边拖放框） */
+.neu-drop {
+  border-radius: 14px;
+  background: oklch(1 0 0 / 0.5);
+  color: var(--muted-foreground);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 4px oklch(1 0 0 / 0.85);
+  transition:
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.25s ease;
+  cursor: pointer;
+}
+.neu-drop:hover {
+  background: oklch(1 0 0 / 0.74);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 4px 8px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 6px oklch(1 0 0 / 0.9);
+}
+.neu-drop:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+/* 表单错误态：danger 内描边环（用于必填未选的下拉/输入） */
+.workbench-input.is-invalid,
+.neu-input.is-invalid {
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in oklch, var(--danger) 45%, transparent),
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1);
+}
+
+.neu-drop.is-done {
+  background: color-mix(in oklch, var(--success) 12%, oklch(1 0 0 / 0.55));
+  color: var(--success);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    inset 0 0 0 1.5px color-mix(in oklch, var(--success) 38%, transparent),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .neu-opt,
+  .neu-opt:hover,
+  .neu-drop,
+  .neu-drop:hover {
+    transition: none;
+    transform: none;
+  }
 }

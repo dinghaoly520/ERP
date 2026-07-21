@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -137,6 +137,29 @@ export class AiController {
     });
   }
 
+  @Post('polish-initiation-field')
+  @ApiOperation({ summary: 'AI优化立项事由/供方要求（基于上传的需求表与立项表）' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  async polishInitiationField(@Body() payload: {
+    field: 'projectReason' | 'supplierRequirements';
+    text: string;
+    demandDocText?: string;
+    initiationDocText?: string;
+    projectContext?: { title?: string; category?: string; method?: string };
+  }) {
+    if (!payload.text?.trim()) throw new BadRequestException('请提供待优化的文本');
+    if (payload.field !== 'projectReason' && payload.field !== 'supplierRequirements') {
+      throw new BadRequestException('field 必须是 projectReason 或 supplierRequirements');
+    }
+    return this.aiService.polishInitiationField({
+      field: payload.field,
+      text: payload.text.trim(),
+      demandDocText: payload.demandDocText,
+      initiationDocText: payload.initiationDocText,
+      projectContext: payload.projectContext,
+    });
+  }
+
   @Post('supplier-evaluation-analysis')
   @ApiOperation({ summary: 'AI供应商评价维度分析' })
   @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
@@ -151,5 +174,49 @@ export class AiController {
   async getSupplierPortraitAnalysis(@Body() payload: { supplierId: string }) {
     if (!payload.supplierId) throw new BadRequestException('请提供 supplierId');
     return this.supplierPortraitAnalysis.analyze(payload.supplierId);
+  }
+
+  // ── C8 履约违约风险预测 ──
+  @Get('supplier-default-risk')
+  @ApiOperation({ summary: '供应商履约违约风险预测（规则+诚实置信度）' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  async predictDefaultRisk(@Query('supplierId') supplierId: string) {
+    if (!supplierId) throw new BadRequestException('请提供 supplierId');
+    return this.aiService.predictSupplierDefaultRisk(supplierId);
+  }
+
+  // ── A2 选取历史 / 候选名单 / 分享（此前路由缺失致前端死链）──
+  @Get('selection-history')
+  @ApiOperation({ summary: '选取历史列表' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  async listSelectionHistory() { return this.aiService.listSelectionHistory(); }
+
+  @Get('selection-history/:id')
+  @ApiOperation({ summary: '选取历史详情' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  async getSelectionHistory(@Param('id') id: string) { return this.aiService.getSelectionHistoryDetail(id); }
+
+  @Get('selection-history/:id/shortlist')
+  @ApiOperation({ summary: '恢复候选名单（返回该次推荐）' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  async getSelectionShortlist(@Param('id') id: string) { return this.aiService.getSelectionHistoryShortlist(id); }
+
+  @Patch('selection-history/:id/shortlist')
+  @ApiOperation({ summary: '更新候选名单勾选' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  async updateSelectionShortlist(@Param('id') id: string, @Body() body: { shortlistedIds: string[] }) {
+    return this.aiService.updateSelectionShortlist(id, body?.shortlistedIds ?? []);
+  }
+
+  @Delete('selection-history/:id')
+  @ApiOperation({ summary: '删除选取历史' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  async deleteSelectionHistory(@Param('id') id: string) { return this.aiService.deleteSelectionHistory(id); }
+
+  @Post('share-shortlist')
+  @ApiOperation({ summary: '分享候选名单给采购主管' })
+  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  async shareShortlist(@Body() body: { requirement: string; shortlist: { name: string; matchScore: number; reason: string }[]; note?: string }) {
+    return this.aiService.shareShortlist(body);
   }
 }

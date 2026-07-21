@@ -88,6 +88,19 @@ export function changeCatalogStatus(id: string, status: string, reason?: string)
   return request<CatalogItem>(`/api/catalog/admin/items/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, reason }) });
 }
 
+export function updateCatalogItem(id: string, input: Partial<CatalogItemInput>) {
+  return request<CatalogItem>(`/api/catalog/admin/items/${id}`, { method: 'PATCH', body: JSON.stringify(input) });
+}
+
+/** 导出采购目录 Excel（返回 Blob，由调用方触发下载） */
+export async function exportCatalog(params: Record<string, string | undefined> = {}) {
+  const sp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v) sp.set(k, v); });
+  const res = await fetch(`/api/catalog/export${sp.toString() ? '?' + sp.toString() : ''}`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
+  if (!res.ok) throw new Error('目录导出失败');
+  return res.blob();
+}
+
 export async function downloadImportTemplate() {
   const res = await fetch('/api/catalog/admin/import-template', { credentials: 'include' });
   if (!res.ok) throw new Error('模板下载失败');
@@ -148,6 +161,11 @@ export function toggleCategoryStatus(id: number) {
   return request<CategoryNode>(`/api/catalog/admin/categories/${id}/status`, { method: 'PATCH' });
 }
 
+/** 移动品类节点（更换父节点 / 排序）；后端已防成环 */
+export function moveCategory(id: number, data: { newSortOrder: number; newParentId?: number | null }) {
+  return request<CategoryNode>(`/api/catalog/admin/categories/${id}/sort`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
 export function createAttributeTemplate(categoryId: number, data: { name: string; fieldKey: string; fieldType: string; required?: boolean; options?: string[]; unit?: string; sortOrder?: number }) {
   return request<AttributeTemplate>(`/api/catalog/admin/categories/${categoryId}/attribute-templates`, { method: 'POST', body: JSON.stringify(data) });
 }
@@ -171,6 +189,8 @@ export function updateAlertRule(id: number, data: any) { return request<AlertRul
 export function deleteAlertRule(id: number) { return request<{ success: boolean }>(`/api/catalog/admin/alert-rules/${id}`, { method: 'DELETE' }); }
 export function toggleAlertRule(id: number) { return request<AlertRule>(`/api/catalog/admin/alert-rules/${id}/toggle`, { method: 'PATCH' }); }
 export function listAlerts(params?: Record<string, string>) { const sp = new URLSearchParams(params); return request<AlertRecord[]>(`/api/catalog/admin/alerts?${sp.toString()}`); }
+export function markAlertRead(id: number) { return request<AlertRecord>(`/api/catalog/admin/alerts/${id}/read`, { method: 'PATCH' }); }
+export function markAlertResolved(id: number) { return request<AlertRecord>(`/api/catalog/admin/alerts/${id}/resolve`, { method: 'PATCH' }); }
 
 // ── 目录版本 ──
 
@@ -245,9 +265,6 @@ export function listApplications(statusOrParams?: string | { status?: string; ty
   }
   return request<CatalogApplication[]>(`/api/catalog/applications${sp.toString() ? '?' + sp.toString() : ''}`);
 }
-export function reviewApplication(id: string, action: string, body?: Record<string, unknown>) {
-  return request<CatalogApplication>(`/api/catalog/applications/${id}/review`, { method: 'POST', body: JSON.stringify({ action, ...body }) });
-}
 export function reviewCatalogApplication(id: string, body: {
   action: 'approve' | 'reject' | 'return' | 'counter';
   reason?: string; counterPrice?: number; counterNote?: string;
@@ -276,4 +293,43 @@ export interface SearchInsights {
 }
 export function getSearchInsights() {
   return request<SearchInsights>('/api/catalog/admin/search-insights');
+}
+
+// ── AI 辅助（分类识别 / 价格研判）──
+
+export interface AiClassifyAttribute { templateId: number; fieldKey: string; value: string }
+export interface AiClassifyResult {
+  categoryId: number | null;
+  categoryName: string | null;
+  /** 0~1，≥0.6 视为可自动采纳（与后端默认阈值对齐） */
+  confidence: number;
+  reason: string | null;
+  attributes: AiClassifyAttribute[];
+  /** false 表示 LLM/数据缺失的降级返回，前端应提示手动填写 */
+  backedByData: boolean;
+}
+export function aiClassifyCatalogItem(input: { name: string; specification?: string; categoryIdHint?: number }) {
+  return request<AiClassifyResult>('/api/catalog/admin/items/ai-classify', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name,
+      specification: input.specification || undefined,
+      categoryIdHint: input.categoryIdHint ?? undefined,
+    }),
+  });
+}
+
+export interface AiPriceAnalysisDetail {
+  abnormal: boolean;
+  severity: 'low' | 'medium' | 'high';
+  reasons: string[];
+  suggestion: string | null;
+  confidence: number;
+}
+export interface AiPriceAnalysisResult {
+  analysis: AiPriceAnalysisDetail | null;
+  backedByData: boolean;
+}
+export function getAiPriceAnalysis(itemId: string) {
+  return request<AiPriceAnalysisResult>(`/api/catalog/admin/items/${itemId}/ai-price-analysis`);
 }

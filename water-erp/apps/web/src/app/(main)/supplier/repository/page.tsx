@@ -373,7 +373,7 @@ export default function SupplierRepositoryPage() {
                     <td className="text-center text-sm text-[var(--muted-foreground)] max-w-[200px] truncate" title={s.classification?.name || ''}>{s.classification?.name || '—'}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
                     <td onClick={e => e.stopPropagation()}>
-                      <div className="flex flex-wrap justify-center gap-1">
+                      <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
                         <button onClick={() => router.push(`/supplier/${s.id}`)} className="neu-btn-xs is-info">详情</button>
                         {s.status === 'APPROVED' && (
                           <>

@@ -96,6 +96,10 @@ export class SupplierService {
     });
 
     // 通知采购管理员：新供应商待审批（待办型，审批后自动 resolve）
+    // 注意：绝不回传 user.passwordHash —— 注册响应泄漏密码哈希属安全事故，仅返回安全字段。
+    const { passwordHash: _omit, ...safeUser } = user;
+    void _omit;
+
     void this.notificationService.sendToRole('procurement_staff', {
       type: 'SUPPLIER_PENDING',
       title: '新供应商注册待审批',
@@ -103,16 +107,18 @@ export class SupplierService {
       link: `/supplier/${supplier.id}`,
     });
 
-    return { user, supplier };
+    return { user: safeUser, supplier };
   }
 
-  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string }) {
+  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; scopeUserId?: string }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
     const sortMode = params.sort ?? 'completeness';
 
     const where: any = {};
+    // 数据隔离：supplier 角色只能看到自己企业，防止跨企枚举与主联系人 PII 泄露。
+    if (params.scopeUserId) where.userId = params.scopeUserId;
     if (params.status) where.status = params.status;
     if (params.classificationId) where.classificationId = params.classificationId;
     if (params.enterpriseTypes?.length) where.enterpriseType = { in: params.enterpriseTypes };
@@ -175,6 +181,8 @@ export class SupplierService {
 
     // Build WHERE clause with Prisma.sql for safety
     const conditions: Prisma.Sql[] = [];
+    // 数据隔离：supplier 角色仅见本企业（与 list() 的 Prisma 路径 where.userId 对齐，否则 raw 路径会丢弃该过滤）。
+    if (where.userId) conditions.push(Prisma.sql`s."userId" = ${where.userId}`);
     // status 列是 SupplierStatus 枚举，参数需显式 cast，否则 PG 报 operator does not exist: SupplierStatus = text
     if (where.status) conditions.push(Prisma.sql`"status" = ${where.status}::"SupplierStatus"`);
     if (where.classificationId) conditions.push(Prisma.sql`"classificationId" = ${where.classificationId}`);
@@ -182,6 +190,25 @@ export class SupplierService {
       // search: name ILIKE or creditCode contains
       const search = where.OR[0].name.contains;
       conditions.push(Prisma.sql`("name" ILIKE ${'%' + search + '%'} OR "creditCode" ILIKE ${'%' + search + '%'})`);
+    }
+    // 以下为默认 completeness 排序路径此前丢弃的筛选——必须与 list() 的 Prisma 路径行为一致，
+    // 否则前端「高级筛选/企业类型/日期/评价等级/资质状态」在默认排序下形同虚设。
+    if (where.enterpriseType) {
+      if (where.enterpriseType.in) {
+        conditions.push(Prisma.sql`s."enterpriseType" = ANY(${where.enterpriseType.in})`);
+      } else {
+        conditions.push(Prisma.sql`s."enterpriseType" = ${where.enterpriseType}`);
+      }
+    }
+    if (where.createdAt) {
+      if (where.createdAt.gte) conditions.push(Prisma.sql`s."createdAt" >= ${where.createdAt.gte}`);
+      if (where.createdAt.lte) conditions.push(Prisma.sql`s."createdAt" <= ${where.createdAt.lte}`);
+    }
+    if (where.evaluations?.some?.level) {
+      conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierEvaluation" e WHERE e."supplierId" = s.id AND e."level" = ${where.evaluations.some.level})`);
+    }
+    if (where.qualifications?.some?.status) {
+      conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierQualification" q WHERE q."supplierId" = s.id AND q."status" = ${where.qualifications.some.status})`);
     }
     const whereSql = conditions.length > 0
       ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
@@ -267,6 +294,20 @@ export class SupplierService {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     }
     return supplier;
+  }
+
+  /** 公开：按统一社会信用代码查审核进度（注册后/审批前用）。不返回 id 等内部字段。 */
+  async getRegisterStatusByCreditCode(creditCode: string) {
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { creditCode },
+      select: { name: true, status: true, rejectReason: true, returnReason: true },
+    });
+    if (!supplier) {
+      // 不区分「不存在」与「无记录」，避免被用于枚举信用代码是否注册。
+      return { found: false as const, name: null, status: null, reason: null };
+    }
+    const reason = supplier.rejectReason || supplier.returnReason || null;
+    return { found: true as const, name: supplier.name, status: supplier.status, reason };
   }
 
   private async audit(userId: string, action: string, resourceId: string, details?: any) {
@@ -381,11 +422,28 @@ export class SupplierService {
       throw new BadRequestException({ error: '只有已入库供应商可以调整状态', code: 'INVALID_STATUS' });
     }
 
+    // 以「[停用]/[拉黑]」前缀标记手动操作原因，便于与淘汰（[淘汰] 前缀）区分；schema 无独立 disableReason 字段，故复用 returnReason。
+    const tag = status === 'BLACKLIST' ? '[拉黑]' : '[停用]';
     const result = await this.prisma.supplier.update({
       where: { id },
-      data: { status, returnReason: reason },
+      data: { status, returnReason: `${tag} ${reason}`.trim() },
     });
     if (userId) await this.audit(userId, `SUPPLIER_${status}`, id, { name: supplier.name, reason });
+    return result;
+  }
+
+  /** 恢复/解禁：把 DISABLED/BLACKLIST 的供应商重新置为 APPROVED（解决「停用/黑名单断头、无恢复入口」）。 */
+  async restoreStatus(id: string, userId?: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id }, select: { id: true, name: true, status: true } });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (supplier.status !== 'DISABLED' && supplier.status !== 'BLACKLIST') {
+      throw new BadRequestException({ error: '仅停用/黑名单供应商可恢复', code: 'INVALID_STATUS' });
+    }
+    const result = await this.prisma.supplier.update({
+      where: { id },
+      data: { status: 'APPROVED', returnReason: null },
+    });
+    if (userId) await this.audit(userId, 'SUPPLIER_RESTORED', id, { name: supplier.name, from: supplier.status });
     return result;
   }
 
@@ -450,21 +508,21 @@ export class SupplierService {
       throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
     }
 
-    // 更新变更记录和供应商字段
-    await this.prisma.$transaction([
-      this.prisma.supplierChangeRecord.update({
-        where: { id: changeId },
-        data: {
-          status: 'APPROVED',
-          reviewedBy: reviewerId,
-          reviewedAt: new Date(),
-        },
-      }),
-      this.prisma.supplier.update({
-        where: { id: change.supplierId },
-        data: { [change.fieldName]: change.newValue },
-      }),
-    ]);
+    // 并发双审防护：以 status:PENDING 为条件的原子更新，避免两位评审同时通过。
+    // 先条件置 APPROVED，affected=0 说明已被他人处理 → 冲突；成功后再应用字段变更。
+    const claimed = await this.prisma.supplierChangeRecord.updateMany({
+      where: { id: changeId, status: 'PENDING' },
+      data: { status: 'APPROVED', reviewedBy: reviewerId, reviewedAt: new Date() },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '变更记录已被处理，请勿重复审批', code: 'CONFLICT' });
+    }
+
+    // 应用字段变更（单独一步：状态已原子置位，不会重复通过）
+    await this.prisma.supplier.update({
+      where: { id: change.supplierId },
+      data: { [change.fieldName]: change.newValue },
+    });
 
     return { success: true };
   }
@@ -480,8 +538,9 @@ export class SupplierService {
       throw new BadRequestException({ error: '变更记录已处理', code: 'INVALID_STATUS' });
     }
 
-    return this.prisma.supplierChangeRecord.update({
-      where: { id: changeId },
+    // 并发双审防护：条件更新，affected=0 即已被他人处理。
+    const claimed = await this.prisma.supplierChangeRecord.updateMany({
+      where: { id: changeId, status: 'PENDING' },
       data: {
         status: 'REJECTED',
         reviewedBy: reviewerId,
@@ -489,6 +548,10 @@ export class SupplierService {
         rejectReason: reason,
       },
     });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '变更记录已被处理，请勿重复审批', code: 'CONFLICT' });
+    }
+    return { success: true };
   }
 
   async listQualifications(supplierId: string) {
@@ -580,7 +643,13 @@ export class SupplierService {
     });
   }
 
-  async createEvaluation(supplierId: string, evaluatorId: string, dto: CreateEvaluationDto) {
+  async createEvaluation(supplierId: string, evaluatorId: string, dto: CreateEvaluationDto, evaluatorRole?: string) {
+    // 防自评刷分/越权：supplier 角色不得创建评价（既不能评自己，也不能评他企）。
+    // 评价只能由采购侧角色（admin/procurement_staff/leader/staff）发起——controller 已加 @Roles 兜底。
+    if (evaluatorRole === 'supplier') {
+      throw new ForbiddenException({ error: '供应商不能参与评价打分', code: 'FORBIDDEN' });
+    }
+
     // 验证供应商状态
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
@@ -717,7 +786,15 @@ export class SupplierService {
       select: { id: true, status: true, name: true },
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
-    await this.prisma.supplier.update({ where: { id: supplierId }, data: { status: 'DISABLED' } });
+    // 校验原状态：仅已入库供应商可被淘汰，避免对 PENDING/已停用 误操作。
+    if (supplier.status !== 'APPROVED') {
+      throw new BadRequestException({ error: '仅已入库供应商可确认淘汰', code: 'INVALID_STATUS' });
+    }
+    // 以「[淘汰]」前缀与手动停用「[停用]」区分，使淘汰在列表中可识别。
+    await this.prisma.supplier.update({
+      where: { id: supplierId },
+      data: { status: 'DISABLED', returnReason: `[淘汰] ${reason}`.trim() },
+    });
     if (userId) await this.audit(userId, 'SUPPLIER_ELIMINATED', supplierId, { name: supplier.name, reason });
     return { success: true };
   }

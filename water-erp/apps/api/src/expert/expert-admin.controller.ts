@@ -96,6 +96,12 @@ export class ExpertAdminController {
     );
   }
 
+  @Get('extract/retrospect')
+  @ApiOperation({ summary: '抽取质量复盘（专家组构成 vs 履职表现，LLM 总结）' })
+  retrospectExtraction(@Query('projectId') projectId: string) {
+    return this.expertAdminService.retrospectExtraction(projectId);
+  }
+
   @Get('invitations/:projectId')
   @ApiOperation({ summary: '查询项目专家邀请状态（正选+候补）' })
   getProjectInvitations(@Param('projectId') projectId: string) {
@@ -194,6 +200,12 @@ export class ExpertAdminController {
     return this.expertAdminService.getExpertPortrait(id);
   }
 
+  @Get(':id/risk-brief')
+  @ApiOperation({ summary: '评标风险预警简报（偏离度+履职+违规，LLM 增强）' })
+  getRiskBrief(@Param('id') id: string) {
+    return this.expertAdminService.getRiskBrief(id);
+  }
+
   @Get(':id/evaluations')
   @ApiOperation({ summary: '专家履职评价历史' })
   getExpertEvaluations(@Param('id') id: string) {
@@ -228,6 +240,12 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '从种子数据批量导入专家（跳过已存在的）' })
   importFromSeed() {
     return this.expertAdminService.importFromSeed();
+  }
+
+  @Post('ocr-intake')
+  @ApiOperation({ summary: '资质 OCR 自动录入（识别证件图片 → 结构化字段回填）' })
+  ocrIntake(@Body() body: { imageBase64: string; mimeType?: string; filename?: string }) {
+    return this.expertAdminService.ocrIntake(body.imageBase64, body.mimeType, body.filename);
   }
 
   @Post('evaluations')

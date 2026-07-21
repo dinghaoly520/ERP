@@ -178,15 +178,9 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
                 {avatarUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
                 {avatar ? '更换图片' : '上传图片'}
               </button>
-              <input
-                type="url"
-                value={avatar}
-                onChange={(e) => setAvatar(e.target.value)}
-                placeholder="或输入图片 URL"
-                className="neu-input w-[220px] text-xs" />
             </div>
             <span className="text-[10px] text-[color:var(--muted-foreground)]">
-              JPG/PNG 格式，支持本地上传或粘贴图片链接
+              JPG/PNG 格式，支持本地上传
             </span>
           </div>
         </div>

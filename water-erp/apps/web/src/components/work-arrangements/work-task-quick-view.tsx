@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   AlertTriangle,
   CheckCheck,
@@ -89,6 +90,7 @@ export function WorkTaskQuickView({
   onUnblock,
   onCancel,
   onPostponeReminder,
+  onResetReminder,
   onOpenFullEditor,
   onOpenNotes,
 }: {
@@ -100,6 +102,7 @@ export function WorkTaskQuickView({
   onUnblock: () => void;
   onCancel: () => void;
   onPostponeReminder: () => void;
+  onResetReminder: (targetAt: string) => void;
   onOpenFullEditor: () => void;
   onOpenNotes: () => void;
 }) {
@@ -117,6 +120,7 @@ export function WorkTaskQuickView({
   const statusStyle = statusStyles[item.status];
   const availableActions = getAvailableActions(item.status);
   const isFinished = item.status === 'COMPLETED' || item.status === 'CANCELLED';
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
 
   return (
     <section className={isFinished ? 'opacity-75' : ''}>
@@ -191,7 +195,40 @@ export function WorkTaskQuickView({
               <XCircle size={16} />取消任务
             </button>
           )}
-          {reminderState !== 'NONE' && (
+          {(reminderState === 'NONE' || reminderState === 'OVERDUE') && (
+            <>
+              <button type="button" onClick={() => setShowReminderPicker((v) => !v)} className={`neu-btn-soft ${reminderState === 'OVERDUE' ? 'is-warning' : ''}`}>
+                <Clock3 size={16} />{reminderState === 'NONE' ? '设置提醒' : '新设提醒'}
+              </button>
+              {showReminderPicker && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="datetime-local"
+                    defaultValue={new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16)}
+                    className="neu-input text-sm h-9"
+                    id="qv-reset-reminder-time"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById('qv-reset-reminder-time') as HTMLInputElement;
+                      if (el?.value) {
+                        onResetReminder(new Date(el.value).toISOString());
+                        setShowReminderPicker(false);
+                      }
+                    }}
+                    className="neu-btn-soft is-success h-9"
+                  >
+                    确定
+                  </button>
+                  <button type="button" onClick={() => setShowReminderPicker(false)} className="neu-btn-soft h-9">
+                    取消
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {reminderState !== 'NONE' && reminderState !== 'OVERDUE' && (
             <button type="button" onClick={onPostponeReminder} aria-label="延后提醒 30 分钟" className="neu-btn-soft">
               <Clock3 size={16} />延后提醒
             </button>

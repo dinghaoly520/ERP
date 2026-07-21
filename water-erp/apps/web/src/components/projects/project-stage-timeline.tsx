@@ -157,11 +157,9 @@ export function ProjectStageTimeline({
     } satisfies ArchiveTimelineEntry);
   }
 
-  // 分组：采购阶段按 round 分，CONTRACT 单独末组
+  // 分组：采购阶段按 round 分；CONTRACT 跟随其所属轮次，紧跟定标排在右侧
   const groups: { label?: string; items: TimelineEntry[] }[] = [];
-  const purchaseEntries = entries.filter(
-    (e) => e.selectable && (e as SelectableTimelineEntry).stageKey !== 'CONTRACT',
-  );
+  const purchaseEntries = entries.filter((e) => e.selectable);
   const roundMap = new Map<number, TimelineEntry[]>();
   for (const e of purchaseEntries) {
     const r = (e as SelectableTimelineEntry).round;
@@ -176,10 +174,6 @@ export function ProjectStageTimeline({
       items: roundMap.get(r)!,
     });
   }
-  const contractEntry = entries.find(
-    (e) => e.selectable && (e as SelectableTimelineEntry).stageKey === 'CONTRACT',
-  );
-  if (contractEntry) groups.push({ items: [contractEntry] });
   const archiveEntry = entries.find((e) => !e.selectable);
   if (archiveEntry) groups.push({ items: [archiveEntry] });
 

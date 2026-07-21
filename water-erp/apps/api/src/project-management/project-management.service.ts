@@ -18,6 +18,8 @@ import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
+import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
+import { estimateBudgetReference } from './budget-reference-estimator';
 import { LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './project-management.types';
 import { getStageComplianceRules } from './stage-compliance-rules';
 
@@ -839,350 +841,21 @@ export class ProjectManagementService {
    * Scan all uploaded files in a project and extract missing info.
    * Called when project detail opens to handle files uploaded before extraction code existed.
    */
-  async analyzeBudgetReference(dto: { procurementTitle: string; procurementCategory?: string; projectReason?: string; supplierRequirements?: string }) {
-    const normalizeForSimilarity = (value: string) =>
-      value
-        .toLowerCase()
-        .replace(/[（(][^）)]*[）)]/g, '')
-        .replace(/[\s,，、.。:：;；\-_—\/\\]+/g, '')
-        .replace(/采购项目|采购事项|采购服务|采购|项目|服务|合同|技术服务|相关服务/g, '')
-        .trim();
-
-    const extractKeywords = (value: string) => {
-      const normalized = normalizeForSimilarity(value);
-      const tokens = new Set<string>();
-      const domainTerms = [
-        '人事', '档案', '数字化', '测绘', '无人机', '保险', '水库', '拱坝', '应力', '安全性',
-        '模型', '沙盘', '视频', '监测', '自动化', '设备', '租赁', '食材', '配送', '咨询',
-        '勘察', '设计', '地质', '评价', '系统', '软件', '硬件', '车辆', '钻杆', '材料',
-      ];
-      for (const term of domainTerms) {
-        if (normalized.includes(term)) tokens.add(term);
-      }
-      for (let i = 0; i < normalized.length - 1; i++) {
-        const token = normalized.slice(i, i + 2);
-        if (!['服务', '项目', '采购', '合同', '技术', '工程'].includes(token)) {
-          tokens.add(token);
-        }
-      }
-      return tokens;
-    };
-
-    const diceCoefficient = (a: string, b: string): number => {
-      if (!a || !b) return 0;
-      if (a === b) return 1;
-      if (a.includes(b) || b.includes(a)) {
-        return Math.min(a.length, b.length) / Math.max(a.length, b.length);
-      }
-      const grams = (s: string) => {
-        if (s.length <= 1) return [s];
-        const result: string[] = [];
-        for (let i = 0; i < s.length - 1; i++) result.push(s.slice(i, i + 2));
-        return result;
-      };
-      const aGrams = grams(a);
-      const bGrams = grams(b);
-      const bSet = new Set(bGrams);
-      const overlap = aGrams.filter((gram) => bSet.has(gram)).length;
-      return (2 * overlap) / (aGrams.length + bGrams.length);
-    };
-
-    const calculateSimilarity = (str1: string, str2: string): number => {
-      const s1 = normalizeForSimilarity(str1);
-      const s2 = normalizeForSimilarity(str2);
-      if (!s1 || !s2) return 0;
-      const charOverlap = [...new Set(s1)].filter((char) => s2.includes(char)).length / Math.max(new Set(s1).size, new Set(s2).size);
-      return Math.max(diceCoefficient(s1, s2), charOverlap * 0.65);
-    };
-
-    const currentText = [
-      dto.procurementTitle,
-      dto.procurementCategory,
-      dto.projectReason,
-      dto.supplierRequirements,
-    ].filter(Boolean).join(' ');
-    const currentKeywords = extractKeywords(currentText);
-
-    const calculateSemanticScore = (candidate: { title: string; category?: string | null }) => {
-      const candidateText = [candidate.title, candidate.category].filter(Boolean).join(' ');
-      const candidateKeywords = extractKeywords(candidateText);
-      if (currentKeywords.size === 0 || candidateKeywords.size === 0) return 0;
-      const overlap = [...currentKeywords].filter((keyword) => candidateKeywords.has(keyword));
-      return overlap.length / Math.max(currentKeywords.size, candidateKeywords.size);
-    };
-
-    const STRONG_TITLE_THRESHOLD = 0.30;
-    const MIN_SEMANTIC_SCORE = 0.10;
-
-    const procurementRounds = await this.prisma.procurementRound.findMany({
-      where: {
-        budgetAmount: { gt: 0 },
-      },
-      include: { project: { select: { name: true, businessCategory: true } } },
-      orderBy: { createdAt: 'desc' },
+  /**
+   * 预算参考：置信分层估算（方法 C）。在单价层归一，按数据质量分 Tier 1–4，
+   * 修复旧算法“按历史项目总价×业务相关度加权”在数量/质量/规模不一致时的失真。
+   * 详见 docs/superpowers/specs/2026-07-21-budget-reference-tiered-pricing-design.md
+   */
+  async analyzeBudgetReference(dto: AnalyzeBudgetReferenceDto) {
+    return estimateBudgetReference(this.prisma, {
+      procurementTitle: dto.procurementTitle,
+      procurementCategory: dto.procurementCategory ?? null,
+      procurementType: dto.procurementType ?? null,
+      projectReason: dto.projectReason ?? null,
+      supplierRequirements: dto.supplierRequirements ?? null,
+      lines: dto.lines,
+      budgetListId: dto.budgetListId ?? null,
     });
-
-    // Category match bonus: if categories align, boost similarity
-    const categoryMatch = (candidateCategory?: string | null): number => {
-      if (!dto.procurementCategory || !candidateCategory) return 0;
-      if (dto.procurementCategory === candidateCategory) return 0.15;
-      // Partial category overlap (e.g. "生产技术类采购" shares "生产技术" with similar categories)
-      const normCat = (s: string) => s.replace(/类?采购$/g, '').trim();
-      const a = normCat(dto.procurementCategory);
-      const b = normCat(candidateCategory);
-      if (a && b && (a.includes(b) || b.includes(a))) return 0.08;
-      return 0;
-    };
-
-    const scoredRounds = procurementRounds
-      .map((round) => {
-        const titleScore = calculateSimilarity(dto.procurementTitle, round.project.name);
-        const semanticScore = calculateSemanticScore({ title: round.project.name, category: round.project.businessCategory });
-        const exactMatch = normalizeForSimilarity(dto.procurementTitle) === normalizeForSimilarity(round.project.name);
-        const catBonus = categoryMatch(round.project.businessCategory);
-        const similarity = exactMatch ? 2 : Math.max(titleScore, semanticScore) + catBonus;
-        return { round, similarity, titleScore, semanticScore, exactMatch, catBonus };
-      })
-      .sort((a, b) => b.similarity - a.similarity);
-
-    const similarProjects = await this.prisma.projectManagementItem.findMany({
-      where: {
-        OR: [
-          { budgetAmount: { gt: 0 } },
-          { contractAmount: { gt: 0 } },
-        ],
-        status: { in: ['ACTIVE', 'ARCHIVED'] },
-      },
-      select: {
-        title: true,
-        procurementCategory: true,
-        budgetAmount: true,
-        contractAmount: true,
-        createdAt: true,
-        procurementMethod: true,
-        status: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const scoredProjects = similarProjects
-      .map((project) => {
-        const titleScore = calculateSimilarity(dto.procurementTitle, project.title);
-        const semanticScore = calculateSemanticScore({ title: project.title, category: project.procurementCategory });
-        const exactMatch = normalizeForSimilarity(dto.procurementTitle) === normalizeForSimilarity(project.title);
-        const catBonus = categoryMatch(project.procurementCategory);
-        const similarity = exactMatch ? 2 : Math.max(titleScore, semanticScore) + catBonus;
-        return { project, similarity, titleScore, semanticScore, exactMatch, catBonus };
-      })
-      .sort((a, b) => b.similarity - a.similarity);
-
-    // Strong match filtering with lowered threshold
-    const isStrongMatch = (item: { exactMatch: boolean; titleScore: number; semanticScore: number; catBonus: number }) =>
-      item.exactMatch || item.titleScore >= STRONG_TITLE_THRESHOLD || item.semanticScore >= MIN_SEMANTIC_SCORE || item.catBonus >= 0.15;
-
-    let strongRoundMatches = scoredRounds.filter(isStrongMatch).map((item) => item.round);
-    let strongProjectMatches = scoredProjects.filter(isStrongMatch).map((item) => item.project);
-
-    // Fallback: if no strong matches, take top K by score as weak candidates for AI to evaluate
-    const WEAK_SCORE_THRESHOLD = 0.05;
-    const MAX_WEAK_CANDIDATES = 10;
-    if (strongRoundMatches.length + strongProjectMatches.length === 0) {
-      this.logger.log('[BudgetRef] No strong matches, falling back to top weak candidates');
-      strongRoundMatches = scoredRounds
-        .filter((item) => item.similarity >= WEAK_SCORE_THRESHOLD)
-        .slice(0, MAX_WEAK_CANDIDATES)
-        .map((item) => item.round);
-      strongProjectMatches = scoredProjects
-        .filter((item) => item.similarity >= WEAK_SCORE_THRESHOLD)
-        .slice(0, MAX_WEAK_CANDIDATES)
-        .map((item) => item.project);
-    }
-
-    const candidateReferences = [
-      ...strongRoundMatches.map(r => ({
-        title: r.project.name,
-        category: r.project.businessCategory,
-        amount: r.budgetAmount,
-        contractAmount: r.awardAmount,
-        date: r.createdAt,
-        method: r.procurementMethod,
-        source: '采购台账' as const,
-      })),
-      ...strongProjectMatches.map(p => ({
-        title: p.title,
-        category: p.procurementCategory,
-        amount: p.budgetAmount,
-        contractAmount: p.contractAmount,
-        date: p.createdAt,
-        method: p.procurementMethod,
-        source: '项目管理' as const,
-      })),
-    ];
-
-    let allReferences = candidateReferences;
-
-    if (candidateReferences.length > 0) {
-      const selectionPrompt = `你是采购历史项目匹配助手。请根据本次采购项目的信息，从候选历史项目中筛选真正可用于预算参考的项目。
-
-判断依据不是只看标题相似，而是综合：
-1. 采购事项名称/业务内容是否相近
-2. 采购类别是否相近
-3. 立项事由体现的需求背景是否相近
-4. 供方要求/服务内容/设备内容是否相近
-5. 采购方式可作为辅助参考，但不能单独决定
-
-请输出 JSON：
-{
-  "selectedIndexes": [候选项目序号],
-  "reason": "筛选理由，30-80字"
-}
-
-规则：
-- selectedIndexes 最多 8 个
-- 只选可用于预算参考的项目
-- 如果没有高度相关项目，可以选择业务类别最接近、价格可参考的项目，但不要返回空数组`;
-
-      const selectionInput = JSON.stringify({
-        currentProject: {
-          title: dto.procurementTitle,
-          category: dto.procurementCategory,
-          reason: dto.projectReason,
-          supplierRequirements: dto.supplierRequirements,
-        },
-        candidates: candidateReferences.map((item, index) => ({
-          index,
-          title: item.title,
-          category: item.category,
-          method: item.method,
-          budgetAmount: item.amount,
-          contractAmount: item.contractAmount,
-          source: item.source,
-        })),
-      }, null, 2);
-
-      try {
-        const content = await this.aiService.chatJson(selectionPrompt, selectionInput, 0.1);
-        const parsed = JSON.parse(content) as { selectedIndexes?: number[] };
-        const selected = (parsed.selectedIndexes || [])
-          .map((index) => candidateReferences[index])
-          .filter(Boolean);
-        const exactMatches = candidateReferences.filter((item) =>
-          normalizeForSimilarity(item.title) === normalizeForSimilarity(dto.procurementTitle),
-        );
-        const mergedSelected = [...exactMatches, ...selected].filter(
-          (item, index, arr) => arr.findIndex((other) => other.title === item.title && other.date === item.date && other.source === item.source) === index,
-        );
-        if (mergedSelected.length > 0) {
-          allReferences = mergedSelected;
-        }
-      } catch (error) {
-        this.logger.warn(`Budget reference AI selection failed, using heuristic candidates: ${error}`);
-      }
-    }
-
-    if (allReferences.length === 0) {
-      return {
-        hasReference: false,
-        message: '未找到相关的历史采购项目',
-        references: [],
-        suggestedBudget: null,
-        analysis: null,
-      };
-    }
-
-    const amounts = allReferences.map(r => r.amount ? Number(r.amount) : 0).filter(a => a > 0);
-    const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
-    const maxAmount = Math.max(...amounts);
-    const minAmount = Math.min(...amounts);
-
-    const contractAmounts = allReferences
-      .map(r => r.contractAmount ? Number(r.contractAmount) : null)
-      .filter((a: number | null): a is number => a !== null && a > 0);
-    const avgContractAmount = contractAmounts.length > 0
-      ? contractAmounts.reduce((a, b) => a + b, 0) / contractAmounts.length
-      : null;
-
-    const systemPrompt = `你是一个采购预算分析专家。根据历史采购项目的数据，分析并给出预算建议。
-
-请输出 JSON 格式：
-{
-  "analysis": "分析说明（50-100字，说明历史项目的价格范围、波动原因、建议预算）",
-  "suggestedBudget": 建议预算金额（数字）,
-  "confidence": 置信度（0-1之间的数字，数据越多越相近则越高）
-}
-
-重要规则：
-1. 建议预算金额不得超过历史预算金额的最大值（maxBudget）
-2. 若历史项目较少（<=2个），建议预算应在预算价与合同价之间选择，倾向于合同价
-3. 若有合同价参考，建议预算应接近合同价区间，而非预算价区间
-4. 分析要简洁专业，说明价格合理范围和选择依据
-5. 如果历史项目较少或差异较大，置信度要降低`;
-
-    const userPrompt = JSON.stringify({
-      currentProject: {
-        title: dto.procurementTitle,
-        category: dto.procurementCategory,
-        requirements: dto.supplierRequirements,
-      },
-      historicalData: allReferences.map(r => ({
-        title: r.title,
-        budgetAmount: r.amount,
-        contractAmount: r.contractAmount,
-        date: r.date,
-        source: r.source,
-      })),
-      statistics: {
-        avgBudget: avgAmount,
-        maxBudget: maxAmount,
-        minBudget: minAmount,
-        avgContract: avgContractAmount,
-        count: allReferences.length,
-      },
-    }, null, 2);
-
-    try {
-      const content = await this.aiService.chatJson(systemPrompt, userPrompt, 0.3);
-      const parsed = JSON.parse(content) as { analysis: string; suggestedBudget: number; confidence: number };
-
-      let finalBudget = parsed.suggestedBudget || Math.round(avgAmount);
-      if (finalBudget > maxAmount) {
-        finalBudget = avgContractAmount ? Math.round(avgContractAmount) : Math.round(avgAmount);
-      }
-
-      return {
-        hasReference: true,
-        message: `找到 ${allReferences.length} 个相关历史项目`,
-        references: allReferences.slice(0, 5),
-        suggestedBudget: finalBudget,
-        analysis: parsed.analysis,
-        confidence: parsed.confidence || 0.5,
-        statistics: {
-          average: Math.round(avgAmount),
-          max: maxAmount,
-          min: minAmount,
-          avgContract: avgContractAmount ? Math.round(avgContractAmount) : null,
-          count: allReferences.length,
-        },
-      };
-    } catch (error) {
-      this.logger.error('Budget reference analysis failed:', error);
-      const fallbackBudget = avgContractAmount ? Math.round(avgContractAmount) : Math.round(avgAmount);
-      return {
-        hasReference: true,
-        message: `找到 ${allReferences.length} 个相关历史项目`,
-        references: allReferences.slice(0, 5),
-        suggestedBudget: fallbackBudget,
-        analysis: `根据 ${allReferences.length} 个历史项目，预算范围 ${minAmount.toLocaleString()} - ${maxAmount.toLocaleString()} 元${avgContractAmount ? `，合同均价 ${Math.round(avgContractAmount).toLocaleString()} 元` : ''}。`,
-        confidence: 0.5,
-        statistics: {
-          average: Math.round(avgAmount),
-          max: maxAmount,
-          min: minAmount,
-          avgContract: avgContractAmount ? Math.round(avgContractAmount) : null,
-          count: allReferences.length,
-        },
-      };
-    }
   }
 
   async refreshExtractedInfo(projectId: string) {
@@ -2993,6 +2666,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
       bidOpeningTime?: string;
       invitedSuppliers?: string;
       paymentPerformance?: string;
+      requesterName?: string;
+      requesterDepartment?: string;
+      procurementMethod?: string;
+      procurementCategory?: string;
+      budgetAmount?: number;
     },
   ) {
     const project = await this.prisma.projectManagementItem.findUnique({
@@ -3066,6 +2744,27 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (dto.paymentPerformance !== undefined) {
       updateData.paymentPerformance = dto.paymentPerformance || null;
+    }
+
+    // 项目基本信息字段（schema 中均为必填，空值不回写 null）
+    if (dto.requesterName !== undefined) {
+      updateData.requesterName = dto.requesterName;
+    }
+
+    if (dto.requesterDepartment !== undefined) {
+      updateData.requesterDepartment = dto.requesterDepartment;
+    }
+
+    if (dto.procurementMethod !== undefined) {
+      updateData.procurementMethod = dto.procurementMethod;
+    }
+
+    if (dto.procurementCategory !== undefined) {
+      updateData.procurementCategory = dto.procurementCategory;
+    }
+
+    if (dto.budgetAmount !== undefined) {
+      updateData.budgetAmount = dto.budgetAmount;
     }
 
     return this.prisma.projectManagementItem.update({

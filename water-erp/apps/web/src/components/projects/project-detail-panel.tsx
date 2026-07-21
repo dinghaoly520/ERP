@@ -15,13 +15,16 @@ import {
   auditStageCompliance,
   type ComplianceAuditResponse,
   type ExtractedInfo,
+  type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
 import {
+  PROCUREMENT_METHODS,
   PROJECT_STAGE_STATUS_LABELS,
   PROJECT_WORKFLOW_STAGES,
   type ProjectDetailAnalysis,
   type ProjectManagementItem,
   type ProjectManagementStage,
+  type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
@@ -35,6 +38,16 @@ import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
 
 // ─── Extracted Info Field Components ───────────────────────────────────────────
+
+const PROCUREMENT_CATEGORY_OPTIONS = [
+  '生产技术类采购',
+  'EPC项目采购',
+  'EPC管理采购',
+  '公用集中采购',
+  '科技研发类采购',
+  '信息化采购',
+  '其他',
+];
 
 // Expert info display component - handles structured expert data
 function ExpertInfoField({
@@ -335,6 +348,11 @@ export function ProjectDetailPanel({
     bidOpeningTime: '',
     invitedSuppliers: '',
     paymentPerformance: '',
+    requesterName: '',
+    requesterDepartment: '',
+    procurementMethod: '',
+    procurementCategory: '',
+    budgetAmount: '',
   });
 
   const selectedStage = useMemo(
@@ -380,7 +398,7 @@ export function ProjectDetailPanel({
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
   const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
-  const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string } | null>(null);
+  const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
 
   // 步骤检查状态 —— 按 stageKey 缓存结果
   const complianceCache = useRef<Map<string, ComplianceAuditResponse>>(new Map());
@@ -694,6 +712,18 @@ export function ProjectDetailPanel({
     if (field === 'contractAmount') {
       const num = Number.parseFloat(value);
       payload[field] = Number.isNaN(num) ? null : num;
+    } else if (field === 'budgetAmount') {
+      // 预算金额在 schema 中为必填 Decimal，清空时回退为 0 而非 null
+      const num = Number.parseFloat(value);
+      payload[field] = Number.isNaN(num) ? 0 : num;
+    } else if (
+      field === 'requesterName' ||
+      field === 'requesterDepartment' ||
+      field === 'procurementMethod' ||
+      field === 'procurementCategory'
+    ) {
+      // 必填字符串字段，空值保留为空串而非 null
+      payload[field] = value.trim();
     } else if (field === 'initiationDate') {
       payload[field] = value || null;
     } else {
@@ -730,6 +760,44 @@ export function ProjectDetailPanel({
     if (Number.isNaN(num)) return String(value);
     return `${num.toLocaleString('zh-CN')} 元`;
   };
+
+  // 阶段附件发生变化（新增 / 替换）后的统一处理，避免需手动刷新页面才可见：
+  //  - 拿到上传结果（客户端上传）时即时注入 localItem，文件立即可见；
+  //  - 服务端创建/替换（无 result）时由弹窗的 onPublished/onFileReplaced 回流更新列表；
+  //  - 若当前正查看该阶段，同步刷新「文件分析」与「步骤检查」（含对新/改文件的分析内容）。
+  const handleStageAttachmentChanged = useCallback(
+    (stageKey: ProjectWorkflowStageKey, result?: UploadStageAttachmentResult) => {
+      if (result) {
+        setLocalItem((prev) => ({
+          ...prev,
+          stages: prev.stages.map((s) =>
+            s.stageKey === stageKey
+              ? { ...s, attachments: [...s.attachments, result] }
+              : s,
+          ),
+        }));
+      }
+      if (selectedStageKey === stageKey) {
+        setAnalysisLoading(true);
+        setAnalysisError(null);
+        analyzeProjectManagementItem(item.id, stageKey)
+          .then((next) => setAnalysis(next))
+          .catch((e) => setAnalysisError(e instanceof Error ? e.message : 'AI 分析暂不可用。'))
+          .finally(() => setAnalysisLoading(false));
+        complianceCache.current.delete(`${item.id}:${stageKey}`);
+        runComplianceAudit(true);
+      }
+    },
+    [item.id, selectedStageKey, runComplianceAudit],
+  );
+
+  // 采购方式 / 采购类别下拉选项 —— 确保当前值始终在选项中（历史数据可能不在标准枚举内）
+  const methodOptions = item.procurementMethod && !(PROCUREMENT_METHODS as readonly string[]).includes(item.procurementMethod)
+    ? [item.procurementMethod, ...PROCUREMENT_METHODS]
+    : [...PROCUREMENT_METHODS];
+  const categoryOptions = item.procurementCategory && !PROCUREMENT_CATEGORY_OPTIONS.includes(item.procurementCategory)
+    ? [item.procurementCategory, ...PROCUREMENT_CATEGORY_OPTIONS]
+    : PROCUREMENT_CATEGORY_OPTIONS;
 
   return (
     <>
@@ -835,7 +903,7 @@ export function ProjectDetailPanel({
               showArchiveStep={showArchiveStep}
               archiveStepState={archiveStepState}
               tenderDocxAttachments={tenderDocxFiles}
-              onEditTenderFile={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName })}
+              onEditTenderFile={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: 'TENDER_DOCUMENT' })}
             />
 
             {showArchiveStep ? (
@@ -918,23 +986,88 @@ export function ProjectDetailPanel({
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请人</span>
-                    <div className="mt-0.5 text-[color:var(--foreground)]">{item.requesterName}</div>
+                    {editingField === 'requesterName' ? (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <input type="text" value={editValues.requesterName} onChange={(e) => setEditValues((prev) => ({ ...prev, requesterName: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('requesterName'); if (e.key === 'Escape') setEditingField(null); }} />
+                        <button type="button" onClick={() => void handleSaveField('requesterName')} className="neu-btn-xs"><Save size={13} /></button>
+                        <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleStartEdit('requesterName', item.requesterName)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                        <span className="text-[color:var(--foreground)]">{item.requesterName || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
+                      </button>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请部门</span>
-                    <div className="mt-0.5 text-[color:var(--foreground)]">{item.requesterDepartment}</div>
+                    {editingField === 'requesterDepartment' ? (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <input type="text" value={editValues.requesterDepartment} onChange={(e) => setEditValues((prev) => ({ ...prev, requesterDepartment: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('requesterDepartment'); if (e.key === 'Escape') setEditingField(null); }} />
+                        <button type="button" onClick={() => void handleSaveField('requesterDepartment')} className="neu-btn-xs"><Save size={13} /></button>
+                        <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleStartEdit('requesterDepartment', item.requesterDepartment)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                        <span className="text-[color:var(--foreground)]">{item.requesterDepartment || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
+                      </button>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购方式</span>
-                    <div className="mt-0.5 text-sm text-[color:var(--foreground)]">{item.procurementMethod || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</div>
+                    {editingField === 'procurementMethod' ? (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <select value={editValues.procurementMethod} onChange={(e) => setEditValues((prev) => ({ ...prev, procurementMethod: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus>
+                          <option value="">请选择</option>
+                          {methodOptions.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <button type="button" onClick={() => void handleSaveField('procurementMethod')} className="neu-btn-xs"><Save size={13} /></button>
+                        <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleStartEdit('procurementMethod', item.procurementMethod)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                        <span className="text-sm text-[color:var(--foreground)]">{item.procurementMethod || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
+                      </button>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购类别</span>
-                    <div className="mt-0.5 text-sm text-[color:var(--foreground)]">{item.procurementCategory || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</div>
+                    {editingField === 'procurementCategory' ? (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <select value={editValues.procurementCategory} onChange={(e) => setEditValues((prev) => ({ ...prev, procurementCategory: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus>
+                          <option value="">请选择</option>
+                          {categoryOptions.map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                        <button type="button" onClick={() => void handleSaveField('procurementCategory')} className="neu-btn-xs"><Save size={13} /></button>
+                        <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleStartEdit('procurementCategory', item.procurementCategory)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                        <span className="text-sm text-[color:var(--foreground)]">{item.procurementCategory || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
+                      </button>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">预算金额</span>
-                    <div className="mt-0.5 font-black tracking-[-0.02em] tabular-nums text-[color:var(--foreground)]">{item.budgetAmount.toLocaleString('zh-CN')} <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">元</span></div>
+                    {editingField === 'budgetAmount' ? (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <input type="number" value={editValues.budgetAmount} onChange={(e) => setEditValues((prev) => ({ ...prev, budgetAmount: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" placeholder="输入金额" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('budgetAmount'); if (e.key === 'Escape') setEditingField(null); }} />
+                        <button type="button" onClick={() => void handleSaveField('budgetAmount')} className="neu-btn-xs"><Save size={13} /></button>
+                        <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleStartEdit('budgetAmount', item.budgetAmount)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
+                        <span className="font-black tracking-[-0.02em] tabular-nums text-[color:var(--foreground)]">{item.budgetAmount.toLocaleString('zh-CN')} <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">元</span></span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
+                      </button>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">立项时间</span>
@@ -1221,7 +1354,7 @@ export function ProjectDetailPanel({
                   complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}`);
                   runComplianceAudit(true);
                 }}
-                onEdit={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName })}
+                onEdit={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
               />
 
               {/* ── 上传区 —— cgzxui 内凹底 ── */}
@@ -1461,6 +1594,7 @@ export function ProjectDetailPanel({
           procurementMethod={item.procurementMethod}
           projectTitle={item.title}
           project={item}
+          onAttachmentUploaded={(result) => handleStageAttachmentChanged('TENDER_DOCUMENT', result)}
         />
       )}
 
@@ -1472,7 +1606,10 @@ export function ProjectDetailPanel({
           attachmentId={editingFile.attachmentId}
           attachmentName={editingFile.fileName}
           onClose={() => setEditingFile(null)}
-          onFileReplaced={onUpdated}
+          onFileReplaced={async () => {
+            if (editingFile) handleStageAttachmentChanged(editingFile.stageKey);
+            await onUpdated();
+          }}
         />
       )}
 
@@ -1496,6 +1633,7 @@ export function ProjectDetailPanel({
         onClose={() => setAnnouncementPublishOpen(false)}
         project={item}
         onPublished={onUpdated}
+        onStageAttachmentUploaded={(result) => handleStageAttachmentChanged('PUBLIC_ANNOUNCEMENT', result)}
       />
 
       {/* 开标确认面板：投标状态 / 专家确认 / 评分标准 / 开标决策 */}

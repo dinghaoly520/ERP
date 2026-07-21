@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Clock, FileUp, Loader2, Pencil, RotateCcw, Save, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Clock, FileUp, Loader2, Pencil, RotateCcw, Save, Search, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDraftAutosave, loadDraft, clearDraft } from '../../hooks/projects/useDraftAutosave';
 
@@ -39,6 +39,9 @@ hr.tfe-page-break::after {
 .tfe-review-highlight { background: color-mix(in oklch, #fde047 30%, transparent); }
 /* 用户修改标红 */
 .tfe-modified { background: color-mix(in oklch, var(--danger) 14%, transparent); text-decoration: underline; text-decoration-color: var(--danger); text-underline-offset: 2px; border-radius: 2px; padding: 0 1px; }
+/* 查找定位高亮 */
+mark.tfe-search-hit { background: color-mix(in oklch, #fbbf24 38%, transparent); color: inherit; border-radius: 2px; padding: 0; box-shadow: 0 0 0 1px color-mix(in oklch, #f59e0b 30%, transparent); }
+mark.tfe-search-hit.tfe-search-current { background: #f59e0b; color: #fff; box-shadow: 0 0 0 2px color-mix(in oklch, #f59e0b 40%, transparent); }
 /* 批注弹出泡 */
 .tfe-comment-popover {
   position: absolute; z-index: 100; left: 0; bottom: calc(100% + 6px);
@@ -95,8 +98,20 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
   // 修改历史刷新计数器：每次编辑后递增，触发面板重新扫描
   const [historyVersion, setHistoryVersion] = useState(0);
 
+  /* ── 查找定位 ── */
+  const [searchOpen, setSearchOpen]       = useState(false);
+  const [searchQuery, setSearchQuery]     = useState('');
+  const [searchCount, setSearchCount]     = useState(0);
+  const [searchIndex, setSearchIndex]     = useState(0);
+  const [searchVersion, setSearchVersion] = useState(0); // 每次重扫高亮递增，驱动"当前命中"刷新
+  const searchInputRef   = useRef<HTMLInputElement>(null);
+  const searchMarkingRef = useRef(false); // 查找高亮插入/拆除期间为 true，隔离编辑追踪 MutationObserver
+  const searchScrollRef  = useRef(true);  // 本次命中刷新是否滚动跟随
+  const observerRef      = useRef<MutationObserver | null>(null);
+
   // 草稿自动保存（按 attachmentId 分键，防抖 2s）；scheduleRef 供 MutationObserver 内部避免 stale 闭包
-  const scheduleDraftSave = useDraftAutosave(attachmentId, () => editorRef.current?.innerHTML ?? '');
+  // 内容经 serializeEditorHtml() 剥离查找高亮后落盘——高亮只是视图状态，绝不进草稿
+  const scheduleDraftSave = useDraftAutosave(attachmentId, () => serializeEditorHtml());
   const scheduleDraftSaveRef = useRef(scheduleDraftSave);
   scheduleDraftSaveRef.current = scheduleDraftSave;
 
@@ -105,6 +120,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     if (!isOpen || !attachmentId) return;
     setLoading(true); setIsDirty(false); isDirtyRef.current = false;
     setHistoryVersion(0);
+    setSearchOpen(false); setSearchQuery(''); setSearchCount(0); setSearchIndex(0);
     setReviewHtml(''); setReviewAnnotationCount(0); setReviewFileName('');
     fetch(`${API_BASE}/project-management/${projectId}/attachment-html/${attachmentId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() as Promise<{ fileName: string; html: string; originalHash: string }> : r.text().then(body => { let detail = `HTTP ${r.status}`; try { detail = (JSON.parse(body) as any).message || detail; } catch {} throw new Error(`加载失败（${detail}）`); }))
@@ -334,6 +350,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
       if (syncingRef.current) return;
       if (!contentReadyRef.current) return;
       if (revertingRef.current) return;
+      if (searchMarkingRef.current) return; // 查找高亮 DOM 操作，不是用户编辑
 
       let hasChanges = false;
       for (const rec of records) {
@@ -372,8 +389,10 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
       childList: true,
       subtree: true,
     });
+    observerRef.current = observer;
 
     return () => {
+      observerRef.current = null;
       observer.disconnect();
       if (mutateDebounceRef.current) clearTimeout(mutateDebounceRef.current);
     };
@@ -430,6 +449,139 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     });
   }
 
+  /* ── 查找定位：搜索文档文字，高亮全部匹配并支持上/下跳转 ──
+     高亮用 <mark> 包裹文本节点实现。包裹/拆解是程序化 DOM 变更，必须与
+     编辑追踪 MutationObserver 完全隔离（searchMarkingRef 守卫 + takeRecords
+     抽干待派发记录），否则会被误判为用户修改、触发标红与脏状态。
+     保存 / 草稿序列化统一走 serializeEditorHtml() 剥离高亮——高亮绝不落盘。 ── */
+
+  function beginSearchDomEdit() { searchMarkingRef.current = true; }
+  function endSearchDomEdit() { observerRef.current?.takeRecords(); searchMarkingRef.current = false; }
+
+  /** 拆解容器内全部查找高亮 mark，还原文本并合并相邻文本节点（调用方需自行加守卫） */
+  function clearSearchMarksIn(root: HTMLElement) {
+    root.querySelectorAll('mark.tfe-search-hit').forEach(m => {
+      const p = m.parentNode; if (!p) return;
+      while (m.firstChild) p.insertBefore(m.firstChild, m);
+      p.removeChild(m);
+      p.normalize();
+    });
+  }
+
+  /** 重新扫描编辑器、包裹全部匹配项，返回匹配数（大小写不敏感） */
+  function applySearchMarks(root: HTMLElement, query: string): number {
+    beginSearchDomEdit();
+    clearSearchMarksIn(root);
+    const q = query.trim();
+    let count = 0;
+    if (q) {
+      const ql = q.toLowerCase();
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => {
+          const p = (node as Text).parentElement;
+          if (!p || p.closest('style,mark.tfe-search-hit')) return NodeFilter.FILTER_REJECT;
+          return ((node as Text).textContent || '').toLowerCase().includes(ql)
+            ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        },
+      });
+      const nodes: Text[] = [];
+      let w = walker.nextNode() as Text | null;
+      while (w) { nodes.push(w); w = walker.nextNode() as Text | null; }
+      for (const startNode of nodes) {
+        let node: Text | null = startNode;
+        while (node) {
+          const idx = (node.textContent || '').toLowerCase().indexOf(ql);
+          if (idx === -1) break;
+          const range = document.createRange();
+          range.setStart(node, idx);
+          range.setEnd(node, idx + q.length);
+          const mark = document.createElement('mark');
+          mark.className = 'tfe-search-hit';
+          range.surroundContents(mark);
+          count++;
+          const next = mark.nextSibling; // 匹配后的剩余文本被分裂为新节点
+          node = next && next.nodeType === Node.TEXT_NODE ? (next as Text) : null;
+        }
+      }
+    }
+    endSearchDomEdit();
+    return count;
+  }
+
+  /** 给第 index 个匹配加"当前命中"样式，可选平滑滚动到视野中央 */
+  function markCurrentHit(index: number, scroll: boolean) {
+    const root = editorRef.current; if (!root) return;
+    root.querySelectorAll('mark.tfe-search-hit.tfe-search-current').forEach(m => m.classList.remove('tfe-search-current'));
+    const marks = root.querySelectorAll('mark.tfe-search-hit');
+    if (marks.length === 0) return;
+    const el = marks[Math.min(index, marks.length - 1)];
+    el.classList.add('tfe-search-current');
+    if (scroll) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  /** 序列化编辑器 HTML（保存/草稿共用）：克隆后剥离内联样式块与查找高亮 mark。
+      块级 data-pid 是后端 diff 锚点，原样保留。 */
+  function serializeEditorHtml(): string {
+    const el = editorRef.current; if (!el) return '';
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelector('#tfe-doc-styles')?.remove();
+    clearSearchMarksIn(clone);
+    return clone.innerHTML;
+  }
+
+  const searchQueryRef = useRef(''); searchQueryRef.current = searchQuery;
+  const searchOpenRef  = useRef(false); searchOpenRef.current = searchOpen;
+  const runSearchRef   = useRef<(scroll: boolean) => void>(() => {});
+
+  /** 重扫匹配并更新计数/索引；scroll=true 时滚动到当前命中 */
+  const runSearch = useCallback((scroll: boolean) => {
+    const root = editorRef.current; if (!root) return;
+    const count = applySearchMarks(root, searchQuery);
+    searchScrollRef.current = scroll;
+    setSearchCount(count);
+    setSearchIndex(prev => (count === 0 ? 0 : Math.min(prev, count - 1)));
+    setSearchVersion(v => v + 1);
+  }, [searchQuery]);
+  runSearchRef.current = runSearch;
+
+  const openSearch = useCallback(() => {
+    if (loading) return;
+    if (searchOpen) { searchInputRef.current?.focus(); searchInputRef.current?.select(); return; }
+    setSearchOpen(true);
+  }, [searchOpen, loading]);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false); setSearchQuery(''); setSearchCount(0); setSearchIndex(0);
+    const root = editorRef.current;
+    if (root) { beginSearchDomEdit(); clearSearchMarksIn(root); endSearchDomEdit(); }
+  }, []);
+
+  const gotoMatch = useCallback((delta: number) => {
+    if (searchCount === 0) return;
+    searchScrollRef.current = true;
+    setSearchIndex(i => (i + delta + searchCount) % searchCount);
+  }, [searchCount]);
+
+  /* 输入防抖 250ms 后重扫匹配并滚动到命中处 */
+  useEffect(() => {
+    if (!searchOpen) return;
+    const t = setTimeout(() => runSearchRef.current(true), 250);
+    return () => clearTimeout(t);
+  }, [searchOpen, searchQuery]);
+
+  /* 用户编辑（含撤销单条/AI 应用）后高亮可能失效或位移：随历史版本号重扫，不打断用户滚动 */
+  useEffect(() => {
+    if (historyVersion === 0) return;
+    if (!searchOpenRef.current || !searchQueryRef.current.trim()) return;
+    runSearchRef.current(false);
+  }, [historyVersion]);
+
+  /* 匹配集合或当前索引变化 → 刷新"当前命中"高亮 */
+  useEffect(() => {
+    if (!searchOpen || searchCount === 0) return;
+    markCurrentHit(searchIndex, searchScrollRef.current);
+  }, [searchOpen, searchCount, searchIndex, searchVersion]);
+
 
   /* ── 编辑（用于粘贴事件等仍需手动处理的场景） ── */
   const handleInput = useCallback(() => {
@@ -480,10 +632,8 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
         "是否改动"用 textContent 判定，与追踪器解耦——追踪器只负责可视化，不决定存得对不对。── */
   const handleSave = useCallback(async () => {
     if (!editorRef.current) return;
-    const styleEl = editorRef.current.querySelector('#tfe-doc-styles');
-    if (styleEl) styleEl.remove();
-    const editedHtml = editorRef.current.innerHTML;
-    // 块级 data-pid 是后端 diff 锚点，此处不得剥离（仅去内联样式块）
+    // 序列化时剥离内联样式块与查找高亮；块级 data-pid 是后端 diff 锚点，原样保留
+    const editedHtml = serializeEditorHtml();
     const currentText = (editorRef.current.textContent || '').replace(/\s+/g, ' ').trim();
     if (currentText === originalTextRef.current) { toast.warning('没有检测到任何修改内容'); return; }
 
@@ -525,10 +675,13 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
 
   /* ── Keyboard ── */
   useEffect(() => { if (!isOpen) return; const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose();
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); void handleSave(); }
-    
-  }; document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey); }, [isOpen, handleSave, onClose]);
+    if (e.key === 'Escape') { if (searchOpen) closeSearch(); else onClose(); return; }
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); void handleSave(); return; }
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); openSearch(); return; }
+    if (searchOpen && (e.key === 'F3' || ((e.metaKey || e.ctrlKey) && (e.key === 'g' || e.key === 'G')))) {
+      e.preventDefault(); gotoMatch(e.shiftKey ? -1 : 1); return;
+    }
+  }; document.addEventListener('keydown', onKey); return () => document.removeEventListener('keydown', onKey); }, [isOpen, handleSave, onClose, searchOpen, closeSearch, openSearch, gotoMatch]);
 
   /* ── AI ── */
   type AiPhase = 'idle' | 'toolbar' | 'panel' | 'diff';
@@ -684,6 +837,11 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* 查找定位 */}
+            <button type="button" onClick={openSearch} disabled={loading} title="在文档中查找（Ctrl/Cmd+F）"
+              className={`neu-btn-soft gap-1.5 h-8 text-xs ${searchOpen ? 'text-[var(--accent)]' : ''}`}>
+              <Search size={13} />查找
+            </button>
             {/* 导入审阅文件 */}
             <input ref={fileInputRef} type="file" accept=".docx,.doc" onChange={handleImportReview} className="hidden" />
             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={reviewImporting || loading}
@@ -723,11 +881,42 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
             {loading ? (
               <div className="flex items-center justify-center flex-1"><Loader2 size={28} className="animate-spin text-[var(--accent)]" /></div>
             ) : (
-              <div ref={scrollLeftRef} onScroll={handleLeftScroll} className="flex-1 overflow-y-auto" style={{ background: 'oklch(0.96 0.008 258 / 0.4)' }}>
-                <div className="py-10 px-6">
-                  <div className={`mx-auto rounded-[2px] ${isDualPane ? 'max-w-full' : 'max-w-[794px]'}`}
-                    style={{ ...PAGE_SHADOW, ...PAGE_CARD }}>
-                    <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={handleInput} className="outline-none" />
+              <div className="relative flex-1 min-h-0">
+                {/* ─── 查找定位面板 ─── */}
+                {searchOpen && (
+                  <div className="absolute right-5 top-3 z-30 flex items-center gap-1 rounded-[14px] px-3 py-1.5"
+                    style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.82))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 2px 3px 8px oklch(0.5 0.04 258 / 0.16), -1px -1px 3px oklch(1 0 0 / 0.85)' }}>
+                    <Search size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+                    <input ref={searchInputRef} autoFocus value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); gotoMatch(e.shiftKey ? -1 : 1); } }}
+                      placeholder="在文档中查找…"
+                      className="w-44 bg-transparent text-xs text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted-foreground)]/50" />
+                    <span className={`w-12 shrink-0 text-center text-[10px] tabular-nums ${searchQuery.trim() && searchCount === 0 ? 'font-semibold' : 'text-[var(--muted-foreground)]'}`}
+                      style={searchQuery.trim() && searchCount === 0 ? { color: 'var(--danger)' } : undefined}>
+                      {searchQuery.trim() ? (searchCount > 0 ? `${searchIndex + 1}/${searchCount}` : '无匹配') : ' '}
+                    </span>
+                    <span className="h-4 w-px shrink-0" style={{ background: 'oklch(0.6 0.04 258 / 0.2)' }} />
+                    <button type="button" onClick={() => gotoMatch(-1)} disabled={searchCount === 0} title="上一个（Shift+Enter）"
+                      className="rounded-[8px] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.5)] hover:text-[var(--foreground)] disabled:opacity-30">
+                      <ChevronUp size={13} />
+                    </button>
+                    <button type="button" onClick={() => gotoMatch(1)} disabled={searchCount === 0} title="下一个（Enter）"
+                      className="rounded-[8px] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.5)] hover:text-[var(--foreground)] disabled:opacity-30">
+                      <ChevronDown size={13} />
+                    </button>
+                    <button type="button" onClick={closeSearch} title="关闭查找（Esc）"
+                      className="rounded-[8px] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.5)] hover:text-[var(--foreground)]">
+                      <X size={13} />
+                    </button>
+                  </div>
+                )}
+                <div ref={scrollLeftRef} onScroll={handleLeftScroll} className="h-full overflow-y-auto" style={{ background: 'oklch(0.96 0.008 258 / 0.4)' }}>
+                  <div className="py-10 px-6">
+                    <div className={`mx-auto rounded-[2px] ${isDualPane ? 'max-w-full' : 'max-w-[794px]'}`}
+                      style={{ ...PAGE_SHADOW, ...PAGE_CARD }}>
+                      <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={handleInput} className="outline-none" />
+                    </div>
                   </div>
                 </div>
               </div>

@@ -61,4 +61,25 @@ export class UpdateExtractedInfoDto {
   @IsOptional()
   @IsString()
   paymentPerformance?: string;
+
+  // ── 新增：项目基本信息可编辑字段 ──
+  @IsOptional()
+  @IsString()
+  requesterName?: string;
+
+  @IsOptional()
+  @IsString()
+  requesterDepartment?: string;
+
+  @IsOptional()
+  @IsString()
+  procurementMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  procurementCategory?: string;
+
+  @IsOptional()
+  @IsNumber()
+  budgetAmount?: number;
 }

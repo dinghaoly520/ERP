@@ -44,6 +44,12 @@ import {
 } from "@/lib/work-arrangements/reminder";
 import { ArrowUpRight, Plus } from "lucide-react";
 import Link from "next/link";
+import { OverdueTasksDialog } from "@/components/work-arrangements/overdue-tasks-dialog";
+import {
+  getOverdueTasks,
+  hasShownOverdueDialogToday,
+  markOverdueDialogShownToday,
+} from "@/lib/work-arrangements/overdue";
 
 // Module-level cache for workspace data — persists across same-session page navigation
 type WorkspaceCache = {
@@ -256,12 +262,20 @@ export function WorkArrangementsPage({
   const [showFullEditor, setShowFullEditor] = useState(false);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showOverdueDialog, setShowOverdueDialog] = useState(false);
+  const [overdueTasks, setOverdueTasks] = useState<WorkArrangementItem[]>([]);
+  const [isOverview, setIsOverview] = useState(false);
+
+  const overdueCount = useMemo(
+    () => getOverdueTasks(allItems).length,
+    [allItems],
+  );
   const [activeReminders, setActiveReminders] = useState<ReminderInfo[]>([]);
 
   const linkedProject =
     projects.find((project) => project.id === linkedProjectId) ?? null;
 
-  // Tasks for the selected date — includes undone tasks from prior days
+  // Tasks for the selected date
   const tasksForSelectedDate = useMemo(() => {
     const dayStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -269,8 +283,8 @@ export function WorkArrangementsPage({
       if (!item.dueAt) return false;
       if (item.status === 'COMPLETED' || item.status === 'CANCELLED') return false;
       const due = new Date(item.dueAt).getTime();
-      // 当日任务 + 过期末完成任务
-      return due < dayEnd.getTime();
+      // 只显示严格属于所选日期的任务
+      return due >= dayStart.getTime() && due < dayEnd.getTime();
     });
   }, [allItems, selectedDate]);
 
@@ -278,6 +292,14 @@ export function WorkArrangementsPage({
   const unscheduledItems = useMemo(() => {
     return allItems.filter(item => !item.dueAt);
   }, [allItems]);
+
+  // 总览模式：已开始但未完成的任务（IN_PROGRESS / BLOCKED）
+  const overviewTasks = useMemo(
+    () => allItems.filter(item => item.status === 'IN_PROGRESS' || item.status === 'BLOCKED'),
+    [allItems],
+  );
+
+  const displayTasks = isOverview ? overviewTasks : tasksForSelectedDate;
 
   const selectedItem =
     allItems.find((item) => item.id === selectedItemId) ?? null;
@@ -441,6 +463,17 @@ export function WorkArrangementsPage({
   }, [
     linkedProjectId,
   ]); // Only reload when linkedProjectId changes
+
+  // 逾期任务检查：每天首次进入页面时弹出一次
+  useEffect(() => {
+    if (allItems.length === 0 || hasShownOverdueDialogToday()) return;
+    const overdue = getOverdueTasks(allItems);
+    if (overdue.length > 0) {
+      setOverdueTasks(overdue);
+      setShowOverdueDialog(true);
+      markOverdueDialogShownToday();
+    }
+  }, [allItems]);
 
   // 后台静默刷新每日计划（页面打开后滞后执行，不阻塞首屏渲染）
   useEffect(() => {
@@ -681,6 +714,61 @@ export function WorkArrangementsPage({
     }
   };
 
+  const handleResetReminder = async (targetAt: string) => {
+    if (!selectedItemId) return;
+    setSaving(true);
+    setErrorMessage(null);
+    try {
+      await postponeWorkArrangementReminder(selectedItemId, {
+        preset: 'CUSTOM',
+        targetAt,
+      });
+      await refreshTasksOnly();
+      setSelectedItemId(selectedItemId);
+      setActiveReminders(prev => prev.filter(r => r.taskId !== selectedItemId));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '新设提醒失败。');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── 逾期任务对话框回调 ──
+  const handleOverdueStatusUpdate = async (id: string, status: WorkArrangementStatus) => {
+    await updateWorkArrangement(id, { status });
+    await refreshTasksOnly();
+    setOverdueTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleOverduePostpone = async (id: string) => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await updateWorkArrangement(id, { dueAt: tomorrow });
+    await refreshTasksOnly();
+    setOverdueTasks(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleOverdueViewDetails = (id: string) => {
+    setShowOverdueDialog(false);
+    handleSelectTask(id);
+  };
+
+  const handleShowOverdue = () => {
+    const overdue = getOverdueTasks(allItems);
+    if (overdue.length > 0) {
+      setOverdueTasks(overdue);
+      setShowOverdueDialog(true);
+    }
+  };
+
+  const handleToggleOverview = () => {
+    setIsOverview(prev => !prev);
+  };
+
+  const handleDateSelect = (date: Date) => {
+    setIsOverview(false);
+    setSelectedDate(date);
+  };
+
   const handleAddToCalendar = async (plannedItems: PlannedItem[]) => {
     setSaving(true);
     setErrorMessage(null);
@@ -807,11 +895,11 @@ export function WorkArrangementsPage({
           <div className="w-[calc(40%-0.5rem)] shrink-0 hidden xl:block" aria-hidden />
           {/* 左列 absolute — 高度严格等于右列 */}
           <div className="absolute left-0 top-0 bottom-0 w-[calc(40%-0.5rem)] hidden xl:block">
-            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => setShowHistoryDrawer(true)}/>
+            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => setShowHistoryDrawer(true)} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
           </div>
           {/* 移动端左列全宽 */}
           <div className="w-full xl:hidden">
-            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={tasksForSelectedDate} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} onDateSelect={setSelectedDate} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => setShowHistoryDrawer(true)}/>
+            <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => setShowHistoryDrawer(true)} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
           </div>
           {/* 右列 — 自然高度 */}
           <div className="flex-1 min-w-0 flex flex-col gap-4">
@@ -883,6 +971,7 @@ export function WorkArrangementsPage({
         onUnblock={() => void handleUnblock()}
         onCancel={() => void handleCancel()}
         onPostponeReminder={() => void handlePostponeReminder()}
+        onResetReminder={(targetAt) => void handleResetReminder(targetAt)}
         onOpenFullEditor={() => {
           setShowTaskModal(false);
           setShowFullEditor(true);
@@ -890,6 +979,16 @@ export function WorkArrangementsPage({
         onNoteTypeChange={setNoteType}
         onNoteDraftChange={setNoteDraft}
         onSubmitNote={() => void handleAddNote()}
+      />
+
+      {/* 逾期任务对话框 */}
+      <OverdueTasksDialog
+        open={showOverdueDialog}
+        overdueTasks={overdueTasks}
+        onClose={() => setShowOverdueDialog(false)}
+        onStatusUpdate={handleOverdueStatusUpdate}
+        onPostpone={handleOverduePostpone}
+        onViewDetails={handleOverdueViewDetails}
       />
 
       {/* 历史记录抽屉 */}

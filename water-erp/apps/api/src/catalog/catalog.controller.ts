@@ -4,7 +4,7 @@ import { ApiBody, ApiConsumes, ApiCookieAuth, ApiOperation, ApiTags } from '@nes
 import { Response } from 'express';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CatalogService } from './catalog.service';
-import { CatalogAdminListQueryDto, CatalogItemAdminDto, CatalogStatusDto, CreateCatalogCategoryDto, UpdateCatalogCategoryDto, MoveCategoryDto, CreateAttributeTemplateDto, UpdateAttributeTemplateDto, SetItemAttributesDto } from './dto';
+import { CatalogAdminListQueryDto, CatalogItemAdminDto, CatalogStatusDto, CreateCatalogCategoryDto, UpdateCatalogCategoryDto, MoveCategoryDto, CreateAttributeTemplateDto, UpdateAttributeTemplateDto, SetItemAttributesDto, CreateAlertRuleDto, UpdateAlertRuleDto, CreateVersionDto, ChangeVersionStatusDto, CreateInquiryDto, CreateContractPriceDto, UpdateContractPriceDto, CreateItemRelationDto, SearchLogDto, CreateAttachmentDto, AiClassifyDto } from './dto';
 
 @ApiTags('采购目录')
 @ApiCookieAuth('token')
@@ -14,8 +14,8 @@ export class CatalogController {
 
   @Get()
   @ApiOperation({ summary: '采购目录列表' })
-  async list(@Query() query: CatalogAdminListQueryDto) {
-    return this.catalogService.list(query);
+  async list(@Query() query: CatalogAdminListQueryDto, @Request() req: any) {
+    return this.catalogService.list(query, req.user?.role);
   }
 
   // ── Admin endpoints (must be static routes before dynamic :id routes) ──
@@ -32,6 +32,14 @@ export class CatalogController {
   @ApiOperation({ summary: '管理端新增目录' })
   async createAdminItem(@Request() req: any, @Body() dto: CatalogItemAdminDto) {
     return this.catalogService.createAdminItem(req.user.sub, dto);
+  }
+
+  // static route：须先于 admin/items/:id/* 动态路由注册
+  @Post('admin/items/ai-classify')
+  @Roles('admin', 'leader', 'staff', 'procurement_staff')
+  @ApiOperation({ summary: 'AI 自动分类 + 属性预填（仅返回建议，不写库）' })
+  async aiClassify(@Body() dto: AiClassifyDto) {
+    return this.catalogService.aiClassify(dto);
   }
 
   @Patch('admin/items/:id')
@@ -92,35 +100,35 @@ export class CatalogController {
   }
 
   @Post('admin/categories')
-  @Roles('admin')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '创建品类节点' })
   async createCategory(@Request() req: any, @Body() dto: CreateCatalogCategoryDto) {
     return this.catalogService.createCategory(req.user.sub, dto);
   }
 
   @Patch('admin/categories/:id')
-  @Roles('admin')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '更新品类节点' })
   async updateCategory(@Request() req: any, @Param('id', new ParseIntPipe()) id: number, @Body() dto: UpdateCatalogCategoryDto) {
     return this.catalogService.updateCategory(req.user.sub, id, dto);
   }
 
   @Delete('admin/categories/:id')
-  @Roles('admin')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '删除品类节点' })
   async deleteCategory(@Request() req: any, @Param('id', new ParseIntPipe()) id: number) {
     return this.catalogService.deleteCategory(req.user.sub, id);
   }
 
   @Patch('admin/categories/:id/sort')
-  @Roles('admin')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '移动品类节点' })
   async moveCategory(@Request() req: any, @Param('id', new ParseIntPipe()) id: number, @Body() dto: MoveCategoryDto) {
     return this.catalogService.moveCategory(req.user.sub, id, dto);
   }
 
   @Patch('admin/categories/:id/status')
-  @Roles('admin')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '启用/停用品类节点' })
   async toggleCategoryStatus(@Request() req: any, @Param('id', new ParseIntPipe()) id: number) {
     return this.catalogService.toggleCategoryStatus(req.user.sub, id);
@@ -135,21 +143,21 @@ export class CatalogController {
   }
 
   @Post('admin/categories/:id/attribute-templates')
-  @Roles('admin')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '新增属性模板' })
   async createAttributeTemplate(@Request() req: any, @Param('id', new ParseIntPipe()) id: number, @Body() dto: CreateAttributeTemplateDto) {
     return this.catalogService.createAttributeTemplate(req.user.sub, id, dto);
   }
 
   @Patch('admin/attribute-templates/:id')
-  @Roles('admin')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '更新属性模板' })
   async updateAttributeTemplate(@Request() req: any, @Param('id', new ParseIntPipe()) id: number, @Body() dto: UpdateAttributeTemplateDto) {
     return this.catalogService.updateAttributeTemplate(req.user.sub, id, dto);
   }
 
   @Delete('admin/attribute-templates/:id')
-  @Roles('admin')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '删除属性模板' })
   async deleteAttributeTemplate(@Request() req: any, @Param('id', new ParseIntPipe()) id: number) {
     return this.catalogService.deleteAttributeTemplate(req.user.sub, id);
@@ -164,13 +172,20 @@ export class CatalogController {
     return this.catalogService.setItemAttributes(id, body.attributes);
   }
 
+  @Get('admin/items/:id/ai-price-analysis')
+  @Roles('admin', 'leader', 'staff', 'procurement_staff')
+  @ApiOperation({ summary: '价格异常 AI 研判（LLM 挂时降级为 analysis:null）' })
+  async aiPriceAnalysis(@Param('id') id: string) {
+    return this.catalogService.aiPriceAnalysis(id);
+  }
+
   // ── 价格预警 ──
 
   @Get('admin/alert-rules') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listAlertRules() { return this.catalogService.listAlertRules(); }
-  @Post('admin/alert-rules') @Roles('admin') async createAlertRule(@Body() dto: any) { return this.catalogService.createAlertRule(dto); }
-  @Patch('admin/alert-rules/:id') @Roles('admin') async updateAlertRule(@Param('id', new ParseIntPipe()) id: number, @Body() dto: any) { return this.catalogService.updateAlertRule(id, dto); }
-  @Delete('admin/alert-rules/:id') @Roles('admin') async deleteAlertRule(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.deleteAlertRule(id); }
-  @Patch('admin/alert-rules/:id/toggle') @Roles('admin') async toggleAlertRule(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.toggleAlertRule(id); }
+  @Post('admin/alert-rules') @Roles('admin', 'leader', 'staff') async createAlertRule(@Body() dto: CreateAlertRuleDto) { return this.catalogService.createAlertRule(dto); }
+  @Patch('admin/alert-rules/:id') @Roles('admin', 'leader', 'staff') async updateAlertRule(@Param('id', new ParseIntPipe()) id: number, @Body() dto: UpdateAlertRuleDto) { return this.catalogService.updateAlertRule(id, dto); }
+  @Delete('admin/alert-rules/:id') @Roles('admin', 'leader', 'staff') async deleteAlertRule(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.deleteAlertRule(id); }
+  @Patch('admin/alert-rules/:id/toggle') @Roles('admin', 'leader', 'staff') async toggleAlertRule(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.toggleAlertRule(id); }
   @Get('admin/alerts') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listAlerts(@Query('isRead') isRead?: string, @Query('isResolved') isResolved?: string) { return this.catalogService.listAlerts({ isRead: isRead !== undefined ? isRead === 'true' : undefined, isResolved: isResolved !== undefined ? isResolved === 'true' : undefined }); }
   @Patch('admin/alerts/:id/read') @Roles('admin', 'procurement_staff', 'leader', 'staff') async markAlertRead(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.markAlertRead(id); }
   @Patch('admin/alerts/:id/resolve') @Roles('admin', 'procurement_staff', 'leader', 'staff') async markAlertResolved(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.markAlertResolved(id); }
@@ -178,21 +193,22 @@ export class CatalogController {
   // ── 目录版本 ──
 
   @Get('admin/versions') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listVersions() { return this.catalogService.listVersions(); }
-  @Get('admin/versions/:id') @Roles('admin', 'procurement_staff', 'leader', 'staff') async getVersion(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.getVersion(id); }
-  @Post('admin/versions') @Roles('admin') async createVersion(@Request() req: any, @Body() dto: any) { return this.catalogService.createVersion(req.user.sub, dto); }
-  @Patch('admin/versions/:id/status') @Roles('admin') async changeVersionStatus(@Param('id', new ParseIntPipe()) id: number, @Body('status') status: string) { return this.catalogService.changeVersionStatus(id, status); }
+  // static route MUST precede the dynamic :id route, otherwise `compare` is captured by :id and fails ParseIntPipe
   @Get('admin/versions/compare') @Roles('admin', 'procurement_staff', 'leader', 'staff') async compareVersions(@Query('a', new ParseIntPipe()) a: number, @Query('b', new ParseIntPipe()) b: number) { return this.catalogService.compareVersions(a, b); }
+  @Get('admin/versions/:id') @Roles('admin', 'procurement_staff', 'leader', 'staff') async getVersion(@Param('id', new ParseIntPipe()) id: number) { return this.catalogService.getVersion(id); }
+  @Post('admin/versions') @Roles('admin', 'leader', 'staff') async createVersion(@Request() req: any, @Body() dto: CreateVersionDto) { return this.catalogService.createVersion(req.user.sub, dto); }
+  @Patch('admin/versions/:id/status') @Roles('admin', 'leader', 'staff') async changeVersionStatus(@Param('id', new ParseIntPipe()) id: number, @Body() dto: ChangeVersionStatusDto) { return this.catalogService.changeVersionStatus(id, dto.status); }
 
   // ── 询价 ──
 
   @Get('admin/inquiries') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listInquiries() { return this.catalogService.listInquiries(); }
-  @Post('admin/inquiries') @Roles('admin', 'procurement_staff', 'leader', 'staff') async createInquiry(@Request() req: any, @Body() dto: any) { return this.catalogService.createInquiry(req.user.sub, dto); }
+  @Post('admin/inquiries') @Roles('admin', 'procurement_staff', 'leader', 'staff') async createInquiry(@Request() req: any, @Body() dto: CreateInquiryDto) { return this.catalogService.createInquiry(req.user.sub, dto); }
 
   // ── 合同价格 ──
 
   @Get('admin/contract-prices') @Roles('admin', 'procurement_staff', 'leader', 'staff') async listContractPrices(@Query('catalogItemId') catalogItemId?: string, @Query('supplierId') supplierId?: string) { return this.catalogService.listContractPrices({ catalogItemId, supplierId }); }
-  @Post('admin/contract-prices') @Roles('admin') async createContractPrice(@Body() dto: any) { return this.catalogService.createContractPrice(dto); }
-  @Patch('admin/contract-prices/:id') @Roles('admin') async updateContractPrice(@Param('id', new ParseIntPipe()) id: number, @Body() dto: any) { return this.catalogService.updateContractPrice(id, dto); }
+  @Post('admin/contract-prices') @Roles('admin', 'leader', 'staff') async createContractPrice(@Body() dto: CreateContractPriceDto) { return this.catalogService.createContractPrice(dto); }
+  @Patch('admin/contract-prices/:id') @Roles('admin', 'leader', 'staff') async updateContractPrice(@Param('id', new ParseIntPipe()) id: number, @Body() dto: UpdateContractPriceDto) { return this.catalogService.updateContractPrice(id, dto); }
 
   // ── 供应商维度 ──
 
@@ -202,7 +218,7 @@ export class CatalogController {
   // ── 目录项关联 ──
 
   @Get('items/:id/relations') async listItemRelations(@Param('id') id: string) { return this.catalogService.listItemRelations(id); }
-  @Post('admin/items/:id/relations') @Roles('admin', 'procurement_staff', 'leader', 'staff') async createItemRelation(@Request() req: any, @Param('id') id: string, @Body() dto: { relatedItemId: string; relationType: string }) { return this.catalogService.createItemRelation(req.user.sub, id, dto); }
+  @Post('admin/items/:id/relations') @Roles('admin', 'procurement_staff', 'leader', 'staff') async createItemRelation(@Request() req: any, @Param('id') id: string, @Body() dto: CreateItemRelationDto) { return this.catalogService.createItemRelation(req.user.sub, id, dto); }
   @Delete('admin/items/:id/relations/:relationId') @Roles('admin', 'procurement_staff', 'leader', 'staff') async deleteItemRelation(@Param('relationId', new ParseIntPipe()) relationId: number) { return this.catalogService.deleteItemRelation(relationId); }
 
   // ── 供应商目录供货申请（管理员审核）──
@@ -238,15 +254,16 @@ export class CatalogController {
   // ── Public / shared endpoints ──
 
   @Get('suppliers')
+  @Roles('admin', 'leader', 'staff', 'procurement_staff', 'mall')
   @ApiOperation({ summary: '供应商维度聚合（目录内）' })
-  async suppliers() {
-    return this.catalogService.listSuppliers();
+  async suppliers(@Request() req: any) {
+    return this.catalogService.listSuppliers(req.user?.role);
   }
 
   @Get('favorites')
   @ApiOperation({ summary: '我的收藏目录' })
   async favorites(@Request() req: any) {
-    return this.catalogService.listFavorites(req.user.sub);
+    return this.catalogService.listFavorites(req.user.sub, req.user?.role);
   }
 
   @Get('export')
@@ -260,7 +277,7 @@ export class CatalogController {
     @Query('source') source?: string,
     @Query('search') search?: string,
   ) {
-    const buf = await this.catalogService.exportCatalog(req.user.sub, { category, region, status, source, search });
+    const buf = await this.catalogService.exportCatalog(req.user.sub, { category, region, status, source, search }, req.user?.role);
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent('采购目录-' + new Date().toISOString().slice(0, 10) + '.xlsx')}`,
@@ -275,9 +292,10 @@ export class CatalogController {
   }
 
   @Get(':id/history')
+  @Roles('admin', 'leader', 'staff', 'procurement_staff', 'mall')
   @ApiOperation({ summary: '采购目录价格历史' })
-  async history(@Param('id') id: string) {
-    return this.catalogService.getHistory(id);
+  async history(@Param('id') id: string, @Request() req: any) {
+    return this.catalogService.getHistory(id, req.user?.role);
   }
 
   // ── 新增端点：仪表盘 / 预测 / 附件 / 搜索 / 订阅 / 比价雷达 ──
@@ -287,10 +305,10 @@ export class CatalogController {
   @Get(':id/prediction') async prediction(@Param('id') id: string) { return this.catalogService.pricePrediction(id); }
   @Get(':id/attachments') async attachments(@Param('id') id: string) { return this.catalogService.listAttachments(id); }
 
-  @Post('admin/search-log') @Roles('admin', 'procurement_staff', 'leader', 'staff') async logSearch(@Request() req: any, @Body() dto: { keyword: string }) { return this.catalogService.logSearch(dto.keyword, req.user?.sub); }
+  @Post('admin/search-log') @Roles('admin', 'procurement_staff', 'leader', 'staff') async logSearch(@Request() req: any, @Body() dto: SearchLogDto) { return this.catalogService.logSearch(dto.keyword, req.user?.sub); }
   @Get('admin/search-insights') @Roles('admin', 'procurement_staff', 'leader', 'staff') async searchInsights() { return this.catalogService.searchInsights(); }
 
-  @Post('admin/items/:id/attachments') @Roles('admin', 'procurement_staff', 'leader', 'staff') async uploadAttachment(@Param('id') id: string, @Body() dto: { fileName: string; fileUrl: string; fileType: string; fileSize: number }) { return this.catalogService.createAttachment(id, dto.fileName, dto.fileUrl, dto.fileType, dto.fileSize); }
+  @Post('admin/items/:id/attachments') @Roles('admin', 'procurement_staff', 'leader', 'staff') async uploadAttachment(@Param('id') id: string, @Body() dto: CreateAttachmentDto) { return this.catalogService.createAttachment(id, dto.fileName, dto.fileUrl, dto.fileType, dto.fileSize); }
   @Delete('admin/attachments/:id') @Roles('admin', 'procurement_staff', 'leader', 'staff') async deleteAttachment(@Param('id') id: string) { return this.catalogService.deleteAttachment(id); }
 
   @Post(':id/subscribe') async subscribe(@Request() req: any, @Param('id') id: string) { return this.catalogService.subscribe(req.user.sub, id); }

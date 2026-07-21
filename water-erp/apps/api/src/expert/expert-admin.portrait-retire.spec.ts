@@ -4,6 +4,9 @@ import { ExpertAdminService } from './expert-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
 import { NotificationService } from '../notification/notification.service';
+import { EmbeddingService } from '../local-ai/embedding.service';
+import { LlmService } from '../local-ai/llm.service';
+import { OcrService } from '../local-ai/ocr.service';
 
 describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
   let service: ExpertAdminService;
@@ -24,8 +27,11 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       providers: [
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
-        { provide: ExpertExtractionAiService, useValue: { analyzeAndScore: jest.fn() } },
+        { provide: ExpertExtractionAiService, useValue: { analyzeAndScore: jest.fn(), getMetrics: jest.fn().mockReturnValue({}), recordFallback: jest.fn() } },
         { provide: NotificationService, useValue: notification },
+        { provide: EmbeddingService, useValue: { embed: jest.fn().mockResolvedValue([]) } },
+        { provide: LlmService, useValue: { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) } },
+        { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
       ],
     }).compile();
     service = module.get<ExpertAdminService>(ExpertAdminService);
@@ -112,7 +118,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
 
   describe('confirmRetire', () => {
     it('写入停用 + retiredAt + retireReason', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
       prisma.expertProfile.updateMany.mockResolvedValue({ count: 1 });
 
       const res = await service.confirmRetire('u1', '长期不胜任');

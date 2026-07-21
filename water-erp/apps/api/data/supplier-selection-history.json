@@ -1,0 +1,52 @@
+[
+  {
+    "id": "sh_1784625731972_6igyvk",
+    "requirement": "水利工程监理服务",
+    "resultSummary": "基于关键词与经营范围匹配，从全库候选中筛选出最多 3 家相关供应商（规则引擎；如需更精准的语义推荐，请确保已配置 DeepSeek AI 服务）。",
+    "recommendationCount": 3,
+    "candidatePool": 40,
+    "shortlistedIds": [],
+    "recommendations": [
+      {
+        "supplierId": "cmqc8r6c6015wkoek6vl5mp0v",
+        "name": "晨越建设项目管理集团股份有限公司",
+        "classification": "税务审计与评估",
+        "matchScore": 86,
+        "reason": "属「税务审计与评估」分类，经营范围与需求高度相关。",
+        "legalPerson": "王宏毅",
+        "enterpriseType": "股份有限公司",
+        "contacts": [
+          {
+            "name": "晏琪",
+            "phone": "15184419703",
+            "isPrimary": true
+          }
+        ],
+        "activeProjects": 0
+      },
+      {
+        "supplierId": "cmqc8r6q101ujkoekho60zrbz",
+        "name": "西华大学",
+        "classification": "综合服务",
+        "matchScore": 73,
+        "reason": "属「综合服务」分类，经营范围与需求高度相关。",
+        "legalPerson": "",
+        "enterpriseType": "",
+        "contacts": [],
+        "activeProjects": 0
+      },
+      {
+        "supplierId": "cmqc8r6dr0188koeki3elwn6y",
+        "name": "中国水利水电科学研究院",
+        "classification": "勘测设计与测绘",
+        "matchScore": 70,
+        "reason": "属「勘测设计与测绘」分类，经营范围与需求高度相关。",
+        "legalPerson": "",
+        "enterpriseType": "",
+        "contacts": [],
+        "activeProjects": 0
+      }
+    ],
+    "createdAt": "2026-07-21T09:22:11.972Z"
+  }
+]

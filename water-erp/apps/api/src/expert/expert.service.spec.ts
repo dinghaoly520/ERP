@@ -1202,4 +1202,33 @@ describe('ExpertService', () => {
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORE_LOCKED' } });
     });
   });
+
+  describe('maybeConvertDocxToPdf（RCE / 路径穿越回归）', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const childProcess = require('child_process');
+
+    it('非 Word 文件应原样返回，不触发任何转换', () => {
+      const spy = jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => undefined as any);
+      const buf = Buffer.from('plain');
+      expect((service as any).maybeConvertDocxToPdf(buf, 'report.pdf')).toBe(buf);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it('恶意文件名不得进入命令行或文件路径，临时文件固定安全名 input.docx', () => {
+      const spy = jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => undefined as any);
+      const buf = Buffer.from('fake docx');
+      const malicious = '$(touch /tmp/pwned)`id`;"rm -rf".docx';
+      const out = (service as any).maybeConvertDocxToPdf(buf, malicious);
+      expect(out).toBe(buf); // 被 mock 的转换不产生 pdf → 原样返回
+      expect(spy).toHaveBeenCalledTimes(1);
+      const [cmd, args] = spy.mock.calls[0] as unknown as [string, string[]];
+      expect(cmd).toBe('libreoffice');
+      const joined = JSON.stringify(args);
+      expect(joined).not.toContain('pwned');
+      expect(joined).not.toContain('rm -rf');
+      expect(String(args[args.length - 1])).toMatch(/input\.docx$/); // 安全名，不含原始文件名
+      spy.mockRestore();
+    });
+  });
 });

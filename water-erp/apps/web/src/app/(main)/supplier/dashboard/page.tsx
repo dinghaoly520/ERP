@@ -11,7 +11,7 @@ import type { SupplierStats, QualificationAlerts, ActivityItem, SupplierFavorite
 import type { SupplierClassification } from '@/lib/types';
 import Link from 'next/link';
 
-/* ─────────────── AI 供应结构分析（纯客户端推导）─────────────── */
+/* ─────────────── 供应结构分析（纯客户端规则推导，非 AI）─────────────── */
 interface PortfolioInsight {
   type: 'warning' | 'info' | 'success';
   title: string;
@@ -451,11 +451,12 @@ export default function SupplierDashboardPage() {
           )}
         </div>
 
-        {/* 列 3 | AI 供应结构分析 */}
+        {/* 列 3 | 供应结构分析（规则推导，非 AI——如实标注，避免误导） */}
         <div className="neu-table-card p-5 flex flex-col">
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] flex items-center gap-2">
               <Lightbulb size={13} />供应结构分析
+              <span className="normal-case tracking-normal text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[var(--muted)]/40 text-[var(--muted-foreground)]">规则推导</span>
             </h3>
             <button onClick={() => setInsightsExpanded(v => !v)} className="neu-btn-xs text-[var(--muted-foreground)]">
               <ChevronDown size={12} className={`transition-transform ${insightsExpanded ? '' : 'rotate-[-90deg]'}`} />

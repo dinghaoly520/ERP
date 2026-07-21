@@ -1,6 +1,19 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Workbook } from 'exceljs';
+import { LlmService } from '../local-ai/llm.service';
+import { EmbeddingService } from '../local-ai/embedding.service';
+import { LlmOutputValidator } from '../local-ai/llm-output-validator';
+
+/** AI 分类/属性确定性种子（同输入复现同结果，便于前端调试与回归）。 */
+const AI_SEED = 42;
+/** 叶子数超过该阈值才用 embedding 预筛候选；少于则全量喂给 LLM。 */
+const EMBED_PRESCREEN_THRESHOLD = 30;
+/** embedding 预筛保留的候选品类数（top-K）。 */
+const EMBED_TOP_K = 10;
+/** validateEnum 越界哨兵：品类 id / SELECT 选项不在合法集合时返回它，调用方据此判 null。 */
+const ENUM_INVALID = '__INVALID_SENTINEL__';
 
 /** 供应商目录供货申请类型 */
 export type CatalogApplicationType = 'NEW_ITEM' | 'JOIN_EXISTING' | 'UPDATE_QUOTE';
@@ -77,9 +90,22 @@ function serialize(item: any): CatalogItemView {
   };
 }
 
+/** 供应商角色不得看到价格字段（公共读端点对 supplier 脱敏；mall/内部角色给全量）。 */
+function stripPricesForRole<T>(view: T, viewerRole?: string): T {
+  if (viewerRole !== 'supplier') return view;
+  const { referencePrice, priceMin, priceMax, lastDealPrice, averagePrice, changeRate, ...rest } = view as any;
+  return rest as T;
+}
+
 @Injectable()
 export class CatalogService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    // LocalAiModule 是 @Global()，直接注入即可，无需在 catalog.module.ts 增加 imports
+    private readonly llm: LlmService,
+    private readonly embedding: EmbeddingService,
+    private readonly validator: LlmOutputValidator,
+  ) {}
 
   async list(params: {
     category?: string;
@@ -89,7 +115,7 @@ export class CatalogService {
     search?: string;
     includeInactive?: boolean;
     categoryId?: number;
-  }) {
+  }, viewerRole?: string) {
     const filters: any[] = [];
     if (params.categoryId) {
       filters.push({ categoryId: Number(params.categoryId) });
@@ -123,19 +149,21 @@ export class CatalogService {
       where, orderBy: { code: 'asc' },
       include: { attributes: { include: { template: true } }, categoryRel: true },
     });
-    return items.map(serialize);
+    return items.map(i => stripPricesForRole(serialize(i), viewerRole));
   }
 
-  async get(id: string) {
+  async get(id: string, viewerRole?: string) {
     const item = await this.prisma.catalogItem.findUnique({
       where: { id },
       include: { attributes: { include: { template: true } }, categoryRel: true },
     });
     if (!item) throw new BadRequestException({ error: '目录条目不存在', code: 'NOT_FOUND' });
-    return serialize(item);
+    return stripPricesForRole(serialize(item), viewerRole);
   }
 
-  async getHistory(id: string) {
+  async getHistory(id: string, viewerRole?: string) {
+    // 价格历史对供应商不开放（mall 不以 supplier 角色调用此端点）
+    if (viewerRole === 'supplier') return [];
     const rows = await this.prisma.priceHistory.findMany({
       where: { catalogItemId: id },
       orderBy: { recordedAt: 'asc' },
@@ -149,7 +177,7 @@ export class CatalogService {
   }
 
   /** 按供应商聚合目录（供应商维度浏览，不依赖 Supplier 登录表）。 */
-  async listSuppliers() {
+  async listSuppliers(viewerRole?: string) {
     const items = await this.prisma.catalogItem.findMany({
       select: { supplier: true, supplierType: true, region: true, category: true, referencePrice: true },
     });
@@ -176,7 +204,14 @@ export class CatalogService {
         maxPrice: Math.max(...e.prices),
         avgPrice: Math.round((e.prices.reduce((a, b) => a + b, 0) / e.prices.length) * 100) / 100,
       }))
-      .sort((a, b) => b.itemCount - a.itemCount);
+      .sort((a, b) => b.itemCount - a.itemCount)
+      .map(e => {
+        if (viewerRole === 'supplier') {
+          const { minPrice, maxPrice, avgPrice, ...rest } = e;
+          return rest;
+        }
+        return e;
+      });
   }
 
   async toggleFavorite(userId: string, itemId: string) {
@@ -190,13 +225,13 @@ export class CatalogService {
     return { favorited: true };
   }
 
-  async listFavorites(userId: string) {
+  async listFavorites(userId: string, viewerRole?: string) {
     const favs = await this.prisma.userFavorite.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       include: { catalogItem: true },
     });
-    return favs.map(f => serialize(f.catalogItem)).filter(Boolean);
+    return favs.map(f => serialize(f.catalogItem)).filter(Boolean).map(v => stripPricesForRole(v, viewerRole));
   }
 
   // ── Admin operations ──
@@ -208,6 +243,7 @@ export class CatalogService {
       specification: dto.specification.trim(),
       category: dto.category.trim(),
       group: dto.group.trim(),
+      categoryId: dto.categoryId ?? null,
       unit: dto.unit.trim(),
       referencePrice: dto.referencePrice,
       priceMin: dto.priceMin,
@@ -234,6 +270,15 @@ export class CatalogService {
     }
   }
 
+  /** 审计日志为辅助记录：失败时降级（仅记录错误），不回滚/阻断主业务。照 reviewApplication「业务在事务内、审计在事务外」的模式。 */
+  private async safeAudit(data: Prisma.AuditLogUncheckedCreateInput): Promise<void> {
+    try {
+      await this.prisma.auditLog.create({ data });
+    } catch (err) {
+      console.error('[catalog] 审计日志写入失败（已降级）:', err);
+    }
+  }
+
   async stats() {
     const [total, active, inactive, review, updatedThisMonth, pendingApplications] = await Promise.all([
       this.prisma.catalogItem.count(),
@@ -249,9 +294,12 @@ export class CatalogService {
   async createAdminItem(userId: string, dto: any) {
     this.validatePriceRangeDto(dto);
     const data = this.catalogDataDto(dto);
-    const created = await this.prisma.catalogItem.create({ data });
-    await this.prisma.priceHistory.create({ data: { catalogItemId: created.id, price: data.referencePrice, recordedAt: new Date(), note: '手动新增' } });
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_CREATED', resourceType: created.code, details: { itemId: created.id, name: created.name } } });
+    const created = await this.prisma.$transaction(async (tx: any) => {
+      const item = await tx.catalogItem.create({ data });
+      await tx.priceHistory.create({ data: { catalogItemId: item.id, price: data.referencePrice, recordedAt: new Date(), note: '手动新增' } });
+      return item;
+    });
+    await this.safeAudit({ userId, action: 'CATALOG_CREATED', resourceType: created.code, details: { itemId: created.id, name: created.name } });
     return serialize(created);
   }
 
@@ -262,18 +310,19 @@ export class CatalogService {
     const data = this.catalogDataDto(dto);
     const oldPrice = Number(existing.referencePrice);
     const newPrice = Number(data.referencePrice);
-    const updated = await this.prisma.catalogItem.update({ where: { id }, data });
     const priceChanged = oldPrice !== newPrice;
-    if (priceChanged) {
-      await this.prisma.priceHistory.create({ data: { catalogItemId: id, price: newPrice, recordedAt: new Date(), note: '手动调价' } });
-    }
-    await this.prisma.auditLog.create({
-      data: {
-        userId,
-        action: priceChanged ? 'CATALOG_PRICE_CHANGED' : 'CATALOG_UPDATED',
-        resourceType: updated.code,
-        details: { itemId: id, oldPrice, newPrice, changedFields: Object.keys(data) },
-      },
+    const updated = await this.prisma.$transaction(async (tx: any) => {
+      const item = await tx.catalogItem.update({ where: { id }, data });
+      if (priceChanged) {
+        await tx.priceHistory.create({ data: { catalogItemId: id, price: newPrice, recordedAt: new Date(), note: '手动调价' } });
+      }
+      return item;
+    });
+    await this.safeAudit({
+      userId,
+      action: priceChanged ? 'CATALOG_PRICE_CHANGED' : 'CATALOG_UPDATED',
+      resourceType: updated.code,
+      details: { itemId: id, oldPrice, newPrice, changedFields: Object.keys(data) },
     });
     return serialize(updated);
   }
@@ -282,13 +331,11 @@ export class CatalogService {
     const existing = await this.prisma.catalogItem.findUnique({ where: { id } });
     if (!existing) throw new BadRequestException({ error: '目录条目不存在', code: 'NOT_FOUND' });
     const updated = await this.prisma.catalogItem.update({ where: { id }, data: { status: dto.status } });
-    await this.prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'CATALOG_STATUS_CHANGED',
-        resourceType: updated.code,
-        details: { itemId: id, from: existing.status, to: dto.status, reason: dto.reason || null },
-      },
+    await this.safeAudit({
+      userId,
+      action: 'CATALOG_STATUS_CHANGED',
+      resourceType: updated.code,
+      details: { itemId: id, from: existing.status, to: dto.status, reason: dto.reason || null },
     });
     return serialize(updated);
   }
@@ -340,43 +387,54 @@ export class CatalogService {
     const failedRows = parsed.rows.filter(r => r.errors.length).map(r => ({ rowNumber: r.rowNumber, code: r.code, errors: r.errors }));
     for (const row of parsed.rows.filter(r => r.data)) {
       const dto = row.data!;
-      const existing = await this.prisma.catalogItem.findUnique({ where: { code: dto.code } });
-      const data = this.catalogDataDto(dto);
-      if (existing) {
-        const oldPrice = Number(existing.referencePrice);
-        const saved = await this.prisma.catalogItem.update({ where: { id: existing.id }, data });
-        updated += 1;
-        if (oldPrice !== Number(data.referencePrice)) {
-          await this.prisma.priceHistory.create({ data: { catalogItemId: saved.id, price: data.referencePrice, recordedAt: new Date(), note: '批量导入更新' } });
+      try {
+        const existing = await this.prisma.catalogItem.findUnique({ where: { code: dto.code } });
+        const data = this.catalogDataDto(dto);
+        if (existing) {
+          const oldPrice = Number(existing.referencePrice);
+          // 单行的「主写 + 价格历史」在同一事务内，保证原子；单行失败仅 skip 该行，不让整批 500
+          await this.prisma.$transaction(async (tx: any) => {
+            const saved = await tx.catalogItem.update({ where: { id: existing.id }, data });
+            if (oldPrice !== Number(data.referencePrice)) {
+              await tx.priceHistory.create({ data: { catalogItemId: saved.id, price: data.referencePrice, recordedAt: new Date(), note: '批量导入更新' } });
+            }
+          });
+          updated += 1;
+        } else {
+          await this.prisma.$transaction(async (tx: any) => {
+            const saved = await tx.catalogItem.create({ data });
+            await tx.priceHistory.create({ data: { catalogItemId: saved.id, price: data.referencePrice, recordedAt: new Date(), note: '批量导入新增' } });
+          });
+          created += 1;
         }
-      } else {
-        const saved = await this.prisma.catalogItem.create({ data });
-        created += 1;
-        await this.prisma.priceHistory.create({ data: { catalogItemId: saved.id, price: data.referencePrice, recordedAt: new Date(), note: '批量导入新增' } });
+      } catch (err: any) {
+        // Prisma 抛错（唯一约束 / 外键等）被接住并计入该行失败，而非向上冒泡
+        failedRows.push({ rowNumber: row.rowNumber, code: dto.code, errors: [err?.message || '写入失败'] });
       }
     }
     const result = { totalRows: parsed.rows.length, created, updated, failed: failedRows.length, failedRows };
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_IMPORTED', resourceType: file.originalname, details: result } });
+    await this.safeAudit({ userId, action: 'CATALOG_IMPORTED', resourceType: file.originalname, details: result });
     return result;
   }
 
-  async exportCatalog(userId: string, params: { category?: string; region?: string; status?: string; source?: string; search?: string }): Promise<Buffer> {
-    const items = await this.list(params);
+  async exportCatalog(userId: string, params: { category?: string; region?: string; status?: string; source?: string; search?: string }, viewerRole?: string): Promise<Buffer> {
+    const items = await this.list(params, viewerRole);
+    const hidePrice = viewerRole === 'supplier';
     const wb = new Workbook();
     const ws = wb.addWorksheet('采购目录');
-    ws.columns = [
+    const cols: { header: string; key: string; width: number; price?: boolean }[] = [
       { header: '目录编码', key: 'code', width: 22 },
       { header: '物资名称', key: 'name', width: 24 },
       { header: '规格型号', key: 'specification', width: 30 },
       { header: '分类', key: 'category', width: 12 },
       { header: '组别', key: 'group', width: 12 },
       { header: '单位', key: 'unit', width: 8 },
-      { header: '参考价', key: 'referencePrice', width: 12 },
-      { header: '价格下限', key: 'priceMin', width: 12 },
-      { header: '价格上限', key: 'priceMax', width: 12 },
-      { header: '最近成交价', key: 'lastDealPrice', width: 12 },
-      { header: '历史均价', key: 'averagePrice', width: 12 },
-      { header: '价格变化(%)', key: 'changeRate', width: 12 },
+      { header: '参考价', key: 'referencePrice', width: 12, price: true },
+      { header: '价格下限', key: 'priceMin', width: 12, price: true },
+      { header: '价格上限', key: 'priceMax', width: 12, price: true },
+      { header: '最近成交价', key: 'lastDealPrice', width: 12, price: true },
+      { header: '历史均价', key: 'averagePrice', width: 12, price: true },
+      { header: '价格变化(%)', key: 'changeRate', width: 12, price: true },
       { header: '价格来源', key: 'priceSource', width: 12 },
       { header: '状态', key: 'status', width: 10 },
       { header: '供应商', key: 'supplier', width: 30 },
@@ -389,15 +447,21 @@ export class CatalogService {
       { header: '有效期至', key: 'validUntil', width: 14 },
       { header: '备注', key: 'remark', width: 40 },
     ];
-    ws.addRows(items.map(it => ({
-      code: it.code, name: it.name, specification: it.specification, category: it.category, group: it.group,
-      unit: it.unit, referencePrice: it.referencePrice, priceMin: it.priceMin, priceMax: it.priceMax,
-      lastDealPrice: it.lastDealPrice, averagePrice: it.averagePrice, changeRate: it.changeRate,
-      priceSource: it.priceSource, status: it.status, supplier: it.supplier, supplierType: it.supplierType,
-      region: it.region, taxIncluded: it.taxIncluded ? '是' : '否', freightIncluded: it.freightIncluded ? '是' : '否',
-      minOrder: it.minOrder, updatedAt: it.updatedAt.slice(0, 10), validUntil: it.validUntil ? it.validUntil.slice(0, 10) : '',
-      remark: it.remark ?? '',
-    })));
+    const visibleCols = cols.filter(c => !(hidePrice && c.price));
+    ws.columns = visibleCols.map(({ header, key, width }) => ({ header, key, width }));
+    ws.addRows(items.map(it => {
+      const row: Record<string, any> = {
+        code: it.code, name: it.name, specification: it.specification, category: it.category, group: it.group,
+        unit: it.unit, referencePrice: it.referencePrice, priceMin: it.priceMin, priceMax: it.priceMax,
+        lastDealPrice: it.lastDealPrice, averagePrice: it.averagePrice, changeRate: it.changeRate,
+        priceSource: it.priceSource, status: it.status, supplier: it.supplier, supplierType: it.supplierType,
+        region: it.region, taxIncluded: it.taxIncluded ? '是' : '否', freightIncluded: it.freightIncluded ? '是' : '否',
+        minOrder: it.minOrder, updatedAt: it.updatedAt.slice(0, 10), validUntil: it.validUntil ? it.validUntil.slice(0, 10) : '',
+        remark: it.remark ?? '',
+      };
+      if (hidePrice) for (const c of cols) if (c.price) delete row[c.key];
+      return row;
+    }));
     ws.getRow(1).font = { bold: true };
     ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEef3fb' } };
     await this.prisma.auditLog.create({ data: { userId, action: 'CATALOG_EXPORTED', resourceType: '采购目录', details: { filters: params, itemCount: items.length } } });
@@ -446,7 +510,7 @@ export class CatalogService {
       if (!parent) throw new BadRequestException({ error: '父节点不存在', code: 'NOT_FOUND' });
     }
     const created = await this.prisma.catalogCategory.create({ data, include: { attributeTemplates: true } });
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_CREATED', resourceType: created.name, details: { categoryId: created.id, parentId: created.parentId } } });
+    await this.safeAudit({ userId, action: 'CATEGORY_CREATED', resourceType: created.name, details: { categoryId: created.id, parentId: created.parentId } });
     return created;
   }
 
@@ -460,20 +524,22 @@ export class CatalogService {
     if (dto.isLeaf !== undefined) data.isLeaf = dto.isLeaf;
     if (dto.icon !== undefined) data.icon = dto.icon?.trim() || null;
     const updated = await this.prisma.catalogCategory.update({ where: { id }, data, include: { attributeTemplates: true } });
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_UPDATED', resourceType: updated.name, details: { categoryId: id, changedFields: Object.keys(data) } } });
+    await this.safeAudit({ userId, action: 'CATEGORY_UPDATED', resourceType: updated.name, details: { categoryId: id, changedFields: Object.keys(data) } });
     return updated;
   }
 
   async deleteCategory(userId: string, id: number) {
     const existing = await this.prisma.catalogCategory.findUnique({
       where: { id },
-      include: { children: true, catalogItems: { take: 1 } },
+      include: { children: true, catalogItems: { take: 1 }, alertRules: { take: 1 } },
     });
     if (!existing) throw new BadRequestException({ error: '品类不存在', code: 'NOT_FOUND' });
     if (existing.children.length > 0) throw new BadRequestException({ error: '该品类下有子节点，请先删除子节点', code: 'HAS_CHILDREN' });
     if (existing.catalogItems.length > 0) throw new BadRequestException({ error: '该品类下有目录项，请先迁移目录项', code: 'HAS_ITEMS' });
+    // PriceAlertRule.categoryId 外键无 onDelete，有关联时直接删会抛 Prisma 原始错误，先拦下给业务提示
+    if (existing.alertRules.length > 0) throw new BadRequestException({ error: '该品类下仍有价格预警规则，请先删除', code: 'HAS_ALERT_RULES' });
     await this.prisma.catalogCategory.delete({ where: { id } });
-    await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_DELETED', resourceType: existing.name, details: { categoryId: id } } });
+    await this.safeAudit({ userId, action: 'CATEGORY_DELETED', resourceType: existing.name, details: { categoryId: id } });
     return { success: true };
   }
 
@@ -484,6 +550,17 @@ export class CatalogService {
       if (dto.newParentId === id) throw new BadRequestException({ error: '不能将节点移动到自身下', code: 'INVALID_PARENT' });
       const parent = await this.prisma.catalogCategory.findUnique({ where: { id: dto.newParentId } });
       if (!parent) throw new BadRequestException({ error: '目标父节点不存在', code: 'NOT_FOUND' });
+      // 防成环：从目标父节点沿父链向上走，若走到被移节点 id，说明 newParentId 位于 id 的子树内，移动会成环
+      const all = await this.prisma.catalogCategory.findMany({ select: { id: true, parentId: true } });
+      const parentMap = new Map<number, number | null>(all.map((c) => [c.id, c.parentId]));
+      const seen = new Set<number>();
+      let cursor: number | null = dto.newParentId;
+      while (cursor != null) {
+        if (cursor === id) throw new BadRequestException({ error: '不能移动到自身子节点下', code: 'INVALID_PARENT' });
+        if (seen.has(cursor)) break; // 防御既有脏数据导致的死循环
+        seen.add(cursor);
+        cursor = parentMap.get(cursor) ?? null;
+      }
     }
     const updated = await this.prisma.catalogCategory.update({
       where: { id },
@@ -531,10 +608,15 @@ export class CatalogService {
   }
 
   async deleteAttributeTemplate(userId: string, id: number) {
-    const existing = await this.prisma.categoryAttributeTemplate.findUnique({ where: { id } });
+    const existing = await this.prisma.categoryAttributeTemplate.findUnique({
+      where: { id },
+      include: { itemAttributes: { take: 1 } },
+    });
     if (!existing) throw new BadRequestException({ error: '属性模板不存在', code: 'NOT_FOUND' });
+    // CatalogItemAttribute.templateId 外键无 onDelete，被目录项引用时直接删会抛 Prisma 原始错误，先拦下给业务提示
+    if (existing.itemAttributes.length > 0) throw new BadRequestException({ error: '该属性模板已被目录项使用，请先移除相关属性值', code: 'HAS_ITEM_ATTRIBUTES' });
     await this.prisma.categoryAttributeTemplate.delete({ where: { id } });
-    await this.prisma.auditLog.create({ data: { userId, action: 'ATTR_TEMPLATE_DELETED', resourceType: existing.name, details: { templateId: id, fieldKey: existing.fieldKey } } });
+    await this.safeAudit({ userId, action: 'ATTR_TEMPLATE_DELETED', resourceType: existing.name, details: { templateId: id, fieldKey: existing.fieldKey } });
     return { success: true };
   }
 
@@ -673,7 +755,15 @@ export class CatalogService {
     const finalPrice = body.finalPrice != null ? Number(body.finalPrice) : Number(app.quotedPrice);
     if (!(finalPrice > 0)) throw new BadRequestException({ error: '最终报价无效', code: 'INVALID_FINAL_PRICE' });
 
-    return this.prisma.$transaction(async (tx) => {
+    // 占坑 + 建档同事务：条件 updateMany(PENDING→REVIEWING) 对被审行加行锁，串行化对同一申请的并发审核；
+    // affected=0 说明已被处理。事务回滚时占坑一并回滚，不会残留 REVIEWING 中间态。
+    const runApprove = () => this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.supplierCatalogApplication.updateMany({
+        where: { id: applicationId, status: 'PENDING' },
+        data: { status: 'REVIEWING' },
+      });
+      if (claimed.count === 0) throw new ConflictException('该申请已被处理');
+
       let catalogItemId = app.catalogItemId;
 
       // NEW_ITEM：先建 CatalogItem（管理员设定官方参考价，decision #2）
@@ -760,12 +850,24 @@ export class CatalogService {
       });
 
       return this.serializeApplication(updated);
-    }).then(async (result) => {
-      // 事务外发通知 + 审计
-      await this.notify(app.supplier.userId, '供货申请已通过', `您的供货申请（${this.appTitle(app)}）已通过审核，最终报价 ¥${Number(result.quotedPrice)}。`, '/catalog-applications');
-      await this.prisma.auditLog.create({ data: { userId: adminUserId, action: 'CATALOG_APPLICATION_APPROVED', resourceType: this.appTitle(app), details: { applicationId, type: app.type, finalPrice: Number(result.quotedPrice) } } });
-      return result;
     });
+
+    const finalize = async (result: any) => {
+      // 事务外发通知 + 审计（审计失败降级，不阻断主业务）
+      await this.notify(app.supplier.userId, '供货申请已通过', `您的供货申请（${this.appTitle(app)}）已通过审核，最终报价 ¥${Number(result.quotedPrice)}。`, '/catalog-applications');
+      await this.safeAudit({ userId: adminUserId, action: 'CATALOG_APPLICATION_APPROVED', resourceType: this.appTitle(app), details: { applicationId, type: app.type, finalPrice: Number(result.quotedPrice) } });
+      return result;
+    };
+
+    try {
+      return await finalize(await runApprove());
+    } catch (err: any) {
+      // genCatalogCode 依赖 count+1，并发下两个 NEW_ITEM 建档可能撞 code @unique（P2002）；重试一次（回滚后占坑复位 PENDING，count 重取）
+      if (err?.code === 'P2002') {
+        return await finalize(await runApprove());
+      }
+      throw err;
+    }
   }
 
   /** 管理员查看某目录条目的准入供应商（含报价）。 */
@@ -945,7 +1047,8 @@ export class CatalogService {
     const predPrice = predictions[predictions.length - 1]?.price || lastPrice;
     const trend = slope > 0.01 ? 'up' : slope < -0.01 ? 'down' : 'stable';
     const isLow = lastPrice < meanY * 0.9;
-    return { predictions, opportunity: isLow ? '当前价格处于近12个月低位，建议关注采购时机' : null, trend, lastPrice, meanPrice: Math.round(meanY * 100) / 100 };
+    // 文案与实际计算对齐：isLow 判定基于「全历史均价 meanY」（非「近12个月低位」），故措辞改为历史均价口径
+    return { predictions, opportunity: isLow ? '当前价格低于历史均价，可关注采购时机' : null, trend, lastPrice, meanPrice: Math.round(meanY * 100) / 100 };
   }
 
   // ── 订阅 ──
@@ -977,6 +1080,328 @@ export class CatalogService {
     const threshold = mean + 2 * std;
     const result = items.filter(i => i.status === '有效' && i.supplier).map(i => ({ ...i, referencePrice: Number(i.referencePrice), isLowest: Number(i.referencePrice) === minPrice, isOutlier: Number(i.referencePrice) > threshold }));
     return { minPrice, avgPrice: Math.round(mean * 100) / 100, stdDeviation: Math.round(std * 100) / 100, outliers: result.filter(i => i.isOutlier), items: result };
+  }
+
+  // ── AI：自动分类 + 属性预填 / 价格异常研判 ──
+  // 治理：100% 走 LlmService / EmbeddingService / LlmOutputValidator（@Global LocalAiModule 注入）。
+  //       所有 AI 调用包 try/catch，缺密钥 / LLM 挂 → 优雅降级（对应字段 null + backedByData:false），绝不抛 500。
+  //       幻觉防护：categoryId 经 validateEnum 约束到真实叶子 id；属性值按模板 fieldKey/fieldType 经 validateObject/validateEnum 校验。
+  //       这些端点只「返回建议」给前端，不写库。
+
+  /** 余弦相似度 dot/(||a||·||b||)；维度不匹配或零向量返回 0。不引依赖。 */
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length === 0 || a.length !== b.length) return 0;
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  }
+
+  /** 从品类树 flatten 出叶子节点（isLeaf===true 或 无 children）。 */
+  private flattenLeaves(tree: any[]): { id: number; name: string; code: string | null; path: string }[] {
+    const leaves: { id: number; name: string; code: string | null; path: string }[] = [];
+    const walk = (nodes: any[], pathParts: string[]) => {
+      for (const n of nodes) {
+        if (!n) continue;
+        const parts = [...pathParts, n.name];
+        const children = Array.isArray(n.children) ? n.children : [];
+        if (n.isLeaf === true || children.length === 0) {
+          leaves.push({ id: n.id, name: n.name, code: n.code ?? null, path: parts.join(' / ') });
+        } else {
+          walk(children, parts);
+        }
+      }
+    };
+    walk(tree, []);
+    return leaves;
+  }
+
+  /**
+   * AI 自动分类 + 属性预填。
+   * 1) 取品类树 flatten 叶子 → leafIds；叶子过多则 embedding 余弦预筛 top-K 候选。
+   * 2) chatJson 从候选选 categoryId + 置信度 + 理由；validateEnum 约束到真实叶子 id。
+   * 3) 选定后取该品类 AttributeTemplate，chatJson 抽属性值，按 fieldKey/fieldType 校验。
+   * 任何环节失败 → 对应字段 null + backedByData:false。
+   */
+  async aiClassify(dto: { name: string; specification?: string; categoryIdHint?: number }) {
+    const degraded = {
+      categoryId: null as number | null,
+      categoryName: null as string | null,
+      confidence: null as number | null,
+      reason: null as string | null,
+      attributes: [] as Array<{ templateId: number; fieldKey: string; value: string }>,
+      backedByData: false,
+    };
+    try {
+      const tree = await this.getCategoryTree();
+      const leaves = this.flattenLeaves(tree);
+      if (leaves.length === 0) return degraded;
+      const leafIds = leaves.map(l => l.id);
+      const leafById = new Map(leaves.map(l => [l.id, l]));
+
+      // ── 候选预筛 ──
+      let candidates = leaves;
+      if (leaves.length > EMBED_PRESCREEN_THRESHOLD) {
+        try {
+          const queryVec = await this.embedding.embedSingle(`${dto.name} ${dto.specification ?? ''}`.trim());
+          const leafVecs = await this.embedding.embed(leaves.map(l => l.name));
+          candidates = leaves
+            .map((l, i) => ({ l, score: this.cosineSimilarity(queryVec, leafVecs[i]) }))
+            .sort((x, y) => y.score - x.score)
+            .slice(0, EMBED_TOP_K)
+            .map(s => s.l);
+        } catch {
+          // embedding 不可用 → 退化为截断全部叶子（限制候选数），仍交给 LLM 尝试
+          candidates = leaves.slice(0, 50);
+        }
+      }
+      // hint 确保进入候选（即使被预筛淘汰或叶子数不多），让模型有机会采纳
+      if (dto.categoryIdHint != null && !candidates.some(c => c.id === dto.categoryIdHint)) {
+        const hinted = leafById.get(dto.categoryIdHint);
+        if (hinted) candidates = [...candidates, hinted];
+      }
+      if (candidates.length === 0) return degraded;
+
+      // ── LLM 选类 ──
+      const systemPrompt = [
+        '你是集中采购目录分类助手。根据物资名称与规格，从给定候选品类中选出最匹配的一个。',
+        '严格要求：categoryId 只能从候选列表提供的 id 中选取，禁止编造任何不在候选中的 id。',
+        '若候选中没有任何合适的品类，categoryId 返回 null。',
+        '输出 JSON：{"categoryId": number|null, "confidence": number(0到1之间), "reason": string(简短中文理由，不超过60字)}',
+      ].join('\n');
+      const userPrompt = [
+        `物资名称：${dto.name}`,
+        dto.specification ? `规格型号：${dto.specification}` : '',
+        dto.categoryIdHint != null ? `参考品类提示（仅供参考，可忽略）：categoryId=${dto.categoryIdHint}` : '',
+        '候选品类（格式：id | 名称 | 全路径）：',
+        ...candidates.map(c => `${c.id} | ${c.name} | ${c.path}`),
+      ].filter(Boolean).join('\n');
+
+      const parsed = await this.llm.chatJson<{ categoryId?: unknown; confidence?: unknown; reason?: unknown }>(
+        systemPrompt,
+        userPrompt,
+        0,
+        undefined,
+        AI_SEED,
+      );
+
+      // 幻觉防护：categoryId 约束到真实叶子 id 集合，越界 → null
+      const validatedId = this.validator.validateEnum(
+        parsed?.categoryId != null ? String(parsed.categoryId) : null,
+        leafIds.map(String),
+        ENUM_INVALID,
+      );
+      const categoryId = validatedId !== ENUM_INVALID ? Number(validatedId) : null;
+      const confRaw = Number(parsed?.confidence);
+      const confidence = Number.isFinite(confRaw) ? Math.max(0, Math.min(1, confRaw)) : null;
+      const reason = typeof parsed?.reason === 'string' ? parsed.reason.slice(0, 120) : null;
+
+      if (categoryId == null) {
+        // 模型判定无合适品类：保持 categoryId null，但仍回传理由/置信度供前端展示
+        return { ...degraded, confidence, reason };
+      }
+
+      const leaf = leafById.get(categoryId)!;
+      const attributes = await this.extractAttributes(dto, categoryId);
+
+      return {
+        categoryId,
+        categoryName: leaf.name,
+        confidence,
+        reason,
+        attributes,
+        backedByData: true,
+      };
+    } catch (err) {
+      // 缺密钥 / LLM 挂（ServiceUnavailableException）/ 其它异常 → 整体降级，不阻断
+      console.error('[catalog] aiClassify 已降级:', err);
+      return degraded;
+    }
+  }
+
+  /**
+   * 按选定品类的 AttributeTemplate 抽取属性值（仅返回建议，不写库）。
+   * schema = 模板 fieldKey→fieldType；用 validateObject/validateEnum 校验，失败则该属性省略。
+   */
+  private async extractAttributes(
+    dto: { name: string; specification?: string },
+    categoryId: number,
+  ): Promise<Array<{ templateId: number; fieldKey: string; value: string }>> {
+    try {
+      const category = await this.getCategory(categoryId);
+      const templates: any[] = category.attributeTemplates ?? [];
+      if (templates.length === 0) return [];
+
+      const fieldDesc = templates
+        .map(t => {
+          const opts = Array.isArray(t.options) ? (t.options as unknown[]).map(String).join('/') : '';
+          return `- ${t.fieldKey}（${t.name}，类型 ${t.fieldType}${opts ? `，可选值：${opts}` : ''}${t.unit ? `，单位 ${t.unit}` : ''}）`;
+        })
+        .join('\n');
+
+      const systemPrompt = [
+        '你是目录属性抽取助手。根据物资名称与规格，为给定的每个属性字段抽取合适的值。',
+        '严格要求：只输出一个 JSON 对象，键为 fieldKey；无法从文本可靠推断的字段直接省略（不要该键），禁止编造。',
+        'NUMBER 字段输出数字（JSON number）；SELECT 字段只能从给定可选值中选取；BOOLEAN 输出 true/false（JSON boolean）；DATE 输出 ISO 日期字符串；TEXT 输出字符串。',
+      ].join('\n');
+      const userPrompt = [
+        `物资名称：${dto.name}`,
+        dto.specification ? `规格型号：${dto.specification}` : '',
+        '需要抽取的属性字段：',
+        fieldDesc,
+      ].filter(Boolean).join('\n');
+
+      const raw = await this.llm.chatJson<Record<string, unknown>>(systemPrompt, userPrompt, 0, undefined, AI_SEED);
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+
+      const out: Array<{ templateId: number; fieldKey: string; value: string }> = [];
+      for (const t of templates) {
+        const value = this.coerceAttributeValue(raw[t.fieldKey], t);
+        if (value != null) out.push({ templateId: t.id, fieldKey: t.fieldKey, value });
+      }
+      return out;
+    } catch (err) {
+      // 属性抽取失败不影响分类主结果 → 返回空建议
+      console.error('[catalog] extractAttributes 已降级:', err);
+      return [];
+    }
+  }
+
+  /**
+   * 把单个 AI 抽取值按模板 fieldType 校验/归一化为入库字符串；校验失败返回 null（该属性省略）。
+   * 映射（按任务约定）：NUMBER→转数；SELECT→validateEnum 约束到 options；BOOLEAN/DATE/TEXT→按类型（BOOLEAN/TEXT 经 validateObject 复核）。
+   */
+  private coerceAttributeValue(rawVal: unknown, t: any): string | null {
+    if (rawVal === undefined || rawVal === null || rawVal === '') return null;
+    const key = t.fieldKey;
+    switch (t.fieldType) {
+      case 'NUMBER': {
+        // NUMBER 转数：JSON number 或可解析数字串均接受；非有限数 → 省略
+        const num = typeof rawVal === 'number' ? rawVal : Number(rawVal);
+        return Number.isFinite(num) ? String(num) : null;
+      }
+      case 'SELECT': {
+        // SELECT：validateEnum 约束到模板 options，越界 → 省略
+        const options = Array.isArray(t.options) ? (t.options as unknown[]).map(String) : [];
+        if (options.length === 0) return null;
+        const v = this.validator.validateEnum(String(rawVal), options, ENUM_INVALID);
+        return v === ENUM_INVALID ? null : v;
+      }
+      case 'BOOLEAN': {
+        let b: boolean | null = null;
+        if (rawVal === true || rawVal === 'true' || rawVal === 1 || rawVal === '1') b = true;
+        else if (rawVal === false || rawVal === 'false' || rawVal === 0 || rawVal === '0') b = false;
+        if (b === null) return null;
+        // validateObject 复核「归一后的布尔」（strict：非布尔即失败），避免 "true" 字符串被误弃
+        const ok = this.validator.validateObject({ [key]: b }, { [key]: { type: 'boolean', strict: true, required: true } }).valid;
+        return ok ? String(b) : null;
+      }
+      case 'DATE': {
+        const d = new Date(String(rawVal).trim());
+        if (isNaN(d.getTime())) return null;
+        return d.toISOString().slice(0, 10);
+      }
+      default: {
+        // TEXT：先归一为非空字符串，再用 validateObject 复核字符串形态
+        const s = String(rawVal).trim();
+        if (!s) return null;
+        const ok = this.validator.validateObject({ [key]: s }, { [key]: { type: 'string', required: true } }).valid;
+        return ok ? s : null;
+      }
+    }
+  }
+
+  /**
+   * 价格异常 AI 研判。
+   * 上下文：条目 serialize 视图（参考价/区间/均价/变化率）+ 最近价格序列 + 该品类 priceRadar 离群标记。
+   * chatJson 产出 {abnormal,severity,reasons,suggestion,confidence}，validateObject 校验（severity 用 validateEnum）。
+   * LLM 挂 → {analysis:null, backedByData:false}（页面仍可显示原有统计/离群标记）。
+   */
+  async aiPriceAnalysis(id: string) {
+    // 数据上下文非 AI：条目不存在时让 get() 的业务异常（NOT_FOUND）正常上抛，不吞成降级
+    const item = await this.get(id);
+    const history = await this.getHistory(id);
+
+    let isOutlier = false;
+    let radarAvg: number | null = null;
+    try {
+      if (item.categoryId != null) {
+        const radar = await this.priceRadar(item.categoryId);
+        radarAvg = radar.avgPrice ?? null;
+        const me = (radar.items ?? []).find((x: any) => x.id === id);
+        isOutlier = !!me?.isOutlier;
+      }
+    } catch {
+      // 离群/雷达为辅助上下文，缺失不阻断 AI 研判
+    }
+
+    const recent = history.slice(-12);
+    const prices = recent.map((h: any) => h.price);
+    const histAvg = prices.length ? prices.reduce((a: number, b: number) => a + b, 0) / prices.length : null;
+    const first = prices.length ? prices[0] : null;
+    const last = prices.length ? prices[prices.length - 1] : null;
+    const recentChange = first && first !== 0 && last != null ? (last - first) / first : null;
+
+    const context = {
+      name: item.name,
+      specification: item.specification,
+      referencePrice: item.referencePrice,
+      priceMin: item.priceMin,
+      priceMax: item.priceMax,
+      averagePrice: item.averagePrice,
+      lastDealPrice: item.lastDealPrice,
+      changeRate: item.changeRate,
+      recentHistoryAvg: histAvg != null ? Math.round(histAvg * 100) / 100 : null,
+      recentChangeRate: recentChange != null ? Math.round(recentChange * 10000) / 10000 : null,
+      isOutlier,
+      categoryRadarAvg: radarAvg,
+      recentPrices: recent.map((h: any) => ({ date: (h.recordedAt || '').slice(0, 10), price: h.price })),
+    };
+
+    const systemPrompt = [
+      '你是采购价格分析专家。基于给定的目录条目价格上下文，研判当前价格是否异常，并给出严重等级、原因与处置建议。',
+      '判断可参考：参考价是否超出价格下限/上限区间、相对历史均价与品类雷达均价的偏离幅度、是否被标记为统计离群(2σ)、最近价格走势。',
+      '严格输出 JSON：{"abnormal": boolean, "severity": "low"|"medium"|"high", "reasons": string[](每条不超过40字，最多4条), "suggestion": string(不超过80字), "confidence": number(0到1之间)}',
+    ].join('\n');
+    const userPrompt = '价格上下文（JSON）：\n' + JSON.stringify(context, null, 2);
+
+    try {
+      const raw = await this.llm.chatJson<any>(systemPrompt, userPrompt, 0, undefined, AI_SEED);
+      // abnormal 预归一为布尔，避免模型输出 "true" 字符串被 validateObject 误判为错误
+      const abnormal =
+        raw?.abnormal === true || raw?.abnormal === 'true' ? true
+        : raw?.abnormal === false || raw?.abnormal === 'false' ? false
+        : raw?.abnormal;
+      const res = this.validator.validateObject(
+        { ...raw, abnormal },
+        {
+          abnormal: { type: 'boolean', required: true },
+          reasons: { type: 'array', items: { type: 'string' } },
+          suggestion: { type: 'string' },
+          confidence: { type: 'number', min: 0, max: 1 },
+        },
+      );
+      // 关键字段 abnormal 缺失/非法 → 降级
+      if (!res.valid || typeof (res.value as any).abnormal !== 'boolean') {
+        return { analysis: null, backedByData: false };
+      }
+      const v: any = res.value;
+      const analysis = {
+        abnormal: v.abnormal,
+        severity: this.validator.validateEnum(raw?.severity, ['low', 'medium', 'high'], 'low'),
+        reasons: (Array.isArray(v.reasons) ? v.reasons : []).map((r: any) => String(r).slice(0, 60)).slice(0, 4),
+        suggestion: typeof v.suggestion === 'string' ? v.suggestion.slice(0, 120) : '',
+        confidence: Number.isFinite(Number(v.confidence)) ? Math.max(0, Math.min(1, Number(v.confidence))) : 0,
+      };
+      return { analysis, backedByData: true };
+    } catch (err) {
+      console.error('[catalog] aiPriceAnalysis LLM 已降级:', err);
+      return { analysis: null, backedByData: false };
+    }
   }
 
   private appTitle(app: any): string {

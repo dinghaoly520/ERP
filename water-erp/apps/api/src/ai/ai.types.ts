@@ -35,6 +35,10 @@ export interface AiAnalysisResult {
   supplierName: string;
   generatedAt: string;
   model: string;
+  /** 是否由大模型生成。analyzeBid 为规则预检，须置 false，前端据此如实标注、不得以 AI 口吻呈现。 */
+  isAi?: boolean;
+  /** 方法论说明，用于向评标专家透明披露结论来源（规则/统计 vs LLM）。 */
+  methodology?: string;
   overall: OverallScore;
   complianceCheck: { overall: string; score: number; items: ComplianceItem[] };
   riskAnalysis: RiskItem[];

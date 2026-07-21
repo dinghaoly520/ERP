@@ -8,14 +8,16 @@ import { listExperts, listSpecialties, setExpertAvailability, batchOperation, ex
 import type { ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, Upload } from 'lucide-react';
+import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, Upload, AlertTriangle } from 'lucide-react';
 
 export default function ExpertRepositoryPage() {
   const router = useRouter();
   const [experts, setExperts] = useState<ExpertListItem[]>([]);
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errored, setErrored] = useState(false);
   const [search, setSearch] = useState('');
+  const [query, setQuery] = useState(''); // 防抖后的搜索词，驱动实际请求
   const [specialty, setSpecialty] = useState('');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
@@ -34,18 +36,36 @@ export default function ExpertRepositoryPage() {
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
+  // 启用/停用二次确认
+  const [confirmToggle, setConfirmToggle] = useState<ExpertListItem | null>(null);
+  const [toggling, setToggling] = useState(false);
+
+  // 搜索防抖：输入即时反映在 search，300ms 后同步到 query 再触发请求
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try { setExperts(await listExperts({ search: search || undefined, specialty: specialty || undefined }) as ExpertListItem[]); } catch (err: any) { toast.error(err?.message || '加载专家列表失败'); }
+    setLoading(true); setErrored(false);
+    try { setExperts(await listExperts({ search: query || undefined, specialty: specialty || undefined }) as ExpertListItem[]); }
+    catch (err: any) { setErrored(true); toast.error(err?.message || '加载专家列表失败'); }
     setLoading(false);
-  }, [search, specialty]);
+  }, [query, specialty]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { listSpecialties().then(setSpecialties).catch(() => {}); }, []);
 
-  const toggle = async (e: ExpertListItem) => {
-    try { await setExpertAvailability(e.id, !e.isActive); toast.success(e.isActive ? '已停用' : '已启用'); load(); }
-    catch (err: any) { toast.error(err?.message || '操作失败'); }
+  const doToggle = async () => {
+    if (!confirmToggle) return;
+    const target = confirmToggle;
+    setToggling(true);
+    try {
+      await setExpertAvailability(target.id, !target.isActive);
+      toast.success(target.isActive ? '已停用' : '已启用');
+      setConfirmToggle(null);
+      load();
+    } catch (err: any) { toast.error(err?.message || '操作失败'); }
+    setToggling(false);
   };
 
   const toggleSelect = (id: string) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -233,11 +253,11 @@ export default function ExpertRepositoryPage() {
                   </th>
                 )}
                 <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
-                <SortableTh label="专业" field="specialty" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
-                <SortableTh label="职称" field="title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <SortableTh label="专业" field="expertProfile.specialty" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <SortableTh label="职称" field="expertProfile.title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <th className="text-center">部门</th>
                 <th className="text-center">参评项目</th>
-                <SortableTh label="评价次数" field="evaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <th className="text-center">最近评价</th>
                 <th className="text-center">状态</th>
                 <th className="text-center">操作</th>
@@ -246,6 +266,14 @@ export default function ExpertRepositoryPage() {
             <tbody>
               {loading ? (
                 <TableSkeleton cols={batchMode ? 9 : 8} rows={5} />
+              ) : errored ? (
+                <tr><td colSpan={batchMode ? 9 : 8} className="px-4 py-16">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
+                    <p className="text-sm font-semibold text-[var(--danger)]">专家列表加载失败</p>
+                    <button onClick={load} className="neu-btn-soft"><RefreshCw size={15} />重试</button>
+                  </div>
+                </td></tr>
               ) : pagedExperts.length === 0 ? (
                 <tr><td colSpan={batchMode ? 9 : 8} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
@@ -279,7 +307,7 @@ export default function ExpertRepositoryPage() {
                     <td className="text-center">{e.latestEval ? <StatusBadge tone={e.latestEval.level === 'A' ? 'green' : e.latestEval.level === 'B' ? 'blue' : e.latestEval.level === 'D' ? 'red' : 'orange'}>{e.latestEval.level}级 · {e.latestEval.overallScore}分</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
                     <td className="text-center"><StatusBadge tone={e.isActive ? 'green' : 'gray'}>{e.isActive ? '可用' : '已停用'}</StatusBadge></td>
                     <td onClick={e => e.stopPropagation()} className="text-center">
-                      <button onClick={() => toggle(e)} className={e.isActive ? 'neu-btn-xs is-warning' : 'neu-btn-xs is-success'}>{e.isActive ? '停用' : '启用'}</button>
+                      <button onClick={() => setConfirmToggle(e)} className={e.isActive ? 'neu-btn-xs is-warning' : 'neu-btn-xs is-success'}>{e.isActive ? '停用' : '启用'}</button>
                     </td>
                   </tr>
                 );
@@ -297,6 +325,29 @@ export default function ExpertRepositoryPage() {
           </div>
         )}
       </div>
+
+      {/* ══════ 启用/停用二次确认 ══════ */}
+      {confirmToggle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => !toggling && setConfirmToggle(null)} />
+          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+            <div className="flex items-center gap-3">
+              <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+                <AlertTriangle size={18} className={confirmToggle.isActive ? 'text-[var(--warning)]' : 'text-[var(--success)]'} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">确认{confirmToggle.isActive ? '停用' : '启用'}专家 {confirmToggle.displayName}？</h3>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">{confirmToggle.isActive ? '停用后该专家将无法参与新的评审抽取' : '启用后该专家可重新参与评审抽取'}</p>
+              </div>
+            </div>
+            <hr className="wb-section-rule my-4" />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmToggle(null)} disabled={toggling} className="neu-btn-soft h-[38px]">取消</button>
+              <button onClick={doToggle} disabled={toggling} className={`neu-btn-primary !h-[38px]${confirmToggle.isActive ? ' is-danger' : ''}`}>{toggling ? '处理中...' : '确认'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

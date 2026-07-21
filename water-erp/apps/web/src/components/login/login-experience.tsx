@@ -220,7 +220,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
                   type="text"
                   autoComplete="username"
                   placeholder="输入账号"
-                  className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[color:rgba(92,112,148,0.46)]"
+                  className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)]"
                   {...register("username")}
                 />
                 <span aria-hidden className="login-field-shell__line" />
@@ -259,7 +259,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
                   type="password"
                   autoComplete="current-password"
                   placeholder="输入密码"
-                  className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[color:rgba(92,112,148,0.46)]"
+                  className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)]"
                   {...register("password")}
                 />
                 <span aria-hidden className="login-field-shell__line" />

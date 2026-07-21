@@ -62,3 +62,56 @@ export function computeRiskFactors(i: RiskFactorInput): RiskFactor[] {
 export function riskLevel(overall: number): '低风险' | '中风险' | '高风险' {
   return overall >= 85 ? '低风险' : overall >= 65 ? '中风险' : '高风险';
 }
+
+/* ── C8 履约违约风险预测（规则 + 诚实置信度，非 LLM）──────────────────
+   用于准入→淘汰衔接：对评价时序呈现 D 级 / 连续低分 / 下滑趋势的供应商，
+   预测其下阶段违约/失约风险，触发主动预警（把被动淘汰变主动风控）。
+   置信度 = 数据覆盖率：评价次数越多置信越高，无数据时明确低置信，绝不编造。 */
+export interface DefaultRiskInput {
+  /** 评价时间序列，按时间升序，元素为总分(0-100)与等级 */
+  evalSeries: { score: number; level: string }[];
+  expiredQualifications: number;
+}
+export interface DefaultRiskPrediction {
+  riskScore: number;        // 0-100，越高越可能违约/失约
+  level: '低风险' | '中风险' | '高风险';
+  confidence: number;       // 0-100，数据覆盖率
+  drivers: string[];        // 命中的风险驱动因素（可解释）
+  narrative: string;        // 一句话风险叙事
+}
+
+export function predictDefaultRisk(i: DefaultRiskInput): DefaultRiskPrediction {
+  const n = i.evalSeries.length;
+  // 置信度：无评价=10（仅能凭资质判断），随评价数递增，封顶 90。
+  const confidence = n === 0 ? 10 : Math.min(90, 30 + n * 12);
+
+  const drivers: string[] = [];
+  let risk = 20; // 基线：无信号时偏低风险
+
+  const recent = i.evalSeries.slice(-3);
+  const hasD = recent.some((e) => e.level === 'D');
+  const lowStreak = recent.length >= 2 && recent.every((e) => e.score < 60);
+  // 趋势：比较近半与远半均分，下滑 > 8 分视为恶化。
+  let declining = false;
+  if (n >= 4) {
+    const half = Math.floor(n / 2);
+    const earlyAvg = i.evalSeries.slice(0, half).reduce((s, e) => s + e.score, 0) / half;
+    const lateAvg = i.evalSeries.slice(half).reduce((s, e) => s + e.score, 0) / (n - half);
+    declining = earlyAvg - lateAvg > 8;
+  }
+
+  if (hasD) { risk += 35; drivers.push('近期出现 D 级（不合格）评价'); }
+  if (lowStreak) { risk += 25; drivers.push('连续评价低于 60 分'); }
+  if (declining) { risk += 20; drivers.push('评分呈下滑趋势'); }
+  if (i.expiredQualifications > 0) { risk += 15; drivers.push(`存在 ${i.expiredQualifications} 项过期资质，投标/履约资格受限`); }
+  if (n === 0) drivers.push('暂无评价记录，履约表现未知（低置信）');
+
+  risk = clamp01(risk);
+  const level = risk >= 65 ? '高风险' : risk >= 40 ? '中风险' : '低风险';
+  const narrative =
+    n === 0
+      ? '该供应商尚无评价记录，无法可靠预测违约风险，建议先发起评价建立履约档案后再评估。'
+      : `综合近 ${recent.length} 次评价与资质状态，违约/失约风险为${level}（风险分 ${risk}）；${drivers.length ? drivers.join('；') : '未发现明显恶化信号'}。`;
+
+  return { riskScore: risk, level, confidence, drivers, narrative };
+}

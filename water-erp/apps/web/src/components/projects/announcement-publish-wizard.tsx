@@ -15,7 +15,7 @@ import {
   buildAnnouncement,
 } from '@/lib/api/announcement';
 import type { AnnouncementStatus } from '@/lib/api/announcement';
-import { uploadProjectStageAttachment } from '@/lib/api/project-management';
+import { uploadProjectStageAttachment, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
@@ -48,6 +48,8 @@ type Props = {
   onClose: () => void;
   project: ProjectManagementItem | null;
   onPublished: () => void;
+  /** 公告文件上传至 PUBLIC_ANNOUNCEMENT 阶段成功后回调，供父面板即时刷新（无需手动刷新页面） */
+  onStageAttachmentUploaded?: (result: UploadStageAttachmentResult) => void;
   /** 锁定的公告分类；默认 procurement_document（采购文件公告）。定标阶段复用时传 winning_bid / failed_bid */
   initialCategory?: AnnouncementCategory;
 };
@@ -55,7 +57,7 @@ type Props = {
 const inputCls =
   'w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] rounded-lg text-sm placeholder-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10';
 
-export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, initialCategory = 'procurement_document' }: Props) {
+export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document' }: Props) {
   // Wizard state
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(true);
@@ -304,7 +306,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         const docFile = new File([blob], fileName, {
           type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
-        await uploadProjectStageAttachment(project!.id, 'PUBLIC_ANNOUNCEMENT', docFile);
+        const uploaded = await uploadProjectStageAttachment(project!.id, 'PUBLIC_ANNOUNCEMENT', docFile);
+        onStageAttachmentUploaded?.(uploaded);
       } catch (e) {
         toast.error(`公告文件上传到阶段失败：${(e as Error).message}`);
       }

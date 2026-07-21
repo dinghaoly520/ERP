@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { createExpert, listSpecialties } from '@/lib/api/expert';
+import { createExpert, listSpecialties, ocrIntake } from '@/lib/api/expert';
 import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave';
-import { UserPlus, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Eye, EyeOff, ScanLine, RefreshCw } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 
 const TITLES = ['教授级高级工程师','高级工程师','高级经济师','高级会计师','工程师','注册造价工程师','注册监理工程师'];
@@ -22,6 +22,7 @@ export default function ExpertEntryPage() {
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
   const [showPw, setShowPw] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormFields, string>>>({});
   const hasChanges = Object.values(form).some(v => v !== '');
   const { getDraft, clearDraft } = useFormAutosave('expert-entry', form as unknown as Record<string, unknown>);
@@ -53,6 +54,35 @@ export default function ExpertEntryPage() {
     return Object.keys(e).length === 0;
   };
   const submit = async () => { setServerError(''); if (!validate()) return; setSaving(true); try { await createExpert(form); toast.success('专家录入成功'); clearDraft(); router.push('/expert/repository'); } catch (e: any) { setServerError(e?.message || '录入失败'); } setSaving(false); };
+
+  // AI 资质 OCR 自动录入：识别证件图片 → 结构化字段回填表单（失败降级为手动填写）
+  const handleOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('请选择图片文件（证件/证书照片）'); e.target.value = ''; return; }
+    setOcrLoading(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const { fields } = await ocrIntake({ imageBase64: base64, mimeType: file.type, filename: file.name });
+      const map: Partial<FormFields> = {};
+      (['displayName', 'specialty', 'title', 'employer', 'idNumber', 'phone', 'licenseNo', 'education', 'ethnicity'] as (keyof FormFields)[]).forEach(k => {
+        const v = fields[k];
+        if (v && String(v).trim()) map[k] = String(v).trim();
+      });
+      const filled = Object.keys(map).length;
+      if (filled === 0) toast.warning('未识别到有效字段，请手动填写');
+      else { setForm(prev => ({ ...prev, ...map })); toast.success(`已识别并填充 ${filled} 个字段，请核对后保存`); }
+    } catch (err: any) {
+      toast.error(err?.message || '识别失败，请手动填写');
+    }
+    setOcrLoading(false);
+    e.target.value = '';
+  };
   const validatePhone = (v: string) => /^1[3-9]\d{9}$/.test(v.trim());
   const validateIdNumber = (v: string) => /^\d{17}[\dXx]$/.test(v.trim());
   const validateEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -82,6 +112,14 @@ export default function ExpertEntryPage() {
       )}
 
       <div className="neu-table-card p-5 space-y-6">
+        {/* AI 资质 OCR 自动录入 */}
+        <label className="neu-drop-zone">
+          {ocrLoading ? <RefreshCw size={16} className="animate-spin text-[var(--muted-foreground)] mb-1" /> : <ScanLine size={16} className="text-[var(--muted-foreground)] mb-1" />}
+          <span className="text-[0.75rem] font-medium text-[var(--muted-foreground)]">{ocrLoading ? '正在识别证件…' : '上传证件/证书照片，AI 识别自动填充'}</span>
+          <span className="mt-0.5 text-[0.65rem] text-[var(--muted-foreground)]/60">支持 JPG/PNG · 自动识别姓名、专业、职称、身份证、手机号等</span>
+          <input type="file" accept="image/*" className="hidden" onChange={handleOcr} disabled={ocrLoading} />
+        </label>
+
         {/* ① 登录凭证 */}
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={1} />登录凭证</legend>

@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
@@ -493,46 +494,56 @@ export class SupplierPortalService {
       throw err;
     }
 
-    // Update FileAsset records with sealedPath (no overwrite of plaintext)
-    for (const assetId of assetIds) {
-      if (sealedPaths[assetId]) {
-        await this.prisma.fileAsset.update({
-          where: { id: assetId },
-          data: { encrypted: true, sealedPath: sealedPaths[assetId] },
-        });
-      }
-    }
-
     const now = new Date();
 
+    // 提交记录 + fileAsset 封存标记原子化：此前分散写，中途失败会留「sealed 文件已写但 submission 未建」的不一致态。
+    // 并发重复提交命中 supplierId_projectId 唯一约束（P2002）→ 转 409 并清理本次新写的 sealed 文件，杜绝孤儿对象与裸 500。
     let submission;
-    if (existing) {
-      // Update draft to submitted
-      submission = await this.prisma.supplierBidSubmission.update({
-        where: { id: existing.id },
-        data: {
-          ...pickBidSubmissionFields(data),
-          status: 'submitted',
-          submittedAt: now,
-          technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
-          businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
-          coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
-        },
+    try {
+      submission = await this.prisma.$transaction(async (tx) => {
+        for (const assetId of assetIds) {
+          if (sealedPaths[assetId]) {
+            await tx.fileAsset.update({
+              where: { id: assetId },
+              data: { encrypted: true, sealedPath: sealedPaths[assetId] },
+            });
+          }
+        }
+        if (existing) {
+          return tx.supplierBidSubmission.update({
+            where: { id: existing.id },
+            data: {
+              ...pickBidSubmissionFields(data),
+              status: 'submitted',
+              submittedAt: now,
+              technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
+              businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
+              coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
+            },
+          });
+        }
+        return tx.supplierBidSubmission.create({
+          data: {
+            supplierId,
+            projectId,
+            ...pickBidSubmissionFields(data),
+            status: 'submitted',
+            submittedAt: now,
+            technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
+            businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
+            coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
+          },
+        });
       });
-    } else {
-      // Create new submission
-      submission = await this.prisma.supplierBidSubmission.create({
-        data: {
-          supplierId,
-          projectId,
-          ...pickBidSubmissionFields(data),
-          status: 'submitted',
-          submittedAt: now,
-          technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
-          businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
-          coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
-        },
-      });
+    } catch (err) {
+      // 事务失败：清理本次新写的 sealed 密文，避免 MinIO 孤儿对象。
+      for (const path of newlySealedPaths) {
+        try { await minioClient.removeObject(MINIO_BUCKET, path); } catch (_) { /* best-effort */ }
+      }
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException({ error: '该标书已提交，请勿重复提交', code: 'ALREADY_SUBMITTED' });
+      }
+      throw err;
     }
 
     // Also create/update BidSupplier record for bid management

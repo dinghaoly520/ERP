@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { X, Upload, FileText, CheckCircle, Loader2, Sparkles, ArrowLeft } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X, Upload, FileText, CheckCircle, Loader2, Sparkles, ArrowLeft, ChevronDown } from 'lucide-react';
 import {
   createProjectManagementItem,
   extractInitiationFields,
@@ -10,6 +10,7 @@ import {
   compareFields,
   analyzeBudgetReference,
   fetchProjectAttributions,
+  polishInitiationField,
   type InitiationFields,
   type DemandFields,
   type BudgetReferenceResult,
@@ -98,6 +99,10 @@ export function CreateProjectDialog({
   // Budget reference analysis
   const [budgetReference, setBudgetReference] = useState<BudgetReferenceResult | null>(null);
   const [analyzingBudget, setAnalyzingBudget] = useState(false);
+  const [showBudgetRationale, setShowBudgetRationale] = useState(false);
+
+  // AI polish for 立项事由 / 供方要求
+  const [polishingField, setPolishingField] = useState<'projectReason' | 'supplierRequirements' | null>(null);
 
   // Project attribution dropdown
   const [projectAttributions, setProjectAttributions] = useState<ProjectAttribution[]>([]);
@@ -144,6 +149,21 @@ export function CreateProjectDialog({
     }
   }, [isOpen]);
 
+  // Budget rationale floats above the form — dismiss on outside click
+  const budgetRationaleBarRef = useRef<HTMLDivElement>(null);
+  const budgetRationalePanelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showBudgetRationale) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (budgetRationalePanelRef.current?.contains(target)) return;
+      if (budgetRationaleBarRef.current?.contains(target)) return; // summary bar toggles itself
+      setShowBudgetRationale(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [showBudgetRationale]);
+
   if (!isOpen) {
     return null;
   }
@@ -181,6 +201,8 @@ export function CreateProjectDialog({
     setInitiationExtracted(false);
     setBudgetReference(null);
     setAnalyzingBudget(false);
+    setShowBudgetRationale(false);
+    setPolishingField(null);
     setProjectAttributions([]);
     setShowAttributionDropdown(false);
     setAttributionSearch('');
@@ -216,8 +238,11 @@ export function CreateProjectDialog({
       const result = await analyzeBudgetReference({
         procurementTitle: title,
         procurementCategory: String(fields.procurementCategory || ''),
+        procurementType: String((fields as Record<string, unknown>).procurementType || ''),
         projectReason: String(fields.projectReason || ''),
         supplierRequirements: String(fields.supplierRequirements || ''),
+        // 行项目/预算清单：当前新建对话框尚无结构化清单，留空由服务端用“标题=单行 qty=1”兜底；
+        // 后续接入 BudgetList/抽取行项目时在此透传 lines / budgetListId 即可启用 Tier 1 单价×数量。
       });
       setBudgetReference(result);
     } catch {
@@ -380,7 +405,7 @@ export function CreateProjectDialog({
 
   const renderProcurementMethodSelector = () => (
     <div className="space-y-3">
-      <label className="password-dialog__label">采购方式</label>
+      <label className="text-sm font-semibold text-[color:var(--foreground)]">采购方式</label>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {PROCUREMENT_METHODS.map((method) => (
           <button
@@ -388,10 +413,10 @@ export function CreateProjectDialog({
             type="button"
             onClick={() => setProcurementMethod(method)}
             className={[
-              "px-4 py-2.5 text-xs font-medium rounded-lg transition-all duration-200",
+              "neu-opt px-4 py-2.5 text-xs font-medium",
               procurementMethod === method
-                ? "bg-[linear-gradient(135deg,rgba(96,145,246,0.96),rgba(138,176,251,0.9))] text-white"
-                : "border border-[rgba(171,191,227,0.54)] bg-[rgba(255,255,255,0.6)] text-[color:var(--foreground)] hover:border-[rgba(102,148,245,0.6)] hover:bg-[rgba(255,255,255,0.8)]",
+                ? "is-on"
+                : "",
             ].join(" ")}
           >
             {method}
@@ -427,7 +452,7 @@ export function CreateProjectDialog({
             </button>
           )}
           {isExtracted && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[rgba(92,156,133,0.12)] text-xs font-medium text-[rgba(92,156,133,0.95)]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--success-soft)] text-xs font-medium text-[var(--success)]">
               <CheckCircle size={12} />
               已解析
             </span>
@@ -445,22 +470,20 @@ export function CreateProjectDialog({
       />
       <label
         htmlFor={`file-upload-${label.replace(/\s/g, '-')}`}
-        className={`group flex items-center justify-center gap-2.5 rounded-xl border px-4 py-4 cursor-pointer transition-all duration-200 ${
-          isExtracted
-            ? 'border-[rgba(92,156,133,0.54)] bg-[rgba(232,242,235,0.5)]'
-            : 'border-[rgba(171,191,227,0.54)] bg-[rgba(255,255,255,0.6)] hover:border-[rgba(102,148,245,0.6)] hover:bg-[rgba(255,255,255,0.8)]'
+        className={`neu-drop group flex items-center justify-center gap-2.5 px-4 py-4 ${
+          isExtracted ? 'is-done' : ''
         }`}
       >
         {isExtracted ? (
-          <FileText size={20} className="text-[rgba(92,156,133,0.88)]" />
+          <FileText size={20} className="text-[var(--success)]" />
         ) : (
-          <Upload size={20} className="text-[rgba(98,137,214,0.88)]" />
+          <Upload size={20} className="text-[var(--accent)]" />
         )}
-        <span className={`text-sm ${isExtracted ? 'text-[rgba(92,156,133,0.9)]' : 'text-[rgba(88,107,142,0.9)]'}`}>
+        <span className={`text-sm ${isExtracted ? 'text-[var(--success)]' : 'text-[color:var(--muted-foreground)]'}`}>
           {file ? file.name : '点击选择 PDF 文件'}
         </span>
         {file && !isExtracted && (
-          <span className="text-xs text-[rgba(88,107,142,0.82)]">{(file.size / 1024).toFixed(0)}KB</span>
+          <span className="text-xs text-[color:var(--muted-foreground)]">{(file.size / 1024).toFixed(0)}KB</span>
         )}
       </label>
     </div>
@@ -469,8 +492,8 @@ export function CreateProjectDialog({
   const renderFieldComparison = () => (
     <div className="space-y-5 pb-[1.7rem]">
       {renderProcurementMethodSelector()}
-      <div className="h-px bg-[rgba(184,199,227,0.36)] mt-4 mb-2" />
-      <div className="text-sm text-[rgba(88,107,142,0.9)] mb-2">
+      <div className="wb-section-rule mt-3 mb-1" />
+      <div className="text-sm text-[color:var(--muted-foreground)] mb-2">
         {isDualDocumentMode() ? '对比两份文档的字段信息，选择正确的值' : '确认提取的字段信息'}
       </div>
       {fieldComparisons.map((comparison) => (
@@ -478,17 +501,17 @@ export function CreateProjectDialog({
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-[color:var(--foreground)]">{comparison.label}</span>
               {aiLoading === comparison.fieldName ? (
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-[rgba(147,112,219,0.15)] to-[rgba(96,145,246,0.15)]">
-                  <Loader2 size={14} className="animate-spin text-[rgba(118,100,180,0.9)]" />
+                <span className="neu-opt inline-flex h-7 w-7 items-center justify-center text-[var(--accent)]">
+                  <Loader2 size={14} className="animate-spin" />
                 </span>
               ) : (
                 <button
                   type="button"
                   title="AI 识别"
                   onClick={() => { const text = demandExtractedText || initiationExtractedText; if (text) void handleAiIdentify(comparison.fieldName, text); }}
-                  className="group inline-flex items-center justify-center w-7 h-7 rounded-full border border-[rgba(147,112,219,0.2)] bg-[rgba(147,112,219,0.06)] transition-all duration-300 hover:border-[rgba(147,112,219,0.4)] hover:bg-[rgba(147,112,219,0.14)] hover:shadow-[0_0_10px_rgba(147,112,219,0.18)] active:scale-95"
+                  className="neu-opt group inline-flex h-7 w-7 items-center justify-center text-[var(--accent)]"
                 >
-                  <Sparkles size={14} className="text-[rgba(118,100,180,0.85)] transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                  <Sparkles size={14} className="transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
                 </button>
               )}
             </div>
@@ -498,13 +521,13 @@ export function CreateProjectDialog({
                   type="button"
                   onClick={() => handleSelectComparisonValue(comparison.fieldName, comparison.demandValue || '')}
                   className={[
-                    "p-2.5 text-left rounded-lg border transition-all duration-200",
+                    "neu-opt p-2.5 text-left w-full block",
                     comparison.selectedValue === comparison.demandValue
-                      ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                      : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
+                      ? "is-on"
+                      : "",
                   ].join(" ")}
                 >
-                  <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">需求表</div>
+                  <div className="text-[11px] font-medium text-[color:var(--muted-foreground)]">需求表</div>
                   <div className="text-sm mt-0.5 truncate font-medium text-[color:var(--foreground)]">{comparison.demandValue || '（空）'}</div>
                 </button>
               </div>
@@ -514,13 +537,13 @@ export function CreateProjectDialog({
                   type="button"
                   onClick={() => handleSelectComparisonValue(comparison.fieldName, comparison.initiationValue || '')}
                   className={[
-                    "p-2.5 text-left rounded-lg border transition-all duration-200",
+                    "neu-opt p-2.5 text-left w-full block",
                     comparison.selectedValue === comparison.initiationValue
-                      ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                      : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
+                      ? "is-on"
+                      : "",
                   ].join(" ")}
                 >
-                  <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">立项表</div>
+                  <div className="text-[11px] font-medium text-[color:var(--muted-foreground)]">立项表</div>
                   <div className="text-sm mt-0.5 truncate font-medium text-[color:var(--foreground)]">{comparison.initiationValue || '（空）'}</div>
                 </button>
               </div>
@@ -531,13 +554,13 @@ export function CreateProjectDialog({
                     type="button"
                     onClick={() => handleSelectComparisonValue(comparison.fieldName, comparison.demandValue || '')}
                     className={[
-                      "p-2.5 text-left rounded-lg border transition-all duration-200",
+                      "neu-opt p-2.5 text-left w-full block",
                       comparison.selectedValue === comparison.demandValue
-                        ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                        : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
+                        ? "is-on"
+                        : "",
                     ].join(" ")}
                   >
-                    <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">需求表</div>
+                    <div className="text-[11px] font-medium text-[color:var(--muted-foreground)]">需求表</div>
                     <div className="text-sm mt-0.5 whitespace-pre-wrap font-medium text-[color:var(--foreground)]">{comparison.demandValue || '（空）'}</div>
                   </button>
                 )}
@@ -546,13 +569,13 @@ export function CreateProjectDialog({
                     type="button"
                     onClick={() => handleSelectComparisonValue(comparison.fieldName, comparison.initiationValue || '')}
                     className={[
-                      "p-2.5 text-left rounded-lg border transition-all duration-200",
+                      "neu-opt p-2.5 text-left w-full block",
                       comparison.selectedValue === comparison.initiationValue
-                        ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                        : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
+                        ? "is-on"
+                        : "",
                     ].join(" ")}
                   >
-                    <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">立项表</div>
+                    <div className="text-[11px] font-medium text-[color:var(--muted-foreground)]">立项表</div>
                     <div className="text-sm mt-0.5 whitespace-pre-wrap font-medium text-[color:var(--foreground)]">{comparison.initiationValue || '（空）'}</div>
                   </button>
                 )}
@@ -564,13 +587,13 @@ export function CreateProjectDialog({
                     type="button"
                     onClick={() => handleSelectComparisonValue(comparison.fieldName, comparison.demandValue || '')}
                     className={[
-                      "p-2.5 text-left rounded-lg border transition-all duration-200",
+                      "neu-opt p-2.5 text-left w-full block",
                       comparison.selectedValue === comparison.demandValue
-                        ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                        : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
+                        ? "is-on"
+                        : "",
                     ].join(" ")}
                   >
-                    <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">需求表</div>
+                    <div className="text-[11px] font-medium text-[color:var(--muted-foreground)]">需求表</div>
                     <div className="text-sm mt-0.5 truncate font-medium text-[color:var(--foreground)]">{comparison.demandValue || '（空）'}</div>
                   </button>
                 )}
@@ -579,21 +602,21 @@ export function CreateProjectDialog({
                     type="button"
                     onClick={() => handleSelectComparisonValue(comparison.fieldName, comparison.initiationValue || '')}
                     className={[
-                      "p-2.5 text-left rounded-lg border transition-all duration-200",
+                      "neu-opt p-2.5 text-left w-full block",
                       comparison.selectedValue === comparison.initiationValue
-                        ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                        : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
+                        ? "is-on"
+                        : "",
                     ].join(" ")}
                   >
-                    <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)]">立项表</div>
+                    <div className="text-[11px] font-medium text-[color:var(--muted-foreground)]">立项表</div>
                     <div className="text-sm mt-0.5 truncate font-medium text-[color:var(--foreground)]">{comparison.initiationValue || '（空）'}</div>
                   </button>
                 )}
               </div>
             )}
             {aiCandidates[comparison.fieldName]?.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-[rgba(184,199,227,0.36)]">
-                <div className="text-[11px] font-medium text-[rgba(88,107,142,0.9)] mb-1.5">AI 推荐</div>
+              <div className="mt-2 pt-2 border-t border-[oklch(0.6_0.04_258_/_0.16)]">
+                <div className="text-[11px] font-medium text-[color:var(--muted-foreground)] mb-1.5">AI 推荐</div>
                 <div className="space-y-1.5">
                   {aiCandidates[comparison.fieldName].map((candidate, idx) => (
                     <button
@@ -601,14 +624,14 @@ export function CreateProjectDialog({
                       type="button"
                       onClick={() => handleSelectComparisonValue(comparison.fieldName, candidate.value)}
                       className={[
-                        "w-full p-2 text-left rounded-lg border transition-all duration-200",
+                        "neu-opt w-full p-2 text-left block",
                         comparison.selectedValue === candidate.value
-                          ? "border-[rgba(102,148,245,0.6)] bg-[rgba(232,240,255,0.6)]"
-                          : "border-[oklch(0.6_0.04_258_/_0.22)] bg-[oklch(1_0_0_/_0.45)] hover:bg-[oklch(1_0_0_/_0.7)]",
+                          ? "is-on"
+                          : "",
                       ].join(" ")}
                     >
                       <span className="text-sm font-medium text-[color:var(--foreground)]">{candidate.value}</span>
-                      <span className="ml-2 text-xs text-[rgba(88,107,142,0.82)]">({(candidate.confidence * 100).toFixed(0)}%)</span>
+                      <span className="ml-2 text-xs text-[color:var(--muted-foreground)]">({(candidate.confidence * 100).toFixed(0)}%)</span>
                     </button>
                   ))}
                 </div>
@@ -628,51 +651,85 @@ export function CreateProjectDialog({
     return fallbackValue;
   };
 
+  const handlePolishField = async (field: 'projectReason' | 'supplierRequirements') => {
+    const currentValue = String(
+      getSelectedFieldValue(field, initiationFields[field] || demandFields[field] || ''),
+    ).trim();
+    if (!currentValue) {
+      setErrorMessage(`请先填写${field === 'projectReason' ? '立项事由' : '供方要求'}的初步内容，再进行 AI 优化。`);
+      return;
+    }
+    setPolishingField(field);
+    setErrorMessage(null);
+    try {
+      const { polished } = await polishInitiationField({
+        field,
+        text: currentValue,
+        demandDocText: demandExtractedText || undefined,
+        initiationDocText: initiationExtractedText || undefined,
+        projectContext: {
+          title: String(getSelectedFieldValue('procurementTitle', initiationFields.procurementTitle || '')) || undefined,
+          category: String(getSelectedFieldValue('procurementCategory', initiationFields.procurementCategory || '')) || undefined,
+          method: procurementMethod || undefined,
+        },
+      });
+      setInitiationFields((prev) => ({ ...prev, [field]: polished }));
+      // 同步覆盖 compare 步骤的 selectedValue，避免回看时被旧值覆盖
+      setFieldComparisons((prev) =>
+        prev.map((c) => (c.fieldName === field ? { ...c, selectedValue: polished } : c)),
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'AI 优化失败，请稍后重试。');
+    } finally {
+      setPolishingField(null);
+    }
+  };
+
   const renderReview = () => (
     <div className="space-y-5 pb-[1.7rem]">
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-3">
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">需求申请人</label>
+          <label className="text-xs font-semibold text-[color:var(--foreground)]">需求申请人</label>
           <input
             type="text"
             value={getSelectedFieldValue('requesterName', initiationFields.requesterName || demandFields.requesterName || '')}
             onChange={(e) => setInitiationFields((prev) => ({ ...prev, requesterName: e.target.value }))}
-            className="password-dialog__input"
+            className="workbench-input w-full"
           />
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">需求部门</label>
+          <label className="text-xs font-semibold text-[color:var(--foreground)]">需求部门</label>
           <input
             type="text"
             value={getSelectedFieldValue('requesterDepartment', initiationFields.requesterDepartment || demandFields.requesterDepartment || '')}
             onChange={(e) => setInitiationFields((prev) => ({ ...prev, requesterDepartment: e.target.value }))}
-            className="password-dialog__input"
+            className="workbench-input w-full"
           />
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">立项日期</label>
+          <label className="text-xs font-semibold text-[color:var(--foreground)]">立项日期</label>
           <input
             type="date"
             value={getSelectedFieldValue('initiationDate', initiationFields.initiationDate || demandFields.initiationDate || '')}
             onChange={(e) => setInitiationFields((prev) => ({ ...prev, initiationDate: e.target.value }))}
-            className="password-dialog__input"
+            className="workbench-input w-full"
           />
         </div>
         <div className="col-span-3 space-y-2">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">采购事项名称</label>
+          <label className="text-xs font-semibold text-[color:var(--foreground)]">采购事项名称</label>
           <input
             type="text"
             value={getSelectedFieldValue('procurementTitle', initiationFields.procurementTitle || demandFields.procurementTitle || '')}
             onChange={(e) => setInitiationFields((prev) => ({ ...prev, procurementTitle: e.target.value }))}
-            className="password-dialog__input"
+            className="workbench-input w-full"
           />
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">采购类别</label>
+          <label className="text-xs font-semibold text-[color:var(--foreground)]">采购类别</label>
           <select
             value={getSelectedFieldValue('procurementCategory', initiationFields.procurementCategory || demandFields.procurementCategory || '')}
             onChange={(e) => setInitiationFields((prev) => ({ ...prev, procurementCategory: e.target.value }))}
-            className="password-dialog__input h-[53px] rounded-lg"
+            className="workbench-input w-full"
           >
             <option value="">请选择采购类别</option>
             {PROCUREMENT_CATEGORY_OPTIONS.map((category) => (
@@ -681,11 +738,11 @@ export function CreateProjectDialog({
           </select>
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">采购方式</label>
+          <label className="text-xs font-semibold text-[color:var(--foreground)]">采购方式</label>
           <select
             value={procurementMethod}
             onChange={(e) => setProcurementMethod(e.target.value)}
-            className="password-dialog__input h-[53px] rounded-lg"
+            className="workbench-input w-full"
           >
             <option value="">请选择采购方式</option>
             {PROCUREMENT_METHODS.map((method) => (
@@ -694,7 +751,7 @@ export function CreateProjectDialog({
           </select>
         </div>
         <div className="space-y-2 relative">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">项目归属</label>
+          <label className="text-xs font-semibold text-[color:var(--foreground)]">项目归属</label>
           <input
             type="text"
             value={getSelectedFieldValue('demandProject', demandFields.demandProject || '')}
@@ -705,29 +762,29 @@ export function CreateProjectDialog({
             }}
             onBlur={() => setTimeout(() => setShowAttributionDropdown(false), 200)}
             placeholder="输入或选择项目归属"
-            className="password-dialog__input"
+            className="workbench-input w-full"
           />
           {showAttributionDropdown && (
-            <div className="absolute z-10 w-full mt-1 max-h-48 overflow-auto rounded-lg border border-[oklch(0.6_0.04_258_/_0.22)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)]">
+            <div className="neu-surface absolute z-10 mt-1 max-h-48 w-full overflow-auto">
               {filteredAttributions.map((option) => (
                 <button
                   key={option.name}
                   type="button"
                   onClick={() => handleSelectAttribution(option)}
-                  className="w-full px-3 py-2.5 text-left hover:bg-[rgba(246,249,255,0.8)] flex justify-between items-center transition-colors duration-150"
+                  className="w-full px-3 py-2.5 text-left hover:bg-[var(--accent-tint)] flex justify-between items-center transition-colors duration-150"
                 >
                   <span className="text-sm text-[color:var(--foreground)]">{option.name}</span>
-                  <span className="text-xs text-[rgba(88,107,142,0.6)]">{option.usageCount}次</span>
+                  <span className="text-xs text-[color:var(--muted-foreground)]">{option.usageCount}次</span>
                 </button>
               ))}
               {!filteredAttributions.some((a) => a.name === '其他') && (
                 <button
                   type="button"
                   onClick={() => handleSelectAttribution({ name: '其他', contractNumber: null, usageCount: 0 })}
-                  className="w-full px-3 py-2.5 text-left hover:bg-[rgba(246,249,255,0.8)] flex justify-between items-center transition-colors duration-150"
+                  className="w-full px-3 py-2.5 text-left hover:bg-[var(--accent-tint)] flex justify-between items-center transition-colors duration-150"
                 >
                   <span className="text-sm text-[color:var(--foreground)]">其他</span>
-                  <span className="text-xs text-[rgba(88,107,142,0.6)]">通用</span>
+                  <span className="text-xs text-[color:var(--muted-foreground)]">通用</span>
                 </button>
               )}
             </div>
@@ -735,78 +792,230 @@ export function CreateProjectDialog({
         </div>
         <div className="col-span-3 grid grid-cols-2 gap-x-5">
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">预算金额（元）</label>
+            <label className="text-xs font-semibold text-[color:var(--foreground)]">预算金额（元）</label>
             <input
               type="number"
               value={getSelectedFieldValue('budgetAmount', initiationFields.budgetAmount || demandFields.budgetAmount || 0)}
               onChange={(e) => setInitiationFields((prev) => ({ ...prev, budgetAmount: Number(e.target.value) }))}
-              className="password-dialog__input"
+              className="workbench-input w-full"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-[rgba(92,181,150,0.96)]">预算参考（元）</label>
+            <label className="text-xs font-semibold text-[var(--success)]">预算参考（元）</label>
             {analyzingBudget && (
-              <div className="h-[53px] flex items-center justify-center rounded-lg border border-[rgba(92,181,150,0.3)] bg-[rgba(92,181,150,0.06)]">
-                <span className="inline-flex items-center gap-2 text-xs text-[rgba(88,107,142,0.9)]">
+              <div className="neu-surface flex h-[53px] items-center justify-center">
+                <span className="inline-flex items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
                   <Loader2 size={14} className="animate-spin" />
                   分析中...
                 </span>
               </div>
             )}
-            {!analyzingBudget && budgetReference && budgetReference.suggestedBudget && (
-              <div
-                onClick={() => setInitiationFields((prev) => ({ ...prev, budgetAmount: budgetReference.suggestedBudget! }))}
-                className="group relative cursor-pointer"
-              >
-                <div className="h-[53px] flex items-center px-3 rounded-lg border border-[rgba(92,181,150,0.4)] bg-[rgba(92,181,150,0.08)] text-[rgba(92,181,150,1)] font-semibold transition-all duration-200 hover:bg-[rgba(92,181,150,0.15)]">
-                  {budgetReference.suggestedBudget.toLocaleString()}
-                </div>
-                {budgetReference.hasReference && (
-                  <div className="absolute bottom-full right-0 mb-2 w-80 p-3 rounded-lg border border-[color-mix(in_oklch,var(--success)_25%,transparent)] bg-[var(--background)] shadow-[0_16px_40px_rgba(0,0,0,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                    {budgetReference.analysis && (
-                      <p className="text-xs text-[color:var(--foreground)] mb-2">{budgetReference.analysis}</p>
-                    )}
-                    {budgetReference.statistics && (
-                      <div className="pt-2 border-t border-[rgba(184,199,227,0.36)] flex flex-wrap gap-3 text-[10px] text-[color:var(--muted-foreground)]">
-                        <span>均值: {budgetReference.statistics.average.toLocaleString()} 元</span>
-                        <span>范围: {budgetReference.statistics.min.toLocaleString()} - {budgetReference.statistics.max.toLocaleString()}</span>
-                        <span>参考: {budgetReference.statistics.count} 个项目</span>
-                      </div>
-                    )}
-                    {budgetReference.references && budgetReference.references.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-[rgba(184,199,227,0.36)]">
-                        <div className="text-[10px] font-medium text-[rgba(88,107,142,0.9)] mb-1">参考项目</div>
-                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                          {budgetReference.references.map((ref, idx) => {
-                            const isLedger = ref.source === '采购台账';
-                            return (
-                              <div key={idx} className="rounded-lg border border-[oklch(0.6_0.04_258_/_0.2)] bg-[oklch(1_0_0_/_0.5)] px-2.5 py-2 text-[10px] text-[color:var(--foreground)]">
-                                <div className="flex items-center gap-1.5">
+            {!analyzingBudget && budgetReference && budgetReference.hasReference && (
+              <div className="space-y-2">
+                {(() => {
+                  const tier = budgetReference.tier ?? (budgetReference.suggestedBudget ? 1 : 3);
+                  const hasPoint = tier <= 2 && budgetReference.suggestedBudget != null;
+                  const hasRange = budgetReference.rangeLow != null && budgetReference.rangeHigh != null;
+                  return (
+                    <>
+                      {/* Tier 1/2：单价×数量点估计 —— 可点击填入 */}
+                      {hasPoint && (
+                        <div
+                          onClick={() => setInitiationFields((prev) => ({ ...prev, budgetAmount: budgetReference.suggestedBudget! }))}
+                          className="neu-opt flex h-[53px] cursor-pointer items-center justify-between px-3 font-semibold text-[var(--success)]"
+                        >
+                          <span className="tabular-nums">{budgetReference.suggestedBudget!.toLocaleString()}</span>
+                          <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">点击填入</span>
+                        </div>
+                      )}
+                      {/* Tier 3：仅历史参考区间，规模未核实，不可作单点填入 */}
+                      {!hasPoint && hasRange && (
+                        <div className="neu-surface flex h-[53px] flex-col items-center justify-center gap-0.5 px-3 text-center">
+                          <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">{budgetReference.tierLabel ?? '历史参考区间'}（含规模差异·不作单点）</span>
+                          <span className="tabular-nums text-sm font-semibold text-[color:var(--foreground)]">
+                            {budgetReference.rangeLow!.toLocaleString()} – {budgetReference.rangeHigh!.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                      {!hasPoint && !hasRange && (
+                        <div className="neu-surface flex h-[53px] items-center justify-center px-3">
+                          <span className="text-[10px] text-[color:var(--muted-foreground)]">{budgetReference.tierLabel ?? '数据不足'}：{budgetReference.confidenceReason}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* 价格依据卡 —— 摘要条常驻占位，明细悬浮展示，不挤压下方表单 */}
+                {budgetReference.hasReference && (budgetReference.tier ?? 1) <= 3 && (
+                  <div className="relative">
+                    <div ref={budgetRationaleBarRef} className="neu-surface overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setShowBudgetRationale((v) => !v)}
+                      className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] text-[color:var(--muted-foreground)] hover:bg-[var(--success-soft)] transition-colors"
+                    >
+                      {(() => {
+                        const tier = budgetReference.tier ?? (budgetReference.pricing ? 1 : 3);
+                        const p = budgetReference.pricing;
+                        return (
+                          <>
+                            <span className="rounded bg-[var(--success-soft)] px-1 py-px font-semibold text-[var(--success)]">T{tier}</span>
+                            <span className="font-medium">{budgetReference.tierLabel ?? (p?.anchor === 'contract' ? '合同价加权' : '预算价加权')}</span>
+                            {p ? (
+                              <>
+                                <span className="tabular-nums">{p.anchorPrice.toLocaleString()}</span>
+                                <span className="text-[var(--success)] font-semibold">× {p.adjustmentFactor.toFixed(2)}</span>
+                                {p.clamped && (<span className="text-[9px] px-1 rounded bg-[var(--warning-soft)] text-[color:var(--warning)]">已夹紧</span>)}
+                              </>
+                            ) : budgetReference.rangeLow != null ? (
+                              <span className="tabular-nums">{budgetReference.rangeLow.toLocaleString()} – {budgetReference.rangeHigh!.toLocaleString()}</span>
+                            ) : null}
+                            <span className="ml-auto tabular-nums text-[9px]">{Math.round(budgetReference.confidence * 100)}%</span>
+                            <ChevronDown size={12} className={`transition-transform ${showBudgetRationale ? 'rotate-180' : ''}`} />
+                          </>
+                        );
+                      })()}
+                    </button>
+                    </div>
+
+                    {showBudgetRationale && (
+                      <div
+                        ref={budgetRationalePanelRef}
+                        className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-80 space-y-2.5 overflow-y-auto rounded-lg bg-[var(--background)] px-2.5 py-2 text-[10px] shadow-[inset_0_1px_0_oklch(1_0_0/0.75),4px_4px_10px_oklch(0.55_0.03_258/0.16),-2px_-2px_8px_oklch(1_0_0/0.9)]"
+                      >
+                        {/* ⓪ 行项目明细（方法 C 核心：单价×数量，避免历史总价加权失真）*/}
+                        {(budgetReference.lines ?? []).filter((l) => l.unitPrice && l.lineTotal != null).length > 0 && (
+                          <div className="space-y-1">
+                            <div className="font-medium text-[color:var(--foreground)]">行项目（单价 × 数量）</div>
+                            {(budgetReference.lines ?? []).filter((l) => l.unitPrice && l.lineTotal != null).map((l, i) => (
+                              <div key={i} className="neu-surface px-2 py-1.5">
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--foreground)]">{l.catalogName ?? l.name}</span>
+                                  <span className="shrink-0 rounded-full bg-[var(--success-soft)] px-1.5 py-px text-[9px] font-semibold text-[var(--success)]">{l.match === 'exact' ? '精确' : l.match === 'contained' ? '近似' : '预算'}</span>
+                                </div>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px] tabular-nums text-[color:var(--muted-foreground)]">
+                                  <span>{l.unitPrice!.toLocaleString()}/{l.unit ?? '单位'}</span>
+                                  <span>× {l.qty}</span>
+                                  <span className="font-semibold text-[var(--success)]">= {l.lineTotal!.toLocaleString()}</span>
+                                  {l.lineLow != null && l.lineHigh != null && (<span className="text-[color:var(--muted-foreground)]">区间 {l.lineLow.toLocaleString()}–{l.lineHigh.toLocaleString()}</span>)}
+                                </div>
+                                {l.specWarning && (<div className="mt-0.5 text-[9px] text-[color:var(--warning)] leading-snug">⚠ {l.specWarning}</div>)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* ① 价格调整项 */}
+                        {(budgetReference.pricing?.adjustments ?? []).length > 0 && (
+                          <div className="pt-2 space-y-1">
+                            <div className="font-medium text-[color:var(--foreground)]">价格调整</div>
+                            {(budgetReference.pricing?.adjustments ?? []).map((adj, i) => {
+                              const neutral = adj.factor === 0;
+                              const positive = adj.factor > 0;
+                              return (
+                                <div key={i} className="flex items-start gap-1.5">
                                   <span
                                     className={[
-                                      'inline-flex h-1.5 w-1.5 shrink-0 rounded-full',
-                                      isLedger ? 'bg-[rgba(92,181,150,0.9)]' : 'bg-[rgba(102,148,245,0.9)]',
-                                    ].join(' ')}
-                                  />
-                                  <span className="min-w-0 flex-1 truncate font-medium">{ref.title}</span>
-                                  <span
-                                    className={[
-                                      'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                                      isLedger
-                                        ? 'bg-[rgba(92,181,150,0.12)] text-[rgba(64,139,110,0.95)]'
-                                        : 'bg-[rgba(102,148,245,0.12)] text-[rgba(74,116,210,0.95)]',
+                                      'shrink-0 rounded px-1 py-px font-semibold tabular-nums',
+                                      neutral
+                                        ? 'bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] text-[color:var(--muted-foreground)]'
+                                        : positive
+                                          ? 'bg-[var(--warning-soft)] text-[color:var(--warning)]'
+                                          : 'bg-[var(--success-soft)] text-[var(--success)]',
                                     ].join(' ')}
                                   >
-                                    {ref.source}
+                                    {neutral ? '持平' : `${positive ? '+' : ''}${(adj.factor * 100).toFixed(0)}%`}
                                   </span>
+                                  <span className="text-[color:var(--muted-foreground)] leading-relaxed">{adj.reason}</span>
                                 </div>
-                                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[rgba(88,107,142,0.9)]">
-                                  <span>预算: {ref.amount ? ref.amount.toLocaleString() : '--'} 元</span>
-                                  <span>合同: {ref.contractAmount ? ref.contractAmount.toLocaleString() : '--'} 元</span>
-                                </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* ② 参考项目（相关度进度条 + 贡献额 + AI 理由）*/}
+                        {budgetReference.references.length > 0 && (
+                          <div className="space-y-1">
+                            <div className="font-medium text-[color:var(--foreground)]">
+                              参考项目（{budgetReference.statistics?.count ?? budgetReference.references.length}）
+                            </div>
+                            <div className="space-y-1.5">
+                              {budgetReference.references.map((ref, idx) => {
+                                const isLedger = ref.source === '采购台账';
+                                const relPct = Math.round(ref.relevance * 100);
+                                const relTone =
+                                  ref.relevance >= 0.6
+                                    ? 'bg-[var(--success)]'
+                                    : ref.relevance >= 0.4
+                                      ? 'bg-[var(--warning)]'
+                                      : 'bg-[color:var(--muted-foreground)]';
+                                return (
+                                  <div key={idx} className="neu-surface px-2 py-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <span
+                                        className={[
+                                          'inline-flex h-1.5 w-1.5 shrink-0 rounded-full',
+                                          isLedger ? 'bg-[var(--success)]' : 'bg-[var(--accent)]',
+                                        ].join(' ')}
+                                      />
+                                      <span className="min-w-0 flex-1 truncate font-medium text-[color:var(--foreground)]">{ref.title}</span>
+                                      <span
+                                        className={[
+                                          'shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold',
+                                          isLedger
+                                            ? 'bg-[var(--success-soft)] text-[var(--success)]'
+                                            : 'bg-[var(--accent-tint-strong)] text-[color:var(--accent)]',
+                                        ].join(' ')}
+                                      >
+                                        {ref.source}
+                                      </span>
+                                    </div>
+                                    {/* 相关度进度条 */}
+                                    <div className="mt-1 flex items-center gap-1.5">
+                                      <div className="relative h-1 flex-1 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] overflow-hidden">
+                                        <div className={`h-full ${relTone} rounded-full`} style={{ width: `${relPct}%` }} />
+                                      </div>
+                                      <span className="shrink-0 tabular-nums text-[9px] text-[color:var(--muted-foreground)]">{relPct}%</span>
+                                    </div>
+                                    {/* 价格 + 对主锚点贡献额 */}
+                                    <div className="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[9px] text-[color:var(--muted-foreground)]">
+                                      <span>预算 {ref.amount ? ref.amount.toLocaleString() : '--'}</span>
+                                      <span>合同 {ref.contractAmount ? ref.contractAmount.toLocaleString() : '--'}</span>
+                                      <span className="font-semibold text-[var(--success)]">贡献 {ref.contribution.toLocaleString()}</span>
+                                    </div>
+                                    {/* AI 相关度理由 */}
+                                    {ref.aiReason && (
+                                      <div className="mt-1 text-[9px] text-[color:var(--muted-foreground)] italic leading-snug">
+                                        {ref.aiReason}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ③ AI 分析报告（引用真实锚点数字）*/}
+                        {budgetReference.analysis && (
+                          <div className="pt-1.5 border-t border-[color-mix(in_oklch,var(--success)_22%,transparent)]">
+                            <div className="font-medium text-[color:var(--foreground)] mb-1">分析</div>
+                            <p className="text-[10px] leading-relaxed text-[color:var(--foreground)]">{budgetReference.analysis}</p>
+                          </div>
+                        )}
+
+                        {/* ④ 置信度 + 理由 */}
+                        <div className="flex items-center gap-2 pt-1.5 border-t border-[color-mix(in_oklch,var(--success)_22%,transparent)]">
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[9px] text-[color:var(--muted-foreground)]">置信度</span>
+                            <span className="font-semibold tabular-nums text-[10px] text-[color:var(--foreground)]">
+                              {Math.round(budgetReference.confidence * 100)}%
+                            </span>
+                          </div>
+                          {budgetReference.confidenceReason && (
+                            <span className="text-[9px] text-[color:var(--muted-foreground)] leading-snug">— {budgetReference.confidenceReason}</span>
+                          )}
                         </div>
                       </div>
                     )}
@@ -815,33 +1024,63 @@ export function CreateProjectDialog({
               </div>
             )}
             {!analyzingBudget && budgetReference && !budgetReference.hasReference && (
-              <div className="h-[53px] flex items-center justify-center rounded-lg border border-[rgba(184,199,227,0.36)] bg-[rgba(246,249,255,0.5)]">
+              <div className="neu-surface flex h-[53px] items-center justify-center">
                 <span className="text-xs text-[color:var(--muted-foreground)]">{budgetReference.message}</span>
               </div>
             )}
             {!analyzingBudget && !budgetReference && (
-              <div className="h-[53px] flex items-center justify-center rounded-lg border border-[rgba(184,199,227,0.36)] bg-[rgba(246,249,255,0.5)]">
+              <div className="neu-surface flex h-[53px] items-center justify-center">
                 <span className="text-xs text-[color:var(--muted-foreground)]">点击"确认并继续"获取参考</span>
               </div>
             )}
           </div>
         </div>
         <div className="col-span-3 space-y-2">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">立项事由</label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-[color:var(--foreground)]">立项事由</label>
+            <button
+              type="button"
+              onClick={() => handlePolishField('projectReason')}
+              disabled={polishingField !== null}
+              className="neu-btn-xs is-info"
+            >
+              {polishingField === 'projectReason' ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Sparkles size={12} />
+              )}
+              AI 优化
+            </button>
+          </div>
           <textarea
             value={getSelectedFieldValue('projectReason', initiationFields.projectReason || demandFields.projectReason || '')}
             onChange={(e) => setInitiationFields((prev) => ({ ...prev, projectReason: e.target.value }))}
             rows={3}
-            className="password-dialog__input min-h-[80px] resize-y"
+            className="neu-input text-sm min-h-[80px] resize-y"
           />
         </div>
         <div className="col-span-3 space-y-2">
-          <label className="text-xs font-semibold text-[rgba(52,67,96,0.96)]">供方要求</label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-[color:var(--foreground)]">供方要求</label>
+            <button
+              type="button"
+              onClick={() => handlePolishField('supplierRequirements')}
+              disabled={polishingField !== null}
+              className="neu-btn-xs is-info"
+            >
+              {polishingField === 'supplierRequirements' ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Sparkles size={12} />
+              )}
+              AI 优化
+            </button>
+          </div>
           <textarea
             value={getSelectedFieldValue('supplierRequirements', initiationFields.supplierRequirements || demandFields.supplierRequirements || '')}
             onChange={(e) => setInitiationFields((prev) => ({ ...prev, supplierRequirements: e.target.value }))}
             rows={3}
-            className="password-dialog__input min-h-[80px] resize-y"
+            className="neu-input text-sm min-h-[80px] resize-y"
           />
         </div>
       </div>
@@ -852,25 +1091,25 @@ export function CreateProjectDialog({
     <>
       <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
         <div
-          className="absolute inset-0 bg-[rgba(235,241,252,0.7)] backdrop-blur-[18px]"
+          className="absolute inset-0 bg-[color:var(--background)]/70 backdrop-blur-[6px]"
           onClick={() => { resetState(); onClose(); }}
         />
-        <div className="password-dialog relative w-full max-w-[min(720px,92vw)] max-h-[90vh] flex flex-col">
-          <div className="password-dialog__glow" />
+        <div className="neu-dialog relative flex max-h-[90vh] w-full max-w-[min(720px,92vw)] flex-col">
+
           <button
             type="button"
             onClick={() => { resetState(); onClose(); }}
-            className="password-dialog__close"
+            className="neu-opt absolute right-4 top-4 z-[2] grid h-10 w-10 place-items-center text-[color:var(--muted-foreground)]"
           >
             <X size={18} />
           </button>
 
           {/* Fixed Header */}
-          <div className="password-dialog__header flex-shrink-0">
-            <h2 className="password-dialog__title">新建采购项目</h2>
+          <div className="flex-shrink-0 pr-[3.8rem]">
+            <h2 className="text-[clamp(1.34rem,2.7vw,1.58rem)] font-semibold leading-tight tracking-[-0.05em] text-[color:var(--foreground)]">新建采购项目</h2>
           </div>
 
-          <div className="password-dialog__divider flex-shrink-0" />
+          <div className="wb-section-rule mt-4 flex-shrink-0" />
 
           {/* Scrollable Content Area */}
           <div className="flex-1 min-h-0 mt-5 px-[1.7rem] overflow-y-auto">
@@ -890,7 +1129,7 @@ export function CreateProjectDialog({
                   },
                   true,
                 )}
-                <div className="h-px bg-[rgba(184,199,227,0.36)]" />
+                <div className="wb-section-rule" />
                 {renderFileUpload(
                   '采购立项申请表（可选）',
                   initiationFile,

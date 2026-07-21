@@ -43,6 +43,7 @@ import { TenderReviewModule } from './tender-review/tender-review.module';
 import { TenderWriteModule } from './tender-write/tender-write.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SearchModule } from './search/search.module';
+import { ChatModule } from './chat/chat.module';
 import { AppController } from './app.controller';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -93,6 +94,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     TenderWriteModule,
     DashboardModule,
     SearchModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [

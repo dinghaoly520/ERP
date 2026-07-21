@@ -19,6 +19,7 @@ import type { Response } from 'express';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
@@ -101,7 +102,7 @@ export class ProjectManagementController {
   }
 
   @Post('analyze-budget-reference')
-  analyzeBudgetReference(@Body() dto: { procurementTitle: string; procurementCategory?: string; projectReason?: string; supplierRequirements?: string }) {
+  analyzeBudgetReference(@Body() dto: AnalyzeBudgetReferenceDto) {
     return this.projectManagementService.analyzeBudgetReference(dto);
   }
 

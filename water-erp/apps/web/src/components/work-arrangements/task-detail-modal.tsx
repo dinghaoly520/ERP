@@ -144,6 +144,7 @@ interface TaskDetailModalProps {
   onUnblock: () => void;
   onCancel: () => void;
   onPostponeReminder: () => void;
+  onResetReminder: (targetAt: string) => void;
   onOpenFullEditor: () => void;
   onNoteTypeChange: (v: WorkArrangementNoteType) => void;
   onNoteDraftChange: (v: string) => void;
@@ -164,12 +165,14 @@ export function TaskDetailModal({
   onUnblock,
   onCancel,
   onPostponeReminder,
+  onResetReminder,
   onOpenFullEditor,
   onNoteTypeChange,
   onNoteDraftChange,
   onSubmitNote,
 }: TaskDetailModalProps) {
   const [notesExpanded, setNotesExpanded] = useState(true);
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
 
   if (!open) return null;
 
@@ -229,7 +232,7 @@ export function TaskDetailModal({
         </span>
       }
       description={item.description ?? undefined}
-      size="lg"
+      size="xl"
     >
       <div>
                       {/* 信息卡网格 2×2 */}
@@ -336,7 +339,51 @@ export function TaskDetailModal({
                                 取消任务
                               </button>
                             )}
-                            {reminderState !== 'NONE' && (
+                            {(reminderState === 'NONE' || reminderState === 'OVERDUE') && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowReminderPicker((v) => !v)}
+                                  className={`neu-btn-soft ${reminderState === 'OVERDUE' ? 'is-warning' : ''}`}
+                                >
+                                  <Clock3 size={16} />
+                                  {reminderState === 'NONE' ? '设置提醒' : '新设提醒'}
+                                </button>
+                                {showReminderPicker && (
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="datetime-local"
+                                      defaultValue={new Date(Date.now() + 30 * 60 * 1000)
+                                        .toISOString()
+                                        .slice(0, 16)}
+                                      className="neu-input text-sm h-9"
+                                      id="reset-reminder-time"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const el = document.getElementById('reset-reminder-time') as HTMLInputElement;
+                                        if (el?.value) {
+                                          onResetReminder(new Date(el.value).toISOString());
+                                          setShowReminderPicker(false);
+                                        }
+                                      }}
+                                      className="neu-btn-soft is-success h-9"
+                                    >
+                                      确定
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowReminderPicker(false)}
+                                      className="neu-btn-soft h-9"
+                                    >
+                                      取消
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            {reminderState !== 'NONE' && reminderState !== 'OVERDUE' && (
                               <button
                                 type="button"
                                 onClick={onPostponeReminder}

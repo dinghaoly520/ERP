@@ -51,32 +51,19 @@ export function LoginErrorDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className="relative z-10 flex w-full flex-col gap-5 rounded-[20px] p-6"
-        style={{
-          maxWidth: "420px",
-          background:
-            "linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.4) 70%)",
-          boxShadow:
-            "inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 5px oklch(0.55 0.03 258 / 0.1), -1px -1px 4px oklch(1 0 0 / 0.9)",
-        }}
+        className="neu-dialog relative z-10 flex w-full max-w-[420px] flex-col gap-5"
       >
         {/* ── Header ── */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             {/* Danger icon well */}
             <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
-              style={{
-                background:
-                  "color-mix(in oklch, var(--danger) 12%, oklch(0.99 0.004 258))",
-                boxShadow:
-                  "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.7)",
-              }}
+              className="neu-icon-well flex h-9 w-9 shrink-0 items-center justify-center bg-[color-mix(in_oklch,var(--danger)_12%,oklch(0.99_0.004_258))]"
             >
               <AlertCircle
                 size={18}
                 strokeWidth={1.8}
-                style={{ color: "var(--danger)" }}
+                className="text-[var(--danger)]"
               />
             </div>
             <h2 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">

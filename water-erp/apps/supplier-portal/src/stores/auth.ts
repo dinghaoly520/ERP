@@ -6,6 +6,8 @@ import router from '@/router'
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<any>(null)
   const loading = ref(false)
+  // 登录被「待审核/停用」拦截时存放专用码，供登录页引导「查询审核进度」，而非泛报密码错误。
+  const pendingInfo = ref<{ code: string } | null>(null)
 
   const isLoggedIn = computed(() => !!user.value)
   const isSupplier = computed(() => user.value?.role === 'supplier')
@@ -28,12 +30,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(username: string, password: string) {
     loading.value = true
+    pendingInfo.value = null
     try {
       const res = await authApi.login({ username, password }) as any
       if (res.access_token || res) {
         await init()
         return true
       }
+      return false
+    } catch (e: any) {
+      // 后端对「密码正确但 isActive:false」返回 401 + code=ACCOUNT_PENDING。
+      const code = e?.response?.data?.code
+      if (code === 'ACCOUNT_PENDING') pendingInfo.value = { code }
       return false
     } finally {
       loading.value = false
@@ -61,5 +69,5 @@ export const useAuthStore = defineStore('auth', () => {
     router.push('/login')
   }
 
-  return { user, loading, isLoggedIn, isSupplier, displayName, init, login, register, logout }
+  return { user, loading, pendingInfo, isLoggedIn, isSupplier, displayName, init, login, register, logout }
 })

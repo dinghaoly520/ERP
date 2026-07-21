@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import {
-  LogOut, Loader2, Mail, Phone, UserRound, Building2, Monitor, Edit3, KeyRound,
+  LogOut, Loader2, Mail, Phone, UserRound, Building2, Monitor, Users,
 } from 'lucide-react';
 import type { AuthUser } from '@/lib/api/auth';
 import { fetchLoginHistory, type LoginHistoryItem } from '@/lib/api/auth';
@@ -25,13 +25,12 @@ function parseBrowser(ua: string | null): string {
 
 interface PersonalCenterHeroProps {
   user: AuthUser;
-  onEdit: () => void;
-  onChangePassword: () => void;
+  onOpenMemberList: () => void;
   onLogout: () => void;
   loggingOut: boolean;
 }
 
-export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, loggingOut }: PersonalCenterHeroProps) {
+export function PersonalCenterHero({ user, onOpenMemberList, onLogout, loggingOut }: PersonalCenterHeroProps) {
   const [loginHistory, setLoginHistory] = useState<LoginHistoryItem[]>([]);
 
   useEffect(() => {
@@ -108,11 +107,8 @@ export function PersonalCenterHero({ user, onEdit, onChangePassword, onLogout, l
 
       {/* Quick actions */}
       <div className="flex flex-col gap-1.5">
-        <button type="button" onClick={onEdit} className="neu-btn-soft w-full justify-center text-[12px]">
-          <Edit3 size={12} />编辑资料
-        </button>
-        <button type="button" onClick={onChangePassword} className="neu-btn-soft w-full justify-center text-[12px]">
-          <KeyRound size={12} />修改密码
+        <button type="button" onClick={onOpenMemberList} className="neu-btn-soft w-full justify-center text-[12px]">
+          <Users size={12} />人员列表
         </button>
       </div>
 
