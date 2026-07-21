@@ -70,7 +70,7 @@ describe('Catalog supply application (e2e)', () => {
     steelItemId = steel!.id;
 
     supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
-    adminCookie = await loginAs(app, '陈主任', 'czr@2026', 'web');
+    adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
   });
 
   afterAll(async () => {

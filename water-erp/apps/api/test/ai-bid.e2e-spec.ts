@@ -51,7 +51,7 @@ describe('AI Bid Analysis (e2e) — C14', () => {
     prisma = app.get(PrismaService);
 
     // 登录：bid_host（陈主任）+ bid_expert（任一专家）
-    bidHostCookie = await loginAs(app, '陈主任', 'czr@2026', 'web');
+    bidHostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
     // 找一个有项目的专家
     const expert = await prisma.bidExpert.findFirst({
       where: { project: { stage: 'EVALUATING' } },

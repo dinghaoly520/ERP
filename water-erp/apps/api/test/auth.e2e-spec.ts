@@ -90,7 +90,7 @@ describe('Auth (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
       .set('X-Portal', 'web')
-      .send({ username: '陈主任', password: 'czr@2026' })
+      .send({ username: '陈源远', password: '陈源远@2026' })
       .expect(200);
 
     expect(res.headers['set-cookie']).toBeDefined();

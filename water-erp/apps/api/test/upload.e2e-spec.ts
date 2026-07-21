@@ -45,7 +45,7 @@ describe('Upload (e2e)', () => {
     await app.init();
 
     prisma = app.get(PrismaService);
-    adminCookie = await loginAs(app, '陈主任', 'czr@2026', 'web');
+    adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
   });
 
   afterAll(async () => {
