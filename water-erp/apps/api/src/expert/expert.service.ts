@@ -1198,7 +1198,12 @@ export class ExpertService {
   }
 
   /** P1-F：AI 起草澄清问题候选（不落库——专家改完再走 createClarification） */
-  async draftClarification(_userId: string, projectId: string, supplierId: string) {
+  async draftClarification(userId: string, projectId: string, supplierId: string) {
+    // P1-1：归属校验——必须是本项目专家，且供应商属于本项目（防越权套取他项目投标弱点）
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: supplierId, projectId } });
+    if (!supplier) throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
     return this.clarificationAi?.draftQuestion(projectId, supplierId) ?? { drafts: [], basis: [] };
   }
 

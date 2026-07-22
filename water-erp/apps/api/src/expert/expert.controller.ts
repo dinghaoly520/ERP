@@ -21,6 +21,7 @@ import { ExpertMemoService } from './expert-memo.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
+import { DraftClarificationDto } from './dto/draft-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
@@ -221,9 +222,9 @@ export class ExpertController {
   draftClarification(
     @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
-    @Body() body: { supplierId: string },
+    @Body() dto: DraftClarificationDto,
   ) {
-    return this.expertService.draftClarification(userId, projectId, body.supplierId);
+    return this.expertService.draftClarification(userId, projectId, dto.supplierId);
   }
 
   /* ── 评审报告 ── */

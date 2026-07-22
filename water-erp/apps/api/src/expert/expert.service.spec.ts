@@ -1231,4 +1231,28 @@ describe('ExpertService', () => {
       spy.mockRestore();
     });
   });
+
+  describe('draftClarification (P1-1)', () => {
+    it('非本项目专家 → 403 NOT_PROJECT_EXPERT', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.draftClarification('user-x', 'proj-1', 'sup-1')).rejects.toMatchObject({
+        response: { code: 'NOT_PROJECT_EXPERT' },
+      });
+    });
+
+    it('供应商不属于项目 → 400 SUPPLIER_NOT_IN_PROJECT', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      await expect(service.draftClarification('user-1', 'proj-1', 'sup-x')).rejects.toMatchObject({
+        response: { code: 'SUPPLIER_NOT_IN_PROJECT' },
+      });
+    });
+
+    it('合法 → 调用 draftQuestion 并返回结果', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', projectId: 'proj-1' });
+      const res = await service.draftClarification('user-1', 'proj-1', 'sup-1');
+      expect(res).toMatchObject({ drafts: [], basis: [] });
+    });
+  });
 });
