@@ -226,7 +226,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       clear: () => { const bg=bgRef.current,vc=visCtxRef.current; if(bg){const c=bgCtxRef.current;c?.clearRect(0,0,width,height);} vc?.clearRect(0,0,width,height); pathPts.current=[]; snapshots.current=[]; strokes.current=[]; md(false); },
       toBlob: () => new Promise(r => { visRef.current?.toBlob(b => r(b), 'image/png'); }),
       isEmpty: () => !hasDrawn.current,
-      undo: () => { const s=snapshots.current; if(!s.length)return; strokes.current.pop(); const bg=bgCtxRef.current,b=bgRef.current,vc=visCtxRef.current; if(!bg||!b)return; const img=new Image(); img.onload=()=>{bg.clearRect(0,0,width,height);bg.drawImage(img,0,0); if(vc){vc.clearRect(0,0,width,height);vc.drawImage(b,0,0);} if(s.length<=1)md(false);}; img.src=s.pop()!; },
+      undo: () => { const s=snapshots.current; if(!s.length)return; strokes.current.pop(); const bg=bgCtxRef.current,b=bgRef.current,vc=visCtxRef.current; if(!bg||!b)return; const img=new Image(); img.onload=()=>{bg.clearRect(0,0,width,height);bg.drawImage(img,0,0); if(vc){vc.clearRect(0,0,width,height);vc.drawImage(b,0,0);} md(strokes.current.length>0);}; img.src=s.pop()!; }, // P1-11：以剩余矢量笔触数判空（修复剩 1 笔误判为空）
       setMode: (m) => { mode.current = m; },
       getMode: () => mode.current,
       setColor: (c) => { color.current = c; const bc=bgCtxRef.current; if(bc)bc.strokeStyle=c; const vc=visCtxRef.current; if(vc)vc.strokeStyle=c; },
