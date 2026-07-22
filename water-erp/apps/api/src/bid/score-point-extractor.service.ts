@@ -7,17 +7,7 @@ import { EmbeddingService } from '../local-ai/embedding.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { processFile } from '../ai-bid-analysis/utils/file-processor';
 import { SCORE_POINTS_EXTRACT_SYSTEM, SCORE_POINTS_EXTRACT_PROMPT } from './prompts/score-points.prompt';
-
-export interface ScorePointSuggestion {
-  name: string;
-  fullScore: number;
-  evidenceHint: string;
-  objective: boolean;
-  evidenceSection?: string;   // E1: 招标文件相关章节名称（如'第三章 评标办法'）
-  confidence?: number;         // E1: 0-1 信心分
-  adjusted?: boolean;          // E2: true 表示 fullScore 被等比缩放过
-  duplicate?: boolean;         // E4: true 表示与已有得分点高度相似
-}
+import { ScorePointSuggestion } from '@water-erp/shared';
 
 @Injectable()
 export class ScorePointExtractorService {

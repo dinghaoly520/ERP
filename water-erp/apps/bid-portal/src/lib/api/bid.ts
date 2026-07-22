@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
+import type { ScorePointSuggestion } from '@water-erp/shared';
 
 export function listProjects() {
   return api.get<{ id: string }[]>('/bid/projects');
@@ -219,16 +220,7 @@ export function deleteScorePoint(projectId: string, itemId: string, pointId: str
   return api.delete<void>(`/bid/projects/${projectId}/score-items/${itemId}/points/${pointId}`);
 }
 
-export interface ScorePointSuggestion {
-  name: string;
-  fullScore: number;
-  evidenceHint: string;
-  objective: boolean;
-  evidenceSection?: string;   // 招标文件章节
-  confidence?: number;         // 0-1 信心分
-  adjusted?: boolean;          // 分数被等比缩放
-  duplicate?: boolean;         // 与已有得分点重复
-}
+// ScorePointSuggestion 已移至 @water-erp/shared
 
 export function extractScorePoints(projectId: string, itemId: string) {
   return api.post<ScorePointSuggestion[]>(`/bid/projects/${projectId}/score-items/${itemId}/points/extract`, {});
