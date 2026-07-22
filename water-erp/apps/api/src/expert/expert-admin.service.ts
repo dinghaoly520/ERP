@@ -930,16 +930,27 @@ export class ExpertAdminService {
   }
 
   async getEvaluationStats() {
-    const [evaluations, scoreRecords] = await Promise.all([
+    const [evaluations, deviations] = await Promise.all([
       this.prisma.expertEvaluation.findMany({
         select: { level: true, overallScore: true, expertUserId: true, createdAt: true },
       }),
-      this.prisma.bidScoreRecord.findMany({
-        select: {
-          score: true, scoreItemId: true, supplierId: true,
-          expert: { select: { userId: true } },
-        },
-      }),
+      // P2：偏离度计算下推到 Postgres 窗口函数，仅返回按专家聚合的结果，避免全表 BidScoreRecord 加载入内存
+      // 语义等价 computeExpertMeanDeviations：按 (scoreItemId,supplierId) 分组、组内 ≥2 人、每位专家平均绝对偏离
+      this.prisma.$queryRaw<{ expertId: string; meanDeviation: string | number; sampleCount: number }[]>`
+        WITH scored AS (
+          SELECT e."userId" AS "expertId", r."scoreItemId", r."supplierId", r.score,
+                 COUNT(*) OVER (PARTITION BY r."scoreItemId", r."supplierId") AS grp_count,
+                 AVG(r.score) OVER (PARTITION BY r."scoreItemId", r."supplierId") AS grp_mean
+          FROM "BidScoreRecord" r
+          JOIN "BidExpert" e ON e.id = r."expertId"
+        )
+        SELECT "expertId",
+               ROUND(AVG(ABS(score - grp_mean))::numeric, 1) AS "meanDeviation",
+               COUNT(*)::int AS "sampleCount"
+        FROM scored
+        WHERE grp_count >= 2
+        GROUP BY "expertId"
+      `,
     ]);
 
     // 既有：等级分布 + 综合均分
@@ -949,18 +960,10 @@ export class ExpertAdminService {
       ? evaluations.reduce((s, e) => s + e.overallScore, 0) / evaluations.length
       : 0;
 
-    // 评分偏离度（专家以 userId 归属，可跨项目/跨评价关联到履职等级）
-    const deviations = computeExpertMeanDeviations(
-      scoreRecords.map(r => ({
-        expertId: r.expert.userId,
-        scoreItemId: r.scoreItemId,
-        supplierId: r.supplierId,
-        score: Number(r.score),
-      })),
-    );
-    const devMap = new Map(deviations.map(d => [d.expertId, d.meanDeviation]));
+    // 评分偏离度（已由 DB 窗口函数计算，仅取回按专家聚合的结果）
+    const devMap = new Map(deviations.map(d => [d.expertId, Number(d.meanDeviation)]));
     const avgScoreDeviation = deviations.length > 0
-      ? Math.round(deviations.reduce((s, d) => s + d.meanDeviation, 0) / deviations.length * 10) / 10
+      ? Math.round(deviations.reduce((s, d) => s + Number(d.meanDeviation), 0) / deviations.length * 10) / 10
       : 0;
 
     // 关联分析：每位专家最新履职等级 → 按等级汇总其偏离度均分

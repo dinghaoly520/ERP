@@ -22,6 +22,8 @@ export async function recomputeExpertProgress(
   const allRecords = await tx.bidScoreRecord.findMany({
     where: { expertId, scoreItem: { projectId }, supplierId: { in: activeIds } },
   });
+  // 注（P2）：totalScore 为该专家跨所有活跃供应商、所有评分项的总分（专家级汇总指标，非单供应商得分）。
+  // 语义偏粗（UI 展示需注意），但移除/重命名涉及前端联动，暂保留仅标注。
   const totalScore = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
   return { progress, totalScore };
 }
