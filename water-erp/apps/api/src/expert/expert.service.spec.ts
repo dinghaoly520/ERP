@@ -205,7 +205,7 @@ describe('ExpertService', () => {
   describe('getAssistData', () => {
     it('应调用 AI 引擎进行分析', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
-      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true });
       // 4.5: AiBidderResult 未就绪 → 降级走规则引擎（ai.analyzeBid）
       prisma.aiBidderResult.findFirst.mockResolvedValue(null);
       ai.analyzeBid.mockResolvedValue({ supplierName: '川水建设', keyPoints: [] });
@@ -217,7 +217,7 @@ describe('ExpertService', () => {
 
     it('返回 requirements + requirementResponses + 本人 reviews', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [] });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [], signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true });
       prisma.aiBidderResult.findFirst.mockResolvedValue({
         id: 'br-1', status: 'COMPLETED', totalScore: 80, scoreItems: [], categoryTotals: {}, keyInfo: {},
         strengths: [], weaknesses: [], overallComment: '', qualificationStatus: '通过', riskLevel: 'low',
@@ -242,7 +242,7 @@ describe('ExpertService', () => {
 
     it('映射 competitiveAnalysis.keyObservations 到顶层', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [] });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [], signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true });
       prisma.aiBidderResult.findFirst.mockResolvedValue({
         id: 'br-1', status: 'COMPLETED', totalScore: 80, scoreItems: [], categoryTotals: {}, keyInfo: {},
         strengths: [], weaknesses: [], overallComment: '', qualificationStatus: '通过', riskLevel: 'low',
@@ -261,7 +261,7 @@ describe('ExpertService', () => {
 
     it('competitiveAnalysis 被旧版 comparative-scoring 覆盖时 keyObservations 兜底空数组', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [] });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', conflictedSupplierIds: [], signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true });
       // 历史数据：第二轮覆盖后 competitiveAnalysis 只剩横向校准三字段，无 keyObservations
       prisma.aiBidderResult.findFirst.mockResolvedValue({
         id: 'br-1', status: 'COMPLETED', totalScore: 80, scoreItems: [], categoryTotals: {}, keyInfo: {},
@@ -280,8 +280,9 @@ describe('ExpertService', () => {
   });
 
   describe('getAssistCompare', () => {
-    it('返回 bidders + projectFraudSummary + reportDocxUrl（项目级）', async () => {
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1' });
+    it('返回 bidders + projectFraudSummary（reportDocxUrl 对 bid_expert 恒 null）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true });
       prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue({ id: 't-1' }) };
       prisma.aiBidderResult.findMany.mockResolvedValue([
         { bidSupplierId: 's1', totalScore: 80, categoryTotals: {}, qualificationStatus: '通过', riskLevel: 'low',
@@ -296,11 +297,12 @@ describe('ExpertService', () => {
       expect(out.bidders).toHaveLength(1);
       expect(out.bidders[0]).toMatchObject({ supplierId: 's1', supplierName: '甲', totalScore: 80 });
       expect(out.projectFraudSummary).toEqual({ riskLevel: 'medium', indicatorCount: 3 });
-      expect(out.reportDocxUrl).toBe('/api/upload/files/doc-1');
+      expect(out.reportDocxUrl).toBeNull(); // P1-2：bid_expert 无该 FileAsset 访问权，恒 null
     });
 
     it('无 task 时返回空 bidders + null 摘要', async () => {
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true });
       prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue(null) };
       const out = await service.getAssistCompare('u1', 'proj-1');
       expect(out.bidders).toEqual([]);
@@ -1253,6 +1255,50 @@ describe('ExpertService', () => {
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', projectId: 'proj-1' });
       const res = await service.draftClarification('user-1', 'proj-1', 'sup-1');
       expect(res).toMatchObject({ drafts: [], basis: [] });
+    });
+  });
+
+  describe('AI 辅助读取端门控 (P1-2)', () => {
+    const verifiedExpert = { ...mockExpert, signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, conflictedSupplierIds: [] };
+
+    it('getAssistData：未完成身份核验/回避/AI声明 → 403 VERIFICATION_REQUIRED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'proj-1', stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, signedIn: false, avoidanceConfirmed: false, aiConsentConfirmed: false });
+      await expect(service.getAssistData('user-1', 'proj-1', 'sup-1')).rejects.toMatchObject({
+        response: { code: 'VERIFICATION_REQUIRED' },
+      });
+    });
+
+    it('getAssistData：三标志齐全 → 正常返回（不过度拦截）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'proj-1', stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(verifiedExpert);
+      prisma.aiBidderResult.findFirst.mockResolvedValue(null); // 降级规则引擎
+      ai.analyzeBid.mockResolvedValue({ overall: { score: 80 } });
+      const res = await service.getAssistData('user-1', 'proj-1', 'sup-1');
+      expect(res.source).toBe('rules_fallback');
+    });
+
+    it('getAssistCompare：未完成核验 → 403 VERIFICATION_REQUIRED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'proj-1', stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, signedIn: false });
+      await expect(service.getAssistCompare('user-1', 'proj-1')).rejects.toMatchObject({
+        response: { code: 'VERIFICATION_REQUIRED' },
+      });
+    });
+
+    it('getAssistCompare：非开评标阶段 → 403 PROJECT_NOT_ACTIVE', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'proj-1', stage: 'DOWNLOAD' });
+      await expect(service.getAssistCompare('user-1', 'proj-1')).rejects.toMatchObject({
+        response: { code: 'PROJECT_NOT_ACTIVE' },
+      });
+    });
+
+    it('getAssistCompare：核验齐全+合法阶段 → 正常返回', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'proj-1', stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(verifiedExpert);
+      prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue(null) };
+      const res = await service.getAssistCompare('user-1', 'proj-1');
+      expect(res).toMatchObject({ bidders: [] });
     });
   });
 });

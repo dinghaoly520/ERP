@@ -665,6 +665,11 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
+    // P1-2：身份核验/回避/AI声明门控——未完成前置步骤不可读 AI 分析（服务端强制，前端门控不可绕过）
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    }
+
     // 15.4: 专家回避屏蔽 — 回避名单中的供应商不可查看 AI 分析
     const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
     if (conflictedIds.includes(supplierId)) {
@@ -725,10 +730,21 @@ export class ExpertService {
 
   /** 跨供应商对比概览 — 返回项目下所有已完成 AI 分析的供应商摘要 */
   async getAssistCompare(userId: string, projectId: string) {
+    // P1-2：阶段门控 — 仅开标/评标阶段可获取跨供应商对比
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
+      throw new ForbiddenException({ error: '项目不在可获取辅助数据阶段', code: 'PROJECT_NOT_ACTIVE' });
+    }
+
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    // P1-2：身份核验/回避/AI声明门控——未完成前置步骤不可读竞争态势（含 projectFraudSummary）
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    }
 
     const task = await this.prisma.aiBidAnalysisTask.findUnique({
       where: { projectId },
@@ -755,7 +771,9 @@ export class ExpertService {
         indicatorCount: fi.summary?.totalCount ?? fi.indicators?.length ?? 0,
       };
     }
-    const reportDocxUrl = report?.docxFileId ? `/api/upload/files/${report.docxFileId}` : null;
+    // P1-2：bid_expert 无该 AI 报告 FileAsset 的访问权（canAccessFile 仅放行投标文件），
+    // 返回 URL 恒为 403 死链且泄露内部 fileId → 置 null（前端按可空处理）。
+    const reportDocxUrl = null;
 
     return {
       bidders: results.map((r) => ({
