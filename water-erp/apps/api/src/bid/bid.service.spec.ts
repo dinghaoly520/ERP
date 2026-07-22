@@ -96,7 +96,7 @@ describe('BidService — stage transitions', () => {
       aiBidderResult: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
-      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
@@ -823,7 +823,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1' });
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1', score: 10 });
 
       const result = await service.submitScore('p1', {
@@ -843,7 +843,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1', scoreItemId: 'si-1', objective: true, fullScore: 15 }]);
       prisma.bidScorePointDecision.upsert.mockResolvedValue({});
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
@@ -875,7 +875,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
       prisma.auditLog.create.mockResolvedValue({});
 
@@ -894,7 +894,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1', scoreItemId: 'si-1', objective: true, fullScore: 15 }]);
       prisma.bidScorePointDecision.upsert.mockResolvedValue({});
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
@@ -914,7 +914,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
 
       await service.submitScore('p1', {
@@ -922,6 +922,16 @@ describe('BidService — stage transitions', () => {
       });
 
       expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('P1-9：代评未解密成功/已撤回的供应商 → SUPPLIER_NOT_DECRYPTED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
+      prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30 });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'PENDING', submitStatus: 'submitted' });
+      await expect(service.submitScore('p1', {
+        expertId: 'exp-1', scoreItemId: 'si-1', supplierId: 'sup-1', score: 10,
+      })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_DECRYPTED' } });
     });
   });
 
@@ -1533,7 +1543,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
-      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },

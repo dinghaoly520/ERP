@@ -1299,6 +1299,10 @@ export class BidService {
     if (!bidSupplier) {
       throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
     }
+    // P1-9：代评不可对未解密成功/已撤回的供应商打分（与专家自评口径一致）
+    if (bidSupplier.decryptStatus !== 'SUCCESS' || bidSupplier.submitStatus === '已撤回') {
+      throw new BadRequestException({ error: '该供应商未解密成功或已撤回，无法代评', code: 'SUPPLIER_NOT_DECRYPTED' });
+    }
 
     // 校验分数不超过评分项满分
     if (Number(dto.score) > Number(scoreItem.maxScore)) {
