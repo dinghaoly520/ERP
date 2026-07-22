@@ -31,10 +31,12 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
     fetch('/api/auth/me', { credentials: 'include' })
       .then(r => {
         if (r.status === 401) { router.replace(LOGIN_URL); return null; }
-        return r.ok ? r.json() : null;
+        // P2：非 401 的失败（如瞬时 500）抛错走重试分支，不当作登出
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
       })
       .then(u => {
-        if (!u) { router.replace(LOGIN_URL); return; }
+        if (!u) return; // 401 已跳转登录
         setUser(u);
         setAuthError(false);
         setAuthRetrying(false);

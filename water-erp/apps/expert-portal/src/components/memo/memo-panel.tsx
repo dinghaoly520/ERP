@@ -179,8 +179,8 @@ export function MemoPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scorePointId, supplierId]);
 
-  // 全屏 vs 内嵌 的缩放比例：坐标 0.4（字占左上角），笔触 0.6（视觉粗细一致）
-  // 互逆：进全屏 *0.4/*0.6，出全屏 *2.5/*1.667 还原
+  // 全屏 vs 内嵌 的缩放比例：坐标 0.4（字占左上角），笔触 0.45（视觉粗细一致）
+  // 互逆：进全屏 *0.4/*0.45，出全屏 *2.5/*2.222 还原
   const COORD_SCALE = 0.4;
   const WEIGHT_SCALE = 0.45;
 
@@ -436,7 +436,8 @@ export function MemoPanel({
           </button>
         </div>
         <AtramentCanvas ref={fullscreenCanvasRef} width={800} height={560} fillContainer
-          className="flex-1 min-h-0 rounded-none border-0" />
+          className="flex-1 min-h-0 rounded-none border-0"
+          onNonPenHint={() => toast.info('手写模式请使用触控笔')} />
       </div>,
       document.body,
     )
@@ -505,7 +506,7 @@ export function MemoPanel({
             {renderToolbar({ zoom: false })}
             <div className="relative" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
               onContextMenu={e => e.preventDefault()}>
-              <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} />
+              <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} onNonPenHint={() => toast.info('手写模式请使用触控笔')} />
               <button type="button" onClick={enterFullscreen}
                 className="absolute right-2 top-2 rounded-lg border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)]/80 p-1 text-[oklch(0.45_0.01_264)] transition-all duration-150
                   shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]

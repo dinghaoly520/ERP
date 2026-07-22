@@ -223,7 +223,7 @@ export default function ExpertEvaluatePage() {
         }
         setProject(p);
         // M-2: hydrate invalid supplier IDs from server data so grey-out survives page refresh.
-        setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => (s as any).bidValidity === 'invalid').map(s => s.id)));
+        setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => s.bidValidity === 'invalid').map(s => s.id))); // P2：用共享类型字段，去 unsafe cast
         // P0-1: hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {
@@ -1418,7 +1418,7 @@ export default function ExpertEvaluatePage() {
                                       style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }}
                                       aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`} tabIndex={0} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
-                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[k]?.reason || '' } }))}
+                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), reason: prev[k]?.reason || '' } }))}
                                       onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, isLastItem); }}
                                       className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none"
                                       aria-label={`${item.name} 数值输入`} tabIndex={0} />

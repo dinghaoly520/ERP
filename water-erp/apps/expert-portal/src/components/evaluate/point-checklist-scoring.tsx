@@ -38,7 +38,7 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
               isSelected ? 'border-[#064ea2] bg-blue-50/30 ring-1 ring-[#064ea2]/20' : 'border-blue-100'
             }`}>
             {p.objective ? (
-              <button type="button" disabled={readOnly} onClick={() => onChange(p.id, { checked: !v.checked, awardedScore: !v.checked ? max : 0 })}
+              <button type="button" disabled={readOnly} onClick={(e) => { e.stopPropagation(); onChange(p.id, { checked: !v.checked, awardedScore: !v.checked ? max : 0 }); }}
                 className={`flex h-6 w-6 items-center justify-center rounded border ${v.checked ? 'bg-[#11a874] border-[#11a874] text-white' : 'border-[oklch(0.8_0.005_264)] text-transparent'} disabled:opacity-50`}>
                 <Check size={14} strokeWidth={2.5} />
               </button>
@@ -50,6 +50,8 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
               {p.evidenceHint && <div className="text-xs text-[oklch(0.55_0.01_264)] truncate">{p.evidenceHint}</div>}
             </div>
             <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}
+              onClick={e => e.stopPropagation()}
+              onKeyDown={e => e.stopPropagation()}
               onChange={e => onChange(p.id, { ...v, awardedScore: Math.max(0, Math.min(Number(e.target.value) || 0, max)) })}
               className={`w-16 text-center border border-blue-100 rounded-lg px-1.5 py-1 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none disabled:opacity-60`} />
             <span className="text-xs text-[oklch(0.55_0.01_264)]">/ {max}</span>

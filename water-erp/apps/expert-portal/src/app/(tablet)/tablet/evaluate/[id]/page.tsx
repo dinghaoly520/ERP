@@ -14,6 +14,7 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'reac
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 // 与 (app) evaluate 页面一致的 score 条目结构（精简版，不含 passed/points 之外的 UI 态）
 type ScoreEntry = {
@@ -149,13 +150,24 @@ export default function TabletEvaluatePage() {
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
       try {
-        localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
+        // P2：仅暂存相对服务端未提交的条目，避免把已提交分记为草稿（假「未提交草稿」横幅）
+        const committed = new Set((project?.myScores ?? []).map((r: { supplierId: string; scoreItemId: string }) => scoreKey(r.supplierId, r.scoreItemId)));
+        const draftScores: typeof scores = {};
+        let hasDraft = false;
+        for (const [k, v] of Object.entries(scores)) {
+          if (!committed.has(k)) { draftScores[k] = v; hasDraft = true; }
+        }
+        if (hasDraft) {
+          localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
+        } else {
+          localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
+        }
       } catch { /* quota exceeded — silent */ }
     }, 2000);
     return () => {
       if (draftTimer.current) clearTimeout(draftTimer.current);
     };
-  }, [scores, draftStorageKey]);
+  }, [scores, draftStorageKey, project]);
 
   // ── 草稿操作 ──
   const saveDraft = useCallback(() => {
@@ -224,7 +236,7 @@ export default function TabletEvaluatePage() {
     () =>
       new Set(
         (project?.suppliers ?? [])
-          .filter(s => (s as unknown as { bidValidity?: string }).bidValidity === 'invalid')
+          .filter(s => s.bidValidity === 'invalid') // P2：用共享类型字段，去 unsafe 双 cast
           .map(s => s.id),
       ),
     [project],
@@ -243,6 +255,7 @@ export default function TabletEvaluatePage() {
     !!project?.myExpertRecord?.signedIn &&
     !!project?.myExpertRecord?.avoidanceConfirmed &&
     !!project?.myExpertRecord?.aiConsentConfirmed;
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false); // P2：重置二次确认
 
   // 按 category 分组
   const grouped = useMemo(() => {
@@ -377,6 +390,7 @@ export default function TabletEvaluatePage() {
         activeSupplier={activeSupplier}
         onSelect={setActiveSupplier}
         conflictedSupplierIds={conflictedSupplierIds}
+        invalidSupplierIds={invalidSupplierIds}
         decryptLabel={DECRYPT_LABEL}
       />
 
@@ -590,7 +604,7 @@ export default function TabletEvaluatePage() {
                                   setScores(prev => ({
                                     ...prev,
                                     [k]: {
-                                      score: Math.min(parseFloat(e.target.value) || 0, max),
+                                      score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), // P2：clamp 到 [0, max]，禁负分
                                       reason: prev[k]?.reason || '',
                                     },
                                   }))
@@ -654,16 +668,26 @@ export default function TabletEvaluatePage() {
               {draftSaving ? '暂存中…' : '暂存'}
             </button>
 
-            {/* 重置当前供应商评分 */}
+            {/* 重置当前供应商评分（P2：二次确认，防触屏误触清空） */}
             <button
               type="button"
-              onClick={resetCurrentSupplier}
+              onClick={() => setResetConfirmOpen(true)}
               disabled={busy || !canScoreActiveSupplier}
               className="flex items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white/80 px-4 py-2.5 text-sm font-semibold text-[oklch(0.45_0.01_264)] transition hover:border-[#e74c3c]/30 hover:text-[#e74c3c] active:scale-95 disabled:opacity-50"
             >
               <RotateCcw size={14} strokeWidth={1.7} />
               重置
             </button>
+            <ConfirmDialog
+              open={resetConfirmOpen}
+              title="重置当前供应商评分"
+              message="将清空当前供应商已录入的全部评分，此操作不可撤销。"
+              confirmText="重置"
+              cancelText="取消"
+              danger
+              onConfirm={() => { resetCurrentSupplier(); setResetConfirmOpen(false); }}
+              onCancel={() => setResetConfirmOpen(false)}
+            />
           </>
         )}
 

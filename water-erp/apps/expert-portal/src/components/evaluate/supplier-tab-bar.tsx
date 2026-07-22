@@ -7,10 +7,12 @@ interface SupplierTabBarProps {
     id: string;
     supplierName: string;
     decryptStatus: string;
+    submitStatus?: string; // P2：用于「已撤回」提示
   }>;
   activeSupplier: string;
   onSelect: (supplierId: string) => void;
   conflictedSupplierIds: Set<string>;
+  invalidSupplierIds?: Set<string>; // P2：废标供应商
   decryptLabel: Record<string, string>;
 }
 
@@ -19,6 +21,7 @@ export function SupplierTabBar({
   activeSupplier,
   onSelect,
   conflictedSupplierIds,
+  invalidSupplierIds,
   decryptLabel,
 }: SupplierTabBarProps) {
   if (suppliers.length === 0) return null;
@@ -72,6 +75,18 @@ export function SupplierTabBar({
                 {isConflicted && (
                   <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded shrink-0">
                     已回避
+                  </span>
+                )}
+
+                {/* P2：废标 / 已撤回徽章 */}
+                {invalidSupplierIds?.has(s.id) && (
+                  <span className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
+                    废标
+                  </span>
+                )}
+                {s.submitStatus === '已撤回' && (
+                  <span className="text-[10px] font-bold text-[oklch(0.55_0.01_264)] bg-[oklch(0.95_0.004_264)] px-1.5 py-0.5 rounded shrink-0">
+                    已撤回
                   </span>
                 )}
 
