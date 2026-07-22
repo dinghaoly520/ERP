@@ -154,6 +154,31 @@ export class ScorePointExtractorService {
   }
 
   /**
+   * 规则优先：正则匹配「采购需求」章节里的商务/技术要求段（打分类 BUSINESS/TECHNICAL 用）。
+   * 商务/技术评分依据在采购需求章（如 ★商务要求 / ★技术要求），不在评分标准节（后者只含评标办法说明）。
+   */
+  private extractRequirementSectionRegex(text: string, category: string): string | null {
+    const isBiz = category === 'BUSINESS';
+    const patterns = isBiz
+      ? [
+          /二、\s*商务要求\s*\n[\s\S]*?(?=三、\s*技术要求\s*\n|第[一二三四五六七八九十百\d]+章\s)/i,
+          /商务要求\s*\n[\s\S]*?(?=三、\s*技术要求\s*\n|第[一二三四五六七八九十百\d]+章\s)/i,
+        ]
+      : [
+          /三、\s*技术要求\s*\n[\s\S]*?(?=第[一二三四五六七八九十百\d]+章\s|$)/i,
+          /技术要求\s*\n[\s\S]*?(?=第[一二三四五六七八九十百\d]+章\s|$)/i,
+        ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const section = match[0].trim();
+        if (section.length > 100) return section;
+      }
+    }
+    return null;
+  }
+
+  /**
    * 分段：按双换行拆分，超 1500 字按单换行再拆。
    */
   private splitParagraphs(text: string): { content: string; index: number }[] {
@@ -196,6 +221,13 @@ export class ScorePointExtractorService {
       const reviewSection = this.extractReviewSectionRegex(tenderText, item.category);
       if (reviewSection && reviewSection.length > 100) {
         return reviewSection.slice(0, 16000);
+      }
+    }
+    // Step 0b: 打分类（商务/技术）优先定位采购需求章节（★商务/技术要求），而非评分标准节
+    if (item.category === 'BUSINESS' || item.category === 'TECHNICAL') {
+      const reqSection = this.extractRequirementSectionRegex(tenderText, item.category);
+      if (reqSection && reqSection.length > 100) {
+        return reqSection.slice(0, 16000);
       }
     }
     // Step 1: 正则匹配「评标办法」章节
