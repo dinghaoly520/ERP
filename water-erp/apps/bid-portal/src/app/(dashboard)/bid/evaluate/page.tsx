@@ -272,10 +272,22 @@ export default function BidEvaluatePage() {
   }, [projectId, loadProject]);
 
   /* ── WebSocket: live scoring updates ── */
+  // P1-19：评分活动（专家提交/核对/确认）也刷新监控，防抖 1.5s 合并高频事件
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefresh = useCallback(() => {
+    if (!projectId) return;
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
+    }, 1500);
+  }, [projectId]);
+  useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
+
   const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId ?? undefined, {
     onStageChange: () => {
       if (projectId) api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`).then(setProject);
     },
+    onExpertPresence: () => debouncedRefresh(),
   });
 
   useReportRealtime(connection, lastEventAt, reconnectNow);
@@ -359,16 +371,18 @@ export default function BidEvaluatePage() {
   const dashMetrics = useMemo(() => {
     if (!project) return null;
     const { experts, suppliers } = project;
-    const totalSlots = experts.length * suppliers.length;
-    let scoredSlots = 0;
+    // P1-18：进度按「评分项完成度」计算（专家×供应商×评分项），而非 slot 只要有 1 条记录即记满
+    const itemCount = project.scoreItems?.length ?? 0;
+    const totalItemSlots = experts.length * suppliers.length * itemCount;
+    let scoredItems = 0;
     for (const expert of experts) {
       const row = expertMatrix.get(expert.id);
       if (row) for (const supplier of suppliers) {
         const cell = row.get(supplier.id);
-        if (cell && cell.scoredCount > 0) scoredSlots++;
+        if (cell) scoredItems += Math.min(cell.scoredCount, itemCount);
       }
     }
-    const scorePct = totalSlots > 0 ? Math.round((scoredSlots / totalSlots) * 100) : 0;
+    const scorePct = totalItemSlots > 0 ? Math.round((scoredItems / totalItemSlots) * 100) : 0;
     const signedIn = experts.filter(e => e.signedIn).length;
     const reportsDone = experts.filter(e => e.reportConfirmed).length;
     const canGenerate = allReportsConfirmed;
@@ -377,6 +391,11 @@ export default function BidEvaluatePage() {
 
   const supplierRanks = useMemo(() => {
     if (!project) return new Map<string, number>();
+    // P1-20：官方结果已生成 → 直接用官方 rank（含去极值后的排序与废标置后），与「生成评标结果」一致
+    if (results.length > 0) {
+      return new Map(results.map(r => [r.supplierId, r.rank]));
+    }
+    // 未生成：实时均分排名（仅供参考）
     const entries: { supplierId: string; avg: number }[] = [];
     for (const supplier of project.suppliers) {
       const catMap = categoryMatrix.get(supplier.id);
@@ -396,10 +415,15 @@ export default function BidEvaluatePage() {
       rankMap.set(entries[i].supplierId, rank);
     }
     return rankMap;
-  }, [project, categoryMatrix]);
+  }, [project, categoryMatrix, results]);
 
   const rankedSuppliers = useMemo(() => {
     if (!project) return [];
+    // P1-20：官方结果已生成 → 按官方 rank 排序（废标置后），否则按实时均分
+    if (results.length > 0) {
+      const rankOf = new Map(results.map(r => [r.supplierId, r.rank]));
+      return [...project.suppliers].sort((a, b) => (rankOf.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rankOf.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+    }
     return [...project.suppliers].sort((a, b) => {
       const catMapA = categoryMatrix.get(a.id);
       const catMapB = categoryMatrix.get(b.id);
@@ -412,7 +436,7 @@ export default function BidEvaluatePage() {
       }
       return totalB - totalA;
     });
-  }, [project, categoryMatrix]);
+  }, [project, categoryMatrix, results]);
 
   // ═══ Anomaly detection ═══
   const anomalyThreshold = 20; // deviation >20% flagged
@@ -737,7 +761,7 @@ export default function BidEvaluatePage() {
                 <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
                   供应商评分汇总
                 </h2>
-                <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">各分类展示专家均分，总分为分类均分之和。同分同名次（竞赛式排名）。悬停分类得分查看专家明细。</p>
+                <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">各分类展示专家均分。未生成结果时排名/总分为实时参考值（未去极值）；「生成评标结果」后以官方结果为准（≥5 专家去 1 高 1 低、废标置后）。悬停分类得分查看专家明细。</p>
               </div>
               <div className="flex items-center gap-3">
                 {!allReportsConfirmed && experts.length > 0 && (
@@ -795,8 +819,11 @@ export default function BidEvaluatePage() {
                       if (cell && cell.count > 0) total += cell.sum / cell.count;
                     }
                   }
-                  const overallAvg = total > 0 ? total.toFixed(1) : null;
                   const evalResult = results.find(r => r.supplierId === supplier.id);
+                  // P1-20：官方结果已生成 → 显示官方 averageScore（去极值后）；否则实时均分（仅供参考）
+                  const overallAvg = evalResult
+                    ? Number(evalResult.averageScore).toFixed(1)
+                    : (total > 0 ? total.toFixed(1) : null);
                   return (
                     <tr key={supplier.id} className={`transition-colors ${evalResult?.disqualified ? 'opacity-60' : ''}`}>
                       <td className="px-5 py-3">

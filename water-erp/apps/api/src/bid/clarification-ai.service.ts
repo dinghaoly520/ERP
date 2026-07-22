@@ -23,7 +23,7 @@ export class ClarificationAiService {
   async draftQuestion(projectId: string, supplierId: string): Promise<{ drafts: string[]; basis: string[] }> {
     try {
       const br = await this.prisma.aiBidderResult.findFirst({
-        where: { bidSupplierId: supplierId, status: 'COMPLETED' },
+        where: { bidSupplierId: supplierId, status: 'COMPLETED', bidSupplier: { projectId } }, // P1-1：项目约束，防跨项目读取
         select: {
           weaknesses: true,
           starredResponse: true,

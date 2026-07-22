@@ -24,6 +24,8 @@ interface Props {
   className?: string;  onDirtyChange?: (dirty: boolean) => void;
   /** 填满父容器高度（由外层 flex-1 决定高），不再用 padding-bottom 宽高比撑高——全屏 flex 布局用，避免宽屏下 padding-bottom% 相对宽度算出过高把兄弟元素顶出视口 */
   fillContainer?: boolean;
+  /** P2：非触控笔（鼠标/手指）尝试手写时的一次性提示回调 */
+  onNonPenHint?: () => void;
 }
 
 interface Point { x: number; y: number; pressure: number }
@@ -74,7 +76,7 @@ function drawPath(ctx: CanvasRenderingContext2D, pts: Point[], baseW: number, er
 }
 
 export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
-  ({ width = 600, height = 420, strokeColor = '#000000', baseWeight = 6, className = '', onDirtyChange, fillContainer = false },
+  ({ width = 600, height = 420, strokeColor = '#000000', baseWeight = 6, className = '', onDirtyChange, fillContainer = false, onNonPenHint },
    ref) => {
     const visRef = useRef<HTMLCanvasElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -84,6 +86,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     const snapshots = useRef<string[]>([]);
     const strokes = useRef<Stroke[]>([]);
     const hasDrawn = useRef(false);
+    const penHinted = useRef(false); // P2：非触控笔提示只触发一次
     const drawing = useRef(false);
     const pathPts = useRef<Point[]>([]);
     const color = useRef(strokeColor);
@@ -142,8 +145,14 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
     const onDown = (e: PointerEvent) => {
       e.preventDefault();
       // 手掌抑制：只接受 Apple Pencil
-      if (!isPen(e)) return;
+      if (!isPen(e)) {
+        // P2：非触控笔（鼠标/手指）给一次性提示，避免手写模式静默无响应
+        if (!penHinted.current) { penHinted.current = true; onNonPenHint?.(); }
+        return;
+      }
       if (!ensureContexts()) return;
+      // P2：指针捕获——笔触越界时不断笔（捕获后 pointerleave 不在绘制中触发）
+      (e.target as HTMLElement | null)?.setPointerCapture?.(e.pointerId);
       snap();
       pathPts.current = [toLocal(e)];
       drawing.current = true; md(true);
@@ -226,7 +235,7 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       clear: () => { const bg=bgRef.current,vc=visCtxRef.current; if(bg){const c=bgCtxRef.current;c?.clearRect(0,0,width,height);} vc?.clearRect(0,0,width,height); pathPts.current=[]; snapshots.current=[]; strokes.current=[]; md(false); },
       toBlob: () => new Promise(r => { visRef.current?.toBlob(b => r(b), 'image/png'); }),
       isEmpty: () => !hasDrawn.current,
-      undo: () => { const s=snapshots.current; if(!s.length)return; strokes.current.pop(); const bg=bgCtxRef.current,b=bgRef.current,vc=visCtxRef.current; if(!bg||!b)return; const img=new Image(); img.onload=()=>{bg.clearRect(0,0,width,height);bg.drawImage(img,0,0); if(vc){vc.clearRect(0,0,width,height);vc.drawImage(b,0,0);} if(s.length<=1)md(false);}; img.src=s.pop()!; },
+      undo: () => { const s=snapshots.current; if(!s.length)return; strokes.current.pop(); const bg=bgCtxRef.current,b=bgRef.current,vc=visCtxRef.current; if(!bg||!b)return; const img=new Image(); img.onload=()=>{bg.clearRect(0,0,width,height);bg.drawImage(img,0,0); if(vc){vc.clearRect(0,0,width,height);vc.drawImage(b,0,0);} md(strokes.current.length>0);}; img.src=s.pop()!; }, // P1-11：以剩余矢量笔触数判空（修复剩 1 笔误判为空）
       setMode: (m) => { mode.current = m; },
       getMode: () => mode.current,
       setColor: (c) => { color.current = c; const bc=bgCtxRef.current; if(bc)bc.strokeStyle=c; const vc=visCtxRef.current; if(vc)vc.strokeStyle=c; },
@@ -295,7 +304,9 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       },
       restoreBlob: (blob: Blob, scale?: number) => new Promise<void>((resolve) => {
         const img = new Image();
+        const url = URL.createObjectURL(blob); // P2：记录以便加载后 revoke，避免 objectURL 泄漏
         img.onload = () => {
+          URL.revokeObjectURL(url);
           // 全新 canvas（尚未 onDown）bgRef 为空 → 先创建
           if (!ensureContexts()) { resolve(); return; }
           const bgCtx = bgCtxRef.current!;
@@ -314,7 +325,8 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
           md(true);
           resolve();
         };
-        img.src = URL.createObjectURL(blob);
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+        img.src = url;
       }),
     }), [width, height]);
 

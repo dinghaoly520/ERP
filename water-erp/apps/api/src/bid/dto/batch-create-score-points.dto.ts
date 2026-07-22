@@ -18,6 +18,16 @@ export class ScorePointInputDto {
   @IsBoolean()
   @IsOptional()
   objective?: boolean;
+
+  @IsString()
+  @IsOptional()
+  evidenceSection?: string;
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  @IsOptional()
+  confidence?: number;
 }
 
 export class BatchCreateScorePointsDto {

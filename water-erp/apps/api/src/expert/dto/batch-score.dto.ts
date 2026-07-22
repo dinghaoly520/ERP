@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsArray, ValidateNested, IsNumber, IsOptional, IsBoolean, Min, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, ValidateNested, IsNumber, IsOptional, IsBoolean, Min, Max, ArrayNotEmpty, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class PointDecisionDto {
@@ -22,7 +22,8 @@ class ScoreItemDto {
   @IsString() @IsNotEmpty()
   supplierId: string;
 
-  @IsNumber() @Min(0) @Max(100) @IsOptional()
+  // P2：上限与 Decimal(5,1) 域对齐（满分可 >100 的合法配置项不应被 DTO 误拒）；真实上限由服务端 score>maxScore 校验
+  @IsNumber() @Min(0) @Max(9999.9) @IsOptional()
   score?: number;
 
   @IsBoolean() @IsOptional()
@@ -31,7 +32,8 @@ class ScoreItemDto {
   @IsString() @IsOptional()
   reason?: string;
 
-  @IsArray() @ValidateNested({ each: true }) @Type(() => PointDecisionDto) @IsOptional()
+  // P1-10：得分点裁定限流，防巨量请求拖垮单事务
+  @IsArray() @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => PointDecisionDto) @IsOptional()
   pointDecisions?: PointDecisionDto[];
 }
 
@@ -39,7 +41,10 @@ export class BatchScoreDto {
   @IsString() @IsNotEmpty()
   supplierName: string;
 
+  // P1-10：评分项数组非空且限流，防巨量请求在单事务内顺序 upsert 致 DoS
   @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(2000)
   @ValidateNested({ each: true })
   @Type(() => ScoreItemDto)
   scores: ScoreItemDto[];

@@ -7,17 +7,7 @@ import { EmbeddingService } from '../local-ai/embedding.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { processFile } from '../ai-bid-analysis/utils/file-processor';
 import { SCORE_POINTS_EXTRACT_SYSTEM, SCORE_POINTS_EXTRACT_PROMPT } from './prompts/score-points.prompt';
-
-export interface ScorePointSuggestion {
-  name: string;
-  fullScore: number;
-  evidenceHint: string;
-  objective: boolean;
-  evidenceSection?: string;   // E1: 招标文件相关章节名称（如'第三章 评标办法'）
-  confidence?: number;         // E1: 0-1 信心分
-  adjusted?: boolean;          // E2: true 表示 fullScore 被等比缩放过
-  duplicate?: boolean;         // E4: true 表示与已有得分点高度相似
-}
+import { ScorePointSuggestion } from '@water-erp/shared';
 
 @Injectable()
 export class ScorePointExtractorService {
@@ -69,7 +59,12 @@ export class ScorePointExtractorService {
         SCORE_POINTS_EXTRACT_SYSTEM,
         prompt,
         (raw): raw is { items: ScorePointSuggestion[] } =>
-          !!raw && typeof raw === 'object' && Array.isArray((raw as any).items),
+          !!raw && typeof raw === 'object' && Array.isArray((raw as any).items) &&
+          (raw as any).items.every((i: any) =>
+            typeof i.name === 'string' && i.name.length > 0 &&
+            typeof i.fullScore === 'number' && i.fullScore >= 0 &&
+            typeof i.objective === 'boolean'
+          ),
         2,
       );
     } catch {
@@ -216,30 +211,32 @@ export class ScorePointExtractorService {
     tenderText: string,
     item: { category: string; name: string },
   ): Promise<string> {
+    // 预处理：跳过目录行（HYPERLINK...PAGEREF），避免正则命中目录片段而非正文
+    const cleaned = tenderText.replace(/HYPERLINK[^\n]*PAGEREF[^\n]*\n/g, '');
     // Step 0: pass/fail 类（资格/符合性审查）优先定位审查表章节（而非评分标准节——后者只含评标办法说明）
     if (item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE') {
-      const reviewSection = this.extractReviewSectionRegex(tenderText, item.category);
+      const reviewSection = this.extractReviewSectionRegex(cleaned, item.category);
       if (reviewSection && reviewSection.length > 100) {
         return reviewSection.slice(0, 16000);
       }
     }
     // Step 0b: 打分类（商务/技术）优先定位采购需求章节（★商务/技术要求），而非评分标准节
     if (item.category === 'BUSINESS' || item.category === 'TECHNICAL') {
-      const reqSection = this.extractRequirementSectionRegex(tenderText, item.category);
+      const reqSection = this.extractRequirementSectionRegex(cleaned, item.category);
       if (reqSection && reqSection.length > 100) {
         return reqSection.slice(0, 16000);
       }
     }
     // Step 1: 正则匹配「评标办法」章节
-    const regexSection = this.extractScoringSectionRegex(tenderText);
+    const regexSection = this.extractScoringSectionRegex(cleaned);
     if (regexSection && regexSection.length > 200) {
       return regexSection.slice(0, 16000);
     }
 
     // Step 2: embedding 搜索兜底
-    const paragraphs = this.splitParagraphs(tenderText);
+    const paragraphs = this.splitParagraphs(cleaned);
     if (paragraphs.length === 0) {
-      return tenderText.slice(0, 8000);
+      return cleaned.slice(0, 8000);
     }
 
     const query = `评分标准 ${item.category} ${item.name}`;
@@ -259,8 +256,13 @@ export class ScorePointExtractorService {
       return topK.map((p) => p.content).join('\n\n').slice(0, 16000);
     } catch {
       // Step 3: embedding 不可用时回退
-      return tenderText.slice(0, 8000);
+      return cleaned.slice(0, 8000);
     }
+  }
+
+  /** 主动清除招标文件文本缓存（公告重发/文件替换时调用） */
+  invalidateTenderCache(projectId: string): void {
+    this.tenderTextCache.delete(projectId);
   }
 
   // ── E4 辅助方法 ──

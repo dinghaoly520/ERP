@@ -90,6 +90,7 @@ export interface BidSupplier {
   receiptNo?: string;
   decryptStatus: string;
   confirmStatus: string;
+  bidValidity?: string; // P2：废标有效性（'valid' | 'invalid'），后端 BidSupplier.bidValidity
 }
 
 export interface BidExpert {
@@ -129,6 +130,18 @@ export interface BidScoreItem {
   evidenceHint?: string | null;
   criteriaSource?: string | null;
   points?: BidScorePoint[];
+}
+
+/** AI 提取得分点建议（extractScorePoints 返回，前端审核展示用） */
+export interface ScorePointSuggestion {
+  name: string;
+  fullScore: number;
+  evidenceHint: string;
+  objective: boolean;
+  evidenceSection?: string;   // 招标文件章节名
+  confidence?: number;        // 0-1 信心分
+  adjusted?: boolean;         // fullScore 被等比缩放
+  duplicate?: boolean;        // 与已有得分点高度相似
 }
 
 export interface BidSupervisionLog {

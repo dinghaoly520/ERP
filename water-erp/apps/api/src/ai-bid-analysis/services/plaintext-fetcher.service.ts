@@ -12,7 +12,12 @@ export type BidderFileType = 'technical' | 'business' | 'coverLetter';
 
 @Injectable()
 export class PlaintextFetcherService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {
+    // wrapped key 场景需要 KMS_SECRET；缺失时启动即 warn（运行时 unwrapKey 会抛错，但有明确日志）
+    if (!process.env.KMS_SECRET) {
+      console.warn('[PlaintextFetcher] KMS_SECRET 未配置，加密招标文件/投标文件将无法解密');
+    }
+  }
 
   /**
    * 获取供应商投标文件明文（方案 5.2）

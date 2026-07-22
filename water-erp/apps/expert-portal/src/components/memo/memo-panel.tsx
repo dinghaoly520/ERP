@@ -63,6 +63,8 @@ export function MemoPanel({
   const fullscreenCanvasRef = useRef<AtramentCanvasHandle>(null);
   // 全屏切换时暂存矢量笔触，在新 canvas mount 后恢复
   const pendingStrokes = useRef<Stroke[] | null>(null);
+  // P1-12：无矢量笔触（位图恢复的墨迹）时，全屏切换用 blob 兜底转移
+  const pendingBlob = useRef<Blob | null>(null);
   // 得分点 → 墨迹缓存（strokes 矢量 + blob 位图）。恢复优先用 strokes（支持全屏矢量转移）
   const inkCache = useRef<Map<string, { strokes: Stroke[]; blob: Blob }>>(new Map());
   // memos 列表的 ref 镜像，供异步闭包读取最新值（避免 stale closure）
@@ -88,17 +90,20 @@ export function MemoPanel({
 
   useEffect(() => { load(); }, [load]);
 
-  // 切换得分点：先同步捕获 + 清屏 → 再异步保存 + 加载恢复
-  const prevPointRef = useRef(scorePointId);
+  // P1-13：切换（供应商, 得分点）复合追踪——供应商切换也走「捕获旧→清屏→恢复新」，消除跨供应商串用墨迹
+  const prevRef = useRef({ supplierId, scorePointId });
   const switchToken = useRef(0);
   useEffect(() => {
-    const prev = prevPointRef.current;
-    prevPointRef.current = scorePointId;
-    // 首次渲染（prev 和当前相同且无内容）→ 尝试恢复缓存墨迹
-    if (prev === scorePointId) {
+    const prev = prevRef.current;
+    const cur = { supplierId, scorePointId };
+    prevRef.current = cur;
+    const prevKey = `${prev.supplierId}:${prev.scorePointId}`;
+    const curKey = `${cur.supplierId}:${cur.scorePointId}`;
+    // 首次渲染（供应商与得分点均未变）→ 尝试恢复缓存墨迹
+    if (prevKey === curKey) {
       const c0 = activeCanvas();
       if (mode === 'handwriting' && c0 && c0.isEmpty() && scorePointId) {
-        const cached = inkCache.current.get(scorePointId);
+        const cached = inkCache.current.get(curKey);
         if (cached?.strokes.length) c0.restoreStrokes(cached.strokes);
         else if (cached?.blob) c0.restoreBlob(cached.blob).catch(() => {});
       }
@@ -117,18 +122,18 @@ export function MemoPanel({
     // ★ 同步清屏
     c?.clear();
 
-    // 异步：保存到旧得分点 + 恢复新得分点墨迹
+    // 异步：保存到旧（供应商, 得分点）+ 恢复新（供应商, 得分点）墨迹
     (async () => {
-      // 保存旧得分点（upsert：先删该得分点旧墨迹，再建新的，避免复制）
+      // 保存旧（供应商, 得分点）（upsert：先删旧墨迹，再建新的，避免复制）
       if (dataURL) {
         try {
           const blob = await (await fetch(dataURL)).blob();
-          if (switchToken.current === token && prev) {
-            inkCache.current.set(prev, { strokes: capturedStrokes ?? [], blob });
+          if (switchToken.current === token && prev.scorePointId) {
+            inkCache.current.set(prevKey, { strokes: capturedStrokes ?? [], blob });
           }
-          // 删除该得分点已有的 ink 备忘（同一得分点只保留一条最新墨迹）
-          if (prev) {
-            const oldInk = memosRef.current.find(m => m.scorePointId === prev && m.inkFileId);
+          // 删除旧（供应商, 得分点）已有的 ink 备忘（同一(供应商,得分点)只保留一条最新墨迹）
+          if (prev.scorePointId) {
+            const oldInk = memosRef.current.find(m => m.supplierId === prev.supplierId && m.scorePointId === prev.scorePointId && m.inkFileId);
             if (oldInk) {
               try { await deleteMemo(projectId, oldInk.id); } catch { /* del silent */ }
             }
@@ -136,8 +141,8 @@ export function MemoPanel({
           await createMemo(projectId, {
             inkBlob: blob,
             sourceDevice: `${sourceDevice}_handwriting`,
-            supplierId,
-            scorePointId: prev,
+            supplierId: prev.supplierId,
+            scorePointId: prev.scorePointId,
           });
           // 保存后刷新列表（让删除的旧备忘 + 新备忘同步到 UI）
           load();
@@ -145,16 +150,16 @@ export function MemoPanel({
       }
       // 被新切换打断 → 放弃恢复
       if (switchToken.current !== token) return;
-      // 恢复新得分点墨迹
+      // 恢复新（供应商, 得分点）墨迹
       if (mode === 'handwriting' && scorePointId) {
-        const cached = inkCache.current.get(scorePointId);
+        const cached = inkCache.current.get(curKey);
         if (cached?.strokes.length) {
           // 矢量恢复（填充 strokes.current，后续全屏切换可用）
           c?.restoreStrokes(cached.strokes);
         } else if (cached?.blob) {
           await c?.restoreBlob(cached.blob);
         } else {
-          // API 兜底（位图，无 strokes，全屏切换会回退位图模式）
+          // API 兜底（位图，无 strokes）
           try {
             const list = await listMemos(projectId, supplierId, scorePointId);
             const latestInk = list.find(m => m.inkFileId);
@@ -163,7 +168,7 @@ export function MemoPanel({
               const res = await fetch(url);
               if (res.ok) {
                 const blob = await res.blob();
-                inkCache.current.set(scorePointId, { strokes: [], blob });
+                inkCache.current.set(curKey, { strokes: [], blob });
                 if (switchToken.current === token) await c?.restoreBlob(blob);
               }
             }
@@ -172,15 +177,22 @@ export function MemoPanel({
       }
     })().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scorePointId]);
+  }, [scorePointId, supplierId]);
 
-  // 全屏 vs 内嵌 的缩放比例：坐标 0.4（字占左上角），笔触 0.6（视觉粗细一致）
-  // 互逆：进全屏 *0.4/*0.6，出全屏 *2.5/*1.667 还原
+  // 全屏 vs 内嵌 的缩放比例：坐标 0.4（字占左上角），笔触 0.45（视觉粗细一致）
+  // 互逆：进全屏 *0.4/*0.45，出全屏 *2.5/*2.222 还原
   const COORD_SCALE = 0.4;
   const WEIGHT_SCALE = 0.45;
 
   // 全屏切换后恢复矢量笔触（rAF 同步恢复，无取消机制，避免 cleanup 吞掉恢复）
   useEffect(() => {
+    // P1-12：位图墨迹兜底转移（无矢量笔触时）
+    if (pendingBlob.current) {
+      const b = pendingBlob.current; pendingBlob.current = null;
+      const target = fullscreen ? fullscreenCanvasRef.current : inlineCanvasRef.current;
+      if (target) requestAnimationFrame(() => target.restoreBlob(b));
+      return;
+    }
     if (!pendingStrokes.current) return;
     const src = pendingStrokes.current;
     pendingStrokes.current = null;
@@ -192,11 +204,15 @@ export function MemoPanel({
     requestAnimationFrame(() => target.restoreStrokes(src, cs, ws));
   }, [fullscreen]);
 
-  const enterFullscreen = () => {
+  const enterFullscreen = async () => {
     const c = inlineCanvasRef.current;
-    const strokes = c && !c.isEmpty() ? c.captureStrokes() : null;
+    const hasInk = c && !c.isEmpty();
+    const strokes = hasInk ? c.captureStrokes() : null;
+    let blob: Blob | null = null;
+    if (hasInk && (!strokes || strokes.length === 0)) blob = (await c.toBlob()) ?? null; // P1-12：位图兜底
     c?.clear();
     if (strokes && strokes.length) pendingStrokes.current = strokes;
+    else if (blob) pendingBlob.current = blob;
     setFullscreen(true);
     // 全屏笔触按 WEIGHT_SCALE 缩小，新画的字与恢复的字粗细一致
     const fsWeight = Math.max(2, +(currentWeight * WEIGHT_SCALE).toFixed(1));
@@ -204,11 +220,15 @@ export function MemoPanel({
     requestAnimationFrame(() => fullscreenCanvasRef.current?.setWeight(fsWeight));
   };
 
-  const exitFullscreen = () => {
+  const exitFullscreen = async () => {
     const c = fullscreenCanvasRef.current;
-    const strokes = c && !c.isEmpty() ? c.captureStrokes() : null;
+    const hasInk = c && !c.isEmpty();
+    const strokes = hasInk ? c.captureStrokes() : null;
+    let blob: Blob | null = null;
+    if (hasInk && (!strokes || strokes.length === 0)) blob = (await c.toBlob()) ?? null; // P1-12：位图兜底
     c?.clear();
     if (strokes && strokes.length) pendingStrokes.current = strokes;
+    else if (blob) pendingBlob.current = blob;
     setFullscreen(false);
     // 退出恢复内嵌笔触（全屏 weight / WEIGHT_SCALE = 原值）
     const inlineWeight = Math.max(2, +(currentWeight / WEIGHT_SCALE).toFixed(1));
@@ -230,9 +250,9 @@ export function MemoPanel({
         const strokes = c?.captureStrokes() ?? [];
         const blob = await c?.toBlob();
         if (!blob) { toast.error('墨迹导出失败'); return; }
-        // upsert：先删该得分点旧 ink 备忘，再建新的（同一得分点只留一条墨迹）
+        // upsert：先删该（供应商, 得分点）旧 ink 备忘，再建新的（同一(供应商,得分点)只留一条墨迹）—— P1-13
         if (scorePointId) {
-          const oldInk = memosRef.current.find(m => m.scorePointId === scorePointId && m.inkFileId);
+          const oldInk = memosRef.current.find(m => m.supplierId === supplierId && m.scorePointId === scorePointId && m.inkFileId);
           if (oldInk) {
             try { await deleteMemo(projectId, oldInk.id); } catch { /* del silent */ }
           }
@@ -242,8 +262,8 @@ export function MemoPanel({
           sourceDevice: `${sourceDevice}_handwriting`,
           supplierId, scorePointId,
         });
-        // 更新本地缓存（strokes + blob）
-        if (scorePointId) inkCache.current.set(scorePointId, { strokes, blob });
+        // 更新本地缓存（复合键：供应商+得分点）
+        if (scorePointId) inkCache.current.set(`${supplierId}:${scorePointId}`, { strokes, blob });
         c?.clear();
       } else {
         const trimmed = text.trim();
@@ -416,7 +436,8 @@ export function MemoPanel({
           </button>
         </div>
         <AtramentCanvas ref={fullscreenCanvasRef} width={800} height={560} fillContainer
-          className="flex-1 min-h-0 rounded-none border-0" />
+          className="flex-1 min-h-0 rounded-none border-0"
+          onNonPenHint={() => toast.info('手写模式请使用触控笔')} />
       </div>,
       document.body,
     )
@@ -479,13 +500,13 @@ export function MemoPanel({
       </div>
 
       <div className="flex min-h-0 flex-col">
-        {mode === 'handwriting' ? (
-          <div className="flex flex-col gap-2">
+        {/* P1-14：手写/键盘两块同时挂载，用 hidden 切换可见性，避免切键盘卸载画布丢墨迹 */}
+        <div className={mode === 'handwriting' ? 'flex flex-col gap-2' : 'hidden'}>
             {/* 工具栏（略缩页：去缩放，清屏占位） */}
             {renderToolbar({ zoom: false })}
             <div className="relative" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
               onContextMenu={e => e.preventDefault()}>
-              <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} />
+              <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} onNonPenHint={() => toast.info('手写模式请使用触控笔')} />
               <button type="button" onClick={enterFullscreen}
                 className="absolute right-2 top-2 rounded-lg border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)]/80 p-1 text-[oklch(0.45_0.01_264)] transition-all duration-150
                   shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
@@ -506,8 +527,7 @@ export function MemoPanel({
               </button>
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col gap-2">
+        <div className={mode === 'keyboard' ? 'flex flex-col gap-2' : 'hidden'}>
             <textarea
               value={text} onChange={e => setText(e.target.value)}
               rows={compact ? 5 : 7} placeholder="键入备忘内容…"
@@ -519,7 +539,6 @@ export function MemoPanel({
               {saving ? '保存中…' : '保存文本'}
             </button>
           </div>
-        )}
       </div>
 
       {/* 备忘列表（限制高度，内滚动，不挤压上方画布） */}

@@ -91,11 +91,12 @@ describe('BidService — stage transitions', () => {
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
       bidScorePoint: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
       bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}) },
+      bidScoreReview: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
       aiBidAnalysisTask: { upsert: jest.fn().mockResolvedValue({ id: 'ai-1' }) },
       aiBidderResult: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
-      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
@@ -105,6 +106,7 @@ describe('BidService — stage transitions', () => {
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       // Support both callback-based and batch-based $transaction patterns
       $transaction: jest.fn(async (callbackOrOps: any) => {
         if (typeof callbackOrOps === 'function') {
@@ -822,7 +824,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1' });
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1', score: 10 });
 
       const result = await service.submitScore('p1', {
@@ -842,7 +844,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
-      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1', scoreItemId: 'si-1', objective: true, fullScore: 15 }]);
       prisma.bidScorePointDecision.upsert.mockResolvedValue({});
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
@@ -860,6 +862,77 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidScoreRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
         update: expect.objectContaining({ score: 15 }),
       }));
+    });
+
+    it('P1-5：专家已确认报告 → 代评被锁 SCORE_LOCKED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', reportConfirmed: true });
+      await expect(service.submitScore('p1', {
+        expertId: 'exp-1', scoreItemId: 'si-1', supplierId: 'sup-1', score: 10,
+      })).rejects.toMatchObject({ response: { code: 'SCORE_LOCKED' } });
+    });
+
+    it('P1-4：代评写 BidScoreReview(status=draft)，专家核对不再 P2025', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
+      prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
+      prisma.auditLog.create.mockResolvedValue({});
+
+      await service.submitScore('p1', {
+        expertId: 'exp-1', scoreItemId: 'si-1', supplierId: 'sup-1', score: 10, reason: 'ok',
+      }, 'actor-1');
+
+      expect(prisma.bidScoreReview.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { expertId_projectId_supplierId: { expertId: 'exp-1', projectId: 'p1', supplierId: 'sup-1' } },
+        update: { status: 'draft', verifiedAt: null },
+        create: { expertId: 'exp-1', projectId: 'p1', supplierId: 'sup-1', status: 'draft' },
+      }));
+    });
+
+    it('P1-5：审计记 finalScore（checklist 下 ≠ dto.score）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
+      prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
+      prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1', scoreItemId: 'si-1', objective: true, fullScore: 15 }]);
+      prisma.bidScorePointDecision.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
+      prisma.auditLog.create.mockResolvedValue({});
+
+      await service.submitScore('p1', {
+        expertId: 'exp-1', scoreItemId: 'si-1', supplierId: 'sup-1', score: 0, reason: '',
+        pointDecisions: [{ pointId: 'pt1', checked: true, awardedScore: 15 }],
+      } as any, 'actor-1');
+
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ details: expect.objectContaining({ score: 15 }) }),
+      }));
+    });
+
+    it('P1-5：写操作事务化（$transaction 被调用）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
+      prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
+      prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
+
+      await service.submitScore('p1', {
+        expertId: 'exp-1', scoreItemId: 'si-1', supplierId: 'sup-1', score: 10,
+      });
+
+      expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('P1-9：代评未解密成功/已撤回的供应商 → SUPPLIER_NOT_DECRYPTED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
+      prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30 });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'PENDING', submitStatus: 'submitted' });
+      await expect(service.submitScore('p1', {
+        expertId: 'exp-1', scoreItemId: 'si-1', supplierId: 'sup-1', score: 10,
+      })).rejects.toMatchObject({ response: { code: 'SUPPLIER_NOT_DECRYPTED' } });
     });
   });
 
@@ -1016,7 +1089,8 @@ describe('BidService — score items (评分标准)', () => {
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
-      scoreTemplate: { findMany: jest.fn(), create: jest.fn() },
+      scoreTemplate: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn(), delete: jest.fn().mockResolvedValue({}) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -1080,6 +1154,16 @@ describe('BidService — score items (评分标准)', () => {
     await expect(service.updateScoreItem('p1', 'iX', { name: '改名' }, { userId: 'u1', role: 'bid_host' })).rejects.toThrow(BadRequestException);
   });
 
+  it('P1-17：事务内复查——并发进入 EVALUATING 后改标准 → SCORE_ITEMS_LOCKED', async () => {
+    // 事务外读：OPENING（可编辑）；事务内 FOR UPDATE 重读：EVALUATING（已被并发流转锁定）
+    prisma.bidProject.findUnique
+      .mockResolvedValueOnce({ stage: 'OPENING', name: 'P', scoreStandardPublishedAt: null })
+      .mockResolvedValueOnce({ stage: 'EVALUATING', name: 'P', scoreStandardPublishedAt: null });
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', maxScore: 50, name: '技术' });
+    await expect(service.updateScoreItem('p1', 'i1', { maxScore: 40 }, { userId: 'u1', role: 'bid_host' }))
+      .rejects.toMatchObject({ response: { code: 'SCORE_ITEMS_LOCKED' } });
+  });
+
   it('deleteScoreItem 仅在编辑窗口内放行', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '项目A' });
     await expect(service.deleteScoreItem('p1', 'i1', { userId: 'u1', role: 'bid_host' })).rejects.toThrow(ConflictException);
@@ -1137,6 +1221,28 @@ describe('BidService — score items (评分标准)', () => {
       data: expect.objectContaining({ name: '我的模板', createdById: 'u1', createdByName: '陈源远' }),
     }));
   });
+
+  it('P2：公共模板（createdById=null）非管理员删除 → FORBIDDEN', async () => {
+    prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: null });
+    await expect(service.deleteScoreTemplate('t1', 'u1', 'procurement_staff')).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+    expect(prisma.scoreTemplate.delete).not.toHaveBeenCalled();
+  });
+
+  it('P2：公共模板管理员可删除', async () => {
+    prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: null });
+    await expect(service.deleteScoreTemplate('t1', 'u1', 'admin')).resolves.toMatchObject({ deleted: true });
+    expect(prisma.scoreTemplate.delete).toHaveBeenCalled();
+  });
+
+  it('P2：私有模板他人删除 → FORBIDDEN', async () => {
+    prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: 'owner' });
+    await expect(service.deleteScoreTemplate('t1', 'intruder', 'procurement_staff')).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+  });
+
+  it('P2：私有模板创建者可删除', async () => {
+    prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: 'owner' });
+    await expect(service.deleteScoreTemplate('t1', 'owner', 'procurement_staff')).resolves.toMatchObject({ deleted: true });
+  });
 });
 
 /* ── 唱标信息录入（修复开标闭环断链）── */
@@ -1151,6 +1257,7 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
       bidSupplier: { findFirst: jest.fn() },
       bidOpeningRecord: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -1471,7 +1578,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn() },
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
-      bidSupplier: { findMany: jest.fn(), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
@@ -1726,6 +1833,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -1813,8 +1921,8 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
     expect(r).toEqual({ count: 2 });
     expect(prisma.bidScorePoint.createMany).toHaveBeenCalledWith({
       data: [
-        { scoreItemId: 'i1', name: '点A', fullScore: 5, evidenceHint: null, objective: true },
-        { scoreItemId: 'i1', name: '点B', fullScore: 3, evidenceHint: null, objective: false },
+        { scoreItemId: 'i1', name: '点A', fullScore: 5, evidenceHint: null, evidenceSection: null, confidence: null, objective: true },
+        { scoreItemId: 'i1', name: '点B', fullScore: 3, evidenceHint: null, evidenceSection: null, confidence: null, objective: false },
       ],
     });
   });
@@ -1848,6 +1956,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
       bidInvalidBid: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
       bidSupplier: { update: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module: TestingModule = await Test.createTestingModule({

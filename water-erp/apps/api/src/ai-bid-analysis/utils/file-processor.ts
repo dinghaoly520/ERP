@@ -15,7 +15,8 @@ function tryPdfTextLayer(buffer: Buffer): string | null {
     });
     const text = out.toString('utf8');
     return text && text.trim().length > 500 ? text : null;
-  } catch {
+  } catch (e) {
+    console.warn('[file-processor] pdftotext 不可用，降级 OCR（性能显著下降）:', (e as Error).message);
     return null;
   }
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Trash2, GripVertical, Sparkles, X } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   createScorePoint,
   updateScorePoint,
@@ -18,9 +19,10 @@ interface Props {
   item: ScoreItem;
   points: ScorePoint[];
   onChanged: () => void; // 增删改后通知父组件刷新
+  locked?: boolean; // 评分标准已发布/项目已进 EVALUATING/ARCHIVED 时禁用修改
 }
 
-export function ScorePointsEditor({ projectId, item, points, onChanged }: Props) {
+export function ScorePointsEditor({ projectId, item, points, onChanged, locked }: Props) {
   const isPassFail = item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE';
   const isPrice = item.category === 'PRICE'; // 价格分按公式计算,不提取得分点
   const [draft, setDraft] = useState({ name: '', fullScore: 0, evidenceHint: '', objective: true });
@@ -35,8 +37,10 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
   async function handleExtract() {
     setExtracting(true);
     setExtractError(null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120_000);
     try {
-      const list = await extractScorePoints(projectId, item.id);
+      const list = await extractScorePoints(projectId, item.id, { signal: controller.signal });
       // E3: 按 confidence 降序,重复项默认不选
       const sorted = [...list].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
       setSuggestions(sorted.map((s) => ({ ...s, selected: !s.duplicate })));
@@ -48,8 +52,13 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
         }
       }
     } catch (e: any) {
-      setExtractError(e?.message ?? 'AI 提取暂时不可用,请稍后重试或手动添加。');
+      if (e?.name === 'AbortError') {
+        setExtractError('AI 提取超时（120s），招标文件可能较大，请稍后重试');
+      } else {
+        setExtractError(e?.message ?? 'AI 提取暂时不可用,请稍后重试或手动添加。');
+      }
     } finally {
+      clearTimeout(timer);
       setExtracting(false);
     }
   }
@@ -57,9 +66,13 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
   async function handleImportSelected() {
     const picked = (suggestions ?? []).filter((s) => s.selected);
     if (picked.length === 0) { setSuggestions(null); return; }
-    await batchCreateScorePoints(projectId, item.id, picked);
-    setSuggestions(null);
-    onChanged();
+    try {
+      await batchCreateScorePoints(projectId, item.id, picked);
+      setSuggestions(null);
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message ?? '导入失败，请重试');
+    }
   }
 
   async function add() {
@@ -102,11 +115,12 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
           <div className="text-xs text-[oklch(0.5_0.01_264)]">
             得分点满分合计 <span className={total > max ? 'text-red-600 font-semibold' : 'font-semibold'}>{total}</span> / 大类满分 {max}
             {total > max && <span className="ml-1 text-red-600">（已超出大类满分）</span>}
+            {total < max && <span className="ml-1 text-amber-600">差额 {max - total} 未分配</span>}
           </div>
         ) : <span />}
         <div className="flex items-center gap-2">
           {isPrice && <span className="text-xs text-[oklch(0.55_0.01_264)]">价格分按报价公式,无需提取得分点</span>}
-          {!isPrice && (
+          {!isPrice && !locked && (
           <button
             onClick={handleExtract}
             disabled={extracting}
@@ -155,7 +169,8 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
         )}
       </div>
 
-      {/* 新增行 */}
+      {/* 新增行（发布后隐藏） */}
+      {!locked && (
       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[oklch(0.92_0.004_265)] pt-2">
         <input
           type="text"
@@ -196,6 +211,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
           <Plus size={14} /> 添加
         </button>
       </div>
+      )}
 
       {/* AI 提取建议审核弹窗（E3+E4 增强） */}
       {suggestions && (
@@ -250,7 +266,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
               </span>
               <div className="flex gap-2">
                 <button onClick={() => setSuggestions(null)} className="rounded-lg px-3 py-1 text-sm text-[oklch(0.5_0.01_264)]">取消</button>
-                <button onClick={handleImportSelected} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">导入选中的 {suggestions.filter((s) => s.selected).length} 项</button>
+                {!locked && <button onClick={handleImportSelected} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">导入选中的 {suggestions.filter((s) => s.selected).length} 项</button>}
               </div>
             </div>
           </div>

@@ -26,12 +26,15 @@ export class ScoreStandardValidator {
     itemMaxScore: number,
     delta: number,
   ): Promise<void> {
+    // P2：行锁评分项，消除并发新增/修改得分点致 ΣfullScore>maxScore 的竞态
+    await tx.$queryRaw`SELECT id FROM "BidScoreItem" WHERE id = ${itemId} FOR UPDATE`;
     const agg = await tx.bidScorePoint.aggregate({
       where: { scoreItemId: itemId },
       _sum: { fullScore: true },
     });
     const sum = Number(agg._sum.fullScore ?? 0) + Number(delta);
-    if (sum > Number(itemMaxScore)) {
+    // P2：浮点容差（Decimal 十分位求和在二进制浮点下不精确，0.1+0.1+0.1≠0.3）
+    if (sum - Number(itemMaxScore) > 0.05) {
       throw new ConflictException({
         error: `得分点满分合计 ${sum} 超过大类满分 ${itemMaxScore}`,
         code: 'POINTS_SUM_EXCEEDS_MAX',
@@ -48,7 +51,8 @@ export class ScoreStandardValidator {
     const sumMax = items
       .filter((i) => SCORING_CATEGORIES.has(i.category))
       .reduce((s, i) => s + Number(i.maxScore), 0);
-    if (sumMax !== 100) {
+    // P2：浮点容差（33.3+33.3+33.4 在二进制浮点下 ≠ 100）
+    if (Math.abs(sumMax - 100) > 0.05) {
       throw new ConflictException({
         error: `打分类满分合计须为 100,当前为 ${sumMax}`,
         code: 'MAX_SCORE_SUM_NOT_100',
@@ -60,6 +64,20 @@ export class ScoreStandardValidator {
         error: `评分项「${noPoints.name}」未设置得分点`,
         code: 'SCORE_ITEM_HAS_NO_POINTS',
       });
+    }
+    // P0-A：每个打分类项的得分点 ΣfullScore 不得超过该项 maxScore（防止降满分/套模板后总分 >100）
+    for (const i of items.filter((x) => SCORING_CATEGORIES.has(x.category))) {
+      const agg = await this.prisma.bidScorePoint.aggregate({
+        where: { scoreItemId: i.id },
+        _sum: { fullScore: true },
+      });
+      const sum = Number(agg._sum.fullScore ?? 0);
+      if (sum - Number(i.maxScore) > 0.05) { // P2：浮点容差
+        throw new ConflictException({
+          error: `评分项「${i.name}」得分点满分合计 ${sum} 超过其满分 ${i.maxScore}`,
+          code: 'POINTS_SUM_EXCEEDS_MAX',
+        });
+      }
     }
   }
 }

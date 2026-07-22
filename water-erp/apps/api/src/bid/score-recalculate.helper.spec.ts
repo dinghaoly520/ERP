@@ -44,13 +44,67 @@ describe('recomputeItemFromDecisions', () => {
     });
     expect(r.score).toBe(0);
   });
+
+  it('P0-A：提供 maxScore 时 Σawarded 封顶到 maxScore', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'TECHNICAL',
+      points: [
+        { id: 'p1', objective: true, fullScore: 30 },
+        { id: 'p2', objective: true, fullScore: 30 },
+      ],
+      decisions: new Map([
+        ['p1', { checked: true, awardedScore: 30 }],
+        ['p2', { checked: true, awardedScore: 30 }],
+      ]),
+      maxScore: 40, // Σawarded=60 → 封顶 40
+    });
+    expect(r.score).toBe(40);
+  });
+
+  it('P0-A：未提供 maxScore 时保持原 Σawarded（兼容）', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'TECHNICAL',
+      points: [{ id: 'p1', objective: true, fullScore: 30 }],
+      decisions: new Map([['p1', { checked: true, awardedScore: 30 }]]),
+    });
+    expect(r.score).toBe(30);
+  });
+
+  it('P2：通过性项不计总分（即使得分点有 awardedScore）', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'QUALIFICATION',
+      points: [{ id: 'p1', objective: true, fullScore: 5 }],
+      decisions: new Map([['p1', { checked: true, awardedScore: 5 }]]),
+      maxScore: 0,
+    });
+    expect(r.score).toBe(0);
+    expect(r.passed).toBe(true);
+  });
+
+  it('P2：客观点未勾选不计分（checked=false → awarded 0）', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'TECHNICAL',
+      points: [{ id: 'p1', objective: true, fullScore: 10 }],
+      decisions: new Map([['p1', { checked: false, awardedScore: 10 }]]),
+    });
+    expect(r.score).toBe(0);
+  });
+
+  it('P2：通过性项无客观点 → 不自动通过（passed=false）', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'QUALIFICATION',
+      points: [{ id: 'p1', objective: false, fullScore: 0 }], // 仅主观
+      decisions: new Map([['p1', { checked: false, awardedScore: 0 }]]),
+    });
+    expect(r.passed).toBe(false);
+  });
 });
 
 describe('recomputeExpertProgress', () => {
   it('progress = scoredItems/totalItems；totalScore = Σ record.score', async () => {
     const tx: any = {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }]) },
-      bidSupplier: { count: jest.fn().mockResolvedValue(3) }, // 2 items × 3 suppliers = 6 total
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) }, // 2 items × 3 活跃 = 6 total
       bidScoreRecord: {
         count: jest.fn().mockResolvedValue(3), // 3 scored → 50%
         findMany: jest.fn().mockResolvedValue([{ score: 10 }, { score: 20 }]),
@@ -64,9 +118,43 @@ describe('recomputeExpertProgress', () => {
   it('totalItems=0 → progress=0', async () => {
     const tx: any = {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
-      bidSupplier: { count: jest.fn().mockResolvedValue(0) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     };
     expect((await recomputeExpertProgress(tx, 'exp1', 'p1')).progress).toBe(0);
+  });
+
+  it('P1-6：progress 用下取整（209/210 → 99，不误判 100）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }, { id: 'si3' }]) }, // 3 项
+      bidSupplier: { findMany: jest.fn().mockResolvedValue(Array.from({ length: 70 }, (_, i) => ({ id: `s${i}` }))) }, // 3 × 70 = 210 total
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(209), findMany: jest.fn().mockResolvedValue([]) }, // 209 scored
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(r.progress).toBe(99); // floor(99.52) = 99，漏评 1 项不得记 100
+  });
+
+  it('P1-9：scoredItems/totalScore 仅计活跃供应商（按 activeIds 过滤）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 's1' }, { id: 's2' }]) }, // s3 已撤回，不在活跃集
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(2), findMany: jest.fn().mockResolvedValue([{ score: 10 }, { score: 20 }]) },
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(tx.bidScoreRecord.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ supplierId: { in: ['s1', 's2'] } }),
+    }));
+    expect(r.progress).toBe(100); // 1 项 × 2 活跃 = 2 total；scored 2 → 100
+    expect(r.totalScore).toBe(30);
+  });
+
+  it('P1-9：progress 封顶 100（防御性）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }]) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 's1' }]) }, // totalItems = 1
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(5), findMany: jest.fn().mockResolvedValue([]) }, // scored 5 > 1
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(r.progress).toBe(100); // floor(500) → 封顶 100
   });
 });

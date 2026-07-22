@@ -8,6 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
+import { validateSupplierScores } from '@/lib/score-validation';
 import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
@@ -41,6 +42,7 @@ export default function ExpertEvaluatePage() {
   const [step, setStep] = useState<Step>('verify');
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
   const [busy, setBusy] = useState(false);
   // Phone verification
   const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
@@ -207,8 +209,10 @@ export default function ExpertEvaluatePage() {
   // Composite key helper — keeps the per-supplier invariant explicit at every call site.
   const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
-  const loadProject = useCallback(() => {
+  // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
+  const loadProject = useCallback((committedSupplierId?: string) => {
     setLoading(true);
+    setLoadError(null);
     api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         // Stage gate: redirect if project is not in an active review stage
@@ -219,13 +223,21 @@ export default function ExpertEvaluatePage() {
         }
         setProject(p);
         // M-2: hydrate invalid supplier IDs from server data so grey-out survives page refresh.
-        setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => (s as any).bidValidity === 'invalid').map(s => s.id)));
+        setInvalidSupplierIds(new Set((p.suppliers || []).filter(s => s.bidValidity === 'invalid').map(s => s.id))); // P2：用共享类型字段，去 unsafe cast
         // P0-1: hydrate with composite keys so each supplier's scores are isolated.
         const existing: Record<string, { score: number; reason: string }> = {};
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {
           existing[scoreKey(rec.supplierId, rec.scoreItemId)] = { score: Number(rec.score), reason: rec.reason || '' };
         });
-        setScores(existing);
+        // P0-B：合并而非覆盖——保留其他供应商尚未提交的内存编辑，仅用服务端值覆盖已提交供应商
+        setScores(prev => {
+          const next: typeof prev = { ...existing };
+          for (const [k, v] of Object.entries(prev)) {
+            if (committedSupplierId && k.startsWith(`${committedSupplierId}:`)) continue; // 已提交的用服务端值
+            if (!(k in next)) next[k] = v; // 其他供应商的未提交编辑保留
+          }
+          return next;
+        });
         // P2: sync per-supplier conflicts from server
         const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
@@ -263,7 +275,7 @@ export default function ExpertEvaluatePage() {
           })
           .catch(() => { /* my-scores optional — ignore */ });
       })
-      .catch((e: any) => toast.error(e?.message || '加载项目失败'))
+      .catch((e: any) => setLoadError(e?.message || '加载项目失败')) // P1-16：记录错误态供重试
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -513,18 +525,8 @@ export default function ExpertEvaluatePage() {
       toast.warning('该投标单位未解密成功、已撤回或已废标，不能评分');
       return;
     }
-    const missing: string[] = [];
-    for (const si of project.scoreItems) {
-      const entry = scores[scoreKey(activeSupplier, si.id)];
-      if (isPassFailCategory(si.category)) {
-        if (typeof entry?.passed !== 'boolean' || (entry.passed === false && !(entry.reason || '').trim())) {
-          missing.push(si.id);
-        }
-      } else {
-        const score = entry?.score ?? 0;
-        if (score < Number(si.maxScore) && !(entry?.reason || '').trim()) missing.push(si.id);
-      }
-    }
+    // P1-15：评分完整性校验（与平板端共用 validateSupplierScores）
+    const missing = validateSupplierScores(project.scoreItems, scores, activeSupplier, scoreKey).map(m => m.itemId);
     if (missing.length > 0) {
       setMissingReasons(new Set(missing));
       toast.warning(`有评分项未完成，已高亮标记，请补充后再提交`);
@@ -559,10 +561,9 @@ export default function ExpertEvaluatePage() {
     setBusy(true);
     try {
       await api.post(`/expert/projects/${projectId}/scores`, { scores: scoresPayload, supplierName });
-      // P0-3: clear draft on successful submit.
-      if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+      // P0-B：不再整键删除草稿（会误删其他供应商未提交分）；合并刷新后自动暂存按剩余未提交分重写
       setDraftAvailable(null);
-      loadProject();
+      loadProject(activeSupplier);
       toast.success(`${supplierName} 评分提交成功`);
     } catch (e: any) { toast.error(e.message || '提交失败'); }
     setBusy(false);
@@ -583,6 +584,15 @@ export default function ExpertEvaluatePage() {
     setBusy(false);
   };
 
+  if (loadError) return (
+    <div className="flex h-64 flex-col items-center justify-center gap-3 text-[oklch(0.55_0.01_264)]">
+      <p>加载失败：{loadError}</p>
+      <button type="button" onClick={() => loadProject()}
+        className="rounded-lg bg-[#064ea2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#054280] active:scale-95">
+        重试
+      </button>
+    </div>
+  );
   if (loading || !project) return <div className="flex items-center justify-center h-64 text-[oklch(0.55_0.01_264)]">加载中...</div>;
   const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
@@ -1408,7 +1418,7 @@ export default function ExpertEvaluatePage() {
                                       style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }}
                                       aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`} tabIndex={0} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
-                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.min(parseFloat(e.target.value) || 0, max), reason: prev[k]?.reason || '' } }))}
+                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), reason: prev[k]?.reason || '' } }))}
                                       onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, isLastItem); }}
                                       className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none"
                                       aria-label={`${item.name} 数值输入`} tabIndex={0} />

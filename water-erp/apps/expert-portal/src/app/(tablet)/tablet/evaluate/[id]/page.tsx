@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { validateSupplierScores } from '@/lib/score-validation';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
@@ -13,6 +14,7 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'reac
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 // 与 (app) evaluate 页面一致的 score 条目结构（精简版，不含 passed/points 之外的 UI 态）
 type ScoreEntry = {
@@ -46,6 +48,7 @@ export default function TabletEvaluatePage() {
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
   const [busy, setBusy] = useState(false);
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
   const [activePointId, setActivePointId] = useState<string | null>(null);
@@ -62,8 +65,10 @@ export default function TabletEvaluatePage() {
   }, [project?.myExpertRecord?.id, projectId]);
 
   // P0-1: hydrate 时用 composite key（与桌面端一致，避免跨供应商串分）
-  const loadProject = useCallback(() => {
+  // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
+  const loadProject = useCallback((committedSupplierId?: string) => {
     setLoading(true);
+    setLoadError(null);
     api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         if (p.restricted || (p.stage !== 'OPENING' && p.stage !== 'EVALUATING')) {
@@ -79,7 +84,15 @@ export default function TabletEvaluatePage() {
             reason: rec.reason || '',
           };
         });
-        setScores(existing);
+        // P0-B：合并而非覆盖——保留其他供应商尚未提交的内存编辑，仅用服务端值覆盖已提交供应商
+        setScores(prev => {
+          const next: Record<string, ScoreEntry> = { ...existing };
+          for (const [k, v] of Object.entries(prev)) {
+            if (committedSupplierId && k.startsWith(`${committedSupplierId}:`)) continue; // 已提交的用服务端值
+            if (!(k in next)) next[k] = v; // 其他供应商的未提交编辑保留
+          }
+          return next;
+        });
         // 同时取 pointDecisions（checklist hydrate）
         api.get<{
           records: unknown[];
@@ -109,7 +122,7 @@ export default function TabletEvaluatePage() {
       })
       .catch(e => {
         const err = e as { message?: string };
-        toast.error(err?.message || '加载项目失败');
+        setLoadError(err?.message || '加载项目失败'); // P1-16：记录错误态供重试
       })
       .finally(() => setLoading(false));
   }, [projectId, router]);
@@ -137,13 +150,24 @@ export default function TabletEvaluatePage() {
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
       try {
-        localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
+        // P2：仅暂存相对服务端未提交的条目，避免把已提交分记为草稿（假「未提交草稿」横幅）
+        const committed = new Set((project?.myScores ?? []).map((r: { supplierId: string; scoreItemId: string }) => scoreKey(r.supplierId, r.scoreItemId)));
+        const draftScores: typeof scores = {};
+        let hasDraft = false;
+        for (const [k, v] of Object.entries(scores)) {
+          if (!committed.has(k)) { draftScores[k] = v; hasDraft = true; }
+        }
+        if (hasDraft) {
+          localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
+        } else {
+          localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
+        }
       } catch { /* quota exceeded — silent */ }
     }, 2000);
     return () => {
       if (draftTimer.current) clearTimeout(draftTimer.current);
     };
-  }, [scores, draftStorageKey]);
+  }, [scores, draftStorageKey, project]);
 
   // ── 草稿操作 ──
   const saveDraft = useCallback(() => {
@@ -212,7 +236,7 @@ export default function TabletEvaluatePage() {
     () =>
       new Set(
         (project?.suppliers ?? [])
-          .filter(s => (s as unknown as { bidValidity?: string }).bidValidity === 'invalid')
+          .filter(s => s.bidValidity === 'invalid') // P2：用共享类型字段，去 unsafe 双 cast
           .map(s => s.id),
       ),
     [project],
@@ -226,6 +250,12 @@ export default function TabletEvaluatePage() {
     !conflictedSupplierIds.has(activeSupplier) &&
     !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!project?.myExpertRecord?.reportConfirmed;
+  // P1-3：身份核验/回避/AI声明完成标志（后端仍强制；前端对齐桌面体验，避免专家填完才报错）
+  const verificationComplete =
+    !!project?.myExpertRecord?.signedIn &&
+    !!project?.myExpertRecord?.avoidanceConfirmed &&
+    !!project?.myExpertRecord?.aiConsentConfirmed;
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false); // P2：重置二次确认
 
   // 按 category 分组
   const grouped = useMemo(() => {
@@ -239,6 +269,12 @@ export default function TabletEvaluatePage() {
 
   const handleSubmit = async () => {
     if (!project || !activeSupplier || !canScoreActiveSupplier || scoreLocked) return;
+    // P1-15：提交前校验评分完整性（与桌面端一致）
+    const missing = validateSupplierScores(project.scoreItems, scores, activeSupplier);
+    if (missing.length > 0) {
+      toast.error(missing[0].message);
+      return;
+    }
     setBusy(true);
     try {
       const supplierName = activeSupplierRecord?.supplierName || '';
@@ -276,11 +312,10 @@ export default function TabletEvaluatePage() {
       });
       await api.post(`/expert/projects/${projectId}/scores`, { scores: payload, supplierName });
       toast.success(`${supplierName} 评分提交成功`);
-      // 提交成功后清除本地草稿
-      if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+      // P0-B：不再整键删除草稿（会误删其他供应商未提交分）；合并刷新后自动暂存按剩余未提交分重写
       setDraftAvailable(null);
       setDraftDismissed(true);
-      loadProject();
+      loadProject(activeSupplier);
     } catch (e) {
       const err = e as ApiError;
       toast.error(err?.message || '提交失败');
@@ -298,6 +333,20 @@ export default function TabletEvaluatePage() {
     [activePointId],
   );
 
+  if (loadError) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-[oklch(0.55_0.01_264)]">
+        <p>加载失败：{loadError}</p>
+        <button
+          type="button"
+          onClick={() => loadProject()}
+          className="rounded-lg bg-[#064ea2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#054280] active:scale-95"
+        >
+          重试
+        </button>
+      </div>
+    );
+  }
   if (loading || !project) {
     return (
       <div className="flex h-64 items-center justify-center text-[oklch(0.55_0.01_264)]">
@@ -341,6 +390,7 @@ export default function TabletEvaluatePage() {
         activeSupplier={activeSupplier}
         onSelect={setActiveSupplier}
         conflictedSupplierIds={conflictedSupplierIds}
+        invalidSupplierIds={invalidSupplierIds}
         decryptLabel={DECRYPT_LABEL}
       />
 
@@ -357,6 +407,11 @@ export default function TabletEvaluatePage() {
           {scoreLocked && (
             <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
               评审报告已确认，评分已锁定，不可再修改。
+            </div>
+          )}
+          {!verificationComplete && !scoreLocked && (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+              请先完成身份核验、回避确认与 AI 辅助评标声明后再提交评分。
             </div>
           )}
 
@@ -549,7 +604,7 @@ export default function TabletEvaluatePage() {
                                   setScores(prev => ({
                                     ...prev,
                                     [k]: {
-                                      score: Math.min(parseFloat(e.target.value) || 0, max),
+                                      score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), // P2：clamp 到 [0, max]，禁负分
                                       reason: prev[k]?.reason || '',
                                     },
                                   }))
@@ -613,27 +668,37 @@ export default function TabletEvaluatePage() {
               {draftSaving ? '暂存中…' : '暂存'}
             </button>
 
-            {/* 重置当前供应商评分 */}
+            {/* 重置当前供应商评分（P2：二次确认，防触屏误触清空） */}
             <button
               type="button"
-              onClick={resetCurrentSupplier}
+              onClick={() => setResetConfirmOpen(true)}
               disabled={busy || !canScoreActiveSupplier}
               className="flex items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white/80 px-4 py-2.5 text-sm font-semibold text-[oklch(0.45_0.01_264)] transition hover:border-[#e74c3c]/30 hover:text-[#e74c3c] active:scale-95 disabled:opacity-50"
             >
               <RotateCcw size={14} strokeWidth={1.7} />
               重置
             </button>
+            <ConfirmDialog
+              open={resetConfirmOpen}
+              title="重置当前供应商评分"
+              message="将清空当前供应商已录入的全部评分，此操作不可撤销。"
+              confirmText="重置"
+              cancelText="取消"
+              danger
+              onConfirm={() => { resetCurrentSupplier(); setResetConfirmOpen(false); }}
+              onCancel={() => setResetConfirmOpen(false)}
+            />
           </>
         )}
 
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={busy || !canScoreActiveSupplier || scoreLocked}
+          disabled={busy || !canScoreActiveSupplier || scoreLocked || !verificationComplete}
           className="flex items-center gap-1.5 rounded-lg bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#054280] disabled:opacity-50 active:scale-95"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} strokeWidth={1.7} />}
-          {busy ? '提交中…' : scoreLocked ? '评分已锁定' : '提交'}
+          {busy ? '提交中…' : scoreLocked ? '评分已锁定' : !verificationComplete ? '请先完成核验' : '提交'}
         </button>
       </div>
     </div>

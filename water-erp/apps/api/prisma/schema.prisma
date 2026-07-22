@@ -433,21 +433,24 @@ model BidScoreItem {
   expertMemos     ExpertMemo[]
   createdAt       DateTime         @default(now())
 
+  @@unique([projectId, name]) // P2：同项目评分项名唯一（防重名致 Σ 校验/模板去重混淆）
   @@index([projectId])
 }
 
 model BidScorePoint {
-  id           String       @id @default(cuid())
-  scoreItemId  String
-  name         String
-  fullScore    Decimal      @default("0") @db.Decimal(5, 1)
-  seq          Int          @default(0)
-  evidenceHint String?
-  objective    Boolean      @default(true)
-  scoreItem    BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
-  decisions    BidScorePointDecision[]
-  memos        ExpertMemo[]
-  createdAt    DateTime     @default(now())
+  id              String       @id @default(cuid())
+  scoreItemId     String
+  name            String
+  fullScore       Decimal      @default("0") @db.Decimal(5, 1)
+  seq             Int          @default(0)
+  evidenceHint    String?
+  evidenceSection String?      // 招标文件章节名（AI 提取时记录）
+  confidence      Decimal?     @db.Decimal(3, 2)  // 0-1 信心分（AI 提取时记录）
+  objective       Boolean      @default(true)
+  scoreItem       BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  decisions       BidScorePointDecision[]
+  memos           ExpertMemo[]
+  createdAt       DateTime     @default(now())
 
   @@index([scoreItemId])
 }
@@ -464,6 +467,7 @@ model BidScoreRecord {
   scoreItem   BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
   supplier    BidSupplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt // P2：记录最后修改时间（评分可改，需审计轨迹）
 
   @@unique([expertId, scoreItemId, supplierId])
   @@index([supplierId])

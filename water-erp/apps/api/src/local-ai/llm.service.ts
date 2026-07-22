@@ -117,7 +117,7 @@ export class LlmService {
         body: JSON.stringify({
           model: provider.model,
           temperature,
-          max_tokens: 8192,
+          max_tokens: 16384,
           ...(seed != null ? { seed } : {}),
           messages: [
             { role: 'system', content: systemPrompt },
@@ -168,7 +168,7 @@ export class LlmService {
         body: JSON.stringify({
           model: provider.model,
           temperature,
-          max_tokens: 8192,
+          max_tokens: 16384,
           response_format: { type: 'json_object' },
           ...(seed != null ? { seed } : {}),
           messages: [
@@ -208,6 +208,9 @@ export class LlmService {
     try {
       return JSON.parse(cleaned) as T;
     } catch {
+      this.logger.warn(
+        `JSON parse failed, raw content (first 500): ${cleaned.slice(0, 500)}`,
+      );
       this.logger.error(
         `JSON parse failed for content: ${cleaned.slice(0, 200)}...`,
       );

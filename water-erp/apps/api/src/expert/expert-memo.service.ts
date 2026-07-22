@@ -45,6 +45,20 @@ export class ExpertMemoService {
         code: 'NOT_PROJECT_EXPERT',
       });
 
+    // P2：归属校验——supplierId/scoreItemId/scorePointId 须属于本项目（防备忘挂到别项目实体）
+    if (dto.supplierId) {
+      const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: dto.supplierId, projectId } });
+      if (!supplier) throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+    }
+    if (dto.scoreItemId) {
+      const item = await this.prisma.bidScoreItem.findFirst({ where: { id: dto.scoreItemId, projectId } });
+      if (!item) throw new BadRequestException({ error: '评分项不属于此项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
+    }
+    if (dto.scorePointId) {
+      const point = await this.prisma.bidScorePoint.findFirst({ where: { id: dto.scorePointId, scoreItem: { projectId } } });
+      if (!point) throw new BadRequestException({ error: '得分点不属于此项目', code: 'SCORE_POINT_NOT_IN_PROJECT' });
+    }
+
     let inkFileId: string | undefined;
     let contentText = dto.contentText;
     if (dto.inkBuffer) {

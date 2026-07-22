@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, Optional, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
@@ -579,6 +579,7 @@ export class BidService {
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${id} FOR UPDATE`; // P1-17：与评分标准编辑互斥
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'EVALUATING' },
@@ -1198,10 +1199,11 @@ export class BidService {
 
       ranked.push({ supplierId: supplier.id, supplierName: supplier.supplierName, totalScore, averageScore, disqualified: !!passFailVerdicts.get(supplier.id) });
     }
-    // 合格者在前、废标者在后；同组内按 averageScore 降序
+    // 合格者在前、废标者在后；同组内按 averageScore 降序；同分按供应商名确定性排序（P2：tiebreaker，结果可复现）
     ranked.sort((a, b) => {
       if (a.disqualified !== b.disqualified) return a.disqualified ? 1 : -1;
-      return b.averageScore - a.averageScore;
+      if (b.averageScore !== a.averageScore) return b.averageScore - a.averageScore;
+      return a.supplierName.localeCompare(b.supplierName, 'zh-CN');
     });
 
     const qualifiedRanked = ranked.filter(r => !r.disqualified);
@@ -1279,6 +1281,10 @@ export class BidService {
     if (!expert) {
       throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' });
     }
+    // P1-5：代评锁定——专家已确认报告后不可再代评改分
+    if (expert.reportConfirmed) {
+      throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+    }
 
     // 校验 scoreItem 属于该项目
     const scoreItem = await this.prisma.bidScoreItem.findFirst({
@@ -1294,6 +1300,10 @@ export class BidService {
     });
     if (!bidSupplier) {
       throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+    }
+    // P1-9：代评不可对未解密成功/已撤回的供应商打分（与专家自评口径一致）
+    if (bidSupplier.decryptStatus !== 'SUCCESS' || bidSupplier.submitStatus === '已撤回') {
+      throw new BadRequestException({ error: '该供应商未解密成功或已撤回，无法代评', code: 'SUPPLIER_NOT_DECRYPTED' });
     }
 
     // 校验分数不超过评分项满分
@@ -1331,52 +1341,69 @@ export class BidService {
         category: scoreItem.category,
         points: points.map(p => ({ id: p.id, objective: p.objective, fullScore: Number(p.fullScore) })),
         decisions: decisionMap,
+        maxScore: Number(scoreItem.maxScore), // P0-A：封顶，防止数据异常使单项分 > maxScore
       });
       finalScore = recomputed.score;
       finalPassed = recomputed.passed ?? dto.passed;
-
-      for (const d of dto.pointDecisions) {
-        await this.prisma.bidScorePointDecision.upsert({
-          where: { expertId_pointId_supplierId: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId } },
-          update: { checked: d.checked, awardedScore: d.awardedScore, note: d.note },
-          create: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId, checked: d.checked, awardedScore: d.awardedScore, note: d.note },
-        });
-      }
+      // （decision 的写 upsert 移入下方事务，与 record/review/progress 原子提交）
     }
 
-    // 利用唯一约束 upsert：存在则更新，不存在则创建
-    const record = await this.prisma.bidScoreRecord.upsert({
-      where: {
-        expertId_scoreItemId_supplierId: {
+    // P1-4/P1-5：写操作整体事务化（decisions + record + review + progress），中途失败整体回滚
+    const { record, progress } = await this.prisma.$transaction(async (tx) => {
+      // checklist 得分点裁定写入
+      if (points.length > 0 && dto.pointDecisions) {
+        for (const d of dto.pointDecisions) {
+          await tx.bidScorePointDecision.upsert({
+            where: { expertId_pointId_supplierId: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId } },
+            update: { checked: d.checked, awardedScore: d.awardedScore, note: d.note },
+            create: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId, checked: d.checked, awardedScore: d.awardedScore, note: d.note },
+          });
+        }
+      }
+      // 利用唯一约束 upsert：存在则更新，不存在则创建
+      const rec = await tx.bidScoreRecord.upsert({
+        where: {
+          expertId_scoreItemId_supplierId: {
+            expertId: dto.expertId,
+            scoreItemId: dto.scoreItemId,
+            supplierId: dto.supplierId,
+          },
+        },
+        update: { score: finalScore, reason: dto.reason, ...(finalPassed !== undefined ? { passed: finalPassed } : {}) },
+        create: {
           expertId: dto.expertId,
           scoreItemId: dto.scoreItemId,
           supplierId: dto.supplierId,
+          score: finalScore,
+          reason: dto.reason,
+          ...(finalPassed !== undefined ? { passed: finalPassed } : {}),
         },
-      },
-      update: { score: finalScore, reason: dto.reason, ...(finalPassed !== undefined ? { passed: finalPassed } : {}) },
-      create: {
-        expertId: dto.expertId,
-        scoreItemId: dto.scoreItemId,
-        supplierId: dto.supplierId,
-        score: finalScore,
-        reason: dto.reason,
-        ...(finalPassed !== undefined ? { passed: finalPassed } : {}),
-      },
+      });
+      // P1-4：代评也写核对记录（否则专家核对时 P2025 → 无法确认报告）；改分后重置为 draft 需重新核对
+      await tx.bidScoreReview.upsert({
+        where: { expertId_projectId_supplierId: { expertId: dto.expertId, projectId, supplierId: dto.supplierId } },
+        update: { status: 'draft', verifiedAt: null },
+        create: { expertId: dto.expertId, projectId, supplierId: dto.supplierId, status: 'draft' },
+      });
+      // 同步专家进度/总分（事务内，复用纯函数，与 ExpertService.submitScores 同口径）
+      const { progress, totalScore } = await recomputeExpertProgress(tx, dto.expertId, projectId);
+      await tx.bidExpert.update({ where: { id: expert.id }, data: { progress, totalScore } });
+      return { record: rec, progress };
     });
 
-    // 非否认审计：此为管理端代评/改分通道（bid_expert 走 expert 模块自评），记录实际操作者
+    // 非否认审计：此为管理端代评/改分通道（bid_expert 走 expert 模块自评），记录实际操作者与落库分 finalScore
     if (actorId) {
       this.prisma.auditLog.create({
         data: {
           userId: actorId,
           action: 'BID_SCORE_SUBMIT',
           resourceType: `BidProject:${projectId}`,
-          details: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: dto.score },
+          details: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: finalScore },
         },
       }).catch((err) => this.logger.error('评分提交审计日志写入失败', err));
     }
 
-    // P1: 评分偏差实时检测
+    // P1: 评分偏差实时检测（事务外只读 + 广播）
     const existingRows = await this.prisma.bidScoreRecord.findMany({
       where: { scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, expertId: { not: dto.expertId } },
       select: { expertId: true, scoreItemId: true, supplierId: true, score: true },
@@ -1400,13 +1427,6 @@ export class BidService {
         severity: alert.severity,
       });
     }
-
-    // 同步更新专家进度和总分（复用纯函数，与 ExpertService.submitScores 同口径）
-    const { progress, totalScore } = await recomputeExpertProgress(this.prisma, dto.expertId, projectId);
-    await this.prisma.bidExpert.update({
-      where: { id: expert.id },
-      data: { progress, totalScore },
-    });
 
     // P2: 不再广播分数值（专家独立评审）。仅通知"评分活动"里程碑 + 刷新聚合在场（无分数）。
     this.gateway?.notifyExpertPresence(projectId, {
@@ -1939,6 +1959,17 @@ export class BidService {
     }
   }
 
+  /**
+   * P1-17：事务内锁定项目行（SELECT ... FOR UPDATE）并复查评分标准可编辑性。
+   * 与 startEvaluation（同样 FOR UPDATE 后置 EVALUATING）互斥，消除「事务外校验通过后阶段被并发流转」的 TOCTOU。
+   */
+  private async reassertScoreItemsEditableInTx(tx: Prisma.TransactionClient, projectId: string): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${projectId} FOR UPDATE`;
+    const p = await tx.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, scoreStandardPublishedAt: true } });
+    if (!p) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(p.stage as BidStage, p.scoreStandardPublishedAt);
+  }
+
   listScoreItems(projectId: string) {
     return this.prisma.bidScoreItem.findMany({
       where: { projectId },
@@ -1958,6 +1989,7 @@ export class BidService {
 
     const result = `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`;
     const created = await this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       const item = await tx.bidScoreItem.create({
         data: { projectId, category: dto.category, name: dto.name, maxScore: dto.maxScore },
       });
@@ -1993,6 +2025,7 @@ export class BidService {
     if (dto.maxScore !== undefined && Number(dto.maxScore) !== Number(existing.maxScore)) diffs.push(`maxScore ${existing.maxScore}→${dto.maxScore}`);
 
     return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       const updated = await tx.bidScoreItem.update({
         where: { id: itemId },
         data: {
@@ -2001,6 +2034,9 @@ export class BidService {
           ...(dto.maxScore !== undefined && { maxScore: dto.maxScore }),
         },
       });
+      // P0-A：（降）满分后复查 Σ得分点满分 ≤ 新满分，违反不变量则整体回滚
+      const newMax = dto.maxScore !== undefined ? Number(dto.maxScore) : Number(existing.maxScore);
+      await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, newMax, 0);
       if (diffs.length > 0) {
         await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', `修改评分项「${existing.name}」:${diffs.join(', ')}`);
       }
@@ -2021,6 +2057,7 @@ export class BidService {
 
     const result = `删除评分项「${existing.name}」`;
     await this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', result);
       await tx.bidScoreItem.delete({ where: { id: itemId } });
     });
@@ -2053,6 +2090,7 @@ export class BidService {
   async createScorePoint(projectId: string, itemId: string, dto: CreateScorePointDto) {
     const item = await this.assertScoreItemInProject(projectId, itemId);
     return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), Number(dto.fullScore));
       return tx.bidScorePoint.create({
         data: {
@@ -2075,6 +2113,7 @@ export class BidService {
     }
     const delta = dto.fullScore !== undefined ? Number(dto.fullScore) - Number(existing.fullScore) : 0;
     return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       if (delta !== 0) {
         await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
       }
@@ -2097,7 +2136,10 @@ export class BidService {
     if (!existing) {
       throw new BadRequestException({ error: '得分点不存在', code: 'NOT_FOUND' });
     }
-    return this.prisma.bidScorePoint.delete({ where: { id: pointId } });
+    return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      return tx.bidScorePoint.delete({ where: { id: pointId } });
+    });
   }
 
   /** 批量导入得分点（管理员审核 AI 建议后）。复用 assertScoreItemInProject 做归属 + 阶段锁校验。 */
@@ -2105,6 +2147,7 @@ export class BidService {
     const item = await this.assertScoreItemInProject(projectId, itemId);
     const delta = dto.points.reduce((s, p) => s + Number(p.fullScore), 0);
     return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
       return tx.bidScorePoint.createMany({
         data: dto.points.map((p) => ({
@@ -2112,6 +2155,8 @@ export class BidService {
           name: p.name,
           fullScore: p.fullScore,
           evidenceHint: p.evidenceHint ?? null,
+          evidenceSection: p.evidenceSection ?? null,
+          confidence: p.confidence ?? null,
           objective: p.objective ?? true,
         })),
       });
@@ -2142,6 +2187,7 @@ export class BidService {
     if (toCreate.length > 0) {
       const result = `应用标准模板，新增 ${toCreate.length} 项`;
       await this.prisma.$transaction(async (tx) => {
+        await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
         await tx.bidScoreItem.createMany({
           data: toCreate.map(t => ({ projectId, category: t.category, name: t.name, maxScore: t.maxScore })),
         });
@@ -2165,6 +2211,12 @@ export class BidService {
     await this.scoreStandardValidator.assertScoreStandardComplete(projectId);
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      // P2：行锁 + 事务内复查 publishedAt，消除并发双发布竞态
+      await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${projectId} FOR UPDATE`;
+      const locked = await tx.bidProject.findUnique({ where: { id: projectId }, select: { scoreStandardPublishedAt: true } });
+      if (locked?.scoreStandardPublishedAt) {
+        throw new ConflictException({ error: '评分标准已发布,不可重复发布', code: 'SCORE_STANDARD_ALREADY_PUBLISHED' });
+      }
       const result = await tx.bidProject.update({
         where: { id: projectId },
         data: { scoreStandardPublishedAt: new Date() },
@@ -2239,6 +2291,7 @@ export class BidService {
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       const existing = await tx.bidScoreItem.findMany({ where: { projectId }, select: { name: true } });
       const existingNames = new Set(existing.map((e) => e.name));
       const toCreate = payload.items.filter((it) => !existingNames.has(it.name));
@@ -2258,6 +2311,8 @@ export class BidService {
             })),
           });
         }
+        // P0-A：模板得分点 ΣfullScore 不得超过该项满分（不变量），违反则整体回滚
+        await this.scoreStandardValidator.assertPointsSumWithinMax(tx, item.id, Number(it.maxScore), 0);
       }
 
       if (toCreate.length > 0) {
@@ -2270,14 +2325,18 @@ export class BidService {
     return this.listScoreItems(projectId);
   }
 
-  async deleteScoreTemplate(templateId: string, userId?: string) {
+  async deleteScoreTemplate(templateId: string, userId?: string, role?: string) {
     const tpl = await this.prisma.scoreTemplate.findUnique({
       where: { id: templateId },
       select: { id: true, createdById: true },
     });
     if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
-    if (tpl.createdById && tpl.createdById !== userId) {
-      throw new BadRequestException({ error: '只能删除自己保存的模板', code: 'FORBIDDEN' });
+    // P2：公共模板（createdById=null）仅管理员可删；私有模板仅创建者或管理员可删
+    const isAdmin = role === 'admin' || role === 'bid_host';
+    if (tpl.createdById === null) {
+      if (!isAdmin) throw new ForbiddenException({ error: '公共模板仅管理员可删除', code: 'FORBIDDEN' });
+    } else if (tpl.createdById !== userId && !isAdmin) {
+      throw new ForbiddenException({ error: '只能删除自己保存的模板', code: 'FORBIDDEN' });
     }
     await this.prisma.scoreTemplate.delete({ where: { id: templateId } });
     return { deleted: true };

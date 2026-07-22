@@ -36,8 +36,8 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   get: <T>(path: string) => fetchApi<T>(path),
-  post: <T>(path: string, body: unknown) =>
-    fetchApi<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  post: <T>(path: string, body: unknown, options?: RequestInit) =>
+    fetchApi<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...options }),
   patch: <T>(path: string, body: unknown) =>
     fetchApi<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   delete: <T>(path: string) =>
