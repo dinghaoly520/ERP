@@ -13,6 +13,7 @@ dist/
 .worktrees/
 water-erp/apps/api/uploads/
 water-erp/apps/web/uploads/
+water-erp/uploads/
 
 # 采购业务文档（PDF 标书/合同等，非代码，勿入库）
 /4.17*
