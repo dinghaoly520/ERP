@@ -260,6 +260,11 @@ export class ScorePointExtractorService {
     }
   }
 
+  /** 主动清除招标文件文本缓存（公告重发/文件替换时调用） */
+  invalidateTenderCache(projectId: string): void {
+    this.tenderTextCache.delete(projectId);
+  }
+
   // ── E4 辅助方法 ──
 
   /** Levenshtein 编辑距离 */
