@@ -406,13 +406,13 @@ a:hover { color: var(--sp-primary-light); }
   justify-content: space-between;
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .sp-module-title {
   font-size: 14px;
   font-weight: 800;
-  color: var(--sp-gray-900);
+  color: var(--foreground);
 }
 
 /* ─── Card: backward-compat alias for sp-module ─── */
@@ -430,13 +430,13 @@ a:hover { color: var(--sp-primary-light); }
   justify-content: space-between;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .sp-card-title {
   font-size: 14px;
   font-weight: 800;
-  color: var(--sp-gray-900);
+  color: var(--foreground);
 }
 
 /* ─── Section divider ─── */
@@ -802,67 +802,35 @@ a:hover { color: var(--sp-primary-light); }
     radial-gradient(ellipse at 36% 88%, var(--glass-glow-3, rgba(190,18,60,0.05)), transparent 55%);
 }
 
-/* ─── Glass module override: sp-module → glass-card-blue ─── */
+/* ─── Neumorphic module — impeccable directional-shadow plate (no glass / no backdrop / no pseudo glow) ─── */
 .sp-module {
   position: relative;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: var(--sp-radius-md);
-  padding: 16px;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  border: none;
+  border-radius: 16px;
+  padding: 20px;
   box-shadow:
-    0 1px 2px rgba(15, 35, 65, 0.02),
-    0 4px 16px rgba(91, 155, 213, 0.04);
+    5px 5px 12px oklch(0.55 0.03 258 / 0.09),
+    -4px -4px 10px oklch(1 0 0 / 0.85),
+    inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
-.sp-module::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.48;
-  border-radius: inherit;
-  background-image:
-    radial-gradient(ellipse at 12% 8%,  rgba(96, 165, 250, 0.22), transparent 55%),
-    radial-gradient(ellipse at 82% 16%, rgba(56, 189, 248, 0.14), transparent 55%),
-    radial-gradient(ellipse at 38% 88%, rgba(6, 78, 162, 0.08), transparent 55%);
-  animation: glass-glow-drift 18s ease-in-out infinite;
-}
-.sp-module:hover::before { opacity: 0.62; }
 .sp-module > * { position: relative; z-index: 1; }
-.sp-module + .sp-module { margin-top: 16px; }
+.sp-module + .sp-module { margin-top: 20px; }
 
-/* ─── Glass card: backward-compat alias ─── */
+/* ─── Neumorphic card: backward-compat alias for sp-module ─── */
 .sp-card {
   position: relative;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: var(--sp-radius-md);
-  padding: 16px;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  border: none;
+  border-radius: 16px;
+  padding: 20px;
   box-shadow:
-    0 1px 2px rgba(15, 35, 65, 0.02),
-    0 4px 16px rgba(91, 155, 213, 0.04);
+    5px 5px 12px oklch(0.55 0.03 258 / 0.09),
+    -4px -4px 10px oklch(1 0 0 / 0.85),
+    inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
-.sp-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.48;
-  border-radius: inherit;
-  background-image:
-    radial-gradient(ellipse at 12% 8%,  rgba(96, 165, 250, 0.22), transparent 55%),
-    radial-gradient(ellipse at 82% 16%, rgba(56, 189, 248, 0.14), transparent 55%),
-    radial-gradient(ellipse at 38% 88%, rgba(6, 78, 162, 0.08), transparent 55%);
-  animation: glass-glow-drift 18s ease-in-out infinite;
-}
-.sp-card:hover::before { opacity: 0.62; }
 .sp-card > * { position: relative; z-index: 1; }
-.sp-card + .sp-card { margin-top: 16px; }
+.sp-card + .sp-card { margin-top: 20px; }
 
 /* ─── Glass hero card ─── */
 .sp-page-hero-card {

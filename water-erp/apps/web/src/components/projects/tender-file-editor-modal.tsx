@@ -828,7 +828,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
       <div className="relative z-10 mx-5 my-5 flex flex-1 flex-col overflow-hidden rounded-[28px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.94), oklch(0.988 0.005 258 / 0.62))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
 
         {/* ══════ Header ══════ */}
-        <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.975 0.006 258 / 0.58) 60%)', borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+        <div className="relative flex shrink-0 items-center justify-between gap-3 px-6 py-4" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.975 0.006 258 / 0.58) 60%)', borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px]" style={ICON_BOX}><Pencil size={17} className="text-[var(--accent)]" /></div>
             <div className="min-w-0">
@@ -842,6 +842,47 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
               className={`neu-btn-soft gap-1.5 h-8 text-xs ${searchOpen ? 'text-[var(--accent)]' : ''}`}>
               <Search size={13} />查找
             </button>
+
+            {/* ─── 查找定位面板：定位在 header 查找按钮正下方，不受左右分屏影响 ─── */}
+            {searchOpen && (
+              <div className="absolute right-5 top-full z-30 mt-1 flex items-center gap-1 rounded-[14px] px-3 py-1.5"
+                style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.82))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 2px 3px 8px oklch(0.5 0.04 258 / 0.16), -1px -1px 3px oklch(1 0 0 / 0.85)' }}>
+                <Search size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+                <input ref={searchInputRef} autoFocus value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); gotoMatch(e.shiftKey ? -1 : 1); } }}
+                  placeholder="在文档中查找…"
+                  className="w-44 bg-transparent text-xs text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted-foreground)]/50" />
+                <span className={`w-12 shrink-0 text-center text-[10px] tabular-nums ${searchQuery.trim() && searchCount === 0 ? 'font-semibold' : 'text-[var(--muted-foreground)]'}`}
+                  style={searchQuery.trim() && searchCount === 0 ? { color: 'var(--danger)' } : undefined}>
+                  {searchQuery.trim() ? (searchCount > 0 ? `${searchIndex + 1}/${searchCount}` : '无匹配') : ' '}
+                </span>
+                <span className="h-4 w-px shrink-0" style={{ background: 'oklch(0.6 0.04 258 / 0.2)' }} />
+                {/* 上/下翻找配对控件 —— neumorphic 分组按钮，方向性双影 + 内高光线 */}
+                <div className="flex shrink-0 overflow-hidden rounded-[7px]"
+                  style={{
+                    background: 'oklch(0.98 0.005 258)',
+                    boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 1px 3px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.8)',
+                  }}>
+                  <button type="button" onClick={() => gotoMatch(-1)} disabled={searchCount === 0}
+                    title="上一个匹配（Shift+Enter）"
+                    className="grid h-[26px] w-[26px] place-items-center text-[var(--muted-foreground)] transition-all duration-200 hover:text-[var(--accent-strong)] hover:bg-[oklch(0.96_0.008_258)] active:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258_/_0.14),inset_-1px_-1px_3px_oklch(1_0_0_/_0.5)] disabled:opacity-25 disabled:pointer-events-none">
+                    <ChevronUp size={14} strokeWidth={2} />
+                  </button>
+                  <span className="block w-px self-stretch" style={{ background: 'oklch(0.6 0.04 258 / 0.16)' }} />
+                  <button type="button" onClick={() => gotoMatch(1)} disabled={searchCount === 0}
+                    title="下一个匹配（Enter）"
+                    className="grid h-[26px] w-[26px] place-items-center text-[var(--muted-foreground)] transition-all duration-200 hover:text-[var(--accent-strong)] hover:bg-[oklch(0.96_0.008_258)] active:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258_/_0.14),inset_-1px_-1px_3px_oklch(1_0_0_/_0.5)] disabled:opacity-25 disabled:pointer-events-none">
+                    <ChevronDown size={14} strokeWidth={2} />
+                  </button>
+                </div>
+                <button type="button" onClick={closeSearch} title="关闭查找（Esc）"
+                  className="grid h-[26px] w-[26px] place-items-center rounded-[7px] text-[var(--muted-foreground)] transition-all duration-200 hover:text-[var(--foreground)] hover:bg-[oklch(1_0_0_/_0.4)] active:shadow-[inset_1px_1px_2px_oklch(0.55_0.03_258_/_0.12)]">
+                  <X size={13} strokeWidth={2} />
+                </button>
+              </div>
+            )}
+
             {/* 导入审阅文件 */}
             <input ref={fileInputRef} type="file" accept=".docx,.doc" onChange={handleImportReview} className="hidden" />
             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={reviewImporting || loading}
@@ -882,35 +923,6 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
               <div className="flex items-center justify-center flex-1"><Loader2 size={28} className="animate-spin text-[var(--accent)]" /></div>
             ) : (
               <div className="relative flex-1 min-h-0">
-                {/* ─── 查找定位面板 ─── */}
-                {searchOpen && (
-                  <div className="absolute right-5 top-3 z-30 flex items-center gap-1 rounded-[14px] px-3 py-1.5"
-                    style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.82))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 2px 3px 8px oklch(0.5 0.04 258 / 0.16), -1px -1px 3px oklch(1 0 0 / 0.85)' }}>
-                    <Search size={13} className="shrink-0 text-[var(--muted-foreground)]" />
-                    <input ref={searchInputRef} autoFocus value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); gotoMatch(e.shiftKey ? -1 : 1); } }}
-                      placeholder="在文档中查找…"
-                      className="w-44 bg-transparent text-xs text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--muted-foreground)]/50" />
-                    <span className={`w-12 shrink-0 text-center text-[10px] tabular-nums ${searchQuery.trim() && searchCount === 0 ? 'font-semibold' : 'text-[var(--muted-foreground)]'}`}
-                      style={searchQuery.trim() && searchCount === 0 ? { color: 'var(--danger)' } : undefined}>
-                      {searchQuery.trim() ? (searchCount > 0 ? `${searchIndex + 1}/${searchCount}` : '无匹配') : ' '}
-                    </span>
-                    <span className="h-4 w-px shrink-0" style={{ background: 'oklch(0.6 0.04 258 / 0.2)' }} />
-                    <button type="button" onClick={() => gotoMatch(-1)} disabled={searchCount === 0} title="上一个（Shift+Enter）"
-                      className="rounded-[8px] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.5)] hover:text-[var(--foreground)] disabled:opacity-30">
-                      <ChevronUp size={13} />
-                    </button>
-                    <button type="button" onClick={() => gotoMatch(1)} disabled={searchCount === 0} title="下一个（Enter）"
-                      className="rounded-[8px] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.5)] hover:text-[var(--foreground)] disabled:opacity-30">
-                      <ChevronDown size={13} />
-                    </button>
-                    <button type="button" onClick={closeSearch} title="关闭查找（Esc）"
-                      className="rounded-[8px] p-1 text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(1_0_0_/_0.5)] hover:text-[var(--foreground)]">
-                      <X size={13} />
-                    </button>
-                  </div>
-                )}
                 <div ref={scrollLeftRef} onScroll={handleLeftScroll} className="h-full overflow-y-auto" style={{ background: 'oklch(0.96 0.008 258 / 0.4)' }}>
                   <div className="py-10 px-6">
                     <div className={`mx-auto rounded-[2px] ${isDualPane ? 'max-w-full' : 'max-w-[794px]'}`}

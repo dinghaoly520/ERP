@@ -837,6 +837,16 @@ export class ProjectManagementService {
 
     const systemPrompt = `你是一个专业的文档信息提取助手。请从用户提供的文档文本中识别指定字段的候选值。
 
+【重要：文档结构认知】
+文档可能是采购申请表/审批表/评审表等含审批流程的表格文件。这类文件通常分为两个区域：
+- 表单正文区（前部）：包含申请事项名称、申请人、部门、预算、事由、要求等核心采购信息
+- 审批流转区（后部）：包含审批人签字栏、审批意见、日期、签章等流程信息
+
+提取字段值时，请遵循以下原则：
+1. 优先在表单正文区查找目标字段值，不要将审批流转区的审批人姓名、审批意见误认为目标字段
+2. 字段值可能以表格行形式出现（如"需求申请人 | 张三"），需正确解析行列对应关系
+3. 如果文档是审批表，标题行或表头区域通常是字段值最集中的位置
+
 请提取所有可能值，并按置信度从高到低排序。每个候选值需要提供：
 1. value: 提取的值
 2. confidence: 置信度 (0.0-1.0)
@@ -850,7 +860,10 @@ export class ProjectManagementService {
     const userPrompt = `请从以下文档文本中识别"${fieldName}"字段的候选值：\n\n${documentText.slice(0, 4000)}`;
 
     try {
-      const content = await this.aiService.chatJson(systemPrompt, userPrompt, 0.1);
+      // chatJson 内部设 response_format: json_object 强制 LLM 返回 JSON 对象，
+      // 会导致返回值已被 parseJson 解析成 JS 对象，而非原始字符串。此处改用 chat()
+      // 返回 raw string，再自行匹配 JSON 数组。
+      const content = await this.aiService.chat(systemPrompt, userPrompt, 0.1);
       const jsonMatch = content.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]).slice(0, topK);
@@ -2414,6 +2427,11 @@ export class ProjectManagementService {
   ) {
     const systemPrompt = `你是一个采购需求表信息提取助手。你的任务是复核算法提取的结果，并根据PDF原文内容进行修正和补充。
 
+【重要：文档结构认知】
+采购需求申请表通常包含两个区域：
+- 表单正文区（前部）：含申请采购事项名称、需求申请人、需求部门、预算金额、采购类别、采购方式、申请立项事由/情况说明、对供方的主要要求等核心字段
+- 审批流转区（后部）：含审批人签字栏、审批意见（同意/不同意/条件同意等）、审批日期、签章等流程信息
+
 请输出一个JSON对象，包含以下字段：
 {
   "requesterName": "需求申请人姓名",
@@ -2433,7 +2451,10 @@ export class ProjectManagementService {
 2. 如果算法提取的字段值为空或不正确，根据原文内容修正
 3. 特别注意"申请立项事由/情况说明"和"对供方的主要要求"这两个字段，它们通常是多行文本
 4. 所有字段都必须填写，如果原文中没有对应信息，填写空字符串
-5. 只输出JSON，不要输出其他内容`;
+5. 只输出JSON，不要输出其他内容
+6. ★★★ "申请立项事由/情况说明"和"对供方的主要要求"应从表单正文区提取，不得包含审批流转区中审批人的审批意见（如"同意""拟同意""建议补充XX"等）
+7. ★★★ "需求申请人"应从表单正文区提取，不得误取审批流转区中的审批人姓名
+8. ★★★ 审批流转区中的审批意见、审批人签名、日期等内容不属于任何采购信息字段，请勿混入`;
 
     const userPrompt = `以下是采购需求表PDF的原文内容：
 

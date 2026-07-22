@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Upload, FileText, CheckCircle, Loader2, Sparkles, ArrowLeft, ChevronDown } from 'lucide-react';
+import { X, Upload, FileText, CheckCircle, Loader2, Sparkles, ChevronDown } from 'lucide-react';
 import {
   createProjectManagementItem,
   extractInitiationFields,
@@ -501,17 +501,17 @@ export function CreateProjectDialog({
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-[color:var(--foreground)]">{comparison.label}</span>
               {aiLoading === comparison.fieldName ? (
-                <span className="neu-opt inline-flex h-7 w-7 items-center justify-center text-[var(--accent)]">
+                <span className="neu-btn-xs pointer-events-none text-[var(--accent)]">
                   <Loader2 size={14} className="animate-spin" />
                 </span>
               ) : (
                 <button
                   type="button"
                   title="AI 识别"
-                  onClick={() => { const text = demandExtractedText || initiationExtractedText; if (text) void handleAiIdentify(comparison.fieldName, text); }}
-                  className="neu-opt group inline-flex h-7 w-7 items-center justify-center text-[var(--accent)]"
+                  onClick={() => { const text = demandExtractedText || initiationExtractedText; if (text) { void handleAiIdentify(comparison.fieldName, text); } else { setErrorMessage('请先上传并解析 PDF 文档，再使用 AI 识别功能。'); } }}
+                  className="neu-btn-xs text-[var(--accent)]"
                 >
-                  <Sparkles size={14} className="transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                  <Sparkles size={14} />
                 </button>
               )}
             </div>
@@ -803,7 +803,7 @@ export function CreateProjectDialog({
           <div className="space-y-2">
             <label className="text-xs font-semibold text-[var(--success)]">预算参考（元）</label>
             {analyzingBudget && (
-              <div className="neu-surface flex h-[53px] items-center justify-center">
+              <div className="neu-surface flex h-[40px] items-center justify-center">
                 <span className="inline-flex items-center gap-2 text-xs text-[color:var(--muted-foreground)]">
                   <Loader2 size={14} className="animate-spin" />
                   分析中...
@@ -831,7 +831,7 @@ export function CreateProjectDialog({
                       {/* Tier 3：仅历史参考区间，规模未核实，不可作单点填入 */}
                       {!hasPoint && hasRange && (
                         <div className="neu-surface flex h-[53px] flex-col items-center justify-center gap-0.5 px-3 text-center">
-                          <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">{budgetReference.tierLabel ?? '历史参考区间'}（含规模差异·不作单点）</span>
+                          <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">{budgetReference.tierLabel ?? '历史参考区间'}</span>
                           <span className="tabular-nums text-sm font-semibold text-[color:var(--foreground)]">
                             {budgetReference.rangeLow!.toLocaleString()} – {budgetReference.rangeHigh!.toLocaleString()}
                           </span>
@@ -1024,12 +1024,12 @@ export function CreateProjectDialog({
               </div>
             )}
             {!analyzingBudget && budgetReference && !budgetReference.hasReference && (
-              <div className="neu-surface flex h-[53px] items-center justify-center">
+              <div className="neu-surface flex h-[40px] items-center justify-center">
                 <span className="text-xs text-[color:var(--muted-foreground)]">{budgetReference.message}</span>
               </div>
             )}
             {!analyzingBudget && !budgetReference && (
-              <div className="neu-surface flex h-[53px] items-center justify-center">
+              <div className="neu-surface flex h-[40px] items-center justify-center">
                 <span className="text-xs text-[color:var(--muted-foreground)]">点击"确认并继续"获取参考</span>
               </div>
             )}
@@ -1042,7 +1042,7 @@ export function CreateProjectDialog({
               type="button"
               onClick={() => handlePolishField('projectReason')}
               disabled={polishingField !== null}
-              className="neu-btn-xs is-info"
+              className="neu-btn-xs"
             >
               {polishingField === 'projectReason' ? (
                 <Loader2 size={12} className="animate-spin" />
@@ -1066,7 +1066,7 @@ export function CreateProjectDialog({
               type="button"
               onClick={() => handlePolishField('supplierRequirements')}
               disabled={polishingField !== null}
-              className="neu-btn-xs is-info"
+              className="neu-btn-xs"
             >
               {polishingField === 'supplierRequirements' ? (
                 <Loader2 size={12} className="animate-spin" />
@@ -1099,9 +1099,9 @@ export function CreateProjectDialog({
           <button
             type="button"
             onClick={() => { resetState(); onClose(); }}
-            className="neu-opt absolute right-4 top-4 z-[2] grid h-10 w-10 place-items-center text-[color:var(--muted-foreground)]"
+            className="neu-btn-xs absolute right-4 top-4 z-[2]"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
 
           {/* Fixed Header */}
@@ -1167,12 +1167,8 @@ export function CreateProjectDialog({
               <div className="flex justify-between">
                 <button
                   type="button"
-                  onClick={() => {
-                    const comparisons = compareFields(demandFields, initiationFields);
-                    setFieldComparisons(comparisons);
-                    setStep('compare');
-                  }}
-                  className="neu-btn-soft"
+                  onClick={() => { setStep('review'); void handleAnalyzeBudgetReference(); }}
+                  className="neu-btn-soft h-[38px]"
                 >
                   跳过，手动填写
                 </button>
@@ -1183,7 +1179,7 @@ export function CreateProjectDialog({
                     if (initiationFile && !initiationExtracted) void handleExtractInitiation();
                   }}
                   disabled={(!demandFile && !initiationFile) || (demandExtracted && initiationExtracted) || extractingDemand || extractingInitiation}
-                  className="neu-btn-primary"
+                  className="neu-btn-primary !h-[38px]"
                 >
                   {extractingDemand || extractingInitiation ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                   {extractingDemand || extractingInitiation ? '解析中...' : '解析文档'}
@@ -1201,9 +1197,9 @@ export function CreateProjectDialog({
                     setInitiationExtracted(false);
                     setFieldComparisons([]);
                   }}
-                  className="neu-btn-soft"
+                  className="neu-btn-soft h-[38px]"
                 >
-                  <ArrowLeft size={16} />
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                   返回
                 </button>
                 <button
@@ -1212,7 +1208,7 @@ export function CreateProjectDialog({
                     setStep('review');
                     void handleAnalyzeBudgetReference();
                   }}
-                  className="neu-btn-primary"
+                  className="neu-btn-primary !h-[38px]"
                 >
                   确认并继续
                 </button>
@@ -1224,16 +1220,16 @@ export function CreateProjectDialog({
                 <button
                   type="button"
                   onClick={() => setStep('compare')}
-                  className="neu-btn-soft"
+                  className="neu-btn-soft h-[38px]"
                 >
-                  <ArrowLeft size={16} />
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                   返回
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleCreate()}
                   disabled={submitting}
-                  className="neu-btn-primary"
+                  className="neu-btn-primary !h-[38px]"
                 >
                   {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
                   {submitting ? '创建中...' : '创建项目'}

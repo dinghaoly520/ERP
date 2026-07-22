@@ -6,9 +6,8 @@ import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage } from 'element-plus'
 import { announcementApi } from '@/api/announcement'
 import { bidApi } from '@/api/bid'
-import BidStageTimeline from '@/components/BidStageTimeline.vue'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { FileText, AlertTriangle, Lock, MessageCircle } from 'lucide-vue-next'
+import { FileText, AlertTriangle, Lock, Upload, Download } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const route = useRoute()
@@ -17,52 +16,67 @@ const bidStore = useBidStore()
 const supplierStore = useSupplierStore()
 const loading = ref(true)
 const error = ref(false)
-const activeTab = ref('info')
-const tabList = [
-  { key: 'info', label: '项目信息' },
-  { key: 'clarifications', label: '澄清答疑' },
-  { key: 'bidDoc', label: '招标文件' },
-]
 const projectId = computed(() => route.params.id as string)
 
-const stageMap: Record<string, { label: string; color: string }> = {
-  DOWNLOAD: { label: '文件下载', color: '#0891b2' }, SUBMIT: { label: '加密投递', color: '#064ea2' },
-  OPENING: { label: '在线开标', color: '#d97706' }, EVALUATING: { label: '专家评标', color: '#7c3aed' }, ARCHIVED: { label: '已归档', color: '#059669' },
+const STAGES = ['DOWNLOAD','SUBMIT','OPENING','EVALUATING','ARCHIVED'] as const
+const stageMap: Record<string, { label: string; color: string; guide: string }> = {
+  DOWNLOAD:    { label: '文件下载',  color: '#0891b2', guide: '可下载招标文件、查看项目范围与资质要求，提前准备投标材料。' },
+  SUBMIT:      { label: '加密投递',  color: '#dc2626', guide: '标书已开放投递，请在截止时间前完成标书文件加密上传与提交。' },
+  OPENING:     { label: '在线开标',  color: '#d97706', guide: '项目已进入开标流程，届时可在线参与开标确认，核实开标信息。' },
+  EVALUATING:  { label: '专家评标',  color: '#7c3aed', guide: '评标委员会正在对标书进行综合评审，请耐心等候评标结果公示。' },
+  ARCHIVED:    { label: '已归档',    color: '#059669', guide: '招投标流程已完成并归档，可查看最终评标结果与中标公示。' },
 }
 const project = computed(() => bidStore.currentProject)
+const stageIdx = computed(() => Math.max(0, STAGES.indexOf((project.value?.stage || 'DOWNLOAD') as any)))
+const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
+const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; return project.value.stage === 'SUBMIT' && new Date(project.value.deadline) > new Date() })
+const showSupplierCount = computed(() => ['OPENING','EVALUATING','ARCHIVED'].includes(project.value?.stage || ''))
+const supplierCount = computed(() => project.value?._count?.suppliers || 0)
+
 const heroSub = computed(() => {
   const p = project.value
-  return p ? `${p.projectCode} · ${p.procurementMethod} · 截止 ${dayjs(p.deadline).format('MM-DD HH:mm')} · 开标 ${dayjs(p.openTime).format('MM-DD HH:mm')}` : ''
-})
-const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
-const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; const p = project.value; return p.stage === 'SUBMIT' && new Date(p.deadline) > new Date() })
-const supplierCount = computed(() => project.value?.suppliers?.length || project.value?._count?.suppliers || 0)
-// 开标前隐藏投标方数量，防止串标围标
-const showSupplierCount = computed(() => {
-  const stage = project.value?.stage
-  return stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED'
+  if (!p) return ''
+  const pub = p.announcement?.publishDate ? ` · ${dayjs(p.announcement.publishDate).format('YYYY-MM-DD')} 公告` : ''
+  return `${p.projectCode} · ${p.procurementMethod}${pub}`
 })
 
-const bidDoc = ref<any>(null); const bidDocLoading = ref(false); const paying = ref(false); const downloading = ref(false); const payDialog = ref(false); const paymentRef = ref('')
+// ── 招标文件 ──
+const bidDoc = ref<any>(null); const bidDocLoading = ref(false); const paying = ref(false); const downloading = ref(false)
+const payDialog = ref(false); const paymentRef = ref('')
 async function loadBidDoc() { bidDocLoading.value = true; try { bidDoc.value = await bidApi.getProjectBidDocument(projectId.value) as any } catch { bidDoc.value = null } bidDocLoading.value = false }
 async function doPay() { if (!bidDoc.value?.announcementId) return; paying.value = true; try { await announcementApi.payBidDocument(bidDoc.value.announcementId, paymentRef.value || undefined); ElMessage.success('付款凭证已提交'); payDialog.value = false; paymentRef.value = ''; await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '提交失败') } paying.value = false }
 async function doDownload() { if (!bidDoc.value?.announcementId) return; downloading.value = true; try { const { blob, fileName } = await announcementApi.downloadBidDocument(bidDoc.value.announcementId); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url); await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '下载失败') } downloading.value = false }
-function scopeHint(scope: string) { if (scope === 'DESIGNATED') return '仅指定供应商可下载'; if (scope === 'INVITED') return '仅受邀供应商可下载'; return '全库供应商可下载' }
 
-// 澄清答疑 — 提问
-const questionText = ref('')
-const questionPosting = ref(false)
-async function postQuestion() {
-  if (!questionText.value.trim()) { ElMessage.warning('请输入问题'); return }
-  questionPosting.value = true
-  try {
-    await bidApi.createQuestion(projectId.value, questionText.value.trim())
-    ElMessage.success('问题已提交，等待回复')
-    questionText.value = ''
-    await bidStore.fetchProject(projectId.value) // refresh clarifications
-  } catch (e: any) { ElMessage.error(e?.message || '提交失败') }
-  questionPosting.value = false
+// ── 澄清答疑 ──
+const questionText = ref(''); const questionPosting = ref(false)
+const replyOpen = ref<string | null>(null); const replyText = ref(''); const replyPosting = ref(false)
+async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入问题'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim()); ElMessage.success('问题已提交'); questionText.value = ''; await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } questionPosting.value = false }
+function openReply(id: string) { replyOpen.value = id; replyText.value = '' }
+function closeReply() { replyOpen.value = null; replyText.value = '' }
+async function postReply(id: string) { if (!replyText.value.trim()) { ElMessage.warning('请输入回复'); return }; replyPosting.value = true; try { await bidApi.createQuestion(projectId.value, replyText.value.trim()); ElMessage.success('回复已提交'); closeReply(); await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } replyPosting.value = false }
+
+// 将纯文本公告格式化为 HTML（处理中文招标公告结构）
+function formatContent(raw: string): string {
+  if (!raw) return ''
+  // 如果已经是 HTML，直接返回
+  if (/<[a-zA-Z][^>]*>/.test(raw)) return raw
+  // 先按一、二、三级标题拆，其余为正文段落
+  return raw
+    .split('\n')
+    .map(line => {
+      let t = line.trim()
+      if (!t) return ''
+      // 一级标题：一、 二、 三、...
+      if (/^[一二三四五六七八九十]+、/.test(t)) return `<h2>${t}</h2>`
+      // 二级标题：X.X 如 2.1 、（一）（二）
+      if (/^\d+\.\d+\s/.test(t)) return `<h3>${t}</h3>`
+      if (/^（[一二三四五六七八九十]+）/.test(t)) return `<h3>${t}</h3>`
+      // 正文段落
+      return `<p>${t}</p>`
+    })
+    .join('\n')
 }
+
 onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } catch { error.value = true } finally { loading.value = false } })
 async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } catch { error.value = true } finally { loading.value = false } }
 function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.status !== 'APPROVED') { ElMessage.warning('只有已入库供应商可以提交标书'); return } router.push(`/bids/${projectId.value}/submit`) }
@@ -70,152 +84,273 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 
 <template>
   <div class="page-container" v-loading="loading">
-    <button type="button" class="neu-link back-link" @click="router.push('/bids')"><el-icon><ArrowLeft /></el-icon>返回可投标项目列表</button>
+    <button type="button" class="neu-link back-link" @click="router.push('/my-bids')"><el-icon><ArrowLeft /></el-icon>返回投标进展</button>
+
     <div v-if="error" class="sp-error-block">
       <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
+
     <template v-else-if="project">
+      <!-- ═══ Hero ═══ -->
       <SpPageHero :icon="FileText" :title="project.name" :sub="heroSub">
         <template #actions>
-          <el-button type="primary" size="large" :disabled="!canSubmit" @click="goToSubmit"><el-icon><Upload /></el-icon>{{ canSubmit ? '提交标书' : '不可投标' }}</el-button>
+          <button class="neu-btn-primary" :disabled="!canSubmit" @click="goToSubmit" style="height:40px;padding:0 20px">
+            <Upload :size="14" :stroke-width="1.75" />{{ canSubmit ? '提交标书' : '不可投标' }}
+          </button>
         </template>
       </SpPageHero>
 
-      <div class="neu-tab-bar detail-tabs">
-        <button
-          v-for="t in tabList"
-          :key="t.key"
-          type="button"
-          class="neu-tab"
-          :class="{ active: activeTab === t.key, 'is-active': activeTab === t.key }"
-          @click="activeTab = t.key"
-        >{{ t.label }}</button>
-      </div>
-
-      <div v-if="activeTab === 'info'" class="detail-pane">
-        <div class="neu-card detail-card">
-          <el-descriptions :column="2" border size="large">
-            <el-descriptions-item label="项目编号">{{ project.projectCode }}</el-descriptions-item>
-            <el-descriptions-item label="采购方式">{{ project.procurementMethod }}</el-descriptions-item>
-            <el-descriptions-item label="投标截止">{{ dayjs(project.deadline).format('YYYY-MM-DD HH:mm:ss') }}</el-descriptions-item>
-            <el-descriptions-item label="开标时间">{{ dayjs(project.openTime).format('YYYY-MM-DD HH:mm:ss') }}</el-descriptions-item>
-            <el-descriptions-item label="当前阶段">{{ stageMap[project.stage]?.label || project.stage }}</el-descriptions-item>
-            <el-descriptions-item label="投标保证金">
-              <template v-if="project.bondRequired">
-                要求缴纳<span v-if="project.bondAmount != null" class="bond-amount">¥{{ Number(project.bondAmount).toLocaleString() }}</span>
-              </template>
-              <span v-else class="bond-none">不要求</span>
-            </el-descriptions-item>
-            <el-descriptions-item v-if="showSupplierCount" label="投标方">{{ supplierCount }} 家</el-descriptions-item>
-            <el-descriptions-item label="风险提示" :span="2" v-if="project.riskNote"><span class="risk-note">{{ project.riskNote }}</span></el-descriptions-item>
-          </el-descriptions>
+      <!-- ═══ 阶段进度 + 指引（单卡合一）═══ -->
+      <div class="stage-card">
+        <div class="stage-bar">
+          <div
+            v-for="(key, i) in STAGES"
+            :key="key"
+            class="sb"
+            :class="{ done: i < stageIdx, cur: i === stageIdx }"
+            :style="{ '--sc': stageMap[key].color }"
+          ><span class="sb-dot" /><span class="sb-lbl">{{ stageMap[key].label }}</span></div>
         </div>
-        <div class="neu-card detail-card timeline-card">
-          <div class="timeline-title">项目进度</div>
-          <BidStageTimeline :stage="project.stage" />
+        <div class="stage-msg" :style="{ '--sc': stageMap[project.stage]?.color || 'var(--brand)' }">
+          <span class="sm-badge"><span class="sm-dot" />{{ stageMap[project.stage]?.label }}</span>
+          <span class="sm-text">{{ stageMap[project.stage]?.guide || '' }}</span>
+          <button v-if="project.stage === 'SUBMIT'" class="neu-btn-primary sm-cta" @click="goToSubmit">提交标书</button>
         </div>
       </div>
 
-      <div v-if="activeTab === 'clarifications'" class="detail-pane">
-        <div class="neu-card detail-card clarifications-card">
-          <!-- 我要提问 -->
-          <div class="question-box">
-            <div class="question-title">我要提问</div>
-            <div style="display:flex;gap:10px">
-              <el-input v-model="questionText" placeholder="对招标文件或项目有疑问？在此向招标人提问…" :rows="2" type="textarea" style="flex:1" />
-              <el-button type="primary" :loading="questionPosting" @click="postQuestion" style="align-self:flex-end">提交问题</el-button>
-            </div>
+      <!-- ═══ 关键信息（紧凑数字条）═══ -->
+      <div class="info-bar">
+        <span>截止<strong :class="{ 'danger': project.stage === 'SUBMIT' }">{{ dayjs(project.deadline).format('MM-DD HH:mm') }}</strong></span>
+        <span>开标<strong>{{ dayjs(project.openTime).format('MM-DD HH:mm') }}</strong></span>
+        <span>保证金<strong>{{ project.bondRequired && project.bondAmount ? '¥'+Number(project.bondAmount).toLocaleString() : '无' }}</strong></span>
+        <span v-if="showSupplierCount">投标方<strong>{{ supplierCount }} 家</strong></span>
+      </div>
+
+      <!-- ═══ 正文（公告 + 条件）═══ -->
+      <div class="content-card neu-card">
+        <!-- 招标范围 / 资质 / 联系 -->
+        <div v-if="project.scope || project.qualification || project.contact || project.qualityRequirement" class="cc-conds">
+          <div v-if="project.scope" class="cc-cond">
+            <span class="cc-cond-hd">招标范围</span>
+            <p class="cc-cond-bd">{{ project.scope }}</p>
           </div>
-          <!-- 澄清答疑列表 -->
-          <div v-if="project.clarifications?.length">
-            <div v-for="c in project.clarifications" :key="c.id" class="clarification-item">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                <el-tag :type="c.type === 'question' ? 'info' : 'warning'" size="small" effect="plain">{{ c.type === 'question' ? '答疑' : '澄清' }}</el-tag>
-                <span class="clarification-issuer">— {{ c.issuer }}</span>
-                <span class="clarification-time">{{ new Date(c.createdAt).toLocaleString('zh-CN') }}</span>
-              </div>
-              <div class="clarification-q"><span>{{ c.question }}</span></div>
-              <div class="clarification-a" v-if="c.reply"><el-tag type="success" size="small" effect="plain">回复</el-tag><span>{{ c.reply }}</span></div>
-            </div>
+          <div v-if="project.qualification" class="cc-cond">
+            <span class="cc-cond-hd">资质要求</span>
+            <p class="cc-cond-bd">{{ project.qualification }}</p>
           </div>
-          <div v-else class="sp-empty">
-            <div class="sp-empty-icon"><MessageCircle :size="22" :stroke-width="1.75" /></div>
-            <div class="sp-empty-text">暂无澄清答疑</div>
+          <div v-if="project.qualityRequirement" class="cc-cond">
+            <span class="cc-cond-hd">质量要求</span>
+            <p class="cc-cond-bd">{{ project.qualityRequirement }}</p>
           </div>
+          <div v-if="project.contact" class="cc-cond">
+            <span class="cc-cond-hd">联系方式</span>
+            <p class="cc-cond-bd">{{ project.contact }}</p>
+          </div>
+        </div>
+
+        <!-- 公告正文 HTML -->
+        <div v-if="project.announcement?.content" class="cc-body" v-html="formatContent(project.announcement.content)" />
+        <div v-else class="cc-empty">
+          <FileText :size="20" :stroke-width="1.75" />
+          <p>暂无公告正文</p>
         </div>
       </div>
 
-      <div v-if="activeTab === 'bidDoc'" class="detail-pane">
-        <div class="neu-card detail-card" v-loading="bidDocLoading">
+      <!-- ═══ 招标文件 + 澄清答疑（分列底部）═══ -->
+      <div class="bottom-grid">
+        <!-- 招标文件 -->
+        <div class="neu-card bottom-card" v-loading="bidDocLoading">
+          <div class="bc-hd">招标文件</div>
           <template v-if="bidDoc">
-            <div class="bid-doc-head"><Lock :size="17" :stroke-width="1.75" class="bid-doc-lock" /><strong>{{ bidDoc.title }}</strong><el-tag v-if="bidDoc.requirePayment" type="warning" size="small">付费 ¥{{ bidDoc.price }}</el-tag><el-tag v-else type="success" size="small">免费</el-tag></div>
-            <p class="bid-doc-hint">{{ scopeHint(bidDoc.accessScope) }} · 已下载 {{ bidDoc.downloadCount }} 次</p>
-            <div class="bid-doc-actions">
+            <div class="bdoc">
+              <Lock :size="14" :stroke-width="1.75" class="bdoc-icon" />
+              <span class="bdoc-name">{{ bidDoc.title }}</span>
+              <span class="bdoc-meta">{{ bidDoc.downloadCount || 0 }} 次下载</span>
+            </div>
+            <div class="bdoc-acts">
               <el-alert v-if="!bidDoc.eligible" :title="'无法下载：' + bidDoc.reason" type="error" :closable="false" show-icon />
               <template v-else>
-                <template v-if="bidDoc.needPayment"><el-alert title="该招标文件需付费下载" type="warning" :closable="false" show-icon /><el-button type="primary" @click="payDialog = true">提交付款凭证</el-button></template>
-                <el-alert v-else-if="bidDoc.requirePayment && !bidDoc.paid" title="付款凭证已提交，等待确认到账" type="info" :closable="false" show-icon />
-                <el-button v-if="bidDoc.canDownload" type="primary" :loading="downloading" @click="doDownload"><el-icon><Download /></el-icon>下载招标文件</el-button>
+                <el-alert v-if="bidDoc.needPayment" title="需付费下载" type="warning" :closable="false" show-icon />
+                <el-alert v-else-if="bidDoc.requirePayment && !bidDoc.paid" title="付款凭证已提交，等待确认" type="info" :closable="false" show-icon />
+                <button v-if="bidDoc.needPayment" class="neu-btn-soft" @click="payDialog = true">提交付款凭证</button>
+                <button v-if="bidDoc.canDownload" class="neu-btn-primary" :disabled="downloading" @click="doDownload"><Download :size="13" :stroke-width="1.75" />下载招标文件</button>
               </template>
             </div>
           </template>
-          <div v-else-if="!bidDocLoading" class="sp-empty">
-            <div class="sp-empty-icon"><FileText :size="22" :stroke-width="1.75" /></div>
-            <div class="sp-empty-text">暂无招标文件</div>
+          <div v-else-if="!bidDocLoading" class="bc-empty">暂无招标文件</div>
+        </div>
+
+        <!-- 澄清答疑 -->
+        <div class="neu-card bottom-card">
+          <div class="bc-hd">澄清答疑</div>
+          <div class="cq-ask">
+            <el-input v-model="questionText" placeholder="对招标有疑问？在此提问…" :rows="2" type="textarea" size="small" />
+            <button class="neu-btn-xs" :disabled="questionPosting" @click="postQuestion">提交</button>
           </div>
+          <div v-if="project.clarifications?.length" class="cq-list">
+            <div v-for="c in project.clarifications" :key="c.id" class="cq-item">
+              <div class="cq-head">
+                <el-tag :type="c.type === 'question' ? 'info' : 'warning'" size="small" effect="plain">{{ c.type === 'question' ? '答疑' : '澄清' }}</el-tag>
+                <span class="cq-issuer">{{ c.issuer }}</span>
+                <span class="cq-time">{{ dayjs(c.createdAt).format('MM-DD HH:mm') }}</span>
+              </div>
+              <div class="cq-text">{{ c.question }}</div>
+              <div v-if="c.reply" class="cq-reply"><el-tag type="success" size="small" effect="plain">回复</el-tag><span>{{ c.reply }}</span></div>
+              <div class="cq-act">
+                <button v-if="replyOpen !== c.id" class="neu-btn-xs" @click="openReply(c.id)">回复</button>
+                <div v-else class="cq-reply-box">
+                  <el-input v-model="replyText" placeholder="输入回复…" :rows="2" type="textarea" size="small" />
+                  <span class="cq-reply-btns">
+                    <button class="neu-btn-xs is-success" :disabled="replyPosting" @click="postReply(c.id)">发送</button>
+                    <button class="neu-btn-xs" @click="closeReply">取消</button>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="bc-empty">暂无答疑</div>
         </div>
       </div>
 
-      <el-dialog v-model="payDialog" title="提交付款凭证" width="420px"><el-form><el-form-item label="付款凭证/流水号"><el-input v-model="paymentRef" placeholder="如：银行流水号" /></el-form-item></el-form><template #footer><el-button @click="payDialog = false">取消</el-button><el-button type="primary" :loading="paying" @click="doPay">提交</el-button></template></el-dialog>
+      <el-dialog v-model="payDialog" title="提交付款凭证" width="420px">
+        <el-form><el-form-item label="付款凭证/流水号"><el-input v-model="paymentRef" placeholder="如：银行流水号" /></el-form-item></el-form>
+        <template #footer><el-button @click="payDialog = false">取消</el-button><el-button type="primary" :loading="paying" @click="doPay">提交</el-button></template>
+      </el-dialog>
     </template>
   </div>
 </template>
 
 <style scoped>
-/* ─── Back link — layout only (visuals from cgzxui .neu-link) ─── */
+/* ══════ 基础 ══════ */
 .back-link { margin-bottom: 16px; }
+.danger { color: var(--danger) !important; }
 
-/* ─── Tabs + panes (visuals from cgzxui .neu-tab-bar / .neu-tab) ─── */
-.detail-tabs { margin-top: 16px; }
-.detail-pane { margin-top: 16px; display: grid; gap: 16px; align-items: start; }
-
-/* ─── Detail card — layout only (visuals from cgzxui .neu-card) ─── */
-.detail-card { padding: 20px; }
-.timeline-card { padding: 16px 24px; }
-.timeline-title { font-size: 12px; font-weight: 700; color: var(--muted-foreground); margin-bottom: 12px; }
-.risk-note { color: var(--warning); font-weight: 600; }
-.bond-amount { color: var(--warning); font-weight: 700; font-variant-numeric: tabular-nums; margin-left: 4px; }
-.bond-none { color: var(--muted-foreground); }
-
-/* ─── Clarifications ─── */
-.clarifications-card { display: flex; flex-direction: column; gap: 16px; }
-.question-box {
-  background: var(--surface); border: none; border-radius: 12px; padding: 16px;
-  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.8);
+/* ══════ 阶段进度 + 指引（单卡） ══════ */
+.stage-card {
+  margin-top: 16px; border-radius: 14px; overflow: hidden;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
-.question-title { font-size: 13px; font-weight: 700; color: var(--foreground); margin-bottom: 10px; }
-.clarification-item { padding: 16px 0; border-bottom: 1px solid var(--hairline); }
-.clarification-item:last-child { border-bottom: none; }
-.clarification-q, .clarification-a { display: flex; align-items: flex-start; gap: 10px; line-height: 1.6; }
-.clarification-a { margin-top: 10px; padding-left: 4px; }
-.clarification-issuer { font-size: 12px; color: var(--muted-foreground); margin-left: auto; flex-shrink: 0; }
-.clarification-time { font-size: 11px; color: var(--muted-foreground); margin-left: auto; }
+.stage-bar {
+  display: flex; height: 50px;
+}
+.sb {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 11px; font-weight: 600; color: var(--muted-foreground);
+  border-right: 1px solid var(--hairline); transition: all .3s;
+}
+.sb:last-child { border-right: none; }
+.sb.done    { background: color-mix(in oklab, var(--sc) 20%, transparent); color: var(--sc); border-right-color: color-mix(in oklab, var(--sc) 15%, oklch(0.92 0.02 258)); }
+.sb.cur     { background: color-mix(in oklab, var(--sc) 16%, transparent); color: var(--sc); font-weight: 800; box-shadow: inset 0 -3px 0 var(--sc); border-right-color: color-mix(in oklab, var(--sc) 10%, oklch(0.92 0.02 258)); }
+.sb-dot     { width: 7px; height: 7px; border-radius: 50%; background: var(--hairline); flex-shrink: 0; transition: all .3s; }
+.sb.done .sb-dot { background: var(--sc); box-shadow: 0 0 0 2px color-mix(in oklab, var(--sc) 18%, transparent); }
+.sb.cur  .sb-dot { background: var(--sc); box-shadow: 0 0 0 4px color-mix(in oklab, var(--sc) 20%, transparent), 0 0 6px color-mix(in oklab, var(--sc) 25%, transparent); animation: dotPulse 2.4s ease-in-out infinite; }
+@keyframes dotPulse {
+  0%,100% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--sc) 20%, transparent), 0 0 6px color-mix(in oklab, var(--sc) 25%, transparent); }
+  50%     { box-shadow: 0 0 0 7px color-mix(in oklab, var(--sc) 8%, transparent), 0 0 12px color-mix(in oklab, var(--sc) 15%, transparent); }
+}
 
-/* ─── Bid doc section ─── */
-.bid-doc-head { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--foreground); flex-wrap: wrap; margin-bottom: 8px; }
-.bid-doc-head strong { font-weight: 700; }
-.bid-doc-lock { color: var(--brand); flex-shrink: 0; }
-.bid-doc-hint { font-size: 12px; color: var(--muted-foreground); margin: 0 0 16px; }
-.bid-doc-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+/* 阶段指引 */
+.stage-msg {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; border-top: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--sc) 5%, transparent);
+}
+.sm-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; flex-shrink: 0; color: var(--sc); }
+.sm-dot   { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.sm-text  { flex: 1; font-size: 12px; line-height: 1.5; color: var(--foreground); }
+.sm-cta   { height: 30px; font-size: 12px; padding: 0 16px; flex-shrink: 0; }
 
-/* ─── Element Plus Descriptions — transparent plate, token hairlines ─── */
-:deep(.el-descriptions) { --el-descriptions-table-bg: transparent; }
-:deep(.el-descriptions__body) { background: transparent !important; }
-:deep(.el-descriptions__body .el-descriptions__table.is-bordered) { background: transparent !important; }
-:deep(.el-descriptions__body .el-descriptions__table.is-bordered td) { background: transparent !important; border-color: var(--hairline) !important; }
-:deep(.el-descriptions__body .el-descriptions__table.is-bordered td:first-child) { background: oklch(1 0 0 / 0.35); }
-:deep(.el-descriptions__label) { font-weight: 600; color: var(--muted-foreground); }
+/* ══════ 关键信息条 ══════ */
+.info-bar {
+  display: flex; flex-wrap: wrap; gap: 24px;
+  margin-top: 16px; padding: 12px 24px; border-radius: 12px;
+  background: linear-gradient(180deg, oklch(0.993 0.008 258), oklch(0.975 0.012 258));
+  box-shadow: 3px 3px 8px oklch(0.55 0.03 258 / 0.07), -2px -2px 6px oklch(1 0 0 / 0.75), inset 0 1px 0 oklch(1 0 0 / 0.6);
+  font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.info-bar > span { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-foreground); }
+.info-bar > span strong { font-size: 13px; font-weight: 700; color: var(--foreground); }
+
+/* ══════ 正文卡片 ══════ */
+.content-card {
+  margin-top: 16px; padding: 28px;
+}
+.cc-conds {
+  display: flex; flex-direction: column; gap: 12px;
+  padding-bottom: 20px; margin-bottom: 20px;
+  box-shadow: inset 0 -1px 0 var(--hairline);
+}
+.cc-cond {
+  border-radius: 8px; padding: 12px 14px;
+  background: color-mix(in oklab, var(--brand) 5%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.04), inset -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+.cc-cond-hd { display: block; font-size: 10px; font-weight: 700; color: var(--brand); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.cc-cond-bd { margin: 0; font-size: 13px; line-height: 1.65; color: var(--foreground); white-space: pre-wrap; }
+.cc-body { font-size: 14px; line-height: 1.85; color: var(--foreground); word-break: break-word; }
+.cc-body :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.cc-body :deep(td), .cc-body :deep(th) { border: 1px solid var(--hairline); padding: 7px 10px; font-size: 12px; }
+.cc-body :deep(th) { background: color-mix(in oklab, var(--muted-foreground) 6%, transparent); font-weight: 700; }
+.cc-body :deep(h2) { font-size: 16px; font-weight: 900; margin: 24px 0 12px; padding-bottom: 8px; box-shadow: inset 0 -1px 0 var(--hairline); color: var(--brand); }
+.cc-body :deep(h3) { font-size: 14px; font-weight: 700; margin: 18px 0 8px; color: var(--foreground); }
+.cc-body :deep(p)  { margin: 0 0 10px; }
+.cc-body :deep(p:last-child) { margin-bottom: 0; }
+.cc-body :deep(ul), .cc-body :deep(ol) { padding-left: 18px; margin: 6px 0; }
+.cc-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 40px 0; color: var(--muted-foreground);
+}
+.cc-empty p { margin: 0; font-size: 13px; font-weight: 600; }
+
+/* ══════ 底部双栏 ══════ */
+.bottom-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;
+  margin-top: 16px;
+}
+.bottom-card { padding: 18px; }
+.bc-hd {
+  font-size: 11px; font-weight: 800; color: var(--muted-foreground);
+  text-transform: uppercase; letter-spacing: .06em;
+  margin-bottom: 14px; padding-bottom: 10px;
+  box-shadow: inset 0 -1px 0 var(--hairline);
+}
+.bc-empty { text-align: center; padding: 20px 0; font-size: 12px; color: var(--muted-foreground); }
+
+/* 招标文件 */
+.bdoc       { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; background: var(--surface); box-shadow: inset 0 1px 0 oklch(1 0 0 / .5), 1px 1px 3px oklch(.55 .03 258 / .06), -1px -1px 2px oklch(1 0 0 / .6); }
+.bdoc-icon  { color: var(--brand); flex-shrink: 0; }
+.bdoc-name  { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bdoc-meta  { font-size: 11px; color: var(--muted-foreground); flex-shrink: 0; }
+.bdoc-acts  { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.bdoc-acts .neu-btn-soft, .bdoc-acts .neu-btn-primary { justify-content: center; }
+
+/* 澄清答疑 */
+.cq-ask   { display: flex; gap: 8px; margin-bottom: 12px; }
+.cq-list  { display: flex; flex-direction: column; }
+.cq-item  { padding: 9px 0; border-bottom: 1px solid var(--hairline); }
+.cq-item:last-child { border-bottom: none; }
+.cq-head   { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.cq-issuer { font-size: 11px; color: var(--muted-foreground); }
+.cq-time   { font-size: 10px; color: var(--muted-foreground); margin-left: auto; font-variant-numeric: tabular-nums; }
+.cq-text   { font-size: 12px; line-height: 1.6; color: var(--foreground); }
+.cq-reply  { display: flex; align-items: flex-start; gap: 6px; margin-top: 5px; font-size: 12px; line-height: 1.6; color: var(--foreground); }
+.cq-act    { margin-top: 8px; }
+.cq-reply-box  { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+.cq-reply-btns { display: flex; gap: 6px; align-self: flex-end; }
+
+@media (max-width: 860px) {
+  .bottom-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .sb-lbl { display: none; }
+  .sb.cur .sb-lbl { display: block; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb.cur .sb-dot { animation: none; }
+}
 </style>

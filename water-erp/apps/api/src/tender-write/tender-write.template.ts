@@ -1422,7 +1422,7 @@ export function renderTemplateXml(
   // Then merge adjacent text tags within same <w:r>
   output = mergeAdjacentTextTags(output);
 
-  return replacements.reduce((result, replacement) => {
+  const replaced = replacements.reduce((result, replacement) => {
     if (replacement.shouldDeleteComprehensiveScoringTable) {
       return deleteComprehensiveScoringTable(result);
     }
@@ -1472,6 +1472,66 @@ export function renderTemplateXml(
       replacement.highlight,
     );
   }, output);
+
+  return wrapCheckboxCharsInSymbolFont(replaced);
+}
+
+/**
+ * Post-processing: wrap ☑ (U+2611) / ☐ (U+2610) checkbox characters in
+ * separate <w:r> runs with Segoe UI Symbol font.  Without this step
+ * the checkbox chars inherit the parent run's font (e.g. Times New Roman
+ * or Apple Color Emoji) and render as coloured emoji icons instead of
+ * clean outlined ballot-box glyphs.
+ */
+function wrapCheckboxCharsInSymbolFont(xml: string): string {
+  const SYMBOL_RPR =
+    '<w:rPr><w:rFonts w:ascii="Segoe UI Symbol" w:hAnsi="Segoe UI Symbol" ' +
+    'w:eastAsia="Segoe UI Symbol" w:cs="Segoe UI Symbol"/></w:rPr>';
+
+  const RUN_RE = /<w:r\b[\s\S]*?<\/w:r>/g;
+  const CHECK = /[☐☑]/;
+
+  const reps: Array<{ start: number; end: number; rebuilt: string }> = [];
+
+  let m: RegExpExecArray | null;
+  while ((m = RUN_RE.exec(xml)) !== null) {
+    const run = m[0];
+    if (!CHECK.test(run)) continue;
+    if (/Segoe UI Symbol/i.test(run)) continue; // already correct
+
+    const rTag = run.match(/^<w:r[^>]*>/)?.[0];
+    if (!rTag) continue;
+
+    const origRPr = run.match(/<w:rPr[^>]*>[\s\S]*?<\/w:rPr>/)?.[0] ?? '';
+
+    const tMatch = run.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/);
+    if (!tMatch) continue;
+    const tOpen = tMatch[0].match(/<w:t[^>]*>/)?.[0] ?? '<w:t>';
+    const text = tMatch[1];
+
+    // Split around checkbox chars (capturing parens keep them in the array)
+    const segments = text.split(/([☐☑])/);
+
+    let rebuilt = '';
+    for (const seg of segments) {
+      if (!seg) continue;
+      if (CHECK.test(seg)) {
+        rebuilt += `<w:r>${SYMBOL_RPR}${tOpen}${seg}</w:t></w:r>`;
+      } else {
+        rebuilt += `${rTag}${origRPr}${tOpen}${seg}</w:t></w:r>`;
+      }
+    }
+
+    reps.push({ start: m.index, end: m.index + run.length, rebuilt });
+  }
+
+  // Apply end → start so earlier indices stay valid
+  for (let i = reps.length - 1; i >= 0; i--) {
+    const r = reps[i];
+    xml = xml.slice(0, r.start) + r.rebuilt + xml.slice(r.end);
+  }
+
+  return xml;
 }
 
 /**

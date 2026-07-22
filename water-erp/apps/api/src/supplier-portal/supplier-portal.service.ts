@@ -254,24 +254,45 @@ export class SupplierPortalService {
   // ─── Bid Projects (投标机会 — supplier-facing) ───
   // 仅返回项目公开字段 + 投标方数量。绝不暴露其他投标方身份、开标记录、
   // 专家名单与评分等评审内部信息（这些是 BidController 受角色保护的原因）。
+  // 仅返回截止时间未到的项目；公告项目=accessScope OPEN，受邀项目=INVITED/DESIGNATED。
   async listBidProjects(
     page = 1,
     pageSize = 20,
-    filters: { search?: string; stage?: string } = {},
+    filters: { search?: string; scope?: string } = {},
   ) {
     const skip = (page - 1) * pageSize;
-    // 搜索仅作用于 name/projectCode（不区分大小写）；baseWhere 不含 stage，
-    // 以便 groupBy 给出「各阶段计数」供前端页签/统计使用（搜索时计数随之收窄）。
+    const now = new Date();
     const kw = filters.search?.trim();
-    const baseWhere: any = {};
+    const baseWhere: any = {
+      deadline: { gt: now }, // 仅展示截止时间未到的项目
+    };
     if (kw) {
       baseWhere.OR = [
         { name: { contains: kw, mode: 'insensitive' } as any },
         { projectCode: { contains: kw, mode: 'insensitive' } as any },
       ];
     }
-    const where: any = filters.stage ? { ...baseWhere, stage: filters.stage } : baseWhere;
-    const [total, items, groups] = await Promise.all([
+
+    // scope 过滤：公告项目=OPEN，受邀项目=INVITED|DESIGNATED
+    let scopeProjectIds: string[] | undefined;
+    if (filters.scope) {
+      const scopeValues = filters.scope === 'OPEN'
+        ? ['OPEN']
+        : ['INVITED', 'DESIGNATED'];
+      const docs = await this.prisma.bidDocument.findMany({
+        where: { accessScope: { in: scopeValues }, bidProjectId: { not: null } },
+        select: { bidProjectId: true },
+      });
+      scopeProjectIds = docs.map(d => d.bidProjectId!).filter(Boolean);
+      if (scopeProjectIds.length === 0) {
+        return { total: 0, page, pageSize, items: [], scopeCounts: { open: 0, invited: 0 } };
+      }
+      baseWhere.id = { in: scopeProjectIds };
+    }
+
+    const where = baseWhere;
+
+    const [total, items] = await Promise.all([
       this.prisma.bidProject.count({ where }),
       this.prisma.bidProject.findMany({
         where,
@@ -291,11 +312,52 @@ export class SupplierPortalService {
           _count: { select: { suppliers: true } },
         },
       }),
-      this.prisma.bidProject.groupBy({ by: ['stage'], _count: { _all: true }, where: baseWhere }),
     ]);
-    const stageCounts: Record<string, number> = {};
-    for (const g of groups) stageCounts[g.stage] = g._count._all;
-    return { total, page, pageSize, items, stageCounts };
+
+    // 富化 accessScope（来自 BidDocument）供前端分类
+    const projectIds = items.map(i => i.id);
+    const bidDocs = projectIds.length > 0
+      ? await this.prisma.bidDocument.findMany({
+          where: { bidProjectId: { in: projectIds } },
+          select: { bidProjectId: true, accessScope: true },
+        })
+      : [];
+    const scopeMap: Record<string, string> = {};
+    for (const d of bidDocs) {
+      if (d.bidProjectId) scopeMap[d.bidProjectId] = d.accessScope;
+    }
+    const enrichedItems = items.map(i => ({
+      ...i,
+      accessScope: scopeMap[i.id] || 'OPEN',
+    }));
+
+    // 按 scope 分组计数：基于 BidProject（deadline > now）+ BidDocument accessScope，
+    // 保证"全部"=所有未到期项目数，与 total 一致；公告/受邀按 BidDocument 归因。
+    const allProjectIds = (
+      await this.prisma.bidProject.findMany({
+        where: { deadline: { gt: now } },
+        select: { id: true },
+      })
+    ).map(p => p.id);
+    const allBidDocs = allProjectIds.length > 0
+      ? await this.prisma.bidDocument.findMany({
+          where: { bidProjectId: { in: allProjectIds } },
+          select: { bidProjectId: true, accessScope: true },
+        })
+      : [];
+    const scopeByProject: Record<string, string> = {};
+    for (const d of allBidDocs) {
+      if (d.bidProjectId) scopeByProject[d.bidProjectId] = d.accessScope;
+    }
+    let openCount = 0, invitedCount = 0;
+    for (const pid of allProjectIds) {
+      const sc = scopeByProject[pid] || 'OPEN';
+      if (sc === 'OPEN') openCount++;
+      else invitedCount++;
+    }
+    const scopeCounts = { open: openCount, invited: invitedCount };
+
+    return { total, page, pageSize, items: enrichedItems, scopeCounts };
   }
 
   async getBidProject(id: string) {
@@ -312,6 +374,10 @@ export class SupplierPortalService {
         riskNote: true,
         bondRequired: true,
         bondAmount: true,
+        scope: true,
+        qualification: true,
+        contact: true,
+        qualityRequirement: true,
         createdAt: true,
         clarifications: {
           orderBy: { createdAt: 'asc' },
@@ -327,6 +393,16 @@ export class SupplierPortalService {
         ...c,
         issuer: c.type === 'question' ? '供应商' : c.issuer,
       }));
+
+      // 富化：查找关联的招标公告内容（relatedProjectCode + type=BID_NOTICE）
+      const announcement = await this.prisma.announcement.findFirst({
+        where: {
+          relatedProjectCode: project.projectCode,
+          type: 'BID_NOTICE',
+        },
+        select: { title: true, content: true, summary: true, publishDate: true },
+      });
+      (project as any).announcement = announcement;
     }
     return project;
   }
@@ -624,7 +700,11 @@ export class SupplierPortalService {
   }
 
   async getMySubmissions(supplierId: string) {
-    return this.prisma.supplierBidSubmission.findMany({
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { name: true },
+    });
+    const submissions = await this.prisma.supplierBidSubmission.findMany({
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -636,6 +716,23 @@ export class SupplierPortalService {
         },
       },
     });
+    // 富化 BidSupplier.confirmStatus，供前端判断是否已确认开标
+    if (submissions.length > 0 && supplier) {
+      const projectIds = submissions.map(s => s.projectId);
+      const bidSuppliers = await this.prisma.bidSupplier.findMany({
+        where: {
+          projectId: { in: projectIds },
+          supplierName: supplier.name,
+        },
+        select: { projectId: true, confirmStatus: true },
+      });
+      const confirmMap: Record<string, string> = {};
+      for (const bs of bidSuppliers) confirmMap[bs.projectId] = bs.confirmStatus;
+      for (const s of submissions) {
+        (s as any).confirmStatus = confirmMap[s.projectId] || null;
+      }
+    }
+    return submissions;
   }
 
   async getSubmission(supplierId: string, projectId: string) {

@@ -128,12 +128,12 @@ export class SupplierPortalController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
-    @Query('stage') stage?: string,
+    @Query('scope') scope?: string,
   ) {
     return this.portalService.listBidProjects(
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
-      { search, stage },
+      { search, scope },
     );
   }
 

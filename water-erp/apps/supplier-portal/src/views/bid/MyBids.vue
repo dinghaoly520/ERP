@@ -5,7 +5,6 @@ import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
 import SpPageHero from '@/components/SpPageHero.vue'
-import SpKpi from '@/components/SpKpi.vue'
 import { ClipboardList, AlertTriangle } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
@@ -43,27 +42,6 @@ function retryLoad() {
 
 const submissions = computed(() => supplierStore.bidSubmissions)
 
-const summary = computed(() => {
-  const list = submissions.value
-  return {
-    total: list.length,
-    draft: list.filter((i: any) => i.status === 'draft').length,
-    submitted: list.filter((i: any) => i.status === 'submitted').length,
-    withdrawn: list.filter((i: any) => i.status === 'withdrawn').length,
-  }
-})
-
-// ── Pipeline: stage distribution across all bids ──
-const pipeline = computed(() => {
-  const list = submissions.value
-  const max = Math.max(list.length, 1)
-  return STAGES.map(s => {
-    const count = list.filter((i: any) => i.status === 'submitted' && i.project?.stage === s.key).length
-    return { ...s, count, pct: Math.round((count / max) * 100) }
-  })
-})
-const pipelineMax = computed(() => Math.max(...pipeline.value.map(p => p.count), 1))
-
 // ── Status helpers ──
 const statusMap: Record<string, { label: string; cls: string; tone: string; icon: string }> = {
   draft:     { label: '草稿',   cls: 'draft',     tone: 'orange', icon: 'EditPen' },
@@ -71,11 +49,22 @@ const statusMap: Record<string, { label: string; cls: string; tone: string; icon
   withdrawn: { label: '已撤回', cls: 'disabled',  tone: 'gray',   icon: 'RemoveFilled' },
 }
 
+// bidPrice 存为字符串，可能填了"万元"也可能误填了"元"。统一格式化：
+// ≥10000 视为元 → 自动换算万元；否则直接作为万元展示。
+function formatBidPrice(raw: string | number | null | undefined): string {
+  const n = Number(raw)
+  if (!raw || isNaN(n)) return '--'
+  if (n >= 10000) return `${(n / 10000).toFixed(2)} 万元`
+  return `${n} 万元`
+}
+
 function canWithdraw(row: any) {
   return row.status === 'submitted' && row.project?.stage === 'SUBMIT'
 }
 function canConfirmOpening(row: any) {
-  return row.status === 'submitted' && ['OPENING','EVALUATING','ARCHIVED'].includes(row.project?.stage)
+  return row.status === 'submitted'
+    && ['OPENING','EVALUATING','ARCHIVED'].includes(row.project?.stage)
+    && row.confirmStatus !== 'CONFIRMED'
 }
 
 // ── Per-card stage progress (for submitted with known stage) ──
@@ -112,13 +101,6 @@ async function handleWithdraw(id: string) {
         <span class="sp-skel" style="width:200px;height:24px;margin-top:12px" />
         <span class="sp-skel" style="width:280px;height:14px;margin-top:10px" />
       </div>
-      <div class="mb-skel-kpis">
-        <div v-for="i in 4" :key="i" class="mb-skel-kpi">
-          <span class="sp-skel" style="width:40px;height:26px" />
-          <span class="sp-skel" style="width:60px;height:12px;margin-top:6px" />
-        </div>
-      </div>
-      <div class="mb-skel-pipeline"><span class="sp-skel" style="width:100%;height:100%" /></div>
       <div class="mb-skel-list">
         <div v-for="i in 3" :key="i" class="mb-skel-row">
           <div style="flex:1"><span class="sp-skel" style="width:50%;height:16px" /><span class="sp-skel" style="width:35%;height:12px;margin-top:8px" /></div>
@@ -134,51 +116,9 @@ async function handleWithdraw(id: string) {
            ═══════════════════════════════════════════ -->
       <SpPageHero :icon="ClipboardList" title="投标进展" sub="跟踪已提交的投标记录与各项目所处阶段，及时关注开标进展。">
         <template #actions>
-          <div class="page-hero__stat"><strong>{{ summary.total }}</strong><span>投标记录</span></div>
           <el-button type="primary" size="large" @click="router.push('/bids')"><el-icon><Plus /></el-icon>浏览投标机会</el-button>
         </template>
       </SpPageHero>
-
-      <!-- ═══════════════════════════════════════════
-           SUMMARY — KPI tiles
-           ═══════════════════════════════════════════ -->
-      <div class="kpi-grid mb-kpis" v-if="submissions.length > 0">
-        <SpKpi label="全部" :value="summary.total" />
-        <SpKpi label="草稿" :value="summary.draft" tone="var(--warning)" />
-        <SpKpi label="已提交" :value="summary.submitted" tone="var(--success)" />
-        <SpKpi label="已撤回" :value="summary.withdrawn" tone="var(--muted-foreground)" />
-      </div>
-
-      <!-- ═══════════════════════════════════════════
-           PIPELINE — stage distribution bar
-           ═══════════════════════════════════════════ -->
-      <section class="sp-module mb-pipeline" v-if="submissions.length > 0">
-        <div class="mb-pipeline-head">
-          <span class="mb-pipeline-title">阶段分布</span>
-          <span class="mb-pipeline-hint">{{ summary.submitted }} 条已提交</span>
-        </div>
-        <div class="mb-pipeline-track">
-          <div
-            v-for="s in pipeline"
-            :key="s.key"
-            class="mb-pipeline-seg"
-          >
-            <div class="mb-pipeline-bar-wrap">
-              <div
-                class="mb-pipeline-bar"
-                :style="{
-                  width: pipelineMax > 0 ? (s.count / pipelineMax * 100) + '%' : '0%',
-                  '--c': s.color,
-                } as any"
-              />
-            </div>
-            <div class="mb-pipeline-meta" :style="{ '--c': s.color } as any">
-              <span class="mb-pipeline-stage-name">{{ s.label }}</span>
-              <span class="mb-pipeline-count">{{ s.count }}</span>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- ═══════════════════════════════════════════
            SUBMISSION LIST — neumorphic plates
@@ -219,6 +159,7 @@ async function handleWithdraw(id: string) {
                 <span class="sp-status" :class="statusMap[row.status]?.cls||'draft'">
                   {{ statusMap[row.status]?.label||row.status }}
                 </span>
+                <el-button type="primary" plain size="small" @click.stop="router.push(`/bids/${row.projectId}`)">详情</el-button>
               </div>
             </div>
 
@@ -226,7 +167,7 @@ async function handleWithdraw(id: string) {
             <div class="mb-card-meta">
               <span v-if="row.bidPrice" class="mb-card-meta-item">
                 <span class="mb-card-meta-label">报价</span>
-                {{ row.bidPrice }}<em>万元</em>
+                {{ formatBidPrice(row.bidPrice) }}
               </span>
               <span v-if="row.deliveryPeriod" class="mb-card-meta-item">
                 <span class="mb-card-meta-label">工期</span>
@@ -288,23 +229,24 @@ async function handleWithdraw(id: string) {
             </div>
           </div>
 
-          <!-- Right actions -->
+          <!-- Right actions — cgzxui 原生按钮，统一居中 -->
           <div class="mb-card-actions">
-            <el-button type="primary" plain size="small" @click="router.push(`/bids/${row.projectId}`)">详情</el-button>
-            <el-button
-              v-if="canConfirmOpening(row)"
-              type="success"
-              plain
-              size="small"
+            <button
+              v-if="row.confirmStatus === 'CONFIRMED'"
+              class="neu-btn-xs is-success"
+              disabled
+            >已确认</button>
+            <button
+              v-else
+              class="neu-btn-xs is-success"
+              :style="{ visibility: canConfirmOpening(row) ? 'visible' : 'hidden' }"
               @click="router.push(`/my-bids/${row.projectId}/opening-confirm`)"
-            >开标确认</el-button>
-            <el-button
-              v-if="canWithdraw(row)"
-              type="warning"
-              plain
-              size="small"
+            >开标确认</button>
+            <button
+              class="neu-btn-xs is-warning"
+              :style="{ visibility: canWithdraw(row) ? 'visible' : 'hidden' }"
               @click="handleWithdraw(row.id)"
-            >撤回</el-button>
+            >撤回</button>
           </div>
         </div>
       </div>
@@ -326,78 +268,8 @@ async function handleWithdraw(id: string) {
    SKELETONS — borderless surface plates (no glass)
    ═══════════════════════════════════════════════ */
 .mb-skel-hero { background: var(--surface); border-radius: 16px; padding: 24px; margin-bottom: 16px; display: flex; flex-direction: column; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
-.mb-skel-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-.mb-skel-kpi { padding: 16px 18px; border-radius: 14px; background: var(--surface); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); display: flex; flex-direction: column; }
-.mb-skel-pipeline { height: 76px; border-radius: 14px; padding: 16px; margin-bottom: 16px; background: var(--surface); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
 .mb-skel-list { display: grid; gap: 10px; }
 .mb-skel-row { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-radius: 14px; background: var(--surface); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
-
-/* ═══════════════════════════════════════════════
-   SUMMARY KPI GRID
-   ═══════════════════════════════════════════════ */
-.mb-kpis { margin-top: 16px; }
-
-/* ═══════════════════════════════════════════════
-   PIPELINE — stage distribution bar
-   (plate visuals from global .sp-module reset)
-   ═══════════════════════════════════════════════ */
-.mb-pipeline { margin-top: 16px; padding: 14px 18px; }
-.mb-pipeline-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.mb-pipeline-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--foreground);
-}
-.mb-pipeline-hint {
-  font-size: 11px;
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-.mb-pipeline-track {
-  display: flex;
-  gap: 4px;
-  align-items: flex-end;
-}
-.mb-pipeline-seg {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-.mb-pipeline-bar-wrap {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--hairline);
-  overflow: hidden;
-}
-.mb-pipeline-bar {
-  height: 100%;
-  border-radius: 3px;
-  min-width: 4px;
-  background: var(--c);
-  transition: width 0.8s cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.mb-pipeline-meta {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  color: var(--c);
-}
-.mb-pipeline-stage-name { opacity: 0.75; overflow: hidden; text-overflow: ellipsis; }
-.mb-pipeline-count {
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
 
 /* ═══════════════════════════════════════════════
    SUBMISSION CARDS — neumorphic plates (no glass / no drift)
@@ -610,11 +482,14 @@ async function handleWithdraw(id: string) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 16px 14px;
+  padding: 16px 10px;
   flex-shrink: 0;
+  width: 96px;
   border-left: 1px solid var(--hairline);
   justify-content: center;
+  align-items: stretch;
 }
+.mb-card-actions :deep(.neu-btn-xs) { width: 100%; padding: 0; }
 
 /* ── Empty ── */
 .mb-empty {
@@ -646,13 +521,11 @@ async function handleWithdraw(id: string) {
   .mb-stage-label { font-size: 9px; }
 }
 @media (max-width: 768px) {
-  .mb-skel-kpis { grid-template-columns: repeat(2, 1fr); }
   .mb-card-head { flex-direction: column; }
-  .mb-pipeline-track { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mb-card { animation: none; transition: none; }
   .mb-card:hover { transform: none; }
-  .mb-pipeline-bar, .mb-stage-track-fill { transition: none; }
+  .mb-stage-track-fill { transition: none; }
 }
 </style>

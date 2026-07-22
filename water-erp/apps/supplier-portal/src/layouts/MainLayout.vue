@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useSupplierStore } from '@/stores/supplier'
 import { useNotificationStore } from '@/stores/notification'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
@@ -29,6 +30,7 @@ const breadcrumbs = computed(() => {
 })
 const authStore = useAuthStore()
 const notifStore = useNotificationStore()
+const supplierStore = useSupplierStore()
 
 const isCollapse = ref(false)
 const mobileDrawer = ref(false)
@@ -45,7 +47,12 @@ checkMobile()
 window.addEventListener('resize', checkMobile)
 
 // Poll unread count every 30s
-onMounted(() => { notifStore.fetchUnreadCount(); const timer = setInterval(() => notifStore.fetchUnreadCount(), 30_000); onBeforeUnmount(() => clearInterval(timer)) })
+onMounted(() => {
+  notifStore.fetchUnreadCount()
+  supplierStore.fetchStatus()  // 获取公司全称，用于顶部栏显示
+  const timer = setInterval(() => notifStore.fetchUnreadCount(), 30_000)
+  onBeforeUnmount(() => clearInterval(timer))
+})
 
 const menuItems = [
   { path: '/dashboard', title: '业务工作台', icon: HomeFilled, desc: '状态与待办总览' },
@@ -69,7 +76,10 @@ const menuItems = [
 ]
 
 const activeMenu = computed(() => route.path)
-const userInitial = computed(() => (authStore.displayName?.charAt(0) || 'S'))
+const userInitial = computed(() => (supplierStore.status?.name?.charAt(0) || authStore.displayName?.charAt(0) || 'S'))
+
+// 顶部栏/标题栏统一显示公司全称（非个人姓名）
+const companyDisplayName = computed(() => supplierStore.status?.name || authStore.displayName || '')
 
 const notifPopover = ref(false)
 const recentNotifs = computed(() => notifStore.notifications.slice(0, 5))
@@ -175,7 +185,7 @@ notifStore.fetchUnreadCount()
         <el-dropdown @command="handleCommand" trigger="click">
           <div class="sp-user-pill">
             <span class="sp-user-avatar">{{ userInitial }}</span>
-            <span class="sp-user-name">{{ authStore.displayName }}</span>
+            <span class="sp-user-name">{{ companyDisplayName }}</span>
             <el-icon class="sp-user-arrow"><ArrowDown /></el-icon>
           </div>
           <template #dropdown>
@@ -432,7 +442,7 @@ notifStore.fetchUnreadCount()
 }
 
 .sp-user-name {
-  max-width: 110px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -57,6 +57,13 @@ import type {
   ImportAutofillFileResult,
 } from './import-autofill.types';
 
+/**
+ * 模板文件等静态资源的根目录（编译后 dist/tender-write → apps/api）。
+ * 用 __dirname 代替 process.cwd() ，避免因进程启动目录不同（如在 apps/web 启动）
+ * 导致路径解析到错误位置。
+ */
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+
 @Injectable()
 export class TenderWriteService {
   private readonly logger = new Logger(TenderWriteService.name);
@@ -67,18 +74,18 @@ export class TenderWriteService {
     documentType: ExportTenderWriteDto['documentType'],
   ) {
     if (documentType === 'SINGLE_SOURCE') {
-      return path.resolve(process.cwd(), SINGLE_SOURCE_TEMPLATE_FILE);
+      return path.resolve(PROJECT_ROOT, SINGLE_SOURCE_TEMPLATE_FILE);
     }
     if (documentType === 'INQUIRY_PURCHASE') {
-      return path.resolve(process.cwd(), INQUIRY_PURCHASE_TEMPLATE_FILE);
+      return path.resolve(PROJECT_ROOT, INQUIRY_PURCHASE_TEMPLATE_FILE);
     }
     if (documentType === 'INTERNAL_BIDDING') {
-      return path.resolve(process.cwd(), INTERNAL_BIDDING_TEMPLATE_FILE);
+      return path.resolve(PROJECT_ROOT, INTERNAL_BIDDING_TEMPLATE_FILE);
     }
     if (documentType === 'INVITED_BIDDING') {
-      return path.resolve(process.cwd(), INVITED_BIDDING_TEMPLATE_FILE);
+      return path.resolve(PROJECT_ROOT, INVITED_BIDDING_TEMPLATE_FILE);
     }
-    return path.resolve(process.cwd(), COMPETITIVE_NEGOTIATION_TEMPLATE_FILE);
+    return path.resolve(PROJECT_ROOT, COMPETITIVE_NEGOTIATION_TEMPLATE_FILE);
   }
 
   private resolveDownloadFileName(
@@ -263,7 +270,7 @@ export class TenderWriteService {
     if (category === 'procurement_document') {
       if (tenderType === 'SINGLE_SOURCE') {
         templatePath = path.resolve(
-          process.cwd(),
+          PROJECT_ROOT,
           SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE,
         );
         replacementPlan = buildSingleSourceAnnouncementPlan(
@@ -272,7 +279,7 @@ export class TenderWriteService {
         typeLabel = '直接采购公告';
       } else if (tenderType === 'INTERNAL_BIDDING') {
         templatePath = path.resolve(
-          process.cwd(),
+          PROJECT_ROOT,
           INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
         );
         replacementPlan = buildInternalBiddingAnnouncementPlan(
@@ -281,7 +288,7 @@ export class TenderWriteService {
         typeLabel = '竞价采购公告';
       } else if (tenderType === 'INQUIRY_PURCHASE') {
         templatePath = path.resolve(
-          process.cwd(),
+          PROJECT_ROOT,
           INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE,
         );
         // 询比采购公示字段与邀请招标公告完全一致，复用同一替换计划
@@ -291,7 +298,7 @@ export class TenderWriteService {
         typeLabel = '询比采购公告';
       } else {
         templatePath = path.resolve(
-          process.cwd(),
+          PROJECT_ROOT,
           INVITED_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
         );
         replacementPlan = buildInvitedBiddingAnnouncementPlan(
@@ -301,7 +308,7 @@ export class TenderWriteService {
       }
     } else if (category === 'failed_bid') {
       templatePath = path.resolve(
-        process.cwd(),
+        PROJECT_ROOT,
         FAILED_BID_ANNOUNCEMENT_TEMPLATE_FILE,
       );
       replacementPlan = buildFailedBidAnnouncementPlan(
@@ -310,7 +317,7 @@ export class TenderWriteService {
       typeLabel = '流标公告';
     } else if (category === 'winning_bid') {
       templatePath = path.resolve(
-        process.cwd(),
+        PROJECT_ROOT,
         WINNING_BID_ANNOUNCEMENT_TEMPLATE_FILE,
       );
       replacementPlan = buildWinningBidAnnouncementPlan(
@@ -739,7 +746,7 @@ export class TenderWriteService {
    */
   async exportNotificationLetter(dto: ExportNotificationLetterDto) {
     const templatePath = path.resolve(
-      process.cwd(),
+      PROJECT_ROOT,
       NOTIFICATION_LETTER_TEMPLATE_FILE,
     );
 
@@ -785,7 +792,7 @@ export class TenderWriteService {
    */
   async exportNotificationLedger(dto: ExportNotificationLetterDto) {
     const templatePath = path.resolve(
-      process.cwd(),
+      PROJECT_ROOT,
       '模板文件/中标通知书台账.xlsx',
     );
 
@@ -879,7 +886,7 @@ export class TenderWriteService {
   /** Read ledger Excel and return data rows as JSON */
   async getNotificationLedger() {
     const templatePath = path.resolve(
-      process.cwd(),
+      PROJECT_ROOT,
       '模板文件/中标通知书台账.xlsx',
     );
 
@@ -909,7 +916,7 @@ export class TenderWriteService {
   /** Update ledger with edited rows and return the Excel buffer */
   async updateAndExportNotificationLedger(rows: unknown[][]) {
     const templatePath = path.resolve(
-      process.cwd(),
+      PROJECT_ROOT,
       '模板文件/中标通知书台账.xlsx',
     );
 

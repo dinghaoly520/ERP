@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { useSupplierStore } from '@/stores/supplier'
 import { useNotificationStore } from '@/stores/notification'
 import { useBidStore } from '@/stores/bid'
-import { useAuthStore } from '@/stores/auth'
 import SkeletonCard from '@/components/SkeletonCard.vue'
 import SpKpi from '@/components/SpKpi.vue'
 import { AlertTriangle } from 'lucide-vue-next'
@@ -14,7 +13,6 @@ const router = useRouter()
 const supplierStore = useSupplierStore()
 const notifStore = useNotificationStore()
 const bidStore = useBidStore()
-const authStore = useAuthStore()
 const loading = ref(true)
 const error = ref(false)
 
@@ -171,7 +169,7 @@ const daysSinceReg = computed(() => {
       <div class="db-hero">
         <div class="db-hero-left">
           <div class="db-hero-topline">
-            <h1 class="db-hero-name">{{ authStore.displayName || statusInfo.name }}</h1>
+            <h1 class="db-hero-name">{{ statusInfo.name }}</h1>
             <span class="sp-status" :class="statusType[statusInfo.status]||'pending'">{{ statusLabel[statusInfo.status]||statusInfo.status }}</span>
             <span v-if="daysSinceReg" class="db-hero-meta">入驻 {{ daysSinceReg }} 天</span>
           </div>
@@ -224,7 +222,7 @@ const daysSinceReg = computed(() => {
         <section class="sp-module db-panel-left">
           <div class="sp-module-header">
             <h2 class="sp-module-title">招标项目</h2>
-            <el-button link type="primary" @click="router.push('/bids')">全部<el-icon style="margin-left:2px;font-size:12px"><ArrowRight /></el-icon></el-button>
+            <button class="neu-btn-xs" @click="router.push('/bids')">全部<el-icon style="font-size:12px"><ArrowRight /></el-icon></button>
           </div>
           <div v-if="projectRows.length === 0" class="sp-empty" style="padding:32px 0">
             <div class="sp-empty-icon"><el-icon :size="20"><Folder /></el-icon></div>
@@ -261,7 +259,7 @@ const daysSinceReg = computed(() => {
           <section class="sp-module db-panel-comp">
             <div class="sp-module-header">
               <h2 class="sp-module-title">资料完善</h2>
-              <el-button link type="primary" @click="router.push('/profile')">完善<el-icon style="margin-left:2px;font-size:12px"><ArrowRight /></el-icon></el-button>
+              <button class="neu-btn-xs" @click="router.push('/profile')">完善<el-icon style="font-size:12px"><ArrowRight /></el-icon></button>
             </div>
             <!-- Ring + total score -->
             <div class="db-comp-top">
@@ -314,7 +312,7 @@ const daysSinceReg = computed(() => {
           <section class="sp-module db-panel-msg">
             <div class="sp-module-header">
               <h2 class="sp-module-title">最近消息</h2>
-              <el-button link type="primary" @click="router.push('/notifications')">全部<el-icon style="margin-left:2px;font-size:12px"><ArrowRight /></el-icon></el-button>
+              <button class="neu-btn-xs" @click="router.push('/notifications')">全部<el-icon style="font-size:12px"><ArrowRight /></el-icon></button>
             </div>
             <div v-if="notifFeed.length === 0" class="sp-empty" style="padding:24px 0">
               <div class="sp-empty-icon"><el-icon :size="18"><Bell /></el-icon></div>
@@ -364,17 +362,26 @@ const daysSinceReg = computed(() => {
 .db-hero-hint.warn { color: var(--warning); font-weight: 600; }
 .db-hero-right { display: flex; gap: 8px; flex-shrink: 0; }
 
+/* ═══════════════ KPI strip spacing — consistent 20px rhythm with hero + body ═══════════════ */
+:deep(.kpi-grid) { margin: 20px 0; }
+
 /* ═══════════════ Two-column body ═══════════════ */
 .db-body {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;  /* 两列等高：右列撑满左列高度 */
 }
-.db-right-stack { display: grid; gap: 20px; min-width: 0; }
-.db-panel-left { min-height: 200px; min-width: 0; overflow: hidden; }
-.db-panel-comp { min-width: 0; }
-.db-panel-msg { min-width: 0; }
+.db-right-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  height: 100%;  /* 撑满 grid 轨道，使 margin-top:auto 生效 */
+}
+.db-panel-left { min-height: 200px; min-width: 0; }
+.db-panel-comp { min-width: 0; flex-shrink: 0; }
+.db-panel-msg { min-width: 0; flex-shrink: 0; margin-top: auto; }  /* 沉底对齐左列底部 */
 
 /* ── LEFT: Project list ── */
 .db-list { display: flex; flex-direction: column; }
@@ -384,9 +391,9 @@ const daysSinceReg = computed(() => {
   cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease);
 }
 .db-list-row.is-last { border-bottom: none; }
-.db-list-row:hover { background: oklch(0.985 0.01 258 / 0.6); margin: 0 -16px; padding: 11px 16px; border-radius: 10px; }
+.db-list-row:hover { background: oklch(0.985 0.01 258 / 0.5); border-radius: 8px; }
 .db-list-row.critical { background: linear-gradient(90deg, color-mix(in oklab, var(--danger) 9%, transparent) 0%, transparent 26%); }
-.db-list-row.critical:hover { background: linear-gradient(90deg, color-mix(in oklab, var(--danger) 12%, transparent) 0%, oklch(0.985 0.01 258 / 0.6) 50%); margin: 0 -16px; padding: 11px 16px; border-radius: 10px; }
+.db-list-row.critical:hover { background: linear-gradient(90deg, color-mix(in oklab, var(--danger) 13%, transparent) 0%, oklch(0.985 0.01 258 / 0.5) 50%); border-radius: 8px; }
 .db-list-info { min-width: 0; flex: 1; overflow: hidden; }
 .db-list-name { display: block; font-size: 13px; font-weight: 700; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .db-list-code { display: block; margin-top: 2px; font-size: 11px; color: var(--muted-foreground); font-family: 'SF Mono','JetBrains Mono',monospace; }
@@ -427,7 +434,7 @@ const daysSinceReg = computed(() => {
 .db-msg-list { display: flex; flex-direction: column; }
 .db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease); }
 .db-msg-row.is-last { border-bottom: none; }
-.db-msg-row:hover { background: oklch(0.985 0.01 258 / 0.6); margin: 0 -16px; padding: 9px 16px; border-radius: 10px; }
+.db-msg-row:hover { background: oklch(0.985 0.01 258 / 0.5); border-radius: 8px; }
 .db-msg-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--c); transition: box-shadow 0.2s ease; }
 .db-msg-row.unread .db-msg-dot { box-shadow: 0 0 0 3px var(--g); }
 .db-msg-body { flex: 1; min-width: 0; }

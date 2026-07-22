@@ -6,15 +6,15 @@ export const useBidStore = defineStore('bid', () => {
   const projects = ref<any[]>([])
   const currentProject = ref<any>(null)
   const total = ref(0)
-  // 各阶段计数（不含 stage 过滤，但随搜索收窄），供列表页签/统计使用
-  const stageCounts = ref<Record<string, number>>({})
+  // scope 分类计数（公告/受邀），供列表页签/统计使用
+  const scopeCounts = ref<Record<string, number>>({ open: 0, invited: 0 })
   const loading = ref(false)
   const error = ref<string | null>(null)
 
   async function fetchProjects(
     page = 1,
     pageSize = 20,
-    filters?: { search?: string; stage?: string },
+    filters?: { search?: string; scope?: string },
   ) {
     loading.value = true
     error.value = null
@@ -22,7 +22,7 @@ export const useBidStore = defineStore('bid', () => {
       const res = await bidApi.listProjects({ page, pageSize, ...filters }) as any
       projects.value = Array.isArray(res) ? res : res.items || []
       total.value = res.total ?? projects.value.length
-      stageCounts.value = res.stageCounts || {}
+      scopeCounts.value = res.scopeCounts || { open: 0, invited: 0 }
     } catch (e: any) {
       error.value = e?.response?.data?.error || e?.message || '加载招标项目失败'
     } finally {
@@ -42,5 +42,5 @@ export const useBidStore = defineStore('bid', () => {
     }
   }
 
-  return { projects, currentProject, total, stageCounts, loading, error, fetchProjects, fetchProject }
+  return { projects, currentProject, total, scopeCounts, loading, error, fetchProjects, fetchProject }
 })

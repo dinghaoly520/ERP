@@ -46,6 +46,29 @@ import type {
 } from '@/lib/types/tender-write';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
+// ── localStorage 持久化（按项目 ID 缓存草稿，关闭后可恢复，避免重复 AI 生成）──
+const DRAFTS_STORAGE_PREFIX = 'tender-write:project-drafts:v1:';
+const getDraftsStorageKey = (projectId: string) => `${DRAFTS_STORAGE_PREFIX}${projectId}`;
+const loadDraftsFromStorage = (projectId: string): TenderDraftsState | null => {
+  try {
+    const raw = localStorage.getItem(getDraftsStorageKey(projectId));
+    if (!raw) return null;
+    return JSON.parse(raw) as TenderDraftsState;
+  } catch {
+    return null;
+  }
+};
+const saveDraftsToStorage = (projectId: string, d: TenderDraftsState) => {
+  try {
+    localStorage.setItem(getDraftsStorageKey(projectId), JSON.stringify(d));
+  } catch { /* quota exceeded — 静默忽略 */ }
+};
+const clearDraftsStorage = (projectId: string) => {
+  try {
+    localStorage.removeItem(getDraftsStorageKey(projectId));
+  } catch { /* ignore */ }
+};
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
@@ -73,65 +96,91 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   const selectedType: TenderDocumentType | null = tenderType;
 
   const [drafts, setDrafts] = useState<TenderDraftsState>(createEmptyTenderDrafts());
+  const draftRestoredFromStorageRef = useRef(false);
   const [activeSectionKey, setActiveSectionKey] = useState<TenderSectionKey>('cover');
-  const [prefilled, setPrefilled] = useState(false);
-  const aiGenTriggeredRef = useRef(false);
   const draftsRef = useRef(drafts);
   draftsRef.current = drafts;
 
-  // 关闭时全部重置
+  // 草稿变更后自动持久化
   useEffect(() => {
-    if (!isOpen) {
-      setPrefilled(false);
-      setShowWorkspace(false);
-      aiGenTriggeredRef.current = false;
-      setAiGenerating(false);
-      setAiProgress('');
-      setAiDone(0);
-      setAiTotal(0);
+    if (project?.id && draftRestoredFromStorageRef.current) {
+      saveDraftsToStorage(project.id, drafts);
     }
-  }, [isOpen]);
+  }, [drafts, project?.id]);
 
-  // 首次打开时从项目数据预填
+  // 组件卸载时保存草稿（父组件通过条件渲染直接卸载弹窗，isOpen 始终为 true）
   useEffect(() => {
-    if (!isOpen || !selectedType || !project || prefilled) return;
-    const prefill = buildPrefillFromProject(project, selectedType as TenderDocumentType);
-    setDrafts((prev) => {
-      const typeKey = selectedType as keyof TenderDraftsState;
-      return { ...prev, [typeKey]: { ...prev[typeKey], ...prefill } };
-    });
-    setPrefilled(true);
-  }, [isOpen, selectedType, project, prefilled]);
+    const projectId = project?.id;
+    return () => {
+      if (projectId) {
+        saveDraftsToStorage(projectId, draftsRef.current);
+      }
+    };
+  }, [project?.id]);
 
-  // 预填完成后自动触发 AI 生成，生成完毕才进入工作区
+  // ======== 打开流程：restore + prefill + AI 决策 = 原子 effect ========
+  const openFlowRanRef = useRef(false);
   useEffect(() => {
-    if (!prefilled || !selectedType || aiGenTriggeredRef.current) return;
-    aiGenTriggeredRef.current = true;
+    if (!isOpen) { openFlowRanRef.current = false; return; }
+    if (!selectedType || !project) return;
+    if (openFlowRanRef.current) return;
+    openFlowRanRef.current = true;
 
     const type = selectedType as TenderDocumentType;
-    const fields = project
-      ? getAiGenerationFields(type)
-      : [];
+    const typeKey = selectedType as keyof TenderDraftsState;
+    const prefill = buildPrefillFromProject(project, selectedType as TenderDocumentType);
+    const aiFields = getAiGenerationFields(type);
 
-    if (fields.length === 0) {
-      // 不需要 AI 生成，直接进入工作区
+    // Step 1: 检查 localStorage 是否有已保存的草稿
+    const saved = loadDraftsFromStorage(project.id);
+    const hasSavedAiContent = saved
+      ? aiFields.some((f) => String((saved[typeKey] as Record<string, unknown>)?.[f.fieldKey] ?? '').trim().length > 0)
+      : false;
+
+    if (saved && hasSavedAiContent) {
+      // 已有完整草稿 → 合并 prefill（仅非空字段），直接进工作区
+      const filtered: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(prefill)) {
+        if (v != null && v !== '') filtered[k] = v;
+      }
+      const merged = { ...saved, [typeKey]: { ...(saved[typeKey] ?? {}), ...filtered } };
+      setDrafts(merged);
+      draftRestoredFromStorageRef.current = true;
       setShowWorkspace(true);
       return;
     }
 
-    const context = buildAiGenerationContext(project!);
+    // Step 2: 无草稿 → 从项目数据预填后触发 AI 生成
+    if (saved && !hasSavedAiContent) {
+      // 有保存记录但无 AI 内容（可能是首次打开后意外关闭）→ 合并后继续生成
+      setDrafts(saved);
+    }
+    // 延迟一帧合并 prefill（确保 saved 的状态已落盘）
+    setDrafts((prev) => {
+      const filtered: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(prefill)) {
+        if (v != null && v !== '') filtered[k] = v;
+      }
+      return { ...prev, [typeKey]: { ...(prev[typeKey] ?? {}), ...filtered } };
+    });
+
+    // Step 3: 触发 AI 逐字段生成
+    if (aiFields.length === 0) {
+      setShowWorkspace(true);
+      return;
+    }
+
+    const context = buildAiGenerationContext(project);
     setAiGenerating(true);
     setAiDone(0);
-    setAiTotal(fields.length);
+    setAiTotal(aiFields.length);
 
     (async () => {
-      for (let i = 0; i < fields.length; i++) {
-        const f = fields[i];
-        setAiProgress(`${f.label}（${i + 1}/${fields.length}）`);
+      for (let i = 0; i < aiFields.length; i++) {
+        const f = aiFields[i];
+        setAiProgress(`${f.label}（${i + 1}/${aiFields.length}）`);
         setAiDone(i + 1);
 
-        // 跳过已有内容的字段
-        const typeKey = type as keyof TenderDraftsState;
         const current = String((draftsRef.current[typeKey] as Record<string, string>)?.[f.fieldKey] ?? '');
         if (current.trim()) continue;
 
@@ -145,11 +194,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           });
           if (result.content) {
             const isQuotationField = f.fieldKey === 'quotationLetter';
-            const tableData =
-              isQuotationField ? parseQuotationTextToTable(result.content) : null;
-
+            const tableData = isQuotationField ? parseQuotationTextToTable(result.content) : null;
             setDrafts((prev) => {
-              const tk = type as keyof TenderDraftsState;
               const emptyFn = {
                 COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
                 SINGLE_SOURCE: createEmptySingleSourceDraft,
@@ -157,41 +203,30 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
                 INVITED_BIDDING: createEmptyInvitedBiddingDraft,
               }[type];
-              const base = {
-                ...(emptyFn?.() ?? {}),
-                ...(prev[tk] ?? {}),
-              };
+              const base = { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}) };
               if (tableData) {
-                // 报价表/报价函 → 直接写入设计表格模式
                 return {
                   ...prev,
-                  [tk]: {
+                  [typeKey]: {
                     ...base,
                     quotationLetterType: 'table',
                     quotationLetterTable: tableData,
-                    // 同时保留文本值供预览回退
                     [f.fieldKey]: result.content,
                   },
                 };
               }
-              return {
-                ...prev,
-                [tk]: { ...base, [f.fieldKey]: result.content },
-              };
+              return { ...prev, [typeKey]: { ...base, [f.fieldKey]: result.content } };
             });
           }
-        } catch {
-          // 单个字段失败不中断整体流程
-        }
-
+        } catch { /* single field failure doesn't stop */ }
         await new Promise((r) => setTimeout(r, 300));
       }
-
       setAiProgress('');
       setAiGenerating(false);
       setShowWorkspace(true);
+      draftRestoredFromStorageRef.current = true;
     })();
-  }, [prefilled, selectedType, project]);
+  }, [isOpen, selectedType, project]);
 
   const selectedMeta = useMemo(
     () => TENDER_DOCUMENT_TYPES.find((item) => item.type === selectedType) ?? null,
