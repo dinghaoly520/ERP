@@ -403,6 +403,7 @@ describe('ProjectManagementService', () => {
         findMany: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
       },
       projectManagementStage: {
         createMany: jest.fn(),

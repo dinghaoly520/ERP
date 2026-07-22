@@ -132,6 +132,10 @@ describe('WorkArrangementsService', () => {
   it('postpones a reminder by preset minutes without changing other fields', async () => {
     const { service, prisma } = makeService();
 
+    // 提醒时间设为未来 1 小时，确保「原提醒未过期」→ 锚点为原提醒时间（不依赖真实当前时间，测试确定性）
+    const baseReminder = new Date(Date.now() + 60 * 60 * 1000);
+    const expectedReminder = new Date(baseReminder.getTime() + 30 * 60 * 1000);
+
     prisma.workArrangement.findFirst.mockResolvedValue({
       id: 'task-1',
       userId: 'user-1',
@@ -141,7 +145,7 @@ describe('WorkArrangementsService', () => {
       urgency: 'HIGH',
       status: 'TODO',
       dueAt: new Date('2026-05-13T10:00:00.000Z'),
-      reminderAt: new Date('2026-05-13T08:30:00.000Z'),
+      reminderAt: baseReminder,
       estimatedMinutes: 30,
       isAllDay: false,
       customTags: [],
@@ -166,7 +170,7 @@ describe('WorkArrangementsService', () => {
       expect.objectContaining({
         where: { id: 'task-1' },
         data: expect.objectContaining({
-          reminderAt: new Date('2026-05-13T09:00:00.000Z'),
+          reminderAt: expectedReminder,
         }),
       }),
     );

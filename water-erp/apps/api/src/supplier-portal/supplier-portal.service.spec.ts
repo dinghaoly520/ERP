@@ -56,7 +56,7 @@ describe('SupplierPortalService', () => {
   beforeEach(async () => {
     prisma = {
       supplier: { findUnique: jest.fn() },
-      bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
       supplierEvaluation: { count: jest.fn() },
       supplierBidSubmission: {
         count: jest.fn(),
@@ -79,6 +79,8 @@ describe('SupplierPortalService', () => {
       user: { findUnique: jest.fn() },
       announcement: { findFirst: jest.fn() },
       bidDocument: { findUnique: jest.fn() },
+      // submitBid 等使用交互式事务：tx 复用本 mock（其模型 mock 已具备）
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
