@@ -37,8 +37,10 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
   async function handleExtract() {
     setExtracting(true);
     setExtractError(null);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 120_000);
     try {
-      const list = await extractScorePoints(projectId, item.id);
+      const list = await extractScorePoints(projectId, item.id, { signal: controller.signal });
       // E3: 按 confidence 降序,重复项默认不选
       const sorted = [...list].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
       setSuggestions(sorted.map((s) => ({ ...s, selected: !s.duplicate })));
@@ -50,8 +52,13 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
         }
       }
     } catch (e: any) {
-      setExtractError(e?.message ?? 'AI 提取暂时不可用,请稍后重试或手动添加。');
+      if (e?.name === 'AbortError') {
+        setExtractError('AI 提取超时（120s），招标文件可能较大，请稍后重试');
+      } else {
+        setExtractError(e?.message ?? 'AI 提取暂时不可用,请稍后重试或手动添加。');
+      }
     } finally {
+      clearTimeout(timer);
       setExtracting(false);
     }
   }

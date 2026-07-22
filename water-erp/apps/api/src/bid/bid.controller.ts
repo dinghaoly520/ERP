@@ -317,6 +317,7 @@ export class BidController {
     return this.bidService.deleteScorePoint(id, itemId, pointId);
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
   @Post('projects/:id/score-items/:itemId/points/extract')
   @ApiOperation({ summary: 'AI 从招标文件提取得分点建议（同步，不落库）' })
   extractScorePoints(@Param('id') id: string, @Param('itemId') itemId: string) {

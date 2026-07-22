@@ -222,8 +222,8 @@ export function deleteScorePoint(projectId: string, itemId: string, pointId: str
 
 // ScorePointSuggestion 已移至 @water-erp/shared
 
-export function extractScorePoints(projectId: string, itemId: string) {
-  return api.post<ScorePointSuggestion[]>(`/bid/projects/${projectId}/score-items/${itemId}/points/extract`, {});
+export function extractScorePoints(projectId: string, itemId: string, options?: RequestInit) {
+  return api.post<ScorePointSuggestion[]>(`/bid/projects/${projectId}/score-items/${itemId}/points/extract`, {}, options);
 }
 export function batchCreateScorePoints(
   projectId: string,
