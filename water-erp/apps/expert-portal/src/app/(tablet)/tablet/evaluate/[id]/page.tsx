@@ -62,7 +62,8 @@ export default function TabletEvaluatePage() {
   }, [project?.myExpertRecord?.id, projectId]);
 
   // P0-1: hydrate 时用 composite key（与桌面端一致，避免跨供应商串分）
-  const loadProject = useCallback(() => {
+  // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
+  const loadProject = useCallback((committedSupplierId?: string) => {
     setLoading(true);
     api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
@@ -79,7 +80,15 @@ export default function TabletEvaluatePage() {
             reason: rec.reason || '',
           };
         });
-        setScores(existing);
+        // P0-B：合并而非覆盖——保留其他供应商尚未提交的内存编辑，仅用服务端值覆盖已提交供应商
+        setScores(prev => {
+          const next: Record<string, ScoreEntry> = { ...existing };
+          for (const [k, v] of Object.entries(prev)) {
+            if (committedSupplierId && k.startsWith(`${committedSupplierId}:`)) continue; // 已提交的用服务端值
+            if (!(k in next)) next[k] = v; // 其他供应商的未提交编辑保留
+          }
+          return next;
+        });
         // 同时取 pointDecisions（checklist hydrate）
         api.get<{
           records: unknown[];
@@ -276,11 +285,10 @@ export default function TabletEvaluatePage() {
       });
       await api.post(`/expert/projects/${projectId}/scores`, { scores: payload, supplierName });
       toast.success(`${supplierName} 评分提交成功`);
-      // 提交成功后清除本地草稿
-      if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+      // P0-B：不再整键删除草稿（会误删其他供应商未提交分）；合并刷新后自动暂存按剩余未提交分重写
       setDraftAvailable(null);
       setDraftDismissed(true);
-      loadProject();
+      loadProject(activeSupplier);
     } catch (e) {
       const err = e as ApiError;
       toast.error(err?.message || '提交失败');

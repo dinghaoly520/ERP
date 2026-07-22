@@ -207,7 +207,8 @@ export default function ExpertEvaluatePage() {
   // Composite key helper — keeps the per-supplier invariant explicit at every call site.
   const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
-  const loadProject = useCallback(() => {
+  // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
+  const loadProject = useCallback((committedSupplierId?: string) => {
     setLoading(true);
     api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
@@ -225,7 +226,15 @@ export default function ExpertEvaluatePage() {
         p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {
           existing[scoreKey(rec.supplierId, rec.scoreItemId)] = { score: Number(rec.score), reason: rec.reason || '' };
         });
-        setScores(existing);
+        // P0-B：合并而非覆盖——保留其他供应商尚未提交的内存编辑，仅用服务端值覆盖已提交供应商
+        setScores(prev => {
+          const next: typeof prev = { ...existing };
+          for (const [k, v] of Object.entries(prev)) {
+            if (committedSupplierId && k.startsWith(`${committedSupplierId}:`)) continue; // 已提交的用服务端值
+            if (!(k in next)) next[k] = v; // 其他供应商的未提交编辑保留
+          }
+          return next;
+        });
         // P2: sync per-supplier conflicts from server
         const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
@@ -559,10 +568,9 @@ export default function ExpertEvaluatePage() {
     setBusy(true);
     try {
       await api.post(`/expert/projects/${projectId}/scores`, { scores: scoresPayload, supplierName });
-      // P0-3: clear draft on successful submit.
-      if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+      // P0-B：不再整键删除草稿（会误删其他供应商未提交分）；合并刷新后自动暂存按剩余未提交分重写
       setDraftAvailable(null);
-      loadProject();
+      loadProject(activeSupplier);
       toast.success(`${supplierName} 评分提交成功`);
     } catch (e: any) { toast.error(e.message || '提交失败'); }
     setBusy(false);
