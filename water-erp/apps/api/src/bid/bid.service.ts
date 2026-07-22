@@ -1279,6 +1279,10 @@ export class BidService {
     if (!expert) {
       throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' });
     }
+    // P1-5：代评锁定——专家已确认报告后不可再代评改分
+    if (expert.reportConfirmed) {
+      throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+    }
 
     // 校验 scoreItem 属于该项目
     const scoreItem = await this.prisma.bidScoreItem.findFirst({
@@ -1335,49 +1339,65 @@ export class BidService {
       });
       finalScore = recomputed.score;
       finalPassed = recomputed.passed ?? dto.passed;
-
-      for (const d of dto.pointDecisions) {
-        await this.prisma.bidScorePointDecision.upsert({
-          where: { expertId_pointId_supplierId: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId } },
-          update: { checked: d.checked, awardedScore: d.awardedScore, note: d.note },
-          create: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId, checked: d.checked, awardedScore: d.awardedScore, note: d.note },
-        });
-      }
+      // （decision 的写 upsert 移入下方事务，与 record/review/progress 原子提交）
     }
 
-    // 利用唯一约束 upsert：存在则更新，不存在则创建
-    const record = await this.prisma.bidScoreRecord.upsert({
-      where: {
-        expertId_scoreItemId_supplierId: {
+    // P1-4/P1-5：写操作整体事务化（decisions + record + review + progress），中途失败整体回滚
+    const { record, progress } = await this.prisma.$transaction(async (tx) => {
+      // checklist 得分点裁定写入
+      if (points.length > 0 && dto.pointDecisions) {
+        for (const d of dto.pointDecisions) {
+          await tx.bidScorePointDecision.upsert({
+            where: { expertId_pointId_supplierId: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId } },
+            update: { checked: d.checked, awardedScore: d.awardedScore, note: d.note },
+            create: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId, checked: d.checked, awardedScore: d.awardedScore, note: d.note },
+          });
+        }
+      }
+      // 利用唯一约束 upsert：存在则更新，不存在则创建
+      const rec = await tx.bidScoreRecord.upsert({
+        where: {
+          expertId_scoreItemId_supplierId: {
+            expertId: dto.expertId,
+            scoreItemId: dto.scoreItemId,
+            supplierId: dto.supplierId,
+          },
+        },
+        update: { score: finalScore, reason: dto.reason, ...(finalPassed !== undefined ? { passed: finalPassed } : {}) },
+        create: {
           expertId: dto.expertId,
           scoreItemId: dto.scoreItemId,
           supplierId: dto.supplierId,
+          score: finalScore,
+          reason: dto.reason,
+          ...(finalPassed !== undefined ? { passed: finalPassed } : {}),
         },
-      },
-      update: { score: finalScore, reason: dto.reason, ...(finalPassed !== undefined ? { passed: finalPassed } : {}) },
-      create: {
-        expertId: dto.expertId,
-        scoreItemId: dto.scoreItemId,
-        supplierId: dto.supplierId,
-        score: finalScore,
-        reason: dto.reason,
-        ...(finalPassed !== undefined ? { passed: finalPassed } : {}),
-      },
+      });
+      // P1-4：代评也写核对记录（否则专家核对时 P2025 → 无法确认报告）；改分后重置为 draft 需重新核对
+      await tx.bidScoreReview.upsert({
+        where: { expertId_projectId_supplierId: { expertId: dto.expertId, projectId, supplierId: dto.supplierId } },
+        update: { status: 'draft', verifiedAt: null },
+        create: { expertId: dto.expertId, projectId, supplierId: dto.supplierId, status: 'draft' },
+      });
+      // 同步专家进度/总分（事务内，复用纯函数，与 ExpertService.submitScores 同口径）
+      const { progress, totalScore } = await recomputeExpertProgress(tx, dto.expertId, projectId);
+      await tx.bidExpert.update({ where: { id: expert.id }, data: { progress, totalScore } });
+      return { record: rec, progress };
     });
 
-    // 非否认审计：此为管理端代评/改分通道（bid_expert 走 expert 模块自评），记录实际操作者
+    // 非否认审计：此为管理端代评/改分通道（bid_expert 走 expert 模块自评），记录实际操作者与落库分 finalScore
     if (actorId) {
       this.prisma.auditLog.create({
         data: {
           userId: actorId,
           action: 'BID_SCORE_SUBMIT',
           resourceType: `BidProject:${projectId}`,
-          details: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: dto.score },
+          details: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: finalScore },
         },
       }).catch((err) => this.logger.error('评分提交审计日志写入失败', err));
     }
 
-    // P1: 评分偏差实时检测
+    // P1: 评分偏差实时检测（事务外只读 + 广播）
     const existingRows = await this.prisma.bidScoreRecord.findMany({
       where: { scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, expertId: { not: dto.expertId } },
       select: { expertId: true, scoreItemId: true, supplierId: true, score: true },
@@ -1401,13 +1421,6 @@ export class BidService {
         severity: alert.severity,
       });
     }
-
-    // 同步更新专家进度和总分（复用纯函数，与 ExpertService.submitScores 同口径）
-    const { progress, totalScore } = await recomputeExpertProgress(this.prisma, dto.expertId, projectId);
-    await this.prisma.bidExpert.update({
-      where: { id: expert.id },
-      data: { progress, totalScore },
-    });
 
     // P2: 不再广播分数值（专家独立评审）。仅通知"评分活动"里程碑 + 刷新聚合在场（无分数）。
     this.gateway?.notifyExpertPresence(projectId, {
