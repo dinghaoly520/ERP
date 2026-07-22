@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Trash2, GripVertical, Sparkles, X } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   createScorePoint,
   updateScorePoint,
@@ -57,9 +58,13 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
   async function handleImportSelected() {
     const picked = (suggestions ?? []).filter((s) => s.selected);
     if (picked.length === 0) { setSuggestions(null); return; }
-    await batchCreateScorePoints(projectId, item.id, picked);
-    setSuggestions(null);
-    onChanged();
+    try {
+      await batchCreateScorePoints(projectId, item.id, picked);
+      setSuggestions(null);
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message ?? '导入失败，请重试');
+    }
   }
 
   async function add() {
