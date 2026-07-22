@@ -273,6 +273,9 @@ async function stepExperts() {
 }
 async function stepAi() {
   console.log('▶ ai: bootstrap Nest → ScorePointExtractorService 真实提取');
+  // AI_SCORE_CATEGORIES 控制哪些类走 AI（默认仅 TECHNICAL；模型升级后可加 QUALIFICATION,RESPONSIVE,BUSINESS）
+  const aiCategories = (process.env.AI_SCORE_CATEGORIES ?? 'TECHNICAL').split(',').map((s) => s.trim());
+  console.log(`  AI 提取类别：${aiCategories.join(', ') || '（无，全手动）'}`);
   const project = await prisma.bidProject.findUnique({ where: { projectCode: PROJECT_CODE } });
   if (!project) throw new Error('项目不存在');
 
@@ -290,7 +293,7 @@ async function stepAi() {
       }
       // QUALIFICATION 资格性审查：LLM 对该 pass/fail 类易与符合性审查串混（实测 8 项里 6 项跑偏），
       // 直接按招标文件「资格审查要求」表手动落库 6 项（稳定、准确），criteriaSource=manual。
-      if (item.category === 'QUALIFICATION') {
+      if (item.category === 'QUALIFICATION' && !aiCategories.includes('QUALIFICATION')) {
         await prisma.bidScorePoint.deleteMany({ where: { scoreItemId: item.id } });
         const qualPoints = [
           { name: '有效营业执照/事业单位法人证书', hint: '企业提供营业执照、事业单位提供法人证书等证明文件' },
@@ -309,7 +312,7 @@ async function stepAi() {
       }
       // RESPONSIVE 符合性审查：LLM 对该 pass/fail 类提取极不稳（实测恒 0/1），
       // 直接按招标文件「符合性审查要求」表手动落库 9 项（稳定、准确），criteriaSource=manual。
-      if (item.category === 'RESPONSIVE') {
+      if (item.category === 'RESPONSIVE' && !aiCategories.includes('RESPONSIVE')) {
         await prisma.bidScorePoint.deleteMany({ where: { scoreItemId: item.id } });
         const respPoints = [
           { name: '授权委托书有效', hint: '按采购文件要求提供授权委托书' },
@@ -331,7 +334,7 @@ async function stepAi() {
       }
       // BUSINESS 商务评分：LLM 提取偏少（实测 1-2 项，漏付款/农民工/交付），
       // 手动补全 5 项商务段原文条款，Σ=20，criteriaSource=manual。
-      if (item.category === 'BUSINESS') {
+      if (item.category === 'BUSINESS' && !aiCategories.includes('BUSINESS')) {
         await prisma.bidScorePoint.deleteMany({ where: { scoreItemId: item.id } });
         const bizPoints = [
           { name: '交付期限响应', fullScore: 6, hint: '2026年4月10日前完成钻孔取心钻探及配合试验等工作' },
