@@ -1,0 +1,99 @@
+# AI 提取打分要点质量回归（模型升级预留）
+# 新模型发布时手动触发（workflow_dispatch）或每周一凌晨定时跑，
+# 对比指定模型在 QUALIFICATION/RESPONSIVE/BUSINESS/TECHNICAL 上的提取质量，
+# avg < threshold 的类 → exit 1 → CI 失败告警。
+#
+# 注意：需要 secrets.DEEPSEEK_API_KEY / secrets.KMS_SECRET，
+# 且需 MinIO service（招标文件解密）+ seed 数据（BID-2026-YDJM1 项目）。
+# 公共 GitHub runner 无 MinIO，建议 self-hosted runner 或本地 cron：
+#   cd water-erp/apps/api && npx tsx prisma/scripts/compare-models-ci.ts \
+#     --model=deepseek-v4-flash --runs=5 --threshold=3
+name: AI Extract Regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'DeepSeek model to test'
+        default: 'deepseek-v4-flash'
+      threshold:
+        description: 'Min avg items per category to pass'
+        default: '3'
+  schedule:
+    - cron: '0 2 * * 1'  # 每周一 02:00 UTC
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: water_erp
+          POSTGRES_PASSWORD: water_erp_dev
+          POSTGRES_DB: water_erp
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports: ['9000:9000']
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter @water-erp/shared build
+          pnpm --filter @water-erp/config build
+
+      - name: Prisma generate + migrate + seed
+        working-directory: water-erp/apps/api
+        env:
+          DATABASE_URL: postgresql://water_erp:water_erp_dev@localhost:5432/water_erp
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
+          npx tsx prisma/seed.ts
+
+      - name: Build dist (compare-models-ci imports from dist/)
+        working-directory: water-erp/apps/api
+        run: npx tsc -p tsconfig.build.json
+
+      - name: Run AI extract regression
+        working-directory: water-erp/apps/api
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          KMS_SECRET: ${{ secrets.KMS_SECRET }}
+          DATABASE_URL: postgresql://water_erp:water_erp_dev@localhost:5432/water_erp
+          REDIS_URL: redis://localhost:6379
+        run: |
+          npx tsx prisma/scripts/compare-models-ci.ts \
+            --model=${{ inputs.model || 'deepseek-v4-flash' }} \
+            --runs=5 \
+            --threshold=${{ inputs.threshold || '3' }} \
+            --categories=QUALIFICATION,RESPONSIVE,BUSINESS,TECHNICAL
+        # exit 1 → job fails → alert (avg < threshold for some category)
