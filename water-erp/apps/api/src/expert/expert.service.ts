@@ -1170,17 +1170,29 @@ export class ExpertService {
   /* ── 核对评分（draft → verified）── */
 
   async verifyScoreReview(userId: string, projectId: string, supplierId: string) {
+    // P2-3：阶段门控 — 仅评标阶段可核对
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ForbiddenException({ error: '项目不在评标阶段，无法核对评分', code: 'PROJECT_NOT_EVALUATING' });
+    }
+
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (expert.reportConfirmed) throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+    // P2-3：身份核验/回避/AI声明门控
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    }
 
     // 必须先有评分记录
     const scores = await this.prisma.bidScoreRecord.findMany({ where: { expertId: expert.id, supplierId } });
     if (scores.length === 0) throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
 
-    const updated = await this.prisma.bidScoreReview.update({
+    // P1-4：改 upsert——无 review 行（如管理端代评路径）也能核对，消除 P2025→500
+    const updated = await this.prisma.bidScoreReview.upsert({
       where: { expertId_projectId_supplierId: { expertId: expert.id, projectId, supplierId } },
-      data: { status: 'verified', verifiedAt: new Date() },
+      update: { status: 'verified', verifiedAt: new Date() },
+      create: { expertId: expert.id, projectId, supplierId, status: 'verified', verifiedAt: new Date() },
     });
 
     await this.prisma.bidSupervisionLog.create({
