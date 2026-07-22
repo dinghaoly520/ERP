@@ -327,6 +327,7 @@ export default function BidStandardPage() {
                             item={it}
                             points={points}
                             onChanged={reloadItems}
+                            locked={locked}
                           />
                         </td>
                       </tr>

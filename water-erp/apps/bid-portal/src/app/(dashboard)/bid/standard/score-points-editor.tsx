@@ -19,9 +19,10 @@ interface Props {
   item: ScoreItem;
   points: ScorePoint[];
   onChanged: () => void; // 增删改后通知父组件刷新
+  locked?: boolean; // 评分标准已发布/项目已进 EVALUATING/ARCHIVED 时禁用修改
 }
 
-export function ScorePointsEditor({ projectId, item, points, onChanged }: Props) {
+export function ScorePointsEditor({ projectId, item, points, onChanged, locked }: Props) {
   const isPassFail = item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE';
   const isPrice = item.category === 'PRICE'; // 价格分按公式计算,不提取得分点
   const [draft, setDraft] = useState({ name: '', fullScore: 0, evidenceHint: '', objective: true });
@@ -111,7 +112,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
         ) : <span />}
         <div className="flex items-center gap-2">
           {isPrice && <span className="text-xs text-[oklch(0.55_0.01_264)]">价格分按报价公式,无需提取得分点</span>}
-          {!isPrice && (
+          {!isPrice && !locked && (
           <button
             onClick={handleExtract}
             disabled={extracting}
@@ -160,7 +161,8 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
         )}
       </div>
 
-      {/* 新增行 */}
+      {/* 新增行（发布后隐藏） */}
+      {!locked && (
       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-[oklch(0.92_0.004_265)] pt-2">
         <input
           type="text"
@@ -201,6 +203,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
           <Plus size={14} /> 添加
         </button>
       </div>
+      )}
 
       {/* AI 提取建议审核弹窗（E3+E4 增强） */}
       {suggestions && (
@@ -255,7 +258,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged }: Props)
               </span>
               <div className="flex gap-2">
                 <button onClick={() => setSuggestions(null)} className="rounded-lg px-3 py-1 text-sm text-[oklch(0.5_0.01_264)]">取消</button>
-                <button onClick={handleImportSelected} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">导入选中的 {suggestions.filter((s) => s.selected).length} 项</button>
+                {!locked && <button onClick={handleImportSelected} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">导入选中的 {suggestions.filter((s) => s.selected).length} 项</button>}
               </div>
             </div>
           </div>
