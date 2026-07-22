@@ -329,6 +329,24 @@ async function stepAi() {
         console.log(`  + RESPONSIVE 手动建 ${respPoints.length} 个符合性审查项`);
         continue;
       }
+      // BUSINESS 商务评分：LLM 提取偏少（实测 1-2 项，漏付款/农民工/交付），
+      // 手动补全 5 项商务段原文条款，Σ=20，criteriaSource=manual。
+      if (item.category === 'BUSINESS') {
+        await prisma.bidScorePoint.deleteMany({ where: { scoreItemId: item.id } });
+        const bizPoints = [
+          { name: '交付期限响应', fullScore: 6, hint: '2026年4月10日前完成钻孔取心钻探及配合试验等工作' },
+          { name: '付款方式响应', fullScore: 5, hint: '响应合同价款分阶段支付方式（预付10%/进场20%/达深30%/验收尾款）' },
+          { name: '农民工工资支付保障', fullScore: 4, hint: '针对农民工工资支付的具体承诺（见合同附件）' },
+          { name: '保险购买承诺', fullScore: 3, hint: '为投入的机械设备和人员购买足额保险' },
+          { name: '包装运输', fullScore: 2, hint: '包装和运输要求（本项目无特殊要求）' },
+        ];
+        for (const [idx, p] of bizPoints.entries()) {
+          await prisma.bidScorePoint.create({ data: { scoreItemId: item.id, name: p.name, fullScore: p.fullScore, seq: idx, evidenceHint: p.hint, objective: true } });
+        }
+        await prisma.bidScoreItem.update({ where: { id: item.id }, data: { criteriaSource: 'manual' } });
+        console.log(`  + BUSINESS 手动建 ${bizPoints.length} 个商务评分项（Σ20）`);
+        continue;
+      }
 
       console.log(`  · 提取 ${item.category}（${item.name}）...`);
       let suggestions: { name: string; fullScore: number; evidenceHint?: string; objective?: boolean }[] = [];
