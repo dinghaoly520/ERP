@@ -1813,8 +1813,8 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
     expect(r).toEqual({ count: 2 });
     expect(prisma.bidScorePoint.createMany).toHaveBeenCalledWith({
       data: [
-        { scoreItemId: 'i1', name: '点A', fullScore: 5, evidenceHint: null, objective: true },
-        { scoreItemId: 'i1', name: '点B', fullScore: 3, evidenceHint: null, objective: false },
+        { scoreItemId: 'i1', name: '点A', fullScore: 5, evidenceHint: null, evidenceSection: null, confidence: null, objective: true },
+        { scoreItemId: 'i1', name: '点B', fullScore: 3, evidenceHint: null, evidenceSection: null, confidence: null, objective: false },
       ],
     });
   });
