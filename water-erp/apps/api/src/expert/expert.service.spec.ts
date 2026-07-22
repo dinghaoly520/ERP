@@ -623,6 +623,25 @@ describe('ExpertService', () => {
       await service.confirmReport('user-1', 'p1'); // 不抛错
       expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ reportConfirmed: true }) }));
     });
+
+    it('P1-7：核对校验与确认写入在同一事务内（$transaction 被调用）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, id: 'exp1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, progress: 100 });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidExpert.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      await service.confirmReport('user-1', 'p1');
+      expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('P1-7：REVIEW_PENDING 时不写 reportConfirmed（事务内校验失败即中止）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, id: 'exp1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, progress: 100 });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1' }]);
+      prisma.bidScoreReview.findMany.mockResolvedValue([]); // 未核对
+      await expect(service.confirmReport('user-1', 'p1')).rejects.toMatchObject({ response: { code: 'REVIEW_PENDING' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('getDecryptedDocuments', () => {

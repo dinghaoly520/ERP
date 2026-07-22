@@ -1390,43 +1390,47 @@ export class ExpertService {
     }
     if (expert.progress < 100) throw new ForbiddenException({ error: '评分未完成，无法确认报告', code: 'SCORING_INCOMPLETE' });
 
-    // phase ③：所有活跃供应商必须已核对
-    const activeSuppliers = await this.prisma.bidSupplier.findMany({
-      where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
-      select: { id: true },
-    });
-    const verifiedReviews = await this.prisma.bidScoreReview.findMany({
-      where: { expertId: expert.id, projectId, status: 'verified' },
-      select: { supplierId: true },
-    });
-    const verifiedSet = new Set(verifiedReviews.map(r => r.supplierId));
-    const unverified = activeSuppliers.filter(s => !verifiedSet.has(s.id));
-    if (unverified.length > 0) {
-      throw new BadRequestException({ error: `有 ${unverified.length} 个供应商评分未核对`, code: 'REVIEW_PENDING' });
-    }
+    // P1-7：事务化——事务内重读核对状态并原子确认，消除与 submitScores（重置 review 为 draft）的 TOCTOU
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // phase ③：所有活跃供应商必须已核对（事务内重读）
+      const activeSuppliers = await tx.bidSupplier.findMany({
+        where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+        select: { id: true },
+      });
+      const verifiedReviews = await tx.bidScoreReview.findMany({
+        where: { expertId: expert.id, projectId, status: 'verified' },
+        select: { supplierId: true },
+      });
+      const verifiedSet = new Set(verifiedReviews.map(r => r.supplierId));
+      const unverified = activeSuppliers.filter(s => !verifiedSet.has(s.id));
+      if (unverified.length > 0) {
+        throw new BadRequestException({ error: `有 ${unverified.length} 个供应商评分未核对`, code: 'REVIEW_PENDING' });
+      }
 
-    // 记录监督日志
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId,
-        time: new Date(),
-        role: '评审专家',
-        target: expert.expertName,
-        action: '确认评审报告',
-        result: comment || '确认完成',
-        riskFlag: '无',
-      },
+      // 先更新确认状态，再记监督日志（同事务，避免孤儿「已确认」日志）
+      const upd = await tx.bidExpert.update({
+        where: { id: expert.id },
+        data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
+      });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId,
+          time: new Date(),
+          role: '评审专家',
+          target: expert.expertName,
+          action: '确认评审报告',
+          result: comment || '确认完成',
+          riskFlag: '无',
+        },
+      });
+      // P1-E：报告确认后，该专家本项目的 delta 标记为已确认（仅统计已确认报告的）
+      await tx.bidScoreDelta.updateMany({
+        where: { expertId: expert.id, projectId },
+        data: { expertReportConfirmed: true },
+      }).catch(() => {});
+      return upd;
     });
 
-    const updated = await this.prisma.bidExpert.update({
-      where: { id: expert.id },
-      data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
-    });
-    // P1-E：报告确认后，该专家本项目的 delta 标记为已确认（仅统计已确认报告的）
-    await this.prisma.bidScoreDelta.updateMany({
-      where: { expertId: expert.id, projectId },
-      data: { expertReportConfirmed: true },
-    }).catch(() => {});
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'report_confirmed', progressPercent: 100,
     });
