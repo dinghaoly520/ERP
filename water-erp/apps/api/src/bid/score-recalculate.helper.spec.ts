@@ -94,4 +94,14 @@ describe('recomputeExpertProgress', () => {
     };
     expect((await recomputeExpertProgress(tx, 'exp1', 'p1')).progress).toBe(0);
   });
+
+  it('P1-6：progress 用下取整（209/210 → 99，不误判 100）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }, { id: 'si3' }]) }, // 3 项
+      bidSupplier: { count: jest.fn().mockResolvedValue(70) }, // 3 × 70 = 210 total
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(209), findMany: jest.fn().mockResolvedValue([]) }, // 209 scored
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(r.progress).toBe(99); // floor(99.52) = 99，漏评 1 项不得记 100
+  });
 });

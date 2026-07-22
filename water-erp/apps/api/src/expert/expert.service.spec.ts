@@ -54,7 +54,7 @@ describe('ExpertService', () => {
         count: jest.fn(),
         upsert: jest.fn(),
       },
-      bidScoreItem: { findMany: jest.fn() },
+      bidScoreItem: { findMany: jest.fn(), count: jest.fn() },
       bidScorePoint: { findMany: jest.fn().mockResolvedValue([]) },
       bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreReview: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), update: jest.fn() },
@@ -1215,6 +1215,14 @@ describe('ExpertService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1', reportConfirmed: true });
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORE_LOCKED' } });
+    });
+
+    it('P1-6：供应商评分项未评完 → SCORING_INCOMPLETE', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }]); // 已评 3 条
+      prisma.bidScoreItem.count.mockResolvedValue(5); // 共 5 项 → 未评完
+      await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORING_INCOMPLETE' } });
     });
   });
 

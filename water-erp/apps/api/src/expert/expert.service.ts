@@ -1187,6 +1187,11 @@ export class ExpertService {
     // 必须先有评分记录
     const scores = await this.prisma.bidScoreRecord.findMany({ where: { expertId: expert.id, supplierId } });
     if (scores.length === 0) throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
+    // P1-6：须评完该供应商全部评分项才能核对（防止漏评项被核对/确认）
+    const itemCount = await this.prisma.bidScoreItem.count({ where: { projectId } });
+    if (scores.length < itemCount) {
+      throw new BadRequestException({ error: `该供应商尚有 ${itemCount - scores.length} 个评分项未评，无法核对`, code: 'SCORING_INCOMPLETE' });
+    }
 
     // P1-4：改 upsert——无 review 行（如管理端代评路径）也能核对，消除 P2025→500
     const updated = await this.prisma.bidScoreReview.upsert({

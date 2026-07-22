@@ -15,7 +15,7 @@ export async function recomputeExpertProgress(
   const scoredItems = await tx.bidScoreRecord.count({
     where: { expertId, scoreItem: { projectId } },
   });
-  const progress = totalItems > 0 ? Math.round((scoredItems / totalItems) * 100) : 0;
+  const progress = totalItems > 0 ? Math.floor((scoredItems / totalItems) * 100) : 0; // P1-6：下取整，漏评 1 项不得记 100
   const allRecords = await tx.bidScoreRecord.findMany({
     where: { expertId, scoreItem: { projectId } },
   });
