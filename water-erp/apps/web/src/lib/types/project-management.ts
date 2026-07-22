@@ -165,6 +165,7 @@ export type ProjectManagementItem = {
   demandContractNumber?: string | null;
   contractNumber?: string | null;
   departmentNumber?: string | null;
+  projectCode?: string | null;
   // 提取的关键信息（分步骤展示）
   initiationDate?: string | null;
   projectOverview?: string | null;

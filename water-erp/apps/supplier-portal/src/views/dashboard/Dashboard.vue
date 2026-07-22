@@ -6,6 +6,8 @@ import { useNotificationStore } from '@/stores/notification'
 import { useBidStore } from '@/stores/bid'
 import { useAuthStore } from '@/stores/auth'
 import SkeletonCard from '@/components/SkeletonCard.vue'
+import SpKpi from '@/components/SpKpi.vue'
+import { AlertTriangle } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -72,9 +74,9 @@ const kpiCells = computed<KpiCell[]>(() => {
     { key:'submissions',  value:s.submissionCount,          label:'投标记录', path:'/my-bids' },
     { key:'quals',        value:s.qualificationCount,       label:'资质证照', path:'/qualifications' },
     { key:'changes',      value:s.pendingChanges,           label:'待审变更', path:'/change-records' },
-    { key:'expiring',     value:s.expiringQualifications,   label:'到期风险', path:'/qualifications', tone:'var(--sp-red)' },
-    { key:'completeness', value:s.profileCompleteness?.score??0, label:'资料完整度',path:'/profile', tone:'var(--sp-primary)' },
-    { key:'unread',       value:s.unreadNotifications,      label:'未读消息', path:'/notifications', tone:'var(--sp-cyan)' },
+    { key:'expiring',     value:s.expiringQualifications,   label:'到期风险', path:'/qualifications', tone:'var(--danger)' },
+    { key:'completeness', value:s.profileCompleteness?.score??0, label:'资料完整度',path:'/profile', tone:'var(--brand)' },
+    { key:'unread',       value:s.unreadNotifications,      label:'未读消息', path:'/notifications', tone:'var(--water)' },
   ]
 })
 
@@ -118,7 +120,7 @@ const NOTIF_COLORS: Record<string, { dot: string; glow: string }> = {
   SUPPLIER_REJECTED:      { dot: '#dc2626', glow: 'rgba(220,38,38,0.18)' },
   SUPPLIER_RETURNED:      { dot: '#d97706', glow: 'rgba(217,119,6,0.18)' },
   BID_PUBLISHED:          { dot: '#2563eb', glow: 'rgba(37,99,235,0.18)' },
-  BID_REMINDER:           { dot: '#ea580c', glow: 'rgba(234,88,12,0.18)' },
+  BID_REMINDER:          { dot: '#ea580c', glow: 'rgba(234,88,12,0.18)' },
   BID_OPENING:            { dot: '#0891b2', glow: 'rgba(8,145,178,0.18)' },
   BID_EVALUATION_RESULT:  { dot: '#7c3aed', glow: 'rgba(124,58,237,0.18)' },
   CLARIFICATION_REPLIED:  { dot: '#0d9488', glow: 'rgba(13,148,136,0.18)' },
@@ -143,7 +145,7 @@ const daysSinceReg = computed(() => {
   <div class="page-container">
     <!-- Error -->
     <div v-if="error && !loading" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
@@ -152,7 +154,7 @@ const daysSinceReg = computed(() => {
     <!-- Skeleton -->
     <template v-else-if="loading">
       <SkeletonCard :lines="2" style="margin-bottom:20px" />
-      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin-bottom:20px">
+      <div class="kpi-grid" style="margin-bottom:20px">
         <SkeletonCard v-for="i in 6" :key="i" :lines="1" />
       </div>
       <div style="display:grid;grid-template-columns:1fr 380px;gap:20px">
@@ -165,7 +167,7 @@ const daysSinceReg = computed(() => {
     </template>
 
     <template v-else-if="statusInfo">
-      <!-- ═══════════════════════ Hero ═══════════════════════ -->
+      <!-- ═══════════════════════ Hero (greeting card, neumorphic) ═══════════════════════ -->
       <div class="db-hero">
         <div class="db-hero-left">
           <div class="db-hero-topline">
@@ -203,20 +205,17 @@ const daysSinceReg = computed(() => {
         </div>
       </div>
 
-      <!-- ═══════════════════════ KPI Strip ═══════════════════════ -->
-      <div class="sp-stat-row db-kpi-row" v-if="stats">
-        <div
+      <!-- ═══════════════════════ KPI Strip (SpKpi tiles) ═══════════════════════ -->
+      <div class="kpi-grid" v-if="stats">
+        <SpKpi
           v-for="cell in kpiCells"
           :key="cell.key"
-          class="sp-stat-cell db-kpi-cell"
-          :class="{ clickable: !!cell.path }"
-          @click="cell.path && router.push(cell.path)"
-        >
-          <div class="db-kpi-value" :style="cell.tone ? { color: cell.tone } : {}">
-            {{ cell.value }}<span v-if="cell.key==='completeness'" class="db-kpi-suffix">%</span>
-          </div>
-          <div class="db-kpi-label">{{ cell.label }}</div>
-        </div>
+          :label="cell.label"
+          :value="cell.value"
+          :suffix="cell.key === 'completeness' ? '%' : undefined"
+          :to="cell.path"
+          :tone="cell.tone"
+        />
       </div>
 
       <!-- ═══════════════════════ Two-column body ═══════════════════════ -->
@@ -246,8 +245,8 @@ const daysSinceReg = computed(() => {
               <div class="db-list-right">
                 <span
                   class="db-list-stage"
-                  :style="{ background: (STAGES.find(s=>s.key===row.project.stage)?.color||'#94a3b8')+'14', color: STAGES.find(s=>s.key===row.project.stage)?.color||'#94a3b8' }"
-                >{{ STAGES.find(s=>s.key===row.project.stage)?.label||row.project.stage }}</span>
+                  :style="{ '--stage-c': STAGES.find(s=>s.key===row.project.stage)?.color || '#94a3b8' } as any"
+                >{{ STAGES.find(s=>s.key===row.project.stage)?.label || row.project.stage }}</span>
                 <span class="db-list-dl" :class="row.urgency">
                   {{ row.urgency==='past'?'已截止':row.urgency==='critical'?`剩${row.daysLeft}天`:`${row.daysLeft}天` }}
                 </span>
@@ -268,11 +267,11 @@ const daysSinceReg = computed(() => {
             <div class="db-comp-top">
               <div class="db-comp-ring">
                 <svg width="72" height="72" viewBox="0 0 72 72">
-                  <circle cx="36" cy="36" r="30" fill="none" stroke="var(--sp-gray-100)" stroke-width="5"/>
+                  <circle cx="36" cy="36" r="30" fill="none" stroke="var(--hairline)" stroke-width="5"/>
                   <circle
                     cx="36" cy="36" r="30"
                     fill="none"
-                    :stroke="profileScore >= 80 ? 'var(--sp-green)' : profileScore >= 50 ? 'var(--sp-orange)' : 'var(--sp-red)'"
+                    :stroke="profileScore >= 80 ? 'var(--success)' : profileScore >= 50 ? 'var(--warning)' : 'var(--danger)'"
                     stroke-width="5"
                     stroke-linecap="round"
                     :stroke-dasharray="`${2 * Math.PI * 30 * profileScore / 100} ${2 * Math.PI * 30 * (1 - profileScore/100)}`"
@@ -282,16 +281,16 @@ const daysSinceReg = computed(() => {
                 <span class="db-comp-score">{{ profileScore }}<small>分</small></span>
               </div>
               <div class="db-comp-bars">
-                <div v-for="cat in completenessCats" :key="cat.key" class="db-comp-bar-row">
+                <div v-for="cat in completenessCats" :key="cat.key" class="db-comp-bar-row" :style="{ '--c': cat.color } as any">
                   <div class="db-comp-bar-head">
-                    <span class="db-comp-bar-icon" :style="{ background: cat.color+'18', color: cat.color }"><el-icon :size="13"><component :is="cat.icon" /></el-icon></span>
+                    <span class="db-comp-bar-icon"><el-icon :size="13"><component :is="cat.icon" /></el-icon></span>
                     <span class="db-comp-bar-label">{{ cat.label }}</span>
                     <span class="db-comp-bar-stat">{{ catStatLabel(cat) }}</span>
                   </div>
                   <div class="db-comp-bar-track">
                     <div
                       class="db-comp-bar-fill"
-                      :style="{ width: cat.max>0 ? (cat.score/cat.max*100)+'%' : '0%', background: cat.color }"
+                      :style="{ width: cat.max>0 ? (cat.score/cat.max*100)+'%' : '0%' }"
                     />
                   </div>
                 </div>
@@ -299,9 +298,9 @@ const daysSinceReg = computed(() => {
             </div>
             <!-- Missing hints -->
             <div v-if="completenessCats.some(c => c.missing.length > 0)" class="db-comp-missing">
-              <span v-for="cat in completenessCats" :key="'m-'+cat.key">
+              <span v-for="cat in completenessCats" :key="'m-'+cat.key" :style="{ '--c': cat.color } as any">
                 <span v-for="m in cat.missing" :key="m" class="db-comp-missing-tag" @click="router.push('/profile')">
-                  <span class="db-comp-missing-dot" :style="{ background: cat.color }" />
+                  <span class="db-comp-missing-dot" />
                   {{ m }}
                 </span>
               </span>
@@ -329,7 +328,7 @@ const daysSinceReg = computed(() => {
                 :class="{ unread: !n.isRead, 'is-last': idx === notifFeed.length - 1 }"
                 @click="router.push('/notifications')"
               >
-                <span class="db-msg-dot" :style="{ background: n.color.dot, boxShadow: !n.isRead ? `0 0 0 3px ${n.color.glow}` : 'none' }" />
+                <span class="db-msg-dot" :style="{ '--c': n.color.dot, '--g': n.color.glow } as any" />
                 <div class="db-msg-body">
                   <span class="db-msg-title" :class="{ unread: !n.isRead }">{{ n.title }}</span>
                   <span v-if="n.content" class="db-msg-ct">{{ n.content }}</span>
@@ -345,49 +344,25 @@ const daysSinceReg = computed(() => {
 </template>
 
 <style scoped>
-/* ═══════════════ Hero ═══════════════ */
+/* ═══════════════ Hero — neumorphic plate (no glass / no drift) ═══════════════ */
 .db-hero {
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  position: relative;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: var(--sp-radius-lg); padding: 20px 24px; margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(15, 47, 87, 0.04), 0 6px 24px rgba(91, 155, 213, 0.06);
+  border-radius: 18px; padding: 20px 24px; margin-bottom: 20px;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.965 0.013 258));
+  box-shadow: 7px 7px 16px oklch(0.55 0.03 258 / 0.10), -6px -6px 14px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.75);
 }
-.db-hero::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  opacity: 0.50; border-radius: inherit;
-  background-image:
-    radial-gradient(ellipse at 8% 4%,  rgba(147, 197, 253, 0.24), transparent 55%),
-    radial-gradient(ellipse at 88% 10%, rgba(168, 139, 250, 0.18), transparent 55%),
-    radial-gradient(ellipse at 35% 85%, rgba(110, 231, 183, 0.14), transparent 55%);
-  animation: glass-glow-drift 20s ease-in-out infinite;
-}
-.db-hero:hover::before { opacity: 0.64; }
-.db-hero > * { position: relative; z-index: 1; }
 .db-hero-left { min-width: 0; overflow: hidden; }
 .db-hero-topline { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.db-hero-name { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: -0.02em; color: var(--sp-gray-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
-.db-hero-meta { font-size: 12px; color: var(--sp-gray-400); font-variant-numeric: tabular-nums; }
+.db-hero-name { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: -0.02em; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+.db-hero-meta { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .db-hero-subline { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .db-hero-stat { display: inline-flex; align-items: baseline; gap: 3px; }
-.db-hero-stat-value { font-size: 16px; font-weight: 900; color: var(--sp-primary); font-variant-numeric: tabular-nums; line-height: 1; }
-.db-hero-stat-suffix { color: var(--sp-gray-400); font-size: 12px; }
-.db-hero-div { color: var(--sp-gray-300); }
-.db-hero-hint { color: var(--sp-gray-500); font-size: 13px; }
-.db-hero-hint.warn { color: var(--sp-orange); font-weight: 600; }
+.db-hero-stat-value { font-size: 16px; font-weight: 900; color: var(--brand); font-variant-numeric: tabular-nums; line-height: 1; }
+.db-hero-stat-suffix { color: var(--muted-foreground); font-size: 12px; }
+.db-hero-div { color: var(--hairline); }
+.db-hero-hint { color: var(--muted-foreground); font-size: 13px; }
+.db-hero-hint.warn { color: var(--warning); font-weight: 600; }
 .db-hero-right { display: flex; gap: 8px; flex-shrink: 0; }
-
-/* ═══════════════ KPI strip ═══════════════ */
-.db-kpi-row { margin-bottom: 20px; }
-.db-kpi-cell { padding: 14px 16px; }
-.db-kpi-cell.clickable { cursor: pointer; transition: background var(--sp-duration-fast) var(--sp-ease); }
-.db-kpi-cell.clickable:hover { background: rgba(255,255,255,0.52); }
-.db-kpi-value { font-size: 22px; font-weight: 900; color: var(--sp-gray-900); line-height: 1; font-variant-numeric: tabular-nums; }
-.db-kpi-suffix { font-size: 13px; font-weight: 600; color: var(--sp-gray-400); margin-left: 1px; }
-.db-kpi-label { margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--sp-gray-500); }
 
 /* ═══════════════ Two-column body ═══════════════ */
 .db-body {
@@ -405,74 +380,67 @@ const daysSinceReg = computed(() => {
 .db-list { display: flex; flex-direction: column; }
 .db-list-row {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 11px 0; border-bottom: 1px solid rgba(0,0,0,0.05);
-  cursor: pointer; transition: background var(--sp-duration-fast) var(--sp-ease);
+  padding: 11px 0; border-bottom: 1px solid var(--hairline);
+  cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease);
 }
 .db-list-row.is-last { border-bottom: none; }
-.db-list-row:hover { background: rgba(248, 251, 255, 0.55); margin: 0 -16px; padding: 11px 16px; }
-.db-list-row.critical { background: linear-gradient(90deg, var(--sp-red-light) 0%, transparent 26%); }
-.db-list-row.critical:hover { background: linear-gradient(90deg, var(--sp-red-light) 0%, rgba(248, 251, 255, 0.55) 50%); margin: 0 -16px; padding: 11px 16px; }
+.db-list-row:hover { background: oklch(0.985 0.01 258 / 0.6); margin: 0 -16px; padding: 11px 16px; border-radius: 10px; }
+.db-list-row.critical { background: linear-gradient(90deg, color-mix(in oklab, var(--danger) 9%, transparent) 0%, transparent 26%); }
+.db-list-row.critical:hover { background: linear-gradient(90deg, color-mix(in oklab, var(--danger) 12%, transparent) 0%, oklch(0.985 0.01 258 / 0.6) 50%); margin: 0 -16px; padding: 11px 16px; border-radius: 10px; }
 .db-list-info { min-width: 0; flex: 1; overflow: hidden; }
-.db-list-name { display: block; font-size: 13px; font-weight: 700; color: var(--sp-gray-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.db-list-code { display: block; margin-top: 2px; font-size: 11px; color: var(--sp-gray-400); font-family: 'SF Mono','JetBrains Mono',monospace; }
+.db-list-name { display: block; font-size: 13px; font-weight: 700; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.db-list-code { display: block; margin-top: 2px; font-size: 11px; color: var(--muted-foreground); font-family: 'SF Mono','JetBrains Mono',monospace; }
 .db-list-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.db-list-stage { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
-.db-list-dl { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--sp-gray-500); min-width: 44px; text-align: right; }
-.db-list-row { border-bottom: 1px solid rgba(0, 0, 0, 0.05); }
-.db-list-row.is-last { border-bottom: none; }
-.db-list-dl.critical { color: var(--sp-red); }
-.db-list-dl.warning  { color: var(--sp-orange); }
-.db-list-dl.past     { color: var(--sp-gray-400); text-decoration: line-through; }
+.db-list-stage { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; color: var(--stage-c, var(--muted-foreground)); background: color-mix(in oklab, var(--stage-c, #94a3b8) 12%, transparent); }
+.db-list-dl { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted-foreground); min-width: 44px; text-align: right; }
+.db-list-dl.critical { color: var(--danger); }
+.db-list-dl.warning  { color: var(--warning); }
+.db-list-dl.past     { color: var(--muted-foreground); text-decoration: line-through; }
 
 /* ── RIGHT TOP: Profile completeness ── */
 .db-comp-top { display: flex; gap: 18px; margin-bottom: 12px; }
 .db-comp-ring { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
-.db-comp-score { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 900; color: var(--sp-gray-900); }
-.db-comp-score small { font-size: 11px; font-weight: 600; color: var(--sp-gray-400); margin-left: 1px; }
+.db-comp-score { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 900; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.db-comp-score small { font-size: 11px; font-weight: 600; color: var(--muted-foreground); margin-left: 1px; }
 .db-comp-bars { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .db-comp-bar-row { display: flex; flex-direction: column; gap: 4px; }
 .db-comp-bar-head { display: flex; align-items: center; gap: 6px; }
-.db-comp-bar-icon { width: 20px; height: 20px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.db-comp-bar-label { font-size: 12px; font-weight: 600; color: var(--sp-gray-700); }
-.db-comp-bar-stat { font-size: 11px; font-weight: 700; color: var(--sp-gray-400); margin-left: auto; font-variant-numeric: tabular-nums; }
-.db-comp-bar-track { height: 5px; border-radius: 3px; background: rgba(0,0,0,0.05); overflow: hidden; }
-.db-comp-bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.22,0.61,0.36,1); }
-.db-comp-missing { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 12px; }
+.db-comp-bar-icon { width: 20px; height: 20px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--c); background: color-mix(in oklab, var(--c) 12%, transparent); }
+.db-comp-bar-label { font-size: 12px; font-weight: 600; color: var(--foreground); }
+.db-comp-bar-stat { font-size: 11px; font-weight: 700; color: var(--muted-foreground); margin-left: auto; font-variant-numeric: tabular-nums; }
+.db-comp-bar-track { height: 5px; border-radius: 3px; background: var(--hairline); overflow: hidden; }
+.db-comp-bar-fill { height: 100%; border-radius: 3px; background: var(--c); transition: width 0.8s cubic-bezier(0.22,0.61,0.36,1); }
+.db-comp-missing { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--hairline); padding-top: 12px; }
 .db-comp-missing-tag {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 9px; border-radius: 6px; background: rgba(255,255,255,0.52);
-  font-size: 11px; font-weight: 600; color: var(--sp-gray-600); cursor: pointer;
-  border: 1px solid rgba(0,0,0,0.04); transition: border-color 0.15s;
+  padding: 3px 9px; border-radius: 6px;
+  font-size: 11px; font-weight: 600; color: var(--foreground); cursor: pointer;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.10), -2px -2px 4px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  transition: transform .15s;
 }
-.db-comp-missing-tag:hover { border-color: var(--sp-primary); }
-.db-comp-missing-dot { width: 5px; height: 5px; border-radius: 50%; }
-.db-comp-done { border-top: 1px solid rgba(0,0,0,0.05); padding-top: 12px; font-size: 12px; font-weight: 600; color: var(--sp-green); display: flex; align-items: center; gap: 5px; }
+.db-comp-missing-tag:hover { transform: translateY(-1px); }
+.db-comp-missing-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
+.db-comp-done { border-top: 1px solid var(--hairline); padding-top: 12px; font-size: 12px; font-weight: 600; color: var(--success); display: flex; align-items: center; gap: 5px; }
 
 /* ── RIGHT BOTTOM: Notifications ── */
 .db-msg-list { display: flex; flex-direction: column; }
-.db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid rgba(0,0,0,0.05); cursor: pointer; transition: background var(--sp-duration-fast) var(--sp-ease); }
+.db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease); }
 .db-msg-row.is-last { border-bottom: none; }
-.db-msg-row:hover { background: rgba(248, 251, 255, 0.45); margin: 0 -16px; padding: 9px 16px; }
-.db-msg-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; transition: box-shadow 0.2s ease; }
-/* unread dot glow is now inline via n.color.glow */
+.db-msg-row:hover { background: oklch(0.985 0.01 258 / 0.6); margin: 0 -16px; padding: 9px 16px; border-radius: 10px; }
+.db-msg-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--c); transition: box-shadow 0.2s ease; }
+.db-msg-row.unread .db-msg-dot { box-shadow: 0 0 0 3px var(--g); }
 .db-msg-body { flex: 1; min-width: 0; }
-.db-msg-title { display: block; font-size: 12px; font-weight: 600; color: var(--sp-gray-600); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-msg-title.unread { font-weight: 700; color: var(--sp-gray-900); }
-.db-msg-ct { display: block; margin-top: 1px; font-size: 11px; color: var(--sp-gray-400); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-msg-time { font-size: 10px; color: var(--sp-gray-400); font-variant-numeric: tabular-nums; flex-shrink: 0; margin-top: 2px; }
+.db-msg-title { display: block; font-size: 12px; font-weight: 600; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-msg-title.unread { font-weight: 700; }
+.db-msg-ct { display: block; margin-top: 1px; font-size: 11px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-msg-time { font-size: 10px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; flex-shrink: 0; margin-top: 2px; }
 
 /* ═══════════════ Responsive ═══════════════ */
 @media (max-width: 1100px) {
   .db-body { grid-template-columns: 1fr; }
   .db-hero { flex-direction: column; align-items: stretch; }
   .db-hero-right { justify-content: flex-start; }
-  .db-kpi-row { grid-template-columns: repeat(3, 1fr); }
-  .db-kpi-cell:nth-child(n+4) { border-bottom: 1px solid rgba(0,0,0,0.05); }
-  .db-kpi-cell:nth-child(3) { border-right: none; }
-}
-@media (max-width: 768px) {
-  .db-kpi-row { grid-template-columns: repeat(2, 1fr); }
-  .db-kpi-cell:nth-child(3) { border-right: 1px solid var(--sp-border-light); }
 }
 @media (prefers-reduced-motion: reduce) {
   .db-comp-bar-fill { transition: none; }

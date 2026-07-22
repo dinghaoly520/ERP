@@ -12,6 +12,7 @@
     "complianceScore": "19",
     "overallScore": "19",
     "comment": "工程质量优秀，履约能力强，配合度高。",
+    "evidence": null,
     "createdAt": "2026-06-13T06:18:29.681Z",
     "updatedAt": "2026-06-13T06:18:29.681Z"
   },
@@ -28,6 +29,7 @@
     "complianceScore": "17.5",
     "overallScore": "17.5",
     "comment": "整体表现良好，建议加强资料完整性。",
+    "evidence": null,
     "createdAt": "2026-06-13T06:18:29.681Z",
     "updatedAt": "2026-06-13T06:18:29.681Z"
   },
@@ -44,6 +46,7 @@
     "complianceScore": "18.5",
     "overallScore": "18",
     "comment": null,
+    "evidence": null,
     "createdAt": "2026-06-13T06:18:29.681Z",
     "updatedAt": "2026-06-13T06:18:29.681Z"
   },
@@ -51,7 +54,7 @@
     "id": "cmqrich-ev-sfjs01",
     "supplierId": "cmqc8r69z0118koeklajoa05a",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "96",
     "level": "A",
     "completenessScore": "19",
@@ -60,14 +63,15 @@
     "complianceScore": "19",
     "overallScore": "19",
     "comment": "技术方案优秀，项目实施规范，按期交付，履约能力强，配合度高。",
+    "evidence": null,
     "createdAt": "2026-01-10T08:00:00.000Z",
-    "updatedAt": "2026-01-10T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-sfjs02",
     "supplierId": "cmqc8r69z0118koeklajoa05a",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "92",
     "level": "A",
     "completenessScore": "18.5",
@@ -76,14 +80,15 @@
     "complianceScore": "18.5",
     "overallScore": "18.5",
     "comment": "整体履约良好，响应及时，质量达标，建议继续保持。",
+    "evidence": null,
     "createdAt": "2026-02-11T08:00:00.000Z",
-    "updatedAt": "2026-02-11T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-sfjs03",
     "supplierId": "cmqc8r69z0118koeklajoa05a",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "88",
     "level": "B",
     "completenessScore": "18",
@@ -92,14 +97,15 @@
     "complianceScore": "18",
     "overallScore": "17.5",
     "comment": "履约情况良好，部分节点略有延期但已整改，总体合格。",
+    "evidence": null,
     "createdAt": "2026-03-12T08:00:00.000Z",
-    "updatedAt": "2026-03-12T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-sfjs04",
     "supplierId": "cmqc8r69z0118koeklajoa05a",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "94",
     "level": "A",
     "completenessScore": "19",
@@ -108,14 +114,15 @@
     "complianceScore": "19",
     "overallScore": "18.5",
     "comment": "专业能力强，交付质量高，沟通顺畅，是优质合作伙伴。",
+    "evidence": null,
     "createdAt": "2026-04-13T08:00:00.000Z",
-    "updatedAt": "2026-04-13T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-zk05",
     "supplierId": "cmqc8r60300dpkoek0vhts0uy",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "96",
     "level": "A",
     "completenessScore": "19",
@@ -124,14 +131,15 @@
     "complianceScore": "19",
     "overallScore": "19",
     "comment": "技术方案优秀，项目实施规范，按期交付，履约能力强，配合度高。",
+    "evidence": null,
     "createdAt": "2026-01-10T08:00:00.000Z",
-    "updatedAt": "2026-01-10T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-zk06",
     "supplierId": "cmqc8r60300dpkoek0vhts0uy",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "92",
     "level": "A",
     "completenessScore": "18.5",
@@ -140,14 +148,15 @@
     "complianceScore": "18.5",
     "overallScore": "18.5",
     "comment": "整体履约良好，响应及时，质量达标，建议继续保持。",
+    "evidence": null,
     "createdAt": "2026-02-11T08:00:00.000Z",
-    "updatedAt": "2026-02-11T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-zk07",
     "supplierId": "cmqc8r60300dpkoek0vhts0uy",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "88",
     "level": "B",
     "completenessScore": "18",
@@ -156,14 +165,15 @@
     "complianceScore": "18",
     "overallScore": "17.5",
     "comment": "履约情况良好，部分节点略有延期但已整改，总体合格。",
+    "evidence": null,
     "createdAt": "2026-03-12T08:00:00.000Z",
-    "updatedAt": "2026-03-12T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-zk08",
     "supplierId": "cmqc8r60300dpkoek0vhts0uy",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "94",
     "level": "A",
     "completenessScore": "19",
@@ -172,14 +182,15 @@
     "complianceScore": "19",
     "overallScore": "18.5",
     "comment": "专业能力强，交付质量高，沟通顺畅，是优质合作伙伴。",
+    "evidence": null,
     "createdAt": "2026-04-13T08:00:00.000Z",
-    "updatedAt": "2026-04-13T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-tx09",
     "supplierId": "cmqc8r60600dwkoekmgndcoiv",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "96",
     "level": "A",
     "completenessScore": "19",
@@ -188,14 +199,15 @@
     "complianceScore": "19",
     "overallScore": "19",
     "comment": "技术方案优秀，项目实施规范，按期交付，履约能力强，配合度高。",
+    "evidence": null,
     "createdAt": "2026-01-10T08:00:00.000Z",
-    "updatedAt": "2026-01-10T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-tx10",
     "supplierId": "cmqc8r60600dwkoekmgndcoiv",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "92",
     "level": "A",
     "completenessScore": "18.5",
@@ -204,14 +216,15 @@
     "complianceScore": "18.5",
     "overallScore": "18.5",
     "comment": "整体履约良好，响应及时，质量达标，建议继续保持。",
+    "evidence": null,
     "createdAt": "2026-02-11T08:00:00.000Z",
-    "updatedAt": "2026-02-11T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-tx11",
     "supplierId": "cmqc8r60600dwkoekmgndcoiv",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "88",
     "level": "B",
     "completenessScore": "18",
@@ -220,14 +233,15 @@
     "complianceScore": "18",
     "overallScore": "17.5",
     "comment": "履约情况良好，部分节点略有延期但已整改，总体合格。",
+    "evidence": null,
     "createdAt": "2026-03-12T08:00:00.000Z",
-    "updatedAt": "2026-03-12T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   },
   {
     "id": "cmqrich-ev-tx12",
     "supplierId": "cmqc8r60600dwkoekmgndcoiv",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "score": "94",
     "level": "A",
     "completenessScore": "19",
@@ -236,7 +250,8 @@
     "complianceScore": "19",
     "overallScore": "18.5",
     "comment": "专业能力强，交付质量高，沟通顺畅，是优质合作伙伴。",
+    "evidence": null,
     "createdAt": "2026-04-13T08:00:00.000Z",
-    "updatedAt": "2026-04-13T08:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.062Z"
   }
 ]

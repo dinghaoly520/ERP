@@ -69,7 +69,6 @@ export class MallTool implements AssistantTool {
         take: limit,
         select: {
           id: true,
-          quotedPrice: true,
           region: true,
           supplier: { select: { name: true } },
           catalogItem: { select: { name: true, category: true } },
@@ -86,7 +85,7 @@ export class MallTool implements AssistantTool {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true, code: true, name: true, category: true,
-        referencePrice: true, unit: true, supplier: true,
+        unit: true, supplier: true,
         status: true,
       },
     });

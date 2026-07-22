@@ -813,7 +813,14 @@ export function ProjectDetailPanel({
                 <FileText size={17} />
               </div>
               <div>
-                <div className="page-hero__title">{item.title}</div>
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <div className="page-hero__title">{item.title}</div>
+                  {item.projectCode && (
+                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 font-mono text-[11px] font-bold tracking-tight text-[color:var(--accent-strong)]">
+                      {item.projectCode}
+                    </span>
+                  )}
+                </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--muted-foreground)]">{item.requesterDepartment}</span>
                   <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--muted-foreground)]">{item.requesterName}</span>

@@ -9700,7 +9700,7 @@ select.workbench-input {
   to { opacity: 1; }
 }
 
-/* 主窗口 — 玻璃渐变 + 方向性双影（与 wb-panel 同语言，但更挺立）*/
+/* 主窗口 — 实色渐变 + 方向性双影（与 wb-panel 同语言，但更挺立；不透明底）*/
 .chat-window {
   position: relative;
   display: flex;
@@ -9709,9 +9709,7 @@ select.workbench-input {
   max-height: calc(100vh - clamp(32px, 8vw, 112px));
   border-radius: 22px;
   background:
-    linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.004 258 / 0.72) 40%, oklch(1 0 0 / 0.4) 100%);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
+    linear-gradient(105deg, oklch(1 0 0) 0%, oklch(0.988 0.005 258) 55%, oklch(0.972 0.01 258) 100%);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.85),
     4px 4px 16px oklch(0.5 0.06 258 / 0.18),
@@ -9731,7 +9729,7 @@ select.workbench-input {
   align-items: center;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
-  background: oklch(1 0 0 / 0.32);
+  background: oklch(0.986 0.006 258);
   box-shadow: inset 0 -1px 0 oklch(0.6 0.04 258 / 0.16);
 }
 
@@ -9778,7 +9776,7 @@ select.workbench-input {
   padding: 0.625rem 0.75rem;
   border-radius: 12px;
   cursor: pointer;
-  background: oklch(1 0 0 / 0.42);
+  background: oklch(0.99 0.004 258);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.55),
     1px 1px 2px oklch(0.55 0.03 258 / 0.06);
@@ -9788,7 +9786,7 @@ select.workbench-input {
     box-shadow 0.25s ease;
 }
 .chat-row:hover {
-  background: oklch(1 0 0 / 0.7);
+  background: oklch(1 0 0);
   transform: translateY(-1px);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.8),
@@ -9833,7 +9831,7 @@ select.workbench-input {
 /* 对方消息 — 浅凸起 */
 .chat-bubble-peer {
   color: var(--foreground);
-  background: oklch(1 0 0 / 0.78);
+  background: oklch(0.985 0.006 258);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.8),
     2px 2px 5px oklch(0.55 0.03 258 / 0.1),
@@ -9848,7 +9846,7 @@ select.workbench-input {
 .chat-msg-image {
   padding: 4px;
   border-radius: 16px;
-  background: oklch(1 0 0 / 0.55);
+  background: oklch(0.99 0.004 258);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.7),
     2px 2px 6px oklch(0.55 0.03 258 / 0.1),
@@ -9874,7 +9872,7 @@ select.workbench-input {
   border-radius: 14px;
   text-decoration: none;
   color: var(--foreground);
-  background: oklch(1 0 0 / 0.72);
+  background: oklch(0.99 0.005 258);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.75),
     2px 2px 5px oklch(0.55 0.03 258 / 0.1),
@@ -9919,7 +9917,7 @@ select.workbench-input {
   gap: 0.5rem;
   padding: 0.75rem;
   border-radius: 16px;
-  background: oklch(0.985 0.004 258 / 0.7);
+  background: oklch(0.978 0.008 258);
   box-shadow:
     inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1),
     inset -2px -2px 5px oklch(1 0 0 / 0.7);
@@ -9948,7 +9946,7 @@ select.workbench-input {
   height: 38px;
   border-radius: 12px;
   color: var(--muted-foreground);
-  background: oklch(1 0 0 / 0.6);
+  background: oklch(1 0 0);
   cursor: pointer;
   flex-shrink: 0;
   box-shadow:

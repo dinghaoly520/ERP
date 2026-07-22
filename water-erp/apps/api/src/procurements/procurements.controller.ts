@@ -48,7 +48,7 @@ export class ProcurementsController {
   }
 
   @Post()
-  @Roles('procurement_staff', 'leader', 'admin', 'bid_host', 'staff')
+  @Roles('leader', 'admin', 'bid_host', 'staff')
   create(
     @Body() createDto: CreateProcurementRoundDto,
     @CurrentUser() user: AuthenticatedUser,

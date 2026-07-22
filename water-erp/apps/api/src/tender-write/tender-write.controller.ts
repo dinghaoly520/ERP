@@ -17,7 +17,7 @@ import { ImportAutofillDto } from './import-autofill.dto';
 import { TenderWriteService } from './tender-write.service';
 import { Roles } from '../common/decorators/roles.decorator';
 
-@Roles('procurement_staff', 'leader', 'admin', 'staff')
+@Roles('leader', 'admin', 'staff')
 @Controller('tender-write')
 export class TenderWriteController {
   constructor(private readonly tenderWriteService: TenderWriteService) {}

@@ -52,6 +52,20 @@ const PROJECT_STAGE_STATUS: Record<
   COMPLETED: 'COMPLETED',
 };
 
+/** 采购方式前两字拼音首字母 → 项目编号前缀（竞价→JJ、邀请→YQ…）；未知字回退 ASCII 大写或 X */
+const PROCUREMENT_METHOD_PINYIN: Record<string, string> = {
+  谈: 'T', 判: 'P', 竞: 'J', 价: 'J', 直: 'Z', 接: 'J',
+  邀: 'Y', 请: 'Q', 询: 'X', 比: 'B', 小: 'X', 额: 'E', 公: 'G', 开: 'K',
+};
+function procurementMethodPrefix(method?: string | null): string {
+  const chars = Array.from(method ?? '').slice(0, 2);
+  return (
+    chars
+      .map((c) => PROCUREMENT_METHOD_PINYIN[c] ?? (/[a-zA-Z]/.test(c) ? c.toUpperCase() : 'X'))
+      .join('') || 'XM'
+  );
+}
+
 const KNOWN_CATEGORIES = [
   '生产技术类采购',
   'EPC项目采购',
@@ -412,8 +426,19 @@ export class ProjectManagementService {
     }
 
     const createdProject = await this.prisma.$transaction(async (tx) => {
+      // 自动生成项目编号：采购方式前两字拼音首字母 + 当日 YYYYMMDD + 当日全局顺序号
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const todayCount = await tx.projectManagementItem.count({
+        where: { createdAt: { gte: startOfDay, lte: endOfDay } },
+      });
+      const projectCode = `${procurementMethodPrefix(dto.procurementMethod)}-${ymd}${String(todayCount + 1).padStart(2, '0')}`;
+
       const project = await tx.projectManagementItem.create({
         data: {
+          projectCode,
           title: dto.procurementTitle,
           requesterName: dto.requesterName,
           requesterDepartment: dto.requesterDepartment,

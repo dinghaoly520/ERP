@@ -3,7 +3,6 @@ import type { AuthRole } from "@/lib/api/auth";
 const POST_LOGIN_DESTINATIONS: Record<string, string> = {
   admin: "/dashboard",
   bid_host: "/dashboard",
-  procurement_staff: "/procurements",
   bid_expert: "/procurements",
   supplier: "/procurements",
   mall: "/procurements",
@@ -25,7 +24,6 @@ const DATABASE_ACCESS_ROLES: ReadonlySet<string> = new Set<AuthRole>([
   "leader",
   "staff",
   "bid_host",
-  "procurement_staff",
 ]);
 
 export function canAccessDatabase(role: string) {

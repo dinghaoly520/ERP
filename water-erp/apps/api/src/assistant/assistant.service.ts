@@ -100,7 +100,7 @@ export class AssistantService {
     const userRole = dto.context?.userRole as string | undefined;
     const roleContext = userRole
       ? `\n\n【当前用户的身份信息】\n用户的系统角色是"${userRole}"。${
-          ['admin', 'bid_host', 'procurement_staff'].includes(userRole)
+          ['admin', 'bid_host', 'leader', 'staff'].includes(userRole)
             ? '该用户属于管理层，拥有全系统数据访问权限。你可以综合分析所有模块的数据，给出全局视角的建议。'
             : '该用户属于业务层角色，你只应分析与其业务范围直接相关的数据。如果用户询问跨模块或全系统性的问题，应说明数据权限限制并聚焦到其可访问的范围内。'
         }\n`

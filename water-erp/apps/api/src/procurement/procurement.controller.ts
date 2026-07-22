@@ -9,7 +9,7 @@ import { CreateBidDto } from './dto/create-bid.dto';
 @ApiCookieAuth('token')
 @Controller('procurement')
 
-@Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+@Roles('admin', 'bid_host', 'leader', 'staff')
 export class ProcurementController {
   constructor(private procurementService: ProcurementService) {}
 

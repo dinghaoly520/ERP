@@ -89,10 +89,6 @@ export function listSpecialties() {
   return api.get<string[]>('/expert-admin/specialties');
 }
 
-export function getExpert(id: string) {
-  return api.get<unknown>(`/expert-admin/${id}`);
-}
-
 export function createExpert(data: {
   username: string; displayName: string; password: string; specialty: string;
   title?: string; employer?: string; phone?: string; idNumber?: string; email?: string; notes?: string;
@@ -103,10 +99,6 @@ export function createExpert(data: {
 
 export function setExpertAvailability(id: string, available: boolean) {
   return api.patch<{ success: boolean }>(`/expert-admin/${id}/availability`, { available });
-}
-
-export function importExpertsFromSeed() {
-  return api.post<{ imported: number; skipped: number; total: number }>('/expert-admin/import-from-seed', {});
 }
 
 export function updateExpertProfile(id: string, data: Record<string, unknown>) {
@@ -182,19 +174,6 @@ export interface BidProjectOption {
 }
 export function listBidProjects() {
   return api.get<BidProjectOption[]>('/bid/projects');
-}
-
-export function createBidProject(data: {
-  name: string;
-  procurementMethod: string;
-  openTime: string;
-  deadline: string;
-  budget?: number;
-  scope?: string;
-  qualification?: string;
-  contact?: string;
-}) {
-  return api.post<BidProjectOption>('/bid/projects', data);
 }
 
 export interface BidProjectDetail {

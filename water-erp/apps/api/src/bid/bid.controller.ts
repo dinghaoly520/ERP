@@ -23,7 +23,7 @@ import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotat
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
 @Controller('bid')
-@Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+@Roles('admin', 'bid_host', 'leader', 'staff')
 export class BidController {
   constructor(
     private readonly bidService: BidService,

@@ -12,7 +12,8 @@
     "confirmStatus": "CONFIRMED",
     "createdAt": "2026-06-16T08:45:46.002Z",
     "updatedAt": "2026-06-16T08:47:32.852Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqgedbr3000zvkr46arzzmi9",
@@ -27,7 +28,8 @@
     "confirmStatus": "CONFIRMED",
     "createdAt": "2026-06-16T08:45:46.048Z",
     "updatedAt": "2026-06-16T08:47:32.885Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqhf0kkd0007vk18ikuf9mwu",
@@ -42,7 +44,8 @@
     "confirmStatus": "CONFIRMED",
     "createdAt": "2026-06-17T01:51:36.734Z",
     "updatedAt": "2026-06-17T01:51:36.734Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqhf0kkh0009vk18sblw0e1k",
@@ -57,7 +60,8 @@
     "confirmStatus": "CONFIRMED",
     "createdAt": "2026-06-17T01:51:36.737Z",
     "updatedAt": "2026-06-17T01:51:36.737Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqseed-submit-bs01",
@@ -72,7 +76,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqseed-submit-bs02",
@@ -87,7 +92,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqseed-open-bs01",
@@ -102,7 +108,8 @@
     "confirmStatus": "CONFIRMED",
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:40:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqseed-open-bs02",
@@ -117,7 +124,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:40:00.000Z",
-    "decryptError": "解密校验失败：文件完整性校验不通过"
+    "decryptError": "解密校验失败：文件完整性校验不通过",
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-sfjs1",
@@ -132,7 +140,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-21T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-sfjs2",
@@ -147,7 +156,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-22T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-sfjs3",
@@ -162,7 +172,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-23T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-zk1",
@@ -177,7 +188,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-24T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-zk2",
@@ -192,7 +204,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-25T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-zk3",
@@ -207,7 +220,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-26T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-tx1",
@@ -222,7 +236,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-27T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-tx2",
@@ -237,7 +252,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-28T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqrich-bs-tx3",
@@ -252,7 +268,8 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-20T06:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqhero-bs01",
@@ -267,7 +284,8 @@
     "confirmStatus": "CONFIRMED",
     "createdAt": "2026-06-10T08:00:00.000Z",
     "updatedAt": "2026-07-01T03:00:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqhero-bs02",
@@ -282,7 +300,8 @@
     "confirmStatus": "CONFIRMED",
     "createdAt": "2026-06-12T02:00:00.000Z",
     "updatedAt": "2026-07-01T03:05:00.000Z",
-    "decryptError": null
+    "decryptError": null,
+    "bidValidity": null
   },
   {
     "id": "cmqhero-bs03",
@@ -297,6 +316,7 @@
     "confirmStatus": "PENDING",
     "createdAt": "2026-06-14T06:00:00.000Z",
     "updatedAt": "2026-07-01T03:10:00.000Z",
-    "decryptError": "解密校验失败：文件完整性校验不通过，可能存在篡改风险"
+    "decryptError": "解密校验失败：文件完整性校验不通过，可能存在篡改风险",
+    "bidValidity": null
   }
 ]

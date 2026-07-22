@@ -76,6 +76,9 @@ export default function ExpertDetailPage() {
   const [aiAdoption, setAiAdoption] = useState<any>(null);
   const [risk, setRisk] = useState<ExpertRiskBrief | null>(null);
   const [riskError, setRiskError] = useState('');
+  // Tab 失败态：区分「加载中 / 出错 / 真空」，出错不记缓存、可重试
+  const [tabError, setTabError] = useState<Partial<Record<Tab, boolean>>>({});
+  const [tabReload, setTabReload] = useState(0);
   // Violation form
   const [showViolationForm, setShowViolationForm] = useState(false);
   const [vioType, setVioType] = useState('');
@@ -110,23 +113,42 @@ export default function ExpertDetailPage() {
   ];
 
   // Load tab data（首次进入某 Tab 显示加载态；已缓存则直接复用，避免闪烁）
+  // 仅成功的 tab 记入缓存；失败的 tab 不记缓存（切回时可重拉）并标记错误态，避免一次网络抖动导致永久"假空"
   useEffect(() => {
     if (loadedTabsRef.current.has(tab)) { setTabLoading(false); return; }
     setTabLoading(true);
+    setTabError(prev => (prev[tab] ? { ...prev, [tab]: false } : prev));
+    let failed = false;
+    const track = (p: Promise<unknown>) => p.catch(() => { failed = true; });
     const tasks: Promise<unknown>[] = [];
-    if (tab === 'portrait') tasks.push(getExpertPortrait(expertId).then(setPortrait));
-    if (tab === 'evaluations') tasks.push(getExpertEvaluations(expertId).then(setEvaluations));
-    if (tab === 'timeline') { tasks.push(getExpertEvaluations(expertId).then(setEvaluations)); tasks.push(getViolations(expertId).then(setViolations)); }
-    if (tab === 'violations') tasks.push(getViolations(expertId).then(setViolations));
-    if (tab === 'ai-adoption') tasks.push(getAiAdoptionRate(expertId).then(setAiAdoption));
-    if (tab === 'risk') tasks.push(getRiskBrief(expertId).then(setRisk).catch((e: any) => setRiskError(e?.message || '风险简报生成失败')));
-    if (tab === 'notify') tasks.push(getNotifyPrefs(expertId).then(setNotifyPrefs));
-    Promise.all(tasks.map(p => p.catch(() => {})))
-      .finally(() => { setTabLoading(false); loadedTabsRef.current = new Set(loadedTabsRef.current).add(tab); });
-  }, [tab, expertId]);
+    if (tab === 'portrait') tasks.push(track(getExpertPortrait(expertId).then(setPortrait)));
+    if (tab === 'evaluations') tasks.push(track(getExpertEvaluations(expertId).then(setEvaluations)));
+    if (tab === 'timeline') { tasks.push(track(getExpertEvaluations(expertId).then(setEvaluations))); tasks.push(track(getViolations(expertId).then(setViolations))); }
+    if (tab === 'violations') tasks.push(track(getViolations(expertId).then(setViolations)));
+    if (tab === 'ai-adoption') tasks.push(track(getAiAdoptionRate(expertId).then(setAiAdoption)));
+    if (tab === 'risk') tasks.push(track(getRiskBrief(expertId).then(setRisk).catch((e: any) => { setRiskError(e?.message || '风险简报生成失败'); throw e; })));
+    if (tab === 'notify') tasks.push(track(getNotifyPrefs(expertId).then(setNotifyPrefs)));
+    Promise.all(tasks).finally(() => {
+      setTabLoading(false);
+      if (failed) setTabError(prev => ({ ...prev, [tab]: true }));
+      else loadedTabsRef.current = new Set(loadedTabsRef.current).add(tab);
+    });
+  }, [tab, expertId, tabReload]);
 
-  // 切换专家时重置 Tab 缓存
-  useEffect(() => { loadedTabsRef.current = new Set(['overview']); }, [expertId]);
+  // Tab 加载失败重试：清除该 tab 缓存与错误态，触发重拉
+  const retryTab = (t: Tab) => {
+    loadedTabsRef.current = new Set([...loadedTabsRef.current].filter(x => x !== t));
+    if (t === 'risk') { setRisk(null); setRiskError(''); }
+    setTabReload(n => n + 1);
+  };
+
+  // 切换专家时重置 Tab 缓存与子数据，避免展示上一位专家的旧数据
+  useEffect(() => {
+    loadedTabsRef.current = new Set(['overview']);
+    setTabError({});
+    setPortrait(null); setEvaluations([]); setViolations([]); setAiAdoption(null);
+    setRisk(null); setRiskError('');
+  }, [expertId]);
 
   const submitViolation = async () => {
     if (!vioType.trim() || !vioDetail.trim()) return;
@@ -167,6 +189,12 @@ export default function ExpertDetailPage() {
   };
 
   const saveProfile = async () => {
+    // 保存前校验：姓名/专业必填；手机/身份证/邮箱填了才查格式（正则与录入页一致）
+    if (!editForm.displayName.trim()) { toast.error('请输入专家姓名'); return; }
+    if (!editForm.specialty.trim()) { toast.error('请输入专业领域'); return; }
+    if (editForm.phone.trim() && !/^1[3-9]\d{9}$/.test(editForm.phone.trim())) { toast.error('手机号格式不正确（11位数字）'); return; }
+    if (editForm.idNumber.trim() && !/^\d{17}[\dXx]$/.test(editForm.idNumber.trim())) { toast.error('身份证号格式不正确（18位）'); return; }
+    if (editForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) { toast.error('邮箱格式不正确'); return; }
     setEditSaving(true);
     try {
       await updateExpertProfile(expertId, { ...editForm });
@@ -415,8 +443,14 @@ export default function ExpertDetailPage() {
           )}
         </div>
       )}
-      {tab === 'portrait' && !portrait && (
-        <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">加载画像数据中...</div>
+      {tab === 'portrait' && !portrait && !tabError.portrait && (
+        <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载画像数据中...</div>
+      )}
+      {tab === 'portrait' && tabError.portrait && (
+        <div className="neu-table-card py-14 text-center">
+          <p className="text-sm font-semibold text-[var(--danger)] mb-3">加载画像数据失败</p>
+          <button onClick={() => retryTab('portrait')} className="neu-btn-xs is-info"><RefreshCw size={12} />重试</button>
+        </div>
       )}
 
       {tab === 'risk' && risk && (
@@ -445,13 +479,21 @@ export default function ExpertDetailPage() {
         <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">正在生成风险简报...</div>
       )}
       {tab === 'risk' && riskError && (
-        <div className="neu-table-card py-14 text-center text-sm text-[var(--danger)]">{riskError}</div>
+        <div className="neu-table-card py-14 text-center">
+          <p className="text-sm font-semibold text-[var(--danger)] mb-3">{riskError}</p>
+          <button onClick={() => retryTab('risk')} className="neu-btn-xs is-info"><RefreshCw size={12} />重试</button>
+        </div>
       )}
 
       {tab === 'evaluations' && (
         <div className="neu-table-card">
           {tabLoading ? (
             <div className="py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div>
+          ) : tabError.evaluations ? (
+            <div className="py-14 text-center">
+              <p className="text-sm font-semibold text-[var(--danger)] mb-3">加载失败，点击重试</p>
+              <button onClick={() => retryTab('evaluations')} className="neu-btn-xs is-info"><RefreshCw size={12} />重试</button>
+            </div>
           ) : evaluations.length === 0 ? (
             <div className="py-14 text-center text-sm text-[var(--muted-foreground)]">暂无评价记录</div>
           ) : (
@@ -491,6 +533,12 @@ export default function ExpertDetailPage() {
 
       {tab === 'ai-adoption' && (
         tabLoading ? <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div> :
+        tabError['ai-adoption'] ? (
+          <div className="neu-table-card py-14 text-center">
+            <p className="text-sm font-semibold text-[var(--danger)] mb-3">加载失败，点击重试</p>
+            <button onClick={() => retryTab('ai-adoption')} className="neu-btn-xs is-info"><RefreshCw size={12} />重试</button>
+          </div>
+        ) :
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
@@ -541,6 +589,11 @@ export default function ExpertDetailPage() {
           )}
           {tabLoading ? (
             <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div>
+          ) : tabError.violations ? (
+            <div className="neu-table-card py-14 text-center">
+              <p className="text-sm font-semibold text-[var(--danger)] mb-3">加载失败，点击重试</p>
+              <button onClick={() => retryTab('violations')} className="neu-btn-xs is-info"><RefreshCw size={12} />重试</button>
+            </div>
           ) : violations.length === 0 ? (
             <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">暂无违规记录</div>
           ) : (

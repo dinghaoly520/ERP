@@ -61,6 +61,10 @@ export class ExpertExtractionAiService {
   /** 通知文案缓存（按项目维度去重，省 token）：key → {content, at} */
   private readonly notifyCache = new Map<string, { content: string; at: number }>();
   private static readonly NOTIFY_CACHE_TTL = 30 * 60 * 1000;
+  /** 单次 LLM 调用上限（毫秒）：LlmService 内部默认 180s 过长，挂起时会让降级迟迟不触发 */
+  private static readonly LLM_ATTEMPT_TIMEOUT_MS = 15_000;
+  /** 整条 AI 路径总预算（毫秒）：超过即抛错走规则降级，保证在网关/前端超时前发生 */
+  private static readonly LLM_TOTAL_BUDGET_MS = 25_000;
   /** 轻量可观测指标（内存态，供 ai-adoption 端点输出） */
   private metrics = {
     llmCalls: 0,
@@ -82,14 +86,35 @@ export class ExpertExtractionAiService {
     this.metrics.fallbackCount += 1;
   }
 
-  /** 带指数退避的 chatJson 重试（2 次额外重试），并记录耗时/模型 */
-  private async chatJsonWithRetry<T>(system: string, user: string, temperature: number, attempts = 3): Promise<T> {
+  /** 给任意 Promise 套超时：到点即 reject，避免 LLM 挂起拖垮整条降级路径 */
+  private withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`LLM 调用超时（>${Math.round(ms / 1000)}s）`)), ms);
+      p.then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (e) => { clearTimeout(timer); reject(e); },
+      );
+    });
+  }
+
+  /**
+   * 带指数退避的 chatJson 重试，并记录耗时/模型。
+   * 关键：每次调用套单次超时，整条路径有总预算（默认 25s）——
+   * 一旦超预算立即抛错，交由调用方（previewExtraction）降级到规则引擎，
+   * 保证在反向代理/前端超时窗口（通常 30–60s）内真正发生降级，而非让用户等到 504。
+   */
+  private async chatJsonWithRetry<T>(system: string, user: string, temperature: number, attempts = 2): Promise<T> {
     let lastErr: unknown;
+    const deadline = Date.now() + ExpertExtractionAiService.LLM_TOTAL_BUDGET_MS;
     for (let i = 0; i < attempts; i++) {
+      if (Date.now() >= deadline) break; // 总预算耗尽，立即放弃交给降级
       const start = Date.now();
       try {
         this.metrics.llmCalls += 1;
-        const result = await this.llm.chatJson<T>(system, user, temperature);
+        const result = await this.withTimeout(
+          this.llm.chatJson<T>(system, user, temperature),
+          ExpertExtractionAiService.LLM_ATTEMPT_TIMEOUT_MS,
+        );
         this.metrics.lastLatencyMs = Date.now() - start;
         this.metrics.lastModel = this.llm.getModel();
         return result;
@@ -97,7 +122,7 @@ export class ExpertExtractionAiService {
         lastErr = err;
         this.metrics.llmErrors += 1;
         this.logger.warn(`LLM chatJson 第 ${i + 1}/${attempts} 次失败: ${(err as Error)?.message ?? err}`);
-        if (i < attempts - 1) await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
+        if (i < attempts - 1 && Date.now() < deadline) await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
       }
     }
     throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
@@ -276,10 +301,13 @@ export class ExpertExtractionAiService {
     try {
       this.metrics.llmCalls += 1;
       const start = Date.now();
-      const raw = await this.llm.chat(
-        '你是一位专业的政府企业采购评审管理专家，擅长撰写正式、诚恳的通知文书。',
-        prompt,
-        0.5,
+      const raw = await this.withTimeout(
+        this.llm.chat(
+          '你是一位专业的政府企业采购评审管理专家，擅长撰写正式、诚恳的通知文书。',
+          prompt,
+          0.5,
+        ),
+        ExpertExtractionAiService.LLM_ATTEMPT_TIMEOUT_MS,
       );
       this.metrics.lastLatencyMs = Date.now() - start;
       this.metrics.lastModel = this.llm.getModel();

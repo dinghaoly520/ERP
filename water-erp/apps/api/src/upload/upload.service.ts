@@ -166,14 +166,14 @@ export class UploadService implements OnModuleInit {
   /**
    * 文件访问权限判定：
    * - 上传者本人：允许
-   * - admin / bid_host / procurement_staff：允许，但若文件属于供应商投标提交则需 decryptStatus=SUCCESS
+   * - admin / bid_host / leader / staff：允许，但若文件属于供应商投标提交则需 decryptStatus=SUCCESS
    * - bid_expert：仅当被分配到某项目，且该文件属于该项目某供应商提交的投标文件，
    *   且对应 BidSupplier 已解密成功时允许
    * - 其他：拒绝
    */
   private async canAccessFile(asset: { id: string; uploaderId: string | null }, user: { sub: string; role: string }): Promise<boolean> {
     if (asset.uploaderId && asset.uploaderId === user.sub) return true;
-    if (['admin', 'bid_host', 'procurement_staff'].includes(user.role)) {
+    if (['admin', 'bid_host', 'leader', 'staff'].includes(user.role)) {
       const submission = await this.prisma.supplierBidSubmission.findFirst({
         where: {
           OR: [

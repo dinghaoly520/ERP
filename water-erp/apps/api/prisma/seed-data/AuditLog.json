@@ -1,16 +1,16 @@
 [
   {
-    "id": "cmrai388h0003ko04y6g6qcu8",
-    "userId": "cmrai35fr0000koddvbs7wjep",
+    "id": "cmrvldfpg000dkoe0rdr7jsxo",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
     "action": "LOGIN",
     "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
     "details": {
       "role": "leader"
     },
     "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-07T10:22:58.673Z"
+    "userAgent": "node",
+    "createdAt": "2026-07-22T04:38:03.460Z"
   },
   {
     "id": "cmrai38af0005ko04wtr40yyg",
@@ -26,71 +26,6 @@
     "createdAt": "2026-07-07T10:22:58.744Z"
   },
   {
-    "id": "cmrai4asf000bko04i70zckn4",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "leader"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "createdAt": "2026-07-07T10:23:48.640Z"
-  },
-  {
-    "id": "cmrai98yk000jko04mtd703cx",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "leader"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "createdAt": "2026-07-07T10:27:39.548Z"
-  },
-  {
-    "id": "cmrai9jde000pko04tf29e9jy",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "leader"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "createdAt": "2026-07-07T10:27:53.042Z"
-  },
-  {
-    "id": "cmraibomq000vko04prqr3n05",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "leader"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "createdAt": "2026-07-07T10:29:33.170Z"
-  },
-  {
-    "id": "cmraicr2a0011ko04fyb3hevb",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "leader"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "createdAt": "2026-07-07T10:30:22.978Z"
-  },
-  {
     "id": "cmraikb3l0019ko04u65fa7cz",
     "userId": "cmraijvv90000ko3d2qdq1bja",
     "action": "LOGIN",
@@ -102,19 +37,6 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "curl/8.7.1",
     "createdAt": "2026-07-07T10:36:15.538Z"
-  },
-  {
-    "id": "cmraikb5p001bko04iez12b92",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "leader"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-07T10:36:15.613Z"
   },
   {
     "id": "cmraikb7p001dko04rvzx1nrp",
@@ -143,294 +65,8 @@
     "createdAt": "2026-07-07T10:36:15.760Z"
   },
   {
-    "id": "cmrbv27ay0001kohcd0sas1sw",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:13:51.994Z"
-  },
-  {
-    "id": "cmrbv2exp0003kohcyykoonyt",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:14:01.885Z"
-  },
-  {
-    "id": "cmrbv34t80005kohc1ghbk4tp",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:14:35.421Z"
-  },
-  {
-    "id": "cmrbv3ux00007kohc8wphnqdw",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:15:09.253Z"
-  },
-  {
-    "id": "cmrbv70fb0009kohcwv5e5hma",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:17:36.360Z"
-  },
-  {
-    "id": "cmrbv76aw000bkohc7tkqujpz",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:17:43.976Z"
-  },
-  {
-    "id": "cmrbv9sot000dkohc71nzgs4w",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:19:46.301Z"
-  },
-  {
-    "id": "cmrbvbtqd000jkohcqtqk6nnf",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:21:20.965Z"
-  },
-  {
-    "id": "cmrbvenhw000nkohcizdk2uu2",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:23:32.852Z"
-  },
-  {
-    "id": "cmrbvimw0000pkohcv6h7cn9o",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:26:38.688Z"
-  },
-  {
-    "id": "cmrbviyay000rkohcg6006i7a",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:26:53.483Z"
-  },
-  {
-    "id": "cmrbvl0g9000tkohcq7blauco",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:28:29.577Z"
-  },
-  {
-    "id": "cmrbvmqqd000vkohcbbaubidb",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:29:50.294Z"
-  },
-  {
-    "id": "cmrbvmqtb000xkohcnhvwmybs",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:29:50.400Z"
-  },
-  {
-    "id": "cmrbvmy3l000zkohcyla314kh",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:29:59.841Z"
-  },
-  {
-    "id": "cmrbvnalv0011kohc8t5vqvje",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:30:16.052Z"
-  },
-  {
-    "id": "cmrbvpl9l0018kohco5mqlpxn",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:32:03.178Z"
-  },
-  {
-    "id": "cmrbvr90h001akohc3tvxijjw",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:33:20.609Z"
-  },
-  {
-    "id": "cmrbvsa9j001dkohccnwmm4pa",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:34:08.887Z"
-  },
-  {
-    "id": "cmrbvt1ne001fkohcqbjyj85r",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:34:44.379Z"
-  },
-  {
-    "id": "cmrbvtrxy001hkohcksbj3yh6",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:35:18.454Z"
-  },
-  {
-    "id": "cmrbvuxb7001jkohcfepgmnds",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:36:12.067Z"
-  },
-  {
     "id": "cmrbvx62t001nkohchcove807",
-    "userId": "cmrai35fr0001koddvbs7wm0a",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
     "action": "LOGOUT",
     "resourceType": "auth",
     "resourceId": "cmrai35fr0001koddvbs7wm0a",
@@ -441,7 +77,7 @@
   },
   {
     "id": "cmrbvx6ux001pkohceny44g7n",
-    "userId": "cmrai35fr0001koddvbs7wm0a",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
     "action": "LOGIN",
     "resourceType": "auth",
     "resourceId": "cmrai35fr0001koddvbs7wm0a",
@@ -451,84 +87,6 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
     "createdAt": "2026-07-08T09:37:57.753Z"
-  },
-  {
-    "id": "cmrbw30xz001rkohc89rsp4op",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T09:42:30.023Z"
-  },
-  {
-    "id": "cmrbx4yso0001kon0jg9xdnj9",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T10:12:00.168Z"
-  },
-  {
-    "id": "cmrbx5col0003kon0sya1ubuq",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "leader"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T10:12:18.165Z"
-  },
-  {
-    "id": "cmrbx5pd40005kon018uj1xnz",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "leader"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
-    "createdAt": "2026-07-08T10:12:34.601Z"
-  },
-  {
-    "id": "cmrbxbb760001kogp3agfbvbs",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T10:16:56.178Z"
-  },
-  {
-    "id": "cmrbxdp5f0003kogp7cwo4khj",
-    "userId": "cmrai35fr0000koddvbs7wjep",
-    "action": "LOGIN",
-    "resourceType": "auth",
-    "resourceId": "cmrai35fr0000koddvbs7wjep",
-    "details": {
-      "role": "procurement_staff"
-    },
-    "ipAddress": "127.0.0.1",
-    "userAgent": "curl/8.7.1",
-    "createdAt": "2026-07-08T10:18:47.572Z"
   },
   {
     "id": "cmrbzbljd000dkogpocupvvm7",
@@ -579,8 +137,269 @@
     "createdAt": "2026-07-08T11:48:24.030Z"
   },
   {
+    "id": "cmrvhq17h0001ko4qd6d4acd0",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-22T02:55:52.733Z"
+  },
+  {
+    "id": "cmrvhq1e3000jko4qsqtf4i7o",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "CATALOG_COUNTER_ACCEPTED",
+    "resourceType": "目录供货申请",
+    "resourceId": null,
+    "details": {
+      "counterPrice": 95,
+      "applicationId": "cmrvhq1bu0008ko4qp0swnsa1"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-22T02:55:52.971Z"
+  },
+  {
+    "id": "cmrvhy1ea0002ko8h3jeu9rlg",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "node",
+    "createdAt": "2026-07-22T03:02:06.227Z"
+  },
+  {
+    "id": "cmrvhzmfr000hko8hx4k2wp7b",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-22T03:03:20.152Z"
+  },
+  {
+    "id": "cmrvi0l430010ko8h3f17rned",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "node",
+    "createdAt": "2026-07-22T03:04:05.091Z"
+  },
+  {
+    "id": "cmrvi0l660013ko8hfovcfhim",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "node",
+    "createdAt": "2026-07-22T03:04:05.166Z"
+  },
+  {
+    "id": "cmrviat9y0001kodw9mf3n2jv",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-22T03:12:02.230Z"
+  },
+  {
+    "id": "cmrvibt9a0035kodw4o09d7q5",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-22T03:12:48.862Z"
+  },
+  {
+    "id": "cmrvicqvj003wkodwntb9h9kd",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-22T03:13:32.431Z"
+  },
+  {
+    "id": "cmrvidmw4003zkodwxcubruyy",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-22T03:14:13.925Z"
+  },
+  {
+    "id": "cmrvidvzp004ikodw9peg5zsw",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+    "createdAt": "2026-07-22T03:14:25.717Z"
+  },
+  {
+    "id": "cmrvijp55006pkodwxobw9z8l",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-22T03:18:56.777Z"
+  },
+  {
+    "id": "cmrvikkfd007jkodwcsplft1t",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+    "createdAt": "2026-07-22T03:19:37.321Z"
+  },
+  {
+    "id": "cmrvis5rw008tkodwv0pdo2hg",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+    "createdAt": "2026-07-22T03:25:31.581Z"
+  },
+  {
+    "id": "cmrvjzvv0000jkowbvtded4hw",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-22T03:59:31.596Z"
+  },
+  {
+    "id": "cmrvjzvww000mkowbly9evofd",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-22T03:59:31.664Z"
+  },
+  {
+    "id": "cmrvk0zbp000vkowbxaen86z3",
+    "userId": "cee7b1404e01a95dede0bf8",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cee7b1404e01a95dede0bf8",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-22T04:00:22.741Z"
+  },
+  {
+    "id": "cmrvk1km60014kowbfxea43jq",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-22T04:00:50.334Z"
+  },
+  {
+    "id": "cmrvk7pdr0026kowb5nb3gc2v",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-22T04:05:36.447Z"
+  },
+  {
+    "id": "cmrbxbb760001kogp3agfbvbs",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T10:16:56.178Z"
+  },
+  {
     "id": "cmrc0kyy80009kobfvbgbuk4o",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
     "action": "LOGIN",
     "resourceType": "auth",
     "resourceId": "cmrai35fr0002koddvbs7wm1b",
@@ -590,5 +409,558 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
     "createdAt": "2026-07-08T11:48:25.713Z"
+  },
+  {
+    "id": "cmrvk7wyr002pkowbu4ddy3sz",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-22T04:05:46.276Z"
+  },
+  {
+    "id": "cmrvk85at003ekowbxz8311km",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+    "createdAt": "2026-07-22T04:05:57.078Z"
+  },
+  {
+    "id": "cmrvky1lo0001koe0jqjy3bjv",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-22T04:26:05.341Z"
+  },
+  {
+    "id": "cmrai388h0003ko04y6g6qcu8",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-07T10:22:58.673Z"
+  },
+  {
+    "id": "cmrai4asf000bko04i70zckn4",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:23:48.640Z"
+  },
+  {
+    "id": "cmrai98yk000jko04mtd703cx",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:27:39.548Z"
+  },
+  {
+    "id": "cmrai9jde000pko04tf29e9jy",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:27:53.042Z"
+  },
+  {
+    "id": "cmraibomq000vko04prqr3n05",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:29:33.170Z"
+  },
+  {
+    "id": "cmraicr2a0011ko04fyb3hevb",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-07T10:30:22.978Z"
+  },
+  {
+    "id": "cmraikb5p001bko04iez12b92",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-07T10:36:15.613Z"
+  },
+  {
+    "id": "cmrbv27ay0001kohcd0sas1sw",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:13:51.994Z"
+  },
+  {
+    "id": "cmrbv2exp0003kohcyykoonyt",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:14:01.885Z"
+  },
+  {
+    "id": "cmrbv34t80005kohc1ghbk4tp",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:14:35.421Z"
+  },
+  {
+    "id": "cmrbv3ux00007kohc8wphnqdw",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:15:09.253Z"
+  },
+  {
+    "id": "cmrbv70fb0009kohcwv5e5hma",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:17:36.360Z"
+  },
+  {
+    "id": "cmrbv76aw000bkohc7tkqujpz",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:17:43.976Z"
+  },
+  {
+    "id": "cmrbv9sot000dkohc71nzgs4w",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:19:46.301Z"
+  },
+  {
+    "id": "cmrbvbtqd000jkohcqtqk6nnf",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:21:20.965Z"
+  },
+  {
+    "id": "cmrbvenhw000nkohcizdk2uu2",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:23:32.852Z"
+  },
+  {
+    "id": "cmrbvimw0000pkohcv6h7cn9o",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:26:38.688Z"
+  },
+  {
+    "id": "cmrbviyay000rkohcg6006i7a",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:26:53.483Z"
+  },
+  {
+    "id": "cmrbvl0g9000tkohcq7blauco",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:28:29.577Z"
+  },
+  {
+    "id": "cmrbvmqqd000vkohcbbaubidb",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:29:50.294Z"
+  },
+  {
+    "id": "cmrbvmqtb000xkohcnhvwmybs",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:29:50.400Z"
+  },
+  {
+    "id": "cmrbvmy3l000zkohcyla314kh",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:29:59.841Z"
+  },
+  {
+    "id": "cmrbvnalv0011kohc8t5vqvje",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:30:16.052Z"
+  },
+  {
+    "id": "cmrbvpl9l0018kohco5mqlpxn",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:32:03.178Z"
+  },
+  {
+    "id": "cmrbvr90h001akohc3tvxijjw",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:33:20.609Z"
+  },
+  {
+    "id": "cmrbvsa9j001dkohccnwmm4pa",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:34:08.887Z"
+  },
+  {
+    "id": "cmrbvt1ne001fkohcqbjyj85r",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:34:44.379Z"
+  },
+  {
+    "id": "cmrbvtrxy001hkohcksbj3yh6",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:35:18.454Z"
+  },
+  {
+    "id": "cmrbvuxb7001jkohcfepgmnds",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:36:12.067Z"
+  },
+  {
+    "id": "cmrbw30xz001rkohc89rsp4op",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T09:42:30.023Z"
+  },
+  {
+    "id": "cmrbx4yso0001kon0jg9xdnj9",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T10:12:00.168Z"
+  },
+  {
+    "id": "cmrbx5col0003kon0sya1ubuq",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T10:12:18.165Z"
+  },
+  {
+    "id": "cmrbx5pd40005kon018uj1xnz",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-08T10:12:34.601Z"
+  },
+  {
+    "id": "cmrbxdp5f0003kogp7cwo4khj",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/8.7.1",
+    "createdAt": "2026-07-08T10:18:47.572Z"
+  },
+  {
+    "id": "cmrvhq19e0004ko4qnowio3by",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0000koddvbs7wjep",
+    "details": {
+      "role": "procurement_staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-22T02:55:52.803Z"
+  },
+  {
+    "id": "cmrvhq1dd000eko4qczlwi7fm",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "CATALOG_APPLICATION_COUNTERED",
+    "resourceType": "目录物资",
+    "resourceId": null,
+    "details": {
+      "counterPrice": 95,
+      "applicationId": "cmrvhq1bu0008ko4qp0swnsa1"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-22T02:55:52.945Z"
+  },
+  {
+    "id": "cmrvhq1ey000qko4q2416v6bt",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "CATALOG_APPLICATION_APPROVED",
+    "resourceType": "目录物资",
+    "resourceId": null,
+    "details": {
+      "type": "JOIN_EXISTING",
+      "finalPrice": 95,
+      "applicationId": "cmrvhq1bu0008ko4qp0swnsa1"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-22T02:55:53.003Z"
+  },
+  {
+    "id": "cmrvhq1g0000zko4q32a4uyr7",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "CATALOG_APPLICATION_APPROVED",
+    "resourceType": "目录物资",
+    "resourceId": null,
+    "details": {
+      "type": "UPDATE_QUOTE",
+      "finalPrice": 4300,
+      "applicationId": "cmrvhq1fj000uko4qyp0x90xh"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-22T02:55:53.040Z"
+  },
+  {
+    "id": "cmrvhq1gx001bko4qv64k56t5",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "CATALOG_APPLICATION_APPROVED",
+    "resourceType": "新增品类·E2E 测试物资",
+    "resourceId": null,
+    "details": {
+      "type": "NEW_ITEM",
+      "finalPrice": 200,
+      "applicationId": "cmrvhq1g80012ko4qwb6wtdb2"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-22T02:55:53.074Z"
   }
 ]

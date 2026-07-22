@@ -29,7 +29,7 @@ export class VllmMonitorService implements OnModuleInit {
   constructor(private readonly config: ConfigService) {
     this.llmUrl = this.config.get<string>('LLM_BASE_URL', '');
     this.llmModel = this.config.get<string>('LLM_MODEL', 'qwen3.6-35b');
-    this.embeddingUrl = this.config.get<string>('EMBEDDING_BASE_URL', '');
+    this.embeddingUrl = this.config.get<string>('EMBEDDING_BASE_URL', 'http://localhost:8001/v1');
     this.embeddingModel = this.config.get<string>(
       'EMBEDDING_MODEL',
       'BAAI/bge-m3',

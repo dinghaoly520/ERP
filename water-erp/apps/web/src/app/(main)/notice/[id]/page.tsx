@@ -155,7 +155,10 @@ function renderMeta(ann: AnnouncementListItem) {
               const raw = meta[f.key];
               let display = raw;
               if (f.date && raw) {
-                try { display = new Date(raw).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch {}
+                const parsed = new Date(raw);
+                display = Number.isNaN(parsed.getTime())
+                  ? "待定"
+                  : parsed.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
               }
               if ((f.key === "budget" || f.key === "amount") && raw) {
                 const n = Number(raw);

@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createDialogLeaveGuard } from '@/composables'
+import SpPageHero from '@/components/SpPageHero.vue'
+import { Contact, AlertTriangle } from 'lucide-vue-next'
 
 const supplierStore = useSupplierStore();
 const loading = ref(true)
@@ -67,25 +69,21 @@ async function handleDelete(id: string) {
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="sp-page-hero-card">
-      <div class="sp-page-hero-inner">
-        <div class="sp-page-hero-body">
-          <h1 class="sp-modern-title">联系人管理</h1>
-          <p class="sp-modern-desc">管理您的企业联系人信息，支持添加、编辑和删除。</p>
-        </div>
-        <div class="sp-page-hero-actions"><el-button type="primary" @click="openAdd"><el-icon><Plus /></el-icon>添加联系人</el-button></div>
-      </div>
-    </div>
+    <SpPageHero :icon="Contact" title="联系人管理" sub="管理您的企业联系人信息，支持添加、编辑和删除。">
+      <template #actions>
+        <el-button type="primary" @click="openAdd"><el-icon><Plus /></el-icon>添加联系人</el-button>
+      </template>
+    </SpPageHero>
 
     <div v-if="error" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
-    <div v-else-if="supplierStore.contacts.length>0" class="detail-card" style="overflow:hidden;padding:0">
-      <el-table :data="supplierStore.contacts" stripe>
-        <el-table-column label="姓名" prop="name" width="160"><template #default="{row}"><div class="contact-name-cell"><el-avatar :size="32" :style="{background:'var(--sp-primary)',fontSize:'13px'}">{{ row.name?.charAt(0) }}</el-avatar><span style="font-weight:700;font-size:14px;color:var(--sp-gray-900)">{{ row.name }}</span></div></template></el-table-column>
+    <div v-else-if="supplierStore.contacts.length>0" class="neu-table-card ct-table-wrap">
+      <el-table class="neu-table" :data="supplierStore.contacts" stripe>
+        <el-table-column label="姓名" prop="name" width="160"><template #default="{row}"><div class="contact-name-cell"><el-avatar :size="32" class="contact-avatar">{{ row.name?.charAt(0) }}</el-avatar><span class="contact-name">{{ row.name }}</span></div></template></el-table-column>
         <el-table-column label="手机号" prop="phone" width="160" />
         <el-table-column label="邮箱" prop="email"><template #default="{row}">{{ row.email||'-' }}</template></el-table-column>
         <el-table-column label="主要联系人" width="120" align="center"><template #default="{row}"><el-tag :type="row.isPrimary?'primary':'info'" size="small" effect="plain">{{ row.isPrimary?'主要':'普通' }}</el-tag></template></el-table-column>
@@ -93,7 +91,11 @@ async function handleDelete(id: string) {
       </el-table>
     </div>
 
-    <div v-else class="detail-card" style="text-align:center;padding:64px"><el-icon :size="32" color="var(--sp-gray-300)"><Phone /></el-icon><p style="margin-top:12px;font-size:15px;font-weight:700;color:var(--sp-gray-500)">暂无联系人</p><p style="margin-top:4px;font-size:13px;color:var(--sp-gray-400)">请添加企业联系人信息</p></div>
+    <div v-else class="detail-card ct-empty">
+      <div class="ct-empty-icon"><el-icon :size="28"><Phone /></el-icon></div>
+      <p class="ct-empty-title">暂无联系人</p>
+      <p class="ct-empty-desc">请添加企业联系人信息</p>
+    </div>
 
     <!-- ═══ Contact Panel (Teleport) ═══ -->
     <Teleport to="body">
@@ -174,64 +176,46 @@ async function handleDelete(id: string) {
 </template>
 
 <style scoped>
+/* ═══ Surfaces — neumorphic plates (no glass / no drift) ═══ */
 .detail-card {
   position: relative;
-  background: rgba(255, 255, 255, 0.52);
-  backdrop-filter: blur(14px) saturate(1.15);
-  -webkit-backdrop-filter: blur(14px) saturate(1.15);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: var(--sp-radius-md);
+  border-radius: 16px;
   padding: 24px;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
-.detail-card::before {
-  content: '';
-  position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  opacity: 0.44; border-radius: inherit;
-  background-image:
-    radial-gradient(ellipse at 10% 6%, rgba(96, 165, 250, 0.24), transparent 55%),
-    radial-gradient(ellipse at 85% 12%, rgba(56, 189, 248, 0.16), transparent 55%),
-    radial-gradient(ellipse at 38% 90%, rgba(52, 211, 153, 0.10), transparent 55%);
-  animation: glass-glow-drift 18s ease-in-out infinite;
-}
-.detail-card > * { position: relative; z-index: 1; }
+.ct-table-wrap { margin-top: 16px; }
 .contact-name-cell { display: flex; align-items: center; gap: 10px; }
+.contact-avatar { background: var(--brand); font-size: 13px; }
+.contact-name { font-weight: 700; font-size: 14px; color: var(--foreground); }
 
-/* ═══ Panel (Teleport) ═══ */
+/* ── Empty state ── */
+.ct-empty { text-align: center; padding: 64px 24px; margin-top: 16px; }
+.ct-empty-icon { color: var(--muted-foreground); margin-bottom: 8px; }
+.ct-empty-title { margin: 12px 0 4px; font-size: 15px; font-weight: 700; color: var(--muted-foreground); }
+.ct-empty-desc { margin: 0; font-size: 13px; color: var(--muted-foreground); }
+
+/* ═══ Panel (Teleport — neumorphic) ═══ */
 .ct-overlay {
   position: fixed; inset: 0; z-index: 2000;
   display: flex; align-items: center; justify-content: center; padding: 32px;
-  background: rgba(15, 35, 65, 0.10);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  background: oklch(0.35 0.06 258 / 0.28);
 }
 
 .ct-panel {
   position: relative; width: 480px; max-width: 100%; max-height: calc(100vh - 64px);
   display: flex; flex-direction: column; overflow: hidden;
-  background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(28px) saturate(1.25);
-  -webkit-backdrop-filter: blur(28px) saturate(1.25);
-  border: 1px solid rgba(255, 255, 255, 0.50);
-  border-radius: var(--sp-radius-xl);
-  box-shadow: 0 4px 8px rgba(15, 35, 65, 0.04), 0 20px 60px rgba(91, 155, 213, 0.14);
-}
-
-.ct-panel::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  opacity: 0.48; border-radius: inherit;
-  background-image:
-    radial-gradient(ellipse at 15% 8%, rgba(147, 197, 253, 0.28), transparent 55%),
-    radial-gradient(ellipse at 85% 14%, rgba(168, 139, 250, 0.16), transparent 55%),
-    radial-gradient(ellipse at 40% 88%, rgba(110, 231, 183, 0.10), transparent 55%);
-  animation: glass-glow-drift 20s ease-in-out infinite;
+  border: none; border-radius: 20px;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18);
 }
 
 /* ── Header ── */
 .ct-panel-head {
-  position: relative; z-index: 2;
+  position: relative;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 22px 26px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .ct-panel-head-left {
@@ -242,38 +226,40 @@ async function handleDelete(id: string) {
   width: 44px; height: 44px;
   border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, rgba(6, 78, 162, 0.14), rgba(56, 189, 248, 0.10));
-  color: var(--sp-primary);
+  background: oklch(0.985 0.005 258);
+  color: var(--brand);
+  box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.75);
   flex-shrink: 0;
 }
 
 .ct-panel-title {
-  margin: 0; font-size: 18px; font-weight: 900; color: var(--sp-gray-900);
+  margin: 0; font-size: 18px; font-weight: 900; color: var(--foreground);
   letter-spacing: -0.01em;
 }
 
 .ct-panel-sub {
-  margin: 3px 0 0; font-size: 12px; color: var(--sp-gray-500);
+  margin: 3px 0 0; font-size: 12px; color: var(--muted-foreground);
 }
 
 .ct-panel-close {
   width: 34px; height: 34px; border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.50);
-  color: var(--sp-gray-400); cursor: pointer;
+  border: none;
+  background: var(--surface);
+  color: var(--muted-foreground); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
   transition: all 0.15s;
 }
 
 .ct-panel-close:hover {
-  background: rgba(255, 255, 255, 0.80);
-  color: var(--sp-gray-700);
+  color: var(--brand); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9);
 }
 
 /* ── Body ── */
 .ct-panel-body {
-  position: relative; z-index: 2;
+  position: relative;
   flex: 1; overflow-y: auto;
   padding: 18px 26px;
 }
@@ -287,19 +273,19 @@ async function handleDelete(id: string) {
   display: flex; align-items: center; gap: 7px;
   font-size: 11px; font-weight: 800;
   letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--sp-gray-500);
+  color: var(--muted-foreground);
   margin-bottom: 12px;
 }
 
 .ct-panel-sec-label i {
-  color: var(--sp-red);
+  color: var(--danger);
   font-style: normal; font-weight: 900;
 }
 
 .ct-panel-sec-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: var(--sp-primary);
+  background: var(--brand);
 }
 
 /* ── Row ── */
@@ -329,52 +315,52 @@ async function handleDelete(id: string) {
 }
 
 .ct-panel-label {
-  font-size: 13px; font-weight: 700; color: var(--sp-gray-700);
+  font-size: 13px; font-weight: 700; color: var(--foreground);
 }
 
 .ct-panel-label i {
-  font-style: normal; color: var(--sp-red); margin-left: 2px;
+  font-style: normal; color: var(--danger); margin-left: 2px;
 }
 
-.ct-panel-label--opt { color: var(--sp-gray-500); font-weight: 600; }
+.ct-panel-label--opt { color: var(--muted-foreground); font-weight: 600; }
 
-/* ── Custom glass inputs ── */
+/* ── Concave inputs ── */
 .ct-panel-input {
   width: 100%; height: 42px; padding: 0 14px;
-  font-size: 14px; color: var(--sp-gray-900); font-family: inherit;
-  background: rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.36);
-  border-radius: 10px;
+  font-size: 14px; color: var(--ink); font-family: inherit;
+  background: oklch(0.99 0.004 258);
+  border: 1px solid oklch(0.78 0.03 258 / 0.4);
+  border-radius: 9px;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
   box-sizing: border-box;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
 }
 
-.ct-panel-input::placeholder { color: var(--sp-gray-300); }
+.ct-panel-input::placeholder { color: oklch(0.74 0.02 258); }
 
 .ct-panel-input:focus {
-  border-color: var(--sp-primary);
-  box-shadow: 0 0 0 3px rgba(6, 78, 162, 0.08);
-  background: rgba(255, 255, 255, 0.38);
+  border-color: oklch(0.5 0.16 258 / 0.5);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08);
 }
 
-/* ── Custom toggle switch ── */
+/* ── Toggle switch (concave track + raised knob) ── */
 .ct-toggle {
   position: relative;
   width: 44px; height: 26px;
   border-radius: 13px;
   border: none;
-  background: rgba(0, 0, 0, 0.10);
+  background: oklch(0.94 0.01 258);
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
   padding: 0;
   flex-shrink: 0;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 4px oklch(1 0 0 / 0.7);
 }
 
 .ct-toggle.active {
-  background: var(--sp-primary);
+  background: var(--brand);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25), 2px 2px 5px oklch(0.4 0.1 258 / 0.25);
 }
 
 .ct-toggle-knob {
@@ -383,7 +369,7 @@ async function handleDelete(id: string) {
   width: 20px; height: 20px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  box-shadow: 1px 1px 3px oklch(0.55 0.03 258 / 0.25);
   transition: transform 0.2s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -393,59 +379,58 @@ async function handleDelete(id: string) {
 
 /* ── Footer ── */
 .ct-panel-foot {
-  position: relative; z-index: 2;
+  position: relative;
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
   padding: 16px 26px;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
-  background: rgba(255, 255, 255, 0.34);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid var(--hairline);
+  background: oklch(1 0 0 / 0.3);
 }
 
 .ct-panel-hint {
-  font-size: 12px; color: var(--sp-gray-400); font-weight: 600;
+  font-size: 12px; color: var(--muted-foreground); font-weight: 600;
 }
 
-.ct-panel-hint.ready { color: #047857; }
+.ct-panel-hint.ready { color: var(--success); }
 
 .ct-panel-foot-actions {
   display: flex; gap: 10px; flex-shrink: 0;
 }
 
 .ct-panel-btn-cancel {
-  padding: 10px 20px; border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.50);
-  color: var(--sp-gray-600);
+  padding: 10px 20px; border-radius: 9px;
+  border: none;
+  background: var(--surface);
+  color: var(--foreground);
   font-size: 13px; font-weight: 700; cursor: pointer;
   font-family: inherit;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
   transition: all 0.15s;
 }
 
 .ct-panel-btn-cancel:hover {
-  background: rgba(255, 255, 255, 0.80);
-  color: var(--sp-gray-800);
+  color: var(--brand); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9);
 }
 
 .ct-panel-btn-submit {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 10px 22px; border-radius: 10px; border: none;
-  background: rgba(6, 78, 162, 0.30);
-  color: rgba(255, 255, 255, 0.60);
-  font-size: 13px; font-weight: 700; cursor: not-allowed;
+  padding: 10px 22px; border-radius: 9px; border: none;
+  background: var(--brand);
+  color: #fff;
+  font-size: 13px; font-weight: 700; cursor: pointer;
   font-family: inherit;
+  box-shadow: 3px 3px 6px oklch(0.5 0.08 258 / 0.25), -2px -2px 5px oklch(1 0 0 / 0.5);
   transition: all 0.18s;
 }
 
-.ct-panel-btn-submit.ready {
-  background: linear-gradient(135deg, #064ea2 0%, #0a5eb8 100%);
-  color: #fff; cursor: pointer;
-  box-shadow: 0 4px 14px rgba(6, 78, 162, 0.30);
+.ct-panel-btn-submit:disabled {
+  opacity: 0.55; cursor: not-allowed; transform: none;
+  box-shadow: 2px 2px 4px oklch(0.5 0.05 258 / 0.15), -1px -1px 3px oklch(1 0 0 / 0.4);
 }
 
 .ct-panel-btn-submit.ready:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(6, 78, 162, 0.38);
+  background: var(--brand-deep); transform: translateY(-1px);
+  box-shadow: 4px 4px 10px oklch(0.45 0.08 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.55);
 }
 
 /* ── Transitions ── */
@@ -456,5 +441,11 @@ async function handleDelete(id: string) {
 .ct-panel-enter-from, .ct-panel-leave-to { opacity: 0; }
 .ct-panel-enter-from .ct-panel, .ct-panel-leave-to .ct-panel {
   transform: scale(0.96) translateY(12px); opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-panel-close, .ct-panel-btn-cancel, .ct-panel-btn-submit, .ct-toggle, .ct-toggle-knob {
+    transition: none;
+  }
 }
 </style>

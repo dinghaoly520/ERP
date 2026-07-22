@@ -57,6 +57,36 @@ type Props = {
 const inputCls =
   'w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] rounded-lg text-sm placeholder-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10';
 
+/**
+ * 把公告 draft + 项目数据映射成「信息发布」渲染器与后端 createFromAnnouncement
+ * 共同约定的 canonical 键（projectCode/method/budget/scope/qualification/deadline/openTime/contact）。
+ * 只写有值的键 —— 渲染器按 truthy 过滤，缺值的字段自动不显示对应芯片。
+ */
+function buildCanonicalMeta(
+  project: ProjectManagementItem | null,
+  draft: AnnouncementDraft | null,
+): Record<string, unknown> {
+  const d = (draft ?? {}) as Record<string, string>;
+  const out: Record<string, unknown> = {};
+  const put = (key: string, value: unknown) => {
+    const v = typeof value === 'string' ? value.trim() : value;
+    if (v !== undefined && v !== null && v !== '') out[key] = v;
+  };
+  const contact = [d.contactName || project?.requesterName || '', d.contactPhone || '']
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(' ');
+  put('projectCode', project?.projectCode);
+  put('method', project?.procurementMethod);
+  put('budget', d.maxPriceNumeric || (project?.budgetAmount != null ? String(project.budgetAmount) : undefined));
+  put('scope', d.projectOverview);
+  put('qualification', d.qualificationRequirements || project?.supplierRequirements);
+  put('deadline', d.announcementEnd);
+  put('openTime', d.bidOpeningTime || d.procurementTime);
+  put('contact', contact);
+  return out;
+}
+
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document' }: Props) {
   // Wizard state
   const [step, setStep] = useState<1 | 2>(1);
@@ -282,8 +312,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
             .join('')
         : `<p>${esc(title)}</p>`;
 
-      // 3. 创建公告（正文为全文）
-      const meta: Record<string, unknown> = { ...draft, visibility };
+      // 3. 创建公告（正文为全文；canonical 精炼字段供「信息发布」详情页与后端消费）
+      const meta: Record<string, unknown> = { ...draft, visibility, ...buildCanonicalMeta(project, draft) };
       if (visibility === 'RESTRICTED') meta.restrictedSupplierIds = restrictedSupplierIds;
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
       meta.notifyOnPublish = notifyOnPublish;
@@ -296,7 +326,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         status,
         publishDate: publishTiming === 'now' ? new Date().toISOString() : undefined,
         metadata: meta,
-        relatedProjectCode: draftRecord.projectCode || undefined,
+        relatedProjectCode: project?.projectCode || undefined,
       });
       const id = saved.id;
       setAnnId(id);

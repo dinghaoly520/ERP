@@ -21,7 +21,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 @ApiTags('Knowledge')
 @Controller('knowledge')
 @UseGuards(AuthGuard)
-@Roles('procurement_staff', 'leader', 'admin', 'staff')
+@Roles('leader', 'admin', 'staff')
 export class KnowledgeController {
   constructor(private knowledge: KnowledgeService) {}
 

@@ -543,22 +543,19 @@ async function submitRegister() {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
 
-@property --reg-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
 /* ═══════════════════════════════════════════════
-   Root tokens
+   Brand-blue theme (was mint hue 155 → glass).
+   Mirrors Login.vue: neumorphic raised card, concave
+   inputs, raised brand primary. No conic edge-flow,
+   no brand-word shimmer, no glass backdrop.
    ═══════════════════════════════════════════════ */
 .reg {
-  --hue: 155;
-  --reg-ink: oklch(0.26 0.025 var(--hue));
-  --reg-muted: #6b787e;
-  --reg-line: oklch(0.93 0.015 var(--hue));
+  --hue: 252;
+  --reg-ink: oklch(0.26 0.03 var(--hue));
+  --reg-muted: #64748b;
+  --reg-line: oklch(0.9 0.02 var(--hue));
   --reg-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --reg-surface: rgba(255, 255, 255, 0.72);
+  --reg-surface: var(--surface, oklch(0.985 0.005 252));
   --reg-tint: oklch(0.975 0.02 var(--hue));
   position: relative;
   display: flex;
@@ -572,9 +569,7 @@ async function submitRegister() {
   background: var(--reg-tint);
 }
 
-/* ═══════════════════════════════════════════════
-   Background — matching login page
-   ═══════════════════════════════════════════════ */
+/* Water-texture atmosphere — tinted brand-blue via --hue (matching login) */
 .reg-bg {
   position: fixed;
   inset: 0;
@@ -582,7 +577,7 @@ async function submitRegister() {
   background-image: url('/bg-hydro-hero-7.png');
   background-position: center;
   background-size: cover;
-  filter: saturate(0.8) contrast(0.92) brightness(1.05);
+  filter: saturate(0.7) contrast(0.92) brightness(1.02);
   transform: scale(1.04);
 }
 .reg::before,
@@ -594,14 +589,16 @@ async function submitRegister() {
 }
 .reg::before {
   z-index: -2;
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 42%, transparent 0%, rgba(0,0,0,0.04) 46%, rgba(0,0,0,0.22) 74%, rgba(0,0,0,0.5) 100%);
+  mask-image: radial-gradient(ellipse at 50% 42%, transparent 0%, rgba(0,0,0,0.04) 46%, rgba(0,0,0,0.22) 74%, rgba(0,0,0,0.5) 100%);
 }
 .reg::after {
   z-index: -1;
   background:
-    radial-gradient(ellipse at 50% 40%, color-mix(in oklch, white 18%, transparent), transparent 58%),
-    linear-gradient(180deg, rgba(3, 30, 40, 0.06), transparent 42%, color-mix(in oklch, var(--reg-tint) 30%, transparent) 100%);
+    linear-gradient(180deg, transparent 0%, color-mix(in oklch, var(--reg-tint) 6%, transparent) 40%, color-mix(in oklch, var(--reg-tint) 42%, transparent) 74%, color-mix(in oklch, var(--reg-tint) 92%, white) 100%),
+    radial-gradient(circle at 50% 30%, color-mix(in oklch, white 22%, transparent), transparent 46%);
 }
 
 /* ═══════════════════════════════════════════════
@@ -624,8 +621,7 @@ async function submitRegister() {
   background: #fff;
   padding: 5px;
   box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 20px rgba(20, 40, 50, 0.22);
+  box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4);
 }
 .reg-brand-name {
   font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
@@ -637,7 +633,8 @@ async function submitRegister() {
 }
 
 /* ═══════════════════════════════════════════════
-   Card — glass morphism, wider for wizard
+   Card — neumorphic raised plate, wider for wizard
+   (no glass backdrop, no conic edge, no gradient ring border)
    ═══════════════════════════════════════════════ */
 .reg-panel {
   width: 100%;
@@ -649,139 +646,61 @@ async function submitRegister() {
   position: relative;
   width: min(680px, 100%);
   padding: 48px 40px 40px;
-  border-radius: 32px;
-  background:
-    radial-gradient(circle at 92% 0%, color-mix(in oklch, oklch(0.93 0.055 var(--hue)) 42%, transparent), transparent 38%),
-    radial-gradient(circle at 4% 96%, color-mix(in oklch, oklch(0.93 0.045 calc(var(--hue) + 80)) 36%, transparent), transparent 36%),
-    linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.68));
-  backdrop-filter: blur(30px) saturate(1.5);
-  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  border-radius: 24px;
+  background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252));
   box-shadow:
-    0 38px 94px -20px color-mix(in oklch, oklch(0.26 0.06 var(--hue)) 52%, transparent),
-    0 18px 40px -10px color-mix(in oklch, oklch(0.22 0.05 var(--hue)) 40%, transparent),
-    0 0 66px -8px color-mix(in oklch, oklch(0.74 0.1 var(--hue)) 24%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+    12px 12px 30px oklch(0.42 0.05 252 / 0.16),
+    -9px -9px 24px oklch(1 0 0 / 0.92),
+    inset 0 1px 0 oklch(1 0 0 / 0.85);
   animation: reg-rise 0.58s var(--reg-ease) backwards;
-  transition: box-shadow 0.35s var(--reg-ease);
+  transition: transform 0.35s var(--reg-ease), box-shadow 0.35s var(--reg-ease);
 }
 @keyframes reg-rise {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
-/* Conic border — matching login card animation */
-.reg-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1.2px;
-  pointer-events: none;
-  background: linear-gradient(
-    135deg,
-    color-mix(in oklch, oklch(0.9 0.06 var(--hue)) 78%, white),
-    rgba(255, 255, 255, 0.72) 46%,
-    color-mix(in oklch, oklch(0.9 0.05 calc(var(--hue) + 90)) 70%, white)
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-}
-.reg-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1.4px;
-  pointer-events: none;
-  background: conic-gradient(
-    from var(--reg-angle, 0deg),
-    transparent 0%,
-    color-mix(in oklch, oklch(0.82 0.14 var(--hue)) 36%, transparent) 6%,
-    color-mix(in oklch, white 55%, transparent) 12%,
-    color-mix(in oklch, oklch(0.82 0.14 var(--hue)) 36%, transparent) 19%,
-    transparent 28%,
-    transparent 100%
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0.85;
-  animation: reg-edge-flow 10s linear infinite;
-}
-@keyframes reg-edge-flow {
-  to { --reg-angle: 360deg; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .reg-card::after { animation: none; }
+.reg-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    16px 16px 38px oklch(0.42 0.05 252 / 0.2),
+    -11px -11px 28px oklch(1 0 0 / 0.95),
+    inset 0 1px 0 oklch(1 0 0 / 0.9);
 }
 
 /* ═══════════════════════════════════════════════
-   Card header — matching login head style
+   Card header — matching login head style (solid brand word)
    ═══════════════════════════════════════════════ */
 .reg-head {
   margin-bottom: 32px;
   text-align: center;
 }
 .reg-brand-word {
-  position: relative;
   display: block;
   font-family: 'Plus Jakarta Sans', 'Microsoft YaHei', sans-serif;
   font-size: 34px;
   font-weight: 800;
   line-height: 1.1;
   letter-spacing: -0.01em;
-  background: linear-gradient(
-    90deg,
-    oklch(0.96 0.01 var(--hue)) 0%,
-    oklch(0.84 0.06 calc(var(--hue) + 20)) 20%,
-    oklch(0.88 0.05 calc(var(--hue) - 10)) 40%,
-    oklch(0.84 0.04 calc(var(--hue) + 60)) 60%,
-    oklch(0.86 0.06 calc(var(--hue) + 20)) 80%,
-    oklch(0.96 0.01 var(--hue)) 100%
-  );
-  background-size: 300% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--brand-deep, oklch(0.42 0.13 252));
   text-align: center;
   margin: 0 -40px;
   padding: 6px 40px;
-  animation: reg-brand-shimmer 8s linear infinite;
-}
-.reg-brand-word::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse 72% 150% at center,
-    color-mix(in oklch, oklch(0.34 0.15 var(--hue)) 58%, transparent) 0%,
-    color-mix(in oklch, oklch(0.34 0.15 var(--hue)) 24%, transparent) 42%,
-    transparent 72%
-  );
 }
 .reg-brand-word .reg-dot {
-  font-size: 24px;
+  font-size: 26px;
   line-height: 1;
   margin: 0 8px;
-  opacity: 0.45;
-  -webkit-text-fill-color: var(--reg-ink);
-  color: var(--reg-ink);
-}
-@keyframes reg-brand-shimmer {
-  0% { background-position: 0% center; }
-  100% { background-position: 300% center; }
+  opacity: 0.5;
+  color: var(--brand, oklch(0.55 0.16 252));
 }
 
 .reg-divider {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 148px;
-  margin: 16px auto 4px;
-  color: oklch(0.5 0.1 var(--hue));
+  width: 168px;
+  margin: 18px auto 4px;
+  color: oklch(0.55 0.12 var(--hue));
   font-size: 9px;
   line-height: 1;
 }
@@ -792,11 +711,11 @@ async function submitRegister() {
   height: 1px;
 }
 .reg-divider::before {
-  background: linear-gradient(90deg, transparent, oklch(0.5 0.09 var(--hue)));
+  background: linear-gradient(90deg, transparent, oklch(0.6 0.1 var(--hue)));
   margin-right: 10px;
 }
 .reg-divider::after {
-  background: linear-gradient(270deg, transparent, oklch(0.5 0.09 var(--hue)));
+  background: linear-gradient(270deg, transparent, oklch(0.6 0.1 var(--hue)));
   margin-left: 10px;
 }
 
@@ -806,7 +725,7 @@ async function submitRegister() {
   font-size: 31px;
   font-weight: 600;
   line-height: 1.2;
-  color: oklch(0.3 0.04 var(--hue));
+  color: oklch(0.32 0.05 var(--hue));
   letter-spacing: 0.14em;
 }
 .reg-sub {
@@ -817,7 +736,7 @@ async function submitRegister() {
 }
 
 /* ═══════════════════════════════════════════════
-   Draft recovery
+   Draft recovery (semantic warning surface — mirrors login pending)
    ═══════════════════════════════════════════════ */
 .reg-recovery {
   display: flex;
@@ -825,25 +744,25 @@ async function submitRegister() {
   gap: 14px;
   padding: 14px 18px;
   margin-bottom: 28px;
-  border-radius: 16px;
-  background: oklch(0.94 0.04 calc(var(--hue) + 40));
-  border: 1px solid oklch(0.85 0.06 calc(var(--hue) + 40));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--warning, #d97706) 10%, var(--surface, #fff));
+  border: 1px solid color-mix(in oklab, var(--warning, #d97706) 32%, transparent);
 }
 .reg-recovery-icon {
   flex-shrink: 0;
-  color: oklch(0.5 0.08 calc(var(--hue) + 40));
+  color: var(--warning, #d97706);
 }
 .reg-recovery-body { flex: 1; min-width: 0; }
 .reg-recovery-title {
   margin: 0;
   font-size: 13px;
   font-weight: 700;
-  color: oklch(0.35 0.04 calc(var(--hue) + 40));
+  color: color-mix(in oklab, var(--warning, #d97706) 55%, #000);
 }
 .reg-recovery-hint {
   margin: 2px 0 0;
   font-size: 12px;
-  color: oklch(0.45 0.03 calc(var(--hue) + 40));
+  color: var(--reg-muted);
 }
 .reg-recovery-actions {
   display: flex;
@@ -852,7 +771,7 @@ async function submitRegister() {
 }
 
 /* ═══════════════════════════════════════════════
-   Step indicator — custom, numbered circles
+   Step indicator — concave wells + raised brand nodes
    ═══════════════════════════════════════════════ */
 .reg-steps {
   position: relative;
@@ -875,7 +794,7 @@ async function submitRegister() {
   top: 0;
   left: 0;
   height: 100%;
-  background: oklch(0.55 0.12 var(--hue));
+  background: oklch(0.5 0.16 var(--hue));
   transition: width 0.45s var(--reg-ease);
 }
 
@@ -908,21 +827,25 @@ async function submitRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
+  border: none;
   background: var(--reg-surface);
-  border: 1.5px solid oklch(0.88 0.015 var(--hue));
+  box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.8);
   transition: all 0.3s var(--reg-ease);
   flex-shrink: 0;
 }
 .reg-step.is-active .reg-step-dot {
-  background: oklch(0.55 0.12 var(--hue));
-  border-color: oklch(0.55 0.12 var(--hue));
   color: #fff;
-  box-shadow: 0 0 0 6px color-mix(in oklch, oklch(0.62 0.14 var(--hue)) 18%, transparent);
+  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
+  box-shadow:
+    3px 3px 8px oklch(0.4 0.1 252 / 0.32),
+    -2px -2px 6px oklch(1 0 0 / 0.5),
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    0 0 0 6px color-mix(in oklab, var(--brand, oklch(0.55 0.16 252)) 14%, transparent);
 }
 .reg-step.is-done .reg-step-dot {
-  background: oklch(0.55 0.12 var(--hue));
-  border-color: oklch(0.55 0.12 var(--hue));
   color: #fff;
+  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
+  box-shadow: 3px 3px 8px oklch(0.4 0.1 252 / 0.32), -2px -2px 6px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
 }
 
 .reg-step-num {
@@ -966,7 +889,7 @@ async function submitRegister() {
 }
 
 /* ═══════════════════════════════════════════════
-   Form styling — deep overrides of Element Plus
+   Form styling — concave neumorphic inputs (mirrors login)
    ═══════════════════════════════════════════════ */
 .reg-form-grid {
   display: grid;
@@ -979,8 +902,8 @@ async function submitRegister() {
 }
 .reg-form :deep(.el-form-item__label) {
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   color: color-mix(in oklch, var(--reg-ink) 82%, #000);
   padding-bottom: 8px;
   line-height: 1;
@@ -988,18 +911,16 @@ async function submitRegister() {
 .reg-form :deep(.el-input__wrapper) {
   height: 52px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 0 0 1px var(--reg-line) inset;
-  transition: box-shadow 0.2s var(--reg-ease), background 0.2s var(--reg-ease);
+  background: var(--surface, oklch(0.965 0.012 252));
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85);
+  transition: box-shadow 0.2s var(--reg-ease);
 }
 .reg-form :deep(.el-input__wrapper:hover) {
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 0 0 1px oklch(0.7 0.06 var(--hue)) inset;
+  box-shadow: inset 4px 4px 9px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9);
 }
 .reg-form :deep(.el-input__wrapper.is-focus) {
-  background: #fff;
-  box-shadow: 0 0 0 1px oklch(0.66 0.08 var(--hue)) inset,
-    0 0 0 4px color-mix(in oklch, oklch(0.78 0.08 var(--hue)) 16%, transparent);
+  background: oklch(0.985 0.01 252);
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.55 0.16 252)) 16%, transparent);
 }
 .reg-form :deep(.el-input__inner) {
   color: var(--reg-ink);
@@ -1007,27 +928,25 @@ async function submitRegister() {
   font-size: 15px;
 }
 .reg-form :deep(.el-input__inner::placeholder) {
-  color: oklch(0.66 0.015 var(--hue));
+  color: oklch(0.66 0.02 var(--hue));
 }
 .reg-form :deep(.el-textarea__inner) {
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 0 0 1px var(--reg-line) inset;
+  background: var(--surface, oklch(0.965 0.012 252));
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85);
   font-family: inherit;
   font-size: 15px;
   color: var(--reg-ink);
   resize: none;
   padding: 12px 14px;
-  transition: box-shadow 0.2s var(--reg-ease), background 0.2s var(--reg-ease);
+  transition: box-shadow 0.2s var(--reg-ease);
 }
 .reg-form :deep(.el-textarea__inner:hover) {
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 0 0 1px oklch(0.7 0.06 var(--hue)) inset;
+  box-shadow: inset 4px 4px 9px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9);
 }
 .reg-form :deep(.el-textarea__inner:focus) {
-  background: #fff;
-  box-shadow: 0 0 0 1px oklch(0.66 0.08 var(--hue)) inset,
-    0 0 0 4px color-mix(in oklch, oklch(0.78 0.08 var(--hue)) 16%, transparent);
+  background: oklch(0.985 0.01 252);
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.55 0.16 252)) 16%, transparent);
 }
 .reg-form :deep(.el-select .el-input__wrapper) {
   height: 52px;
@@ -1077,7 +996,8 @@ async function submitRegister() {
   font-size: 11px;
   font-weight: 700;
   color: oklch(0.5 0.04 var(--hue));
-  background: oklch(0.94 0.015 var(--hue));
+  background: var(--reg-surface);
+  box-shadow: inset 1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.12), inset -1.5px -1.5px 3px oklch(1 0 0 / 0.8);
   font-family: 'Plus Jakarta Sans', 'Manrope', sans-serif;
 }
 .reg-row-fields {
@@ -1112,7 +1032,7 @@ async function submitRegister() {
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  border: 1px solid transparent;
+  border: none;
   background: none;
   color: oklch(0.55 0.03 var(--hue));
   cursor: pointer;
@@ -1122,19 +1042,28 @@ async function submitRegister() {
   transition: all 0.2s ease;
 }
 .reg-row-remove:hover:not(:disabled) {
-  background: oklch(0.93 0.03 calc(var(--hue) + 200));
-  color: oklch(0.45 0.18 calc(var(--hue) + 200));
-  border-color: oklch(0.85 0.08 calc(var(--hue) + 200));
+  color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 8%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
 .reg-row-remove:disabled {
   opacity: 0.25;
   cursor: default;
 }
 
-/* Step 3 Element Plus overrides for compact rows */
+/* Step 3 Element Plus overrides — compact concave rows */
 .reg-row :deep(.el-input__wrapper) {
   height: 44px !important;
   border-radius: 12px;
+  background: var(--surface, oklch(0.965 0.012 252));
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85);
+}
+.reg-row :deep(.el-input__wrapper:hover) {
+  box-shadow: inset 4px 4px 9px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9);
+}
+.reg-row :deep(.el-input__wrapper.is-focus) {
+  background: oklch(0.985 0.01 252);
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.14), inset -3px -3px 7px oklch(1 0 0 / 0.9), 0 0 0 3px color-mix(in oklab, var(--brand, oklch(0.55 0.16 252)) 16%, transparent);
 }
 .reg-row :deep(.el-select .el-input__wrapper) {
   height: 44px !important;
@@ -1148,7 +1077,7 @@ async function submitRegister() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
-  border: 1px solid oklch(0.9 0.01 var(--hue));
+  border: 1px solid var(--hairline);
   border-radius: 14px;
   overflow: hidden;
 }
@@ -1156,8 +1085,8 @@ async function submitRegister() {
   display: grid;
   grid-template-columns: 120px 1fr;
   padding: 12px 16px;
-  border-bottom: 1px solid oklch(0.93 0.008 var(--hue));
-  border-right: 1px solid oklch(0.93 0.008 var(--hue));
+  border-bottom: 1px solid var(--hairline);
+  border-right: 1px solid var(--hairline);
 }
 .reg-summary-item:nth-child(even) { border-right: none; }
 .reg-summary-item--wide {
@@ -1192,15 +1121,15 @@ async function submitRegister() {
   margin-top: 24px;
   padding: 14px 16px;
   border-radius: 14px;
-  background: oklch(0.94 0.025 var(--hue));
-  border: 1px solid oklch(0.88 0.04 var(--hue));
+  background: color-mix(in oklab, var(--brand, oklch(0.5 0.16 258)) 7%, transparent);
+  border: 1px solid color-mix(in oklab, var(--brand, oklch(0.5 0.16 258)) 18%, transparent);
   font-size: 13px;
-  color: oklch(0.42 0.06 var(--hue));
+  color: var(--brand-deep, oklch(0.42 0.13 252));
   line-height: 1.55;
 }
 
 /* ═══════════════════════════════════════════════
-   Buttons
+   Buttons — raised brand primary / soft plates (no sweep)
    ═══════════════════════════════════════════════ */
 .reg-actions {
   display: flex;
@@ -1221,63 +1150,42 @@ async function submitRegister() {
 }
 .reg-btn:disabled { cursor: wait; opacity: 0.65; }
 
-/* Primary */
+/* Primary — raised brand neumorphic button (mirrors login .lp-primary) */
 .reg-btn--primary {
   height: 54px;
   padding: 0 32px;
-  border-radius: 15px;
+  border-radius: 14px;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.08em;
-  color: oklch(0.32 0.07 var(--hue));
-  background: linear-gradient(
-    135deg,
-    oklch(0.93 0.055 var(--hue)),
-    oklch(0.91 0.048 calc(var(--hue) + 24))
-  );
-  border: 1px solid color-mix(in oklch, oklch(0.8 0.06 var(--hue)) 50%, white);
-  box-shadow:
-    0 10px 24px color-mix(in oklch, oklch(0.5 0.05 var(--hue)) 14%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  position: relative;
-  overflow: hidden;
-}
-.reg-btn--primary::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -130%;
-  width: 55%;
-  height: 100%;
-  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.55), transparent);
-  transform: skewX(-18deg);
-  pointer-events: none;
-  transition: left 0.65s var(--reg-ease);
+  color: #fff;
+  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
+  box-shadow: 4px 4px 12px oklch(0.4 0.1 252 / 0.35), -3px -3px 8px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
 }
 .reg-btn--primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  filter: brightness(1.03);
-  box-shadow:
-    0 14px 30px color-mix(in oklch, oklch(0.5 0.06 var(--hue)) 20%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  box-shadow: 6px 6px 18px oklch(0.4 0.1 252 / 0.42), -3px -3px 8px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.35);
 }
-.reg-btn--primary:hover:not(:disabled)::after { left: 130%; }
+.reg-btn--primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: inset 3px 3px 8px oklch(0.3 0.1 252 / 0.5), inset -2px -2px 6px oklch(0.7 0.1 252 / 0.3);
+}
 
-/* Ghost (secondary / small action) */
+/* Ghost (secondary / small action) — soft plate */
 .reg-btn--ghost {
   height: 36px;
   padding: 0 16px;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 600;
-  color: oklch(0.45 0.04 var(--hue));
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid oklch(0.9 0.01 var(--hue));
   gap: 6px;
+  color: oklch(0.45 0.04 var(--hue));
+  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
+  box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.12), -2px -2px 5px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
-.reg-btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: oklch(0.75 0.06 var(--hue));
+.reg-btn--ghost:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: var(--brand, oklch(0.5 0.15 252));
 }
 
 .reg-btn--primary-sm {
@@ -1288,11 +1196,12 @@ async function submitRegister() {
   font-weight: 700;
   letter-spacing: 0.04em;
   color: #fff;
-  background: oklch(0.52 0.12 var(--hue));
-  border: 1px solid oklch(0.52 0.12 var(--hue));
+  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
+  box-shadow: 2px 2px 6px oklch(0.4 0.1 252 / 0.3), -2px -2px 4px oklch(1 0 0 / 0.4), inset 0 1px 0 oklch(1 0 0 / 0.3);
 }
-.reg-btn--primary-sm:hover {
-  background: oklch(0.46 0.13 var(--hue));
+.reg-btn--primary-sm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 9px oklch(0.4 0.1 252 / 0.36), -2px -2px 5px oklch(1 0 0 / 0.45), inset 0 1px 0 oklch(1 0 0 / 0.35);
 }
 
 .reg-btn--ghost-sm {
@@ -1301,57 +1210,51 @@ async function submitRegister() {
   border-radius: 10px;
   font-size: 12px;
   font-weight: 600;
-  color: oklch(0.5 0.06 var(--hue));
-  background: transparent;
-  border: 1px solid oklch(0.9 0.015 var(--hue));
   gap: 5px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.2s ease;
+  color: oklch(0.5 0.06 var(--hue));
+  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
+  box-shadow: 2px 2px 5px oklch(0.55 0.03 258 / 0.12), -2px -2px 5px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
-.reg-btn--ghost-sm:hover {
-  background: oklch(0.95 0.02 var(--hue));
-  border-color: oklch(0.72 0.08 var(--hue));
-  color: oklch(0.42 0.1 var(--hue));
+.reg-btn--ghost-sm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: var(--brand, oklch(0.5 0.15 252));
 }
 
-/* Back button */
+/* Back button — soft plate */
 .reg-btn--back {
   height: 48px;
   padding: 0 20px;
   border-radius: 14px;
   font-size: 14px;
   font-weight: 600;
-  color: oklch(0.48 0.03 var(--hue));
-  background: rgba(255, 255, 255, 0.45);
-  border: 1px solid oklch(0.9 0.012 var(--hue));
   gap: 4px;
+  color: oklch(0.48 0.03 var(--hue));
+  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
+  box-shadow: 3px 3px 8px oklch(0.55 0.03 258 / 0.14), -2px -2px 6px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
-.reg-btn--back:hover {
-  background: rgba(255, 255, 255, 0.75);
-  border-color: oklch(0.72 0.06 var(--hue));
-  color: oklch(0.38 0.06 var(--hue));
+.reg-btn--back:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: var(--brand, oklch(0.5 0.15 252));
 }
 
-/* File upload */
+/* File upload — concave drop-zone style */
 .reg-btn--file {
   height: 44px;
   padding: 0 14px;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 600;
-  color: oklch(0.5 0.06 var(--hue));
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px dashed oklch(0.82 0.04 var(--hue));
   gap: 6px;
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: oklch(0.5 0.06 var(--hue));
+  background: var(--surface, oklch(0.965 0.012 252));
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
 }
 .reg-btn--file:hover {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: oklch(0.66 0.09 var(--hue));
-  border-style: solid;
+  color: var(--brand, oklch(0.5 0.15 252));
+  box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.13), inset -2px -2px 4px oklch(1 0 0 / 0.75);
 }
 
 /* ═══════════════════════════════════════════════
@@ -1364,7 +1267,7 @@ async function submitRegister() {
   font-size: 13px;
 }
 .reg-foot a {
-  color: oklch(0.42 0.08 var(--hue));
+  color: oklch(0.5 0.13 var(--hue));
   font-weight: 700;
   text-decoration: none;
 }
@@ -1381,7 +1284,7 @@ async function submitRegister() {
 .reg-fade-leave-to { opacity: 0; transform: translateY(-4px); }
 
 /* ═══════════════════════════════════════════════
-   Entrance stagger
+   Entrance stagger (motion only; no glass)
    ═══════════════════════════════════════════════ */
 .reg-head,
 .reg-steps,
@@ -1409,7 +1312,7 @@ async function submitRegister() {
   }
   .reg-card {
     padding: 36px 22px 32px;
-    border-radius: 26px;
+    border-radius: 22px;
   }
   .reg-brand {
     top: 16px;
@@ -1475,5 +1378,12 @@ async function submitRegister() {
   .reg-btn--primary {
     width: 100%;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reg-card, .reg-head, .reg-steps, .reg-body, .reg-actions, .reg-foot, .reg-step-pane { animation: none; }
+  .reg-card:hover, .reg-btn--primary:hover:not(:disabled), .reg-btn--ghost:hover:not(:disabled),
+  .reg-btn--ghost-sm:hover:not(:disabled), .reg-btn--back:hover:not(:disabled), .reg-btn--primary-sm:hover:not(:disabled) { transform: none; }
+  .reg-steps-fill { transition: none; }
 }
 </style>

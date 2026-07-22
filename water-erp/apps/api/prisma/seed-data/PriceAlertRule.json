@@ -4,11 +4,11 @@
     "name": "价格涨幅过大",
     "categoryId": 25,
     "alertType": "PRICE_SURGE",
-    "threshold": 20.0,
+    "threshold": 20,
     "enabled": true,
     "notifyRoles": [
       "admin",
-      "procurement_staff",
+      "leader",
       "leader",
       "staff"
     ],
@@ -20,11 +20,11 @@
     "name": "目录项即将过期",
     "categoryId": null,
     "alertType": "EXPIRING",
-    "threshold": 30.0,
+    "threshold": 30,
     "enabled": true,
     "notifyRoles": [
       "admin",
-      "procurement_staff",
+      "leader",
       "leader",
       "staff"
     ],
@@ -36,7 +36,7 @@
     "name": "偏离品类均价（2倍标准差）",
     "categoryId": null,
     "alertType": "DEVIATION",
-    "threshold": 2.0,
+    "threshold": 2,
     "enabled": false,
     "notifyRoles": [
       "admin"

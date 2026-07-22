@@ -6,6 +6,7 @@
     "specification": "δ=6mm，宽度1250mm",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "4280",
     "priceMin": "4150",
@@ -22,12 +23,11 @@
     "minOrder": "1吨",
     "remark": "适用于输配水工程钢结构、临建及通用工程材料预算参考。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.817Z",
-    "updatedAt": "2026-06-13T12:53:26.817Z",
-    "categoryId": 25,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T12:53:26.817Z"
   },
   {
     "id": "cmqccwaeb0001komt2ksxqdys",
@@ -36,6 +36,7 @@
     "specification": "袋装/散装，强度等级42.5",
     "category": "水泥",
     "group": "工程材料",
+    "categoryId": 18,
     "unit": "吨",
     "referencePrice": "380",
     "priceMin": "365",
@@ -52,12 +53,11 @@
     "minOrder": "5吨",
     "remark": "水利土建及附属工程常用材料，价格受运输半径影响较大。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 175-2007",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.820Z",
-    "updatedAt": "2026-06-13T12:53:26.820Z",
-    "categoryId": 18,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 175-2007"
+    "updatedAt": "2026-06-13T12:53:26.820Z"
   },
   {
     "id": "cmqccwaec0002komtwmhin7nl",
@@ -66,6 +66,7 @@
     "specification": "DN400，SN8，环刚度≥8kN/㎡",
     "category": "管材",
     "group": "工程材料",
+    "categoryId": 23,
     "unit": "米",
     "referencePrice": "128",
     "priceMin": "118",
@@ -82,12 +83,11 @@
     "minOrder": "50米",
     "remark": "雨污分流、排水管网项目常用规格，建议采购前复核运距。",
     "status": "即将过期",
+    "lifecycleStage": "即将过期",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2026-07-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.821Z",
-    "updatedAt": "2026-06-13T12:53:26.821Z",
-    "categoryId": 23,
-    "lifecycleStage": "即将过期",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T12:53:26.821Z"
   },
   {
     "id": "cmqccwaed0003komtj5nrmu9k",
@@ -96,6 +96,7 @@
     "specification": "15kW，流量100m³/h，扬程18m",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "8600",
     "priceMin": "8200",
@@ -112,12 +113,11 @@
     "minOrder": "1台",
     "remark": "泵站改造、排涝工程常用设备，含标准控制附件。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.822Z",
-    "updatedAt": "2026-06-13T12:53:26.822Z",
-    "categoryId": 37,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-13T12:53:26.822Z"
   },
   {
     "id": "cmqccwaee0004komt8e79c8h4",
@@ -126,6 +126,7 @@
     "specification": "350×8mm，中埋式",
     "category": "防水材料",
     "group": "工程材料",
+    "categoryId": 27,
     "unit": "米",
     "referencePrice": "35",
     "priceMin": "31",
@@ -142,12 +143,11 @@
     "minOrder": "20米",
     "remark": "水工建筑物伸缩缝、施工缝防水材料。",
     "status": "即将过期",
+    "lifecycleStage": "即将过期",
+    "nationalStandard": null,
     "validUntil": "2026-06-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.823Z",
-    "updatedAt": "2026-06-13T12:53:26.823Z",
-    "categoryId": 27,
-    "lifecycleStage": "即将过期",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.823Z"
   },
   {
     "id": "cmqccwaef0005komt9zrpb7t3",
@@ -156,6 +156,7 @@
     "specification": "DN200，4-20mA + RS485，IP68",
     "category": "仪器仪表",
     "group": "信息化设备",
+    "categoryId": 2,
     "unit": "台",
     "referencePrice": "12500",
     "priceMin": "11600",
@@ -172,12 +173,11 @@
     "minOrder": "1台",
     "remark": "智慧水务、计量监测项目高频采购设备，近期芯片模块价格上涨。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.824Z",
-    "updatedAt": "2026-06-13T12:53:26.824Z",
-    "categoryId": 2,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.824Z"
   },
   {
     "id": "cmqccwaeg0006komtair50s2j",
@@ -186,6 +186,7 @@
     "specification": "200g/㎡，幅宽4m",
     "category": "土工材料",
     "group": "工程材料",
+    "categoryId": 15,
     "unit": "㎡",
     "referencePrice": "3.8",
     "priceMin": "3.55",
@@ -202,12 +203,11 @@
     "minOrder": "200㎡",
     "remark": "堤防、渠道、防渗工程常用材料。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.824Z",
-    "updatedAt": "2026-06-13T12:53:26.824Z",
-    "categoryId": 15,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.824Z"
   },
   {
     "id": "cmqccwaeh0007komtk2qn7xg6",
@@ -216,6 +216,7 @@
     "specification": "安全帽/反光背心/护目镜/手套",
     "category": "劳保用品",
     "group": "劳保及通用物资",
+    "categoryId": 13,
     "unit": "套",
     "referencePrice": "260",
     "priceMin": "238",
@@ -232,12 +233,11 @@
     "minOrder": "10套",
     "remark": "集团通用劳保用品，适用于施工现场人员基础配置。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.825Z",
-    "updatedAt": "2026-06-13T12:53:26.825Z",
-    "categoryId": 13,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.825Z"
   },
   {
     "id": "cmqccwaeh0008komtqffczmq6",
@@ -246,6 +246,7 @@
     "specification": "200kW，静音箱式，国三排放",
     "category": "发电机组",
     "group": "机电设备",
+    "categoryId": 35,
     "unit": "台",
     "referencePrice": "68000",
     "priceMin": "64500",
@@ -262,12 +263,11 @@
     "minOrder": "1台",
     "remark": "应急供电设备，建议采购前组织二次询价。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-06-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.826Z",
-    "updatedAt": "2026-06-13T12:53:26.826Z",
-    "categoryId": 35,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.826Z"
   },
   {
     "id": "cmqccwaei0009komtv17k8oqf",
@@ -276,6 +276,7 @@
     "specification": "DN300，PN1.0，法兰连接",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "2450",
     "priceMin": "2260",
@@ -292,12 +293,11 @@
     "minOrder": "1台",
     "remark": "输配水管线、泵站工程通用阀门。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.827Z",
-    "updatedAt": "2026-06-13T12:53:26.827Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T12:53:26.827Z"
   },
   {
     "id": "cmqccwaej000akomtmw4s6bd1",
@@ -306,6 +306,7 @@
     "specification": "30kW，含变频器、软启及保护模块",
     "category": "电气设备",
     "group": "机电设备",
+    "categoryId": 39,
     "unit": "台",
     "referencePrice": "15800",
     "priceMin": "14900",
@@ -322,12 +323,11 @@
     "minOrder": "1台",
     "remark": "泵站自动化改造设备，近期电子元件价格存在波动。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": "GB 7251.1-2023",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.828Z",
-    "updatedAt": "2026-06-13T12:53:26.828Z",
-    "categoryId": 39,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": "GB 7251.1-2023"
+    "updatedAt": "2026-06-13T12:53:26.828Z"
   },
   {
     "id": "cmqccwaek000bkomtfiuytxlp",
@@ -336,6 +336,7 @@
     "specification": "YJV 0.6/1kV 3×150+1×70",
     "category": "电气设备",
     "group": "机电设备",
+    "categoryId": 39,
     "unit": "米",
     "referencePrice": "520",
     "priceMin": "498",
@@ -352,12 +353,11 @@
     "minOrder": "50米",
     "remark": "铜价影响明显，预算编制建议预留价格浮动空间。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 7251.1-2023",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.828Z",
-    "updatedAt": "2026-06-13T12:53:26.828Z",
-    "categoryId": 39,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 7251.1-2023"
+    "updatedAt": "2026-06-13T12:53:26.828Z"
   },
   {
     "id": "cmqccwael000ckomthvrpbh78",
@@ -366,6 +366,7 @@
     "specification": "Φ16-25mm，定尺9m/12m",
     "category": "钢筋",
     "group": "工程材料",
+    "categoryId": 26,
     "unit": "吨",
     "referencePrice": "3920",
     "priceMin": "3810",
@@ -382,12 +383,11 @@
     "minOrder": "1吨",
     "remark": "水利工程主体结构及附属构筑物常用钢筋。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.829Z",
-    "updatedAt": "2026-06-13T12:53:26.829Z",
-    "categoryId": 26,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.829Z"
   },
   {
     "id": "cmqccwael000dkomt5ffl374h",
@@ -396,6 +396,7 @@
     "specification": "C30，泵送，坍落度180±30mm",
     "category": "混凝土",
     "group": "工程材料",
+    "categoryId": 19,
     "unit": "m³",
     "referencePrice": "465",
     "priceMin": "438",
@@ -412,12 +413,11 @@
     "minOrder": "20m³",
     "remark": "受供应半径和泵送方式影响较大，预算时需结合项目位置。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 14902-2012",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.830Z",
-    "updatedAt": "2026-06-13T12:53:26.830Z",
-    "categoryId": 19,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 14902-2012"
+    "updatedAt": "2026-06-13T12:53:26.830Z"
   },
   {
     "id": "cmqccwaem000ekomtacehv37h",
@@ -426,6 +426,7 @@
     "specification": "Ⅱ区中砂，含泥量≤3%",
     "category": "砂石骨料",
     "group": "工程材料",
+    "categoryId": 21,
     "unit": "吨",
     "referencePrice": "96",
     "priceMin": "88",
@@ -442,12 +443,11 @@
     "minOrder": "30吨",
     "remark": "砂石资源价格近期波动明显，建议采购前复核项目周边料源。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": "GB/T 14684-2022",
     "validUntil": "2026-07-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.831Z",
-    "updatedAt": "2026-06-13T12:53:26.831Z",
-    "categoryId": 21,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": "GB/T 14684-2022"
+    "updatedAt": "2026-06-13T12:53:26.831Z"
   },
   {
     "id": "cmqccwaen000fkomtaloqgvwt",
@@ -456,6 +456,7 @@
     "specification": "固含量10%，减水率≥25%",
     "category": "外加剂",
     "group": "工程材料",
+    "categoryId": 16,
     "unit": "吨",
     "referencePrice": "2850",
     "priceMin": "2680",
@@ -472,12 +473,11 @@
     "minOrder": "1吨",
     "remark": "混凝土性能调节材料，需按配合比试验确认掺量。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.831Z",
-    "updatedAt": "2026-06-13T12:53:26.831Z",
-    "categoryId": 16,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.831Z"
   },
   {
     "id": "cmqccwaeo000gkomt1cb2md7e",
@@ -486,6 +486,7 @@
     "specification": "C60，早强型，袋装25kg",
     "category": "灌浆材料",
     "group": "工程材料",
+    "categoryId": 20,
     "unit": "吨",
     "referencePrice": "1850",
     "priceMin": "1720",
@@ -502,12 +503,11 @@
     "minOrder": "1吨",
     "remark": "设备基础、二次灌浆和结构补强常用材料。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.832Z",
-    "updatedAt": "2026-06-13T12:53:26.832Z",
-    "categoryId": 20,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.832Z"
   },
   {
     "id": "cmqccwaeo000hkomto6mubqpa",
@@ -516,6 +516,7 @@
     "specification": "1220×2440×15mm，黑膜",
     "category": "模板脚手架",
     "group": "工程材料",
+    "categoryId": 17,
     "unit": "张",
     "referencePrice": "128",
     "priceMin": "116",
@@ -532,12 +533,11 @@
     "minOrder": "50张",
     "remark": "临建和模板工程常用周转材料。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.833Z",
-    "updatedAt": "2026-06-13T12:53:26.833Z",
-    "categoryId": 17,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.833Z"
   },
   {
     "id": "cmqccwaep000ikomt73k18ldt",
@@ -546,6 +546,7 @@
     "specification": "DN600，K9级，T型接口",
     "category": "给排水管材",
     "group": "工程材料",
+    "categoryId": 24,
     "unit": "米",
     "referencePrice": "860",
     "priceMin": "815",
@@ -562,12 +563,11 @@
     "minOrder": "12米",
     "remark": "输配水主干管网常用管材，含胶圈不含特殊管件。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.834Z",
-    "updatedAt": "2026-06-13T12:53:26.834Z",
-    "categoryId": 24,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.834Z"
   },
   {
     "id": "cmqccwaeq000jkomtbqvlhdro",
@@ -576,6 +576,7 @@
     "specification": "DN315，PN1.6MPa，SDR11",
     "category": "给排水管材",
     "group": "工程材料",
+    "categoryId": 24,
     "unit": "米",
     "referencePrice": "238",
     "priceMin": "220",
@@ -592,12 +593,11 @@
     "minOrder": "100米",
     "remark": "城乡供水管网、支线管道常用材料。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.834Z",
-    "updatedAt": "2026-06-13T12:53:26.834Z",
-    "categoryId": 24,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.834Z"
   },
   {
     "id": "cmqccwaeq000kkomt10q8wql3",
@@ -606,6 +606,7 @@
     "specification": "DN300，PN1.0，90°",
     "category": "管件",
     "group": "工程材料",
+    "categoryId": 22,
     "unit": "个",
     "referencePrice": "680",
     "priceMin": "620",
@@ -622,12 +623,11 @@
     "minOrder": "2个",
     "remark": "管网安装配套管件，需与管材压力等级匹配。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2026-08-25T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.835Z",
-    "updatedAt": "2026-06-13T12:53:26.835Z",
-    "categoryId": 22,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T12:53:26.835Z"
   },
   {
     "id": "cmqccwaer000lkomtmo1j7770",
@@ -636,6 +636,7 @@
     "specification": "DN500，PN1.0，明杆软密封",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "7600",
     "priceMin": "7180",
@@ -652,12 +653,11 @@
     "minOrder": "1台",
     "remark": "输水管线和泵站进出水控制阀门。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.836Z",
-    "updatedAt": "2026-06-13T12:53:26.836Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T12:53:26.836Z"
   },
   {
     "id": "cmqccwaes000mkomtt6cpx11m",
@@ -666,6 +666,7 @@
     "specification": "DN80，复合式，PN1.6",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "1380",
     "priceMin": "1260",
@@ -682,12 +683,11 @@
     "minOrder": "1台",
     "remark": "长距离输水管道高点排气装置。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.836Z",
-    "updatedAt": "2026-06-13T12:53:26.836Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T12:53:26.836Z"
   },
   {
     "id": "cmqccwaet000nkomtjhej0eku",
@@ -696,6 +696,7 @@
     "specification": "Q=160m³/h，H=45m，37kW",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "28600",
     "priceMin": "26800",
@@ -712,12 +713,11 @@
     "minOrder": "1台",
     "remark": "加压泵站、二供系统常用设备。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.837Z",
-    "updatedAt": "2026-06-13T12:53:26.837Z",
-    "categoryId": 37,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-13T12:53:26.837Z"
   },
   {
     "id": "cmqccwaet000okomtije52ie5",
@@ -726,6 +726,7 @@
     "specification": "筒径3.0m，双泵配置，含控制系统",
     "category": "泵站设备",
     "group": "机电设备",
+    "categoryId": 38,
     "unit": "套",
     "referencePrice": "238000",
     "priceMin": "218000",
@@ -742,12 +743,11 @@
     "minOrder": "1套",
     "remark": "市政排水、雨污提升项目成套设备，需结合设计参数复核。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-07-10T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.838Z",
-    "updatedAt": "2026-06-13T12:53:26.838Z",
-    "categoryId": 38,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.838Z"
   },
   {
     "id": "cmqccwaeu000pkomtbens01ne",
@@ -756,6 +756,7 @@
     "specification": "处理量500m³/d，絮凝沉淀过滤",
     "category": "水处理设备",
     "group": "机电设备",
+    "categoryId": 36,
     "unit": "套",
     "referencePrice": "356000",
     "priceMin": "330000",
@@ -772,12 +773,11 @@
     "minOrder": "1套",
     "remark": "乡镇供水厂改扩建常用成套设备。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-08-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.839Z",
-    "updatedAt": "2026-06-13T12:53:26.839Z",
-    "categoryId": 36,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.839Z"
   },
   {
     "id": "cmqccwaev000qkomt75pjf5oj",
@@ -786,6 +786,7 @@
     "specification": "PAM/PAC 双箱双泵，PLC控制",
     "category": "加药消毒设备",
     "group": "机电设备",
+    "categoryId": 34,
     "unit": "套",
     "referencePrice": "48200",
     "priceMin": "43800",
@@ -802,12 +803,11 @@
     "minOrder": "1套",
     "remark": "水厂投加系统常用设备，需匹配药剂种类和处理规模。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.839Z",
-    "updatedAt": "2026-06-13T12:53:26.839Z",
-    "categoryId": 34,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.839Z"
   },
   {
     "id": "cmqccwaew000rkomtatan7ozf",
@@ -816,6 +816,7 @@
     "specification": "有效氯1kg/h，盐水电解",
     "category": "加药消毒设备",
     "group": "机电设备",
+    "categoryId": 34,
     "unit": "套",
     "referencePrice": "92000",
     "priceMin": "86500",
@@ -832,12 +833,11 @@
     "minOrder": "1套",
     "remark": "供水厂消毒系统常用设备，含基础安全联锁。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.840Z",
-    "updatedAt": "2026-06-13T12:53:26.840Z",
-    "categoryId": 34,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.840Z"
   },
   {
     "id": "cmqccwaew000skomt9rokbb7o",
@@ -846,6 +846,7 @@
     "specification": "0-1.6MPa，4-20mA，精度0.5级",
     "category": "传感器",
     "group": "信息化设备",
+    "categoryId": 3,
     "unit": "只",
     "referencePrice": "620",
     "priceMin": "560",
@@ -862,12 +863,11 @@
     "minOrder": "5只",
     "remark": "泵站、管网监测常用仪表。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.841Z",
-    "updatedAt": "2026-06-13T12:53:26.841Z",
-    "categoryId": 3,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.841Z"
   },
   {
     "id": "cmqccwaex000tkomt8nujg6bb",
@@ -876,6 +876,7 @@
     "specification": "0-10m，RS485，防雷型",
     "category": "传感器",
     "group": "信息化设备",
+    "categoryId": 3,
     "unit": "只",
     "referencePrice": "980",
     "priceMin": "890",
@@ -892,12 +893,11 @@
     "minOrder": "2只",
     "remark": "水池、水库、闸站液位采集常用设备。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.841Z",
-    "updatedAt": "2026-06-13T12:53:26.841Z",
-    "categoryId": 3,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.841Z"
   },
   {
     "id": "cmqccwaey000ukomttwf89l8c",
@@ -906,6 +906,7 @@
     "specification": "4G/北斗双通道，太阳能供电",
     "category": "自动化设备",
     "group": "信息化设备",
+    "categoryId": 6,
     "unit": "套",
     "referencePrice": "13800",
     "priceMin": "12600",
@@ -922,12 +923,11 @@
     "minOrder": "1套",
     "remark": "水文、水资源及管网远程监测站点常用终端。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.842Z",
-    "updatedAt": "2026-06-13T12:53:26.842Z",
-    "categoryId": 6,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.842Z"
   },
   {
     "id": "cmqccwaez000vkomtgxxego2i",
@@ -936,6 +936,7 @@
     "specification": "400万像素，星光级，30倍变焦",
     "category": "安防监控",
     "group": "信息化设备",
+    "categoryId": 4,
     "unit": "台",
     "referencePrice": "3650",
     "priceMin": "3380",
@@ -952,12 +953,11 @@
     "minOrder": "1台",
     "remark": "水厂、泵站、施工现场视频监控常用设备。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.843Z",
-    "updatedAt": "2026-06-13T12:53:26.843Z",
-    "categoryId": 4,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.843Z"
   },
   {
     "id": "cmqccwaez000wkomtuvo6a61w",
@@ -966,6 +966,7 @@
     "specification": "8电口+2光口，导轨式，宽温",
     "category": "网络通信",
     "group": "信息化设备",
+    "categoryId": 5,
     "unit": "台",
     "referencePrice": "1450",
     "priceMin": "1320",
@@ -982,12 +983,11 @@
     "minOrder": "1台",
     "remark": "自动化控制柜、监测站点网络通信基础设备。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.844Z",
-    "updatedAt": "2026-06-13T12:53:26.844Z",
-    "categoryId": 5,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.844Z"
   },
   {
     "id": "cmqccwaf0000xkomtik6dbua0",
@@ -996,6 +996,7 @@
     "specification": "开发版1000点位，含运行授权",
     "category": "软件系统",
     "group": "信息化设备",
+    "categoryId": 7,
     "unit": "套",
     "referencePrice": "28000",
     "priceMin": "25800",
@@ -1012,12 +1013,11 @@
     "minOrder": "1套",
     "remark": "水厂中控系统、泵站监控系统软件授权。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-07-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.845Z",
-    "updatedAt": "2026-06-13T12:53:26.845Z",
-    "categoryId": 7,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.845Z"
   },
   {
     "id": "cmqccwaf1000ykomtiorzxd57",
@@ -1026,6 +1026,7 @@
     "specification": "i5/16G/512G SSD/23.8英寸显示器",
     "category": "办公设备",
     "group": "办公后勤",
+    "categoryId": 10,
     "unit": "套",
     "referencePrice": "4850",
     "priceMin": "4550",
@@ -1042,12 +1043,11 @@
     "minOrder": "1套",
     "remark": "集团办公电脑标准配置参考。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.845Z",
-    "updatedAt": "2026-06-13T12:53:26.845Z",
-    "categoryId": 10,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.845Z"
   },
   {
     "id": "cmqccwaf2000zkomtzs2px99t",
@@ -1056,6 +1056,7 @@
     "specification": "打印/复印/扫描，自动双面",
     "category": "办公设备",
     "group": "办公后勤",
+    "categoryId": 10,
     "unit": "台",
     "referencePrice": "6800",
     "priceMin": "6300",
@@ -1072,12 +1073,11 @@
     "minOrder": "1台",
     "remark": "机关及项目部办公打印复印设备。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.846Z",
-    "updatedAt": "2026-06-13T12:53:26.846Z",
-    "categoryId": 10,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.846Z"
   },
   {
     "id": "cmqccwaf20010komts7yv250n",
@@ -1086,6 +1086,7 @@
     "specification": "1850×900×400mm，双节对开",
     "category": "办公家具",
     "group": "办公后勤",
+    "categoryId": 9,
     "unit": "组",
     "referencePrice": "820",
     "priceMin": "760",
@@ -1102,12 +1103,11 @@
     "minOrder": "2组",
     "remark": "项目部和机关档案资料存放通用家具。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.847Z",
-    "updatedAt": "2026-06-13T12:53:26.847Z",
-    "categoryId": 9,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.847Z"
   },
   {
     "id": "cmqccwaf30011komtcdk5fflq",
@@ -1116,6 +1116,7 @@
     "specification": "国VI，配送到站/到场",
     "category": "油料能源",
     "group": "办公后勤",
+    "categoryId": 11,
     "unit": "升",
     "referencePrice": "7.42",
     "priceMin": "7.28",
@@ -1132,12 +1133,11 @@
     "minOrder": "1000升",
     "remark": "施工机械和应急发电油料，按发改委调价周期动态调整。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-06-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.847Z",
-    "updatedAt": "2026-06-13T12:53:26.847Z",
-    "categoryId": 11,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.847Z"
   },
   {
     "id": "cmqccwaf40012komtlrhzw1li",
@@ -1146,6 +1146,7 @@
     "specification": "地形测量1:500，含成果报告",
     "category": "专业服务",
     "group": "服务采购",
+    "categoryId": 29,
     "unit": "项",
     "referencePrice": "18500",
     "priceMin": "15000",
@@ -1162,12 +1163,11 @@
     "minOrder": "1项",
     "remark": "按测区面积、地形复杂度和成果要求综合计价。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.848Z",
-    "updatedAt": "2026-06-13T12:53:26.848Z",
-    "categoryId": 29,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.848Z"
   },
   {
     "id": "cmqccwaf50013komt1n9wcehs",
@@ -1176,6 +1176,7 @@
     "specification": "原材料/混凝土/管材检测套餐",
     "category": "检测监测服务",
     "group": "服务采购",
+    "categoryId": 30,
     "unit": "批",
     "referencePrice": "9800",
     "priceMin": "7600",
@@ -1192,12 +1193,11 @@
     "minOrder": "1批",
     "remark": "工程质量检测服务，实际费用按检测项目清单核算。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.849Z",
-    "updatedAt": "2026-06-13T12:53:26.849Z",
-    "categoryId": 30,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.849Z"
   },
   {
     "id": "cmqccwaf50014komtbaftl1kl",
@@ -1206,6 +1206,7 @@
     "specification": "季度巡检，含常规保养和故障响应",
     "category": "运维服务",
     "group": "服务采购",
+    "categoryId": 32,
     "unit": "站/年",
     "referencePrice": "42000",
     "priceMin": "36000",
@@ -1222,12 +1223,11 @@
     "minOrder": "1站/年",
     "remark": "适用于中小型泵站年度运维服务预算参考。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.850Z",
-    "updatedAt": "2026-06-13T12:53:26.850Z",
-    "categoryId": 32,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.850Z"
   },
   {
     "id": "cmqccwaf60015komtjnohbces",
@@ -1236,6 +1236,7 @@
     "specification": "20吨以内，省内门到门运输",
     "category": "物流运输服务",
     "group": "服务采购",
+    "categoryId": 31,
     "unit": "车次",
     "referencePrice": "6800",
     "priceMin": "5200",
@@ -1252,12 +1253,11 @@
     "minOrder": "1车次",
     "remark": "泵、控制柜、管件等大件设备运输参考价。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-08-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.851Z",
-    "updatedAt": "2026-06-13T12:53:26.851Z",
-    "categoryId": 31,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.851Z"
   },
   {
     "id": "cmqccwaf70016komt5pft0nnm",
@@ -1266,6 +1266,7 @@
     "specification": "δ=12-20mm，定尺切割",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "4520",
     "priceMin": "4380",
@@ -1282,12 +1283,11 @@
     "minOrder": "1吨",
     "remark": "闸门、钢结构平台、设备基础预埋件常用钢板。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.851Z",
-    "updatedAt": "2026-06-13T12:53:26.851Z",
-    "categoryId": 25,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T12:53:26.851Z"
   },
   {
     "id": "cmqccwaf80017komt3hsu8bb4",
@@ -1296,6 +1296,7 @@
     "specification": "∠50×5，6m/支",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "4860",
     "priceMin": "4650",
@@ -1312,12 +1313,11 @@
     "minOrder": "1吨",
     "remark": "支架、爬梯、围栏和小型钢构件预算参考。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.852Z",
-    "updatedAt": "2026-06-13T12:53:26.852Z",
-    "categoryId": 25,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T12:53:26.852Z"
   },
   {
     "id": "cmqccwaf90018komtfcxa9sa2",
@@ -1326,6 +1326,7 @@
     "specification": "Φ8-10mm，抗震级",
     "category": "钢筋",
     "group": "工程材料",
+    "categoryId": 26,
     "unit": "吨",
     "referencePrice": "4050",
     "priceMin": "3920",
@@ -1342,12 +1343,11 @@
     "minOrder": "1吨",
     "remark": "构造钢筋、箍筋和小型构筑物常用材料。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.853Z",
-    "updatedAt": "2026-06-13T12:53:26.853Z",
-    "categoryId": 26,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.853Z"
   },
   {
     "id": "cmqccwaf90019komtt71if816",
@@ -1356,6 +1356,7 @@
     "specification": "散装，强度等级32.5",
     "category": "水泥",
     "group": "工程材料",
+    "categoryId": 18,
     "unit": "吨",
     "referencePrice": "335",
     "priceMin": "318",
@@ -1372,12 +1373,11 @@
     "minOrder": "10吨",
     "remark": "临建、垫层、砌筑和非主体结构工程常用水泥。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 175-2007",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.854Z",
-    "updatedAt": "2026-06-13T12:53:26.854Z",
-    "categoryId": 18,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 175-2007"
+    "updatedAt": "2026-06-13T12:53:26.854Z"
   },
   {
     "id": "cmqccwafa001akomtyfqyl65b",
@@ -1386,6 +1386,7 @@
     "specification": "C20，非泵送，普通碎石",
     "category": "混凝土",
     "group": "工程材料",
+    "categoryId": 19,
     "unit": "m³",
     "referencePrice": "398",
     "priceMin": "372",
@@ -1402,12 +1403,11 @@
     "minOrder": "20m³",
     "remark": "垫层、临时道路和附属结构常用混凝土。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 14902-2012",
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.855Z",
-    "updatedAt": "2026-06-13T12:53:26.855Z",
-    "categoryId": 19,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 14902-2012"
+    "updatedAt": "2026-06-13T12:53:26.855Z"
   },
   {
     "id": "cmqccwafb001bkomtj3ytnzk0",
@@ -1416,6 +1416,7 @@
     "specification": "5-31.5mm，连续级配",
     "category": "砂石骨料",
     "group": "工程材料",
+    "categoryId": 21,
     "unit": "吨",
     "referencePrice": "112",
     "priceMin": "98",
@@ -1432,12 +1433,11 @@
     "minOrder": "30吨",
     "remark": "混凝土骨料、道路基层和临时道路常用材料。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": "GB/T 14684-2022",
     "validUntil": "2026-07-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.855Z",
-    "updatedAt": "2026-06-13T12:53:26.855Z",
-    "categoryId": 21,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": "GB/T 14684-2022"
+    "updatedAt": "2026-06-13T12:53:26.855Z"
   },
   {
     "id": "cmqccwafc001ckomt10cyadfw",
@@ -1446,6 +1446,7 @@
     "specification": "液体无碱型，掺量6%-8%",
     "category": "外加剂",
     "group": "工程材料",
+    "categoryId": 16,
     "unit": "吨",
     "referencePrice": "3180",
     "priceMin": "2950",
@@ -1462,12 +1463,11 @@
     "minOrder": "1吨",
     "remark": "隧洞、边坡喷射混凝土和应急抢险支护材料。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.856Z",
-    "updatedAt": "2026-06-13T12:53:26.856Z",
-    "categoryId": 16,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.856Z"
   },
   {
     "id": "cmqccwafd001dkomtdcn26p0l",
@@ -1476,6 +1476,7 @@
     "specification": "高强型，双组份",
     "category": "灌浆材料",
     "group": "工程材料",
+    "categoryId": 20,
     "unit": "kg",
     "referencePrice": "32",
     "priceMin": "28",
@@ -1492,12 +1493,11 @@
     "minOrder": "100kg",
     "remark": "设备底座、裂缝修补和精密灌浆场景使用。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.857Z",
-    "updatedAt": "2026-06-13T12:53:26.857Z",
-    "categoryId": 20,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.857Z"
   },
   {
     "id": "cmqccwafe001ekomtbo6tbhcp",
@@ -1506,6 +1506,7 @@
     "specification": "DN160，国标加厚",
     "category": "管材",
     "group": "工程材料",
+    "categoryId": 23,
     "unit": "米",
     "referencePrice": "26",
     "priceMin": "22",
@@ -1522,12 +1523,11 @@
     "minOrder": "100米",
     "remark": "建筑排水、临建排水和小型排水设施常用管材。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.858Z",
-    "updatedAt": "2026-06-13T12:53:26.858Z",
-    "categoryId": 23,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T12:53:26.858Z"
   },
   {
     "id": "cmqccwaff001fkomtyhqhhvvk",
@@ -1536,6 +1536,7 @@
     "specification": "DN200，PN1.6MPa",
     "category": "给排水管材",
     "group": "工程材料",
+    "categoryId": 24,
     "unit": "米",
     "referencePrice": "315",
     "priceMin": "292",
@@ -1552,12 +1553,11 @@
     "minOrder": "60米",
     "remark": "供水压力管道、穿越段和复杂地质段可选管材。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.859Z",
-    "updatedAt": "2026-06-13T12:53:26.859Z",
-    "categoryId": 24,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.859Z"
   },
   {
     "id": "cmqccwaff001gkomt99oa8rgg",
@@ -1566,6 +1566,7 @@
     "specification": "DN315，PN1.6MPa",
     "category": "管件",
     "group": "工程材料",
+    "categoryId": 22,
     "unit": "个",
     "referencePrice": "460",
     "priceMin": "420",
@@ -1582,12 +1583,11 @@
     "minOrder": "5个",
     "remark": "PE 给水管道热熔、电熔连接配套管件。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.860Z",
-    "updatedAt": "2026-06-13T12:53:26.860Z",
-    "categoryId": 22,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T12:53:26.860Z"
   },
   {
     "id": "cmqccwafg001hkomt4c61xrr5",
@@ -1596,6 +1596,7 @@
     "specification": "4mm，聚酯胎，Ⅱ型",
     "category": "防水材料",
     "group": "工程材料",
+    "categoryId": 27,
     "unit": "㎡",
     "referencePrice": "38",
     "priceMin": "34",
@@ -1612,12 +1613,11 @@
     "minOrder": "200㎡",
     "remark": "泵房、水厂建筑屋面和地下结构防水参考。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.861Z",
-    "updatedAt": "2026-06-13T12:53:26.861Z",
-    "categoryId": 27,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.861Z"
   },
   {
     "id": "cmqccwafh001ikomt7a8g3hrh",
@@ -1626,6 +1626,7 @@
     "specification": "两布一膜 600g/㎡",
     "category": "土工材料",
     "group": "工程材料",
+    "categoryId": 15,
     "unit": "㎡",
     "referencePrice": "8.6",
     "priceMin": "7.8",
@@ -1642,12 +1643,11 @@
     "minOrder": "500㎡",
     "remark": "渠道防渗、库区防渗和围堰防渗常用材料。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.862Z",
-    "updatedAt": "2026-06-13T12:53:26.862Z",
-    "categoryId": 15,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.862Z"
   },
   {
     "id": "cmqccwafi001jkomtkdtnefpb",
@@ -1656,6 +1656,7 @@
     "specification": "DN200，PN1.6，法兰连接",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "12800",
     "priceMin": "11600",
@@ -1672,12 +1673,11 @@
     "minOrder": "1台",
     "remark": "分区供水、压力控制和管网调压常用阀门。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.862Z",
-    "updatedAt": "2026-06-13T12:53:26.862Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T12:53:26.862Z"
   },
   {
     "id": "cmqccwafj001kkomt96e86e3t",
@@ -1686,6 +1686,7 @@
     "specification": "DN400，PN1.0，开关型执行器",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "18500",
     "priceMin": "16900",
@@ -1702,12 +1703,11 @@
     "minOrder": "1台",
     "remark": "泵站自动化、远程启闭和输水干线控制阀门。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2026-11-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.863Z",
-    "updatedAt": "2026-06-13T12:53:26.863Z",
-    "categoryId": 40,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T12:53:26.863Z"
   },
   {
     "id": "cmqccwafk001lkomtjqwqi20t",
@@ -1716,6 +1716,7 @@
     "specification": "Q=500m³/h，H=35m，90kW",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "86500",
     "priceMin": "81500",
@@ -1732,12 +1733,11 @@
     "minOrder": "1台",
     "remark": "中大型取水泵站、加压泵站主泵设备参考。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.864Z",
-    "updatedAt": "2026-06-13T12:53:26.864Z",
-    "categoryId": 37,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-13T12:53:26.864Z"
   },
   {
     "id": "cmqccwafk001mkomthwh5xycn",
@@ -1746,6 +1746,7 @@
     "specification": "Q=1200m³/h，H=6m，45kW",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "112000",
     "priceMin": "103000",
@@ -1762,12 +1763,11 @@
     "minOrder": "1台",
     "remark": "排涝泵站、闸站排水和低扬程大流量场景。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2026-08-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.865Z",
-    "updatedAt": "2026-06-13T12:53:26.865Z",
-    "categoryId": 37,
-    "lifecycleStage": "待审核",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-13T12:53:26.865Z"
   },
   {
     "id": "cmqccwafl001nkomtpe1fxnp9",
@@ -1776,6 +1776,7 @@
     "specification": "GGD，800×600×2200mm",
     "category": "电气设备",
     "group": "机电设备",
+    "categoryId": 39,
     "unit": "面",
     "referencePrice": "18500",
     "priceMin": "16800",
@@ -1792,12 +1793,11 @@
     "minOrder": "1面",
     "remark": "泵站、水厂和临时配电系统常用低压柜。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 7251.1-2023",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.866Z",
-    "updatedAt": "2026-06-13T12:53:26.866Z",
-    "categoryId": 39,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 7251.1-2023"
+    "updatedAt": "2026-06-13T12:53:26.866Z"
   },
   {
     "id": "cmqccwafm001okomtlyutvwn9",
@@ -1806,6 +1806,7 @@
     "specification": "10/0.4kV，630kVA，欧式箱变",
     "category": "电气设备",
     "group": "机电设备",
+    "categoryId": 39,
     "unit": "座",
     "referencePrice": "168000",
     "priceMin": "152000",
@@ -1822,12 +1823,11 @@
     "minOrder": "1座",
     "remark": "供水厂、泵站和施工临电较大容量供配电设备。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": "GB 7251.1-2023",
     "validUntil": "2026-07-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.866Z",
-    "updatedAt": "2026-06-13T12:53:26.866Z",
-    "categoryId": 39,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": "GB 7251.1-2023"
+    "updatedAt": "2026-06-13T12:53:26.866Z"
   },
   {
     "id": "cmqccwafn001pkomtj28s2hz9",
@@ -1836,6 +1836,7 @@
     "specification": "100kW，静音型，自动切换柜",
     "category": "发电机组",
     "group": "机电设备",
+    "categoryId": 35,
     "unit": "台",
     "referencePrice": "38500",
     "priceMin": "35200",
@@ -1852,12 +1853,11 @@
     "minOrder": "1台",
     "remark": "小型泵站、水厂和项目部应急供电。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-15T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.867Z",
-    "updatedAt": "2026-06-13T12:53:26.867Z",
-    "categoryId": 35,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.867Z"
   },
   {
     "id": "cmqccwafo001qkomt2v9q978w",
@@ -1866,6 +1866,7 @@
     "specification": "渠宽800mm，栅隙10mm",
     "category": "水处理设备",
     "group": "机电设备",
+    "categoryId": 36,
     "unit": "台",
     "referencePrice": "56000",
     "priceMin": "49800",
@@ -1882,12 +1883,11 @@
     "minOrder": "1台",
     "remark": "取水口、污水提升和预处理工艺常用设备。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.868Z",
-    "updatedAt": "2026-06-13T12:53:26.868Z",
-    "categoryId": 36,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.868Z"
   },
   {
     "id": "cmqccwafp001rkomtv6u2hp0s",
@@ -1896,6 +1896,7 @@
     "specification": "有效氯500g/h，自动投加",
     "category": "加药消毒设备",
     "group": "机电设备",
+    "categoryId": 34,
     "unit": "套",
     "referencePrice": "68000",
     "priceMin": "62000",
@@ -1912,12 +1913,11 @@
     "minOrder": "1套",
     "remark": "乡镇供水站、农村饮水工程消毒设备参考。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-08-20T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.869Z",
-    "updatedAt": "2026-06-13T12:53:26.869Z",
-    "categoryId": 34,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.869Z"
   },
   {
     "id": "cmqccwafq001skomtzwc330p6",
@@ -1926,6 +1926,7 @@
     "specification": "DN100，NB-IoT，远传型",
     "category": "仪器仪表",
     "group": "信息化设备",
+    "categoryId": 2,
     "unit": "只",
     "referencePrice": "1680",
     "priceMin": "1520",
@@ -1942,12 +1943,11 @@
     "minOrder": "5只",
     "remark": "管网分区计量、DMA 分区和大用户计量常用设备。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.870Z",
-    "updatedAt": "2026-06-13T12:53:26.870Z",
-    "categoryId": 2,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.870Z"
   },
   {
     "id": "cmqccwafr001tkomtfbdofyya",
@@ -1956,6 +1956,7 @@
     "specification": "0-100NTU，在线式，4-20mA",
     "category": "仪器仪表",
     "group": "信息化设备",
+    "categoryId": 2,
     "unit": "台",
     "referencePrice": "9800",
     "priceMin": "8900",
@@ -1972,12 +1973,11 @@
     "minOrder": "1台",
     "remark": "水厂出水、原水和工艺过程水质监测。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.871Z",
-    "updatedAt": "2026-06-13T12:53:26.871Z",
-    "categoryId": 2,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.871Z"
   },
   {
     "id": "cmqccwafs001ukomt2qul0bfi",
@@ -1986,6 +1986,7 @@
     "specification": "0-5mg/L，在线式，带流通池",
     "category": "传感器",
     "group": "信息化设备",
+    "categoryId": 3,
     "unit": "套",
     "referencePrice": "6200",
     "priceMin": "5600",
@@ -2002,12 +2003,11 @@
     "minOrder": "1套",
     "remark": "出厂水、管网末梢水消毒余量在线监测。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.872Z",
-    "updatedAt": "2026-06-13T12:53:26.872Z",
-    "categoryId": 3,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.872Z"
   },
   {
     "id": "cmqccwafs001vkomt5ce1w1q7",
@@ -2016,6 +2016,7 @@
     "specification": "S7-1200，含IO模块和触摸屏",
     "category": "自动化设备",
     "group": "信息化设备",
+    "categoryId": 6,
     "unit": "套",
     "referencePrice": "32500",
     "priceMin": "29800",
@@ -2032,12 +2033,11 @@
     "minOrder": "1套",
     "remark": "泵站、水厂自动化控制系统核心控制设备。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.873Z",
-    "updatedAt": "2026-06-13T12:53:26.873Z",
-    "categoryId": 6,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.873Z"
   },
   {
     "id": "cmqccwaft001wkomtkdtp2jt5",
@@ -2046,6 +2046,7 @@
     "specification": "400万像素，红外50m，PoE",
     "category": "安防监控",
     "group": "信息化设备",
+    "categoryId": 4,
     "unit": "台",
     "referencePrice": "680",
     "priceMin": "590",
@@ -2062,12 +2063,11 @@
     "minOrder": "2台",
     "remark": "厂站、库房和施工现场固定点位视频监控。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.874Z",
-    "updatedAt": "2026-06-13T12:53:26.874Z",
-    "categoryId": 4,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.874Z"
   },
   {
     "id": "cmqccwafu001xkomtxghgqty5",
@@ -2076,6 +2076,7 @@
     "specification": "双SIM，VPN，宽温导轨式",
     "category": "网络通信",
     "group": "信息化设备",
+    "categoryId": 5,
     "unit": "台",
     "referencePrice": "1280",
     "priceMin": "1120",
@@ -2092,12 +2093,11 @@
     "minOrder": "1台",
     "remark": "远程泵站、监测站点和临时施工点通信接入。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.875Z",
-    "updatedAt": "2026-06-13T12:53:26.875Z",
-    "categoryId": 5,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.875Z"
   },
   {
     "id": "cmqccwafv001ykomtfx0jcge9",
@@ -2106,6 +2106,7 @@
     "specification": "成人款，浮力≥7.5kg",
     "category": "劳保用品",
     "group": "劳保及通用物资",
+    "categoryId": 13,
     "unit": "件",
     "referencePrice": "86",
     "priceMin": "72",
@@ -2122,12 +2123,11 @@
     "minOrder": "20件",
     "remark": "防汛抢险、水上作业和应急物资储备常用品。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-10-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.876Z",
-    "updatedAt": "2026-06-13T12:53:26.876Z",
-    "categoryId": 13,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.876Z"
   },
   {
     "id": "cmqccwafw001zkomtoa0mo00w",
@@ -2136,6 +2136,7 @@
     "specification": "10kV，防砸防滑",
     "category": "劳保用品",
     "group": "劳保及通用物资",
+    "categoryId": 13,
     "unit": "双",
     "referencePrice": "168",
     "priceMin": "145",
@@ -2152,12 +2153,11 @@
     "minOrder": "10双",
     "remark": "泵站、电气检修和施工现场电工作业防护用品。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.877Z",
-    "updatedAt": "2026-06-13T12:53:26.877Z",
-    "categoryId": 13,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.877Z"
   },
   {
     "id": "cmqccwafx0020komta7vkl037",
@@ -2166,6 +2166,7 @@
     "specification": "i7/16G/1T SSD/14英寸",
     "category": "办公设备",
     "group": "办公后勤",
+    "categoryId": 10,
     "unit": "台",
     "referencePrice": "6900",
     "priceMin": "6380",
@@ -2182,12 +2183,11 @@
     "minOrder": "1台",
     "remark": "移动办公、项目现场管理和设计审查常用电脑。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.877Z",
-    "updatedAt": "2026-06-13T12:53:26.877Z",
-    "categoryId": 10,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.877Z"
   },
   {
     "id": "cmqccwafy0021komtu9nhz1bw",
@@ -2196,6 +2196,7 @@
     "specification": "1400×700mm，含活动柜",
     "category": "办公家具",
     "group": "办公后勤",
+    "categoryId": 9,
     "unit": "套",
     "referencePrice": "1280",
     "priceMin": "1080",
@@ -2212,12 +2213,11 @@
     "minOrder": "4套",
     "remark": "机关、项目部和临时办公区标准办公家具。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.878Z",
-    "updatedAt": "2026-06-13T12:53:26.878Z",
-    "categoryId": 9,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.878Z"
   },
   {
     "id": "cmqccwafy0022komtyz37t82s",
@@ -2226,6 +2226,7 @@
     "specification": "国VI，油卡/配送结算",
     "category": "油料能源",
     "group": "办公后勤",
+    "categoryId": 11,
     "unit": "升",
     "referencePrice": "7.86",
     "priceMin": "7.7",
@@ -2242,12 +2243,11 @@
     "minOrder": "500升",
     "remark": "公务车辆、巡检车辆和项目现场车辆油料参考。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-06-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.879Z",
-    "updatedAt": "2026-06-13T12:53:26.879Z",
-    "categoryId": 11,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.879Z"
   },
   {
     "id": "cmqccwafz0023komtebq7jl2x",
@@ -2256,6 +2256,7 @@
     "specification": "水文地质钻孔，孔深50m以内",
     "category": "专业服务",
     "group": "服务采购",
+    "categoryId": 29,
     "unit": "米",
     "referencePrice": "260",
     "priceMin": "210",
@@ -2272,12 +2273,11 @@
     "minOrder": "100米",
     "remark": "水厂、泵站、管线穿越和基础处理前期勘察。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.880Z",
-    "updatedAt": "2026-06-13T12:53:26.880Z",
-    "categoryId": 29,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.880Z"
   },
   {
     "id": "cmqccwag00024komth4c740r8",
@@ -2286,6 +2286,7 @@
     "specification": "常规42项，含采样和报告",
     "category": "检测监测服务",
     "group": "服务采购",
+    "categoryId": 30,
     "unit": "次",
     "referencePrice": "3200",
     "priceMin": "2600",
@@ -2302,12 +2303,11 @@
     "minOrder": "1次",
     "remark": "供水水质、出厂水和管网水常规检测服务。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.880Z",
-    "updatedAt": "2026-06-13T12:53:26.880Z",
-    "categoryId": 30,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.880Z"
   },
   {
     "id": "cmqccwag10025komtfxcym755",
@@ -2316,6 +2316,7 @@
     "specification": "流量计/压力表/水质仪表现场校准",
     "category": "运维服务",
     "group": "服务采购",
+    "categoryId": 32,
     "unit": "批",
     "referencePrice": "8800",
     "priceMin": "6500",
@@ -2332,12 +2333,11 @@
     "minOrder": "1批",
     "remark": "计量仪表周期校准和审计计量依据维护。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.881Z",
-    "updatedAt": "2026-06-13T12:53:26.881Z",
-    "categoryId": 32,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.881Z"
   },
   {
     "id": "cmqccwag10026komtqq3x0qyb",
@@ -2346,6 +2346,7 @@
     "specification": "9.6米厢式货车，省内运输",
     "category": "物流运输服务",
     "group": "服务采购",
+    "categoryId": 31,
     "unit": "车次",
     "referencePrice": "3200",
     "priceMin": "2400",
@@ -2362,12 +2363,11 @@
     "minOrder": "1车次",
     "remark": "管件、劳保、办公设备等普通物资运输参考。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.882Z",
-    "updatedAt": "2026-06-13T12:53:26.882Z",
-    "categoryId": 31,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.882Z"
   },
   {
     "id": "cmqccwag20027komtz7uvmi23",
@@ -2376,6 +2376,7 @@
     "specification": "φ48，Q355，含基础配件",
     "category": "模板脚手架",
     "group": "工程材料",
+    "categoryId": 17,
     "unit": "吨·月",
     "referencePrice": "165",
     "priceMin": "135",
@@ -2392,12 +2393,11 @@
     "minOrder": "10吨·月",
     "remark": "水厂构筑物、厂房和高支模工程周转材料租赁参考。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T12:53:26.883Z",
-    "updatedAt": "2026-06-13T12:53:26.883Z",
-    "categoryId": 17,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:53:26.883Z"
   },
   {
     "id": "cmq8277767komt530791827",
@@ -2406,6 +2406,7 @@
     "specification": "δ=12mm，宽度2000mm，长度12000mm",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "4280",
     "priceMin": "3980",
@@ -2422,12 +2423,11 @@
     "minOrder": "1吨",
     "remark": "水利行业钢材品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2027-05-13T00:00:00.000Z",
     "createdAt": "2026-06-13T20:09:02.000Z",
-    "updatedAt": "2026-06-13T20:09:02.000Z",
-    "categoryId": 25,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T20:09:02.000Z"
   },
   {
     "id": "cmq4963748komt834203735",
@@ -2436,6 +2436,7 @@
     "specification": "δ=3mm，宽度1500mm，卷重9吨",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "4050",
     "priceMin": "3850",
@@ -2452,12 +2453,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-02-07，如有更新以实际市场行情为准。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2027-02-07T00:00:00.000Z",
     "createdAt": "2026-06-13T17:21:41.000Z",
-    "updatedAt": "2026-06-13T17:21:41.000Z",
-    "categoryId": 25,
-    "lifecycleStage": "待审核",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T17:21:41.000Z"
   },
   {
     "id": "cmq9999560komt578861129",
@@ -2466,6 +2466,7 @@
     "specification": "δ=20mm，宽度2500mm，长度10000mm",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "4580",
     "priceMin": "4320",
@@ -2482,12 +2483,11 @@
     "minOrder": "1吨",
     "remark": "水利行业钢材品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2026-09-09T00:00:00.000Z",
     "createdAt": "2026-06-13T17:35:21.000Z",
-    "updatedAt": "2026-06-13T17:35:21.000Z",
-    "categoryId": 25,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T17:35:21.000Z"
   },
   {
     "id": "cmq3819491komt814721275",
@@ -2496,6 +2496,7 @@
     "specification": "Φ50mm，长度6000mm",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "3950",
     "priceMin": "3720",
@@ -2512,12 +2513,11 @@
     "minOrder": "1吨",
     "remark": "水利行业钢材品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2027-03-18T00:00:00.000Z",
     "createdAt": "2026-06-13T13:44:55.000Z",
-    "updatedAt": "2026-06-13T13:44:55.000Z",
-    "categoryId": 25,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T13:44:55.000Z"
   },
   {
     "id": "cmq3132733komt927598355",
@@ -2526,6 +2526,7 @@
     "specification": "δ=8mm，宽度1800mm",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "5120",
     "priceMin": "4880",
@@ -2542,12 +2543,11 @@
     "minOrder": "1吨",
     "remark": "水利行业钢材品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2026-10-11T00:00:00.000Z",
     "createdAt": "2026-06-13T23:28:46.000Z",
-    "updatedAt": "2026-06-13T23:28:46.000Z",
-    "categoryId": 25,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T23:28:46.000Z"
   },
   {
     "id": "cmq6070993komt775056802",
@@ -2556,6 +2556,7 @@
     "specification": "Q235B，长度12000mm",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "4680",
     "priceMin": "4450",
@@ -2572,12 +2573,11 @@
     "minOrder": "1吨",
     "remark": "钢材专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2026-12-03T00:00:00.000Z",
     "createdAt": "2026-06-13T20:58:40.000Z",
-    "updatedAt": "2026-06-13T20:58:40.000Z",
-    "categoryId": 25,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T20:58:40.000Z"
   },
   {
     "id": "cmq9936921komt562925021",
@@ -2586,6 +2586,7 @@
     "specification": "Q235B 镀锌，长度6000mm",
     "category": "钢材",
     "group": "工程材料",
+    "categoryId": 25,
     "unit": "吨",
     "referencePrice": "4380",
     "priceMin": "4180",
@@ -2602,12 +2603,11 @@
     "minOrder": "1吨",
     "remark": "钢材专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": "GB/T 1499.2-2018",
     "validUntil": "2026-11-24T00:00:00.000Z",
     "createdAt": "2026-06-13T13:30:00.000Z",
-    "updatedAt": "2026-06-13T13:30:00.000Z",
-    "categoryId": 25,
-    "lifecycleStage": "待审核",
-    "nationalStandard": "GB/T 1499.2-2018"
+    "updatedAt": "2026-06-13T13:30:00.000Z"
   },
   {
     "id": "cmq3613554komt639353589",
@@ -2616,6 +2616,7 @@
     "specification": "Φ16mm，长度9000mm",
     "category": "钢筋",
     "group": "工程材料",
+    "categoryId": 26,
     "unit": "吨",
     "referencePrice": "3850",
     "priceMin": "3680",
@@ -2632,12 +2633,11 @@
     "minOrder": "1吨",
     "remark": "钢筋专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-08T00:00:00.000Z",
     "createdAt": "2026-06-13T23:49:02.000Z",
-    "updatedAt": "2026-06-13T23:49:02.000Z",
-    "categoryId": 26,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T23:49:02.000Z"
   },
   {
     "id": "cmq2163183komt346448473",
@@ -2646,6 +2646,7 @@
     "specification": "Φ25mm，长度12000mm",
     "category": "钢筋",
     "group": "工程材料",
+    "categoryId": 26,
     "unit": "吨",
     "referencePrice": "4180",
     "priceMin": "3950",
@@ -2662,12 +2663,11 @@
     "minOrder": "1吨",
     "remark": "水利行业钢筋品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-18T00:00:00.000Z",
     "createdAt": "2026-06-13T15:43:18.000Z",
-    "updatedAt": "2026-06-13T15:43:18.000Z",
-    "categoryId": 26,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T15:43:18.000Z"
   },
   {
     "id": "cmq8914972komt279200032",
@@ -2676,6 +2676,7 @@
     "specification": "Φ8mm，盘圆",
     "category": "钢筋",
     "group": "工程材料",
+    "categoryId": 26,
     "unit": "吨",
     "referencePrice": "3650",
     "priceMin": "3520",
@@ -2692,12 +2693,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-11-22，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-22T00:00:00.000Z",
     "createdAt": "2026-06-13T14:23:10.000Z",
-    "updatedAt": "2026-06-15T00:00:00.000Z",
-    "categoryId": 26,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-15T00:00:00.000Z"
   },
   {
     "id": "cmq1641619komt342992336",
@@ -2706,6 +2706,7 @@
     "specification": "Φ10mm，盘重2.5吨",
     "category": "钢筋",
     "group": "工程材料",
+    "categoryId": 26,
     "unit": "吨",
     "referencePrice": "3920",
     "priceMin": "3750",
@@ -2722,12 +2723,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据市场询价制定，报价有效期至2026-09-09，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-09T00:00:00.000Z",
     "createdAt": "2026-06-13T23:28:40.000Z",
-    "updatedAt": "2026-06-13T23:28:40.000Z",
-    "categoryId": 26,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T23:28:40.000Z"
   },
   {
     "id": "cmq6521112komt190926869",
@@ -2736,6 +2736,7 @@
     "specification": "Φ12mm，长度9000mm",
     "category": "钢筋",
     "group": "工程材料",
+    "categoryId": 26,
     "unit": "吨",
     "referencePrice": "4080",
     "priceMin": "3880",
@@ -2752,12 +2753,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-12-03，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-03T00:00:00.000Z",
     "createdAt": "2026-06-13T18:59:20.000Z",
-    "updatedAt": "2026-06-13T18:59:20.000Z",
-    "categoryId": 26,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T18:59:20.000Z"
   },
   {
     "id": "cmq4255287komt963478897",
@@ -2766,6 +2766,7 @@
     "specification": "比表面积≥350m²/kg",
     "category": "水泥",
     "group": "工程材料",
+    "categoryId": 18,
     "unit": "吨",
     "referencePrice": "520",
     "priceMin": "488",
@@ -2782,12 +2783,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-11-18，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 175-2007",
     "validUntil": "2026-11-18T00:00:00.000Z",
     "createdAt": "2026-06-13T15:54:49.000Z",
-    "updatedAt": "2026-06-13T15:54:49.000Z",
-    "categoryId": 18,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 175-2007"
+    "updatedAt": "2026-06-13T15:54:49.000Z"
   },
   {
     "id": "cmq9807498komt544625944",
@@ -2796,6 +2796,7 @@
     "specification": "比表面积≥380m²/kg",
     "category": "水泥",
     "group": "工程材料",
+    "categoryId": 18,
     "unit": "吨",
     "referencePrice": "620",
     "priceMin": "580",
@@ -2812,12 +2813,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-04-16，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 175-2007",
     "validUntil": "2027-04-16T00:00:00.000Z",
     "createdAt": "2026-06-13T23:24:58.000Z",
-    "updatedAt": "2026-06-13T23:24:58.000Z",
-    "categoryId": 18,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 175-2007"
+    "updatedAt": "2026-06-13T23:24:58.000Z"
   },
   {
     "id": "cmq1956115komt638232079",
@@ -2826,6 +2826,7 @@
     "specification": "水化热≤270kJ/kg",
     "category": "水泥",
     "group": "工程材料",
+    "categoryId": 18,
     "unit": "吨",
     "referencePrice": "560",
     "priceMin": "525",
@@ -2842,12 +2843,11 @@
     "minOrder": "1吨",
     "remark": "适用于水利工程水泥采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 175-2007",
     "validUntil": "2027-03-22T00:00:00.000Z",
     "createdAt": "2026-06-13T23:05:03.000Z",
-    "updatedAt": "2026-06-13T23:05:03.000Z",
-    "categoryId": 18,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 175-2007"
+    "updatedAt": "2026-06-13T23:05:03.000Z"
   },
   {
     "id": "cmq7043819komt586208606",
@@ -2856,6 +2856,7 @@
     "specification": "1d强度≥30MPa",
     "category": "水泥",
     "group": "工程材料",
+    "categoryId": 18,
     "unit": "吨",
     "referencePrice": "880",
     "priceMin": "820",
@@ -2872,12 +2873,11 @@
     "minOrder": "1吨",
     "remark": "适用于水利工程水泥采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 175-2007",
     "validUntil": "2026-12-30T00:00:00.000Z",
     "createdAt": "2026-06-13T20:55:48.000Z",
-    "updatedAt": "2026-06-13T20:55:48.000Z",
-    "categoryId": 18,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 175-2007"
+    "updatedAt": "2026-06-13T20:55:48.000Z"
   },
   {
     "id": "cmq5283936komt141324976",
@@ -2886,6 +2886,7 @@
     "specification": "坍落度180±30mm，碎石粒径≤31.5mm",
     "category": "混凝土",
     "group": "工程材料",
+    "categoryId": 19,
     "unit": "立方米",
     "referencePrice": "435",
     "priceMin": "408",
@@ -2902,12 +2903,11 @@
     "minOrder": "1立方米",
     "remark": "本条目价格依据市场询价制定，报价有效期至2027-03-02，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 14902-2012",
     "validUntil": "2027-03-02T00:00:00.000Z",
     "createdAt": "2026-06-14T01:31:55.000Z",
-    "updatedAt": "2026-06-14T01:31:55.000Z",
-    "categoryId": 19,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 14902-2012"
+    "updatedAt": "2026-06-14T01:31:55.000Z"
   },
   {
     "id": "cmq5502653komt874697454",
@@ -2916,6 +2916,7 @@
     "specification": "坍落度180±30mm，碎石粒径≤25mm",
     "category": "混凝土",
     "group": "工程材料",
+    "categoryId": 19,
     "unit": "立方米",
     "referencePrice": "485",
     "priceMin": "455",
@@ -2932,12 +2933,11 @@
     "minOrder": "1立方米",
     "remark": "适用于水利工程混凝土采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 14902-2012",
     "validUntil": "2027-05-12T00:00:00.000Z",
     "createdAt": "2026-06-13T17:57:42.000Z",
-    "updatedAt": "2026-06-13T17:57:42.000Z",
-    "categoryId": 19,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 14902-2012"
+    "updatedAt": "2026-06-13T17:57:42.000Z"
   },
   {
     "id": "cmq7795248komt437479308",
@@ -2946,6 +2946,7 @@
     "specification": "坍落度180±30mm，碎石粒径≤25mm",
     "category": "混凝土",
     "group": "工程材料",
+    "categoryId": 19,
     "unit": "立方米",
     "referencePrice": "550",
     "priceMin": "515",
@@ -2962,12 +2963,11 @@
     "minOrder": "1立方米",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-08-16，如有更新以实际市场行情为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": "GB/T 14902-2012",
     "validUntil": "2026-08-16T00:00:00.000Z",
     "createdAt": "2026-06-13T18:51:38.000Z",
-    "updatedAt": "2026-06-15T00:00:00.000Z",
-    "categoryId": 19,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": "GB/T 14902-2012"
+    "updatedAt": "2026-06-15T00:00:00.000Z"
   },
   {
     "id": "cmq2918040komt790672345",
@@ -2976,6 +2976,7 @@
     "specification": "坍落度200±30mm，掺抗分散剂",
     "category": "混凝土",
     "group": "工程材料",
+    "categoryId": 19,
     "unit": "立方米",
     "referencePrice": "580",
     "priceMin": "545",
@@ -2992,12 +2993,11 @@
     "minOrder": "1立方米",
     "remark": "适用于水利工程混凝土采购预算参考，以协议价或最新市场询价为准。",
     "status": "即将过期",
+    "lifecycleStage": "即将过期",
+    "nationalStandard": "GB/T 14902-2012",
     "validUntil": "2026-07-10T00:00:00.000Z",
     "createdAt": "2026-06-13T19:06:05.000Z",
-    "updatedAt": "2026-06-13T19:06:05.000Z",
-    "categoryId": 19,
-    "lifecycleStage": "即将过期",
-    "nationalStandard": "GB/T 14902-2012"
+    "updatedAt": "2026-06-13T19:06:05.000Z"
   },
   {
     "id": "cmq9095613komt842520785",
@@ -3006,6 +3006,7 @@
     "specification": "压碎指标≤10%，含泥量≤1%",
     "category": "砂石骨料",
     "group": "工程材料",
+    "categoryId": 21,
     "unit": "吨",
     "referencePrice": "98",
     "priceMin": "88",
@@ -3022,12 +3023,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据市场询价制定，报价有效期至2027-01-01，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 14684-2022",
     "validUntil": "2027-01-01T00:00:00.000Z",
     "createdAt": "2026-06-13T15:37:49.000Z",
-    "updatedAt": "2026-06-13T15:37:49.000Z",
-    "categoryId": 21,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 14684-2022"
+    "updatedAt": "2026-06-13T15:37:49.000Z"
   },
   {
     "id": "cmq7254100komt805142703",
@@ -3036,6 +3036,7 @@
     "specification": "细度模数2.6-3.0，MB值≤1.4",
     "category": "砂石骨料",
     "group": "工程材料",
+    "categoryId": 21,
     "unit": "吨",
     "referencePrice": "92",
     "priceMin": "82",
@@ -3052,12 +3053,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-11-26，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 14684-2022",
     "validUntil": "2026-11-26T00:00:00.000Z",
     "createdAt": "2026-06-13T22:58:56.000Z",
-    "updatedAt": "2026-06-13T22:58:56.000Z",
-    "categoryId": 21,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 14684-2022"
+    "updatedAt": "2026-06-13T22:58:56.000Z"
   },
   {
     "id": "cmq5264256komt494954778",
@@ -3066,6 +3066,7 @@
     "specification": "压碎指标≤8%，针片状≤8%",
     "category": "砂石骨料",
     "group": "工程材料",
+    "categoryId": 21,
     "unit": "吨",
     "referencePrice": "115",
     "priceMin": "102",
@@ -3082,12 +3083,11 @@
     "minOrder": "1吨",
     "remark": "砂石骨料专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 14684-2022",
     "validUntil": "2026-07-31T00:00:00.000Z",
     "createdAt": "2026-06-13T13:36:25.000Z",
-    "updatedAt": "2026-06-13T13:36:25.000Z",
-    "categoryId": 21,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 14684-2022"
+    "updatedAt": "2026-06-13T13:36:25.000Z"
   },
   {
     "id": "cmq6774637komt853779612",
@@ -3096,6 +3096,7 @@
     "specification": "细度模数2.3-2.8，含泥量≤2%",
     "category": "砂石骨料",
     "group": "工程材料",
+    "categoryId": 21,
     "unit": "吨",
     "referencePrice": "88",
     "priceMin": "78",
@@ -3112,12 +3113,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-03-09，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 14684-2022",
     "validUntil": "2027-03-09T00:00:00.000Z",
     "createdAt": "2026-06-13T22:29:00.000Z",
-    "updatedAt": "2026-06-13T22:29:00.000Z",
-    "categoryId": 21,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 14684-2022"
+    "updatedAt": "2026-06-13T22:29:00.000Z"
   },
   {
     "id": "cmq9070013komt459162283",
@@ -3126,6 +3126,7 @@
     "specification": "减水率≥25%，含固量20%",
     "category": "外加剂",
     "group": "工程材料",
+    "categoryId": 16,
     "unit": "吨",
     "referencePrice": "4200",
     "priceMin": "3850",
@@ -3142,12 +3143,11 @@
     "minOrder": "1吨",
     "remark": "外加剂专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-03-08T00:00:00.000Z",
     "createdAt": "2026-06-13T20:37:15.000Z",
-    "updatedAt": "2026-06-13T20:37:15.000Z",
-    "categoryId": 16,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T20:37:15.000Z"
   },
   {
     "id": "cmq9986085komt570042356",
@@ -3156,6 +3156,7 @@
     "specification": "减水率≥18%，硫酸钠含量≤5%",
     "category": "外加剂",
     "group": "工程材料",
+    "categoryId": 16,
     "unit": "吨",
     "referencePrice": "3850",
     "priceMin": "3580",
@@ -3172,12 +3173,11 @@
     "minOrder": "1吨",
     "remark": "外加剂专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-14T00:00:00.000Z",
     "createdAt": "2026-06-13T20:24:33.000Z",
-    "updatedAt": "2026-06-13T20:24:33.000Z",
-    "categoryId": 16,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T20:24:33.000Z"
   },
   {
     "id": "cmq4831962komt143296804",
@@ -3186,6 +3186,7 @@
     "specification": "含气量4%-6%，掺量0.01%",
     "category": "外加剂",
     "group": "工程材料",
+    "categoryId": 16,
     "unit": "吨",
     "referencePrice": "28000",
     "priceMin": "25000",
@@ -3202,12 +3203,11 @@
     "minOrder": "1吨",
     "remark": "水利行业外加剂品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-03T00:00:00.000Z",
     "createdAt": "2026-06-13T15:28:33.000Z",
-    "updatedAt": "2026-06-13T15:28:33.000Z",
-    "categoryId": 16,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T15:28:33.000Z"
   },
   {
     "id": "cmq2753470komt754792554",
@@ -3216,6 +3216,7 @@
     "specification": "初凝≤3min，终凝≤8min",
     "category": "外加剂",
     "group": "工程材料",
+    "categoryId": 16,
     "unit": "吨",
     "referencePrice": "5200",
     "priceMin": "4800",
@@ -3232,12 +3233,11 @@
     "minOrder": "1吨",
     "remark": "水利行业外加剂品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-06-28T00:00:00.000Z",
     "createdAt": "2026-06-13T19:18:07.000Z",
-    "updatedAt": "2026-06-13T19:18:07.000Z",
-    "categoryId": 16,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T19:18:07.000Z"
   },
   {
     "id": "cmq2572640komt605655145",
@@ -3246,6 +3246,7 @@
     "specification": "d95≤20μm，抗压强度≥62.5MPa",
     "category": "灌浆材料",
     "group": "工程材料",
+    "categoryId": 20,
     "unit": "吨",
     "referencePrice": "5600",
     "priceMin": "5200",
@@ -3262,12 +3263,11 @@
     "minOrder": "1吨",
     "remark": "灌浆材料专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-04-19T00:00:00.000Z",
     "createdAt": "2026-06-13T23:05:50.000Z",
-    "updatedAt": "2026-06-13T23:05:50.000Z",
-    "categoryId": 20,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T23:05:50.000Z"
   },
   {
     "id": "cmq5128500komt833899481",
@@ -3276,6 +3276,7 @@
     "specification": "流动性≥300mm，7d强度≥70MPa",
     "category": "灌浆材料",
     "group": "工程材料",
+    "categoryId": 20,
     "unit": "吨",
     "referencePrice": "18500",
     "priceMin": "16800",
@@ -3292,12 +3293,11 @@
     "minOrder": "1吨",
     "remark": "灌浆材料专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-03-21T00:00:00.000Z",
     "createdAt": "2026-06-14T02:06:06.000Z",
-    "updatedAt": "2026-06-14T02:06:06.000Z",
-    "categoryId": 20,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T02:06:06.000Z"
   },
   {
     "id": "cmq8961917komt360892741",
@@ -3306,6 +3306,7 @@
     "specification": "粘度≤10mPa·s，凝胶时间可调",
     "category": "灌浆材料",
     "group": "工程材料",
+    "categoryId": 20,
     "unit": "吨",
     "referencePrice": "32000",
     "priceMin": "29000",
@@ -3322,12 +3323,11 @@
     "minOrder": "1吨",
     "remark": "灌浆材料专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-02T00:00:00.000Z",
     "createdAt": "2026-06-13T20:34:25.000Z",
-    "updatedAt": "2026-06-13T20:34:25.000Z",
-    "categoryId": 20,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T20:34:25.000Z"
   },
   {
     "id": "cmq5849326komt833760032",
@@ -3336,6 +3336,7 @@
     "specification": "DN200 PN1.6MPa，长度12m",
     "category": "管材",
     "group": "工程材料",
+    "categoryId": 23,
     "unit": "米",
     "referencePrice": "95",
     "priceMin": "82",
@@ -3352,12 +3353,11 @@
     "minOrder": "10米",
     "remark": "管材专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2027-02-17T00:00:00.000Z",
     "createdAt": "2026-06-13T20:01:32.000Z",
-    "updatedAt": "2026-06-13T20:01:32.000Z",
-    "categoryId": 23,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T20:01:32.000Z"
   },
   {
     "id": "cmq6689506komt492453857",
@@ -3366,6 +3366,7 @@
     "specification": "K9级，T型接口，长度6m",
     "category": "管材",
     "group": "工程材料",
+    "categoryId": 23,
     "unit": "米",
     "referencePrice": "520",
     "priceMin": "480",
@@ -3382,12 +3383,11 @@
     "minOrder": "10米",
     "remark": "管材专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2027-04-01T00:00:00.000Z",
     "createdAt": "2026-06-13T15:34:23.000Z",
-    "updatedAt": "2026-06-13T15:34:23.000Z",
-    "categoryId": 23,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T15:34:23.000Z"
   },
   {
     "id": "cmq4599179komt534929851",
@@ -3396,6 +3396,7 @@
     "specification": "Q235B 热浸镀锌，长度6m",
     "category": "管材",
     "group": "工程材料",
+    "categoryId": 23,
     "unit": "米",
     "referencePrice": "180",
     "priceMin": "158",
@@ -3412,12 +3413,11 @@
     "minOrder": "10米",
     "remark": "本条目价格依据市场询价制定，报价有效期至2026-09-30，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2026-09-30T00:00:00.000Z",
     "createdAt": "2026-06-14T01:04:19.000Z",
-    "updatedAt": "2026-06-14T01:04:19.000Z",
-    "categoryId": 23,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-14T01:04:19.000Z"
   },
   {
     "id": "cmq6171451komt250079308",
@@ -3426,6 +3426,7 @@
     "specification": "SCH40 Φ168.3×7.11，长度6m",
     "category": "管材",
     "group": "工程材料",
+    "categoryId": 23,
     "unit": "米",
     "referencePrice": "680",
     "priceMin": "620",
@@ -3442,12 +3443,11 @@
     "minOrder": "10米",
     "remark": "本条目价格依据人工维护制定，报价有效期至2026-12-21，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2026-12-21T00:00:00.000Z",
     "createdAt": "2026-06-13T18:02:55.000Z",
-    "updatedAt": "2026-06-15T00:00:00.000Z",
-    "categoryId": 23,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-15T00:00:00.000Z"
   },
   {
     "id": "cmq6724276komt549163940",
@@ -3456,6 +3456,7 @@
     "specification": "内压1.0MPa，长度5m",
     "category": "管材",
     "group": "工程材料",
+    "categoryId": 23,
     "unit": "米",
     "referencePrice": "380",
     "priceMin": "345",
@@ -3472,12 +3473,11 @@
     "minOrder": "10米",
     "remark": "水利行业管材品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2027-05-21T00:00:00.000Z",
     "createdAt": "2026-06-13T23:33:30.000Z",
-    "updatedAt": "2026-06-13T23:33:30.000Z",
-    "categoryId": 23,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T23:33:30.000Z"
   },
   {
     "id": "cmq6510886komt566768702",
@@ -3486,6 +3486,7 @@
     "specification": "DN300 SN8，长度6m",
     "category": "给排水管材",
     "group": "工程材料",
+    "categoryId": 24,
     "unit": "米",
     "referencePrice": "78",
     "priceMin": "65",
@@ -3502,12 +3503,11 @@
     "minOrder": "10米",
     "remark": "给排水管材专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-06-10T00:00:00.000Z",
     "createdAt": "2026-06-13T18:23:47.000Z",
-    "updatedAt": "2026-06-13T18:23:47.000Z",
-    "categoryId": 24,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T18:23:47.000Z"
   },
   {
     "id": "cmq5115423komt753427052",
@@ -3516,6 +3516,7 @@
     "specification": "DN110×3.2mm，长度4m",
     "category": "给排水管材",
     "group": "工程材料",
+    "categoryId": 24,
     "unit": "米",
     "referencePrice": "32",
     "priceMin": "28",
@@ -3532,12 +3533,11 @@
     "minOrder": "10米",
     "remark": "本条目价格依据市场询价制定，报价有效期至2026-10-17，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-10-17T00:00:00.000Z",
     "createdAt": "2026-06-13T23:27:37.000Z",
-    "updatedAt": "2026-06-13T23:27:37.000Z",
-    "categoryId": 24,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T23:27:37.000Z"
   },
   {
     "id": "cmq3913759komt970119194",
@@ -3546,6 +3546,7 @@
     "specification": "DN25 PN2.0MPa，长度4m",
     "category": "给排水管材",
     "group": "工程材料",
+    "categoryId": 24,
     "unit": "米",
     "referencePrice": "18",
     "priceMin": "15",
@@ -3562,12 +3563,11 @@
     "minOrder": "10米",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-08-30，如有更新以实际市场行情为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-08-30T00:00:00.000Z",
     "createdAt": "2026-06-13T15:19:27.000Z",
-    "updatedAt": "2026-06-13T15:19:27.000Z",
-    "categoryId": 24,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T15:19:27.000Z"
   },
   {
     "id": "cmq1056749komt631438024",
@@ -3576,6 +3576,7 @@
     "specification": "DN50 304不锈钢，长度6m",
     "category": "给排水管材",
     "group": "工程材料",
+    "categoryId": 24,
     "unit": "米",
     "referencePrice": "280",
     "priceMin": "245",
@@ -3592,12 +3593,11 @@
     "minOrder": "10米",
     "remark": "水利行业给排水管材品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-11T00:00:00.000Z",
     "createdAt": "2026-06-13T22:44:18.000Z",
-    "updatedAt": "2026-06-13T22:44:18.000Z",
-    "categoryId": 24,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T22:44:18.000Z"
   },
   {
     "id": "cmq9363197komt898622867",
@@ -3606,6 +3606,7 @@
     "specification": "Q235B，壁厚8mm，长半径",
     "category": "管件",
     "group": "工程材料",
+    "categoryId": 22,
     "unit": "个",
     "referencePrice": "28",
     "priceMin": "22",
@@ -3622,12 +3623,11 @@
     "minOrder": "10个",
     "remark": "管件专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2027-06-05T00:00:00.000Z",
     "createdAt": "2026-06-13T18:24:15.000Z",
-    "updatedAt": "2026-06-13T18:24:15.000Z",
-    "categoryId": 22,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T18:24:15.000Z"
   },
   {
     "id": "cmq6838228komt121778906",
@@ -3636,6 +3636,7 @@
     "specification": "球墨铸铁，PN1.6MPa",
     "category": "管件",
     "group": "工程材料",
+    "categoryId": 22,
     "unit": "个",
     "referencePrice": "185",
     "priceMin": "158",
@@ -3652,12 +3653,11 @@
     "minOrder": "10个",
     "remark": "本条目价格依据市场询价制定，报价有效期至2026-12-29，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2026-12-29T00:00:00.000Z",
     "createdAt": "2026-06-14T02:44:20.000Z",
-    "updatedAt": "2026-06-14T02:44:20.000Z",
-    "categoryId": 22,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-14T02:44:20.000Z"
   },
   {
     "id": "cmq5758958komt478165707",
@@ -3666,6 +3666,7 @@
     "specification": "球墨铸铁，PN2.5MPa",
     "category": "管件",
     "group": "工程材料",
+    "categoryId": 22,
     "unit": "个",
     "referencePrice": "68",
     "priceMin": "55",
@@ -3682,12 +3683,11 @@
     "minOrder": "10个",
     "remark": "本条目价格依据历史成交价制定，报价有效期至2027-07-01，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 3091-2015",
     "validUntil": "2027-07-01T00:00:00.000Z",
     "createdAt": "2026-06-13T22:28:53.000Z",
-    "updatedAt": "2026-06-13T22:28:53.000Z",
-    "categoryId": 22,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 3091-2015"
+    "updatedAt": "2026-06-13T22:28:53.000Z"
   },
   {
     "id": "cmq3738149komt758422801",
@@ -3696,6 +3696,7 @@
     "specification": "PY类Ⅰ型PE膜，厚度4mm，宽度1m",
     "category": "防水材料",
     "group": "工程材料",
+    "categoryId": 27,
     "unit": "平方米",
     "referencePrice": "38",
     "priceMin": "35",
@@ -3712,12 +3713,11 @@
     "minOrder": "10平方米",
     "remark": "适用于水利工程防水材料采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-09T00:00:00.000Z",
     "createdAt": "2026-06-13T13:52:39.000Z",
-    "updatedAt": "2026-06-13T13:52:39.000Z",
-    "categoryId": 27,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T13:52:39.000Z"
   },
   {
     "id": "cmq2400565komt372666470",
@@ -3726,6 +3726,7 @@
     "specification": "双组分，固含量≥92%",
     "category": "防水材料",
     "group": "工程材料",
+    "categoryId": 27,
     "unit": "平方米",
     "referencePrice": "52",
     "priceMin": "46",
@@ -3742,12 +3743,11 @@
     "minOrder": "10平方米",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-08-19，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-19T00:00:00.000Z",
     "createdAt": "2026-06-14T02:37:01.000Z",
-    "updatedAt": "2026-06-14T02:37:01.000Z",
-    "categoryId": 27,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T02:37:01.000Z"
   },
   {
     "id": "cmq2560788komt149994840",
@@ -3756,6 +3756,7 @@
     "specification": "二次抗渗压力≥0.8MPa",
     "category": "防水材料",
     "group": "工程材料",
+    "categoryId": 27,
     "unit": "平方米",
     "referencePrice": "42",
     "priceMin": "36",
@@ -3772,12 +3773,11 @@
     "minOrder": "10平方米",
     "remark": "水利行业防水材料品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-27T00:00:00.000Z",
     "createdAt": "2026-06-14T01:51:48.000Z",
-    "updatedAt": "2026-06-14T01:51:48.000Z",
-    "categoryId": 27,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T01:51:48.000Z"
   },
   {
     "id": "cmq2431294komt503812971",
@@ -3786,6 +3786,7 @@
     "specification": "400g/m²，幅宽6m",
     "category": "土工材料",
     "group": "工程材料",
+    "categoryId": 15,
     "unit": "平方米",
     "referencePrice": "20",
     "priceMin": "17",
@@ -3802,12 +3803,11 @@
     "minOrder": "10平方米",
     "remark": "土工材料专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-14T00:00:00.000Z",
     "createdAt": "2026-06-13T15:20:16.000Z",
-    "updatedAt": "2026-06-13T15:20:16.000Z",
-    "categoryId": 15,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T15:20:16.000Z"
   },
   {
     "id": "cmq7284199komt982584204",
@@ -3816,6 +3816,7 @@
     "specification": "厚度1.5mm，幅宽7m",
     "category": "土工材料",
     "group": "工程材料",
+    "categoryId": 15,
     "unit": "平方米",
     "referencePrice": "28",
     "priceMin": "24",
@@ -3832,12 +3833,11 @@
     "minOrder": "10平方米",
     "remark": "适用于水利工程土工材料采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-01-24T00:00:00.000Z",
     "createdAt": "2026-06-13T18:55:21.000Z",
-    "updatedAt": "2026-06-13T18:55:21.000Z",
-    "categoryId": 15,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T18:55:21.000Z"
   },
   {
     "id": "cmq3759760komt271345300",
@@ -3846,6 +3846,7 @@
     "specification": "TGSG50-50kN/m，幅宽4m",
     "category": "土工材料",
     "group": "工程材料",
+    "categoryId": 15,
     "unit": "平方米",
     "referencePrice": "35",
     "priceMin": "28",
@@ -3862,12 +3863,11 @@
     "minOrder": "10平方米",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-08-31，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-31T00:00:00.000Z",
     "createdAt": "2026-06-13T13:28:24.000Z",
-    "updatedAt": "2026-06-13T13:28:24.000Z",
-    "categoryId": 15,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T13:28:24.000Z"
   },
   {
     "id": "cmq5631767komt120516177",
@@ -3876,6 +3876,7 @@
     "specification": "GCL-NP 4500g/m²，幅宽6m",
     "category": "土工材料",
     "group": "工程材料",
+    "categoryId": 15,
     "unit": "平方米",
     "referencePrice": "22",
     "priceMin": "18",
@@ -3892,12 +3893,11 @@
     "minOrder": "10平方米",
     "remark": "土工材料专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-01-22T00:00:00.000Z",
     "createdAt": "2026-06-13T23:18:36.000Z",
-    "updatedAt": "2026-06-13T23:18:36.000Z",
-    "categoryId": 15,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T23:18:36.000Z"
   },
   {
     "id": "cmq9802237komt361591919",
@@ -3906,6 +3906,7 @@
     "specification": "6061-T6，标准板400×1200mm",
     "category": "模板脚手架",
     "group": "工程材料",
+    "categoryId": 17,
     "unit": "吨",
     "referencePrice": "8500",
     "priceMin": "7800",
@@ -3922,12 +3923,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据市场询价制定，报价有效期至2027-02-13，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-02-13T00:00:00.000Z",
     "createdAt": "2026-06-13T22:35:22.000Z",
-    "updatedAt": "2026-06-13T22:35:22.000Z",
-    "categoryId": 17,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T22:35:22.000Z"
   },
   {
     "id": "cmq3958195komt685721581",
@@ -3936,6 +3936,7 @@
     "specification": "Φ48.3×3.2mm，含插销系统",
     "category": "模板脚手架",
     "group": "工程材料",
+    "categoryId": 17,
     "unit": "吨",
     "referencePrice": "7200",
     "priceMin": "6800",
@@ -3952,12 +3953,11 @@
     "minOrder": "1吨",
     "remark": "模板脚手架专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-03-19T00:00:00.000Z",
     "createdAt": "2026-06-13T18:20:38.000Z",
-    "updatedAt": "2026-06-13T18:20:38.000Z",
-    "categoryId": 17,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T18:20:38.000Z"
   },
   {
     "id": "cmq4334651komt211557981",
@@ -3966,6 +3966,7 @@
     "specification": "厚度18mm，1220×2440mm",
     "category": "模板脚手架",
     "group": "工程材料",
+    "categoryId": 17,
     "unit": "吨",
     "referencePrice": "58",
     "priceMin": "52",
@@ -3982,12 +3983,11 @@
     "minOrder": "1吨",
     "remark": "本条目价格依据市场询价制定，报价有效期至2027-06-23，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-06-23T00:00:00.000Z",
     "createdAt": "2026-06-14T01:13:55.000Z",
-    "updatedAt": "2026-06-14T01:13:55.000Z",
-    "categoryId": 17,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T01:13:55.000Z"
   },
   {
     "id": "cmq7715893komt948683365",
@@ -3996,6 +3996,7 @@
     "specification": "Q=100m³/h H=32m P=15kW",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "9200",
     "priceMin": "8500",
@@ -4012,12 +4013,11 @@
     "minOrder": "1台",
     "remark": "本条目价格依据市场询价制定，报价有效期至2027-06-21，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2027-06-21T00:00:00.000Z",
     "createdAt": "2026-06-13T18:38:19.000Z",
-    "updatedAt": "2026-06-13T18:38:19.000Z",
-    "categoryId": 37,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-13T18:38:19.000Z"
   },
   {
     "id": "cmq7832909komt280064386",
@@ -4026,6 +4026,7 @@
     "specification": "Q=60m³/h H=40m P=15kW",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "18500",
     "priceMin": "16800",
@@ -4042,12 +4043,11 @@
     "minOrder": "1台",
     "remark": "水利行业水泵品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2027-01-19T00:00:00.000Z",
     "createdAt": "2026-06-13T15:12:02.000Z",
-    "updatedAt": "2026-06-13T15:12:02.000Z",
-    "categoryId": 37,
-    "lifecycleStage": "待审核",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-13T15:12:02.000Z"
   },
   {
     "id": "cmq4505152komt146245173",
@@ -4056,6 +4056,7 @@
     "specification": "Q=32m³/h H=148m P=22kW",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "25800",
     "priceMin": "23800",
@@ -4072,12 +4073,11 @@
     "minOrder": "1台",
     "remark": "本条目价格依据历史成交价制定，报价有效期至2026-08-12，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2026-08-12T00:00:00.000Z",
     "createdAt": "2026-06-13T21:50:58.000Z",
-    "updatedAt": "2026-06-13T21:50:58.000Z",
-    "categoryId": 37,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-13T21:50:58.000Z"
   },
   {
     "id": "cmq6294853komt760459374",
@@ -4086,6 +4086,7 @@
     "specification": "Q=40m³/h H=16m P=4kW",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "6800",
     "priceMin": "6200",
@@ -4102,12 +4103,11 @@
     "minOrder": "1台",
     "remark": "水利行业水泵品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2026-12-05T00:00:00.000Z",
     "createdAt": "2026-06-14T02:36:16.000Z",
-    "updatedAt": "2026-06-14T02:36:16.000Z",
-    "categoryId": 37,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-14T02:36:16.000Z"
   },
   {
     "id": "cmq6731225komt488686144",
@@ -4116,6 +4116,7 @@
     "specification": "Q=790L/s H=63m P=630kW",
     "category": "水泵",
     "group": "机电设备",
+    "categoryId": 37,
     "unit": "台",
     "referencePrice": "98000",
     "priceMin": "89000",
@@ -4132,12 +4133,11 @@
     "minOrder": "1台",
     "remark": "水泵专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 5657-2015",
     "validUntil": "2026-09-18T00:00:00.000Z",
     "createdAt": "2026-06-13T15:45:05.000Z",
-    "updatedAt": "2026-06-13T15:45:05.000Z",
-    "categoryId": 37,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 5657-2015"
+    "updatedAt": "2026-06-13T15:45:05.000Z"
   },
   {
     "id": "cmq9175671komt853262842",
@@ -4146,6 +4146,7 @@
     "specification": "含3台WQ潜污泵+格栅+闸阀+控制柜",
     "category": "泵站设备",
     "group": "机电设备",
+    "categoryId": 38,
     "unit": "套",
     "referencePrice": "185000",
     "priceMin": "168000",
@@ -4162,12 +4163,11 @@
     "minOrder": "1套",
     "remark": "适用于水利工程泵站设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-03T00:00:00.000Z",
     "createdAt": "2026-06-13T13:25:15.000Z",
-    "updatedAt": "2026-06-13T13:25:15.000Z",
-    "categoryId": 38,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T13:25:15.000Z"
   },
   {
     "id": "cmq9034808komt457701901",
@@ -4176,6 +4176,7 @@
     "specification": "速比6:1，P=450kW, IP56",
     "category": "泵站设备",
     "group": "机电设备",
+    "categoryId": 38,
     "unit": "套",
     "referencePrice": "52000",
     "priceMin": "48000",
@@ -4192,12 +4193,11 @@
     "minOrder": "1套",
     "remark": "泵站设备专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-01-11T00:00:00.000Z",
     "createdAt": "2026-06-13T16:40:23.000Z",
-    "updatedAt": "2026-06-13T16:40:23.000Z",
-    "categoryId": 38,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T16:40:23.000Z"
   },
   {
     "id": "cmq9977533komt443620466",
@@ -4206,6 +4206,7 @@
     "specification": "球墨铸铁阀体，EPDM 密封，PN1.0MPa",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "2800",
     "priceMin": "2450",
@@ -4222,12 +4223,11 @@
     "minOrder": "1台",
     "remark": "阀门专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2027-03-16T00:00:00.000Z",
     "createdAt": "2026-06-14T01:06:48.000Z",
-    "updatedAt": "2026-06-14T01:06:48.000Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-14T01:06:48.000Z"
   },
   {
     "id": "cmq3891554komt545659188",
@@ -4236,6 +4236,7 @@
     "specification": "球墨铸铁，PN1.6MPa",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "1950",
     "priceMin": "1780",
@@ -4252,12 +4253,11 @@
     "minOrder": "1台",
     "remark": "阀门专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2027-06-12T00:00:00.000Z",
     "createdAt": "2026-06-13T14:49:38.000Z",
-    "updatedAt": "2026-06-13T14:49:38.000Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T14:49:38.000Z"
   },
   {
     "id": "cmq4431218komt425004103",
@@ -4266,6 +4266,7 @@
     "specification": "球墨铸铁，PN1.0MPa",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "12500",
     "priceMin": "10800",
@@ -4282,12 +4283,11 @@
     "minOrder": "1台",
     "remark": "阀门专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2027-03-02T00:00:00.000Z",
     "createdAt": "2026-06-13T15:22:48.000Z",
-    "updatedAt": "2026-06-13T15:22:48.000Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T15:22:48.000Z"
   },
   {
     "id": "cmq2562478komt132752369",
@@ -4296,6 +4296,7 @@
     "specification": "铸钢，出口压力0.2-1.0MPa可调",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "4200",
     "priceMin": "3800",
@@ -4312,12 +4313,11 @@
     "minOrder": "1台",
     "remark": "适用于水利工程阀门采购预算参考，以协议价或最新市场询价为准。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2027-05-27T00:00:00.000Z",
     "createdAt": "2026-06-13T14:17:26.000Z",
-    "updatedAt": "2026-06-13T14:17:26.000Z",
-    "categoryId": 40,
-    "lifecycleStage": "待审核",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T14:17:26.000Z"
   },
   {
     "id": "cmq9359368komt686521898",
@@ -4326,6 +4326,7 @@
     "specification": "球墨铸铁，PN1.6MPa",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "15800",
     "priceMin": "13800",
@@ -4342,12 +4343,11 @@
     "minOrder": "1台",
     "remark": "水利行业阀门品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2027-06-05T00:00:00.000Z",
     "createdAt": "2026-06-13T15:18:20.000Z",
-    "updatedAt": "2026-06-13T15:18:20.000Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T15:18:20.000Z"
   },
   {
     "id": "cmq3589931komt636945826",
@@ -4356,6 +4356,7 @@
     "specification": "球墨铸铁，软密封",
     "category": "阀门",
     "group": "机电设备",
+    "categoryId": 40,
     "unit": "台",
     "referencePrice": "2100",
     "priceMin": "1850",
@@ -4372,12 +4373,11 @@
     "minOrder": "1台",
     "remark": "适用于水利工程阀门采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB/T 12234-2019",
     "validUntil": "2026-09-03T00:00:00.000Z",
     "createdAt": "2026-06-13T22:00:52.000Z",
-    "updatedAt": "2026-06-13T22:00:52.000Z",
-    "categoryId": 40,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB/T 12234-2019"
+    "updatedAt": "2026-06-13T22:00:52.000Z"
   },
   {
     "id": "cmq5398708komt705740967",
@@ -4386,6 +4386,7 @@
     "specification": "处理量50m³/h，含絮凝+沉淀+过滤",
     "category": "水处理设备",
     "group": "机电设备",
+    "categoryId": 36,
     "unit": "套",
     "referencePrice": "48000",
     "priceMin": "42000",
@@ -4402,12 +4403,11 @@
     "minOrder": "1套",
     "remark": "适用于水利工程水处理设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-03-03T00:00:00.000Z",
     "createdAt": "2026-06-13T22:10:17.000Z",
-    "updatedAt": "2026-06-13T22:10:17.000Z",
-    "categoryId": 36,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T22:10:17.000Z"
   },
   {
     "id": "cmq4558300komt433852299",
@@ -4416,6 +4416,7 @@
     "specification": "PVDF材质，膜面积150m²，孔径0.03μm",
     "category": "水处理设备",
     "group": "机电设备",
+    "categoryId": 36,
     "unit": "套",
     "referencePrice": "65000",
     "priceMin": "58000",
@@ -4432,12 +4433,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-10-10，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-10-10T00:00:00.000Z",
     "createdAt": "2026-06-13T19:57:12.000Z",
-    "updatedAt": "2026-06-13T19:57:12.000Z",
-    "categoryId": 36,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T19:57:12.000Z"
   },
   {
     "id": "cmq7208581komt760841619",
@@ -4446,6 +4446,7 @@
     "specification": "产水量25m³/h，脱盐率≥99.3%",
     "category": "水处理设备",
     "group": "机电设备",
+    "categoryId": 36,
     "unit": "套",
     "referencePrice": "185000",
     "priceMin": "168000",
@@ -4462,12 +4463,11 @@
     "minOrder": "1套",
     "remark": "适用于水利工程水处理设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-08-01T00:00:00.000Z",
     "createdAt": "2026-06-13T15:12:34.000Z",
-    "updatedAt": "2026-06-13T15:12:34.000Z",
-    "categoryId": 36,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T15:12:34.000Z"
   },
   {
     "id": "cmq6342828komt432006693",
@@ -4476,6 +4476,7 @@
     "specification": "含软水+溶盐+电解+投加系统",
     "category": "加药消毒设备",
     "group": "机电设备",
+    "categoryId": 34,
     "unit": "套",
     "referencePrice": "38000",
     "priceMin": "35000",
@@ -4492,12 +4493,11 @@
     "minOrder": "1套",
     "remark": "适用于水利工程加药消毒设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-10-15T00:00:00.000Z",
     "createdAt": "2026-06-13T13:54:40.000Z",
-    "updatedAt": "2026-06-13T13:54:40.000Z",
-    "categoryId": 34,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T13:54:40.000Z"
   },
   {
     "id": "cmq1327180komt944374452",
@@ -4506,6 +4506,7 @@
     "specification": "制备量500L/h，含储罐+搅拌+计量泵",
     "category": "加药消毒设备",
     "group": "机电设备",
+    "categoryId": 34,
     "unit": "套",
     "referencePrice": "25000",
     "priceMin": "22000",
@@ -4522,12 +4523,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-09-10，如有更新以实际市场行情为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-09-10T00:00:00.000Z",
     "createdAt": "2026-06-13T13:17:06.000Z",
-    "updatedAt": "2026-06-13T13:17:06.000Z",
-    "categoryId": 34,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T13:17:06.000Z"
   },
   {
     "id": "cmq6555786komt277426608",
@@ -4536,6 +4536,7 @@
     "specification": "有效氯产量1000g/h，含水射器",
     "category": "加药消毒设备",
     "group": "机电设备",
+    "categoryId": 34,
     "unit": "套",
     "referencePrice": "32000",
     "priceMin": "29000",
@@ -4552,12 +4553,11 @@
     "minOrder": "1套",
     "remark": "适用于水利工程加药消毒设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-12-23T00:00:00.000Z",
     "createdAt": "2026-06-14T02:41:07.000Z",
-    "updatedAt": "2026-06-14T02:41:07.000Z",
-    "categoryId": 34,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T02:41:07.000Z"
   },
   {
     "id": "cmq9568816komt507893771",
@@ -4566,6 +4566,7 @@
     "specification": "12kV 630A 25kA，含真空断路器",
     "category": "电气设备",
     "group": "机电设备",
+    "categoryId": 39,
     "unit": "台",
     "referencePrice": "28000",
     "priceMin": "25000",
@@ -4582,12 +4583,11 @@
     "minOrder": "1台",
     "remark": "适用于水利工程电气设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 7251.1-2023",
     "validUntil": "2026-10-28T00:00:00.000Z",
     "createdAt": "2026-06-14T00:15:19.000Z",
-    "updatedAt": "2026-06-14T00:15:19.000Z",
-    "categoryId": 39,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 7251.1-2023"
+    "updatedAt": "2026-06-14T00:15:19.000Z"
   },
   {
     "id": "cmq9095819komt753066949",
@@ -4596,6 +4596,7 @@
     "specification": "1000kVA，10/0.4kV，Dyn11",
     "category": "电气设备",
     "group": "机电设备",
+    "categoryId": 39,
     "unit": "台",
     "referencePrice": "68000",
     "priceMin": "62000",
@@ -4612,12 +4613,11 @@
     "minOrder": "1台",
     "remark": "适用于水利工程电气设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": "GB 7251.1-2023",
     "validUntil": "2026-09-27T00:00:00.000Z",
     "createdAt": "2026-06-13T13:01:42.000Z",
-    "updatedAt": "2026-06-13T13:01:42.000Z",
-    "categoryId": 39,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": "GB 7251.1-2023"
+    "updatedAt": "2026-06-13T13:01:42.000Z"
   },
   {
     "id": "cmq5352480komt219185652",
@@ -4626,6 +4626,7 @@
     "specification": "660V 3200A 50kA，含智能仪表",
     "category": "电气设备",
     "group": "机电设备",
+    "categoryId": 39,
     "unit": "台",
     "referencePrice": "18500",
     "priceMin": "16800",
@@ -4642,12 +4643,11 @@
     "minOrder": "1台",
     "remark": "适用于水利工程电气设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": "GB 7251.1-2023",
     "validUntil": "2026-12-23T00:00:00.000Z",
     "createdAt": "2026-06-13T17:00:25.000Z",
-    "updatedAt": "2026-06-13T17:00:25.000Z",
-    "categoryId": 39,
-    "lifecycleStage": "有效",
-    "nationalStandard": "GB 7251.1-2023"
+    "updatedAt": "2026-06-13T17:00:25.000Z"
   },
   {
     "id": "cmq5592760komt218605532",
@@ -4656,6 +4656,7 @@
     "specification": "550kW/688kVA 380V，含ATS柜",
     "category": "发电机组",
     "group": "机电设备",
+    "categoryId": 35,
     "unit": "台",
     "referencePrice": "125000",
     "priceMin": "108000",
@@ -4672,12 +4673,11 @@
     "minOrder": "1台",
     "remark": "水利行业发电机组品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-04-30T00:00:00.000Z",
     "createdAt": "2026-06-13T21:43:50.000Z",
-    "updatedAt": "2026-06-13T21:43:50.000Z",
-    "categoryId": 35,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T21:43:50.000Z"
   },
   {
     "id": "cmq8300800komt358300591",
@@ -4686,6 +4686,7 @@
     "specification": "300kW 400V 3相",
     "category": "发电机组",
     "group": "机电设备",
+    "categoryId": 35,
     "unit": "台",
     "referencePrice": "195000",
     "priceMin": "178000",
@@ -4702,12 +4703,11 @@
     "minOrder": "1台",
     "remark": "发电机组专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-02T00:00:00.000Z",
     "createdAt": "2026-06-13T16:25:41.000Z",
-    "updatedAt": "2026-06-13T16:25:41.000Z",
-    "categoryId": 35,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T16:25:41.000Z"
   },
   {
     "id": "cmq1085389komt605565551",
@@ -4716,6 +4716,7 @@
     "specification": "DN200，精度0.3%，4-20mA+RS485",
     "category": "仪器仪表",
     "group": "信息化设备",
+    "categoryId": 2,
     "unit": "台",
     "referencePrice": "8500",
     "priceMin": "7800",
@@ -4732,12 +4733,11 @@
     "minOrder": "1台",
     "remark": "适用于水利工程仪器仪表采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-02-06T00:00:00.000Z",
     "createdAt": "2026-06-13T21:49:00.000Z",
-    "updatedAt": "2026-06-13T21:49:00.000Z",
-    "categoryId": 2,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T21:49:00.000Z"
   },
   {
     "id": "cmq3849231komt952245536",
@@ -4746,6 +4746,7 @@
     "specification": "量程20m，精度0.1%，4-20mA",
     "category": "仪器仪表",
     "group": "信息化设备",
+    "categoryId": 2,
     "unit": "台",
     "referencePrice": "2200",
     "priceMin": "1850",
@@ -4762,12 +4763,11 @@
     "minOrder": "1台",
     "remark": "水利行业仪器仪表品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "即将过期",
+    "lifecycleStage": "即将过期",
+    "nationalStandard": null,
     "validUntil": "2026-07-29T00:00:00.000Z",
     "createdAt": "2026-06-14T02:27:01.000Z",
-    "updatedAt": "2026-06-14T02:27:01.000Z",
-    "categoryId": 2,
-    "lifecycleStage": "即将过期",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T02:27:01.000Z"
   },
   {
     "id": "cmq6550272komt128479617",
@@ -4776,6 +4776,7 @@
     "specification": "含SO2/NOx/CO/O3/PM2.5/PM10分析仪",
     "category": "仪器仪表",
     "group": "信息化设备",
+    "categoryId": 2,
     "unit": "台",
     "referencePrice": "185000",
     "priceMin": "168000",
@@ -4792,12 +4793,11 @@
     "minOrder": "1台",
     "remark": "水利行业仪器仪表品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-04-18T00:00:00.000Z",
     "createdAt": "2026-06-13T22:19:20.000Z",
-    "updatedAt": "2026-06-13T22:19:20.000Z",
-    "categoryId": 2,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T22:19:20.000Z"
   },
   {
     "id": "cmq8764393komt358040226",
@@ -4806,6 +4806,7 @@
     "specification": "190-1100nm，带宽1.5nm",
     "category": "仪器仪表",
     "group": "信息化设备",
+    "categoryId": 2,
     "unit": "台",
     "referencePrice": "58000",
     "priceMin": "52000",
@@ -4822,12 +4823,11 @@
     "minOrder": "1台",
     "remark": "水利行业仪器仪表品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-08-28T00:00:00.000Z",
     "createdAt": "2026-06-13T14:04:27.000Z",
-    "updatedAt": "2026-06-13T14:04:27.000Z",
-    "categoryId": 2,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T14:04:27.000Z"
   },
   {
     "id": "cmq7060392komt854519948",
@@ -4836,6 +4836,7 @@
     "specification": "量程0-2.5MPa，精度0.1%FS",
     "category": "传感器",
     "group": "信息化设备",
+    "categoryId": 3,
     "unit": "个",
     "referencePrice": "1850",
     "priceMin": "1580",
@@ -4852,12 +4853,11 @@
     "minOrder": "10个",
     "remark": "传感器专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-22T00:00:00.000Z",
     "createdAt": "2026-06-13T21:58:38.000Z",
-    "updatedAt": "2026-06-15T00:00:00.000Z",
-    "categoryId": 3,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-15T00:00:00.000Z"
   },
   {
     "id": "cmq3123346komt516348865",
@@ -4866,6 +4866,7 @@
     "specification": "量程0-9999m³/h，精度±1%",
     "category": "传感器",
     "group": "信息化设备",
+    "categoryId": 3,
     "unit": "个",
     "referencePrice": "4500",
     "priceMin": "3880",
@@ -4882,12 +4883,11 @@
     "minOrder": "10个",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-01-08，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-01-08T00:00:00.000Z",
     "createdAt": "2026-06-13T12:56:32.000Z",
-    "updatedAt": "2026-06-13T12:56:32.000Z",
-    "categoryId": 3,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T12:56:32.000Z"
   },
   {
     "id": "cmq1545089komt390869269",
@@ -4896,6 +4896,7 @@
     "specification": "非接触式电容，量程0-10m",
     "category": "传感器",
     "group": "信息化设备",
+    "categoryId": 3,
     "unit": "个",
     "referencePrice": "580",
     "priceMin": "450",
@@ -4912,12 +4913,11 @@
     "minOrder": "10个",
     "remark": "本条目价格依据历史成交价制定，报价有效期至2026-09-29，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-29T00:00:00.000Z",
     "createdAt": "2026-06-13T21:42:14.000Z",
-    "updatedAt": "2026-06-13T21:42:14.000Z",
-    "categoryId": 3,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T21:42:14.000Z"
   },
   {
     "id": "cmq2101541komt573765948",
@@ -4926,6 +4926,7 @@
     "specification": "量程-50~450℃，A级精度",
     "category": "传感器",
     "group": "信息化设备",
+    "categoryId": 3,
     "unit": "个",
     "referencePrice": "320",
     "priceMin": "265",
@@ -4942,12 +4943,11 @@
     "minOrder": "10个",
     "remark": "本条目价格依据人工维护制定，报价有效期至2026-12-26，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-26T00:00:00.000Z",
     "createdAt": "2026-06-13T21:07:02.000Z",
-    "updatedAt": "2026-06-13T21:07:02.000Z",
-    "categoryId": 3,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T21:07:02.000Z"
   },
   {
     "id": "cmq9786758komt891066960",
@@ -4956,6 +4956,7 @@
     "specification": "CPU1516-3PN/DP，含AI/AO/DI/DO模块",
     "category": "自动化设备",
     "group": "信息化设备",
+    "categoryId": 6,
     "unit": "套",
     "referencePrice": "38000",
     "priceMin": "35000",
@@ -4972,12 +4973,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据市场询价制定，报价有效期至2027-05-12，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-05-12T00:00:00.000Z",
     "createdAt": "2026-06-14T00:01:01.000Z",
-    "updatedAt": "2026-06-14T00:01:01.000Z",
-    "categoryId": 6,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T00:01:01.000Z"
   },
   {
     "id": "cmq3111936komt508985593",
@@ -4986,6 +4986,7 @@
     "specification": "冗余控制器，2000点，含工程师站+操作站",
     "category": "自动化设备",
     "group": "信息化设备",
+    "categoryId": 6,
     "unit": "套",
     "referencePrice": "280000",
     "priceMin": "250000",
@@ -5002,12 +5003,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-06-12，如有更新以实际市场行情为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2027-06-12T00:00:00.000Z",
     "createdAt": "2026-06-13T16:14:59.000Z",
-    "updatedAt": "2026-06-13T16:14:59.000Z",
-    "categoryId": 6,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T16:14:59.000Z"
   },
   {
     "id": "cmq2558147komt414847563",
@@ -5016,6 +5016,7 @@
     "specification": "4G通信，8AI/4DI/4DO，太阳能供电",
     "category": "自动化设备",
     "group": "信息化设备",
+    "categoryId": 6,
     "unit": "套",
     "referencePrice": "8500",
     "priceMin": "7800",
@@ -5032,12 +5033,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据历史成交价制定，报价有效期至2027-06-26，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-06-26T00:00:00.000Z",
     "createdAt": "2026-06-13T21:59:22.000Z",
-    "updatedAt": "2026-06-13T21:59:22.000Z",
-    "categoryId": 6,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T21:59:22.000Z"
   },
   {
     "id": "cmq3363369komt208996848",
@@ -5046,6 +5046,7 @@
     "specification": "400万 1/1.8\"星光级，AI周界+人脸",
     "category": "安防监控",
     "group": "信息化设备",
+    "categoryId": 4,
     "unit": "套",
     "referencePrice": "2800",
     "priceMin": "2450",
@@ -5062,12 +5063,11 @@
     "minOrder": "1套",
     "remark": "安防监控专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-01-23T00:00:00.000Z",
     "createdAt": "2026-06-14T02:19:19.000Z",
-    "updatedAt": "2026-06-14T02:19:19.000Z",
-    "categoryId": 4,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T02:19:19.000Z"
   },
   {
     "id": "cmq7644843komt644944328",
@@ -5076,6 +5076,7 @@
     "specification": "64路接入，16盘位，Face+Vehicle",
     "category": "安防监控",
     "group": "信息化设备",
+    "categoryId": 4,
     "unit": "套",
     "referencePrice": "8500",
     "priceMin": "7500",
@@ -5092,12 +5093,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据历史成交价制定，报价有效期至2026-07-05，如有更新以实际市场行情为准。",
     "status": "即将过期",
+    "lifecycleStage": "即将过期",
+    "nationalStandard": null,
     "validUntil": "2026-07-05T00:00:00.000Z",
     "createdAt": "2026-06-13T15:01:27.000Z",
-    "updatedAt": "2026-06-13T15:01:27.000Z",
-    "categoryId": 4,
-    "lifecycleStage": "即将过期",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T15:01:27.000Z"
   },
   {
     "id": "cmq8027281komt676788765",
@@ -5106,6 +5106,7 @@
     "specification": "含车牌识别一体机+道闸+地感线圈",
     "category": "安防监控",
     "group": "信息化设备",
+    "categoryId": 4,
     "unit": "套",
     "referencePrice": "12500",
     "priceMin": "10800",
@@ -5122,12 +5123,11 @@
     "minOrder": "1套",
     "remark": "水利行业安防监控品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2027-04-02T00:00:00.000Z",
     "createdAt": "2026-06-14T00:43:52.000Z",
-    "updatedAt": "2026-06-14T00:43:52.000Z",
-    "categoryId": 4,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T00:43:52.000Z"
   },
   {
     "id": "cmq5900923komt174160742",
@@ -5136,6 +5136,7 @@
     "specification": "12口万兆光口+24口千兆电口，三层",
     "category": "网络通信",
     "group": "信息化设备",
+    "categoryId": 5,
     "unit": "套",
     "referencePrice": "18000",
     "priceMin": "15800",
@@ -5152,12 +5153,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据历史成交价制定，报价有效期至2026-12-23，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-23T00:00:00.000Z",
     "createdAt": "2026-06-13T21:18:48.000Z",
-    "updatedAt": "2026-06-13T21:18:48.000Z",
-    "categoryId": 5,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T21:18:48.000Z"
   },
   {
     "id": "cmq7253495komt995931865",
@@ -5166,6 +5166,7 @@
     "specification": "802.11ax 双频，IP67，-40~70℃",
     "category": "网络通信",
     "group": "信息化设备",
+    "categoryId": 5,
     "unit": "套",
     "referencePrice": "5200",
     "priceMin": "4500",
@@ -5182,12 +5183,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-09-12，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-12T00:00:00.000Z",
     "createdAt": "2026-06-14T01:49:05.000Z",
-    "updatedAt": "2026-06-14T01:49:05.000Z",
-    "categoryId": 5,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T01:49:05.000Z"
   },
   {
     "id": "cmq4268120komt729431508",
@@ -5196,6 +5196,7 @@
     "specification": "SC接口，20km，工业级-40~85℃",
     "category": "网络通信",
     "group": "信息化设备",
+    "categoryId": 5,
     "unit": "套",
     "referencePrice": "680",
     "priceMin": "550",
@@ -5212,12 +5213,11 @@
     "minOrder": "1套",
     "remark": "水利行业网络通信品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-15T00:00:00.000Z",
     "createdAt": "2026-06-13T21:58:39.000Z",
-    "updatedAt": "2026-06-13T21:58:39.000Z",
-    "categoryId": 5,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T21:58:39.000Z"
   },
   {
     "id": "cmq2794501komt376068872",
@@ -5226,6 +5226,7 @@
     "specification": "包含水量调度+水质监测+工程管理+移动端",
     "category": "软件系统",
     "group": "信息化设备",
+    "categoryId": 7,
     "unit": "套",
     "referencePrice": "380000",
     "priceMin": "350000",
@@ -5242,12 +5243,11 @@
     "minOrder": "1套",
     "remark": "软件系统专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-06-25T00:00:00.000Z",
     "createdAt": "2026-06-14T01:27:19.000Z",
-    "updatedAt": "2026-06-14T01:27:19.000Z",
-    "categoryId": 7,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T01:27:19.000Z"
   },
   {
     "id": "cmq6277757komt516497762",
@@ -5256,6 +5256,7 @@
     "specification": "含EPANET引擎二次开发+GIS接口+实时校准",
     "category": "软件系统",
     "group": "信息化设备",
+    "categoryId": 7,
     "unit": "套",
     "referencePrice": "250000",
     "priceMin": "220000",
@@ -5272,12 +5273,11 @@
     "minOrder": "1套",
     "remark": "水利行业软件系统品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-25T00:00:00.000Z",
     "createdAt": "2026-06-14T02:05:57.000Z",
-    "updatedAt": "2026-06-14T02:05:57.000Z",
-    "categoryId": 7,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T02:05:57.000Z"
   },
   {
     "id": "cmq2412342komt386755721",
@@ -5286,6 +5286,7 @@
     "specification": "含安全帽+反光背心+防砸鞋+手套+护目镜",
     "category": "劳保用品",
     "group": "劳保及通用物资",
+    "categoryId": 13,
     "unit": "套",
     "referencePrice": "320",
     "priceMin": "280",
@@ -5302,12 +5303,11 @@
     "minOrder": "1套",
     "remark": "水利行业劳保用品品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-05-01T00:00:00.000Z",
     "createdAt": "2026-06-13T16:29:00.000Z",
-    "updatedAt": "2026-06-13T16:29:00.000Z",
-    "categoryId": 13,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T16:29:00.000Z"
   },
   {
     "id": "cmq2814390komt843259939",
@@ -5316,6 +5316,7 @@
     "specification": "NRS Extreme 干式救援服，含涉水靴",
     "category": "劳保用品",
     "group": "劳保及通用物资",
+    "categoryId": 13,
     "unit": "套",
     "referencePrice": "2800",
     "priceMin": "2450",
@@ -5332,12 +5333,11 @@
     "minOrder": "1套",
     "remark": "劳保用品专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-01-02T00:00:00.000Z",
     "createdAt": "2026-06-13T18:45:30.000Z",
-    "updatedAt": "2026-06-13T18:45:30.000Z",
-    "categoryId": 13,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T18:45:30.000Z"
   },
   {
     "id": "cmq1755797komt883863204",
@@ -5346,6 +5346,7 @@
     "specification": "4合1：O2/LEL/H2S/CO，IP68",
     "category": "劳保用品",
     "group": "劳保及通用物资",
+    "categoryId": 13,
     "unit": "套",
     "referencePrice": "1800",
     "priceMin": "1580",
@@ -5362,12 +5363,11 @@
     "minOrder": "1套",
     "remark": "水利行业劳保用品品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-05-22T00:00:00.000Z",
     "createdAt": "2026-06-13T20:45:56.000Z",
-    "updatedAt": "2026-06-13T20:45:56.000Z",
-    "categoryId": 13,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T20:45:56.000Z"
   },
   {
     "id": "cmq7445474komt316129246",
@@ -5376,6 +5376,7 @@
     "specification": "全身式+双大钩缓冲系绳+速差器",
     "category": "劳保用品",
     "group": "劳保及通用物资",
+    "categoryId": 13,
     "unit": "套",
     "referencePrice": "850",
     "priceMin": "750",
@@ -5392,12 +5393,11 @@
     "minOrder": "1套",
     "remark": "劳保用品专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-06-19T00:00:00.000Z",
     "createdAt": "2026-06-13T16:10:26.000Z",
-    "updatedAt": "2026-06-13T16:10:26.000Z",
-    "categoryId": 13,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T16:10:26.000Z"
   },
   {
     "id": "cmq2641666komt121389297",
@@ -5406,6 +5406,7 @@
     "specification": "打印/复印/扫描，35ppm A4，双面+网络",
     "category": "办公设备",
     "group": "办公后勤",
+    "categoryId": 10,
     "unit": "台",
     "referencePrice": "8500",
     "priceMin": "7800",
@@ -5422,12 +5423,11 @@
     "minOrder": "1台",
     "remark": "本条目价格依据人工维护制定，报价有效期至2026-07-29，如有更新以实际市场行情为准。",
     "status": "即将过期",
+    "lifecycleStage": "即将过期",
+    "nationalStandard": null,
     "validUntil": "2026-07-29T00:00:00.000Z",
     "createdAt": "2026-06-13T13:32:12.000Z",
-    "updatedAt": "2026-06-13T13:32:12.000Z",
-    "categoryId": 10,
-    "lifecycleStage": "即将过期",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T13:32:12.000Z"
   },
   {
     "id": "cmq2018101komt516483890",
@@ -5436,6 +5436,7 @@
     "specification": "WUXGA 1920×1200，HDMI+HDBaseT",
     "category": "办公设备",
     "group": "办公后勤",
+    "categoryId": 10,
     "unit": "台",
     "referencePrice": "12000",
     "priceMin": "10500",
@@ -5452,12 +5453,11 @@
     "minOrder": "1台",
     "remark": "办公设备专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-03-13T00:00:00.000Z",
     "createdAt": "2026-06-13T20:58:08.000Z",
-    "updatedAt": "2026-06-13T20:58:08.000Z",
-    "categoryId": 10,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T20:58:08.000Z"
   },
   {
     "id": "cmq7257322komt273579942",
@@ -5466,6 +5466,7 @@
     "specification": "203dpi，热转印12ips，以太网+USB",
     "category": "办公设备",
     "group": "办公后勤",
+    "categoryId": 10,
     "unit": "台",
     "referencePrice": "4200",
     "priceMin": "3800",
@@ -5482,12 +5483,11 @@
     "minOrder": "1台",
     "remark": "适用于水利工程办公设备采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-27T00:00:00.000Z",
     "createdAt": "2026-06-13T20:44:26.000Z",
-    "updatedAt": "2026-06-13T20:44:26.000Z",
-    "categoryId": 10,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T20:44:26.000Z"
   },
   {
     "id": "cmq3158378komt934760602",
@@ -5496,6 +5496,7 @@
     "specification": "含L型工位+人体工学椅+移动柜",
     "category": "办公家具",
     "group": "办公后勤",
+    "categoryId": 9,
     "unit": "套",
     "referencePrice": "3800",
     "priceMin": "3450",
@@ -5512,12 +5513,11 @@
     "minOrder": "1套",
     "remark": "适用于水利工程办公家具采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-04-03T00:00:00.000Z",
     "createdAt": "2026-06-13T23:13:37.000Z",
-    "updatedAt": "2026-06-13T23:13:37.000Z",
-    "categoryId": 9,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T23:13:37.000Z"
   },
   {
     "id": "cmq5088708komt168193952",
@@ -5526,6 +5526,7 @@
     "specification": "900×560×2350mm，冷轧钢板，5层7列",
     "category": "办公家具",
     "group": "办公后勤",
+    "categoryId": 9,
     "unit": "套",
     "referencePrice": "8500",
     "priceMin": "7500",
@@ -5542,12 +5543,11 @@
     "minOrder": "1套",
     "remark": "适用于水利工程办公家具采购预算参考，以协议价或最新市场询价为准。",
     "status": "即将过期",
+    "lifecycleStage": "即将过期",
+    "nationalStandard": null,
     "validUntil": "2026-07-06T00:00:00.000Z",
     "createdAt": "2026-06-13T17:05:47.000Z",
-    "updatedAt": "2026-06-13T17:05:47.000Z",
-    "categoryId": 9,
-    "lifecycleStage": "即将过期",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T17:05:47.000Z"
   },
   {
     "id": "cmq9239534komt157749025",
@@ -5556,6 +5556,7 @@
     "specification": "6m×3m×2.8m，含空调+照明+弱电",
     "category": "办公家具",
     "group": "办公后勤",
+    "categoryId": 9,
     "unit": "套",
     "referencePrice": "32000",
     "priceMin": "28000",
@@ -5572,12 +5573,11 @@
     "minOrder": "1套",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-04-02，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-04-02T00:00:00.000Z",
     "createdAt": "2026-06-13T23:40:31.000Z",
-    "updatedAt": "2026-06-13T23:40:31.000Z",
-    "categoryId": 9,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T23:40:31.000Z"
   },
   {
     "id": "cmq6303528komt782924806",
@@ -5586,6 +5586,7 @@
     "specification": "国VI标准，凝点≤0℃，十六烷值≥51",
     "category": "油料能源",
     "group": "办公后勤",
+    "categoryId": 11,
     "unit": "吨",
     "referencePrice": "8500",
     "priceMin": "8200",
@@ -5602,12 +5603,11 @@
     "minOrder": "1吨",
     "remark": "适用于水利工程油料能源采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-02-23T00:00:00.000Z",
     "createdAt": "2026-06-14T01:28:14.000Z",
-    "updatedAt": "2026-06-14T01:28:14.000Z",
-    "categoryId": 11,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T01:28:14.000Z"
   },
   {
     "id": "cmq4444700komt190001031",
@@ -5616,6 +5616,7 @@
     "specification": "国VIB标准，研究法辛烷值≥95",
     "category": "油料能源",
     "group": "办公后勤",
+    "categoryId": 11,
     "unit": "吨",
     "referencePrice": "9800",
     "priceMin": "9500",
@@ -5632,12 +5633,11 @@
     "minOrder": "1吨",
     "remark": "水利行业油料能源品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-08-06T00:00:00.000Z",
     "createdAt": "2026-06-13T20:21:52.000Z",
-    "updatedAt": "2026-06-13T20:21:52.000Z",
-    "categoryId": 11,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T20:21:52.000Z"
   },
   {
     "id": "cmq9399269komt452336789",
@@ -5646,6 +5646,7 @@
     "specification": "甲烷含量≥98%，供气≥1000Nm³/d",
     "category": "油料能源",
     "group": "办公后勤",
+    "categoryId": 11,
     "unit": "吨",
     "referencePrice": "5200",
     "priceMin": "4800",
@@ -5662,12 +5663,11 @@
     "minOrder": "1吨",
     "remark": "水利行业油料能源品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-11-26T00:00:00.000Z",
     "createdAt": "2026-06-13T18:05:16.000Z",
-    "updatedAt": "2026-06-13T18:05:16.000Z",
-    "categoryId": 11,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T18:05:16.000Z"
   },
   {
     "id": "cmq1550332komt540380319",
@@ -5676,6 +5676,7 @@
     "specification": "含水利工程甲级审查资质，13项审查内容",
     "category": "专业服务",
     "group": "服务采购",
+    "categoryId": 29,
     "unit": "项",
     "referencePrice": "55000",
     "priceMin": "48000",
@@ -5692,12 +5693,11 @@
     "minOrder": "1项",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-03-07，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-03-07T00:00:00.000Z",
     "createdAt": "2026-06-13T20:43:47.000Z",
-    "updatedAt": "2026-06-13T20:43:47.000Z",
-    "categoryId": 29,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T20:43:47.000Z"
   },
   {
     "id": "cmq8386537komt375315115",
@@ -5706,6 +5706,7 @@
     "specification": "含水保监测+监理+验收评估全流程",
     "category": "专业服务",
     "group": "服务采购",
+    "categoryId": 29,
     "unit": "项",
     "referencePrice": "85000",
     "priceMin": "75000",
@@ -5722,12 +5723,11 @@
     "minOrder": "1项",
     "remark": "适用于水利工程专业服务采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-01-17T00:00:00.000Z",
     "createdAt": "2026-06-14T01:11:31.000Z",
-    "updatedAt": "2026-06-14T01:11:31.000Z",
-    "categoryId": 29,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T01:11:31.000Z"
   },
   {
     "id": "cmq2003922komt968150044",
@@ -5736,6 +5736,7 @@
     "specification": "LOD400，含场地+结构+机电+族库",
     "category": "专业服务",
     "group": "服务采购",
+    "categoryId": 29,
     "unit": "项",
     "referencePrice": "120000",
     "priceMin": "105000",
@@ -5752,12 +5753,11 @@
     "minOrder": "1项",
     "remark": "专业服务专项物资，纳入集团集中采购目录，可用于预算编制、采购立项及询价比价。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-05-12T00:00:00.000Z",
     "createdAt": "2026-06-13T19:02:32.000Z",
-    "updatedAt": "2026-06-13T19:02:32.000Z",
-    "categoryId": 29,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T19:02:32.000Z"
   },
   {
     "id": "cmq3856346komt641865535",
@@ -5766,6 +5766,7 @@
     "specification": "含位移/渗流/应力/温度自动化监测",
     "category": "检测监测服务",
     "group": "服务采购",
+    "categoryId": 30,
     "unit": "项",
     "referencePrice": "45000",
     "priceMin": "38000",
@@ -5782,12 +5783,11 @@
     "minOrder": "1项",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-09-18，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-09-18T00:00:00.000Z",
     "createdAt": "2026-06-13T17:01:53.000Z",
-    "updatedAt": "2026-06-13T17:01:53.000Z",
-    "categoryId": 30,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T17:01:53.000Z"
   },
   {
     "id": "cmq2978291komt644842005",
@@ -5796,6 +5796,7 @@
     "specification": "回弹+超声+钻芯综合法，100点以内",
     "category": "检测监测服务",
     "group": "服务采购",
+    "categoryId": 30,
     "unit": "项",
     "referencePrice": "32000",
     "priceMin": "28000",
@@ -5812,12 +5813,11 @@
     "minOrder": "1项",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-04-08，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-04-08T00:00:00.000Z",
     "createdAt": "2026-06-14T00:56:05.000Z",
-    "updatedAt": "2026-06-14T00:56:05.000Z",
-    "categoryId": 30,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T00:56:05.000Z"
   },
   {
     "id": "cmq3496967komt850327557",
@@ -5826,6 +5826,7 @@
     "specification": "GB3838-2002表1+表2，109项指标",
     "category": "检测监测服务",
     "group": "服务采购",
+    "categoryId": 30,
     "unit": "项",
     "referencePrice": "18000",
     "priceMin": "15500",
@@ -5842,12 +5843,11 @@
     "minOrder": "1项",
     "remark": "水利行业检测监测服务品类标准产品，价格含税不含运费，实际以采购合同约定条款为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2026-12-22T00:00:00.000Z",
     "createdAt": "2026-06-14T02:02:36.000Z",
-    "updatedAt": "2026-06-14T02:02:36.000Z",
-    "categoryId": 30,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T02:02:36.000Z"
   },
   {
     "id": "cmq7645965komt560733034",
@@ -5856,6 +5856,7 @@
     "specification": "含6次巡检+2次大修+远程监控+备品备件",
     "category": "运维服务",
     "group": "服务采购",
+    "categoryId": 32,
     "unit": "项",
     "referencePrice": "85000",
     "priceMin": "78000",
@@ -5872,12 +5873,11 @@
     "minOrder": "1项",
     "remark": "适用于水利工程运维服务采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-05-26T00:00:00.000Z",
     "createdAt": "2026-06-13T19:07:42.000Z",
-    "updatedAt": "2026-06-13T19:07:42.000Z",
-    "categoryId": 32,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T19:07:42.000Z"
   },
   {
     "id": "cmq1414837komt188301923",
@@ -5886,6 +5886,7 @@
     "specification": "含SCADA/PLC/仪表调校+软件升级",
     "category": "运维服务",
     "group": "服务采购",
+    "categoryId": 32,
     "unit": "项",
     "referencePrice": "75000",
     "priceMin": "65000",
@@ -5902,12 +5903,11 @@
     "minOrder": "1项",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-08-02，如有更新以实际市场行情为准。",
     "status": "待复核",
+    "lifecycleStage": "待审核",
+    "nationalStandard": null,
     "validUntil": "2026-08-02T00:00:00.000Z",
     "createdAt": "2026-06-14T01:46:49.000Z",
-    "updatedAt": "2026-06-14T01:46:49.000Z",
-    "categoryId": 32,
-    "lifecycleStage": "待审核",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T01:46:49.000Z"
   },
   {
     "id": "cmq9533378komt734324699",
@@ -5916,6 +5916,7 @@
     "specification": "含100座阀门井半年度巡检+维修+润滑",
     "category": "运维服务",
     "group": "服务采购",
+    "categoryId": 32,
     "unit": "项",
     "referencePrice": "38000",
     "priceMin": "35000",
@@ -5932,12 +5933,11 @@
     "minOrder": "1项",
     "remark": "适用于水利工程运维服务采购预算参考，以协议价或最新市场询价为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-06-30T00:00:00.000Z",
     "createdAt": "2026-06-13T22:25:01.000Z",
-    "updatedAt": "2026-06-13T22:25:01.000Z",
-    "categoryId": 32,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T22:25:01.000Z"
   },
   {
     "id": "cmq9449355komt502906090",
@@ -5946,6 +5946,7 @@
     "specification": "17.5m半挂，载重30吨，四川省内",
     "category": "物流运输服务",
     "group": "服务采购",
+    "categoryId": 31,
     "unit": "项",
     "referencePrice": "4200",
     "priceMin": "3800",
@@ -5962,12 +5963,11 @@
     "minOrder": "1项",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2026-10-21，如有更新以实际市场行情为准。",
     "status": "价格波动",
+    "lifecycleStage": "价格异常",
+    "nationalStandard": null,
     "validUntil": "2026-10-21T00:00:00.000Z",
     "createdAt": "2026-06-13T17:51:56.000Z",
-    "updatedAt": "2026-06-14T00:00:00.000Z",
-    "categoryId": 31,
-    "lifecycleStage": "价格异常",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T00:00:00.000Z"
   },
   {
     "id": "cmq5974564komt313942038",
@@ -5976,6 +5976,7 @@
     "specification": "35吨散装水泥罐车，配送半径200km",
     "category": "物流运输服务",
     "group": "服务采购",
+    "categoryId": 31,
     "unit": "项",
     "referencePrice": "2800",
     "priceMin": "2500",
@@ -5992,12 +5993,11 @@
     "minOrder": "1项",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-03-31，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-03-31T00:00:00.000Z",
     "createdAt": "2026-06-14T01:02:56.000Z",
-    "updatedAt": "2026-06-14T01:02:56.000Z",
-    "categoryId": 31,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-14T01:02:56.000Z"
   },
   {
     "id": "cmq3253274komt767632877",
@@ -6006,6 +6006,7 @@
     "specification": "300吨级汽车吊+轴线车，含方案+路政",
     "category": "物流运输服务",
     "group": "服务采购",
+    "categoryId": 31,
     "unit": "项",
     "referencePrice": "52000",
     "priceMin": "48000",
@@ -6022,11 +6023,10 @@
     "minOrder": "1项",
     "remark": "本条目价格依据框架协议价制定，报价有效期至2027-06-19，如有更新以实际市场行情为准。",
     "status": "有效",
+    "lifecycleStage": "有效",
+    "nationalStandard": null,
     "validUntil": "2027-06-19T00:00:00.000Z",
     "createdAt": "2026-06-13T14:09:50.000Z",
-    "updatedAt": "2026-06-13T14:09:50.000Z",
-    "categoryId": 31,
-    "lifecycleStage": "有效",
-    "nationalStandard": null
+    "updatedAt": "2026-06-13T14:09:50.000Z"
   }
 ]

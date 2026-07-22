@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Sun, Sunset, Moon, CloudSun, ListTodo, PlayCircle, CalendarDays, AlertTriangle, Bell } from 'lucide-react';
+import { Sun, Sunset, Moon, CloudSun, ListTodo, PlayCircle, CalendarDays, AlertTriangle, Bell, ChevronRight } from 'lucide-react';
 import type { WorkArrangementDailyPlan, WorkArrangementWorkbenchOverview } from '@/lib/types/work-arrangements';
 import type { AuthUser } from '@/lib/api/auth';
-import { listNotifications, type NotificationItem } from '@/lib/api/notification';
+import { listNotifications } from '@/lib/api/notification';
+import type { WorkbenchStatKey } from '@/lib/work-arrangements/workbench';
 
 type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
 const TDP: Record<TimeOfDay,{g:string;gl:string;r:string;s:string;t:string;d:string}> = {
@@ -33,22 +34,26 @@ function periodLabel(h: number): string {
 }
 
 interface StatBadge {
-  key: string;
+  key: WorkbenchStatKey;
   label: string;
   value: number;
   icon: typeof ListTodo;
   color: string;
   bg: string;
+  tip: string;
 }
 
 export function WorkbenchOverview({
   currentUser,
   dailyPlan,
   summary,
+  onOpenStat,
 }: {
   currentUser: AuthUser | null;
   dailyPlan: WorkArrangementDailyPlan | null;
   summary: WorkArrangementWorkbenchOverview;
+  /** 点击统计徽章时回调；缺省则徽章不可点击 */
+  onOpenStat?: (key: WorkbenchStatKey) => void;
 }) {
   const now = new Date();
   const Icon = TDC[gtod2(now.getHours())].icon;
@@ -75,11 +80,11 @@ export function WorkbenchOverview({
   }, []);
 
   const badges: StatBadge[] = [
-    { key: 'notif', label: '通知待办', value: notificationCount, icon: Bell, color: '#7c3aed', bg: '#f5f3ff' },
-    { key: 'todo', label: '工作待办', value: summary.todoCount, icon: ListTodo, color: '#6366f1', bg: '#eef2ff' },
-    { key: 'progress', label: '进行中', value: summary.inProgressCount, icon: PlayCircle, color: '#0ea5e9', bg: '#f0f9ff' },
-    { key: 'today', label: '今日到期', value: summary.dueTodayCount, icon: CalendarDays, color: '#f59e0b', bg: '#fffbeb' },
-    { key: 'risk', label: '需注意', value: summary.riskCount, icon: AlertTriangle, color: '#ef4444', bg: '#fef2f2' },
+    { key: 'notif', label: '通知待办', value: notificationCount, icon: Bell, color: '#7c3aed', bg: '#f5f3ff', tip: '点击查看通知明细' },
+    { key: 'todo', label: '工作待办', value: summary.todoCount, icon: ListTodo, color: '#6366f1', bg: '#eef2ff', tip: '点击查看待处理任务' },
+    { key: 'inProgress', label: '进行中', value: summary.inProgressCount, icon: PlayCircle, color: '#0ea5e9', bg: '#f0f9ff', tip: '点击查看进行中任务' },
+    { key: 'dueToday', label: '今日到期', value: summary.dueTodayCount, icon: CalendarDays, color: '#f59e0b', bg: '#fffbeb', tip: '点击查看今日到期任务' },
+    { key: 'risk', label: '需注意', value: summary.riskCount, icon: AlertTriangle, color: '#ef4444', bg: '#fef2f2', tip: '点击查看受阻 / 已逾期任务' },
   ];
 
   return (
@@ -137,9 +142,13 @@ export function WorkbenchOverview({
       <div className="page-hero__row mt-3.5">
         <div className="flex flex-wrap items-center gap-2.5">
           {badges.map((b) => (
-            <div
+            <button
               key={b.key}
-              className="flex items-center gap-2 rounded-xl px-3.5 py-2"
+              type="button"
+              onClick={() => onOpenStat?.(b.key)}
+              title={b.tip}
+              aria-label={`${b.label} ${b.value}，${b.tip}`}
+              className="group/stat flex items-center gap-2 rounded-xl px-3.5 py-2 text-left transition-all duration-200 hover:-translate-y-0.5 hover:brightness-[0.98] hover:shadow-[0_4px_12px_oklch(0.4_0.06_258/0.12)] active:translate-y-0 active:shadow-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]/40"
               style={{ backgroundColor: b.bg }}
             >
               <b.icon size={14} style={{ color: b.color }} />
@@ -147,7 +156,11 @@ export function WorkbenchOverview({
                 {b.value}
               </span>
               <span className="text-[11px] font-semibold text-[#5a6d8a]">{b.label}</span>
-            </div>
+              <ChevronRight
+                size={12}
+                className="-ml-0.5 text-[#5a6d8a] opacity-0 transition-opacity duration-200 group-hover/stat:opacity-60"
+              />
+            </button>
           ))}
           {badges.every((b) => b.value === 0) && (
             <span className="text-[12px] text-[color:var(--muted-foreground)]">

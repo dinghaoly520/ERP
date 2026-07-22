@@ -74,10 +74,10 @@ function toMessageRow(m: any): ChatMessageRow {
 export class ChatService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** 所有启用账号，叠加在线状态 */
+  /** 系统内设人员（排除供应商、评审专家等外部账号），叠加在线状态 */
   async listUsers(onlineIds: Set<string>): Promise<ChatUserRow[]> {
     const users = await this.prisma.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, role: { notIn: ['supplier', 'bid_expert'] } },
       select: {
         id: true,
         username: true,

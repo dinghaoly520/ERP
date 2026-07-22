@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, getExpertEvalStats, createExpertEvaluation, getExpertEvaluations, getExpertDimensionStats, getAiAdoptionRate } from '@/lib/api/expert';
@@ -46,7 +46,21 @@ export default function ExpertEvaluationPage() {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 300);
     return () => clearTimeout(t);
   }, [search]);
-  const load = useCallback(async () => { setLoading(true); setErrored(false); try { setExperts(await listExperts({ search: debouncedSearch || undefined }) as ExpertListItem[]); } catch (e: any) { setErrored(true); toast.error(e?.message || '加载专家列表失败'); } setLoading(false); }, [debouncedSearch]);
+  // 搜索竞态守卫：递增 requestId，过期响应直接丢弃，避免旧结果覆盖新结果
+  const loadReqIdRef = useRef(0);
+  const load = useCallback(async () => {
+    const rid = ++loadReqIdRef.current;
+    setLoading(true); setErrored(false);
+    try {
+      const list = await listExperts({ search: debouncedSearch || undefined }) as ExpertListItem[];
+      if (rid !== loadReqIdRef.current) return;
+      setExperts(list);
+    } catch (e: any) {
+      if (rid !== loadReqIdRef.current) return;
+      setErrored(true); toast.error(e?.message || '加载专家列表失败');
+    }
+    setLoading(false);
+  }, [debouncedSearch]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { getExpertEvalStats().then(setStats).catch(() => toast.error('加载评价统计失败')); }, [experts.length]);
   useEffect(() => { getExpertDimensionStats().then(setDimStats).catch(() => toast.error('加载维度分布失败')); }, [experts.length]);

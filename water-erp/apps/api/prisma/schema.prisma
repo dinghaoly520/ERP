@@ -40,6 +40,7 @@ model User {
   supplier            Supplier?
   notifications       Notification[]
   supplierEvaluations SupplierEvaluation[]
+  qualificationAlertAcks QualificationAlertAck[] @relation("UserAlertAcks")
   bidExperts          BidExpert[]
   uploadedFiles       FileAsset[]
   createdProcurements ProcurementProject[]
@@ -308,6 +309,7 @@ model BidSupplier {
   confirmStatus         ConfirmStatus             @default(PENDING)
   project               BidProject                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   supplier              Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  invalidBids           BidInvalidBid[]           @relation("InvalidBidToBidSupplier")
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
   bidScoreRecords       BidScoreRecord[]
@@ -337,7 +339,7 @@ model BidInvalidBid {
   updatedAt   DateTime  @updatedAt
 
   project   BidProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  supplier  BidSupplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade) // Fixed: FK targets BidSupplier (not Supplier), matching code usage & migration
+  supplier  BidSupplier  @relation("InvalidBidToBidSupplier", fields: [supplierId], references: [id], onDelete: Cascade) // Fixed: FK targets BidSupplier (not Supplier), matching code usage & migration
   scoreItem BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, supplierId, scoreItemId])
@@ -736,10 +738,9 @@ model Supplier {
   bidSuppliers        BidSupplier[]
   bidSubmissions      SupplierBidSubmission[]
   bidDocumentAccesses BidDocumentAccess[]
-  bidInvalidBids      BidInvalidBid[]
   catalogApplications SupplierCatalogApplication[]
   catalogSupplies     CatalogSupplier[]
-  alertAcks           QualificationAlertAck[]
+  alertAcks           QualificationAlertAck[] @relation("SupplierAlertAcks")
   clarifications      BidClarification[]
   contractPrices       ContractPrice[]
 
@@ -779,10 +780,43 @@ model SupplierQualification {
   updatedAt  DateTime  @updatedAt
 
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  acks     QualificationAlertAck[]
+  acks     QualificationAlertAck[] @relation("QualAlertAcks")
 
   @@index([supplierId])
   @@index([validTo])
+}
+
+// B11：资质到期预警「已处理」确认记录，替代前端 sessionStorage（换浏览器/换设备不丢）
+model QualificationAlertAck {
+  id              String              @id @default(cuid())
+  qualificationId String
+  userId          String
+  supplierId      String
+  createdAt       DateTime            @default(now())
+
+  qualification   SupplierQualification @relation("QualAlertAcks", fields: [qualificationId], references: [id], onDelete: Cascade)
+  user            User                  @relation("UserAlertAcks", fields: [userId], references: [id], onDelete: Restrict)
+  supplier        Supplier              @relation("SupplierAlertAcks", fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([qualificationId, userId])
+  @@index([userId])
+}
+
+// #13 选取历史落库：替代多实例不安全的 JSON 文件存储（跨进程 read-modify-write 会丢记录/分裂）。
+model SupplierSelectionHistory {
+  id                  String   @id @default(cuid())
+  requirement         String
+  classificationId    String?
+  classificationName  String?
+  resultSummary       String
+  recommendationCount Int
+  candidatePool       Int
+  shortlistedIds      String[]
+  recommendations     Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 model SupplierClassification {
@@ -1910,6 +1944,7 @@ model ProjectManagementItem {
   demandContractNumber        String?
   contractNumber              String?
   departmentNumber            String?
+  projectCode                 String?                  @unique
   projectOverview             String?
   bidOpeningTime              String?
   invitedSuppliers            String?

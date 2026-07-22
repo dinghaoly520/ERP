@@ -8,7 +8,7 @@ import type { SupplierClassification } from '@/lib/types';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
-import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 
 const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
   { key: 'PENDING', label: '待审核', tone: 'blue' },
@@ -28,6 +28,7 @@ function SupplierApprovalPage() {
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
   const [counts, setCounts] = useState<Record<string, number>>({ PENDING: 0, RETURNED: 0, REJECTED: 0 });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchApproving, setBatchApproving] = useState(false);
@@ -89,8 +90,9 @@ function SupplierApprovalPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError('');
     try { const res = await getSupplierList({ status: tab, page, pageSize, sort: 'completeness' }); setData(res); }
-    catch {}
+    catch (e: any) { setError(e?.message || '审批列表加载失败'); } // B13 错误态
     setLoading(false);
   }, [tab, page, pageSize]);
 
@@ -183,6 +185,15 @@ function SupplierApprovalPage() {
         </div>
         </div>
       </div>
+
+      {/* B13 错误态 */}
+      {error && !loading && (
+        <div className="neu-card-static !rounded-2xl p-4 flex items-center gap-3" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
+          <AlertTriangle size={16} className="text-[var(--danger)] shrink-0" />
+          <span className="text-sm text-[var(--foreground)] flex-1">加载失败：{error}</span>
+          <button onClick={loadData} className="neu-btn-xs gap-1"><RefreshCw size={12} />重试</button>
+        </div>
+      )}
 
       {/* ══════ 工具栏卡片（tab + 搜索） ══════ */}
       <div className="wb-toolbar">

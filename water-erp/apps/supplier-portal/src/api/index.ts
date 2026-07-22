@@ -19,7 +19,14 @@ api.interceptors.response.use(
     const data = error.response?.data
 
     if (status === 401) {
-      // Clear local state and redirect to login
+      // 登录请求（含「密码正确但待审核/停用」返回的 ACCOUNT_PENDING）由 auth store 处理，
+      // 这里不弹「登录已过期」、不跳转，避免在登录页给出误导性提示。
+      const code = data?.code
+      const isLoginReq = /(^|\/)auth\/login$/.test(String(error.config?.url || ''))
+      if (code === 'ACCOUNT_PENDING' || isLoginReq) {
+        return Promise.reject(error)
+      }
+      // 已登录态过期：清本地缓存并回到登录页
       localStorage.removeItem('supplier_user')
       if (router.currentRoute.value.path !== '/login') {
         ElMessage.warning('登录已过期，请重新登录')

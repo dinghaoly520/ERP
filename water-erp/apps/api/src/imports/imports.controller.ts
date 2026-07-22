@@ -11,7 +11,7 @@ class ImportFromPathDto {
 
 @Controller('imports')
 @UseGuards(AuthGuard)
-@Roles('procurement_staff', 'leader', 'admin', 'staff')
+@Roles('leader', 'admin', 'staff')
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
 

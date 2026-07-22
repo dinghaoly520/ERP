@@ -46,7 +46,7 @@ export class SupplierPortraitAnalysisService {
         status: true, createdAt: true,
         classification: { select: { name: true } },
         classificationLinks: { include: { classification: { select: { name: true } } } },
-        qualifications: { select: { name: true, type: true, validFrom: true, validTo: true, status: true } },
+        qualifications: { select: { name: true, type: true, validFrom: true, validTo: true, status: true, updatedAt: true } },
         evaluations: {
           orderBy: { createdAt: 'desc' },
           select: { score: true, level: true, comment: true, completenessScore: true, responsivenessScore: true, cooperationScore: true, complianceScore: true, overallScore: true, createdAt: true },
@@ -57,20 +57,25 @@ export class SupplierPortraitAnalysisService {
     });
     if (!supplier) throw new Error('供应商不存在');
 
-    // C2 缓存：以「评价数 + 最新评价时间 + 最新资质变动」为版本号，命中则免调 LLM（成本/延迟大降）。
+    const now = new Date();
+    const qualValid = supplier.qualifications.filter(q => !q.validTo || new Date(q.validTo) >= now).length;
+    const qualExpiring = supplier.qualifications.filter(q => q.validTo && new Date(q.validTo) >= now && new Date(q.validTo).getTime() - now.getTime() < 90 * 86400000).length;
+    const qualExpired = supplier.qualifications.length - qualValid;
+
+    // C2 缓存：版本号含「评价数 + 最新评价时间 + 资质有效/过期/即将到期数 + 最新资质 updatedAt」。
+    // 此前 `??` 与三元混用优先级错误且 select 漏 updatedAt，导致资质编辑永不失效。资质过期会改变 qualExpired→key 变。
     const latestEvalAt = supplier.evaluations[0]?.createdAt?.getTime() ?? 0;
-    const latestQualAt = supplier.qualifications.reduce((m, q) => Math.max(m, (q as any).updatedAt?.getTime() ?? (q as any).validTo ? new Date((q as any).validTo || 0).getTime() : 0), 0);
-    const cacheVer = `${supplier.evaluations.length}-${latestEvalAt}-${latestQualAt}`;
+    const latestQualAt = supplier.qualifications.reduce(
+      (m, q) => Math.max(m, q.updatedAt?.getTime() ?? (q.validTo ? new Date(q.validTo).getTime() : 0)),
+      0,
+    );
+    const cacheVer = `${supplier.evaluations.length}-${latestEvalAt}-${qualValid}-${qualExpired}-${qualExpiring}-${latestQualAt}`;
     const cacheKey = CACHE_PREFIX + supplierId + ':' + cacheVer;
     try {
       const hit = await this.redis.get(cacheKey);
       if (hit) return JSON.parse(hit) as SupplierPortraitAnalysis;
     } catch { /* redis 不可用 → 跳过缓存，继续实时分析 */ }
 
-    const now = new Date();
-    const qualValid = supplier.qualifications.filter(q => !q.validTo || new Date(q.validTo) >= now).length;
-    const qualExpiring = supplier.qualifications.filter(q => q.validTo && new Date(q.validTo) >= now && new Date(q.validTo).getTime() - now.getTime() < 90 * 86400000).length;
-    const qualExpired = supplier.qualifications.length - qualValid;
     const evalCount = supplier.evaluations.length;
     const avgScore = evalCount > 0 ? (supplier.evaluations.reduce((s, e) => s + Number(e.score), 0) / evalCount).toFixed(1) : null;
     const recentEvals = supplier.evaluations.slice(0, 5).map(e => ({

@@ -8,6 +8,8 @@
     "action": "开放投递 (DOWNLOAD→SUBMIT)",
     "result": "阶段变更成功",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:44:54.384Z"
   },
   {
@@ -19,6 +21,8 @@
     "action": "编制评分标准",
     "result": "应用标准模板，新增 5 项",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:45:58.510Z"
   },
   {
@@ -30,6 +34,8 @@
     "action": "启动开标 (SUBMIT→OPENING)",
     "result": "阶段变更成功",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:45:58.670Z"
   },
   {
@@ -41,6 +47,8 @@
     "action": "标书解密",
     "result": "解密成功，等待供应商确认唱标信息（legacy 记录：未加密封存，仅完成完整性校验）",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:46:34.331Z"
   },
   {
@@ -52,6 +60,8 @@
     "action": "标书解密",
     "result": "解密成功，等待供应商确认唱标信息（legacy 记录：未加密封存，仅完成完整性校验）",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:46:34.370Z"
   },
   {
@@ -63,6 +73,8 @@
     "action": "录入唱标信息",
     "result": "报价 420万元 / 工期 180天",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:47:32.794Z"
   },
   {
@@ -74,6 +86,8 @@
     "action": "录入唱标信息",
     "result": "报价 398万元 / 工期 150天",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:47:32.821Z"
   },
   {
@@ -85,6 +99,8 @@
     "action": "确认唱标信息",
     "result": "供应商确认开标记录无误",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:47:32.854Z"
   },
   {
@@ -96,6 +112,8 @@
     "action": "确认唱标信息",
     "result": "供应商确认开标记录无误",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:47:32.886Z"
   },
   {
@@ -107,6 +125,8 @@
     "action": "启动评标 (OPENING→EVALUATING)",
     "result": "阶段变更成功",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:47:32.914Z"
   },
   {
@@ -118,6 +138,8 @@
     "action": "提交评分（供应商：重庆蜀通岩土工程有限公司）",
     "result": "共3项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:17.470Z"
   },
   {
@@ -129,6 +151,8 @@
     "action": "提交评分（供应商：成都华西物资供应有限公司）",
     "result": "共3项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:17.509Z"
   },
   {
@@ -140,6 +164,8 @@
     "action": "提交评分（供应商：重庆蜀通岩土工程有限公司）",
     "result": "共3项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:17.545Z"
   },
   {
@@ -151,6 +177,8 @@
     "action": "提交评分（供应商：成都华西物资供应有限公司）",
     "result": "共3项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:17.583Z"
   },
   {
@@ -162,6 +190,8 @@
     "action": "提交评分（供应商：重庆蜀通岩土工程有限公司）",
     "result": "共3项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:17.620Z"
   },
   {
@@ -173,6 +203,8 @@
     "action": "提交评分（供应商：成都华西物资供应有限公司）",
     "result": "共3项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:17.658Z"
   },
   {
@@ -184,6 +216,8 @@
     "action": "提交评分（供应商：重庆蜀通岩土工程有限公司）",
     "result": "共5项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.301Z"
   },
   {
@@ -195,6 +229,8 @@
     "action": "提交评分（供应商：成都华西物资供应有限公司）",
     "result": "共5项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.371Z"
   },
   {
@@ -206,6 +242,8 @@
     "action": "提交评分（供应商：重庆蜀通岩土工程有限公司）",
     "result": "共5项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.431Z"
   },
   {
@@ -217,6 +255,8 @@
     "action": "提交评分（供应商：成都华西物资供应有限公司）",
     "result": "共5项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.493Z"
   },
   {
@@ -228,6 +268,8 @@
     "action": "提交评分（供应商：重庆蜀通岩土工程有限公司）",
     "result": "共5项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.539Z"
   },
   {
@@ -239,6 +281,8 @@
     "action": "提交评分（供应商：成都华西物资供应有限公司）",
     "result": "共5项评分",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.585Z"
   },
   {
@@ -250,6 +294,8 @@
     "action": "确认评审报告",
     "result": "确认完成",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.614Z"
   },
   {
@@ -261,6 +307,8 @@
     "action": "确认评审报告",
     "result": "确认完成",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.645Z"
   },
   {
@@ -272,6 +320,8 @@
     "action": "确认评审报告",
     "result": "确认完成",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:36.676Z"
   },
   {
@@ -283,6 +333,8 @@
     "action": "生成评标结果",
     "result": "生成2家供应商排名",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:44.183Z"
   },
   {
@@ -294,6 +346,8 @@
     "action": "一键归档",
     "result": "归档 7 项",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-16T08:48:44.233Z"
   },
   {
@@ -305,6 +359,8 @@
     "action": "开放投递 (DOWNLOAD→SUBMIT)",
     "result": "阶段变更成功",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-17T02:05:00.000Z"
   },
   {
@@ -316,6 +372,8 @@
     "action": "开放投递 (DOWNLOAD→SUBMIT)",
     "result": "阶段变更成功",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-17T02:25:00.000Z"
   },
   {
@@ -327,6 +385,8 @@
     "action": "启动开标 (SUBMIT→OPENING)",
     "result": "阶段变更成功",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-17T02:30:00.000Z"
   },
   {
@@ -338,6 +398,8 @@
     "action": "标书解密",
     "result": "解密成功，等待供应商确认唱标信息",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-17T02:35:00.000Z"
   },
   {
@@ -349,6 +411,8 @@
     "action": "标书解密",
     "result": "解密异常：文件完整性校验不通过",
     "riskFlag": "高风险",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-17T02:36:00.000Z"
   },
   {
@@ -360,6 +424,8 @@
     "action": "公告发布，自动创建招标项目",
     "result": "阶段初始化为DOWNLOAD",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-10T00:00:00.000Z"
   },
   {
@@ -371,6 +437,8 @@
     "action": "开放投递 (DOWNLOAD→SUBMIT)",
     "result": "阶段变更成功",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-10T08:00:00.000Z"
   },
   {
@@ -382,6 +450,8 @@
     "action": "邀请3家供应商参与投标",
     "result": "已邀请：四川水发建设有限公司、中科院成都信息技术股份有限公司、四川省通信产业服务有限公司",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-10T08:00:00.000Z"
   },
   {
@@ -393,6 +463,8 @@
     "action": "提交标书",
     "result": "报价1080万元 / 工期365天",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-28T06:00:00.000Z"
   },
   {
@@ -404,6 +476,8 @@
     "action": "提交标书",
     "result": "报价1150万元 / 工期330天",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-29T02:00:00.000Z"
   },
   {
@@ -415,6 +489,8 @@
     "action": "提交标书",
     "result": "报价1198万元 / 工期300天",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-06-30T01:00:00.000Z"
   },
   {
@@ -426,6 +502,8 @@
     "action": "启动开标 (SUBMIT→OPENING)",
     "result": "阶段变更成功，解密窗口：7月1日10:00-11:30",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-07-01T01:00:00.000Z"
   },
   {
@@ -437,6 +515,8 @@
     "action": "标书解密",
     "result": "解密成功，等待供应商确认唱标信息",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-07-01T02:30:00.000Z"
   },
   {
@@ -448,6 +528,8 @@
     "action": "标书解密",
     "result": "解密成功，等待供应商确认唱标信息",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-07-01T02:35:00.000Z"
   },
   {
@@ -459,6 +541,8 @@
     "action": "标书解密",
     "result": "解密异常：文件完整性校验不通过，可能存在篡改风险",
     "riskFlag": "高风险",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-07-01T02:40:00.000Z"
   },
   {
@@ -470,6 +554,8 @@
     "action": "启动评标 (OPENING→EVALUATING)",
     "result": "阶段变更成功，进入专家评审阶段",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-07-01T03:20:00.000Z"
   },
   {
@@ -481,6 +567,8 @@
     "action": "专家抽取完成",
     "result": "成功抽取5位专家：周祥志, 黃凯, 陈英, 范鸿烨, 覃克非，均确认参与评标",
     "riskFlag": "无",
+    "operatorId": null,
+    "operatorRole": null,
     "createdAt": "2026-07-02T01:00:00.000Z"
   }
 ]

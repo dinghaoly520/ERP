@@ -74,7 +74,7 @@ export interface DefaultRiskInput {
 }
 export interface DefaultRiskPrediction {
   riskScore: number;        // 0-100，越高越可能违约/失约
-  level: '低风险' | '中风险' | '高风险';
+  level: '低风险' | '中风险' | '高风险' | '未知';
   confidence: number;       // 0-100，数据覆盖率
   drivers: string[];        // 命中的风险驱动因素（可解释）
   narrative: string;        // 一句话风险叙事
@@ -107,7 +107,9 @@ export function predictDefaultRisk(i: DefaultRiskInput): DefaultRiskPrediction {
   if (n === 0) drivers.push('暂无评价记录，履约表现未知（低置信）');
 
   risk = clamp01(risk);
-  const level = risk >= 65 ? '高风险' : risk >= 40 ? '中风险' : '低风险';
+  // #16 数据不足（无评价）时不得标「低风险」误导——单独「未知」档，由消费方据此提示而非当作低风险放行。
+  const level: DefaultRiskPrediction['level'] =
+    n === 0 ? '未知' : risk >= 65 ? '高风险' : risk >= 40 ? '中风险' : '低风险';
   const narrative =
     n === 0
       ? '该供应商尚无评价记录，无法可靠预测违约风险，建议先发起评价建立履约档案后再评估。'

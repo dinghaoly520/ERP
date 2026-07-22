@@ -120,6 +120,11 @@ export default function SupplierEvaluationPage() {
       toast.error(`请为以下维度填写评价依据：${missingEvidence.slice(0, 2).map(d => d.label).join('、')}${missingEvidence.length > 2 ? '等' : ''}`);
       return;
     }
+    // 防全 0 误提交：默认 0 起评，若各维皆 0 视为未实际打分，阻断提交（避免污染均分/淘汰预警）。
+    if (totalScore <= 0) {
+      toast.error('请至少为各维度打分后再提交（当前总分为 0）');
+      return;
+    }
     setSaving(true);
     try {
       await createEvaluation(evalModal.id, { ...scores, comment: comment || undefined, evidence });
@@ -329,7 +334,7 @@ export default function SupplierEvaluationPage() {
 
           {/* ══ 评分维度（每条嵌入 AI 建议）══ */}
           {DIMENSIONS.map(d => {
-            const aiDim = aiResult?.dimensions.find(ad => ad.label === d.label);
+            const aiDim = aiResult?.dimensions.find(ad => ad.dimension === d.label);
             const isAdopted = aiDim && scores[d.key] === aiDim.suggestedScore;
             return (
               <div key={d.key} className="rounded-xl p-4 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">

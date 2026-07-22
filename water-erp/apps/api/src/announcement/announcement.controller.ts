@@ -66,7 +66,7 @@ export class AnnouncementController {
   }
 
   @Get(':id/participants')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '招标公示投标情况（参与供应商 + 是否已投标）' })
   async getParticipants(@Param('id') id: string) {
     return this.announcementService.getParticipants(id);
@@ -81,14 +81,14 @@ export class AnnouncementController {
   }
 
   @Post(':id/attachments')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '添加公告附件' })
   async addAttachment(@Param('id') id: string, @Body() body: { fileAssetId: string; title?: string }) {
     return this.attachmentService.add(id, body.fileAssetId, body.title || '');
   }
 
   @Post(':id/attachments/from-object')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '从已有对象挂载公告附件（引用项目采购文件）' })
   async attachFromObject(
     @Param('id') id: string,
@@ -99,7 +99,7 @@ export class AnnouncementController {
   }
 
   @Delete('attachments/:aid')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '删除公告附件' })
   async removeAttachment(@Param('aid') aid: string) {
     return this.attachmentService.remove(aid);
@@ -115,14 +115,14 @@ export class AnnouncementController {
   // ─── 招标文件（加密 + 受控分发）───
 
   @Get(':id/bid-document')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '查看招标文件配置（管理端）' })
   async getBidDocument(@Param('id') id: string) {
     return this.bidDocumentService.getForManagement(id);
   }
 
   @Post(':id/bid-document')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -163,7 +163,7 @@ export class AnnouncementController {
   }
 
   @Put(':id/bid-document')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '更新招标文件访问配置' })
   async updateBidDocument(@Param('id') id: string, @Body() body: any) {
     const toBool = (v: any): boolean | undefined => {
@@ -182,14 +182,14 @@ export class AnnouncementController {
   }
 
   @Post(':id/bid-document/confirm-payment')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '确认供应商付款到账' })
   async confirmPayment(@Param('id') id: string, @Body() body: { supplierId: string; paymentRef?: string }) {
     return this.bidDocumentService.confirmPayment(id, body.supplierId, body.paymentRef);
   }
 
   @Delete(':id/bid-document')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '删除招标文件' })
   async removeBidDocument(@Param('id') id: string) {
     return this.bidDocumentService.remove(id);
@@ -204,21 +204,21 @@ export class AnnouncementController {
   }
 
   @Post()
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '创建公告' })
   async create(@Body() dto: CreateAnnouncementDto, @Request() req: any) {
     return this.announcementService.create(dto, req.user.sub);
   }
 
   @Put(':id')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '更新公告' })
   async update(@Param('id') id: string, @Body() dto: UpdateAnnouncementDto) {
     return this.announcementService.update(id, dto);
   }
 
   @Post(':id/generate-summary')
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'AI 重新生成摘要' })
   async generateSummary(@Param('id') id: string) {
     const ann = await this.announcementService.get(id);
@@ -236,7 +236,7 @@ export class AnnouncementController {
   }
 
   @Delete(':id')
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '删除公告' })
   async remove(@Param('id') id: string) {
     return this.announcementService.remove(id);

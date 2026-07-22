@@ -12,7 +12,6 @@ export function portalURL(app: AppName, path = '/'): string {
 export const ROLE_LANDING: Record<string, string> = {
   admin: '/bid',
   bid_host: '/bid',
-  procurement_staff: '/dashboard',
   supplier: '/dashboard',
   bid_expert: '/',
 };
@@ -21,7 +20,6 @@ export const ROLE_LANDING: Record<string, string> = {
 export const ROLE_PORTAL: Record<string, AppName> = {
   admin: 'bid',
   bid_host: 'bid',
-  procurement_staff: 'web',
   supplier: 'supplier',
   bid_expert: 'expert',
   mall: 'mall',

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Close, WarningFilled } from '@element-plus/icons-vue'
+import { WarningFilled } from '@element-plus/icons-vue'
+import { X } from 'lucide-vue-next'
 import { catalogApi } from '@/api/catalog'
 
 const props = defineProps<{
@@ -121,7 +122,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <!-- ═══ Custom glass panel overlay ═══ -->
+  <!-- ═══ Custom neumorphic panel overlay ═══ -->
   <Teleport to="body">
     <Transition name="app-dlg">
       <div v-if="visible" class="app-dlg-overlay" @click.self="handleBeforeClose(() => visible = false)">
@@ -129,8 +130,8 @@ async function handleSubmit() {
           <!-- Title bar -->
           <div class="app-dlg-head">
             <h2 class="app-dlg-title">{{ title }}</h2>
-            <button class="app-dlg-close" @click="handleBeforeClose(() => visible = false)">
-              <el-icon :size="18"><component is="Close" /></el-icon>
+            <button type="button" class="app-dlg-close" aria-label="关闭" @click="handleBeforeClose(() => visible = false)">
+              <X :size="16" :stroke-width="1.75" />
             </button>
           </div>
 
@@ -254,8 +255,8 @@ async function handleSubmit() {
 
           <!-- Footer -->
           <div class="app-dlg-foot">
-            <button class="app-dlg-btn cancel" @click="handleBeforeClose(() => visible = false)">取消</button>
-            <button class="app-dlg-btn primary" :disabled="submitting" @click="handleSubmit">
+            <button type="button" class="neu-btn-soft" @click="handleBeforeClose(() => visible = false)">取消</button>
+            <button type="button" class="neu-btn-primary" :disabled="submitting" @click="handleSubmit">
               {{ submitting ? '提交中...' : (mode === 'edit' ? '重新提交' : '提交申请') }}
             </button>
           </div>
@@ -266,86 +267,79 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-/* ═══════════ Overlay ═══════════ */
+/* ═══════════ Overlay — soft scrim (floating overlays keep the drop shadow, no pastel drift) ═══════════ */
 .app-dlg-overlay {
   position: fixed; inset: 0; z-index: 2100;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(15,35,65,0.12);
+  background: oklch(0.3 0.05 258 / 0.18);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
 
-/* ═══════════ Panel ═══════════ */
+/* ═══════════ Panel — cgzxui modal plate (borderless, directional shadow) ═══════════ */
 .app-dlg-panel {
   position: relative;
   width: 540px; max-width: calc(100vw - 48px); max-height: calc(100vh - 64px);
   display: flex; flex-direction: column;
-  background: rgba(255,255,255,0.62);
-  backdrop-filter: blur(28px) saturate(1.25);
-  -webkit-backdrop-filter: blur(28px) saturate(1.25);
-  border: 1px solid rgba(255,255,255,0.48);
-  border-radius: 20px;
-  box-shadow: 0 4px 8px rgba(15,35,65,0.04), 0 16px 48px rgba(91,155,213,0.10);
+  background: var(--bg);
+  border: none; border-radius: 20px;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 0 20px 60px oklch(0.3 0.05 258 / 0.18);
   overflow: hidden;
-}
-.app-dlg-panel::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  opacity: 0.46; border-radius: inherit;
-  background-image:
-    radial-gradient(ellipse at 15% 8%,  rgba(147,197,253,0.26), transparent 55%),
-    radial-gradient(ellipse at 85% 14%, rgba(168,139,250,0.16), transparent 55%),
-    radial-gradient(ellipse at 40% 88%, rgba(110,231,183,0.10), transparent 55%);
-  animation: glass-glow-drift 20s ease-in-out infinite;
 }
 
 /* ═══════════ Head ═══════════ */
 .app-dlg-head {
-  position: relative; z-index: 2;
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 24px 14px;
-  border-bottom: 1px solid rgba(0,0,0,0.04);
+  background: oklch(1 0 0 / 0.3);
+  border-bottom: 1px solid var(--hairline);
 }
 .app-dlg-title {
-  margin: 0; font-size: 17px; font-weight: 900; color: var(--sp-gray-900); letter-spacing: -0.01em;
+  margin: 0; font-size: 17px; font-weight: 900; color: var(--foreground); letter-spacing: -0.01em;
 }
 .app-dlg-close {
-  width: 32px; height: 32px; border-radius: 10px; border: none;
+  width: 32px; height: 32px; border-radius: 9px; border: none;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.04); color: var(--sp-gray-400);
-  cursor: pointer; transition: background 0.15s, color 0.15s;
+  background: var(--surface); color: var(--muted-foreground); cursor: pointer;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.18s ease;
 }
-.app-dlg-close:hover { background: rgba(0,0,0,0.08); color: var(--sp-gray-600); }
+.app-dlg-close:hover { color: var(--danger); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9); }
+.app-dlg-close:active { transform: none;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
 
 /* ═══════════ Body ═══════════ */
 .app-dlg-body {
-  position: relative; z-index: 2;
   flex: 1; overflow-y: auto;
   padding: 20px 24px;
 }
 
-/* ── Item badge ── */
+/* ── Item badge — concave plate ── */
 .app-dlg-item-badge {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   padding: 12px 16px; margin-bottom: 18px;
-  background: rgba(255,255,255,0.40); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255,255,255,0.40); border-radius: 12px;
+  background: oklch(0.99 0.004 258); border: none; border-radius: 12px;
   font-size: 13px;
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.8);
 }
-.app-dlg-item-code { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-weight: 800; color: var(--sp-primary); font-size: 11px; }
-.app-dlg-item-sep  { color: var(--sp-gray-300); }
-.app-dlg-item-name { font-weight: 800; color: var(--sp-gray-900); }
-.app-dlg-item-spec { color: var(--sp-gray-400); font-size: 12px; }
-.app-dlg-item-unit { color: var(--sp-gray-400); font-size: 12px; margin-left: auto; }
+.app-dlg-item-code { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-weight: 800; color: var(--brand); font-size: 11px; }
+.app-dlg-item-sep  { color: var(--hairline); }
+.app-dlg-item-name { font-weight: 800; color: var(--foreground); }
+.app-dlg-item-spec { color: var(--muted-foreground); font-size: 12px; }
+.app-dlg-item-unit { color: var(--muted-foreground); font-size: 12px; margin-left: auto; }
 
 /* ── Countered warning ── */
 .app-dlg-countered {
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 18px; padding: 10px 14px;
-  background: rgba(255,251,235,0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(250,204,21,0.30); border-radius: 10px;
-  font-size: 13px; color: #92400e;
+  background: color-mix(in oklab, var(--warning) 10%, transparent);
+  border: none; border-radius: 10px;
+  font-size: 13px; color: var(--foreground);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
-.app-dlg-countered strong { color: #dc2626; font-size: 15px; }
+.app-dlg-countered .el-icon { color: var(--warning); flex-shrink: 0; }
+.app-dlg-countered strong { color: var(--danger); font-size: 15px; font-variant-numeric: tabular-nums; }
 
 /* ═══════════ Form ═══════════ */
 .app-dlg-form { display: flex; flex-direction: column; gap: 16px; }
@@ -355,22 +349,25 @@ async function handleSubmit() {
 .app-dlg-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 
 .app-dlg-label {
-  font-size: 12px; font-weight: 700; color: var(--sp-gray-600); letter-spacing: 0.02em;
+  font-size: 12px; font-weight: 700; color: var(--foreground); letter-spacing: 0.02em;
 }
-.app-dlg-label i { font-style: normal; color: var(--sp-red); }
-.app-dlg-label-hint { font-weight: 400; color: var(--sp-gray-400); }
+.app-dlg-label i { font-style: normal; color: var(--danger); }
+.app-dlg-label-hint { font-weight: 400; color: var(--muted-foreground); }
 
-/* ── Native inputs → extreme glass ── */
+/* ── Native inputs → concave wells ── */
 .app-dlg-input {
   width: 100%; height: 40px; padding: 0 12px;
-  font-size: 14px; color: var(--sp-gray-900);
-  background: rgba(255,255,255,0.22); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255,255,255,0.36); border-radius: 10px;
-  outline: none; transition: border-color 0.15s, box-shadow 0.15s;
-  box-sizing: border-box;
+  font: inherit; font-size: 14px; color: var(--foreground);
+  background: oklch(0.99 0.004 258); border: 1px solid oklch(0.78 0.03 258 / 0.4); border-radius: 10px;
+  outline: none; box-sizing: border-box;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.app-dlg-input::placeholder { color: var(--sp-gray-300); }
-.app-dlg-input:focus { border-color: var(--sp-primary); box-shadow: 0 0 0 3px rgba(6,78,162,0.08); }
+.app-dlg-input::placeholder { color: oklch(0.74 0.02 258); }
+.app-dlg-input:focus {
+  border-color: oklch(0.5 0.16 258 / 0.5);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+}
 .app-dlg-input[type="number"] { -moz-appearance: textfield; }
 .app-dlg-input[type="number"]::-webkit-inner-spin-button,
 .app-dlg-input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -379,63 +376,45 @@ async function handleSubmit() {
   height: auto; padding: 10px 12px; resize: vertical; line-height: 1.6;
 }
 .app-dlg-charcount {
-  align-self: flex-end; font-size: 11px; color: var(--sp-gray-400); margin-top: -10px;
+  align-self: flex-end; font-size: 11px; color: var(--muted-foreground); margin-top: -10px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ── Price input ── */
+/* ── Price input — concave wrapper, transparent inner field ── */
 .app-dlg-price-input {
   display: flex; align-items: center;
-  background: rgba(255,255,255,0.22); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255,255,255,0.36); border-radius: 10px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  background: oklch(0.99 0.004 258); border: 1px solid oklch(0.78 0.03 258 / 0.4); border-radius: 10px;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.app-dlg-price-input:focus-within { border-color: var(--sp-primary); box-shadow: 0 0 0 3px rgba(6,78,162,0.08); }
+.app-dlg-price-input:focus-within {
+  border-color: oklch(0.5 0.16 258 / 0.5);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+}
 .app-dlg-currency {
-  padding: 0 0 0 12px; font-size: 15px; font-weight: 700; color: var(--sp-gray-400);
+  padding: 0 0 0 12px; font-size: 15px; font-weight: 700; color: var(--muted-foreground);
 }
 .app-dlg-price-input .app-dlg-input {
-  border: none; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none;
-  box-shadow: none;
+  border: none; background: transparent; box-shadow: none;
 }
 .app-dlg-price-input .app-dlg-input:focus { box-shadow: none; }
 
-/* ── Select wrappers ── */
-.app-dlg-select-wrap { }
+/* ── Select wrappers (el-input wells already styled by cgzxui global layer) ── */
 .app-dlg-select-wrap :deep(.el-select) { width: 100%; }
-.app-dlg-select-wrap :deep(.el-input__wrapper) {
-  background: rgba(255,255,255,0.22) !important; backdrop-filter: blur(6px) !important; -webkit-backdrop-filter: blur(6px) !important;
-  border-radius: 10px !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.36) inset !important;
-}
 
 /* ── Checkboxes ── */
 .app-dlg-checks { display: flex; align-items: center; gap: 16px; height: 40px; }
-.app-dlg-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--sp-gray-700); cursor: pointer; }
-.app-dlg-check input[type="checkbox"] { accent-color: var(--sp-primary); width: 16px; height: 16px; cursor: pointer; }
+.app-dlg-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--foreground); cursor: pointer; }
+.app-dlg-check input[type="checkbox"] { accent-color: var(--brand); width: 16px; height: 16px; cursor: pointer; }
 
-/* ═══════════ Footer ═══════════ */
+/* ═══════════ Footer — buttons come from cgzxui .neu-btn-soft / .neu-btn-primary ═══════════ */
 .app-dlg-foot {
-  position: relative; z-index: 2;
   display: flex; justify-content: flex-end; gap: 10px;
   padding: 14px 24px 18px;
-  background: rgba(255,255,255,0.34);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(0,0,0,0.04);
+  background: oklch(1 0 0 / 0.3);
+  border-top: 1px solid var(--hairline);
 }
-.app-dlg-btn {
-  padding: 10px 24px; border-radius: 10px; border: none;
-  font-size: 14px; font-weight: 700; cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
-}
-.app-dlg-btn.cancel {
-  background: rgba(255,255,255,0.38); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255,255,255,0.40); color: var(--sp-gray-600);
-}
-.app-dlg-btn.cancel:hover { background: rgba(255,255,255,0.60); }
-.app-dlg-btn.primary {
-  background: var(--sp-primary); color: #fff;
-}
-.app-dlg-btn.primary:hover { background: var(--sp-primary-light); }
-.app-dlg-btn.primary:disabled { opacity: 0.55; cursor: default; }
+.app-dlg-foot .neu-btn-primary { height: 40px; padding: 0 22px; }
 
 /* ═══════════ Transition ═══════════ */
 .app-dlg-enter-active { transition: opacity 0.2s ease; }
@@ -447,14 +426,9 @@ async function handleSubmit() {
 .app-dlg-leave-to { opacity: 0; }
 .app-dlg-leave-to .app-dlg-panel { transform: scale(0.97); opacity: 0; }
 
-/* ═══════════ Deep glass overrides for el-select inside dialog ═══════════ */
-:deep(.el-select-dropdown) {
-  background: rgba(255,255,255,0.58) !important;
-  backdrop-filter: blur(22px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(22px) saturate(1.2) !important;
-  border: 1px solid rgba(255,255,255,0.44) !important;
-  border-radius: 12px !important;
+@media (prefers-reduced-motion: reduce) {
+  .app-dlg-close { transition: none; }
+  .app-dlg-enter-active, .app-dlg-enter-active .app-dlg-panel,
+  .app-dlg-leave-active, .app-dlg-leave-active .app-dlg-panel { transition: none; }
 }
-:deep(.el-select-dropdown__item) { background: transparent !important; }
-:deep(.el-select-dropdown__item.hover) { background: rgba(239,246,255,0.55) !important; }
 </style>

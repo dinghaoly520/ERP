@@ -5,6 +5,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { AiService } from './ai.service';
 import { SupplierEvaluationAnalysisService } from './supplier-evaluation-analysis.service';
 import { SupplierPortraitAnalysisService } from './supplier-portrait-analysis.service';
+import { ShareShortlistDto } from './dto/share-shortlist.dto';
 
 @ApiTags('AI辅助评标')
 @ApiCookieAuth('token')
@@ -36,21 +37,21 @@ export class AiController {
 
   @Get('projects/:projectId/anomalies')
   @ApiOperation({ summary: 'AI评分异常检测' })
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   async detectAnomalies(@Param('projectId') projectId: string) {
     return this.aiService.detectAnomalies(projectId);
   }
 
   @Get('projects/:projectId/risk-scores')
   @ApiOperation({ summary: 'AI供应商风险评分' })
-  @Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   async getSupplierRiskScores(@Param('projectId') projectId: string) {
     return this.aiService.getSupplierRiskScores(projectId);
   }
 
   @Post('supplier-selection')
   @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
-  @Roles('admin', 'procurement_staff', 'bid_expert', 'bid_host', 'leader', 'staff')
+  @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
   async recommendSuppliers(
     @Body() body: { requirement?: string; classificationId?: string; maxCount?: number },
   ) {
@@ -70,7 +71,7 @@ export class AiController {
 
   @Post('dashboard-summary')
   @ApiOperation({ summary: 'AI采购运营总览摘要' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async dashboardSummary(
     @Body() body: {
       supplier?: { total: number; approved: number; pending: number; risk: number };
@@ -85,40 +86,40 @@ export class AiController {
 
   @Get('ai-calibration')
   @ApiOperation({ summary: 'P1-E：全局 AI 评分校准（跨项目采纳率 + category 偏差）' })
-  @Roles('admin', 'procurement_staff', 'bid_host', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   getAiCalibration() { return this.aiService.getAiCalibration(); }
 
   @Post('dashboard-analysis')
   @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入）' })
-  @Roles('admin', 'procurement_staff', 'bid_host', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   async dashboardAnalysis(@Body() payload: any) {
     return this.aiService.analyzeDashboard(payload);
   }
 
   @Post('procurement-analysis')
   @ApiOperation({ summary: 'AI采购台账分析' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async procurementAnalysis(@Body() payload: any) {
     return this.aiService.analyzeProcurementLedger(payload);
   }
 
   @Post('tender-field-generate')
   @ApiOperation({ summary: 'AI招标字段内容生成' })
-  @Roles('admin', 'procurement_staff', 'bid_host', 'leader', 'staff')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   async tenderFieldGenerate(@Body() payload: any) {
     return this.aiService.generateTenderFieldContent(payload);
   }
 
   @Post('reference-budget')
   @ApiOperation({ summary: 'AI参考预算生成' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async referenceBudget(@Body() payload: any) {
     return this.aiService.generateReferenceBudget(payload);
   }
 
   @Post('generate-notification')
   @ApiOperation({ summary: 'AI生成供应商通知文案' })
-  @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
+  @Roles('admin', 'bid_expert', 'leader', 'staff')
   async generateNotificationContent(
     @Body() payload: { projectName?: string; projectCode?: string; supplierNames: string[] },
   ) {
@@ -127,7 +128,7 @@ export class AiController {
 
   @Post('polish-requirement')
   @ApiOperation({ summary: 'AI润色采购需求描述' })
-  @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
+  @Roles('admin', 'bid_expert', 'leader', 'staff')
   async polishRequirement(@Body() payload: { text: string; projectName?: string; procurementMethod?: string; deadline?: string }) {
     if (!payload.text?.trim()) throw new BadRequestException('请提供需求文本');
     return this.aiService.polishRequirement(payload.text.trim(), {
@@ -139,7 +140,7 @@ export class AiController {
 
   @Post('polish-initiation-field')
   @ApiOperation({ summary: 'AI优化立项事由/供方要求（基于上传的需求表与立项表）' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async polishInitiationField(@Body() payload: {
     field: 'projectReason' | 'supplierRequirements';
     text: string;
@@ -162,7 +163,7 @@ export class AiController {
 
   @Post('supplier-evaluation-analysis')
   @ApiOperation({ summary: 'AI供应商评价维度分析' })
-  @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
+  @Roles('admin', 'bid_expert', 'leader', 'staff')
   async supplierEvaluationAnalysis(@Body() payload: { supplierId: string }) {
     if (!payload.supplierId) throw new BadRequestException('请提供 supplierId');
     return this.supplierEvalAnalysis.analyze(payload.supplierId);
@@ -170,7 +171,7 @@ export class AiController {
 
   @Post('supplier-portrait-analysis')
   @ApiOperation({ summary: 'AI供应商综合画像分析' })
-  @Roles('admin', 'procurement_staff', 'bid_expert', 'leader', 'staff')
+  @Roles('admin', 'bid_expert', 'leader', 'staff')
   async getSupplierPortraitAnalysis(@Body() payload: { supplierId: string }) {
     if (!payload.supplierId) throw new BadRequestException('请提供 supplierId');
     return this.supplierPortraitAnalysis.analyze(payload.supplierId);
@@ -179,7 +180,7 @@ export class AiController {
   // ── C8 履约违约风险预测 ──
   @Get('supplier-default-risk')
   @ApiOperation({ summary: '供应商履约违约风险预测（规则+诚实置信度）' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async predictDefaultRisk(@Query('supplierId') supplierId: string) {
     if (!supplierId) throw new BadRequestException('请提供 supplierId');
     return this.aiService.predictSupplierDefaultRisk(supplierId);
@@ -188,35 +189,35 @@ export class AiController {
   // ── A2 选取历史 / 候选名单 / 分享（此前路由缺失致前端死链）──
   @Get('selection-history')
   @ApiOperation({ summary: '选取历史列表' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async listSelectionHistory() { return this.aiService.listSelectionHistory(); }
 
   @Get('selection-history/:id')
   @ApiOperation({ summary: '选取历史详情' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async getSelectionHistory(@Param('id') id: string) { return this.aiService.getSelectionHistoryDetail(id); }
 
   @Get('selection-history/:id/shortlist')
   @ApiOperation({ summary: '恢复候选名单（返回该次推荐）' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async getSelectionShortlist(@Param('id') id: string) { return this.aiService.getSelectionHistoryShortlist(id); }
 
   @Patch('selection-history/:id/shortlist')
   @ApiOperation({ summary: '更新候选名单勾选' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async updateSelectionShortlist(@Param('id') id: string, @Body() body: { shortlistedIds: string[] }) {
     return this.aiService.updateSelectionShortlist(id, body?.shortlistedIds ?? []);
   }
 
   @Delete('selection-history/:id')
   @ApiOperation({ summary: '删除选取历史' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
+  @Roles('admin', 'leader', 'staff')
   async deleteSelectionHistory(@Param('id') id: string) { return this.aiService.deleteSelectionHistory(id); }
 
   @Post('share-shortlist')
   @ApiOperation({ summary: '分享候选名单给采购主管' })
-  @Roles('admin', 'procurement_staff', 'leader', 'staff')
-  async shareShortlist(@Body() body: { requirement: string; shortlist: { name: string; matchScore: number; reason: string }[]; note?: string }) {
+  @Roles('admin', 'leader', 'staff')
+  async shareShortlist(@Body() body: ShareShortlistDto) {
     return this.aiService.shareShortlist(body);
   }
 }

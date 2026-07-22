@@ -38,7 +38,7 @@ describe('UploadService — download permission', () => {
     expect(minioClient.getObject).toHaveBeenCalled();
   });
 
-  it('allows admin/bid_host/procurement_staff for non-bid-submission files', async () => {
+  it('allows admin/bid_host/leader/staff for non-bid-submission files', async () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     prisma.supplierBidSubmission.findFirst.mockResolvedValue(null); // file not part of any submission
     await service.streamFile('fa-1', { sub: 'u-host', role: 'bid_host' }, res);

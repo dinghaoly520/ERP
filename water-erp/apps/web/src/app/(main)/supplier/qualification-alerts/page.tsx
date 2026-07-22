@@ -5,45 +5,53 @@ import Link from 'next/link';
 import { AlertTriangle, Building2, Clock3, Check, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getQualificationAlerts } from '@/lib/api/supplier';
+import { getQualificationAlerts, acknowledgeQualificationAlert } from '@/lib/api/supplier';
 import type { QualificationAlerts, QualificationAlertItem } from '@/lib/api/supplier';
-
-const DISMISSED_KEY = 'qual-alerts-dismissed';
 
 export default function QualificationAlertsPage() {
   const router = useRouter();
   const [data, setData] = useState<QualificationAlerts | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [acking, setAcking] = useState<string | null>(null);
+  // 本次会话内「临时撤销已处理」的 id 集合（仅前端显示用，不改动后端确认记录）。
+  const [restoredIds, setRestoredIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    getQualificationAlerts().then(setData).catch(() => {}).finally(() => setLoading(false));
+  const load = () => {
+    setLoading(true);
+    getQualificationAlerts().then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, []);
+
+  // 已处理 = 后端 acked 且本次未临时撤销。
+  const isDismissed = (i: QualificationAlertItem) => i.acked && !restoredIds.has(i.id);
+
+  const dismissItem = async (id: string) => {
+    setAcking(id);
     try {
-      const saved = sessionStorage.getItem(DISMISSED_KEY);
-      if (saved) setDismissedIds(new Set(JSON.parse(saved)));
-    } catch {}
-  }, []);
-
-  const dismissItem = (id: string) => {
-    const next = new Set(dismissedIds);
-    next.add(id);
-    setDismissedIds(next);
-    try { sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...next])); } catch {}
-    toast.success('已标记为已处理');
+      await acknowledgeQualificationAlert(id);
+      // 若该项此前被「恢复全部」临时撤销过，ack 成功后须移出 restoredIds，否则行仍显示、标记看似无效。
+      setRestoredIds(s => { if (!s.has(id)) return s; const n = new Set(s); n.delete(id); return n; });
+      toast.success('已标记为已处理');
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || '标记失败');
+    } finally {
+      setAcking(null);
+    }
   };
 
   const unDismissAll = () => {
-    setDismissedIds(new Set());
-    try { sessionStorage.removeItem(DISMISSED_KEY); } catch {}
-    toast.success('已恢复全部预警');
+    // 仅在本次会话内重新显示已处理项；后端确认记录保留（持久化语义）。
+    setRestoredIds(new Set((data?.items || []).filter(i => i.acked).map(i => i.id)));
+    toast.success('已在本会话内恢复显示（后端记录未清除）');
   };
 
   const filtered = (data?.items || [])
     .filter(i => !statusFilter || i.status === statusFilter)
-    .filter(i => !dismissedIds.has(i.id));
+    .filter(i => !isDismissed(i));
 
-  const dismissedCount = (data?.items || []).filter(i => dismissedIds.has(i.id)).length;
+  const dismissedCount = (data?.items || []).filter(isDismissed).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -139,8 +147,8 @@ export default function QualificationAlertsPage() {
                         </span>
                       </td>
                       <td>
-                        <button onClick={() => dismissItem(q.id)} className="neu-btn-xs gap-1" title="标记为已处理">
-                          <Check size={11} />已处理
+                        <button onClick={() => dismissItem(q.id)} disabled={acking === q.id} className="neu-btn-xs gap-1" title="标记为已处理（入库，跨设备保留）">
+                          <Check size={11} />{acking === q.id ? '处理中' : '已处理'}
                         </button>
                       </td>
                     </tr>

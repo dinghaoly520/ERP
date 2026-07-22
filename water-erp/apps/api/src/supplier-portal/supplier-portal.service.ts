@@ -254,11 +254,27 @@ export class SupplierPortalService {
   // ─── Bid Projects (投标机会 — supplier-facing) ───
   // 仅返回项目公开字段 + 投标方数量。绝不暴露其他投标方身份、开标记录、
   // 专家名单与评分等评审内部信息（这些是 BidController 受角色保护的原因）。
-  async listBidProjects(page = 1, pageSize = 20) {
+  async listBidProjects(
+    page = 1,
+    pageSize = 20,
+    filters: { search?: string; stage?: string } = {},
+  ) {
     const skip = (page - 1) * pageSize;
-    const [total, items] = await Promise.all([
-      this.prisma.bidProject.count(),
+    // 搜索仅作用于 name/projectCode（不区分大小写）；baseWhere 不含 stage，
+    // 以便 groupBy 给出「各阶段计数」供前端页签/统计使用（搜索时计数随之收窄）。
+    const kw = filters.search?.trim();
+    const baseWhere: any = {};
+    if (kw) {
+      baseWhere.OR = [
+        { name: { contains: kw, mode: 'insensitive' } as any },
+        { projectCode: { contains: kw, mode: 'insensitive' } as any },
+      ];
+    }
+    const where: any = filters.stage ? { ...baseWhere, stage: filters.stage } : baseWhere;
+    const [total, items, groups] = await Promise.all([
+      this.prisma.bidProject.count({ where }),
       this.prisma.bidProject.findMany({
+        where,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -275,8 +291,11 @@ export class SupplierPortalService {
           _count: { select: { suppliers: true } },
         },
       }),
+      this.prisma.bidProject.groupBy({ by: ['stage'], _count: { _all: true }, where: baseWhere }),
     ]);
-    return { total, page, pageSize, items };
+    const stageCounts: Record<string, number> = {};
+    for (const g of groups) stageCounts[g.stage] = g._count._all;
+    return { total, page, pageSize, items, stageCounts };
   }
 
   async getBidProject(id: string) {
@@ -291,6 +310,8 @@ export class SupplierPortalService {
         deadline: true,
         stage: true,
         riskNote: true,
+        bondRequired: true,
+        bondAmount: true,
         createdAt: true,
         clarifications: {
           orderBy: { createdAt: 'asc' },
@@ -509,8 +530,9 @@ export class SupplierPortalService {
             });
           }
         }
+        let submission;
         if (existing) {
-          return tx.supplierBidSubmission.update({
+          submission = await tx.supplierBidSubmission.update({
             where: { id: existing.id },
             data: {
               ...pickBidSubmissionFields(data),
@@ -521,19 +543,46 @@ export class SupplierPortalService {
               coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
             },
           });
+        } else {
+          submission = await tx.supplierBidSubmission.create({
+            data: {
+              supplierId,
+              projectId,
+              ...pickBidSubmissionFields(data),
+              status: 'submitted',
+              submittedAt: now,
+              technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
+              businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
+              coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
+            },
+          });
         }
-        return tx.supplierBidSubmission.create({
-          data: {
-            supplierId,
-            projectId,
-            ...pickBidSubmissionFields(data),
-            status: 'submitted',
-            submittedAt: now,
-            technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
-            businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
-            coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
-          },
+
+        // #21 BidSupplier 一并纳入事务：此前在事务外，submission 已成后此处失败会留状态不一致且无补偿。
+        const existingBidSupplier = await tx.bidSupplier.findFirst({
+          where: { projectId, supplierName: supplier.name },
         });
+        if (existingBidSupplier) {
+          await tx.bidSupplier.update({
+            where: { id: existingBidSupplier.id },
+            data: { supplierId, submitStatus: '已提交', encryptStatus: '密文已校验' },
+          });
+        } else {
+          const receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
+          await tx.bidSupplier.create({
+            data: {
+              projectId,
+              supplierId,
+              supplierName: supplier.name,
+              downloadStatus: '已下载',
+              submitStatus: '已提交',
+              encryptStatus: '密文已校验',
+              receiptNo,
+            },
+          });
+        }
+
+        return submission;
       });
     } catch (err) {
       // 事务失败：清理本次新写的 sealed 密文，避免 MinIO 孤儿对象。
@@ -544,31 +593,6 @@ export class SupplierPortalService {
         throw new ConflictException({ error: '该标书已提交，请勿重复提交', code: 'ALREADY_SUBMITTED' });
       }
       throw err;
-    }
-
-    // Also create/update BidSupplier record for bid management
-    const existingBidSupplier = await this.prisma.bidSupplier.findFirst({
-      where: { projectId, supplierName: supplier.name },
-    });
-
-    if (existingBidSupplier) {
-      await this.prisma.bidSupplier.update({
-        where: { id: existingBidSupplier.id },
-        data: { supplierId, submitStatus: '已提交', encryptStatus: '密文已校验' },
-      });
-    } else {
-      const receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
-      await this.prisma.bidSupplier.create({
-        data: {
-          projectId,
-          supplierId,
-          supplierName: supplier.name,
-          downloadStatus: '已下载',
-          submitStatus: '已提交',
-          encryptStatus: '密文已校验',
-          receiptNo,
-        },
-      });
     }
 
     return submission;
