@@ -42,6 +42,7 @@ export default function ExpertEvaluatePage() {
   const [step, setStep] = useState<Step>('verify');
   const [activeSupplier, setActiveSupplier] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
   const [busy, setBusy] = useState(false);
   // Phone verification
   const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
@@ -211,6 +212,7 @@ export default function ExpertEvaluatePage() {
   // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
   const loadProject = useCallback((committedSupplierId?: string) => {
     setLoading(true);
+    setLoadError(null);
     api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         // Stage gate: redirect if project is not in an active review stage
@@ -273,7 +275,7 @@ export default function ExpertEvaluatePage() {
           })
           .catch(() => { /* my-scores optional — ignore */ });
       })
-      .catch((e: any) => toast.error(e?.message || '加载项目失败'))
+      .catch((e: any) => setLoadError(e?.message || '加载项目失败')) // P1-16：记录错误态供重试
       .finally(() => setLoading(false));
   }, [projectId]);
 
@@ -582,6 +584,15 @@ export default function ExpertEvaluatePage() {
     setBusy(false);
   };
 
+  if (loadError) return (
+    <div className="flex h-64 flex-col items-center justify-center gap-3 text-[oklch(0.55_0.01_264)]">
+      <p>加载失败：{loadError}</p>
+      <button type="button" onClick={() => loadProject()}
+        className="rounded-lg bg-[#064ea2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#054280] active:scale-95">
+        重试
+      </button>
+    </div>
+  );
   if (loading || !project) return <div className="flex items-center justify-center h-64 text-[oklch(0.55_0.01_264)]">加载中...</div>;
   const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
