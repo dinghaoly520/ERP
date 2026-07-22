@@ -1059,20 +1059,23 @@ export class ExpertService {
               update: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null },
               create: { projectId, supplierId: s, scoreItemId: itemId, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' },
             });
-            await this.prisma.bidSupplier.update({ where: { id: s }, data: { bidValidity: 'invalid' } });
             this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' });
           } else {
             // 不过半：若之前 invalid 现恢复（票数变化，决策 B 接受跳变）
             const existing = await this.prisma.bidInvalidBid.findUnique({ where: { projectId_supplierId_scoreItemId: { projectId, supplierId: s, scoreItemId: itemId } } });
             if (existing?.status === 'invalid') {
               await this.prisma.bidInvalidBid.update({ where: { id: existing.id }, data: { status: 'revoked', revokedAt: new Date() } });
-              await this.prisma.bidSupplier.update({ where: { id: s }, data: { bidValidity: 'valid' } });
               this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'revoked' });
             }
           }
         }
+        // P1-8：按供应商聚合判定 bidValidity——任一通过性项仍 invalid 即整单 invalid（每供应商仅 update 一次，不被其他项覆盖）
+        const invalidCount = await this.prisma.bidInvalidBid.count({ where: { projectId, supplierId: s, status: 'invalid' } });
+        await this.prisma.bidSupplier.update({ where: { id: s }, data: { bidValidity: invalidCount > 0 ? 'invalid' : 'valid' } });
       }
-    } catch { /* 实时废标不阻塞评分主流程 */ }
+    } catch (e) {
+      this.logger.error('实时废标判定失败（不阻塞评分主流程）', e instanceof Error ? e.message : String(e));
+    }
 
     // Emit WebSocket events after successful commit
     this.gateway?.notifyExpertPresence?.(projectId, {
