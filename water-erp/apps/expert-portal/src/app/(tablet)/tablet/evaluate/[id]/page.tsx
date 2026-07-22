@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { validateSupplierScores } from '@/lib/score-validation';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
@@ -235,6 +236,11 @@ export default function TabletEvaluatePage() {
     !conflictedSupplierIds.has(activeSupplier) &&
     !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!project?.myExpertRecord?.reportConfirmed;
+  // P1-3：身份核验/回避/AI声明完成标志（后端仍强制；前端对齐桌面体验，避免专家填完才报错）
+  const verificationComplete =
+    !!project?.myExpertRecord?.signedIn &&
+    !!project?.myExpertRecord?.avoidanceConfirmed &&
+    !!project?.myExpertRecord?.aiConsentConfirmed;
 
   // 按 category 分组
   const grouped = useMemo(() => {
@@ -248,6 +254,12 @@ export default function TabletEvaluatePage() {
 
   const handleSubmit = async () => {
     if (!project || !activeSupplier || !canScoreActiveSupplier || scoreLocked) return;
+    // P1-15：提交前校验评分完整性（与桌面端一致）
+    const missing = validateSupplierScores(project.scoreItems, scores, activeSupplier);
+    if (missing.length > 0) {
+      toast.error(missing[0].message);
+      return;
+    }
     setBusy(true);
     try {
       const supplierName = activeSupplierRecord?.supplierName || '';
@@ -365,6 +377,11 @@ export default function TabletEvaluatePage() {
           {scoreLocked && (
             <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
               评审报告已确认，评分已锁定，不可再修改。
+            </div>
+          )}
+          {!verificationComplete && !scoreLocked && (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+              请先完成身份核验、回避确认与 AI 辅助评标声明后再提交评分。
             </div>
           )}
 
@@ -637,11 +654,11 @@ export default function TabletEvaluatePage() {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={busy || !canScoreActiveSupplier || scoreLocked}
+          disabled={busy || !canScoreActiveSupplier || scoreLocked || !verificationComplete}
           className="flex items-center gap-1.5 rounded-lg bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#054280] disabled:opacity-50 active:scale-95"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} strokeWidth={1.7} />}
-          {busy ? '提交中…' : scoreLocked ? '评分已锁定' : '提交'}
+          {busy ? '提交中…' : scoreLocked ? '评分已锁定' : !verificationComplete ? '请先完成核验' : '提交'}
         </button>
       </div>
     </div>

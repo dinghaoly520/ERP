@@ -8,6 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
+import { validateSupplierScores } from '@/lib/score-validation';
 import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
@@ -522,18 +523,8 @@ export default function ExpertEvaluatePage() {
       toast.warning('该投标单位未解密成功、已撤回或已废标，不能评分');
       return;
     }
-    const missing: string[] = [];
-    for (const si of project.scoreItems) {
-      const entry = scores[scoreKey(activeSupplier, si.id)];
-      if (isPassFailCategory(si.category)) {
-        if (typeof entry?.passed !== 'boolean' || (entry.passed === false && !(entry.reason || '').trim())) {
-          missing.push(si.id);
-        }
-      } else {
-        const score = entry?.score ?? 0;
-        if (score < Number(si.maxScore) && !(entry?.reason || '').trim()) missing.push(si.id);
-      }
-    }
+    // P1-15：评分完整性校验（与平板端共用 validateSupplierScores）
+    const missing = validateSupplierScores(project.scoreItems, scores, activeSupplier, scoreKey).map(m => m.itemId);
     if (missing.length > 0) {
       setMissingReasons(new Set(missing));
       toast.warning(`有评分项未完成，已高亮标记，请补充后再提交`);
