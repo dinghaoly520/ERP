@@ -115,6 +115,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
           <div className="text-xs text-[oklch(0.5_0.01_264)]">
             得分点满分合计 <span className={total > max ? 'text-red-600 font-semibold' : 'font-semibold'}>{total}</span> / 大类满分 {max}
             {total > max && <span className="ml-1 text-red-600">（已超出大类满分）</span>}
+            {total < max && <span className="ml-1 text-amber-600">差额 {max - total} 未分配</span>}
           </div>
         ) : <span />}
         <div className="flex items-center gap-2">
