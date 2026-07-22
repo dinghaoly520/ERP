@@ -272,10 +272,22 @@ export default function BidEvaluatePage() {
   }, [projectId, loadProject]);
 
   /* ── WebSocket: live scoring updates ── */
+  // P1-19：评分活动（专家提交/核对/确认）也刷新监控，防抖 1.5s 合并高频事件
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefresh = useCallback(() => {
+    if (!projectId) return;
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
+    }, 1500);
+  }, [projectId]);
+  useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
+
   const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId ?? undefined, {
     onStageChange: () => {
       if (projectId) api.get<BidProjectEvalDetail>(`/bid/projects/${projectId}`).then(setProject);
     },
+    onExpertPresence: () => debouncedRefresh(),
   });
 
   useReportRealtime(connection, lastEventAt, reconnectNow);
