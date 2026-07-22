@@ -1199,10 +1199,11 @@ export class BidService {
 
       ranked.push({ supplierId: supplier.id, supplierName: supplier.supplierName, totalScore, averageScore, disqualified: !!passFailVerdicts.get(supplier.id) });
     }
-    // 合格者在前、废标者在后；同组内按 averageScore 降序
+    // 合格者在前、废标者在后；同组内按 averageScore 降序；同分按供应商名确定性排序（P2：tiebreaker，结果可复现）
     ranked.sort((a, b) => {
       if (a.disqualified !== b.disqualified) return a.disqualified ? 1 : -1;
-      return b.averageScore - a.averageScore;
+      if (b.averageScore !== a.averageScore) return b.averageScore - a.averageScore;
+      return a.supplierName.localeCompare(b.supplierName, 'zh-CN');
     });
 
     const qualifiedRanked = ranked.filter(r => !r.disqualified);

@@ -33,14 +33,20 @@ export function recomputeItemFromDecisions(args: {
   /** P0-A：评分项满分。提供时对 Σawarded 封顶，防止数据异常导致单项分 > maxScore、总分 >100。 */
   maxScore?: number;
 }): { score: number; passed: boolean | null } {
+  const isPassFail = args.category === 'QUALIFICATION' || args.category === 'RESPONSIVE';
   const raw = args.points.reduce((sum, p) => {
     const d = args.decisions.get(p.id);
-    return sum + (d ? Number(d.awardedScore) : 0);
+    if (!d) return sum;
+    // P2：客观点未勾选不计分（checked 与 awardedScore 耦合，防 checked=false 仍计满分）
+    const awarded = p.objective && !d.checked ? 0 : Number(d.awardedScore);
+    return sum + awarded;
   }, 0);
-  const score = args.maxScore !== undefined ? Math.min(raw, args.maxScore) : raw;
-  const isPassFail = args.category === 'QUALIFICATION' || args.category === 'RESPONSIVE';
+  // P2：通过性项不进总分（与旧路径口径统一）；其余按 maxScore 封顶
+  const score = isPassFail ? 0 : (args.maxScore !== undefined ? Math.min(raw, args.maxScore) : raw);
+  // P2：空客观点集合不再自动通过（.every 空集为 true 的陷阱）
+  const objectivePoints = args.points.filter((p) => p.objective);
   const passed = isPassFail
-    ? args.points.filter((p) => p.objective).every((p) => args.decisions.get(p.id)?.checked === true)
+    ? (objectivePoints.length > 0 ? objectivePoints.every((p) => args.decisions.get(p.id)?.checked === true) : false)
     : null;
   return { score, passed };
 }

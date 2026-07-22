@@ -69,6 +69,35 @@ describe('recomputeItemFromDecisions', () => {
     });
     expect(r.score).toBe(30);
   });
+
+  it('P2：通过性项不计总分（即使得分点有 awardedScore）', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'QUALIFICATION',
+      points: [{ id: 'p1', objective: true, fullScore: 5 }],
+      decisions: new Map([['p1', { checked: true, awardedScore: 5 }]]),
+      maxScore: 0,
+    });
+    expect(r.score).toBe(0);
+    expect(r.passed).toBe(true);
+  });
+
+  it('P2：客观点未勾选不计分（checked=false → awarded 0）', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'TECHNICAL',
+      points: [{ id: 'p1', objective: true, fullScore: 10 }],
+      decisions: new Map([['p1', { checked: false, awardedScore: 10 }]]),
+    });
+    expect(r.score).toBe(0);
+  });
+
+  it('P2：通过性项无客观点 → 不自动通过（passed=false）', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'QUALIFICATION',
+      points: [{ id: 'p1', objective: false, fullScore: 0 }], // 仅主观
+      decisions: new Map([['p1', { checked: false, awardedScore: 0 }]]),
+    });
+    expect(r.passed).toBe(false);
+  });
 });
 
 describe('recomputeExpertProgress', () => {

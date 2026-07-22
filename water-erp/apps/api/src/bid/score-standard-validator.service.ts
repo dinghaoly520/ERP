@@ -31,7 +31,8 @@ export class ScoreStandardValidator {
       _sum: { fullScore: true },
     });
     const sum = Number(agg._sum.fullScore ?? 0) + Number(delta);
-    if (sum > Number(itemMaxScore)) {
+    // P2：浮点容差（Decimal 十分位求和在二进制浮点下不精确，0.1+0.1+0.1≠0.3）
+    if (sum - Number(itemMaxScore) > 0.05) {
       throw new ConflictException({
         error: `得分点满分合计 ${sum} 超过大类满分 ${itemMaxScore}`,
         code: 'POINTS_SUM_EXCEEDS_MAX',
@@ -48,7 +49,8 @@ export class ScoreStandardValidator {
     const sumMax = items
       .filter((i) => SCORING_CATEGORIES.has(i.category))
       .reduce((s, i) => s + Number(i.maxScore), 0);
-    if (sumMax !== 100) {
+    // P2：浮点容差（33.3+33.3+33.4 在二进制浮点下 ≠ 100）
+    if (Math.abs(sumMax - 100) > 0.05) {
       throw new ConflictException({
         error: `打分类满分合计须为 100,当前为 ${sumMax}`,
         code: 'MAX_SCORE_SUM_NOT_100',
@@ -68,7 +70,7 @@ export class ScoreStandardValidator {
         _sum: { fullScore: true },
       });
       const sum = Number(agg._sum.fullScore ?? 0);
-      if (sum - Number(i.maxScore) > 1e-6) {
+      if (sum - Number(i.maxScore) > 0.05) { // P2：浮点容差
         throw new ConflictException({
           error: `评分项「${i.name}」得分点满分合计 ${sum} 超过其满分 ${i.maxScore}`,
           code: 'POINTS_SUM_EXCEEDS_MAX',

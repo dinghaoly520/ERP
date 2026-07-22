@@ -22,7 +22,8 @@ class ScoreItemDto {
   @IsString() @IsNotEmpty()
   supplierId: string;
 
-  @IsNumber() @Min(0) @Max(100) @IsOptional()
+  // P2：上限与 Decimal(5,1) 域对齐（满分可 >100 的合法配置项不应被 DTO 误拒）；真实上限由服务端 score>maxScore 校验
+  @IsNumber() @Min(0) @Max(9999.9) @IsOptional()
   score?: number;
 
   @IsBoolean() @IsOptional()

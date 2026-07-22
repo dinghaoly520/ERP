@@ -73,6 +73,16 @@ describe('ScoreStandardValidator', () => {
         response: { code: 'MAX_SCORE_SUM_NOT_100' },
       });
     });
+
+    it('P2：ΣmaxScore 浮点容差（33.3+33.3+33.4≈100 通过）', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'i1', category: 'BUSINESS', maxScore: 33.3, name: 'a', _count: { points: 1 } },
+        { id: 'i2', category: 'TECHNICAL', maxScore: 33.3, name: 'b', _count: { points: 1 } },
+        { id: 'i3', category: 'PRICE', maxScore: 33.4, name: 'c', _count: { points: 1 } },
+      ]);
+      prisma.bidScorePoint.aggregate.mockResolvedValue({ _sum: { fullScore: 10 } }); // 各项 Σpoints ≤ maxScore
+      await expect(validator.assertScoreStandardComplete('p1')).resolves.toBeUndefined();
+    });
     it('打分类项无点 → 409 SCORE_ITEM_HAS_NO_POINTS', async () => {
       prisma.bidScoreItem.findMany.mockResolvedValue([
         { category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 0 } },
