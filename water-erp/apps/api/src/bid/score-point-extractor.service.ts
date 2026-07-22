@@ -69,7 +69,12 @@ export class ScorePointExtractorService {
         SCORE_POINTS_EXTRACT_SYSTEM,
         prompt,
         (raw): raw is { items: ScorePointSuggestion[] } =>
-          !!raw && typeof raw === 'object' && Array.isArray((raw as any).items),
+          !!raw && typeof raw === 'object' && Array.isArray((raw as any).items) &&
+          (raw as any).items.every((i: any) =>
+            typeof i.name === 'string' && i.name.length > 0 &&
+            typeof i.fullScore === 'number' && i.fullScore >= 0 &&
+            typeof i.objective === 'boolean'
+          ),
         2,
       );
     } catch {
