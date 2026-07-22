@@ -1089,7 +1089,7 @@ describe('BidService — score items (评分标准)', () => {
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
-      scoreTemplate: { findMany: jest.fn(), create: jest.fn() },
+      scoreTemplate: { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn(), delete: jest.fn().mockResolvedValue({}) },
       $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
@@ -1220,6 +1220,28 @@ describe('BidService — score items (评分标准)', () => {
     expect(prisma.scoreTemplate.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ name: '我的模板', createdById: 'u1', createdByName: '陈源远' }),
     }));
+  });
+
+  it('P2：公共模板（createdById=null）非管理员删除 → FORBIDDEN', async () => {
+    prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: null });
+    await expect(service.deleteScoreTemplate('t1', 'u1', 'procurement_staff')).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+    expect(prisma.scoreTemplate.delete).not.toHaveBeenCalled();
+  });
+
+  it('P2：公共模板管理员可删除', async () => {
+    prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: null });
+    await expect(service.deleteScoreTemplate('t1', 'u1', 'admin')).resolves.toMatchObject({ deleted: true });
+    expect(prisma.scoreTemplate.delete).toHaveBeenCalled();
+  });
+
+  it('P2：私有模板他人删除 → FORBIDDEN', async () => {
+    prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: 'owner' });
+    await expect(service.deleteScoreTemplate('t1', 'intruder', 'procurement_staff')).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+  });
+
+  it('P2：私有模板创建者可删除', async () => {
+    prisma.scoreTemplate.findUnique.mockResolvedValue({ id: 't1', createdById: 'owner' });
+    await expect(service.deleteScoreTemplate('t1', 'owner', 'procurement_staff')).resolves.toMatchObject({ deleted: true });
   });
 });
 

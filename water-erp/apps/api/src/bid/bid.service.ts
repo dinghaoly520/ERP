@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, Optional, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
@@ -2318,14 +2318,18 @@ export class BidService {
     return this.listScoreItems(projectId);
   }
 
-  async deleteScoreTemplate(templateId: string, userId?: string) {
+  async deleteScoreTemplate(templateId: string, userId?: string, role?: string) {
     const tpl = await this.prisma.scoreTemplate.findUnique({
       where: { id: templateId },
       select: { id: true, createdById: true },
     });
     if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
-    if (tpl.createdById && tpl.createdById !== userId) {
-      throw new BadRequestException({ error: '只能删除自己保存的模板', code: 'FORBIDDEN' });
+    // P2：公共模板（createdById=null）仅管理员可删；私有模板仅创建者或管理员可删
+    const isAdmin = role === 'admin' || role === 'bid_host';
+    if (tpl.createdById === null) {
+      if (!isAdmin) throw new ForbiddenException({ error: '公共模板仅管理员可删除', code: 'FORBIDDEN' });
+    } else if (tpl.createdById !== userId && !isAdmin) {
+      throw new ForbiddenException({ error: '只能删除自己保存的模板', code: 'FORBIDDEN' });
     }
     await this.prisma.scoreTemplate.delete({ where: { id: templateId } });
     return { deleted: true };

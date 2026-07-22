@@ -19,6 +19,7 @@ import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/score-recalculate.helper';
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
+import { parseConflictedIds } from './expert.util';
 
 @Injectable()
 export class ExpertService {
@@ -313,7 +314,7 @@ export class ExpertService {
     // P2: 合并手动声明的冲突 + 自动检测的冲突（去重），持久化到 expert 记录。
     // 合并既有冲突名单 + 本次手动声明 + 自动检测（去重）。
     // 原实现覆盖式写入：专家可用"声明新冲突"换掉既有真冲突；移除须走单独 admin 审批端点。
-    const existingConflicts = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    const existingConflicts = parseConflictedIds(expert.conflictedSupplierIds);
     const allConflictIds = [...new Set([
       ...existingConflicts,
       ...(conflictedSupplierIds || []),
@@ -371,7 +372,7 @@ export class ExpertService {
     }
 
     // 回避名单检查：与 downloadBidDocument / getAssistData 保持一致，避免向冲突专家泄露投标文件元数据
-    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
     if (conflictedIds.includes(supplierId)) {
       throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
     }
@@ -550,7 +551,7 @@ export class ExpertService {
     const expert = await this.assertExpertActiveForProject(userId, projectId);
 
     // 回避名单检查：与 getAssistData/resolveReviewContext 一致
-    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
     if (conflictedIds.includes(supplierId)) {
       throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
     }
@@ -611,7 +612,7 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     // 回避名单检查先于签到/回避确认检查：回避名单本身即最终阻断信号，避免泄露后续状态细节
-    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
     if (conflictedIds.includes(supplierId)) {
       throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
     }
@@ -671,7 +672,7 @@ export class ExpertService {
     }
 
     // 15.4: 专家回避屏蔽 — 回避名单中的供应商不可查看 AI 分析
-    const conflictedIds: string[] = ((expert.conflictedSupplierIds as unknown) as string[]) || [];
+    const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
     if (conflictedIds.includes(supplierId)) {
       throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
     }
@@ -804,13 +805,7 @@ export class ExpertService {
     }
     // P2: block scoring for suppliers the expert declared as conflicted
     // 防御性处理：Prisma Json 字段可能返回数组或字符串（seed 数据历史遗留）
-    const rawConflicts = expert.conflictedSupplierIds;
-    let expertConflicts: string[] = [];
-    if (Array.isArray(rawConflicts)) {
-      expertConflicts = rawConflicts as string[];
-    } else if (typeof rawConflicts === 'string' && rawConflicts.length > 0) {
-      try { expertConflicts = JSON.parse(rawConflicts); } catch { /* 解析失败则保持空数组 */ }
-    }
+    const expertConflicts = parseConflictedIds(expert.conflictedSupplierIds);
     const conflictSuppliers = dto.scores
       .map(s => s.supplierId)
       .filter(sid => expertConflicts.includes(sid));
@@ -1246,16 +1241,22 @@ export class ExpertService {
   }
 
   async createClarification(userId: string, projectId: string, dto: CreateExpertClarificationDto) {
-    // P2: 阶段门控 — 归档后不可发起澄清
+    // P2：阶段门控 — 仅评标阶段可发起澄清（澄清答疑发生在评标期间）
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
-    if (project?.stage === 'ARCHIVED') {
-      throw new ForbiddenException({ error: '项目已归档，无法发起澄清', code: 'PROJECT_ARCHIVED' });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ForbiddenException({ error: '项目不在评标阶段，无法发起澄清', code: 'PROJECT_NOT_EVALUATING' });
     }
 
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    // P2：校验供应商属于本项目（防注入任意 supplierId 污染 QA 线程）
+    if (dto.supplierId) {
+      const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: dto.supplierId, projectId } });
+      if (!supplier) throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+    }
 
     return this.prisma.bidClarification.create({
       data: {

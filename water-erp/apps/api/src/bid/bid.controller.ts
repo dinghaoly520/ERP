@@ -263,9 +263,9 @@ export class BidController {
   }
 
   @Delete('score-templates/:templateId')
-  @ApiOperation({ summary: '删除评分模板（仅创建者）' })
-  deleteScoreTemplate(@Param('templateId') templateId: string, @CurrentUser('sub') userId?: string) {
-    return this.bidService.deleteScoreTemplate(templateId, userId);
+  @ApiOperation({ summary: '删除评分模板（私有仅创建者，公共仅管理员）' })
+  deleteScoreTemplate(@Param('templateId') templateId: string, @CurrentUser('sub') userId?: string, @CurrentUser('role') role?: string) {
+    return this.bidService.deleteScoreTemplate(templateId, userId, role);
   }
 
   @Post('projects/:id/apply-score-template/:templateId')
