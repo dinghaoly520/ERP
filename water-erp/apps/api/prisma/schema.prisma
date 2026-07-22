@@ -316,6 +316,7 @@ model BidSupplier {
   supervisionAnnotation BidSupervisionAnnotation?
   bidScoreReviews        BidScoreReview[]
   expertMemos            ExpertMemo[]
+  bidInvalidBids         BidInvalidBid[]
   decryptError           String? // 解密失败原因
   bidValidity            String? // 废标标记：'valid' | 'invalid'
 
@@ -435,17 +436,19 @@ model BidScoreItem {
 }
 
 model BidScorePoint {
-  id           String       @id @default(cuid())
-  scoreItemId  String
-  name         String
-  fullScore    Decimal      @default("0") @db.Decimal(5, 1)
-  seq          Int          @default(0)
-  evidenceHint String?
-  objective    Boolean      @default(true)
-  scoreItem    BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
-  decisions    BidScorePointDecision[]
-  memos        ExpertMemo[]
-  createdAt    DateTime     @default(now())
+  id              String       @id @default(cuid())
+  scoreItemId     String
+  name            String
+  fullScore       Decimal      @default("0") @db.Decimal(5, 1)
+  seq             Int          @default(0)
+  evidenceHint    String?
+  evidenceSection String?      // 招标文件章节名（AI 提取时记录）
+  confidence      Decimal?     @db.Decimal(3, 2)  // 0-1 信心分（AI 提取时记录）
+  objective       Boolean      @default(true)
+  scoreItem       BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  decisions       BidScorePointDecision[]
+  memos           ExpertMemo[]
+  createdAt       DateTime     @default(now())
 
   @@index([scoreItemId])
 }
@@ -736,10 +739,8 @@ model Supplier {
   bidSuppliers        BidSupplier[]
   bidSubmissions      SupplierBidSubmission[]
   bidDocumentAccesses BidDocumentAccess[]
-  bidInvalidBids      BidInvalidBid[]
   catalogApplications SupplierCatalogApplication[]
   catalogSupplies     CatalogSupplier[]
-  alertAcks           QualificationAlertAck[]
   clarifications      BidClarification[]
   contractPrices       ContractPrice[]
 
@@ -779,7 +780,6 @@ model SupplierQualification {
   updatedAt  DateTime  @updatedAt
 
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
-  acks     QualificationAlertAck[]
 
   @@index([supplierId])
   @@index([validTo])

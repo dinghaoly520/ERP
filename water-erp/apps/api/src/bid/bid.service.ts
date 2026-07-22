@@ -2116,6 +2116,8 @@ export class BidService {
           name: p.name,
           fullScore: p.fullScore,
           evidenceHint: p.evidenceHint ?? null,
+          evidenceSection: p.evidenceSection ?? null,
+          confidence: p.confidence ?? null,
           objective: p.objective ?? true,
         })),
       });
