@@ -871,6 +871,7 @@ export class ExpertService {
           category: meta.category,
           points: (pointsByItem.get(item.scoreItemId) ?? []).map(p => ({ id: p.id, objective: p.objective, fullScore: Number(p.fullScore) })),
           decisions: decisionMap,
+          maxScore: meta.maxScore, // P0-A：封顶，防止数据异常使单项分 > maxScore
         });
         item.score = score;
         item.passed = passed as boolean | undefined;

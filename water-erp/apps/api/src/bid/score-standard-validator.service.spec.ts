@@ -6,10 +6,13 @@ describe('ScoreStandardValidator', () => {
   let validator: ScoreStandardValidator;
   const prisma: any = {
     bidScoreItem: { findMany: jest.fn() },
+    bidScorePoint: { aggregate: jest.fn() },
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // P0-A：assertScoreStandardComplete 现会聚合每项 ΣfullScore；默认返回 0 使既有「通过」用例保持合法
+    prisma.bidScorePoint.aggregate.mockResolvedValue({ _sum: { fullScore: 0 } });
     validator = new ScoreStandardValidator(prisma);
   });
 
@@ -88,6 +91,21 @@ describe('ScoreStandardValidator', () => {
         { category: 'PRICE', maxScore: 30, name: '价格', _count: { points: 1 } },
       ]);
       await expect(validator.assertScoreStandardComplete('p1')).resolves.toBeUndefined();
+    });
+
+    it('P0-A：打分类项 Σ得分点满分 > 该项满分 → 409 POINTS_SUM_EXCEEDS_MAX', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'i1', category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 2 } },
+        { id: 'i2', category: 'TECHNICAL', maxScore: 30, name: '技术', _count: { points: 2 } },
+        { id: 'i3', category: 'PRICE', maxScore: 50, name: '价格', _count: { points: 1 } },
+      ]);
+      // 技术项满分已被降到 30，但其得分点合计仍为 50 → 不变量被破坏
+      prisma.bidScorePoint.aggregate.mockImplementation(async ({ where }: any) =>
+        where.scoreItemId === 'i2' ? { _sum: { fullScore: 50 } } : { _sum: { fullScore: 10 } },
+      );
+      await expect(validator.assertScoreStandardComplete('p1')).rejects.toMatchObject({
+        response: { code: 'POINTS_SUM_EXCEEDS_MAX' },
+      });
     });
   });
 });

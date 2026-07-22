@@ -44,6 +44,31 @@ describe('recomputeItemFromDecisions', () => {
     });
     expect(r.score).toBe(0);
   });
+
+  it('P0-A：提供 maxScore 时 Σawarded 封顶到 maxScore', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'TECHNICAL',
+      points: [
+        { id: 'p1', objective: true, fullScore: 30 },
+        { id: 'p2', objective: true, fullScore: 30 },
+      ],
+      decisions: new Map([
+        ['p1', { checked: true, awardedScore: 30 }],
+        ['p2', { checked: true, awardedScore: 30 }],
+      ]),
+      maxScore: 40, // Σawarded=60 → 封顶 40
+    });
+    expect(r.score).toBe(40);
+  });
+
+  it('P0-A：未提供 maxScore 时保持原 Σawarded（兼容）', () => {
+    const r = recomputeItemFromDecisions({
+      category: 'TECHNICAL',
+      points: [{ id: 'p1', objective: true, fullScore: 30 }],
+      decisions: new Map([['p1', { checked: true, awardedScore: 30 }]]),
+    });
+    expect(r.score).toBe(30);
+  });
 });
 
 describe('recomputeExpertProgress', () => {

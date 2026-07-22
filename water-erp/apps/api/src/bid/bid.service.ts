@@ -1331,6 +1331,7 @@ export class BidService {
         category: scoreItem.category,
         points: points.map(p => ({ id: p.id, objective: p.objective, fullScore: Number(p.fullScore) })),
         decisions: decisionMap,
+        maxScore: Number(scoreItem.maxScore), // P0-A：封顶，防止数据异常使单项分 > maxScore
       });
       finalScore = recomputed.score;
       finalPassed = recomputed.passed ?? dto.passed;
@@ -2001,6 +2002,9 @@ export class BidService {
           ...(dto.maxScore !== undefined && { maxScore: dto.maxScore }),
         },
       });
+      // P0-A：（降）满分后复查 Σ得分点满分 ≤ 新满分，违反不变量则整体回滚
+      const newMax = dto.maxScore !== undefined ? Number(dto.maxScore) : Number(existing.maxScore);
+      await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, newMax, 0);
       if (diffs.length > 0) {
         await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', `修改评分项「${existing.name}」:${diffs.join(', ')}`);
       }
@@ -2258,6 +2262,8 @@ export class BidService {
             })),
           });
         }
+        // P0-A：模板得分点 ΣfullScore 不得超过该项满分（不变量），违反则整体回滚
+        await this.scoreStandardValidator.assertPointsSumWithinMax(tx, item.id, Number(it.maxScore), 0);
       }
 
       if (toCreate.length > 0) {

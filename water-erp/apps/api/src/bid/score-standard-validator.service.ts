@@ -61,5 +61,19 @@ export class ScoreStandardValidator {
         code: 'SCORE_ITEM_HAS_NO_POINTS',
       });
     }
+    // P0-A：每个打分类项的得分点 ΣfullScore 不得超过该项 maxScore（防止降满分/套模板后总分 >100）
+    for (const i of items.filter((x) => SCORING_CATEGORIES.has(x.category))) {
+      const agg = await this.prisma.bidScorePoint.aggregate({
+        where: { scoreItemId: i.id },
+        _sum: { fullScore: true },
+      });
+      const sum = Number(agg._sum.fullScore ?? 0);
+      if (sum - Number(i.maxScore) > 1e-6) {
+        throw new ConflictException({
+          error: `评分项「${i.name}」得分点满分合计 ${sum} 超过其满分 ${i.maxScore}`,
+          code: 'POINTS_SUM_EXCEEDS_MAX',
+        });
+      }
+    }
   }
 }

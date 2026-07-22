@@ -27,11 +27,14 @@ export function recomputeItemFromDecisions(args: {
   category: string;
   points: { id: string; objective: boolean; fullScore: number }[];
   decisions: Map<string, { checked: boolean; awardedScore: number }>;
+  /** P0-A：评分项满分。提供时对 Σawarded 封顶，防止数据异常导致单项分 > maxScore、总分 >100。 */
+  maxScore?: number;
 }): { score: number; passed: boolean | null } {
-  const score = args.points.reduce((sum, p) => {
+  const raw = args.points.reduce((sum, p) => {
     const d = args.decisions.get(p.id);
     return sum + (d ? Number(d.awardedScore) : 0);
   }, 0);
+  const score = args.maxScore !== undefined ? Math.min(raw, args.maxScore) : raw;
   const isPassFail = args.category === 'QUALIFICATION' || args.category === 'RESPONSIVE';
   const passed = isPassFail
     ? args.points.filter((p) => p.objective).every((p) => args.decisions.get(p.id)?.checked === true)
