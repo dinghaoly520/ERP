@@ -432,6 +432,7 @@ model BidScoreItem {
   expertMemos     ExpertMemo[]
   createdAt       DateTime         @default(now())
 
+  @@unique([projectId, name]) // P2：同项目评分项名唯一（防重名致 Σ 校验/模板去重混淆）
   @@index([projectId])
 }
 
@@ -465,6 +466,7 @@ model BidScoreRecord {
   scoreItem   BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
   supplier    BidSupplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt // P2：记录最后修改时间（评分可改，需审计轨迹）
 
   @@unique([expertId, scoreItemId, supplierId])
   @@index([supplierId])

@@ -3,7 +3,7 @@ import { randomInt } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
-import { Prisma } from '@prisma/client';
+import { Prisma, ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
@@ -894,22 +894,35 @@ export class ExpertAdminService {
     if (!expert) throw new NotFoundException('专家不存在');
 
     const overall = Math.round((dto.attendanceScore + dto.qualityScore + dto.disciplineScore) / 3);
-    const level = overall >= 90 ? 'A' : overall >= 80 ? 'B' : overall >= 60 ? 'C' : 'D';
+    const level: ExpertLevel = overall >= 90 ? 'A' : overall >= 80 ? 'B' : overall >= 60 ? 'C' : 'D';
 
-    const created = await this.prisma.expertEvaluation.create({
-      data: {
-        expertUserId: dto.expertUserId,
-        projectId: dto.projectId,
-        evaluatorId,
-        attendanceScore: dto.attendanceScore,
-        qualityScore: dto.qualityScore,
-        disciplineScore: dto.disciplineScore,
-        overallScore: overall,
-        level,
-        comment: dto.comment,
-      },
-      include: { evaluator: { select: { id: true, displayName: true } } },
+    const data = {
+      expertUserId: dto.expertUserId,
+      projectId: dto.projectId,
+      evaluatorId,
+      attendanceScore: dto.attendanceScore,
+      qualityScore: dto.qualityScore,
+      disciplineScore: dto.disciplineScore,
+      overallScore: overall,
+      level,
+      comment: dto.comment,
+    };
+
+    // P2：幂等——同一(专家,评价人,项目)重复评价改为更新，防双评重复致退休候选误判
+    // （DB 唯一约束与种子数据冲突，故用服务层 find-then-upsert）
+    const existing = await this.prisma.expertEvaluation.findFirst({
+      where: { expertUserId: dto.expertUserId, evaluatorId, projectId: dto.projectId ?? null },
     });
+    const created = existing
+      ? await this.prisma.expertEvaluation.update({
+          where: { id: existing.id },
+          data,
+          include: { evaluator: { select: { id: true, displayName: true } } },
+        })
+      : await this.prisma.expertEvaluation.create({
+          data,
+          include: { evaluator: { select: { id: true, displayName: true } } },
+        });
 
     // 决策 #3：不自动停用。连续 D 级由 reviewRetirementCandidates()（cron + 人工）产出预警，
     // 实际退库须经 admin 调 confirmRetire() 确认。此处仅返回评价结果。
