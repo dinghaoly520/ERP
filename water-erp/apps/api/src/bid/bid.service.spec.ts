@@ -106,6 +106,7 @@ describe('BidService — stage transitions', () => {
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       // Support both callback-based and batch-based $transaction patterns
       $transaction: jest.fn(async (callbackOrOps: any) => {
         if (typeof callbackOrOps === 'function') {
@@ -1089,6 +1090,7 @@ describe('BidService — score items (评分标准)', () => {
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       scoreTemplate: { findMany: jest.fn(), create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -1150,6 +1152,16 @@ describe('BidService — score items (评分标准)', () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '项目A' });
     prisma.bidScoreItem.findFirst.mockResolvedValue(null); // 不属于本项目
     await expect(service.updateScoreItem('p1', 'iX', { name: '改名' }, { userId: 'u1', role: 'bid_host' })).rejects.toThrow(BadRequestException);
+  });
+
+  it('P1-17：事务内复查——并发进入 EVALUATING 后改标准 → SCORE_ITEMS_LOCKED', async () => {
+    // 事务外读：OPENING（可编辑）；事务内 FOR UPDATE 重读：EVALUATING（已被并发流转锁定）
+    prisma.bidProject.findUnique
+      .mockResolvedValueOnce({ stage: 'OPENING', name: 'P', scoreStandardPublishedAt: null })
+      .mockResolvedValueOnce({ stage: 'EVALUATING', name: 'P', scoreStandardPublishedAt: null });
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', maxScore: 50, name: '技术' });
+    await expect(service.updateScoreItem('p1', 'i1', { maxScore: 40 }, { userId: 'u1', role: 'bid_host' }))
+      .rejects.toMatchObject({ response: { code: 'SCORE_ITEMS_LOCKED' } });
   });
 
   it('deleteScoreItem 仅在编辑窗口内放行', async () => {
@@ -1223,6 +1235,7 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
       bidSupplier: { findFirst: jest.fn() },
       bidOpeningRecord: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -1798,6 +1811,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module = await Test.createTestingModule({
@@ -1920,6 +1934,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
       bidInvalidBid: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
       bidSupplier: { update: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module: TestingModule = await Test.createTestingModule({

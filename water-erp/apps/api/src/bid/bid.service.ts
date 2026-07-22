@@ -579,6 +579,7 @@ export class BidService {
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${id} FOR UPDATE`; // P1-17：与评分标准编辑互斥
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'EVALUATING' },
@@ -1957,6 +1958,17 @@ export class BidService {
     }
   }
 
+  /**
+   * P1-17：事务内锁定项目行（SELECT ... FOR UPDATE）并复查评分标准可编辑性。
+   * 与 startEvaluation（同样 FOR UPDATE 后置 EVALUATING）互斥，消除「事务外校验通过后阶段被并发流转」的 TOCTOU。
+   */
+  private async reassertScoreItemsEditableInTx(tx: Prisma.TransactionClient, projectId: string): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${projectId} FOR UPDATE`;
+    const p = await tx.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, scoreStandardPublishedAt: true } });
+    if (!p) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(p.stage as BidStage, p.scoreStandardPublishedAt);
+  }
+
   listScoreItems(projectId: string) {
     return this.prisma.bidScoreItem.findMany({
       where: { projectId },
@@ -1976,6 +1988,7 @@ export class BidService {
 
     const result = `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`;
     const created = await this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       const item = await tx.bidScoreItem.create({
         data: { projectId, category: dto.category, name: dto.name, maxScore: dto.maxScore },
       });
@@ -2011,6 +2024,7 @@ export class BidService {
     if (dto.maxScore !== undefined && Number(dto.maxScore) !== Number(existing.maxScore)) diffs.push(`maxScore ${existing.maxScore}→${dto.maxScore}`);
 
     return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       const updated = await tx.bidScoreItem.update({
         where: { id: itemId },
         data: {
@@ -2042,6 +2056,7 @@ export class BidService {
 
     const result = `删除评分项「${existing.name}」`;
     await this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', result);
       await tx.bidScoreItem.delete({ where: { id: itemId } });
     });
@@ -2074,6 +2089,7 @@ export class BidService {
   async createScorePoint(projectId: string, itemId: string, dto: CreateScorePointDto) {
     const item = await this.assertScoreItemInProject(projectId, itemId);
     return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), Number(dto.fullScore));
       return tx.bidScorePoint.create({
         data: {
@@ -2096,6 +2112,7 @@ export class BidService {
     }
     const delta = dto.fullScore !== undefined ? Number(dto.fullScore) - Number(existing.fullScore) : 0;
     return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       if (delta !== 0) {
         await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
       }
@@ -2118,7 +2135,10 @@ export class BidService {
     if (!existing) {
       throw new BadRequestException({ error: '得分点不存在', code: 'NOT_FOUND' });
     }
-    return this.prisma.bidScorePoint.delete({ where: { id: pointId } });
+    return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      return tx.bidScorePoint.delete({ where: { id: pointId } });
+    });
   }
 
   /** 批量导入得分点（管理员审核 AI 建议后）。复用 assertScoreItemInProject 做归属 + 阶段锁校验。 */
@@ -2126,6 +2146,7 @@ export class BidService {
     const item = await this.assertScoreItemInProject(projectId, itemId);
     const delta = dto.points.reduce((s, p) => s + Number(p.fullScore), 0);
     return this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
       return tx.bidScorePoint.createMany({
         data: dto.points.map((p) => ({
@@ -2165,6 +2186,7 @@ export class BidService {
     if (toCreate.length > 0) {
       const result = `应用标准模板，新增 ${toCreate.length} 项`;
       await this.prisma.$transaction(async (tx) => {
+        await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
         await tx.bidScoreItem.createMany({
           data: toCreate.map(t => ({ projectId, category: t.category, name: t.name, maxScore: t.maxScore })),
         });
@@ -2262,6 +2284,7 @@ export class BidService {
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
+      await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
       const existing = await tx.bidScoreItem.findMany({ where: { projectId }, select: { name: true } });
       const existingNames = new Set(existing.map((e) => e.name));
       const toCreate = payload.items.filter((it) => !existingNames.has(it.name));
