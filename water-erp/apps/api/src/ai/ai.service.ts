@@ -2227,59 +2227,14 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     }
   }
 
-  /* ━━━ 供应商选取历史（模型已移除，保留接口兼容）━━━ */
-
-  async saveSelectionHistory(
-    _userId: string,
-    _requirement: string,
-    _classificationId: string | undefined,
-    _result: SupplierSelectionResult,
-    _shortlistedIds?: string[],
-  ) {
-    return { id: 'history-removed', createdAt: new Date() };
-  }
+  /* ━━━ 供应商选取历史（无 DB 模型，落 JSON 文件；下列为兼容旧接口的占位，真实实现见下方 A2 持久化区块）━━━ */
 
   async getSelectionHistory(_userId: string | undefined) {
     return [];
   }
 
-  async getSelectionHistoryDetail(_id: string) {
-    return null;
-  }
-
   async restoreShortlist(_historyId: string) {
     return [];
-  }
-
-  async shareShortlist(
-    userId: string,
-    requirement: string,
-    shortlist: { name: string; matchScore: number; reason: string }[],
-    note?: string,
-  ) {
-    const names = shortlist.map((s) => s.name).join('、');
-    const title = '供应商候选名单分享';
-    const content = `采购需求：${requirement.slice(0, 80)}${requirement.length > 80 ? '…' : ''}\n候选名单：${names}${note ? `\n备注：${note}` : ''}`;
-    try {
-      await this.notificationService.sendToRole('procurement_staff', {
-        type: 'SHORTLIST_SHARED',
-        title,
-        content,
-        link: '/supplier/selection',
-      });
-      return { success: true };
-    } catch (err) {
-      this.logger.error('shareShortlist failed', err instanceof Error ? err.message : String(err));
-      // Try sending to the sharer themselves as fallback
-      await this.notificationService.create({
-        userId,
-        type: 'SHORTLIST_SHARED',
-        title,
-        content,
-        link: '/supplier/selection',
-      }).catch(() => {});
-      return { success: true };
-    }
   }
 
   // ── 选取历史持久化（A2）：无 DB 模型，落 JSON 文件，使选取历史/候选名单/分享真正可用 ──

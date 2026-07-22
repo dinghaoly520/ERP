@@ -71,7 +71,8 @@ describe('AiService', () => {
       const result = await service.analyzeBid('proj-1', 'sup-1');
 
       expect(result.supplierName).toBe('四川川水建设工程有限公司');
-      expect(result.model).toContain('WaterERP-AI');
+      // 代码已诚实地将 model 标注为「规则预检引擎」（非 LLM），见 ai.service.ts:325
+      expect(result.model).toContain('规则预检引擎');
       expect(result.overall).toBeDefined();
       expect(result.overall.score).toBeGreaterThanOrEqual(0);
       expect(result.overall.score).toBeLessThanOrEqual(100);
