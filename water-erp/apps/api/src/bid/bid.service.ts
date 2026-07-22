@@ -2211,6 +2211,12 @@ export class BidService {
     await this.scoreStandardValidator.assertScoreStandardComplete(projectId);
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      // P2：行锁 + 事务内复查 publishedAt，消除并发双发布竞态
+      await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${projectId} FOR UPDATE`;
+      const locked = await tx.bidProject.findUnique({ where: { id: projectId }, select: { scoreStandardPublishedAt: true } });
+      if (locked?.scoreStandardPublishedAt) {
+        throw new ConflictException({ error: '评分标准已发布,不可重复发布', code: 'SCORE_STANDARD_ALREADY_PUBLISHED' });
+      }
       const result = await tx.bidProject.update({
         where: { id: projectId },
         data: { scoreStandardPublishedAt: new Date() },

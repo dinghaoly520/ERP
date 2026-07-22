@@ -35,7 +35,7 @@ describe('ScoreStandardValidator', () => {
   });
 
   describe('assertPointsSumWithinMax', () => {
-    const tx: any = { bidScorePoint: { aggregate: jest.fn() } };
+    const tx: any = { bidScorePoint: { aggregate: jest.fn() }, $queryRaw: jest.fn().mockResolvedValue([]) };
     beforeEach(() => jest.clearAllMocks());
 
     it('现有 30 + delta 15 ≤ 50 通过', async () => {

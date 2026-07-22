@@ -26,6 +26,8 @@ export class ScoreStandardValidator {
     itemMaxScore: number,
     delta: number,
   ): Promise<void> {
+    // P2：行锁评分项，消除并发新增/修改得分点致 ΣfullScore>maxScore 的竞态
+    await tx.$queryRaw`SELECT id FROM "BidScoreItem" WHERE id = ${itemId} FOR UPDATE`;
     const agg = await tx.bidScorePoint.aggregate({
       where: { scoreItemId: itemId },
       _sum: { fullScore: true },
