@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuard
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
+import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
@@ -60,7 +61,7 @@ export class SupplierPortalController {
   async updateContact(
     @Request() req: any,
     @Param('contactId') contactId: string,
-    @Body() dto: Partial<CreateContactDto>,
+    @Body() dto: UpdateContactDto,
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.updateContact(supplierId, contactId, dto);
@@ -126,10 +127,13 @@ export class SupplierPortalController {
   async listBidProjects(
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    @Query('search') search?: string,
+    @Query('stage') stage?: string,
   ) {
     return this.portalService.listBidProjects(
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
+      { search, stage },
     );
   }
 

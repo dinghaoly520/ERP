@@ -8,6 +8,7 @@ export interface SupplierStats {
   approved: number;
   disabled: number;
   blacklist: number;
+  returned: number;
 }
 
 export interface SupplierRecommendation {
@@ -235,6 +236,7 @@ export function getSupplierTimeline(id: string) {
 export interface QualificationAlertItem {
   id: string; supplierId: string; supplierName: string;
   type: string; name: string; validTo: string | null; status: string; daysRemaining: number | null;
+  acked: boolean; // 当前用户是否已标记「已处理」（后端持久化）
 }
 export interface QualificationAlerts {
   items: QualificationAlertItem[];
@@ -242,6 +244,9 @@ export interface QualificationAlerts {
 }
 export function getQualificationAlerts() {
   return api.get<QualificationAlerts>('/supplier/qualification-alerts');
+}
+export function acknowledgeQualificationAlert(qualificationId: string) {
+  return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/ack`);
 }
 
 // ── 淘汰候选 ──
@@ -321,6 +326,13 @@ export function getSupplierCommunications(id: string) {
 export interface SupplierDocumentRecord { id: string; type: string; name: string; fileUrl: string; fileSize?: number; note?: string; uploader: { displayName: string }; createdAt: string; }
 export function getSupplierDocuments(id: string) {
   return api.get<SupplierDocumentRecord[]>(`/supplier/${id}/documents`);
+}
+/** 上传文件到 MinIO，返回真实可访问 url —— 供详情文件档案使用，杜绝 fileUrl:'#' 假记录。
+ *  分类须在后端 ALLOWED_CATEGORIES 白名单内（upload.service.ts），故用 'general' 而非自造值。 */
+export function uploadSupplierFile(file: File): Promise<{ url: string; originalName: string; size: number }> {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.postForm<{ id: string; url: string; originalName: string; size: number }>('/upload?category=general', fd);
 }
 export function uploadSupplierDocument(id: string, data: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string }) {
   return api.post<SupplierDocumentRecord>(`/supplier/${id}/documents`, data);

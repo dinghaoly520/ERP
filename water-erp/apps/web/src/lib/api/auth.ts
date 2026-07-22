@@ -23,7 +23,7 @@ export function normalizeApiBaseUrl(value?: string | null) {
 const API_BASE = '/api';
 
 /** 系统实际角色，与后端 Prisma schema 保持一致 */
-export type AuthRole = "admin" | "leader" | "staff" | "procurement_staff" | "bid_host" | "bid_expert" | "supplier" | "mall";
+export type AuthRole = "admin" | "leader" | "staff" | "bid_host" | "bid_expert" | "supplier" | "mall";
 
 export type AuthUser = {
   id: string;

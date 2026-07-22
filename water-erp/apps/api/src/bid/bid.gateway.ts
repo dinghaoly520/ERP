@@ -26,7 +26,7 @@ import {
 } from '@water-erp/shared';
 
 /** Roles that may see individual presence / supervision / anomalies (command center). */
-const HOST_ROLES = new Set(['admin', 'bid_host', 'procurement_staff']);
+const HOST_ROLES = new Set(['admin', 'bid_host', 'leader', 'staff']);
 
 /** Parse the auth token from the raw handshake cookie header. */
 function tokenFromHandshake(socket: Socket): string | undefined {

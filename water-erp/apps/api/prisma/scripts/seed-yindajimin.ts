@@ -132,7 +132,7 @@ async function stepBasics() {
     console.log(`  · Announcement 已存在，跳过 (id=${ann.id})`);
     return;
   }
-  const staff = await prisma.user.findFirst({ where: { role: 'procurement_staff' } });
+  const staff = await prisma.user.findFirst({ where: { role: 'staff' } });
   await prisma.announcement.create({
     data: {
       title: '引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务 采购公告',

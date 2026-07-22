@@ -36,7 +36,10 @@ import {
 import {
   buildWorkbenchOverview,
   deriveReminderState,
+  selectWorkbenchOverviewItems,
+  type WorkbenchStatKey,
 } from "@/lib/work-arrangements/workbench";
+import { WorkbenchStatDialog } from "@/components/work-arrangements/workbench-stat-dialog";
 import {
   requestNotificationPermission,
   sendBrowserNotification,
@@ -264,7 +267,8 @@ export function WorkArrangementsPage({
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showOverdueDialog, setShowOverdueDialog] = useState(false);
   const [overdueTasks, setOverdueTasks] = useState<WorkArrangementItem[]>([]);
-  const [isOverview, setIsOverview] = useState(false);
+  const [isOverview, setIsOverview] = useState(true);
+  const [statKey, setStatKey] = useState<WorkbenchStatKey | null>(null);
 
   const overdueCount = useMemo(
     () => getOverdueTasks(allItems).length,
@@ -304,9 +308,20 @@ export function WorkArrangementsPage({
   const selectedItem =
     allItems.find((item) => item.id === selectedItemId) ?? null;
 
+  // 同一 now 同时驱动计数与弹窗列表，保证徽章数字 == 弹窗条数
+  const workbenchNow = useMemo(() => new Date(), [allItems, dailyPlan]);
   const workbenchSummary = useMemo(
-    () => buildWorkbenchOverview(allItems, dailyPlan, new Date()),
-    [allItems, dailyPlan],
+    () => buildWorkbenchOverview(allItems, dailyPlan, workbenchNow),
+    [allItems, dailyPlan, workbenchNow],
+  );
+  const statGroups = useMemo(
+    () => ({
+      todo: selectWorkbenchOverviewItems(allItems, 'todo', workbenchNow),
+      inProgress: selectWorkbenchOverviewItems(allItems, 'inProgress', workbenchNow),
+      dueToday: selectWorkbenchOverviewItems(allItems, 'dueToday', workbenchNow),
+      risk: selectWorkbenchOverviewItems(allItems, 'risk', workbenchNow),
+    }),
+    [allItems, workbenchNow],
   );
 
   const selectedReminderState = selectedItem
@@ -872,6 +887,18 @@ export function WorkArrangementsPage({
           currentUser={currentUser}
           dailyPlan={dailyPlan}
           summary={workbenchSummary}
+          onOpenStat={setStatKey}
+        />
+
+        {/* 标题栏统计徽章明细弹窗（真实数据，与计数同源） */}
+        <WorkbenchStatDialog
+          openKey={statKey}
+          onClose={() => setStatKey(null)}
+          workItems={statGroups}
+          onSelectTask={(id) => {
+            setStatKey(null);
+            handleSelectTask(id);
+          }}
         />
 
         {linkedProject ? (

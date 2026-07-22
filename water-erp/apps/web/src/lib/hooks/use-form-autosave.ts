@@ -3,7 +3,11 @@ import { useEffect, useRef, useCallback } from 'react';
 
 const AUTOSAVE_MS = 3_000;
 
-/** Autosave form data to localStorage. Returns { clear } to clear the saved draft. */
+/**
+ * Autosave form data to localStorage. Returns { clear } to clear the saved draft.
+ * 注意：`enabled` 必须传「表单确有改动」（hasChanges）。若无条件启用，空表单也会每 3s
+ * 被写成草稿，下次进入即弹「已恢复草稿」，且提交后 clearDraft 会被下一 tick 写回（幽灵草稿）。
+ */
 export function useFormAutosave<T extends Record<string, unknown>>(
   key: string,
   state: T,

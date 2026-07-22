@@ -1,9 +1,23 @@
 [
   {
+    "id": "d943bfaa-8459-444f-a572-093dfdd7743a",
+    "expertUserId": "cf872d2a06a7cadf565ceee",
+    "projectId": null,
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
+    "attendanceScore": 93,
+    "qualityScore": 88,
+    "disciplineScore": 90,
+    "overallScore": 90,
+    "level": "A",
+    "comment": "经验丰富，评分客观公正",
+    "createdAt": "2024-12-24T00:00:00.000Z",
+    "updatedAt": "2026-07-22T04:37:07.098Z"
+  },
+  {
     "id": "26d6a069-8c06-4a23-ad2e-b4a58f55d998",
     "expertUserId": "c6cf118fc5785c4deb91a76",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 75,
     "qualityScore": 83,
     "disciplineScore": 85,
@@ -11,13 +25,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-05-01T00:00:00.000Z",
-    "updatedAt": "2025-05-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a415929b-4ca2-49f3-b3e1-96d933c30c57",
     "expertUserId": "c020dca6396cbe866561028",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 91,
     "qualityScore": 94,
     "disciplineScore": 97,
@@ -25,13 +39,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-03-25T00:00:00.000Z",
-    "updatedAt": "2025-03-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "7d351323-4530-4378-9524-728848bdea46",
     "expertUserId": "c2041fcb98e7cfefd2cf3a9",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 55,
     "qualityScore": 77,
     "disciplineScore": 65,
@@ -39,13 +53,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2024-12-27T00:00:00.000Z",
-    "updatedAt": "2024-12-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "5dc5c357-b8c2-47b9-946c-ea5c5e2961b5",
     "expertUserId": "ca0c8507b99a63b5779cb0b",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 86,
     "qualityScore": 83,
     "disciplineScore": 79,
@@ -53,13 +67,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-04-21T00:00:00.000Z",
-    "updatedAt": "2025-04-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2cab5608-c189-4b38-a5e4-6f845cb7416d",
     "expertUserId": "cbe859af32ab28f3fa64caa",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 61,
     "qualityScore": 62,
     "disciplineScore": 77,
@@ -67,13 +81,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2024-12-21T00:00:00.000Z",
-    "updatedAt": "2024-12-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "05bfda58-e380-446e-8cdf-63a2c9e6a6a7",
     "expertUserId": "c60c2ae52a1f898f1341b2d",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 62,
     "qualityScore": 67,
     "disciplineScore": 69,
@@ -81,13 +95,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-01-23T00:00:00.000Z",
-    "updatedAt": "2025-01-23T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "bf6c3c94-9b31-42bf-89b1-fcf79d83229c",
     "expertUserId": "c9957cc6a7c5dc111dbd884",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 77,
     "disciplineScore": 83,
@@ -95,13 +109,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-02-08T00:00:00.000Z",
-    "updatedAt": "2025-02-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f9bc65c0-d805-463a-8c73-02ef9f2ab810",
     "expertUserId": "c655d829d6d705a8e01df2d",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 82,
     "disciplineScore": 88,
@@ -109,13 +123,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-03-13T00:00:00.000Z",
-    "updatedAt": "2025-03-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f0d1b041-ca79-427c-83d1-cd66e1c2dd25",
     "expertUserId": "cee7b1404e01a95dede0bf8",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 68,
     "qualityScore": 70,
     "disciplineScore": 61,
@@ -123,27 +137,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-02-06T00:00:00.000Z",
-    "updatedAt": "2025-02-06T00:00:00.000Z"
-  },
-  {
-    "id": "d943bfaa-8459-444f-a572-093dfdd7743a",
-    "expertUserId": "cf872d2a06a7cadf565ceee",
-    "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
-    "attendanceScore": 93,
-    "qualityScore": 88,
-    "disciplineScore": 90,
-    "overallScore": 90,
-    "level": "A",
-    "comment": "经验丰富，评分客观公正",
-    "createdAt": "2024-12-24T00:00:00.000Z",
-    "updatedAt": "2024-12-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f436fc3f-e8f0-4b94-ba00-becc0bf120ae",
     "expertUserId": "cf3c3f729cab20fd02db3f2",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 54,
     "qualityScore": 60,
     "disciplineScore": 80,
@@ -151,13 +151,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-05-02T00:00:00.000Z",
-    "updatedAt": "2025-05-02T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "37879177-9b0b-41da-98ae-99c4c3d1f85b",
     "expertUserId": "c3c64307e9aa90f5895eb32",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 75,
     "disciplineScore": 81,
@@ -165,13 +165,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-03-22T00:00:00.000Z",
-    "updatedAt": "2025-03-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c5dba4e3-d34b-4b19-b7d2-47f4c938e519",
     "expertUserId": "c087e321f23a6b2ae6595c6",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 41,
     "qualityScore": 62,
     "disciplineScore": 31,
@@ -179,13 +179,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2025-03-06T00:00:00.000Z",
-    "updatedAt": "2025-03-06T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "d5c3ec21-3152-453c-a1a0-46b3b8ab1169",
     "expertUserId": "c4143419ebdde29da2c2aeb",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 91,
     "qualityScore": 75,
     "disciplineScore": 88,
@@ -193,13 +193,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-02-17T00:00:00.000Z",
-    "updatedAt": "2025-02-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "b6919f9f-cb6f-402d-93dc-40d55e79d6d2",
     "expertUserId": "c816ac2b58292a756c23611",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 80,
     "qualityScore": 55,
     "disciplineScore": 57,
@@ -207,13 +207,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-05-18T00:00:00.000Z",
-    "updatedAt": "2025-05-18T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "dc7d39f7-f80a-48b4-818a-4ce82f6875af",
     "expertUserId": "ccdb048d1cc3e0d0ae15b86",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 96,
     "qualityScore": 99,
     "disciplineScore": 97,
@@ -221,13 +221,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-03-13T00:00:00.000Z",
-    "updatedAt": "2025-03-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "60874219-cf54-4bad-8035-40c15d1a04c1",
     "expertUserId": "c52965687bf70bde8f39f66",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 91,
     "disciplineScore": 92,
@@ -235,13 +235,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-02-25T00:00:00.000Z",
-    "updatedAt": "2025-02-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ac11900d-c16d-46c5-9168-8d084f8301cf",
     "expertUserId": "cd45ccd49d1e6b82e07b6d0",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 91,
     "qualityScore": 86,
     "disciplineScore": 89,
@@ -249,13 +249,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-02-23T00:00:00.000Z",
-    "updatedAt": "2025-02-23T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "722c226d-34e1-4ccb-b5ba-b58849937c23",
     "expertUserId": "c736bf6047b1cf3caff41d3",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 89,
     "disciplineScore": 96,
@@ -263,13 +263,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-03-15T00:00:00.000Z",
-    "updatedAt": "2025-03-15T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "08a3a36b-5089-46fa-a9c0-8dc1950e1ef3",
     "expertUserId": "cf2dff9d27e7f8a660c8cd7",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 86,
     "qualityScore": 88,
     "disciplineScore": 91,
@@ -277,13 +277,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-03-14T00:00:00.000Z",
-    "updatedAt": "2025-03-14T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2cddbe16-8350-43fc-9b83-55e1b9ae0e0c",
     "expertUserId": "c1920afa21e60b530ad692b",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 53,
     "qualityScore": 65,
     "disciplineScore": 61,
@@ -291,13 +291,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-01-16T00:00:00.000Z",
-    "updatedAt": "2025-01-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c6a42603-0831-4ac1-8787-4e7f469ac89f",
     "expertUserId": "c7da8a7cff1136497178cef",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 52,
     "qualityScore": 78,
     "disciplineScore": 80,
@@ -305,13 +305,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-01-30T00:00:00.000Z",
-    "updatedAt": "2025-01-30T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "1a6eab8e-fccf-466d-af17-ccb19c4ca748",
     "expertUserId": "c2bf9d5c0c8adb9048dc275",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 87,
     "qualityScore": 76,
     "disciplineScore": 83,
@@ -319,13 +319,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-03-27T00:00:00.000Z",
-    "updatedAt": "2025-03-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "15304866-f6be-4a2e-a23e-8c2ce6456c20",
     "expertUserId": "c33b380f7fa268d8d2da4bd",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 79,
     "disciplineScore": 84,
@@ -333,13 +333,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-02-19T00:00:00.000Z",
-    "updatedAt": "2025-02-19T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "892c1bce-5b8d-4afc-a7e5-50d44f8baeca",
     "expertUserId": "cb8f6677487b1eac17f047d",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 91,
     "qualityScore": 80,
     "disciplineScore": 79,
@@ -347,13 +347,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-05-22T00:00:00.000Z",
-    "updatedAt": "2025-05-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "cf66485d-c8c0-4a9a-8a77-12f2c46647c1",
     "expertUserId": "c5bade6b59d7a3a50315438",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 82,
     "disciplineScore": 79,
@@ -361,13 +361,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-01-22T00:00:00.000Z",
-    "updatedAt": "2025-01-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "1e100678-e68f-487a-8d7f-bbd773fcae28",
     "expertUserId": "c1bb7c86453b6243a2018f3",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 92,
     "disciplineScore": 90,
@@ -375,13 +375,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2024-12-03T00:00:00.000Z",
-    "updatedAt": "2024-12-03T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a7bd4a70-99c5-4875-8234-60fefe430bba",
     "expertUserId": "c1bf8a97b47aed2477b465b",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 29,
     "qualityScore": 64,
     "disciplineScore": 33,
@@ -389,13 +389,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2025-02-01T00:00:00.000Z",
-    "updatedAt": "2025-02-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "06796309-097d-4c18-ab79-8b0b57fb6f3d",
     "expertUserId": "c32fde17b9d4f85cc28829d",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 84,
     "disciplineScore": 94,
@@ -403,13 +403,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-02-06T00:00:00.000Z",
-    "updatedAt": "2025-02-06T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "1617082d-baf9-4c6e-a1b0-4a4a9997a9de",
     "expertUserId": "c3075a50c5ff35b41f89814",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 79,
     "qualityScore": 83,
     "disciplineScore": 87,
@@ -417,13 +417,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-04-09T00:00:00.000Z",
-    "updatedAt": "2025-04-09T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "3712fe80-9852-4a8c-a3a8-f315753e4de0",
     "expertUserId": "caa1758130821f8ad80f900",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 99,
     "disciplineScore": 92,
@@ -431,13 +431,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-05-13T00:00:00.000Z",
-    "updatedAt": "2025-05-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "bbf2355d-9a5b-415c-9bf6-0dddfea0a898",
     "expertUserId": "cf8b4b997d24da4a7173ed5",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 94,
     "disciplineScore": 99,
@@ -445,13 +445,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-05-26T00:00:00.000Z",
-    "updatedAt": "2025-05-26T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "99357f0d-7055-4f0b-a6bc-637d16ec105b",
     "expertUserId": "c9a18c3309f3994b8b3e874",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 86,
     "qualityScore": 92,
     "disciplineScore": 82,
@@ -459,13 +459,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-03-04T00:00:00.000Z",
-    "updatedAt": "2025-03-04T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "3677dcb6-5c8f-4b5d-9657-c9a9c6b2ca87",
     "expertUserId": "c3a4907d3c1167e23dd2605",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 77,
     "qualityScore": 52,
     "disciplineScore": 83,
@@ -473,13 +473,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-03-01T00:00:00.000Z",
-    "updatedAt": "2025-03-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "b7b53157-8f39-456e-9a5d-e20cef21110a",
     "expertUserId": "c73e8485948e4b777da5dae",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 63,
     "qualityScore": 59,
     "disciplineScore": 84,
@@ -487,13 +487,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2024-12-07T00:00:00.000Z",
-    "updatedAt": "2024-12-07T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c3743859-5579-47e5-bacf-4c04e21f011f",
     "expertUserId": "cfd0d42cdcb8cfb5ffe33b3",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 63,
     "qualityScore": 65,
     "disciplineScore": 63,
@@ -501,13 +501,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-03-31T00:00:00.000Z",
-    "updatedAt": "2025-03-31T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9ef30953-a381-43b7-8cab-6344a8a787a1",
     "expertUserId": "ce2c2bb128695fcea2f9dfa",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 100,
     "qualityScore": 99,
     "disciplineScore": 91,
@@ -515,13 +515,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-02-23T00:00:00.000Z",
-    "updatedAt": "2025-02-23T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "7a393752-7fd5-47cb-a8e1-a1b8af4f7a77",
     "expertUserId": "c1243aa9878936a05072a2d",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 42,
     "qualityScore": 52,
     "disciplineScore": 52,
@@ -529,13 +529,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2025-02-05T00:00:00.000Z",
-    "updatedAt": "2025-02-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a644fb60-b988-4f69-86b9-42e45e8e688f",
     "expertUserId": "cc3a5d3472487a36a145a66",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 97,
     "qualityScore": 92,
     "disciplineScore": 93,
@@ -543,13 +543,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-04-27T00:00:00.000Z",
-    "updatedAt": "2025-04-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "b072af25-f0bf-40bc-a096-74dd3813656c",
     "expertUserId": "c68ade75fab8c25429660d3",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 75,
     "qualityScore": 91,
     "disciplineScore": 95,
@@ -557,13 +557,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-20T00:00:00.000Z",
-    "updatedAt": "2025-05-20T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a53b0e32-4c90-4559-98c3-ce3e0aaf5d45",
     "expertUserId": "c2f96a960ff70965b926ef8",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 84,
     "disciplineScore": 94,
@@ -571,13 +571,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-05-28T00:00:00.000Z",
-    "updatedAt": "2025-05-28T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a7e07861-ded2-4318-81db-9b3e9438dc01",
     "expertUserId": "c87300be5c1d3511d1b0d67",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 92,
     "disciplineScore": 98,
@@ -585,13 +585,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-02-16T00:00:00.000Z",
-    "updatedAt": "2025-02-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "0d6961c0-8cd8-4d86-9f80-c3e6f0d65a9f",
     "expertUserId": "c1dfec79a7bbc8ab6c02319",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 69,
     "qualityScore": 70,
     "disciplineScore": 69,
@@ -599,13 +599,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-01-13T00:00:00.000Z",
-    "updatedAt": "2025-01-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "8b63688b-e54b-4644-82bc-a60b1498706e",
     "expertUserId": "c0b6aa0359cb61f1a17a8f4",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 96,
     "disciplineScore": 97,
@@ -613,13 +613,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-01-27T00:00:00.000Z",
-    "updatedAt": "2025-01-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e5b4bdf1-8736-4d74-a919-5b5ea5642bf6",
     "expertUserId": "c78a47e91ea7ce4a1184f4a",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 88,
     "qualityScore": 89,
     "disciplineScore": 95,
@@ -627,13 +627,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-05-28T00:00:00.000Z",
-    "updatedAt": "2025-05-28T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9e7c99e2-7521-45e1-97d8-dbbc02496701",
     "expertUserId": "ccbbaa772746031c0beb3c5",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 97,
     "disciplineScore": 88,
@@ -641,13 +641,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-05-28T00:00:00.000Z",
-    "updatedAt": "2025-05-28T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c4efcc92-d034-4780-9044-811ba3d06c1d",
     "expertUserId": "ccd2593ec90958353c11cd0",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 89,
     "disciplineScore": 82,
@@ -655,13 +655,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-04-20T00:00:00.000Z",
-    "updatedAt": "2025-04-20T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6f50b01e-8308-4cc4-91f7-108d8179d8c2",
     "expertUserId": "cecb7a0e088cc07264af001",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 89,
     "disciplineScore": 86,
@@ -669,13 +669,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-02-09T00:00:00.000Z",
-    "updatedAt": "2025-02-09T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "5bb9b304-769c-446f-8e31-d222dee095b3",
     "expertUserId": "c13853f2da2d73b34d73687",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 91,
     "disciplineScore": 96,
@@ -683,13 +683,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-03-09T00:00:00.000Z",
-    "updatedAt": "2025-03-09T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "8b1b64fb-f53a-4333-acb9-b989f473131c",
     "expertUserId": "ce975471362142480497343",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 77,
     "qualityScore": 88,
     "disciplineScore": 91,
@@ -697,13 +697,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-01-22T00:00:00.000Z",
-    "updatedAt": "2025-01-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "b3c53e51-70a5-4279-87c2-57da22b77ff5",
     "expertUserId": "ca6caddc306a1a30c492ed8",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 75,
     "disciplineScore": 90,
@@ -711,13 +711,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-03-10T00:00:00.000Z",
-    "updatedAt": "2025-03-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "d8ddc975-6183-4907-8f33-6402d22f9a9e",
     "expertUserId": "c81a11b9e4f835009a8e3b6",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 51,
     "qualityScore": 64,
     "disciplineScore": 54,
@@ -725,13 +725,13 @@
     "level": "D",
     "comment": "评审质量不达标，建议加强培训",
     "createdAt": "2025-03-22T00:00:00.000Z",
-    "updatedAt": "2025-03-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6cb4f829-5adc-4152-afab-a7f63600ed57",
     "expertUserId": "c1ad09e27b5de273e042386",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 98,
     "disciplineScore": 94,
@@ -739,13 +739,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-03-11T00:00:00.000Z",
-    "updatedAt": "2025-03-11T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "74763bb8-b96d-41c4-82ea-ec21c5044c4f",
     "expertUserId": "cd30538a940548fd4e87ae5",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 88,
     "disciplineScore": 95,
@@ -753,13 +753,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-02-22T00:00:00.000Z",
-    "updatedAt": "2025-02-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f09e045f-2729-4596-b4cd-37535d18b126",
     "expertUserId": "c216edc8542d89c1d15df8c",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 90,
     "disciplineScore": 100,
@@ -767,13 +767,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2024-12-05T00:00:00.000Z",
-    "updatedAt": "2024-12-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "88c79be6-57c6-4bb5-bba4-5318dc9a6f02",
     "expertUserId": "c2c2040e4ca6d71de653e07",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 89,
     "disciplineScore": 98,
@@ -781,13 +781,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-01-21T00:00:00.000Z",
-    "updatedAt": "2025-01-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "440c6c14-101a-47f9-958f-ffe8fe8b882f",
     "expertUserId": "c7094ea594998556f4b0edb",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 82,
     "qualityScore": 79,
     "disciplineScore": 93,
@@ -795,13 +795,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-03-05T00:00:00.000Z",
-    "updatedAt": "2025-03-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "3a400de2-2fbb-44d2-8d6a-2a3dd59a499c",
     "expertUserId": "c446548f5d4a7ba4714f33d",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 32,
     "qualityScore": 40,
     "disciplineScore": 39,
@@ -809,13 +809,13 @@
     "level": "D",
     "comment": "评审质量不达标，建议加强培训",
     "createdAt": "2025-03-12T00:00:00.000Z",
-    "updatedAt": "2025-03-12T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "58ecff13-1606-49cb-835b-815fe2f64f5a",
     "expertUserId": "cef5bdb64f219bdcd62b223",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 97,
     "qualityScore": 97,
     "disciplineScore": 98,
@@ -823,13 +823,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-04-24T00:00:00.000Z",
-    "updatedAt": "2025-04-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "8cfd20ba-a256-4f2e-a2ca-f67dccf2f24b",
     "expertUserId": "ca9d32af5c746ec3fec387d",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 96,
     "disciplineScore": 93,
@@ -837,13 +837,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-04-05T00:00:00.000Z",
-    "updatedAt": "2025-04-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e60125f9-0296-4f14-bb6b-15548367368a",
     "expertUserId": "cb72350efe8b7e50c6f2465",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 79,
     "disciplineScore": 91,
@@ -851,13 +851,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-03-22T00:00:00.000Z",
-    "updatedAt": "2025-03-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "b8773f86-2624-47d4-821c-82aad625bfa2",
     "expertUserId": "c969cde04fedb19817e7371",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 85,
     "qualityScore": 82,
     "disciplineScore": 80,
@@ -865,13 +865,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-04-25T00:00:00.000Z",
-    "updatedAt": "2025-04-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "5da9d795-64ca-47ac-aaf7-13d52957f82f",
     "expertUserId": "c3c2dbdaed56d4d542fe00d",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 75,
     "qualityScore": 90,
     "disciplineScore": 88,
@@ -879,13 +879,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-02-05T00:00:00.000Z",
-    "updatedAt": "2025-02-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "16036138-fe2c-4c9e-8817-34fe9842200b",
     "expertUserId": "c6401d5d1c4480790d0b0a7",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 83,
     "qualityScore": 92,
     "disciplineScore": 78,
@@ -893,13 +893,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-04-05T00:00:00.000Z",
-    "updatedAt": "2025-04-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2a7f5f7e-3914-4ce0-8e1b-e882e24dbe39",
     "expertUserId": "cfb029fd589935f367620f3",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 90,
     "disciplineScore": 92,
@@ -907,13 +907,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-03-14T00:00:00.000Z",
-    "updatedAt": "2025-03-14T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "89db04f1-41ce-4dba-b3a7-c32c41675b5e",
     "expertUserId": "c566649c3af65e723c467a2",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 97,
     "qualityScore": 91,
     "disciplineScore": 95,
@@ -921,13 +921,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-05-29T00:00:00.000Z",
-    "updatedAt": "2025-05-29T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "fe717fed-3207-40ae-b829-2b89240bdb65",
     "expertUserId": "c60ad26346485bf4136f4bb",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 97,
     "disciplineScore": 91,
@@ -935,13 +935,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-01-25T00:00:00.000Z",
-    "updatedAt": "2025-01-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "dd5aed15-bc3e-4197-845e-5755caf5c476",
     "expertUserId": "c3aadaff3e538c379a9ffd4",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 97,
     "qualityScore": 98,
     "disciplineScore": 96,
@@ -949,13 +949,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-01-28T00:00:00.000Z",
-    "updatedAt": "2025-01-28T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6851542d-cd7f-4431-b289-e92b72fbb59b",
     "expertUserId": "cb1b5c7c0013c6bfb90cab9",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 96,
     "qualityScore": 88,
     "disciplineScore": 92,
@@ -963,13 +963,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-05-13T00:00:00.000Z",
-    "updatedAt": "2025-05-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "d0dbc4ce-a3dc-4ef6-b36c-a574e44461b4",
     "expertUserId": "cdb063222e68912e915f2ec",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 75,
     "qualityScore": 84,
     "disciplineScore": 93,
@@ -977,13 +977,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2024-12-14T00:00:00.000Z",
-    "updatedAt": "2024-12-14T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "397d8c1f-7003-45ea-a660-2f59faa9a8f0",
     "expertUserId": "c6c9046f6381761ba3a091a",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 92,
     "disciplineScore": 95,
@@ -991,13 +991,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-04-24T00:00:00.000Z",
-    "updatedAt": "2025-04-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "19b1d915-e0e2-415e-a662-18fd130e5707",
     "expertUserId": "ce7e54444763ebbead6d954",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 91,
     "qualityScore": 87,
     "disciplineScore": 96,
@@ -1005,13 +1005,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-03-24T00:00:00.000Z",
-    "updatedAt": "2025-03-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "cd9de425-79dc-446d-ba30-5c81aad289ab",
     "expertUserId": "c1de58bdaf56f127cfa6a22",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 44,
     "qualityScore": 33,
     "disciplineScore": 59,
@@ -1019,13 +1019,13 @@
     "level": "D",
     "comment": "评审质量不达标，建议加强培训",
     "createdAt": "2025-05-19T00:00:00.000Z",
-    "updatedAt": "2025-05-19T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "df2092f8-92fe-4c2f-bcbd-e3a3c93ce3cd",
     "expertUserId": "c53e7464beb3a9fb0cf8f95",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 88,
     "disciplineScore": 88,
@@ -1033,13 +1033,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2024-12-09T00:00:00.000Z",
-    "updatedAt": "2024-12-09T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2e461e77-d2bf-4bee-918f-9c12ffeb69b8",
     "expertUserId": "c06fc9cf144ff40a755486a",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 77,
     "disciplineScore": 85,
@@ -1047,13 +1047,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-04-19T00:00:00.000Z",
-    "updatedAt": "2025-04-19T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ed2f11e2-ad57-46c5-8537-65366190d898",
     "expertUserId": "c6267d0953f4706c1ffa9e2",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 76,
     "qualityScore": 59,
     "disciplineScore": 57,
@@ -1061,13 +1061,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-03-23T00:00:00.000Z",
-    "updatedAt": "2025-03-23T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "212ea0dc-4e26-4c2c-a9ee-3db2238406db",
     "expertUserId": "c64c6a951b5f5da2d8b1719",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 83,
     "qualityScore": 91,
     "disciplineScore": 95,
@@ -1075,13 +1075,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-03-21T00:00:00.000Z",
-    "updatedAt": "2025-03-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "33158baa-905b-436e-9f13-f736dd310669",
     "expertUserId": "c325407d7f3108de5ce464e",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 75,
     "qualityScore": 77,
     "disciplineScore": 85,
@@ -1089,13 +1089,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-03-31T00:00:00.000Z",
-    "updatedAt": "2025-03-31T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6e3092bd-0a4d-43da-9587-2d4ec7ed84ef",
     "expertUserId": "c8216fc199d18e3443c5ccf",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 55,
     "qualityScore": 77,
     "disciplineScore": 75,
@@ -1103,13 +1103,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-03-15T00:00:00.000Z",
-    "updatedAt": "2025-03-15T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "1b26a5d6-a0b7-461c-a584-80f290a3a7b3",
     "expertUserId": "ce853d142e88f938d3076d7",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 60,
     "qualityScore": 76,
     "disciplineScore": 77,
@@ -1117,13 +1117,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-03-27T00:00:00.000Z",
-    "updatedAt": "2025-03-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "0bdfcb38-7250-4041-9598-a2464a5e77d7",
     "expertUserId": "c5faa29f94a10863f2d062f",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 100,
     "qualityScore": 92,
     "disciplineScore": 96,
@@ -1131,13 +1131,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-01-18T00:00:00.000Z",
-    "updatedAt": "2025-01-18T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e8ab3f68-d8bd-46de-8020-edd400603a35",
     "expertUserId": "c5d571efe00149dc17d472b",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 70,
     "qualityScore": 78,
     "disciplineScore": 79,
@@ -1145,13 +1145,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-02-12T00:00:00.000Z",
-    "updatedAt": "2025-02-12T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "7fa1b396-966d-4cab-8b3a-446600c42b2b",
     "expertUserId": "ccd4b59472349812867a1af",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 95,
     "disciplineScore": 100,
@@ -1159,13 +1159,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-04-21T00:00:00.000Z",
-    "updatedAt": "2025-04-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f4183bad-fdb3-4ab6-840f-ee93d56c59a3",
     "expertUserId": "cca119a2d240fe6bc879622",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 32,
     "qualityScore": 59,
     "disciplineScore": 27,
@@ -1173,13 +1173,13 @@
     "level": "D",
     "comment": "评审质量不达标，建议加强培训",
     "createdAt": "2025-03-17T00:00:00.000Z",
-    "updatedAt": "2025-03-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "734e75a6-f049-4747-80f5-ea579fcdb4e2",
     "expertUserId": "c1ea9c3ebc084fa946a04db",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 40,
     "qualityScore": 59,
     "disciplineScore": 55,
@@ -1187,13 +1187,27 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2024-12-18T00:00:00.000Z",
-    "updatedAt": "2024-12-18T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
+  },
+  {
+    "id": "0bc28108-42a9-44db-91e5-7e8718ccfabd",
+    "expertUserId": "c0b6aa0359cb61f1a17a8f4",
+    "projectId": null,
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
+    "attendanceScore": 90,
+    "qualityScore": 97,
+    "disciplineScore": 95,
+    "overallScore": 94,
+    "level": "A",
+    "comment": "经验丰富，评分客观公正",
+    "createdAt": "2025-05-13T00:00:00.000Z",
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e1be2115-4d89-41f0-8926-b85424a81b65",
     "expertUserId": "c2afaa1181d6ef09b7ddd1f",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 100,
     "qualityScore": 94,
     "disciplineScore": 92,
@@ -1201,13 +1215,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-01-08T00:00:00.000Z",
-    "updatedAt": "2025-01-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "d8e9868d-4f14-479c-9192-a5fe6142955b",
     "expertUserId": "c826709c602085d0d94cc2a",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 96,
     "qualityScore": 98,
     "disciplineScore": 96,
@@ -1215,13 +1229,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-05-28T00:00:00.000Z",
-    "updatedAt": "2025-05-28T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "06bd1966-2057-492e-b984-20f374c77e64",
     "expertUserId": "c9b660b672c06d983f5d986",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 100,
     "qualityScore": 92,
     "disciplineScore": 88,
@@ -1229,13 +1243,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-05-19T00:00:00.000Z",
-    "updatedAt": "2025-05-19T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "feda662d-c5ae-4421-8127-03c396e9c3e7",
     "expertUserId": "c7d0cb8c25e0b9e32858f60",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 79,
     "qualityScore": 90,
     "disciplineScore": 79,
@@ -1243,13 +1257,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2024-12-26T00:00:00.000Z",
-    "updatedAt": "2024-12-26T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "80c543ae-73e4-4706-bc2e-4379a44fdfb7",
     "expertUserId": "c38a410c5554cbd61927ec9",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 92,
     "disciplineScore": 98,
@@ -1257,13 +1271,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-02-25T00:00:00.000Z",
-    "updatedAt": "2025-02-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ea0399c0-2f9b-415c-addb-2624cf77cf99",
     "expertUserId": "c8e7417a05c718933cabb6c",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 77,
     "qualityScore": 85,
     "disciplineScore": 95,
@@ -1271,13 +1285,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-08T00:00:00.000Z",
-    "updatedAt": "2025-05-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ee72cd6c-9819-461a-9842-275500d05b88",
     "expertUserId": "c364afad4ac63c000585e5b",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 30,
     "qualityScore": 57,
     "disciplineScore": 26,
@@ -1285,13 +1299,13 @@
     "level": "D",
     "comment": "评审质量不达标，建议加强培训",
     "createdAt": "2024-12-08T00:00:00.000Z",
-    "updatedAt": "2024-12-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "8b5fc134-f31b-4089-b3db-c5de2f7256eb",
     "expertUserId": "cf3c0859b95bc28049a225a",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 92,
     "disciplineScore": 90,
@@ -1299,13 +1313,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-01-14T00:00:00.000Z",
-    "updatedAt": "2025-01-14T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "58f013f4-31d5-42ee-a148-2581f472bdc4",
     "expertUserId": "c7c807f7984b3fbcf6a2c31",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 82,
     "qualityScore": 90,
     "disciplineScore": 82,
@@ -1313,13 +1327,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-02-04T00:00:00.000Z",
-    "updatedAt": "2025-02-04T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "0c1b89be-79a5-4234-a5c2-df2bcb66a7d2",
     "expertUserId": "ca99ca679a5055e24596c02",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 64,
     "qualityScore": 68,
     "disciplineScore": 76,
@@ -1327,13 +1341,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-04-30T00:00:00.000Z",
-    "updatedAt": "2025-04-30T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "68e30065-9012-4955-8c9a-eca25c68f457",
     "expertUserId": "c8fb3f42949eb9bd63c6315",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 84,
     "disciplineScore": 84,
@@ -1341,13 +1355,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-03-08T00:00:00.000Z",
-    "updatedAt": "2025-03-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "70b0a941-e475-494b-ad1d-fb03e72b1f03",
     "expertUserId": "ced2ed87ae0d90297edec27",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 99,
     "qualityScore": 90,
     "disciplineScore": 88,
@@ -1355,13 +1369,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-05-05T00:00:00.000Z",
-    "updatedAt": "2025-05-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a436b4ae-0864-4e03-ba87-43d213acbe88",
     "expertUserId": "c06d727025ec412987a9ba2",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 68,
     "disciplineScore": 79,
@@ -1369,13 +1383,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-05-08T00:00:00.000Z",
-    "updatedAt": "2025-05-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "05476642-e352-448d-bd33-006017bb6b39",
     "expertUserId": "cb0acf46b2375dfb1c08ffb",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 76,
     "disciplineScore": 87,
@@ -1383,13 +1397,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2024-12-24T00:00:00.000Z",
-    "updatedAt": "2024-12-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "dbbcf218-55c0-47ce-b94d-a480beb1aeee",
     "expertUserId": "c51206fea0b5a7485d5d68c",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 88,
     "disciplineScore": 91,
@@ -1397,13 +1411,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-02-04T00:00:00.000Z",
-    "updatedAt": "2025-02-04T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c24129c7-690e-489d-a788-f58abc37f8c4",
     "expertUserId": "c01930f0eb4b5e9a0e39dc3",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 80,
     "qualityScore": 68,
     "disciplineScore": 78,
@@ -1411,13 +1425,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-01-06T00:00:00.000Z",
-    "updatedAt": "2025-01-06T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e3f012b1-12b7-43b7-943a-9b5624fc632c",
     "expertUserId": "c718ff9618bce5df8ec66e0",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 97,
     "disciplineScore": 98,
@@ -1425,13 +1439,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2024-12-04T00:00:00.000Z",
-    "updatedAt": "2024-12-04T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "876b30fe-a906-40aa-868d-9987f1441ad4",
     "expertUserId": "c62129e1b17abace5191d75",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 83,
     "qualityScore": 87,
     "disciplineScore": 89,
@@ -1439,13 +1453,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-05-08T00:00:00.000Z",
-    "updatedAt": "2025-05-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2ebcf556-3ed0-4785-8767-61b192ea5216",
     "expertUserId": "c0f9dbe0706a39401616712",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 82,
     "disciplineScore": 80,
@@ -1453,13 +1467,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-01-05T00:00:00.000Z",
-    "updatedAt": "2025-01-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "aa542f9d-196a-4bb5-8cc7-4efa02c13831",
     "expertUserId": "c48304cb3db950081a9cf57",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 87,
     "disciplineScore": 89,
@@ -1467,13 +1481,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-03-05T00:00:00.000Z",
-    "updatedAt": "2025-03-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f5a63cb7-aec5-4cce-b59b-203ebf84853e",
     "expertUserId": "c92765622a8e782ba3c9989",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 88,
     "disciplineScore": 82,
@@ -1481,13 +1495,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-02-10T00:00:00.000Z",
-    "updatedAt": "2025-02-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "5a3498da-b6da-4d6e-9719-6d89cd08823f",
     "expertUserId": "c92b2d5c8cb1b16813e0fe2",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 89,
     "disciplineScore": 93,
@@ -1495,13 +1509,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-03-12T00:00:00.000Z",
-    "updatedAt": "2025-03-12T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a763c917-52f3-4c97-b3ba-c157f1476b69",
     "expertUserId": "c59d83b50b2d9202b076bf6",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 76,
     "qualityScore": 79,
     "disciplineScore": 57,
@@ -1509,13 +1523,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-02-01T00:00:00.000Z",
-    "updatedAt": "2025-02-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c4797591-f557-43c6-9932-2aa8a0eeaa81",
     "expertUserId": "c8e49f27221c0179852f05e",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 56,
     "qualityScore": 54,
     "disciplineScore": 81,
@@ -1523,13 +1537,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-01-07T00:00:00.000Z",
-    "updatedAt": "2025-01-07T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "648dd21b-ce18-4561-a2cd-a7dc349ab3b1",
     "expertUserId": "cc2c026274336ff9dff8eeb",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 83,
     "qualityScore": 79,
     "disciplineScore": 82,
@@ -1537,13 +1551,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-01-03T00:00:00.000Z",
-    "updatedAt": "2025-01-03T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "42fa58be-0934-4e8d-b04b-a589f4b1974c",
     "expertUserId": "cd7db4034003bd912b4ecdc",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 75,
     "qualityScore": 80,
     "disciplineScore": 86,
@@ -1551,13 +1565,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2024-12-17T00:00:00.000Z",
-    "updatedAt": "2024-12-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "3bce4c8e-e508-4e3b-8fb6-21b26355e0ee",
     "expertUserId": "cd4fcaa2ac61166ed37176a",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 89,
     "disciplineScore": 94,
@@ -1565,13 +1579,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-05-14T00:00:00.000Z",
-    "updatedAt": "2025-05-14T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "54ad1080-e10d-439d-a223-39bd11f2801a",
     "expertUserId": "c9d82b114b7a2d6712e8923",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 99,
     "disciplineScore": 94,
@@ -1579,13 +1593,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2024-12-19T00:00:00.000Z",
-    "updatedAt": "2024-12-19T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "217f3404-e103-45e1-88fb-5d920149ff81",
     "expertUserId": "cc0e2743afa83cdc1e69932",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 87,
     "disciplineScore": 90,
@@ -1593,13 +1607,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-03-27T00:00:00.000Z",
-    "updatedAt": "2025-03-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "169cf4cc-56fa-45e2-9a78-5bf7d579f7b7",
     "expertUserId": "cf2009952dac4a873e4a237",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 99,
     "qualityScore": 87,
     "disciplineScore": 98,
@@ -1607,13 +1621,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-03-16T00:00:00.000Z",
-    "updatedAt": "2025-03-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6d9496eb-3c5a-43f5-99c7-0203c5f310d3",
     "expertUserId": "c112e28424ea2a3c30597bd",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 85,
     "disciplineScore": 91,
@@ -1621,13 +1635,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-25T00:00:00.000Z",
-    "updatedAt": "2025-05-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a1127809-d946-4465-b432-7ea647983558",
     "expertUserId": "c02d43bbb3338113c40db78",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 87,
     "disciplineScore": 94,
@@ -1635,13 +1649,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-04-30T00:00:00.000Z",
-    "updatedAt": "2025-04-30T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ed02bfea-0e57-4460-8a00-8046ef78a6bc",
     "expertUserId": "c31f90ca433e8aace071992",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 88,
     "disciplineScore": 89,
@@ -1649,13 +1663,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-03-01T00:00:00.000Z",
-    "updatedAt": "2025-03-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "01a4e89f-8af4-40ca-9085-6aa7a7b64932",
     "expertUserId": "c336005f78b5c7f0c1e787d",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 93,
     "disciplineScore": 91,
@@ -1663,13 +1677,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-02-10T00:00:00.000Z",
-    "updatedAt": "2025-02-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "bf4fae66-0a53-4ce2-b49c-95137b1f6cae",
     "expertUserId": "c79576e7d8c5c8f42584bc7",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 74,
     "qualityScore": 51,
     "disciplineScore": 74,
@@ -1677,13 +1691,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-05-29T00:00:00.000Z",
-    "updatedAt": "2025-05-29T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "1397543b-e644-4d36-a76b-ac0fd80fbf61",
     "expertUserId": "c690d74d6d535b32d80f736",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 61,
     "qualityScore": 50,
     "disciplineScore": 60,
@@ -1691,13 +1705,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2025-05-12T00:00:00.000Z",
-    "updatedAt": "2025-05-12T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "12218dee-4b7b-4f08-8812-1c4bd0f2b2f6",
     "expertUserId": "cd2247302f618f85a47ae9f",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 96,
     "qualityScore": 89,
     "disciplineScore": 94,
@@ -1705,13 +1719,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-03-05T00:00:00.000Z",
-    "updatedAt": "2025-03-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4bfa2994-8106-43ed-bce1-b45432dc3b32",
     "expertUserId": "c413b19c5a83607f0f4c180",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 68,
     "qualityScore": 55,
     "disciplineScore": 83,
@@ -1719,13 +1733,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-05-22T00:00:00.000Z",
-    "updatedAt": "2025-05-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "35a3479b-fee1-4b1a-8d08-f1830d6ecae0",
     "expertUserId": "c8ef949b637355dec8f2a25",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 89,
     "disciplineScore": 91,
@@ -1733,13 +1747,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-03-21T00:00:00.000Z",
-    "updatedAt": "2025-03-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "366ccf07-e986-4c5d-a6f6-acc79215002d",
     "expertUserId": "c824dc53e9093ada8f900e6",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 84,
     "qualityScore": 76,
     "disciplineScore": 85,
@@ -1747,13 +1761,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-02-16T00:00:00.000Z",
-    "updatedAt": "2025-02-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a47c1ad9-6a7e-4b8d-aba2-3a5d07aeb558",
     "expertUserId": "ca1019abd39bc56191b61bd",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 74,
     "qualityScore": 66,
     "disciplineScore": 64,
@@ -1761,13 +1775,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-03-21T00:00:00.000Z",
-    "updatedAt": "2025-03-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "0d7f2747-350f-465f-8403-e63e374b2898",
     "expertUserId": "c37ddd4acb95f51d26dee8e",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 82,
     "qualityScore": 91,
     "disciplineScore": 95,
@@ -1775,13 +1789,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-03-22T00:00:00.000Z",
-    "updatedAt": "2025-03-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a4861824-4edd-4931-90f8-09bb879af341",
     "expertUserId": "c1742a9e710a37e89c2c33c",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 68,
     "qualityScore": 77,
     "disciplineScore": 73,
@@ -1789,13 +1803,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-03-14T00:00:00.000Z",
-    "updatedAt": "2025-03-14T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2601ba07-5a56-457d-a871-ac213e267915",
     "expertUserId": "c848803aa59b56fcb88b078",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 97,
     "qualityScore": 93,
     "disciplineScore": 99,
@@ -1803,13 +1817,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-02-01T00:00:00.000Z",
-    "updatedAt": "2025-02-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f7e8ab47-68ae-4dd0-9a34-fc4de7a265e5",
     "expertUserId": "c688f99a7c53dafa3ab64b2",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 87,
     "qualityScore": 84,
     "disciplineScore": 88,
@@ -1817,13 +1831,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-04-10T00:00:00.000Z",
-    "updatedAt": "2025-04-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4d43ca4c-849f-488c-815e-7565764deb38",
     "expertUserId": "cb2e7971f44d12880ac622e",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 81,
     "qualityScore": 86,
     "disciplineScore": 89,
@@ -1831,13 +1845,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-02-04T00:00:00.000Z",
-    "updatedAt": "2025-02-04T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "b453d71e-171e-421e-a2dc-83c1736cbc3d",
     "expertUserId": "cd874dc66a137662ed2c151",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 100,
     "qualityScore": 96,
     "disciplineScore": 89,
@@ -1845,13 +1859,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-05-24T00:00:00.000Z",
-    "updatedAt": "2025-05-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f9df71d2-1c74-411c-84ab-33dac6cf2adc",
     "expertUserId": "c59eee7556ce3989098b171",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 85,
     "disciplineScore": 88,
@@ -1859,13 +1873,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-03-24T00:00:00.000Z",
-    "updatedAt": "2025-03-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9699ede2-e48a-42c5-96bb-f35bf128e2c7",
     "expertUserId": "c7a4c730587e47013259c2e",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 68,
     "qualityScore": 53,
     "disciplineScore": 66,
@@ -1873,13 +1887,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2024-12-10T00:00:00.000Z",
-    "updatedAt": "2024-12-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "40b78a84-4c09-4883-b299-1aaa96109254",
     "expertUserId": "cb6743aff73a95aed5e6bc0",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 95,
     "disciplineScore": 97,
@@ -1887,13 +1901,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-04-26T00:00:00.000Z",
-    "updatedAt": "2025-04-26T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4b395cad-94ed-4f31-980d-d6cf7a55fec1",
     "expertUserId": "c6e5d950fb98da5c38d0157",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 94,
     "disciplineScore": 90,
@@ -1901,13 +1915,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2024-12-22T00:00:00.000Z",
-    "updatedAt": "2024-12-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ac5fff6b-c1b2-450b-bebd-32b9109c9b0e",
     "expertUserId": "c11e632255cb22470b23a1f",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 99,
     "qualityScore": 93,
     "disciplineScore": 95,
@@ -1915,13 +1929,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-03-10T00:00:00.000Z",
-    "updatedAt": "2025-03-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "dbbdc188-4a36-478a-943f-e4f65bc9dbc5",
     "expertUserId": "c49e951fb524ba5eb5e6208",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 76,
     "qualityScore": 85,
     "disciplineScore": 80,
@@ -1929,13 +1943,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-02-03T00:00:00.000Z",
-    "updatedAt": "2025-02-03T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "cb52fb8e-075e-4c8d-9028-584a04b9a62a",
     "expertUserId": "c6bb93fe16e38e5e48b91cd",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 79,
     "disciplineScore": 88,
@@ -1943,13 +1957,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-05-17T00:00:00.000Z",
-    "updatedAt": "2025-05-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "60710376-991b-48f7-8b20-3ed819b94aa4",
     "expertUserId": "c65a9273c190f11cca32e4f",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 77,
     "disciplineScore": 87,
@@ -1957,13 +1971,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-15T00:00:00.000Z",
-    "updatedAt": "2025-05-15T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "b580b880-021d-4414-a0db-079c71f2d31c",
     "expertUserId": "ccdc0945bf2eaeb9b62c6ff",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 75,
     "qualityScore": 86,
     "disciplineScore": 87,
@@ -1971,13 +1985,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-01-19T00:00:00.000Z",
-    "updatedAt": "2025-01-19T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "7536ebc1-adb4-45a1-87c3-8a736a1d75ed",
     "expertUserId": "c8123e468af76748b83b07a",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 99,
     "disciplineScore": 100,
@@ -1985,13 +1999,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-05-02T00:00:00.000Z",
-    "updatedAt": "2025-05-02T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9778eddf-58c9-4392-83e4-4e1bcff1ac4d",
     "expertUserId": "cd43e0d72f5fc062a98158b",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 99,
     "qualityScore": 98,
     "disciplineScore": 97,
@@ -1999,13 +2013,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-03-04T00:00:00.000Z",
-    "updatedAt": "2025-03-04T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "3eaedabc-248f-4e59-b5b4-7ff73c262d3e",
     "expertUserId": "c8381f05d61d0b6643f5558",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 95,
     "disciplineScore": 92,
@@ -2013,13 +2027,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-03-31T00:00:00.000Z",
-    "updatedAt": "2025-03-31T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2263fa1d-b34c-4ca5-8099-7a3036174aa1",
     "expertUserId": "cc347eb836cb7dd58f509c0",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 95,
     "disciplineScore": 95,
@@ -2027,13 +2041,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-01-11T00:00:00.000Z",
-    "updatedAt": "2025-01-11T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9c9e624c-e584-41ae-978d-5bb111c5564b",
     "expertUserId": "cec1fac6e334010cb2c8b0a",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 54,
     "qualityScore": 66,
     "disciplineScore": 56,
@@ -2041,13 +2055,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2025-02-11T00:00:00.000Z",
-    "updatedAt": "2025-02-11T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "912dd8db-8278-4238-9554-2164f84aa0d3",
     "expertUserId": "ceb7f6956a9f535c1aa7ee8",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 96,
     "qualityScore": 88,
     "disciplineScore": 94,
@@ -2055,13 +2069,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2024-12-07T00:00:00.000Z",
-    "updatedAt": "2024-12-07T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "62bfeff8-cefc-41d8-8da4-e0466c3508c5",
     "expertUserId": "cc0154af02c84ddba9448c7",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 82,
     "qualityScore": 87,
     "disciplineScore": 80,
@@ -2069,13 +2083,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2024-12-26T00:00:00.000Z",
-    "updatedAt": "2024-12-26T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "1ab0ff09-1641-4243-ab01-80768e40f90c",
     "expertUserId": "c2580bfe3e98a2b63ae8f3e",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 79,
     "qualityScore": 79,
     "disciplineScore": 79,
@@ -2083,13 +2097,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-03-25T00:00:00.000Z",
-    "updatedAt": "2025-03-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "603627d4-1bb5-45d2-9d2f-df9c4c049840",
     "expertUserId": "c573bc975408d26d755484a",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 50,
     "qualityScore": 66,
     "disciplineScore": 61,
@@ -2097,13 +2111,13 @@
     "level": "D",
     "comment": "评审质量不达标，建议加强培训",
     "createdAt": "2025-01-30T00:00:00.000Z",
-    "updatedAt": "2025-01-30T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "02fbae78-64ac-441b-b557-813ae642bcc6",
     "expertUserId": "cb779145829c7b673b82409",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 98,
     "disciplineScore": 97,
@@ -2111,13 +2125,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-05-02T00:00:00.000Z",
-    "updatedAt": "2025-05-02T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "54583602-2651-423b-9052-f250be8573c5",
     "expertUserId": "c1df8cb0dfc332079a48b8c",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 79,
     "qualityScore": 84,
     "disciplineScore": 91,
@@ -2125,13 +2139,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-01-17T00:00:00.000Z",
-    "updatedAt": "2025-01-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "438c4cf5-3f0f-4762-8423-e4d8814edae0",
     "expertUserId": "cd490dc8f1c36ab54f16053",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 87,
     "disciplineScore": 96,
@@ -2139,13 +2153,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-05-12T00:00:00.000Z",
-    "updatedAt": "2025-05-12T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a9c26803-8df3-42c1-a5ff-2ff66118a115",
     "expertUserId": "c3ad6b90ea7ebaecfdaa25c",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 88,
     "qualityScore": 91,
     "disciplineScore": 100,
@@ -2153,13 +2167,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-04-28T00:00:00.000Z",
-    "updatedAt": "2025-04-28T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e21ed078-4982-446e-90f4-6c5f3fe2fa85",
     "expertUserId": "c79337e5875905b5f82f1c9",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 88,
     "qualityScore": 91,
     "disciplineScore": 96,
@@ -2167,13 +2181,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-05-11T00:00:00.000Z",
-    "updatedAt": "2025-05-11T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "0f18e4a1-f7e1-4dd7-a71a-6441af38204d",
     "expertUserId": "caa68436d928e8d3a7a1217",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 100,
     "qualityScore": 93,
     "disciplineScore": 88,
@@ -2181,13 +2195,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2024-12-11T00:00:00.000Z",
-    "updatedAt": "2024-12-11T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "3018875a-1cab-4c51-b75a-7a4d0b688623",
     "expertUserId": "c448737bac4f614a4c83f54",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 90,
     "disciplineScore": 86,
@@ -2195,13 +2209,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2024-12-13T00:00:00.000Z",
-    "updatedAt": "2024-12-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "09794507-abc3-41f0-8be6-a72ad1cffb6b",
     "expertUserId": "c850291f8d0cbc89944e4b6",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 98,
     "disciplineScore": 93,
@@ -2209,13 +2223,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-02-25T00:00:00.000Z",
-    "updatedAt": "2025-02-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "b7727e0d-a347-49e9-b2f0-f75d6936ffd8",
     "expertUserId": "cd92647efd26edcbec70918",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 86,
     "disciplineScore": 94,
@@ -2223,13 +2237,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-03-21T00:00:00.000Z",
-    "updatedAt": "2025-03-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "8db7e42a-32ec-4beb-879c-31fbb5d60240",
     "expertUserId": "c0370b9f556684852e7976d",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 67,
     "qualityScore": 68,
     "disciplineScore": 65,
@@ -2237,13 +2251,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-02-17T00:00:00.000Z",
-    "updatedAt": "2025-02-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "32f9d163-9c14-4d40-a059-2a7537935573",
     "expertUserId": "c4d3aaf5f7fd446e6e4ebd2",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 91,
     "disciplineScore": 95,
@@ -2251,13 +2265,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-05-13T00:00:00.000Z",
-    "updatedAt": "2025-05-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "5c2959f6-15df-4aae-bbfc-36a9d41b9e1b",
     "expertUserId": "c973742dfbb560431b1fca5",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 52,
     "qualityScore": 75,
     "disciplineScore": 66,
@@ -2265,13 +2279,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2024-12-09T00:00:00.000Z",
-    "updatedAt": "2024-12-09T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9098cd2a-09af-4140-9508-a5d6d473a0ee",
     "expertUserId": "cb75a8d6afbff9233f4eaa4",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 61,
     "qualityScore": 73,
     "disciplineScore": 67,
@@ -2279,13 +2293,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-03-06T00:00:00.000Z",
-    "updatedAt": "2025-03-06T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "7f500c1b-b849-45ac-8e33-a398def8da82",
     "expertUserId": "cb848fdfe24c932ba55bf1d",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 91,
     "qualityScore": 86,
     "disciplineScore": 90,
@@ -2293,13 +2307,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2024-12-07T00:00:00.000Z",
-    "updatedAt": "2024-12-07T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "72fded4b-c115-41b4-9263-06e767eeb856",
     "expertUserId": "c5df8f1009a5764412698cd",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 87,
     "qualityScore": 92,
     "disciplineScore": 81,
@@ -2307,13 +2321,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-06T00:00:00.000Z",
-    "updatedAt": "2025-05-06T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ee38abe3-c9cc-4487-9484-09b9a486207a",
     "expertUserId": "cfd53916277d8d780f94589",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 99,
     "disciplineScore": 89,
@@ -2321,13 +2335,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-05-24T00:00:00.000Z",
-    "updatedAt": "2025-05-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f6b712ad-8fc3-4835-b22c-9b8dd266e885",
     "expertUserId": "c878006ceda961361c253ad",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 47,
     "qualityScore": 34,
     "disciplineScore": 55,
@@ -2335,13 +2349,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2025-03-03T00:00:00.000Z",
-    "updatedAt": "2025-03-03T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "98d0bda0-138d-4632-998f-d664f5852ac5",
     "expertUserId": "c6750649bcbe54560373957",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 33,
     "qualityScore": 45,
     "disciplineScore": 51,
@@ -2349,13 +2363,13 @@
     "level": "D",
     "comment": "评审质量不达标，建议加强培训",
     "createdAt": "2025-04-21T00:00:00.000Z",
-    "updatedAt": "2025-04-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ae977958-79d9-43bd-9560-3d112813fa5b",
     "expertUserId": "cdb8a9f4ea3d13cb9c07ff3",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 97,
     "disciplineScore": 99,
@@ -2363,13 +2377,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-01-02T00:00:00.000Z",
-    "updatedAt": "2025-01-02T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e5316ad7-d8ce-40a2-be93-b0a302ec5f4c",
     "expertUserId": "c3abc58edf2e03f118c7eba",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 89,
     "disciplineScore": 94,
@@ -2377,13 +2391,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-03-21T00:00:00.000Z",
-    "updatedAt": "2025-03-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a3cc1a88-c4c9-4366-8553-0b2eb2e0b0d6",
     "expertUserId": "ccdbcd013285a2458995c51",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 66,
     "qualityScore": 59,
     "disciplineScore": 64,
@@ -2391,13 +2405,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-02-27T00:00:00.000Z",
-    "updatedAt": "2025-02-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "67edc7bd-57ce-4895-b17e-2e8bbb569120",
     "expertUserId": "c07c50b18b5917b7f926ff0",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 84,
     "qualityScore": 77,
     "disciplineScore": 86,
@@ -2405,13 +2419,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-07T00:00:00.000Z",
-    "updatedAt": "2025-05-07T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "af088b6c-6725-4832-a44f-f162ec4bcade",
     "expertUserId": "c3fe5197565546f990c0ae1",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 79,
     "disciplineScore": 83,
@@ -2419,13 +2433,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2024-12-12T00:00:00.000Z",
-    "updatedAt": "2024-12-12T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "83b1e2e9-0b23-4039-974c-7d1821ccac73",
     "expertUserId": "c4ef91eec41a0e7b311f055",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 58,
     "qualityScore": 63,
     "disciplineScore": 79,
@@ -2433,13 +2447,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-05-14T00:00:00.000Z",
-    "updatedAt": "2025-05-14T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "26538dc8-5ee7-472d-847a-3bee3292fb33",
     "expertUserId": "c149d40956161a07fbfd322",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 87,
     "qualityScore": 84,
     "disciplineScore": 92,
@@ -2447,13 +2461,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-03-17T00:00:00.000Z",
-    "updatedAt": "2025-03-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "cd532956-0d2b-4422-816e-237841c87b23",
     "expertUserId": "cf7f844118924ebc3d83232",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 91,
     "disciplineScore": 99,
@@ -2461,13 +2475,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-03-05T00:00:00.000Z",
-    "updatedAt": "2025-03-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "dedddd3b-904a-4e10-a65f-c7138f30ee4b",
     "expertUserId": "ccc2d3101c0ce93f203a255",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 87,
     "disciplineScore": 92,
@@ -2475,13 +2489,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2024-12-13T00:00:00.000Z",
-    "updatedAt": "2024-12-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "09d9c9f6-b163-4805-87d9-409d0adabf0b",
     "expertUserId": "c3a99c8559cbd9d76d8875e",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 63,
     "qualityScore": 65,
     "disciplineScore": 85,
@@ -2489,13 +2503,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-01-10T00:00:00.000Z",
-    "updatedAt": "2025-01-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a141e147-5259-463e-91b1-49c4063bd392",
     "expertUserId": "c921e8c457edc94c3e3baf2",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 84,
     "qualityScore": 90,
     "disciplineScore": 78,
@@ -2503,13 +2517,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-01-25T00:00:00.000Z",
-    "updatedAt": "2025-01-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "13d98f4a-3dd8-431c-a2bb-f0f63ee7f17e",
     "expertUserId": "c2ca90b329d3e4e124f7211",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 95,
     "disciplineScore": 98,
@@ -2517,13 +2531,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-03-21T00:00:00.000Z",
-    "updatedAt": "2025-03-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a580111d-5544-411f-bab1-60dd6440af4d",
     "expertUserId": "c0341835a5c67511c5a3699",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 87,
     "qualityScore": 86,
     "disciplineScore": 79,
@@ -2531,13 +2545,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-04-21T00:00:00.000Z",
-    "updatedAt": "2025-04-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2e2d3534-6f25-4733-ab4a-7f0c03285dd8",
     "expertUserId": "cfe25e8e69407a7da24b49d",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 83,
     "disciplineScore": 81,
@@ -2545,13 +2559,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-02-25T00:00:00.000Z",
-    "updatedAt": "2025-02-25T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ee4ffed4-fa64-451e-bd27-f5ba789d5739",
     "expertUserId": "c3daaf505b66014f99a948d",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 56,
     "qualityScore": 82,
     "disciplineScore": 67,
@@ -2559,13 +2573,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-02-24T00:00:00.000Z",
-    "updatedAt": "2025-02-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "06188cd7-ac1f-45ec-a765-979172cce12a",
     "expertUserId": "c01e4dffe4d6b5d91b2eb73",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 79,
     "qualityScore": 91,
     "disciplineScore": 82,
@@ -2573,13 +2587,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-07T00:00:00.000Z",
-    "updatedAt": "2025-05-07T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "d052f8b2-0708-4571-84be-81de1ee0c0de",
     "expertUserId": "c6cb1262ad6130f9b2d77a6",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 94,
     "disciplineScore": 96,
@@ -2587,13 +2601,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-03-05T00:00:00.000Z",
-    "updatedAt": "2025-03-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "0cb07aaf-e10c-4a08-8824-cb90ee08c815",
     "expertUserId": "ca09205cac804ce603ffaf1",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 62,
     "qualityScore": 49,
     "disciplineScore": 60,
@@ -2601,13 +2615,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2024-12-14T00:00:00.000Z",
-    "updatedAt": "2024-12-14T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "71182ab9-91df-4d9f-ba12-e6bea35f43e9",
     "expertUserId": "ccd4b59472349812867a1af",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 87,
     "disciplineScore": 82,
@@ -2615,13 +2629,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-02-03T00:00:00.000Z",
-    "updatedAt": "2025-02-03T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4544b16a-3a2a-4167-bc6c-aee49657e794",
     "expertUserId": "ccd4b59472349812867a1af",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 97,
     "disciplineScore": 91,
@@ -2629,13 +2643,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-06-29T00:00:00.000Z",
-    "updatedAt": "2025-06-29T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a9b11edc-a9ca-4b07-8e46-a547863ffc5e",
     "expertUserId": "c718ff9618bce5df8ec66e0",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 85,
     "qualityScore": 90,
     "disciplineScore": 94,
@@ -2643,13 +2657,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-06-15T00:00:00.000Z",
-    "updatedAt": "2025-06-15T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "0845f989-3655-41d9-9a07-0bd23459fd1e",
     "expertUserId": "c718ff9618bce5df8ec66e0",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 83,
     "disciplineScore": 93,
@@ -2657,13 +2671,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-06-10T00:00:00.000Z",
-    "updatedAt": "2025-06-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4490c727-2f68-4d6d-be1e-43bbf7e157f9",
     "expertUserId": "cd43e0d72f5fc062a98158b",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 81,
     "qualityScore": 90,
     "disciplineScore": 88,
@@ -2671,13 +2685,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-03-02T00:00:00.000Z",
-    "updatedAt": "2025-03-02T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "984a706a-1915-45b8-9906-368a11c81b96",
     "expertUserId": "cd43e0d72f5fc062a98158b",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 87,
     "qualityScore": 87,
     "disciplineScore": 89,
@@ -2685,13 +2699,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-06T00:00:00.000Z",
-    "updatedAt": "2025-05-06T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a53ad4eb-d7f0-4967-8ec9-1cffa2b002c5",
     "expertUserId": "cb779145829c7b673b82409",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 100,
     "disciplineScore": 95,
@@ -2699,13 +2713,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-06-16T00:00:00.000Z",
-    "updatedAt": "2025-06-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a9ab114a-3187-432a-afac-95ffea3696b7",
     "expertUserId": "cb779145829c7b673b82409",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 83,
     "qualityScore": 79,
     "disciplineScore": 81,
@@ -2713,13 +2727,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-06-24T00:00:00.000Z",
-    "updatedAt": "2025-06-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f93a6e1c-fd27-4763-a4c9-6fc9dff0a4a7",
     "expertUserId": "ccdb048d1cc3e0d0ae15b86",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 89,
     "disciplineScore": 88,
@@ -2727,13 +2741,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-02-24T00:00:00.000Z",
-    "updatedAt": "2025-02-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "2fa4a481-bc90-4d18-96f6-b2f5343c855a",
     "expertUserId": "ccdb048d1cc3e0d0ae15b86",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 88,
     "qualityScore": 94,
     "disciplineScore": 90,
@@ -2741,13 +2755,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-06-22T00:00:00.000Z",
-    "updatedAt": "2025-06-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4d3b84da-2c55-4b36-a695-be61d778266a",
     "expertUserId": "ce2c2bb128695fcea2f9dfa",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 84,
     "qualityScore": 76,
     "disciplineScore": 80,
@@ -2755,13 +2769,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-03-16T00:00:00.000Z",
-    "updatedAt": "2025-03-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9e144a3a-d001-45aa-8f6a-7fc6f8fdd473",
     "expertUserId": "ce2c2bb128695fcea2f9dfa",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 98,
     "disciplineScore": 95,
@@ -2769,13 +2783,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-04-01T00:00:00.000Z",
-    "updatedAt": "2025-04-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "bdf4e1aa-95ec-4eb2-bff9-893466f96e14",
     "expertUserId": "c0b6aa0359cb61f1a17a8f4",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 90,
     "disciplineScore": 95,
@@ -2783,27 +2797,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-03-20T00:00:00.000Z",
-    "updatedAt": "2025-03-20T00:00:00.000Z"
-  },
-  {
-    "id": "0bc28108-42a9-44db-91e5-7e8718ccfabd",
-    "expertUserId": "c0b6aa0359cb61f1a17a8f4",
-    "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
-    "attendanceScore": 90,
-    "qualityScore": 97,
-    "disciplineScore": 95,
-    "overallScore": 94,
-    "level": "A",
-    "comment": "经验丰富，评分客观公正",
-    "createdAt": "2025-05-13T00:00:00.000Z",
-    "updatedAt": "2025-05-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9dda0a32-63a2-4e20-b98e-f7fdd009853c",
     "expertUserId": "c1ad09e27b5de273e042386",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 81,
     "qualityScore": 80,
     "disciplineScore": 90,
@@ -2811,13 +2811,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-02-23T00:00:00.000Z",
-    "updatedAt": "2025-02-23T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "43e8cb5a-0704-4338-90da-77c2c9c32753",
     "expertUserId": "c1ad09e27b5de273e042386",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 100,
     "disciplineScore": 91,
@@ -2825,13 +2825,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-04-30T00:00:00.000Z",
-    "updatedAt": "2025-04-30T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e1078156-d151-4a16-9019-6c09d25c30c2",
     "expertUserId": "cef5bdb64f219bdcd62b223",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 85,
     "qualityScore": 84,
     "disciplineScore": 78,
@@ -2839,13 +2839,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-03-01T00:00:00.000Z",
-    "updatedAt": "2025-03-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "cbdb1072-5283-4f3a-a251-6efda4de8d62",
     "expertUserId": "cef5bdb64f219bdcd62b223",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 94,
     "disciplineScore": 99,
@@ -2853,13 +2853,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-05-17T00:00:00.000Z",
-    "updatedAt": "2025-05-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f4be8d60-9dd5-43f8-b925-19d58b1b4773",
     "expertUserId": "c3aadaff3e538c379a9ffd4",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 93,
     "disciplineScore": 90,
@@ -2867,13 +2867,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-06-16T00:00:00.000Z",
-    "updatedAt": "2025-06-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6b5786ad-7f81-45d1-8268-95fe4d13065f",
     "expertUserId": "c3aadaff3e538c379a9ffd4",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 100,
     "qualityScore": 89,
     "disciplineScore": 98,
@@ -2881,13 +2881,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-04-09T00:00:00.000Z",
-    "updatedAt": "2025-04-09T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "89752b32-9365-47cb-8218-539c88685689",
     "expertUserId": "c826709c602085d0d94cc2a",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 88,
     "qualityScore": 99,
     "disciplineScore": 96,
@@ -2895,13 +2895,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-06-12T00:00:00.000Z",
-    "updatedAt": "2025-06-12T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "7674b40e-4c90-4443-9cc6-d2b20f5fd4a3",
     "expertUserId": "c826709c602085d0d94cc2a",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 90,
     "disciplineScore": 80,
@@ -2909,13 +2909,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-04-16T00:00:00.000Z",
-    "updatedAt": "2025-04-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ce6f0138-fc55-4c9d-9e66-203b4baee915",
     "expertUserId": "c8123e468af76748b83b07a",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 93,
     "qualityScore": 76,
     "disciplineScore": 95,
@@ -2923,13 +2923,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-04-05T00:00:00.000Z",
-    "updatedAt": "2025-04-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "dde4ea16-6f8e-4a43-9554-cd0178ed8b12",
     "expertUserId": "c8123e468af76748b83b07a",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 81,
     "qualityScore": 77,
     "disciplineScore": 79,
@@ -2937,13 +2937,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-06-08T00:00:00.000Z",
-    "updatedAt": "2025-06-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9a5b4ff8-b83c-426d-8af7-c9143ef87c40",
     "expertUserId": "cdb8a9f4ea3d13cb9c07ff3",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 86,
     "disciplineScore": 92,
@@ -2951,13 +2951,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-05-05T00:00:00.000Z",
-    "updatedAt": "2025-05-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "94f9a9a3-d377-47b1-b668-b9c3f30dd981",
     "expertUserId": "cdb8a9f4ea3d13cb9c07ff3",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 99,
     "disciplineScore": 94,
@@ -2965,13 +2965,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-06-22T00:00:00.000Z",
-    "updatedAt": "2025-06-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "3143ebbf-2b9a-4432-972a-c82bdd1f1d1d",
     "expertUserId": "cf8b4b997d24da4a7173ed5",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 94,
     "disciplineScore": 94,
@@ -2979,13 +2979,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-04-16T00:00:00.000Z",
-    "updatedAt": "2025-04-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "88bc0a70-8200-453e-a24f-8148c48ea8d8",
     "expertUserId": "cf8b4b997d24da4a7173ed5",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 96,
     "qualityScore": 92,
     "disciplineScore": 91,
@@ -2993,13 +2993,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-04-19T00:00:00.000Z",
-    "updatedAt": "2025-04-19T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6fc5010d-660b-43b9-ba65-6f450a50ccb1",
     "expertUserId": "c87300be5c1d3511d1b0d67",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 100,
     "qualityScore": 96,
     "disciplineScore": 94,
@@ -3007,13 +3007,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-02-24T00:00:00.000Z",
-    "updatedAt": "2025-02-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "14197597-a4db-4865-952f-5f1eb7a57009",
     "expertUserId": "c87300be5c1d3511d1b0d67",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 97,
     "qualityScore": 96,
     "disciplineScore": 99,
@@ -3021,13 +3021,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-05-21T00:00:00.000Z",
-    "updatedAt": "2025-05-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "856fa780-c649-437b-a81c-88522d8eee29",
     "expertUserId": "c5faa29f94a10863f2d062f",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 81,
     "qualityScore": 76,
     "disciplineScore": 82,
@@ -3035,13 +3035,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-03-31T00:00:00.000Z",
-    "updatedAt": "2025-03-31T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4278ef91-5d75-4e19-b161-2a91117f8e19",
     "expertUserId": "c5faa29f94a10863f2d062f",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 91,
     "qualityScore": 82,
     "disciplineScore": 91,
@@ -3049,13 +3049,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-06-10T00:00:00.000Z",
-    "updatedAt": "2025-06-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c0c4313d-15cb-4076-8ad3-cf3595f4034a",
     "expertUserId": "c9d82b114b7a2d6712e8923",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 79,
     "qualityScore": 61,
     "disciplineScore": 75,
@@ -3063,13 +3063,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-05-07T00:00:00.000Z",
-    "updatedAt": "2025-05-07T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e4ce3935-e0d2-4088-9937-2ec87bae8510",
     "expertUserId": "c9d82b114b7a2d6712e8923",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 99,
     "qualityScore": 92,
     "disciplineScore": 94,
@@ -3077,13 +3077,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-04-23T00:00:00.000Z",
-    "updatedAt": "2025-04-23T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "76ae28e9-3f81-4a70-a7e4-8703fb649257",
     "expertUserId": "c848803aa59b56fcb88b078",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 82,
     "qualityScore": 82,
     "disciplineScore": 87,
@@ -3091,13 +3091,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-05-16T00:00:00.000Z",
-    "updatedAt": "2025-05-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e4ccc394-3de3-44d9-9267-8488a5555a99",
     "expertUserId": "c848803aa59b56fcb88b078",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 89,
     "disciplineScore": 92,
@@ -3105,13 +3105,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-05-27T00:00:00.000Z",
-    "updatedAt": "2025-05-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "17b5c54a-d6bd-4929-83ec-a3b2bececeaf",
     "expertUserId": "c11e632255cb22470b23a1f",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 96,
     "qualityScore": 97,
     "disciplineScore": 91,
@@ -3119,13 +3119,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-02-17T00:00:00.000Z",
-    "updatedAt": "2025-02-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4c198e36-e206-4ca8-b92b-ea915c68e66e",
     "expertUserId": "c11e632255cb22470b23a1f",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 81,
     "disciplineScore": 93,
@@ -3133,13 +3133,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-04-01T00:00:00.000Z",
-    "updatedAt": "2025-04-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "aa06463c-e90f-4b0f-92a6-b7cfba03dd3b",
     "expertUserId": "cc347eb836cb7dd58f509c0",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 53,
     "qualityScore": 80,
     "disciplineScore": 84,
@@ -3147,13 +3147,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-04-22T00:00:00.000Z",
-    "updatedAt": "2025-04-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f7f662d4-3fed-40e5-a570-d9f97cda2d9c",
     "expertUserId": "cc347eb836cb7dd58f509c0",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 94,
     "disciplineScore": 98,
@@ -3161,13 +3161,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-05-16T00:00:00.000Z",
-    "updatedAt": "2025-05-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "5bad775f-2efe-41bc-a664-d764b55302c2",
     "expertUserId": "c2ca90b329d3e4e124f7211",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 78,
     "disciplineScore": 93,
@@ -3175,13 +3175,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-05-15T00:00:00.000Z",
-    "updatedAt": "2025-05-15T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "4959f682-4d17-4693-878b-bc6626ded1e6",
     "expertUserId": "caa1758130821f8ad80f900",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 54,
     "qualityScore": 51,
     "disciplineScore": 63,
@@ -3189,13 +3189,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2025-04-24T00:00:00.000Z",
-    "updatedAt": "2025-04-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "cf9e4ead-9292-49bd-8b6b-5dfb5697af3d",
     "expertUserId": "c216edc8542d89c1d15df8c",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 95,
     "qualityScore": 94,
     "disciplineScore": 98,
@@ -3203,13 +3203,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-05-27T00:00:00.000Z",
-    "updatedAt": "2025-05-27T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "f3ef8628-4e49-4cf0-a533-244a9bf5c4ce",
     "expertUserId": "c2afaa1181d6ef09b7ddd1f",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 97,
     "disciplineScore": 96,
@@ -3217,13 +3217,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-02-18T00:00:00.000Z",
-    "updatedAt": "2025-02-18T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9d224b8a-e32b-43d0-91d4-a8a96b5784c5",
     "expertUserId": "cf2009952dac4a873e4a237",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 51,
     "qualityScore": 50,
     "disciplineScore": 68,
@@ -3231,13 +3231,13 @@
     "level": "D",
     "comment": "连续项目缺席，需重点关注",
     "createdAt": "2025-02-01T00:00:00.000Z",
-    "updatedAt": "2025-02-01T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "79bd3210-2f04-448d-bc5d-4e10c8c960bd",
     "expertUserId": "cd874dc66a137662ed2c151",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 76,
     "qualityScore": 90,
     "disciplineScore": 93,
@@ -3245,13 +3245,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-02-03T00:00:00.000Z",
-    "updatedAt": "2025-02-03T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c7138ba7-e30d-4f0f-b47c-c3f98a17cdd3",
     "expertUserId": "c020dca6396cbe866561028",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 92,
     "qualityScore": 84,
     "disciplineScore": 78,
@@ -3259,13 +3259,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-06-13T00:00:00.000Z",
-    "updatedAt": "2025-06-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "631b9015-3343-4b4c-ab7c-6e1aaf073635",
     "expertUserId": "cc3a5d3472487a36a145a66",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 91,
     "qualityScore": 83,
     "disciplineScore": 89,
@@ -3273,13 +3273,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-05-13T00:00:00.000Z",
-    "updatedAt": "2025-05-13T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "5130df9d-9c15-4c81-aee6-8f925d5e905a",
     "expertUserId": "ccbbaa772746031c0beb3c5",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 57,
     "qualityScore": 69,
     "disciplineScore": 76,
@@ -3287,13 +3287,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-05-07T00:00:00.000Z",
-    "updatedAt": "2025-05-07T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6b7ad301-f3e2-4ee0-8617-9545abdcdfc0",
     "expertUserId": "ca9d32af5c746ec3fec387d",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 98,
     "qualityScore": 86,
     "disciplineScore": 99,
@@ -3301,13 +3301,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-04-24T00:00:00.000Z",
-    "updatedAt": "2025-04-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "bbe1e458-a4af-4c2b-a7fe-7cfc2df101dc",
     "expertUserId": "c566649c3af65e723c467a2",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 96,
     "qualityScore": 100,
     "disciplineScore": 88,
@@ -3315,13 +3315,13 @@
     "level": "A",
     "comment": "严格遵守评审纪律，评标质量高",
     "createdAt": "2025-02-10T00:00:00.000Z",
-    "updatedAt": "2025-02-10T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "ec71956a-0549-44a5-a935-6e220fa1acc3",
     "expertUserId": "c336005f78b5c7f0c1e787d",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 79,
     "qualityScore": 67,
     "disciplineScore": 83,
@@ -3329,13 +3329,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-03-24T00:00:00.000Z",
-    "updatedAt": "2025-03-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "27862755-2291-4a9d-93b2-909314dc9674",
     "expertUserId": "cb6743aff73a95aed5e6bc0",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 76,
     "qualityScore": 75,
     "disciplineScore": 84,
@@ -3343,13 +3343,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-05-09T00:00:00.000Z",
-    "updatedAt": "2025-05-09T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e0dece79-3eb9-47df-80a9-c0065323fc6e",
     "expertUserId": "c8381f05d61d0b6643f5558",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 85,
     "qualityScore": 87,
     "disciplineScore": 82,
@@ -3357,13 +3357,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-21T00:00:00.000Z",
-    "updatedAt": "2025-05-21T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "25b007e2-1bcc-484a-b974-a482661a6075",
     "expertUserId": "caa68436d928e8d3a7a1217",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 87,
     "disciplineScore": 88,
@@ -3371,13 +3371,13 @@
     "level": "A",
     "comment": "评审认真细致，出勤全勤，专业能力突出",
     "createdAt": "2025-03-29T00:00:00.000Z",
-    "updatedAt": "2025-03-29T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "110b1bdb-ccbb-4c5a-a3b2-2df043806b76",
     "expertUserId": "c4d3aaf5f7fd446e6e4ebd2",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 80,
     "qualityScore": 87,
     "disciplineScore": 80,
@@ -3385,13 +3385,13 @@
     "level": "B",
     "comment": "按时完成评审，表现稳定",
     "createdAt": "2025-04-08T00:00:00.000Z",
-    "updatedAt": "2025-04-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "77bd03a3-dc43-4c43-9e28-93735980d632",
     "expertUserId": "c6cb1262ad6130f9b2d77a6",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 62,
     "qualityScore": 70,
     "disciplineScore": 66,
@@ -3399,13 +3399,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-05-23T00:00:00.000Z",
-    "updatedAt": "2025-05-23T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "fe7d0cab-9e57-4067-b82d-8f145bf232c6",
     "expertUserId": "c736bf6047b1cf3caff41d3",
     "projectId": "cm19ed36b6601vl16837waroy",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 90,
     "qualityScore": 87,
     "disciplineScore": 90,
@@ -3413,13 +3413,13 @@
     "level": "B",
     "comment": "综合素质良好，具备发展潜力",
     "createdAt": "2025-02-05T00:00:00.000Z",
-    "updatedAt": "2025-02-05T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "9cd064ff-7948-42bf-88b1-a4558a55fc50",
     "expertUserId": "c13853f2da2d73b34d73687",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 97,
     "qualityScore": 95,
     "disciplineScore": 100,
@@ -3427,13 +3427,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-05-15T00:00:00.000Z",
-    "updatedAt": "2025-05-15T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "01173816-8b67-46d9-8f2d-2126501e19ba",
     "expertUserId": "c2c2040e4ca6d71de653e07",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 65,
     "disciplineScore": 73,
@@ -3441,13 +3441,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-04-08T00:00:00.000Z",
-    "updatedAt": "2025-04-08T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "d3ccf70d-82a5-4569-b805-3282f4d426a7",
     "expertUserId": "c9b660b672c06d983f5d986",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 89,
     "qualityScore": 88,
     "disciplineScore": 94,
@@ -3455,13 +3455,13 @@
     "level": "A",
     "comment": "经验丰富，评分客观公正",
     "createdAt": "2025-02-18T00:00:00.000Z",
-    "updatedAt": "2025-02-18T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "862eec9e-48b2-4427-8c64-0446d529afe1",
     "expertUserId": "c38a410c5554cbd61927ec9",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 70,
     "qualityScore": 81,
     "disciplineScore": 74,
@@ -3469,13 +3469,13 @@
     "level": "C",
     "comment": "出勤率偏低，需加强纪律意识",
     "createdAt": "2025-04-17T00:00:00.000Z",
-    "updatedAt": "2025-04-17T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "93d507d6-185e-45e9-ba12-7e5b93baf1a6",
     "expertUserId": "cd2247302f618f85a47ae9f",
     "projectId": "cmqhf0kjq0000vk182j1xsjbg",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 94,
     "qualityScore": 87,
     "disciplineScore": 88,
@@ -3483,13 +3483,13 @@
     "level": "A",
     "comment": "配合度高，提前完成评审任务",
     "createdAt": "2025-04-16T00:00:00.000Z",
-    "updatedAt": "2025-04-16T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "fc0208c9-7c71-42e3-a32a-2799a2978b6a",
     "expertUserId": "c6e5d950fb98da5c38d0157",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 85,
     "qualityScore": 80,
     "disciplineScore": 90,
@@ -3497,13 +3497,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-04-23T00:00:00.000Z",
-    "updatedAt": "2025-04-23T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "6ae58a37-fef2-4763-8f79-d626895f30d3",
     "expertUserId": "ceb7f6956a9f535c1aa7ee8",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 81,
     "disciplineScore": 95,
@@ -3511,13 +3511,13 @@
     "level": "B",
     "comment": "工作态度良好，业务熟练",
     "createdAt": "2025-05-22T00:00:00.000Z",
-    "updatedAt": "2025-05-22T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "e7eef519-ec09-413b-9780-3156633d0d72",
     "expertUserId": "c3ad6b90ea7ebaecfdaa25c",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 52,
     "qualityScore": 76,
     "disciplineScore": 76,
@@ -3525,13 +3525,13 @@
     "level": "C",
     "comment": "需加强专业学习，提升评审质量",
     "createdAt": "2025-04-04T00:00:00.000Z",
-    "updatedAt": "2025-04-04T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "8303856d-9d64-4018-b90a-54c2a9f49a79",
     "expertUserId": "c850291f8d0cbc89944e4b6",
     "projectId": "cmqseed-submit-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 63,
     "qualityScore": 74,
     "disciplineScore": 57,
@@ -3539,13 +3539,13 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-06-18T00:00:00.000Z",
-    "updatedAt": "2025-06-18T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "a1c58314-089f-4e02-8ecd-64c453e98e7f",
     "expertUserId": "cfd53916277d8d780f94589",
     "projectId": null,
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 78,
     "qualityScore": 55,
     "disciplineScore": 58,
@@ -3553,13 +3553,13 @@
     "level": "C",
     "comment": "评审效率有待提高",
     "createdAt": "2025-05-12T00:00:00.000Z",
-    "updatedAt": "2025-05-12T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "7c6db862-8446-4bd6-9ce4-47115cb47102",
     "expertUserId": "cf7f844118924ebc3d83232",
     "projectId": "cmqseed-open-proj01",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 88,
     "qualityScore": 78,
     "disciplineScore": 78,
@@ -3567,13 +3567,13 @@
     "level": "B",
     "comment": "纪律性较好，建议继续努力",
     "createdAt": "2025-05-24T00:00:00.000Z",
-    "updatedAt": "2025-05-24T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   },
   {
     "id": "c614d18a-9117-4a33-833a-5cbbf488120d",
     "expertUserId": "cd30538a940548fd4e87ae5",
     "projectId": "cmqgebt6q0005vkr4ea3mdorm",
-    "evaluatorId": "cmrai35fr0000koddvbs7wjep",
+    "evaluatorId": "cmrmvzupb0000kozb2ijyav4o",
     "attendanceScore": 68,
     "qualityScore": 82,
     "disciplineScore": 59,
@@ -3581,6 +3581,6 @@
     "level": "C",
     "comment": "部分项目参与度不足",
     "createdAt": "2025-04-15T00:00:00.000Z",
-    "updatedAt": "2025-04-15T00:00:00.000Z"
+    "updatedAt": "2026-07-22T04:37:07.098Z"
   }
 ]

@@ -260,6 +260,23 @@ notifStore.fetchUnreadCount()
       <el-icon :size="22"><Fold /></el-icon>
     </div>
 
+    <!-- Mobile navigation drawer (P0/P1: FAB was a dead button before) -->
+    <el-drawer v-model="mobileDrawer" direction="ltr" size="272px" :with-header="false" class="sp-mobile-drawer">
+      <nav class="sp-nav">
+        <template v-for="(item, idx) in menuItems" :key="'m' + idx">
+          <div v-if="item.divider" class="sp-nav-section"><span>{{ item.label }}</span></div>
+          <button v-else class="sp-nav-item" :class="{ active: activeMenu === item.path }" @click="handleMenuSelect(item.path!)">
+            <span v-if="activeMenu === item.path" class="sp-nav-active-bar" />
+            <el-icon class="sp-nav-icon"><component :is="item.icon" /></el-icon>
+            <span class="sp-nav-text">
+              <span class="sp-nav-title">{{ item.title }}</span>
+              <span v-if="item.desc" class="sp-nav-desc">{{ item.desc }}</span>
+            </span>
+          </button>
+        </template>
+      </nav>
+    </el-drawer>
+
     <!-- Change password dialog -->
     <el-dialog v-model="pwdDialog" title="修改密码" width="420px" destroy-on-close>
       <el-form :model="pwdForm" label-width="90px" size="large">

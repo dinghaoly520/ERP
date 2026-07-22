@@ -35,14 +35,18 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await authApi.login({ username, password }) as any
       if (res.access_token || res) {
         await init()
-        return true
+        return 'ok'
       }
-      return false
+      return 'invalid'
     } catch (e: any) {
       // 后端对「密码正确但 isActive:false」返回 401 + code=ACCOUNT_PENDING。
+      // 返回 'pending' 让登录页只显示「查询审核进度」面板，而不误报「用户名或密码错误」。
       const code = e?.response?.data?.code
-      if (code === 'ACCOUNT_PENDING') pendingInfo.value = { code }
-      return false
+      if (code === 'ACCOUNT_PENDING') {
+        pendingInfo.value = { code }
+        return 'pending'
+      }
+      return 'invalid'
     } finally {
       loading.value = false
     }

@@ -77,10 +77,12 @@ export class SupplierSelectionAiService {
       '{"summary":"对整体匹配情况的一句话分析(40-80字)","recommendations":[{"id":"c0","score":92,"reason":"..."}]}',
     ].join('\n');
 
+    // timer 须在 try 外声明，使 catch 路径也能 clearTimeout（覆盖 fetch/abort 抛错）。
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       // C1 超时收口：此前直连 fetch 无 AbortController，LLM 挂起会拖死请求线程。60s 上限，超时即降级规则引擎。
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 60_000);
+      timer = setTimeout(() => controller.abort(), 60_000);
       const response = await fetch(`${DEEPSEEK_API_URL.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
         signal: controller.signal,
@@ -103,7 +105,7 @@ export class SupplierSelectionAiService {
           max_tokens: 4000, // deepseek-v4-flash 是推理模型，先输出 reasoning_content 再输出 content，需预留充足额度
         }),
       });
-      clearTimeout(timer);
+      // 注意：不在此处 clearTimeout——须等 body 读完，否则服务端发完头后拖 body 会永久挂起（abort 永不触发）。
 
       if (!response.ok) {
         this.logger.warn(`DeepSeek supplier-selection failed: ${response.status} ${await response.text()}`);
@@ -111,6 +113,7 @@ export class SupplierSelectionAiService {
       }
 
       const data = await response.json();
+      clearTimeout(timer); // body 已读完，此时清除计时器才安全
       const content: string | undefined = data?.choices?.[0]?.message?.content;
       if (typeof content !== 'string') return undefined;
 
@@ -133,6 +136,7 @@ export class SupplierSelectionAiService {
         recommendations,
       };
     } catch (error) {
+      clearTimeout(timer); // 覆盖 fetch 抛错/abort 路径，避免计时器泄漏
       this.logger.warn(
         `DeepSeek supplier-selection error: ${error instanceof Error ? error.message : String(error)}`,
       );

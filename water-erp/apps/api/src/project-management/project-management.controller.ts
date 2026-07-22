@@ -29,7 +29,7 @@ import { ProjectManagementService } from './project-management.service';
 import { Roles } from '../common/decorators/roles.decorator';
 
 @UseGuards(AuthGuard)
-@Roles('procurement_staff', 'leader', 'admin', 'staff')
+@Roles('leader', 'admin', 'staff')
 @Controller('project-management')
 export class ProjectManagementController {
   constructor(

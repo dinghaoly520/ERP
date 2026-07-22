@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Building2, TrendingUp, Clock3, AlertTriangle, Activity, Star,
   Target, Layers, Lightbulb, ChevronDown,
@@ -293,23 +293,28 @@ export default function SupplierDashboardPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [favorites, setFavorites] = useState<SupplierFavoriteRecord[]>([]);
   const [insightsExpanded, setInsightsExpanded] = useState(true);
+  const [loadError, setLoadError] = useState(false); // B13：任一面板加载失败即提示，避免静默空面板
 
-  useEffect(() => {
-    getSupplierStats().then(setStats).catch(() => {});
-    getClassifications().then(setClassifications).catch(() => {});
-    getEvaluationStats().then(setEvalStats).catch(() => {});
-    getEvaluationDimensionStats().then(setDimStats).catch(() => {});
-    getQualificationAlerts().then(setAlerts).catch(() => {});
-    getRecentActivities().then(setActivities).catch(() => {});
-    getFavorites().then(setFavorites).catch(() => {});
-    getSupplierList({ status: 'APPROVED', pageSize: 200 })
+  const loadDashboard = useCallback(() => {
+    setLoadError(false);
+    const fail = () => setLoadError(true);
+    getSupplierStats().then(setStats).catch(fail);
+    getClassifications().then(setClassifications).catch(fail);
+    getEvaluationStats().then(setEvalStats).catch(fail);
+    getEvaluationDimensionStats().then(setDimStats).catch(fail);
+    getQualificationAlerts().then(setAlerts).catch(fail);
+    getRecentActivities().then(setActivities).catch(fail);
+    getFavorites().then(setFavorites).catch(fail);
+    getSupplierList({ status: 'APPROVED', pageSize: 1000 }) // 取足已入库供应商以正确统计企业类型分布（>200 家时此前会偏少）
       .then(res => {
         const counts: Record<string, number> = {};
         res.items.forEach((s: any) => { const t = normalizeEnterpriseType(s.enterpriseType); counts[t] = (counts[t] || 0) + 1; });
         setEnterpriseTypeCounts(counts);
       })
-      .catch(() => {});
+      .catch(fail);
   }, []);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
   const insights = useMemo(() => deriveInsights(classifications, stats, evalStats, alerts), [classifications, stats, evalStats, alerts]);
   const actionLabels: Record<string, string> = {
@@ -354,6 +359,15 @@ export default function SupplierDashboardPage() {
         </div>
         </div>
       </div>
+
+      {/* B13 错误态：部分面板加载失败时提示+重试，避免静默空面板 */}
+      {loadError && (
+        <div className="neu-card-static !rounded-2xl p-4 flex items-center gap-3" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
+          <AlertTriangle size={16} className="text-[var(--danger)] shrink-0" />
+          <span className="text-sm text-[var(--foreground)] flex-1">部分数据加载失败，当前展示可能不完整</span>
+          <button onClick={loadDashboard} className="neu-btn-xs gap-1"><RefreshCw size={12} />重试</button>
+        </div>
+      )}
 
       {/* ══════ 待处理指引 ══════ */}
       {((stats && (stats.pending > 0 || (stats.disabled ?? 0) + (stats.blacklist ?? 0) > 0)) || (alerts && (alerts.expiredCount > 0 || alerts.expiringCount > 0))) && (

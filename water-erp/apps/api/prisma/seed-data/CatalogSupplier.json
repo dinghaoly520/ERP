@@ -1,20 +1,5 @@
 [
   {
-    "id": "cmqcsup01steel0000000000001",
-    "catalogItemId": "cmqccwae90000komt0naddsxq",
-    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
-    "quotedPrice": "4250",
-    "deliveryPeriod": "7个工作日",
-    "region": "成都",
-    "minOrder": "1吨",
-    "taxIncluded": true,
-    "freightIncluded": false,
-    "status": "ACTIVE",
-    "sourceApplicationId": "cmqcatapp03approve000000003",
-    "createdAt": "2026-06-10T03:00:00.000Z",
-    "updatedAt": "2026-06-10T03:00:00.000Z"
-  },
-  {
     "id": "cmqcsup02pipe00000000000002",
     "catalogItemId": "cmqccwaec0002komtwmhin7nl",
     "supplierId": "cmqbysdkb001lkoh1lif07y1g",
@@ -28,5 +13,20 @@
     "sourceApplicationId": null,
     "createdAt": "2026-06-08T03:00:00.000Z",
     "updatedAt": "2026-06-08T03:00:00.000Z"
+  },
+  {
+    "id": "cmqcsup01steel0000000000001",
+    "catalogItemId": "cmqccwae90000komt0naddsxq",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "quotedPrice": "4300",
+    "deliveryPeriod": null,
+    "region": null,
+    "minOrder": null,
+    "taxIncluded": true,
+    "freightIncluded": false,
+    "status": "ACTIVE",
+    "sourceApplicationId": "cmqcatapp03approve000000003",
+    "createdAt": "2026-06-10T03:00:00.000Z",
+    "updatedAt": "2026-07-22T02:55:53.036Z"
   }
 ]

@@ -20,6 +20,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       expertEvaluation: { findMany: jest.fn() },
       bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
       bidScoreRecord: { findMany: jest.fn() },
+      $transaction: jest.fn().mockResolvedValue([]),
     };
     notification = { create: jest.fn(), sendToRole: jest.fn() };
 
@@ -39,7 +40,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
 
   describe('getExpertPortrait', () => {
     it('聚合参与、完成率、均分、偏离度', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王某国' });
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王某国', role: 'bid_expert' });
       prisma.bidExpert.findMany.mockResolvedValue([
         { progress: 100, totalScore: 90 },
         { progress: 100, totalScore: 80 },
@@ -130,6 +131,12 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
         }),
       );
       expect(prisma.expertProfile.updateMany.mock.calls[0][0].data.retiredAt).toBeInstanceOf(Date);
+      // 退库须同步禁用登录（关键写操作，不能被静默删除）
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'u1' }, data: { isActive: false } }),
+      );
+      // 停用与禁登须在同一事务内提交
+      expect(prisma.$transaction).toHaveBeenCalled();
     });
 
     it('专家不存在时抛 NotFoundException', async () => {

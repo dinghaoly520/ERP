@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Workbook } from 'exceljs';
@@ -218,11 +219,18 @@ export class CatalogService {
     const key = { userId_catalogItemId: { userId, catalogItemId: itemId } };
     const existing = await this.prisma.userFavorite.findUnique({ where: key });
     if (existing) {
-      await this.prisma.userFavorite.delete({ where: key });
+      // deleteMany 幂等：并发双取消时不会因记录已被删而抛 P2025 → 500
+      await this.prisma.userFavorite.deleteMany({ where: { userId, catalogItemId: itemId } });
       return { favorited: false };
     }
-    await this.prisma.userFavorite.create({ data: { userId, catalogItemId: itemId } });
-    return { favorited: true };
+    try {
+      await this.prisma.userFavorite.create({ data: { userId, catalogItemId: itemId } });
+      return { favorited: true };
+    } catch (e) {
+      // 并发双收藏撞唯一键 P2002 时视为「已收藏」，不抛 500
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return { favorited: true };
+      throw e;
+    }
   }
 
   async listFavorites(userId: string, viewerRole?: string) {
@@ -531,13 +539,18 @@ export class CatalogService {
   async deleteCategory(userId: string, id: number) {
     const existing = await this.prisma.catalogCategory.findUnique({
       where: { id },
-      include: { children: true, catalogItems: { take: 1 }, alertRules: { take: 1 } },
+      include: { children: true, catalogItems: { take: 1 }, alertRules: { take: 1 }, attributeTemplates: { include: { itemAttributes: { take: 1 } } } },
     });
     if (!existing) throw new BadRequestException({ error: '品类不存在', code: 'NOT_FOUND' });
     if (existing.children.length > 0) throw new BadRequestException({ error: '该品类下有子节点，请先删除子节点', code: 'HAS_CHILDREN' });
     if (existing.catalogItems.length > 0) throw new BadRequestException({ error: '该品类下有目录项，请先迁移目录项', code: 'HAS_ITEMS' });
     // PriceAlertRule.categoryId 外键无 onDelete，有关联时直接删会抛 Prisma 原始错误，先拦下给业务提示
     if (existing.alertRules.length > 0) throw new BadRequestException({ error: '该品类下仍有价格预警规则，请先删除', code: 'HAS_ALERT_RULES' });
+    // CategoryAttributeTemplate.categoryId 为 onDelete:Cascade，但 CatalogItemAttribute.templateId 无 onDelete(默认 Restrict)：
+    // 若品类下模板已被目录项属性值引用，级联删模板会撞外键 P2003 → 500，先拦下给业务提示
+    if (existing.attributeTemplates.some((t: any) => t.itemAttributes?.length)) {
+      throw new BadRequestException({ error: '该品类下的属性模板已被目录项引用，请先清理相关属性值', code: 'HAS_ITEM_ATTRIBUTES' });
+    }
     await this.prisma.catalogCategory.delete({ where: { id } });
     await this.safeAudit({ userId, action: 'CATEGORY_DELETED', resourceType: existing.name, details: { categoryId: id } });
     return { success: true };
@@ -562,9 +575,12 @@ export class CatalogService {
         cursor = parentMap.get(cursor) ?? null;
       }
     }
+    // 区分「显式传 newParentId=null（移到根）」与「未传 newParentId（仅排序，父节点不变）」：
+    // 旧逻辑 `newParentId != null ? newParentId : existing.parentId` 会把显式 null 也当成「不变」，导致永远无法移到根
+    const moveParent = 'newParentId' in dto ? dto.newParentId : existing.parentId;
     const updated = await this.prisma.catalogCategory.update({
       where: { id },
-      data: { sortOrder: dto.newSortOrder, parentId: dto.newParentId != null ? dto.newParentId : existing.parentId },
+      data: { sortOrder: dto.newSortOrder, parentId: moveParent ?? null },
     });
     await this.prisma.auditLog.create({ data: { userId, action: 'CATEGORY_MOVED', resourceType: updated.name, details: { categoryId: id, fromParentId: existing.parentId, toParentId: updated.parentId, sortOrder: dto.newSortOrder } } });
     return updated;
@@ -885,13 +901,89 @@ export class CatalogService {
   // ── 价格预警 ──
 
   async listAlertRules() { return this.prisma.priceAlertRule.findMany({ orderBy: { createdAt: 'desc' }, include: { category: { select: { id: true, name: true } } } }); }
-  async createAlertRule(dto: any) { return this.prisma.priceAlertRule.create({ data: { name: dto.name.trim(), categoryId: dto.categoryId ?? null, alertType: dto.alertType, threshold: dto.threshold, enabled: dto.enabled ?? true, notifyRoles: dto.notifyRoles ?? ['admin', 'procurement_staff'] } }); }
+  async createAlertRule(dto: any) { return this.prisma.priceAlertRule.create({ data: { name: dto.name.trim(), categoryId: dto.categoryId ?? null, alertType: dto.alertType, threshold: dto.threshold, enabled: dto.enabled ?? true, notifyRoles: dto.notifyRoles ?? ['admin', 'leader', 'staff'] } }); }
   async updateAlertRule(id: number, dto: any) { const data: any = {}; if (dto.name) data.name = dto.name.trim(); if (dto.alertType) data.alertType = dto.alertType; if (dto.threshold !== undefined) data.threshold = dto.threshold; if (dto.enabled !== undefined) data.enabled = dto.enabled; if (dto.notifyRoles) data.notifyRoles = dto.notifyRoles; return this.prisma.priceAlertRule.update({ where: { id }, data }); }
   async deleteAlertRule(id: number) { await this.prisma.priceAlertRule.delete({ where: { id } }); return { success: true }; }
   async toggleAlertRule(id: number) { const r = await this.prisma.priceAlertRule.findUnique({ where: { id } }); if (!r) throw new BadRequestException({ error: '规则不存在', code: 'NOT_FOUND' }); return this.prisma.priceAlertRule.update({ where: { id }, data: { enabled: !r.enabled } }); }
   async listAlerts(params: { isRead?: boolean; isResolved?: boolean }) { const where: any = {}; if (params.isRead !== undefined) where.isRead = params.isRead; if (params.isResolved !== undefined) where.isResolved = params.isResolved; return this.prisma.priceAlert.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100, include: { catalogItem: { select: { id: true, code: true, name: true } }, rule: { select: { id: true, name: true } } } }); }
   async markAlertRead(id: number) { return this.prisma.priceAlert.update({ where: { id }, data: { isRead: true } }); }
   async markAlertResolved(id: number) { return this.prisma.priceAlert.update({ where: { id }, data: { isResolved: true } }); }
+
+  // ── 预警生成引擎 ──
+  // 此前仅有规则 CRUD + 前端处置 UI，没有任何产出 PriceAlert 的生产者 → 「预警记录」恒空。
+  // 本方法按启用的 PriceAlertRule 周期评估目录项并产出记录：
+  //   EXPIRING    : threshold=天数，validUntil 距今 ≤ threshold 天（且未过期）触发
+  //   PRICE_SURGE : threshold=百分比，最近成交价较历史均价上涨 ≥ threshold% 触发
+  //   PRICE_DROP  : threshold=百分比，最近成交价较历史均价下跌 ≥ threshold% 触发
+  //   DEVIATION   : threshold=百分比，参考价偏离同品类（有效项）均价 ≥ threshold% 触发
+  // 规则带 categoryId 时仅评估该品类，否则评估全部有效目录项。
+  // 幂等去重：同一 (ruleId, catalogItemId) 已存在未解决告警则跳过，避免每轮刷屏。
+  // 手动触发见控制器 POST admin/alerts/evaluate（便于验证与按需生成）。
+  @Cron('0 25 * * * *')
+  async evaluateAlertRules(): Promise<{ scanned: number; created: number }> {
+    const [rules, items] = await Promise.all([
+      this.prisma.priceAlertRule.findMany({ where: { enabled: true } }),
+      this.prisma.catalogItem.findMany({
+        where: { status: { notIn: ['下架', '停用'] } },
+        select: { id: true, code: true, name: true, categoryId: true, referencePrice: true, lastDealPrice: true, averagePrice: true, validUntil: true },
+      }),
+    ]);
+    if (rules.length === 0) return { scanned: items.length, created: 0 };
+
+    // 各品类（有效项）参考价均值，供 DEVIATION 使用
+    const meanByCat = new Map<number, number>();
+    {
+      const sumByCat = new Map<number, { sum: number; n: number }>();
+      for (const it of items) {
+        if (it.categoryId == null) continue;
+        const p = Number(it.referencePrice);
+        if (!(p > 0)) continue;
+        const e = sumByCat.get(it.categoryId) ?? { sum: 0, n: 0 };
+        e.sum += p; e.n += 1; sumByCat.set(it.categoryId, e);
+      }
+      for (const [cat, e] of sumByCat) meanByCat.set(cat, e.n ? e.sum / e.n : 0);
+    }
+
+    const now = Date.now();
+    const candidates: { ruleId: number; catalogItemId: string; alertType: string; message: string; triggerValue: number }[] = [];
+    for (const rule of rules) {
+      const scoped = rule.categoryId != null ? items.filter(i => i.categoryId === rule.categoryId) : items;
+      for (const it of scoped) {
+        let hit: { message: string; triggerValue: number } | null = null;
+        if (rule.alertType === 'EXPIRING') {
+          if (!it.validUntil) continue;
+          const days = Math.ceil((new Date(it.validUntil).getTime() - now) / 86400000);
+          if (days >= 0 && days <= rule.threshold) hit = { message: `${it.name}（${it.code}）将于 ${days} 天后到期`, triggerValue: days };
+        } else if (rule.alertType === 'PRICE_SURGE' || rule.alertType === 'PRICE_DROP') {
+          const last = Number(it.lastDealPrice); const avg = Number(it.averagePrice);
+          if (!(avg > 0) || !(last > 0)) continue;
+          const pct = ((last - avg) / avg) * 100;
+          if (rule.alertType === 'PRICE_SURGE' && pct >= rule.threshold) {
+            hit = { message: `${it.name}（${it.code}）最近成交价较历史均价上涨 ${pct.toFixed(1)}%`, triggerValue: Math.round(pct * 100) / 100 };
+          } else if (rule.alertType === 'PRICE_DROP' && pct <= -rule.threshold) {
+            hit = { message: `${it.name}（${it.code}）最近成交价较历史均价下跌 ${Math.abs(pct).toFixed(1)}%`, triggerValue: Math.round(pct * 100) / 100 };
+          }
+        } else if (rule.alertType === 'DEVIATION') {
+          const p = Number(it.referencePrice);
+          if (it.categoryId == null || !(p > 0)) continue;
+          const mean = meanByCat.get(it.categoryId) ?? 0;
+          if (!(mean > 0)) continue;
+          const dev = (Math.abs(p - mean) / mean) * 100;
+          if (dev >= rule.threshold) hit = { message: `${it.name}（${it.code}）参考价偏离同品类均价 ${dev.toFixed(1)}%`, triggerValue: Math.round(dev * 100) / 100 };
+        }
+        if (hit) candidates.push({ ruleId: rule.id, catalogItemId: it.id, alertType: rule.alertType, message: hit.message, triggerValue: hit.triggerValue });
+      }
+    }
+
+    let created = 0;
+    for (const c of candidates) {
+      const exists = await this.prisma.priceAlert.findFirst({ where: { ruleId: c.ruleId, catalogItemId: c.catalogItemId, isResolved: false } });
+      if (exists) continue;
+      await this.prisma.priceAlert.create({ data: c });
+      created += 1;
+    }
+    return { scanned: items.length, created };
+  }
 
   // ── 目录版本 ──
 
@@ -970,8 +1062,13 @@ export class CatalogService {
 
   // ── 目录项关联 ──
 
-  async listItemRelations(itemId: string) {
-    return this.prisma.catalogItemRelation.findMany({ where: { catalogItemId: itemId }, include: { relatedItem: { select: { id: true, code: true, name: true, referencePrice: true } } } });
+  async listItemRelations(itemId: string, viewerRole?: string) {
+    const rows = await this.prisma.catalogItemRelation.findMany({ where: { catalogItemId: itemId }, include: { relatedItem: { select: { id: true, code: true, name: true, referencePrice: true } } } });
+    // supplier 不得经关联关系侧信道拿到关联条目参考价（主列表/详情已脱敏，关联端点同样收口）
+    if (viewerRole === 'supplier') {
+      return rows.map((r: any) => ({ ...r, relatedItem: r.relatedItem ? { id: r.relatedItem.id, code: r.relatedItem.code, name: r.relatedItem.name } : r.relatedItem }));
+    }
+    return rows;
   }
 
   async createItemRelation(userId: string, itemId: string, dto: { relatedItemId: string; relationType: string }) {

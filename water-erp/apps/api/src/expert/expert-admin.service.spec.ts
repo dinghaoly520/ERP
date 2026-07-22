@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ExpertAdminService } from './expert-admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
@@ -18,19 +18,35 @@ describe('ExpertAdminService', () => {
       user: {
         findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
       },
       bidExpert: {
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn(),
+        upsert: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bidProject: {
+        findUnique: jest.fn(),
       },
       expertEvaluation: {
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
         groupBy: jest.fn().mockResolvedValue([]),
       },
       expertProfile: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
-      $transaction: jest.fn().mockResolvedValue([]),
+      auditLog: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+      // 同时支持数组式（Promise.all）与函数式（执行回调）事务，使事务内逻辑真实运行
+      $transaction: jest.fn().mockImplementation(async (arg: any) =>
+        typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
+      ),
     };
     extractionAi = {
       analyzeAndScore: jest.fn(),
@@ -84,7 +100,7 @@ describe('ExpertAdminService', () => {
 
   describe('getExpert', () => {
     it('应返回专家详情含统计', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王建国', username: 'wangjg' });
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王建国', username: 'wangjg', role: 'bid_expert' });
       prisma.bidExpert.findMany.mockResolvedValue([
         { progress: 100, signedIn: true, project: { name: '项目A' }, scoreRecords: [] },
         { progress: 50, signedIn: false, project: { name: '项目B' }, scoreRecords: [] },
@@ -127,8 +143,20 @@ describe('ExpertAdminService', () => {
       expect(rows[0].rank).toBe(1);
       expect(rows[0].expertUserId).toBe('userB'); // 高分者居首且 id 对齐
       expect(rows[0].displayName).toBe('专家乙');
+      expect(rows[0].avgScore).toBe(95); // 行内分数与 id 同源，杜绝张冠李戴
       expect(rows[1].expertUserId).toBe('userA');
       expect(rows[1].displayName).toBe('专家甲');
+      expect(rows[1].avgScore).toBe(60);
+    });
+
+    it('完全并列应共享名次（竞赛排名 1,1）', async () => {
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { expertUserId: 'uX', overallScore: 88, level: 'B', expertUser: { displayName: 'X', expertProfile: { specialty: '施工' } } },
+        { expertUserId: 'uY', overallScore: 88, level: 'B', expertUser: { displayName: 'Y', expertProfile: { specialty: '地质' } } },
+      ]);
+      const rows = await service.getRanking('all');
+      expect(rows[0].rank).toBe(1);
+      expect(rows[1].rank).toBe(1);
     });
   });
 
@@ -138,9 +166,16 @@ describe('ExpertAdminService', () => {
       await expect(service.setAvailability('u9', false)).rejects.toThrow(NotFoundException);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
-    it('专家角色正常启停', async () => {
+    it('专家角色正常启停（停用须真写 isActive=false 与 availability）', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
       await expect(service.setAvailability('u1', false)).resolves.toEqual({ success: true });
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'u1' }, data: { isActive: false } }),
+      );
+      expect(prisma.expertProfile.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 'u1' }, data: { availability: '停用' } }),
+      );
     });
   });
 
@@ -179,6 +214,98 @@ describe('ExpertAdminService', () => {
       expect(extractionAi.recordFallback).toHaveBeenCalled();
       expect(res.selected.length).toBeGreaterThan(0);
       expect(res.model).toContain('Rules Engine');
+    });
+  });
+
+  describe('confirmExtraction（抽取确认：越权/回避/审计原子性）', () => {
+    const dto = (experts: any[] = [{ userId: 'u1', expertName: '甲', major: '施工', isLead: true }]) =>
+      ({ projectId: 'p1', experts, candidates: [] }) as any;
+
+    it('缺少操作人应拒绝，且不进入事务（绝不静默跳过审计）', async () => {
+      await expect(service.confirmExtraction('p1', dto())).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('停用专家被资格复核拒绝（EXPERT_INELIGIBLE），不写审计', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: false, expertProfile: { availability: '停用' }, bidExperts: [] },
+      ]);
+      await expect(service.confirmExtraction('p1', dto(), 'op1')).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.auditLog.create).not.toHaveBeenCalled();
+    });
+
+    it('已分配本项目的专家被拒绝（EXPERT_ALREADY_ASSIGNED）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [{ id: 'be1' }] },
+      ]);
+      await expect(service.confirmExtraction('p1', dto(), 'op1')).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('工作单位关联投标供应商被回避拒绝（EXPERT_CONFLICT）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '项目',
+        suppliers: [{ supplier: { name: '川西建设' }, supplierName: '川西建设' }],
+      });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', employer: '川西建设公司' }, bidExperts: [] },
+      ]);
+      await expect(service.confirmExtraction('p1', dto(), 'op1')).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('成功抽取应写入 BidExpert 与审计日志（同一事务）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', employer: '设计院' }, bidExperts: [] },
+      ]);
+      const res = await service.confirmExtraction('p1', dto(), 'op1');
+      expect(res.success).toBe(true);
+      expect(prisma.bidExpert.upsert).toHaveBeenCalled();
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: 'op1', action: 'EXPERT_EXTRACTION_CONFIRMED', resourceId: 'p1' }),
+        }),
+      );
+      expect(prisma.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  describe('createEvaluation（项目归属校验 + 去重防刷 + 定级阈值）', () => {
+    const evalDto = (over: any = {}) =>
+      ({ expertUserId: 'u1', attendanceScore: 90, qualityScore: 90, disciplineScore: 90, ...over }) as any;
+
+    it('projectId 指向不存在的项目应拒绝', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      prisma.bidProject.findUnique.mockResolvedValue(null);
+      await expect(service.createEvaluation('op1', evalDto({ projectId: 'ghost' }))).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('专家未参与该项目应拒绝评价', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.createEvaluation('op1', evalDto({ projectId: 'p1' }))).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('等级阈值：90→A / 89→B / 60→C / 59→D', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      prisma.expertEvaluation.findFirst.mockResolvedValue(null);
+      prisma.expertEvaluation.create.mockImplementation(async ({ data }: any) => ({ ...data, evaluator: { id: 'op1', displayName: '评' } }));
+      const mk = (s: number) => service.createEvaluation('op1', evalDto({ attendanceScore: s, qualityScore: s, disciplineScore: s }));
+      expect((await mk(90)).level).toBe('A');
+      expect((await mk(89)).level).toBe('B');
+      expect((await mk(60)).level).toBe('C');
+      expect((await mk(59)).level).toBe('D');
+    });
+
+    it('同一评价者对同一专家重复评价应更新而非新增（防刷 D 级）', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      prisma.expertEvaluation.findFirst.mockResolvedValue({ id: 'ev1' });
+      prisma.expertEvaluation.update.mockResolvedValue({ id: 'ev1', level: 'A' });
+      await service.createEvaluation('op1', evalDto({ attendanceScore: 95, qualityScore: 95, disciplineScore: 95 }));
+      expect(prisma.expertEvaluation.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'ev1' } }));
+      expect(prisma.expertEvaluation.create).not.toHaveBeenCalled();
     });
   });
 });

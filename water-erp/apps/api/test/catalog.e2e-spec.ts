@@ -22,6 +22,9 @@ async function loginAs(
 
 const PRICE_KEYS = ['referencePrice', 'priceMin', 'priceMax', 'lastDealPrice', 'averagePrice', 'changeRate', 'priceSource'];
 
+/** 公共 /catalog 端点对 supplier 脱敏剥离的 6 个数值价格字段（stripPricesForRole；不含 priceSource 等元数据） */
+const CATALOG_STRIPPED_KEYS = ['referencePrice', 'priceMin', 'priceMax', 'lastDealPrice', 'averagePrice', 'changeRate'];
+
 describe('Catalog supply application (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -246,5 +249,84 @@ describe('Catalog supply application (e2e)', () => {
       .expect(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect((res.body as any[]).length).toBeGreaterThan(0);
+  });
+
+  // ── 公共 /catalog 端点对 supplier 的脱敏 / 闸门（本轮改造的回归防线）──
+  // supplier 走 token_supplier + X-Portal:supplier 认证（AuthGuard 按门户读 cookie，req.user.role='supplier' 触发脱敏）。
+
+  it('脱敏：supplier 调公共列表/详情/收藏均不返回价格字段', async () => {
+    // 列表
+    const listRes = await request(app.getHttpServer())
+      .get('/api/catalog')
+      .set('Cookie', supplierCookie)
+      .set('X-Portal', 'supplier')
+      .expect(200);
+    expect((listRes.body as any[]).length).toBeGreaterThan(0);
+    for (const it of listRes.body as any[]) for (const k of CATALOG_STRIPPED_KEYS) expect(it).not.toHaveProperty(k);
+
+    // 详情（回归：get() 曾漏传 role 导致 supplier 读全价）
+    const detailRes = await request(app.getHttpServer())
+      .get(`/api/catalog/${cleanItemId}`)
+      .set('Cookie', supplierCookie)
+      .set('X-Portal', 'supplier')
+      .expect(200);
+    for (const k of CATALOG_STRIPPED_KEYS) expect(detailRes.body).not.toHaveProperty(k);
+    expect(detailRes.body).toHaveProperty('name');
+
+    // 收藏：确保已收藏后读取，验证收藏序列化同样脱敏
+    const t1 = await request(app.getHttpServer())
+      .post(`/api/catalog/${cleanItemId}/favorite`)
+      .set('Cookie', supplierCookie)
+      .set('X-Portal', 'supplier')
+      .expect(201);
+    if (t1.body.favorited === false) {
+      await request(app.getHttpServer())
+        .post(`/api/catalog/${cleanItemId}/favorite`)
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .expect(201);
+    }
+    const favRes = await request(app.getHttpServer())
+      .get('/api/catalog/favorites')
+      .set('Cookie', supplierCookie)
+      .set('X-Portal', 'supplier')
+      .expect(200);
+    expect((favRes.body as any[]).some(i => i.id === cleanItemId)).toBe(true);
+    for (const it of favRes.body as any[]) for (const k of CATALOG_STRIPPED_KEYS) expect(it).not.toHaveProperty(k);
+  });
+
+  it('脱敏：supplier 调关联端点不返回 relatedItem.referencePrice（侧信道）', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/catalog/items/${cleanItemId}/relations`)
+      .set('Cookie', supplierCookie)
+      .set('X-Portal', 'supplier')
+      .expect(200);
+    for (const r of res.body as any[]) {
+      if (r.relatedItem) expect(r.relatedItem).not.toHaveProperty('referencePrice');
+    }
+  });
+
+  it('闸门：supplier 调价格敏感端点应 403（prediction/attachments/history/suppliers）', async () => {
+    for (const path of [
+      `/api/catalog/${cleanItemId}/prediction`,
+      `/api/catalog/${cleanItemId}/attachments`,
+      `/api/catalog/${cleanItemId}/history`,
+      `/api/catalog/suppliers`,
+    ]) {
+      await request(app.getHttpServer())
+        .get(path)
+        .set('Cookie', supplierCookie)
+        .set('X-Portal', 'supplier')
+        .expect(403);
+    }
+  });
+
+  it('对照：内部角色调详情仍返回完整价格（脱敏按角色，非 blanket 移除）', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/catalog/${steelItemId}`)
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .expect(200);
+    expect(res.body).toHaveProperty('referencePrice');
   });
 });

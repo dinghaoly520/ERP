@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { catalogApi } from '@/api/catalog'
 import ApplicationDialog from './ApplicationDialog.vue'
+import SpPageHero from '@/components/SpPageHero.vue'
+import { ShoppingBag, AlertTriangle } from 'lucide-vue-next'
 
 const loading = ref(true); const firstLoad = ref(true); const error = ref(false); const items = ref<any[]>([]); const categoryTree = ref<{group:string;categories:string[]}[]>([]); const myApplications = ref<any[]>([]); const mySupply = ref<any[]>([])
 const selectedGroup = ref<string>('工程材料'); const selectedCategory = ref<string>(''); const search = ref('')
@@ -35,21 +37,19 @@ onMounted(loadAll)
       </div>
     </div>
     <div v-else-if="error" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
       <div v-loading="loading">
-    <div class="sp-page-hero-card">
-      <div class="sp-page-hero-inner">
-        <div class="sp-page-hero-body">
-          <h1 class="sp-modern-title">集中采购目录</h1>
-          <p class="sp-modern-desc">浏览集团集中采购目录品类，申请加入供货或调整报价。</p>
-        </div>
-      </div>
-    </div>
+    <SpPageHero :icon="ShoppingBag" title="集中采购目录" sub="浏览集团集中采购目录品类，申请加入供货或调整报价。">
+      <template #actions>
+        <div class="page-hero__stat"><strong>{{ items.length }}</strong><span>目录条目</span></div>
+        <div class="page-hero__stat"><strong>{{ categoryTree.length }}</strong><span>品类大组</span></div>
+      </template>
+    </SpPageHero>
 
     <div class="catalog-layout">
       <aside class="cat-sidebar">
@@ -63,7 +63,7 @@ onMounted(loadAll)
       </aside>
 
       <section class="cat-main">
-        <div class="cat-toolbar">
+        <div class="cat-toolbar neu-card">
           <el-input v-model="search" placeholder="搜索物资 / 规格 / 编码" clearable style="width:280px" :prefix-icon="'Search'" @keyup.enter="onSearch" @clear="onSearch" />
           <el-button type="primary" @click="onSearch">搜索</el-button><el-button @click="resetFilters">重置</el-button>
           <div style="flex:1" />
@@ -81,8 +81,8 @@ onMounted(loadAll)
           <span class="cat-result-count">共 {{ items.length }} 项</span>
         </div>
 
-        <div class="cat-table-wrap">
-          <el-table :data="items" stripe style="width:100%" :show-overflow-tooltip="true" empty-text="暂无匹配的目录条目">
+        <div class="neu-table-card cat-table-shell">
+          <el-table :data="items" style="width:100%" :show-overflow-tooltip="true" empty-text="暂无匹配的目录条目">
             <el-table-column label="编码 / 物资" min-width="220"><template #default="{row}"><div class="cell-code">{{ row.code }}</div><div class="cell-name">{{ row.name }}</div></template></el-table-column>
             <el-table-column prop="specification" label="规格型号" min-width="180" />
             <el-table-column label="分类" width="120"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.category }}</el-tag></template></el-table-column>
@@ -109,46 +109,78 @@ onMounted(loadAll)
 </template>
 
 <style scoped>
-.catalog-layout { display: flex; gap: 16px; align-items: flex-start; }
-.cat-sidebar { width: 220px; flex-shrink: 0; position: relative; background: rgba(255,255,255,0.74); backdrop-filter: blur(16px) saturate(1.2); -webkit-backdrop-filter: blur(16px) saturate(1.2); border: 1px solid rgba(255,255,255,0.42); border-radius: var(--sp-radius-md); padding: 14px; position: sticky; top: 16px; max-height: calc(100vh - 120px); overflow-y: scroll; scrollbar-gutter: stable; }
-.cat-sidebar::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.44; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(168,139,250,0.20), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(192,132,252,0.12), transparent 55%), radial-gradient(ellipse at 40% 90%, rgba(91,33,182,0.07), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
-.cat-sidebar:hover::before { opacity: 0.58; }
-.cat-sidebar > * { position: relative; z-index: 1; }
-.cat-sidebar-title { font-size: 12px; font-weight: 800; color: var(--sp-gray-500); padding: 4px 8px 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+/* ═══════════════ Layout ═══════════════ */
+.catalog-layout { display: flex; gap: 16px; align-items: flex-start; margin-top: 16px; }
+
+/* ── Category sidebar — neumorphic raised plate (no glass / no drift) ── */
+.cat-sidebar {
+  width: 220px; flex-shrink: 0; border-radius: 16px; padding: 14px;
+  position: sticky; top: 16px; max-height: calc(100vh - 120px);
+  overflow-y: scroll; scrollbar-gutter: stable;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.cat-sidebar-title { font-size: 12px; font-weight: 800; color: var(--muted-foreground); padding: 4px 8px 10px; letter-spacing: 0.05em; text-transform: uppercase; }
 .cat-node { margin-bottom: 2px; }
-.cat-group { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: var(--sp-radius-sm); font-size: 14px; font-weight: 700; color: var(--sp-gray-700); cursor: pointer; transition: all 0.15s; }
-.cat-group:hover { background: rgba(255,255,255,0.52); color: var(--sp-primary); }
-.cat-group.active { background: var(--sp-primary); color: #fff; }
-.cat-group.active .cat-count { background: rgba(255,255,255,.25); color: #fff; }
-.cat-count { font-size: 11px; font-weight: 700; background: rgba(255,255,255,0.60); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: var(--sp-gray-500); padding: 1px 8px; border-radius: 10px; }
+.cat-group {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: 10px;
+  font-size: 14px; font-weight: 700; color: var(--foreground);
+  cursor: pointer; transition: all 0.18s ease;
+}
+.cat-group:hover { background: oklch(1 0 0 / 0.6); color: var(--brand);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 3px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.85); }
+.cat-group.active {
+  color: #fff; background: linear-gradient(90deg, var(--brand), var(--brand-deep));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25), 2px 2px 6px oklch(0.4 0.1 258 / 0.28);
+}
+.cat-count {
+  font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 10px;
+  color: var(--muted-foreground); background: oklch(0.55 0.03 258 / 0.08);
+  font-variant-numeric: tabular-nums;
+}
+.cat-group.active .cat-count { background: oklch(1 0 0 / 0.22); color: #fff; }
 .cat-sub { padding: 4px 0 6px 8px; }
-.cat-leaf { padding: 7px 14px; font-size: 13px; color: var(--sp-gray-600); border-radius: var(--sp-radius-sm); cursor: pointer; transition: all 0.15s; }
-.cat-leaf:hover { background: rgba(255,255,255,0.52); color: var(--sp-primary); }
-.cat-leaf.active { color: var(--sp-primary); font-weight: 700; background: rgba(239,246,255,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.cat-leaf { padding: 7px 14px; font-size: 13px; color: var(--muted-foreground); border-radius: 8px; cursor: pointer; transition: all 0.15s ease; }
+.cat-leaf:hover { background: oklch(1 0 0 / 0.6); color: var(--brand); }
+.cat-leaf.active { color: var(--brand); font-weight: 700; background: color-mix(in oklab, var(--brand) 10%, transparent); }
+
 .cat-main { flex: 1; min-width: 0; }
-.cat-toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px; margin-bottom: 12px; background: rgba(255,255,255,0.18); backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3); border: 1px solid rgba(255,255,255,0.32); border-radius: var(--sp-radius-md); }
-.cat-toolbar > * { position: relative; z-index: 1; }
+
+/* ── Toolbar — layout only (visuals from cgzxui .neu-card) ── */
+.cat-toolbar { flex-direction: row; align-items: center; gap: 10px; padding: 12px 16px; margin-bottom: 12px; }
+
 .cat-filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 0 4px; min-height: 28px; }
-.cat-filter-label { font-size: 12px; font-weight: 600; color: var(--sp-gray-400); flex-shrink: 0; }
+.cat-filter-label { font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex-shrink: 0; }
 .cat-filter-body { position: relative; display: inline-flex; align-items: center; min-width: 80px; }
-.cat-filter-none { font-size: 12px; font-weight: 600; color: var(--sp-gray-400); }
-.cat-result-count { font-size: 13px; color: var(--sp-gray-400); }
+.cat-filter-none { font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
+.cat-result-count { font-size: 13px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 .filter-fade-enter-active,
 .filter-fade-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; position: absolute; }
 .filter-fade-enter-from { opacity: 0; transform: translateY(2px); }
 .filter-fade-leave-to   { opacity: 0; transform: translateY(-2px); }
-/* cat-table-wrap glass styles are in global.css for full Element Plus table penetration */
-.cell-code { font-family: monospace; font-size: 12px; color: var(--sp-primary); font-weight: 700; }
-.cell-name { font-size: 14px; color: var(--sp-gray-900); font-weight: 600; margin-top: 2px; }
-.cell-count { font-size: 16px; font-weight: 800; color: var(--sp-gray-900); }
-.cell-count-label { font-size: 12px; color: var(--sp-gray-400); margin-left: 2px; }
+
+/* ── Table shell — cgzxui .neu-table-card handles the plate; keep fixed-column radius clipped ── */
+.cat-table-shell { overflow: hidden; }
+
+.cell-code { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 12px; color: var(--brand); font-weight: 700; }
+.cell-name { font-size: 14px; color: var(--foreground); font-weight: 600; margin-top: 2px; }
+.cell-count { font-size: 16px; font-weight: 800; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.cell-count-label { font-size: 12px; color: var(--muted-foreground); margin-left: 2px; }
+
 .cat-sub-enter-active,.cat-sub-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
 .cat-sub-enter-from,.cat-sub-leave-to { opacity: 0; transform: translateY(-6px); }
 .cat-sub-enter-to,.cat-sub-leave-from { opacity: 1; transform: translateY(0); }
-.skel-wrap{display:flex;flex-direction:column;gap:14px}
-.skel-hero{background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:24px;display:flex;flex-direction:column}
-.skel-cat{display:flex;gap:16px;height:340px}
-.skel-sidebar{width:220px;background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:14px;display:flex;flex-direction:column;gap:4px}
-.skel-main{flex:1;background:rgba(255,255,255,0.60);border:1px solid rgba(255,255,255,0.35);border-radius:var(--sp-radius-md);padding:14px 16px;display:flex;flex-direction:column}
+
+/* ── Skeletons — borderless surface plates (no glass) ── */
+.skel-wrap { display: flex; flex-direction: column; gap: 14px; }
+.skel-hero { background: var(--surface); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.skel-cat { display: flex; gap: 16px; height: 340px; }
+.skel-sidebar { width: 220px; background: var(--surface); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 4px; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.skel-main { flex: 1; background: var(--surface); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-group, .cat-leaf { transition: none; }
+}
 @media (max-width:900px) { .catalog-layout { flex-direction: column; } .cat-sidebar { width: 100%; position: static; max-height: none; } }
 </style>

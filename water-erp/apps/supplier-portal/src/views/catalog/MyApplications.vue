@@ -4,6 +4,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import { catalogApi } from '@/api/catalog'
 import ApplicationDialog from './ApplicationDialog.vue'
+import SpPageHero from '@/components/SpPageHero.vue'
+import { FileSpreadsheet, AlertTriangle, Inbox, Handshake } from 'lucide-vue-next'
 
 const loading = ref(true); const error = ref(false); const applications = ref<any[]>([]); const activeTab = ref('active'); const dialogVisible = ref(false); const editApp = ref<any>(null)
 async function load() { loading.value = true; error.value = false; try { applications.value = await catalogApi.listApplications() as any } catch { error.value = true } finally { loading.value = false } }
@@ -25,24 +27,24 @@ onMounted(load)
 <template>
   <div class="page-container" v-loading="loading">
     <div v-if="error" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
-    <div class="sp-page-hero-card">
-      <div class="sp-page-hero-inner">
-        <div class="sp-page-hero-body">
-          <h1 class="sp-modern-title">我的供货申请</h1>
-          <p class="sp-modern-desc">查看新增品类 / 加入供货 / 改报价申请的审核进度与议价记录。</p>
-        </div>
-      </div>
+    <SpPageHero :icon="FileSpreadsheet" title="我的供货申请" sub="查看新增品类 / 加入供货 / 改报价申请的审核进度与议价记录。" />
+
+    <div class="neu-tab-bar app-tabs">
+      <button type="button" class="neu-tab" :class="{ 'is-active': activeTab==='active' }" :aria-pressed="activeTab==='active'" @click="activeTab='active'">进行中<span class="app-tab-count">{{ counts.active }}</span></button>
+      <button type="button" class="neu-tab" :class="{ 'is-active': activeTab==='done' }" :aria-pressed="activeTab==='done'" @click="activeTab='done'">已结束<span class="app-tab-count">{{ counts.done }}</span></button>
     </div>
 
-    <div class="tab-row"><el-tabs v-model="activeTab"><el-tab-pane name="active"><template #label><span class="tab-label">进行中<strong class="tab-count">{{ counts.active }}</strong></span></template></el-tab-pane><el-tab-pane name="done"><template #label><span class="tab-label">已结束<strong class="tab-count">{{ counts.done }}</strong></span></template></el-tab-pane></el-tabs></div>
-
-    <div v-if="filtered.length===0&&!loading" class="empty-center"><div class="sp-empty-panel"><el-icon :size="32"><Document /></el-icon><p class="sp-empty-text">暂无申请记录</p><p class="sp-empty-desc">前往「集中采购目录」申请供货或新增品类</p></div></div>
+    <div v-if="filtered.length===0&&!loading" class="sp-empty app-empty">
+      <div class="sp-empty-icon"><Inbox :size="20" :stroke-width="1.75" /></div>
+      <div class="sp-empty-text">暂无申请记录</div>
+      <div class="sp-empty-desc">前往「集中采购目录」申请供货或新增品类</div>
+    </div>
 
     <div v-else class="app-list">
       <div v-for="a in filtered" :key="a.id" class="app-card">
@@ -53,10 +55,10 @@ onMounted(load)
             <div class="app-info-item" v-if="a.deliveryPeriod"><span class="app-info-label">交货周期</span><span class="app-info-value">{{ a.deliveryPeriod }}</span></div>
             <div class="app-info-item" v-if="a.region"><span class="app-info-label">区域</span><span class="app-info-value">{{ a.region }}</span></div>
             <div class="app-info-item" v-if="a.minOrder"><span class="app-info-label">最小起订</span><span class="app-info-value">{{ a.minOrder }}</span></div>
-            <div class="app-info-item"><span class="app-info-label">提交时间</span><span class="app-info-value">{{ dayjs(a.createdAt).format('MM-DD HH:mm') }}<template v-if="a.status==='PENDING'"> · <span style="color:var(--sp-orange)">{{ since(a.createdAt) }}</span></template></span></div>
+            <div class="app-info-item"><span class="app-info-label">提交时间</span><span class="app-info-value">{{ dayjs(a.createdAt).format('MM-DD HH:mm') }}<template v-if="a.status==='PENDING'"> · <span class="app-wait">{{ since(a.createdAt) }}</span></template></span></div>
           </div>
-          <div v-if="a.status==='COUNTERED'&&a.counterPrice" class="app-counter"><div class="app-counter-icon"><el-icon :size="20"><Connection /></el-icon></div><div class="app-counter-body"><div class="app-counter-title">管理员议价 <strong>&yen;{{ a.counterPrice }}</strong></div><div class="app-counter-note" v-if="a.counterNote">{{ a.counterNote }}</div></div></div>
-          <div v-if="(a.status==='RETURNED'||a.status==='REJECTED')&&a.rejectReason" class="app-reason"><el-icon><WarningFilled /></el-icon><span>{{ a.status==='REJECTED'?'拒绝理由':'退回说明' }}：{{ a.rejectReason }}</span></div>
+          <div v-if="a.status==='COUNTERED'&&a.counterPrice" class="app-counter"><Handshake :size="18" :stroke-width="1.75" class="app-counter-icon" /><div class="app-counter-body"><div class="app-counter-title">管理员议价 <strong>&yen;{{ a.counterPrice }}</strong></div><div class="app-counter-note" v-if="a.counterNote">{{ a.counterNote }}</div></div></div>
+          <div v-if="(a.status==='RETURNED'||a.status==='REJECTED')&&a.rejectReason" class="app-reason"><AlertTriangle :size="15" :stroke-width="1.75" /><span>{{ a.status==='REJECTED'?'拒绝理由':'退回说明' }}：{{ a.rejectReason }}</span></div>
           <div v-if="a.reviewerNote" class="app-note"><span class="app-note-label">审核备注</span>{{ a.reviewerNote }}</div>
         </div>
         <div class="app-card-foot">
@@ -72,59 +74,76 @@ onMounted(load)
 </template>
 
 <style scoped>
+/* ── Tabs — layout only (visuals from cgzxui .neu-tab-bar / .neu-tab) ── */
+.app-tabs { display: flex; width: fit-content; margin: 16px 0; }
+.app-tab-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 18px; padding: 0 6px;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  border-radius: 9px; font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground); background: oklch(0.55 0.03 258 / 0.1);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.neu-tab.is-active .app-tab-count { color: var(--brand); background: color-mix(in oklab, var(--brand) 12%, transparent); }
+
+/* ── Application cards — neumorphic plates (no glass / no drift) ── */
 .app-list { display: flex; flex-direction: column; gap: 14px; }
-.app-card { position: relative; background: rgba(255,255,255,0.52); backdrop-filter: blur(12px) saturate(1.1); -webkit-backdrop-filter: blur(12px) saturate(1.1); border: 1px solid rgba(255,255,255,0.42); border-radius: var(--sp-radius-md); overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
-.app-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.34; border-radius: inherit; background-image: radial-gradient(ellipse at 14% 6%, rgba(96,165,250,0.14), transparent 55%), radial-gradient(ellipse at 84% 12%, rgba(56,189,248,0.08), transparent 55%), radial-gradient(ellipse at 40% 90%, rgba(6,78,162,0.04), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
-.app-card:hover { border-color: var(--sp-primary); box-shadow: 0 1px 8px rgba(15,47,87,0.08); }
-.app-card:hover::before { opacity: 0.48; }
-.app-card > * { position: relative; z-index: 1; }
-.app-card-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.04); }
-.app-type-tag { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 8px; flex-shrink: 0; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-.app-type-tag.NEW_ITEM { background: rgba(237,233,254,0.72); color: #6d28d9; }
-.app-type-tag.JOIN_EXISTING { background: rgba(219,234,254,0.72); color: #1d4ed8; }
-.app-type-tag.UPDATE_QUOTE { background: rgba(254,243,199,0.72); color: #b45309; }
+.app-card {
+  border-radius: 16px; overflow: hidden;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.app-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 7px 7px 16px oklch(0.55 0.03 258 / 0.12), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.app-card-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; box-shadow: inset 0 -1px 0 var(--hairline); }
+.app-type-tag { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 6px; flex-shrink: 0; white-space: nowrap; }
+.app-type-tag.NEW_ITEM     { background: color-mix(in oklab, #7c3aed 12%, transparent); color: #7c3aed; }
+.app-type-tag.JOIN_EXISTING { background: color-mix(in oklab, #0a5eb8 12%, transparent); color: #0a5eb8; }
+.app-type-tag.UPDATE_QUOTE { background: color-mix(in oklab, #d97706 12%, transparent); color: #d97706; }
 .app-title-wrap { flex: 1; min-width: 0; }
-.app-title { font-size: 15px; font-weight: 800; color: var(--sp-gray-900); }
-.app-spec { font-size: 12px; color: var(--sp-gray-400); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-title { font-size: 15px; font-weight: 800; color: var(--foreground); letter-spacing: -0.01em; }
+.app-spec { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-card-body { padding: 16px 20px; }
 .app-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 20px; }
 .app-info-item { display: flex; flex-direction: column; gap: 2px; }
-.app-info-label { font-size: 11px; color: var(--sp-gray-400); font-weight: 600; }
-.app-info-value { font-size: 14px; color: var(--sp-gray-700); font-weight: 600; }
-.app-info-value.price { color: #dc2626; font-size: 16px; font-weight: 800; }
-.app-info-value.price small { font-size: 11px; color: var(--sp-gray-400); font-weight: 400; }
-.app-counter { display: flex; gap: 10px; margin-top: 14px; padding: 12px 14px; background: rgba(254,243,199,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(253,230,138,0.50); border-radius: var(--sp-radius-sm); }
-.app-counter-title { font-size: 14px; color: #92400e; }
-.app-counter-title strong { color: #dc2626; font-size: 16px; }
-.app-counter-note { font-size: 12px; color: #a16207; margin-top: 3px; }
-.app-reason { display: flex; align-items: flex-start; gap: 6px; margin-top: 12px; padding: 10px 12px; background: rgba(254,226,226,0.60); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(239,68,68,0.15); border-radius: var(--sp-radius-sm); font-size: 13px; color: #b91c1c; line-height: 1.5; }
-.app-note { margin-top: 10px; font-size: 12px; color: var(--sp-gray-500); background: rgba(255,255,255,0.48); padding: 8px 12px; border-radius: var(--sp-radius-sm); border: 1px solid rgba(0,0,0,0.03); }
-.app-note-label { font-weight: 700; color: var(--sp-gray-600); margin-right: 6px; }
-.app-card-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid rgba(0,0,0,0.04); background: rgba(255,255,255,0.40); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-
-.tab-row { margin-bottom: 16px; }
-
-.tab-label { display: inline-flex; align-items: baseline; gap: 6px; }
-
-.tab-count {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 20px; height: 20px; padding: 0 6px;
-  font-family: 'Inter', 'SF Mono', 'JetBrains Mono', monospace;
-  font-size: 12px; font-weight: 600;
-  line-height: 1; letter-spacing: -0.01em;
-  border-radius: 10px;
-  color: var(--sp-gray-400);
-  background: var(--sp-gray-100);
-  transition: color 0.2s, background 0.2s;
+.app-info-label { font-size: 11px; color: var(--muted-foreground); font-weight: 600; }
+.app-info-value { font-size: 14px; color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
+.app-info-value.price { color: var(--danger); font-size: 16px; font-weight: 800; }
+.app-info-value.price small { font-size: 11px; color: var(--muted-foreground); font-weight: 400; }
+.app-wait { color: var(--warning); font-weight: 700; }
+.app-counter {
+  display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px 14px;
+  border-radius: 10px; color: var(--foreground);
+  background: color-mix(in oklab, var(--warning) 10%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
-
-.el-tabs__item.is-active .tab-count {
-  color: var(--sp-primary);
-  background: var(--sp-primary-lighter);
+.app-counter-icon { flex-shrink: 0; margin-top: 1px; color: var(--warning); }
+.app-counter-title { font-size: 14px; }
+.app-counter-title strong { color: var(--danger); font-size: 16px; font-variant-numeric: tabular-nums; }
+.app-counter-note { font-size: 12px; color: var(--muted-foreground); margin-top: 3px; }
+.app-reason {
+  display: flex; align-items: flex-start; gap: 6px; margin-top: 12px; padding: 10px 12px;
+  border-radius: 10px; font-size: 13px; line-height: 1.5; color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 8%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
+.app-reason > svg { flex-shrink: 0; margin-top: 2px; }
+.app-note {
+  margin-top: 10px; font-size: 12px; color: var(--muted-foreground);
+  background: oklch(0.99 0.004 258); padding: 8px 12px; border-radius: 8px;
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.8);
+}
+.app-note-label { font-weight: 700; color: var(--foreground); margin-right: 6px; }
+.app-card-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px; box-shadow: inset 0 1px 0 var(--hairline); }
 
-.empty-center { display: flex; align-items: center; justify-content: center; min-height: 60vh; }
-.sp-empty-panel { text-align: center; }
-.sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
-.sp-empty-desc { font-size: 13px; margin-top: 4px; color: var(--sp-gray-400); }
+/* ── Empty ── */
+.app-empty { padding: 72px 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-card { transition: none; }
+  .app-card:hover { transform: none; }
+}
 </style>

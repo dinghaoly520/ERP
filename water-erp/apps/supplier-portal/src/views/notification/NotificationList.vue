@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotificationStore } from '@/stores/notification'
 import { ElMessage } from 'element-plus'
+import SpPageHero from '@/components/SpPageHero.vue'
+import { Bell, AlertTriangle, CircleCheck, CircleX, ClipboardList, AlarmClock, MessageSquare, LockOpen, BarChart3, Inbox } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const router = useRouter(); const store = useNotificationStore(); const loading = ref(true); const error = ref(false); const currentPage = ref(1); const typeFilter = ref('')
-const typeIconMap: Record<string,string> = {SUPPLIER_APPROVED:'✅',SUPPLIER_REJECTED:'❌',SUPPLIER_RETURNED:'⚠️',BID_PUBLISHED:'📋',BID_REMINDER:'⏰',SYSTEM:'🔔',CLARIFICATION_REPLIED:'💬',BID_OPENING:'🔓',BID_EVALUATION_RESULT:'📊'}
+const typeIconMap: Record<string, Component> = {SUPPLIER_APPROVED:CircleCheck,SUPPLIER_REJECTED:CircleX,SUPPLIER_RETURNED:AlertTriangle,BID_PUBLISHED:ClipboardList,BID_REMINDER:AlarmClock,SYSTEM:Bell,CLARIFICATION_REPLIED:MessageSquare,BID_OPENING:LockOpen,BID_EVALUATION_RESULT:BarChart3}
+const typeColorMap: Record<string, string> = {SUPPLIER_APPROVED:'#059669',SUPPLIER_REJECTED:'#dc2626',SUPPLIER_RETURNED:'#d97706',BID_PUBLISHED:'#2563eb',BID_REMINDER:'#ea580c',SYSTEM:'#475569',CLARIFICATION_REPLIED:'#0d9488',BID_OPENING:'#0891b2',BID_EVALUATION_RESULT:'#7c3aed'}
 const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'招标公告',BID_REMINDER:'开标提醒',SYSTEM:'系统通知',CLARIFICATION_REPLIED:'澄清答疑',BID_OPENING:'开标通知',BID_EVALUATION_RESULT:'评标结果'}
 const filteredNotifications = computed(() => {
   if (!typeFilter.value) return store.notifications
@@ -24,33 +27,29 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 <template>
   <div class="page-container" v-loading="loading">
     <div v-if="error" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
-    <div class="sp-page-hero-card">
-      <div class="sp-page-hero-inner">
-        <div class="sp-page-hero-body">
-          <h1 class="sp-modern-title">消息中心</h1>
-          <p class="sp-modern-desc">查看系统通知和业务消息，及时处理重要提醒。</p>
-        </div>
-        <div class="sp-page-hero-actions">
-          <el-button @click="handleReadAll" :disabled="store.unreadCount===0"><el-icon><Check /></el-icon>全部标为已读</el-button>
-        </div>
-      </div>
-    </div>
+    <SpPageHero :icon="Bell" title="消息中心" sub="查看系统通知和业务消息，及时处理重要提醒。">
+      <template #actions>
+        <el-button @click="handleReadAll" :disabled="store.unreadCount===0"><el-icon><Check /></el-icon>全部标为已读</el-button>
+      </template>
+    </SpPageHero>
 
-    <!-- Type filter chips -->
-    <div v-if="store.notifications.length>0" class="sp-chip-group" style="margin-bottom:16px">
-      <el-tag :type="!typeFilter?'primary':'info'" class="sp-chip" style="cursor:pointer" @click="typeFilter=''">全部</el-tag>
-      <el-tag v-for="(label, key) in typeLabels" :key="key" :type="typeFilter===key?'primary':'info'" class="sp-chip" style="cursor:pointer" @click="typeFilter=key">{{ label }}</el-tag>
+    <!-- Type filter tabs -->
+    <div v-if="store.notifications.length>0" class="neu-tab-bar notif-tabs">
+      <button class="neu-tab" :class="{ active: !typeFilter }" @click="typeFilter=''">全部</button>
+      <button v-for="(label, key) in typeLabels" :key="key" class="neu-tab" :class="{ active: typeFilter===key }" @click="typeFilter=key">{{ label }}</button>
     </div>
 
     <div v-if="filteredNotifications.length>0" class="notif-list">
       <div v-for="n in filteredNotifications" :key="n.id" class="notif-row" :class="{unread:!n.isRead}" @click="handleClick(n)">
-        <div class="notif-icon">{{ typeIconMap[n.type]||'📬' }}</div>
+        <div class="notif-icon" :style="{ '--c': typeColorMap[n.type] || '#475569' } as any">
+          <component :is="typeIconMap[n.type] || Inbox" :size="17" :stroke-width="1.75" />
+        </div>
         <div class="notif-body"><div class="notif-row-title">{{ n.title }}</div><div class="notif-row-content">{{ n.content }}</div></div>
         <div class="notif-right"><div class="notif-row-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div><el-button v-if="!n.isRead" text type="primary" size="small" @click.stop="handleRead(n.id)">标为已读</el-button></div>
       </div>
@@ -64,21 +63,37 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 </template>
 
 <style scoped>
-.notif-list { position: relative; background: rgba(255,255,255,0.58); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); overflow: hidden; }
-.notif-list::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
-.notif-list > * { position: relative; z-index: 1; }
-.notif-row { display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.04); cursor: pointer; transition: background 0.15s; }
-.notif-row:last-child { border-bottom: none; }
-.notif-row:hover { background: rgba(248,251,255,0.50); }
-.notif-row.unread { background: rgba(239,246,255,0.48); }
-.notif-row.unread:hover { background: rgba(224,238,255,0.55); }
-.notif-icon { font-size: 28px; flex-shrink: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
-.notif-body { flex: 1; min-width: 0; }
-.notif-row-title { font-size: 15px; font-weight: 700; color: var(--sp-gray-900); margin-bottom: 4px; }
-.notif-row-content { font-size: 13px; color: var(--sp-gray-500); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.notif-right { text-align: right; flex-shrink: 0; }
-.notif-row-time { font-size: 12px; color: var(--sp-gray-400); margin-bottom: 4px; }
+/* Type filter — concave tab bar (visuals from cgzxui .neu-tab*) */
+.notif-tabs { display: flex; flex-wrap: wrap; margin: 16px 0; max-width: 100%; overflow-x: auto; }
+.notif-tabs .neu-tab.active {
+  color: var(--brand); background: var(--surface);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.7);
+}
 
-.sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
+/* List — neumorphic plate (no glass / no drift) */
+.notif-list {
+  border: none; border-radius: 16px; overflow: hidden;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.notif-row { display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background 0.15s; }
+.notif-row:last-child { border-bottom: none; }
+.notif-row:hover { background: oklch(0.985 0.01 258 / 0.6); }
+.notif-row.unread { background: color-mix(in oklab, var(--brand) 5%, transparent); }
+.notif-row.unread:hover { background: color-mix(in oklab, var(--brand) 8%, transparent); }
+.notif-icon {
+  width: 38px; height: 38px; flex-shrink: 0; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--c); background: color-mix(in oklab, var(--c) 12%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.notif-body { flex: 1; min-width: 0; }
+.notif-row-title { font-size: 15px; font-weight: 700; color: var(--foreground); margin-bottom: 4px; }
+.notif-row.unread .notif-row-title { font-weight: 800; }
+.notif-row-content { font-size: 13px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.notif-right { text-align: right; flex-shrink: 0; }
+.notif-row-time { font-size: 12px; color: var(--muted-foreground); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+
+.sp-empty-text { font-size: 15px; font-weight: 700; color: var(--muted-foreground); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 </style>

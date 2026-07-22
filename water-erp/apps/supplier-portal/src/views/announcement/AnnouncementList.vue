@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAnnouncementStore } from '@/stores/announcement'
+import SpPageHero from '@/components/SpPageHero.vue'
+import { Megaphone, AlertTriangle } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const router = useRouter(); const store = useAnnouncementStore(); const loading = ref(true); const error = ref(false); const activeType = ref(''); const search = ref(''); const currentPage = ref(1)
@@ -21,24 +23,19 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 <template>
   <div class="page-container" v-loading="loading">
     <div v-if="error" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
-    <div class="sp-page-hero-card">
-      <div class="sp-page-hero-inner">
-        <div class="sp-page-hero-body">
-          <h1 class="sp-modern-title">公告公示</h1>
-          <p class="sp-modern-desc">集中查看招标公告、中标公示、政策法规和平台通知。</p>
-        </div>
-      </div>
-    </div>
+    <SpPageHero :icon="Megaphone" title="公告公示" sub="集中查看招标公告、中标公示、政策法规和平台通知。" />
 
-    <div class="sp-filter-bar">
+    <div class="neu-card ann-filter">
       <el-input v-model="search" placeholder="搜索公告标题" prefix-icon="Search" clearable size="default" style="width:280px" @keyup.enter="handleSearch" @clear="handleSearch" />
-      <div class="sp-chip-group"><el-button v-for="t in typeOptions" :key="t.value" :type="activeType===t.value?'primary':'default'" class="sp-chip" size="small" @click="activeType=t.value;handleSearch()">{{ t.label }}</el-button></div>
+      <div class="neu-tab-bar ann-tabs">
+        <button v-for="t in typeOptions" :key="t.value" class="neu-tab" :class="{ active: activeType===t.value }" @click="activeType=t.value;handleSearch()">{{ t.label }}</button>
+      </div>
     </div>
 
     <div v-if="store.announcements.length>0" class="announcement-list">
@@ -55,22 +52,33 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 </template>
 
 <style scoped>
-.announcement-list { position: relative; background: rgba(255,255,255,0.58); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); overflow: hidden; }
-.announcement-list::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
-.announcement-list > * { position: relative; z-index: 1; }
-.announcement-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.04); cursor: pointer; transition: background 0.15s; }
+/* Filter plate — neumorphic; layout only (visuals from cgzxui .neu-card / .neu-tab*) */
+.ann-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; margin: 16px 0; }
+.ann-tabs { overflow-x: auto; }
+.ann-tabs .neu-tab.active {
+  color: var(--brand); background: var(--surface);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.7);
+}
+
+/* List — neumorphic plate (no glass / no drift) */
+.announcement-list {
+  border: none; border-radius: 16px; overflow: hidden;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.announcement-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background 0.15s; }
 .announcement-row:last-child { border-bottom: none; }
-.announcement-row:hover { background: rgba(248,251,255,0.50); }
+.announcement-row:hover { background: oklch(0.985 0.01 258 / 0.6); }
 .ann-row-left { display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0; }
 .ann-row-body { display: flex; flex-direction: column; min-width: 0; }
-.ann-row-title { font-size: 15px; font-weight: 700; color: var(--sp-gray-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ann-row-summary { font-size: 13px; color: var(--sp-gray-500); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ann-row-title { font-size: 15px; font-weight: 700; color: var(--foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ann-row-summary { font-size: 13px; color: var(--muted-foreground); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ann-row-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.top-badge { font-size: 11px; font-weight: 700; color: var(--sp-red); background: rgba(254,226,226,0.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); padding: 2px 8px; border-radius: 6px; }
-.new-badge { font-size: 11px; font-weight: 700; color: var(--sp-primary); background: rgba(239,246,255,0.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); padding: 2px 8px; border-radius: 6px; margin-right: 8px; }
-.ann-row-date { font-size: 13px; color: var(--sp-gray-400); white-space: nowrap; }
-.ann-arrow { color: var(--sp-gray-300); }
+.top-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; color: var(--danger); background: color-mix(in oklab, var(--danger) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.new-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-right: 8px; color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.ann-row-date { font-size: 13px; color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ann-arrow { color: var(--muted-foreground); }
 
-.sp-empty-text { font-size: 15px; font-weight: 700; color: var(--sp-gray-500); margin-top: 12px; }
+.sp-empty-text { font-size: 15px; font-weight: 700; color: var(--muted-foreground); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 </style>

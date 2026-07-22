@@ -46,7 +46,7 @@ try {
 
 const PROJECT_CODE = 'BID-2026-0618';
 const PROJECT_NAME = '2026年度水利信息化平台升级改造项目';
-const UPLOADER_ID = 'cmqbysdbl0002koh10l78cjr3'; // caigou (procurement_staff)
+const UPLOADER_ID = 'cmqbysdbl0002koh10l78cjr3'; // caigou（采购侧内部账号 leader/staff）
 
 /** 参与投标的两个已批准供应商 */
 const SUPPLIERS = [

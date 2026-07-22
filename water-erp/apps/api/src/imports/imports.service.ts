@@ -192,7 +192,7 @@ export class ImportsService {
 
   async importWorkbookFromPath(workbookPath: string) {
     // 路径穿越防护：仅允许读取 sanctioned 导入目录内的文件。
-    // 原 resolve(cwd, filePath) 可被 procurement_staff 指向任意服务器文件
+    // 原 resolve(cwd, filePath) 可被内部角色（leader/staff/admin）指向任意服务器文件
     // （/etc/shadow、apps/api/.env 含 JWT_SECRET/KMS_SECRET/DEEPSEEK_API_KEY 等）。
     // 基目录由 IMPORT_DIR 配置（默认 <cwd>/imports）；绝对路径与 ../ 一律被拒。
     const baseDir = resolve(process.cwd(), process.env.IMPORT_DIR ?? 'imports');

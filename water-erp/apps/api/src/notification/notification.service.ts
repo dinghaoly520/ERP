@@ -54,11 +54,16 @@ export class NotificationService {
     channels: string[],
     payload: { type: string; title: string; content: string; link?: string | null },
   ): Promise<{ userId: string; results: Record<string, string> }> {
-    const [user, profile] = await Promise.all([
+    const [user, profile, supplier] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
       this.prisma.expertProfile.findUnique({ where: { userId }, select: { phone: true } }).catch(() => null),
+      // #20 供应商无 ExpertProfile，回退取其主联系人电话，否则 sms/phone 恒空投却报 success。
+      this.prisma.supplier.findUnique({
+        where: { userId },
+        select: { contacts: { where: { isPrimary: true }, select: { phone: true }, take: 1 } },
+      }).catch(() => null),
     ]);
-    const contact = { email: user?.email ?? null, phone: profile?.phone ?? null };
+    const contact = { email: user?.email ?? null, phone: profile?.phone ?? supplier?.contacts?.[0]?.phone ?? null };
 
     // 站内信
     let notificationId: string | null = null;

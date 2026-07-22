@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, getSupplierClassifications, setSupplierClassifications } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, getSupplierClassifications, setSupplierClassifications, uploadSupplierFile } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
 import { AlertBanner, type AlertSeverity, Breadcrumb, StatusBadge, Modal } from '@/components/workbench';
@@ -90,6 +90,7 @@ export default function SupplierDetailPage() {
   const [docUploading, setDocUploading] = useState(false);
   const [newDocName, setNewDocName] = useState('');
   const [newDocNote, setNewDocNote] = useState('');
+  const [newDocFile, setNewDocFile] = useState<File | null>(null);
 
   useEffect(() => { loadAll(); }, [loadAll]);
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
@@ -761,20 +762,37 @@ export default function SupplierDetailPage() {
             <>
               {/* Upload form */}
               <div className="neu-card-static !rounded-2xl p-4 mb-4 flex flex-wrap gap-2 items-center">
+                {/* 真实文件选择：先上传 MinIO 拿到 url，杜绝 fileUrl:'#' 假记录（B10） */}
+                <label className="neu-btn-xs gap-1 cursor-pointer">
+                  <Plus size={12} />{newDocFile ? newDocFile.name : '选择文件'}
+                  <input type="file" className="hidden" onChange={e => {
+                    const f = e.target.files?.[0] || null;
+                    setNewDocFile(f);
+                    if (f && !newDocName.trim()) setNewDocName(f.name);
+                  }} />
+                </label>
                 <input value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="文件名称" className="neu-input !h-9 !text-xs !flex-1 min-w-[140px]" />
                 <input value={newDocNote} onChange={e => setNewDocNote(e.target.value)} placeholder="备注（可选）" className="neu-input !h-9 !text-xs !w-auto" />
                 <button
                   onClick={async () => {
-                    if (!newDocName.trim()) return;
+                    if (!newDocFile) { toast.error('请先选择文件'); return; }
+                    if (!newDocName.trim()) { toast.error('请填写文件名称'); return; }
                     setDocUploading(true);
                     try {
-                      const doc = await uploadSupplierDocument(id as string, { type: 'other', name: newDocName.trim(), fileUrl: '#', note: newDocNote || undefined });
-                      setDocuments(prev => [doc, ...prev]); setNewDocName(''); setNewDocNote('');
-                      toast.success('文件已添加');
-                    } catch (e: any) { toast.error(e?.message || '添加失败'); }
+                      const uploaded = await uploadSupplierFile(newDocFile);
+                      const doc = await uploadSupplierDocument(id as string, {
+                        type: 'other',
+                        name: newDocName.trim(),
+                        fileUrl: uploaded.url,
+                        fileSize: uploaded.size,
+                        note: newDocNote || undefined,
+                      });
+                      setDocuments(prev => [doc, ...prev]); setNewDocName(''); setNewDocNote(''); setNewDocFile(null);
+                      toast.success('文件已上传并添加');
+                    } catch (e: any) { toast.error(e?.message || '上传失败'); }
                     setDocUploading(false);
                   }}
-                  disabled={docUploading || !newDocName.trim()} className="neu-btn-xs gap-1"
+                  disabled={docUploading || !newDocFile || !newDocName.trim()} className="neu-btn-xs gap-1"
                 >
                   {docUploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}添加文件
                 </button>

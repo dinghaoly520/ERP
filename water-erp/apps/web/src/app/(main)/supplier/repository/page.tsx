@@ -17,12 +17,14 @@ import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 export default function SupplierRepositoryPage() {
   const router = useRouter();
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
-  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0, returned: 0 });
   const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
 
   const [sortMode, setSortMode] = useState<'completeness' | 'createdAt'>('completeness');
-  const [filterStatus, setFilterStatus] = useState('');
+  // 无「全部」标签：默认落在「已入库」，列表只展示已运营供应商。
+  const [filterStatus, setFilterStatus] = useState('APPROVED');
   const [filterClassification, setFilterClassification] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -41,6 +43,17 @@ export default function SupplierRepositoryPage() {
   const [batchReason, setBatchReason] = useState('');
   const [batchLoading, setBatchLoading] = useState(false);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
+
+  // 状态标签定义须先于 loadData 声明（loadData 用到 effectiveStatus，避免 TDZ）。
+  const STATUS_TABS: { label: string; status: string; tone?: string; count?: number; badge?: 'danger' | 'warning' }[] = [
+    { label: '已入库', status: 'APPROVED', tone: 'green' },
+    { label: '待审核', status: 'PENDING', tone: 'blue', count: stats.pending, badge: 'danger' as const },
+    { label: '退回补正', status: 'RETURNED', tone: 'orange', count: stats.returned, badge: 'warning' as const },
+    { label: '已停用', status: 'DISABLED', tone: 'gray' },
+    { label: '黑名单', status: 'BLACKLIST', tone: 'red' },
+  ];
+  // 当前生效的状态过滤：无「全部」标签，filterStatus 恒为某具体状态（默认 APPROVED）。
+  const effectiveStatus = filterStatus;
 
   const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => {
@@ -76,9 +89,10 @@ export default function SupplierRepositoryPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const params: any = {
-        status: filterStatus || undefined,
+        status: effectiveStatus || undefined,
         classificationId: filterClassification || undefined,
         search: search || undefined, page, pageSize, sort: sortMode,
       };
@@ -89,9 +103,12 @@ export default function SupplierRepositoryPage() {
       if (advQualStatus) params.qualificationStatus = advQualStatus;
       const res = await getSupplierList(params);
       setData(res);
-    } catch {}
+    } catch (e: any) {
+      // B13：区分「真空」与「接口挂掉」——失败时显示错误态+重试，而非静默显示空表。
+      setError(e?.message || '供应商列表加载失败');
+    }
     setLoading(false);
-  }, [filterStatus, filterClassification, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus]);
+  }, [effectiveStatus, filterStatus, filterClassification, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus]);
 
   const refreshMeta = useCallback(() => {
     getSupplierStats().then(setStats).catch(() => {});
@@ -136,15 +153,6 @@ export default function SupplierRepositoryPage() {
     setClassDeleting(false);
   };
 
-  const STATUS_TABS = [
-    { label: '全部', status: '' },
-    { label: '已入库', status: 'APPROVED', tone: 'green' as const },
-    { label: '待审核', status: 'PENDING', tone: 'blue' as const },
-    { label: '退回补正', status: 'RETURNED', tone: 'orange' as const },
-    { label: '已停用', status: 'DISABLED', tone: 'gray' as const },
-    { label: '黑名单', status: 'BLACKLIST', tone: 'red' as const },
-  ];
-
   return (
     <div className="flex flex-col gap-5">
       {/* ══════ page-hero ══════ */}
@@ -176,11 +184,11 @@ export default function SupplierRepositoryPage() {
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.approved}</span>
             <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">正常运营</span>
           </div>
-          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+          <button type="button" onClick={() => { setFilterStatus('PENDING'); setPage(1); }} title="查看待审核供应商" className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.pending}</span>
-            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">新注册申请</span>
-          </div>
+            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">新注册申请 · 点击查看</span>
+          </button>
           <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">已停用</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.disabled}</span>
@@ -265,12 +273,26 @@ export default function SupplierRepositoryPage() {
         />
       )}
 
+      {/* B13 错误态：接口失败时明确提示+重试，避免与「真空」混淆 */}
+      {error && !loading && (
+        <div className="neu-card-static !rounded-2xl p-4 flex items-center gap-3" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
+          <AlertTriangle size={16} className="text-[var(--danger)] shrink-0" />
+          <span className="text-sm text-[var(--foreground)] flex-1">加载失败：{error}</span>
+          <button onClick={loadData} className="neu-btn-xs gap-1"><RefreshCw size={12} />重试</button>
+        </div>
+      )}
+
       {/* ══════ 工具栏卡片 ══════ */}
       <div className="wb-toolbar">
         <div className="neu-tab-bar">
           {STATUS_TABS.map(t => (
             <button key={t.status} onClick={() => { setFilterStatus(t.status); setPage(1); }} className={`neu-tab ${filterStatus === t.status ? 'is-active' : ''}`}>
-              {t.label}
+              <span className="inline-flex items-center gap-1.5">
+                {t.label}
+                {t.count != null && t.count > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold tabular-nums leading-none text-white bg-[var(--danger)] data-[tone=warning]:bg-[var(--warning)]" data-tone={t.badge}>{t.count}</span>
+                )}
+              </span>
             </button>
           ))}
         </div>
@@ -283,7 +305,7 @@ export default function SupplierRepositoryPage() {
           <option value="">全部分类</option>
           {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <button onClick={() => { setSearch(''); setFilterStatus(''); setFilterClassification(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs">重置</button>
+        <button onClick={() => { setSearch(''); setFilterClassification(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
 
         <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
         <button onClick={() => setClassMgrOpen(true)} className="neu-btn-xs gap-1">分类管理</button>

@@ -9,12 +9,21 @@ import { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import { ExtractionNotifyDto } from './dto/extraction-notify.dto';
 import { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 import { SetAvailabilityDto, ConfirmRetireDto } from './dto/expert-status.dto';
+import {
+  UpdateExpertProfileDto,
+  GenerateNotificationDto,
+  BatchOperationDto,
+  ImportCsvDto,
+  RecordViolationDto,
+  NotifyPrefsDto,
+  OcrIntakeDto,
+} from './dto/expert-admin-misc.dto';
 
 @ApiTags('专家管理')
 @ApiCookieAuth('token')
 @Controller('expert-admin')
 
-@Roles('admin', 'bid_host', 'procurement_staff', 'leader', 'staff')
+@Roles('admin', 'bid_host', 'leader', 'staff')
 export class ExpertAdminController {
   constructor(private expertAdminService: ExpertAdminService) {}
 
@@ -63,11 +72,8 @@ export class ExpertAdminController {
 
   @Post('notification/generate')
   @ApiOperation({ summary: 'AI 生成单专家个性化通知内容（DeepSeek）' })
-  generateNotification(@Body() body: {
-    projectName: string; expertName: string; isLead: boolean;
-    totalExperts: number; extractMode: string; openTime: string;
-  }) {
-    return this.expertAdminService.generateNotificationAi(body);
+  generateNotification(@Body() dto: GenerateNotificationDto) {
+    return this.expertAdminService.generateNotificationAi(dto);
   }
 
   @Post('extract/confirm')
@@ -164,14 +170,14 @@ export class ExpertAdminController {
 
   @Post('batch')
   @ApiOperation({ summary: '批量启用/停用专家' })
-  batchOperation(@Body() body: { action: 'enable' | 'disable'; ids: string[]; reason?: string }) {
-    return this.expertAdminService.batchOperation(body);
+  batchOperation(@Body() dto: BatchOperationDto) {
+    return this.expertAdminService.batchOperation(dto);
   }
 
   @Post('import-csv')
   @ApiOperation({ summary: 'CSV 批量导入专家' })
-  importCsv(@Body() body: { rows: Array<Record<string, string>> }) {
-    return this.expertAdminService.importCsv(body.rows ?? []);
+  importCsv(@Body() dto: ImportCsvDto) {
+    return this.expertAdminService.importCsv(dto.rows);
   }
 
   // ── 动态 :id 路由 ──
@@ -190,7 +196,7 @@ export class ExpertAdminController {
 
   @Patch(':id/profile')
   @ApiOperation({ summary: '更新专家资料' })
-  updateProfile(@Param('id') id: string, @Body() dto: Partial<CreateExpertDto>) {
+  updateProfile(@Param('id') id: string, @Body() dto: UpdateExpertProfileDto) {
     return this.expertAdminService.updateProfile(id, dto);
   }
 
@@ -214,8 +220,8 @@ export class ExpertAdminController {
 
   @Post(':id/violation')
   @ApiOperation({ summary: '记录专家违规' })
-  recordViolation(@Param('id') id: string, @Body() body: { type: string; detail: string; severity: 'warning' | 'danger' }, @Request() req: any) {
-    return this.expertAdminService.recordViolation(id, body, req.user?.sub);
+  recordViolation(@Param('id') id: string, @Body() dto: RecordViolationDto, @Request() req: any) {
+    return this.expertAdminService.recordViolation(id, dto, req.user?.sub);
   }
 
   @Get(':id/notify-prefs')
@@ -226,8 +232,8 @@ export class ExpertAdminController {
 
   @Patch(':id/notify-prefs')
   @ApiOperation({ summary: '更新专家通知偏好' })
-  updateNotifyPrefs(@Param('id') id: string, @Body() body: { inApp?: boolean; sms?: boolean; phone?: boolean }) {
-    return this.expertAdminService.updateNotifyPrefs(id, body);
+  updateNotifyPrefs(@Param('id') id: string, @Body() dto: NotifyPrefsDto) {
+    return this.expertAdminService.updateNotifyPrefs(id, dto);
   }
 
   @Post(':id/retire')
@@ -244,8 +250,8 @@ export class ExpertAdminController {
 
   @Post('ocr-intake')
   @ApiOperation({ summary: '资质 OCR 自动录入（识别证件图片 → 结构化字段回填）' })
-  ocrIntake(@Body() body: { imageBase64: string; mimeType?: string; filename?: string }) {
-    return this.expertAdminService.ocrIntake(body.imageBase64, body.mimeType, body.filename);
+  ocrIntake(@Body() dto: OcrIntakeDto) {
+    return this.expertAdminService.ocrIntake(dto.imageBase64, dto.mimeType, dto.filename);
   }
 
   @Post('evaluations')

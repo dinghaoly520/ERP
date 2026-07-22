@@ -60,6 +60,8 @@ export default function ExpertEntryPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { toast.error('请选择图片文件（证件/证书照片）'); e.target.value = ''; return; }
+    // 后端 body 上限虽已放宽，前端仍拦截超大图，避免 base64 编码撑爆内存
+    if (file.size > 4 * 1024 * 1024) { toast.error('证件图片过大，请压缩至 4MB 以内后再识别'); e.target.value = ''; return; }
     setOcrLoading(true);
     try {
       const base64 = await new Promise<string>((resolve, reject) => {

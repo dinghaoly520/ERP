@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAnnouncementStore } from '@/stores/announcement'
 import { announcementApi } from '@/api/announcement'
 import { ElMessage } from 'element-plus'
+import SpPageHero from '@/components/SpPageHero.vue'
+import { ScrollText, AlertTriangle } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const route = useRoute(); const router = useRouter(); const store = useAnnouncementStore()
@@ -24,10 +26,12 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
 
 <template>
   <div class="page-container" v-loading="loading">
-    <el-button link @click="router.push('/announcements')" style="margin-bottom:16px"><el-icon><ArrowLeft /></el-icon>返回公告列表</el-button>
+    <SpPageHero :icon="ScrollText" title="公告详情" sub="阅读公告全文，招标公告可在此查阅并下载招标文件。" />
+
+    <el-button link class="detail-back" @click="router.push('/announcements')"><el-icon><ArrowLeft /></el-icon>返回公告列表</el-button>
 
     <div v-if="error" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
@@ -42,11 +46,11 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
       <div class="detail-content" v-html="store.currentAnnouncement.content"></div>
 
       <el-divider v-if="store.currentAnnouncement.relatedProjectCode" />
-      <div v-if="store.currentAnnouncement.relatedProjectCode" class="detail-related"><el-icon><Link /></el-icon><span>关联项目：{{ store.currentAnnouncement.relatedProjectCode }}</span><el-button link type="primary" size="small" @click="router.push('/bids')">查看项目</el-button></div>
+      <div v-if="store.currentAnnouncement.relatedProjectCode" class="detail-related"><el-icon class="detail-related-icon"><Link /></el-icon><span>关联项目：{{ store.currentAnnouncement.relatedProjectCode }}</span><el-button link type="primary" size="small" @click="router.push('/bids')">查看项目</el-button></div>
 
       <template v-if="isBidNotice"><el-divider /><div class="bid-doc-section" v-loading="bidDocLoading">
         <template v-if="bidDoc">
-          <div class="bid-doc-head"><el-icon color="var(--sp-primary)"><Lock /></el-icon><strong>招标文件</strong><span class="bid-doc-title">{{ bidDoc.title }}</span><el-tag v-if="bidDoc.requirePayment" type="warning" size="small">付费 ¥{{ bidDoc.price }}</el-tag><el-tag v-else type="success" size="small">免费</el-tag></div>
+          <div class="bid-doc-head"><el-icon class="bid-doc-lock"><Lock /></el-icon><strong>招标文件</strong><span class="bid-doc-title">{{ bidDoc.title }}</span><el-tag v-if="bidDoc.requirePayment" type="warning" size="small">付费 ¥{{ bidDoc.price }}</el-tag><el-tag v-else type="success" size="small">免费</el-tag></div>
           <p class="bid-doc-hint">{{ scopeHint(bidDoc.accessScope) }} · 已下载 {{ bidDoc.downloadCount }} 次</p>
           <div class="bid-doc-actions">
             <el-alert v-if="!bidDoc.eligible" :title="'无法下载：'+bidDoc.reason" type="error" :closable="false" show-icon />
@@ -66,24 +70,33 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
 </template>
 
 <style scoped>
-.detail-card { position: relative; background: rgba(255,255,255,0.60); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); padding: 28px; }
-.detail-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
-.detail-card > * { position: relative; z-index: 1; }
+.detail-back { margin: 16px 0; }
+
+/* Detail card — neumorphic plate (no glass / no drift) */
+.detail-card {
+  padding: 28px; border: none; border-radius: 16px;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+@media print { .detail-card { box-shadow: none; font-size: 12pt; } }
 .detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.detail-meta { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--sp-gray-500); }
-.top-badge { font-size: 11px; font-weight: 700; color: var(--sp-red); background: rgba(254,226,226,0.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); padding: 2px 8px; border-radius: 6px; }
-@media print { .detail-card { border: none; box-shadow: none; font-size: 12pt; } }
-.detail-title { font-size: 24px; font-weight: 800; color: var(--sp-gray-900); line-height: 1.4; }
-.detail-content { font-size: 15px; line-height: 1.8; color: var(--sp-gray-700); }
+.detail-meta { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--muted-foreground); }
+.top-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; color: var(--danger); background: color-mix(in oklab, var(--danger) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.detail-title { font-size: 24px; font-weight: 800; color: var(--foreground); line-height: 1.4; }
+.detail-content { font-size: 15px; line-height: 1.8; color: var(--foreground); }
 .detail-content :deep(p) { margin-bottom: 12px; }
-.detail-content :deep(h2),.detail-content :deep(h3) { margin: 24px 0 12px; color: var(--sp-gray-900); }
+.detail-content :deep(h2),.detail-content :deep(h3) { margin: 24px 0 12px; color: var(--foreground); }
 .detail-content :deep(table) { width: 100%; border-collapse: collapse; margin: 16px 0; }
-.detail-content :deep(td),.detail-content :deep(th) { border: 1px solid rgba(0,0,0,0.06); padding: 10px 14px; font-size: 14px; }
-.detail-content :deep(th) { background: rgba(255,255,255,0.44); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); font-weight: 600; }
-.detail-related { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: rgba(239,246,255,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(191,219,254,0.35); border-radius: var(--sp-radius-sm); font-size: 14px; color: var(--sp-gray-700); }
-.bid-doc-section { padding: 16px; background: rgba(255,255,255,0.48); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: var(--sp-radius-sm); border: 1px solid rgba(255,255,255,0.40); }
-.bid-doc-head { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--sp-gray-900); flex-wrap: wrap; }
+.detail-content :deep(td),.detail-content :deep(th) { border: 1px solid var(--hairline); padding: 10px 14px; font-size: 14px; }
+.detail-content :deep(th) { background: oklch(1 0 0 / 0.4); font-weight: 600; }
+/* Related-project callout — brand-tinted surface */
+.detail-related { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border: none; border-radius: 12px; font-size: 14px; color: var(--foreground); background: color-mix(in oklab, var(--brand) 7%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.detail-related-icon { color: var(--brand); }
+/* Bid document well — concave subsurface */
+.bid-doc-section { padding: 16px; border: none; border-radius: 12px; background: var(--surface); box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.10), inset -3px -3px 7px oklch(1 0 0 / 0.8); }
+.bid-doc-head { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--foreground); flex-wrap: wrap; }
+.bid-doc-lock { color: var(--brand); }
 .bid-doc-title { font-weight: 600; }
-.bid-doc-hint { font-size: 12px; color: var(--sp-gray-500); margin: 8px 0 12px; }
+.bid-doc-hint { font-size: 12px; color: var(--muted-foreground); margin: 8px 0 12px; }
 .bid-doc-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 </style>

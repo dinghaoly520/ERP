@@ -2,6 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSupplierStore } from '@/stores/supplier'
+import SpPageHero from '@/components/SpPageHero.vue'
+import { Hourglass, AlertTriangle } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const router = useRouter(); const supplierStore = useSupplierStore(); const loading = ref(true); const error = ref(false)
@@ -24,24 +26,17 @@ const progressDetail = computed<{ tone: string; text: string } | null>(() => { c
 
 <template>
   <div class="page-container" v-loading="loading">
-    <div class="sp-page-hero-card">
-      <div class="sp-page-hero-inner">
-        <div class="sp-page-hero-body">
-          <h1 class="sp-modern-title">入驻状态</h1>
-          <p class="sp-modern-desc">集中查看审核状态、关键时间和需要处理的补正事项。</p>
-        </div>
-      </div>
-    </div>
+    <SpPageHero :icon="Hourglass" title="入驻状态" sub="集中查看审核状态、关键时间和需要处理的补正事项。" />
 
     <div v-if="error" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
-    <div class="onboarding-card" v-else-if="status" :style="{'--status-color':currentConfig.color}">
+    <div class="onboarding-card" v-else-if="status" :style="{ '--c': currentConfig.color } as any">
       <div class="status-summary">
-        <div class="status-icon-wrap"><el-icon :size="36" :color="currentConfig.color"><component :is="currentConfig.icon" /></el-icon></div>
+        <div class="status-icon-wrap"><el-icon :size="36"><component :is="currentConfig.icon" /></el-icon></div>
         <div><h2>{{ currentConfig.label }}</h2><p>{{ currentConfig.desc }}</p></div>
         <div class="status-date"><span>提交时间</span><strong>{{ dayjs(status.createdAt).format('YYYY-MM-DD HH:mm') }}</strong></div>
       </div>
@@ -63,34 +58,58 @@ const progressDetail = computed<{ tone: string; text: string } | null>(() => { c
 </template>
 
 <style scoped>
-.onboarding-card { position: relative; padding: 28px; border: 1px solid rgba(255,255,255,0.50); border-radius: var(--sp-radius-md); background: rgba(255,255,255,0.58); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); }
-.onboarding-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.36; border-radius: inherit; background-image: radial-gradient(ellipse at 10% 6%, rgba(96,165,250,0.16), transparent 55%), radial-gradient(ellipse at 85% 12%, rgba(56,189,248,0.10), transparent 55%), radial-gradient(ellipse at 38% 90%, rgba(6,78,162,0.05), transparent 55%); animation: glass-glow-drift 18s ease-in-out infinite; }
-.onboarding-card > * { position: relative; z-index: 1; }
+/* Onboarding card — neumorphic plate (no glass / no drift) */
+.onboarding-card {
+  padding: 28px; border: none; border-radius: 16px;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
 .status-summary { display: grid; grid-template-columns: 72px minmax(0,1fr) auto; gap: 20px; align-items: center; }
-.status-icon-wrap { width: 72px; height: 72px; border-radius: var(--sp-radius-md); display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--status-color) 12%, white); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-.status-summary h2 { margin: 0; color: var(--sp-gray-900); font-size: 24px; font-weight: 900; }
-.status-summary p { margin: 6px 0 0; color: var(--sp-gray-500); }
-.status-date { padding: 14px 18px; border-radius: var(--sp-radius-sm); background: rgba(255,255,255,0.44); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); text-align: right; border: 1px solid rgba(0,0,0,0.04); }
-.status-date span { display: block; color: var(--sp-gray-400); font-size: 12px; }
-.status-date strong { display: block; margin-top: 4px; color: var(--sp-gray-900); }
+.status-icon-wrap {
+  width: 72px; height: 72px; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--c); background: color-mix(in oklab, var(--c) 12%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.status-summary h2 { margin: 0; color: var(--foreground); font-size: 24px; font-weight: 900; }
+.status-summary p { margin: 6px 0 0; color: var(--muted-foreground); }
+/* Concave date well */
+.status-date {
+  padding: 14px 18px; border: none; border-radius: 12px; text-align: right;
+  background: var(--surface);
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.8);
+}
+.status-date span { display: block; color: var(--muted-foreground); font-size: 12px; }
+.status-date strong { display: block; margin-top: 4px; color: var(--foreground); font-variant-numeric: tabular-nums; }
+/* Steps — concave wells + raised brand nodes */
 .status-steps { display: grid; grid-template-columns: 120px minmax(40px,1fr) 120px minmax(40px,1fr) 120px; align-items: center; margin: 32px 0; }
-.step { display: grid; justify-items: center; gap: 8px; color: var(--sp-gray-400); }
-.step span { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(0,0,0,0.05); font-weight: 900; }
-.step.active span { background: var(--sp-primary); color: #fff; }
-.step.active strong { color: var(--sp-gray-900); }
-.line { height: 2px; background: rgba(0,0,0,0.06); border-radius: 1px; }
-.line.active { background: var(--sp-primary); }
-.reason-card { margin-top: 16px; padding: 14px 18px; border-radius: var(--sp-radius-sm); }
+.step { display: grid; justify-items: center; gap: 8px; color: var(--muted-foreground); }
+.step span {
+  width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-weight: 900; color: var(--muted-foreground);
+  background: var(--surface);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.8);
+}
+.step.active span {
+  color: #fff;
+  background: linear-gradient(180deg, oklch(0.55 0.16 258), oklch(0.45 0.15 258));
+  box-shadow: 3px 3px 7px oklch(0.4 0.1 258 / 0.28), -2px -2px 5px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
+}
+.step.active strong { color: var(--foreground); }
+.line { height: 2px; background: var(--hairline); border-radius: 1px; }
+.line.active { background: var(--brand); }
+/* Semantic callouts — tinted surfaces, no glass */
+.reason-card { margin-top: 16px; padding: 14px 18px; border: none; border-radius: 12px; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
 .reason-card strong { display: block; margin-bottom: 4px; }
 .reason-card p { margin: 0; }
-.reason-card.error { color: var(--sp-red); background: rgba(254,226,226,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(239,68,68,0.12); }
-.reason-card.warning { color: #92400e; background: rgba(254,243,199,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(253,230,138,0.35); }
-.progress-detail { display: flex; align-items: flex-start; gap: 8px; padding: 12px 16px; border-radius: var(--sp-radius-sm); margin-top: 16px; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.reason-card.error { color: var(--danger); background: color-mix(in oklab, var(--danger) 8%, transparent); }
+.reason-card.warning { color: color-mix(in oklab, var(--warning) 55%, #000); background: color-mix(in oklab, var(--warning) 12%, transparent); }
+.progress-detail { display: flex; align-items: flex-start; gap: 8px; padding: 12px 16px; border: none; border-radius: 12px; margin-top: 16px; font-size: 13px; font-weight: 600; line-height: 1.5; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
 .progress-detail .el-icon { flex-shrink: 0; margin-top: 1px; font-size: 16px; }
-.progress-detail.info { color: #064ea2; background: rgba(239,246,255,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(191,219,254,0.40); }
-.progress-detail.success { color: #065f46; background: rgba(236,253,245,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(167,243,208,0.35); }
-.progress-detail.warning { color: #92400e; background: rgba(255,251,235,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(253,230,138,0.35); }
-.progress-detail.error { color: var(--sp-red); background: rgba(254,242,242,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid rgba(254,202,202,0.40); }
-.status-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.04); }
+.progress-detail.info { color: var(--brand); background: color-mix(in oklab, var(--brand) 8%, transparent); }
+.progress-detail.success { color: color-mix(in oklab, var(--success) 55%, #000); background: color-mix(in oklab, var(--success) 10%, transparent); }
+.progress-detail.warning { color: color-mix(in oklab, var(--warning) 55%, #000); background: color-mix(in oklab, var(--warning) 12%, transparent); }
+.progress-detail.error { color: var(--danger); background: color-mix(in oklab, var(--danger) 8%, transparent); }
+.status-actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid var(--hairline); }
 @media (max-width:768px) { .status-summary { grid-template-columns: 1fr; } .status-date { text-align: left; } .status-steps { grid-template-columns: 1fr; gap: 10px; } .line { display: none; } }
 </style>

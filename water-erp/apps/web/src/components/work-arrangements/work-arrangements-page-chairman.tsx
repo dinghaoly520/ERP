@@ -32,10 +32,13 @@ import {
 import {
   buildWorkbenchOverview,
   deriveReminderState,
+  selectWorkbenchOverviewItems,
+  type WorkbenchStatKey,
 } from "@/lib/work-arrangements/workbench";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { OverdueTasksDialog } from "@/components/work-arrangements/overdue-tasks-dialog";
+import { WorkbenchStatDialog } from "@/components/work-arrangements/workbench-stat-dialog";
 import {
   getOverdueTasks,
   hasShownOverdueDialogToday,
@@ -154,7 +157,8 @@ export function WorkArrangementsPageChairman({
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showOverdueDialog, setShowOverdueDialog] = useState(false);
   const [overdueTasks, setOverdueTasks] = useState<WorkArrangementItem[]>([]);
-  const [isOverview, setIsOverview] = useState(false);
+  const [isOverview, setIsOverview] = useState(true);
+  const [statKey, setStatKey] = useState<WorkbenchStatKey | null>(null);
 
   const overdueCount = useMemo(
     () => getOverdueTasks(allItems).length,
@@ -205,9 +209,19 @@ export function WorkArrangementsPageChairman({
     [selectedItem],
   );
 
+  const workbenchNow = useMemo(() => new Date(), [allItems, dailyPlan]);
   const workbenchSummary = useMemo(
-    () => buildWorkbenchOverview(allItems, dailyPlan, new Date()),
-    [allItems, dailyPlan],
+    () => buildWorkbenchOverview(allItems, dailyPlan, workbenchNow),
+    [allItems, dailyPlan, workbenchNow],
+  );
+  const statGroups = useMemo(
+    () => ({
+      todo: selectWorkbenchOverviewItems(allItems, 'todo', workbenchNow),
+      inProgress: selectWorkbenchOverviewItems(allItems, 'inProgress', workbenchNow),
+      dueToday: selectWorkbenchOverviewItems(allItems, 'dueToday', workbenchNow),
+      risk: selectWorkbenchOverviewItems(allItems, 'risk', workbenchNow),
+    }),
+    [allItems, workbenchNow],
   );
 
   // ─── Data fetching ────────────────────────────────────────────────
@@ -410,6 +424,17 @@ export function WorkArrangementsPageChairman({
         currentUser={currentUser ?? { id: '', username: 'Swhi-CGZX-00', displayName: '尊敬的张宏董事长', role: 'admin', createdAt: null, lastLoginAt: null } as AuthUser}
         dailyPlan={dailyPlan}
         summary={workbenchSummary}
+        onOpenStat={setStatKey}
+      />
+
+      <WorkbenchStatDialog
+        openKey={statKey}
+        onClose={() => setStatKey(null)}
+        workItems={statGroups}
+        onSelectTask={(id) => {
+          setStatKey(null);
+          handleSelectTask(id);
+        }}
       />
 
       {linkedProject ? (

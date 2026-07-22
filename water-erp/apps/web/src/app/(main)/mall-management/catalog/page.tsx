@@ -8,7 +8,7 @@ import {
   PenLine, CheckCircle, TrendingUp, TrendingDown, Bell, Archive, Building2, FileText,
   Upload, Download, Plus, Leaf, Folder,
   Zap, AlertTriangle, Radar, Sparkles, MousePointerClick,
-  CheckCheck, Eye, FileSpreadsheet,
+  CheckCheck, Eye, FileSpreadsheet, Wand2,
   type LucideIcon,
 } from 'lucide-react';
 import { StatusBadge, Modal } from '@/components/workbench';
@@ -27,7 +27,9 @@ import {
   listApplications, reviewCatalogApplication,
   getPriceRadar, getSearchInsights,
   listCatalogAuditLogs,
+  aiClassifyCatalogItem, getAiPriceAnalysis,
   type CatalogItem, type CatalogItemInput, type CatalogStats, type ImportResult, type CatalogAuditLog,
+  type AiClassifyResult, type AiClassifyAttribute, type AiPriceAnalysisResult,
   type AlertRule, type AlertRecord, type CatalogVersionData, type VersionDiff,
   type SupplierCoverage, type SupplierPriceItem,
   type CatalogApplication, type PriceRadarData, type SearchInsights,
@@ -51,20 +53,21 @@ const PALETTE = ['oklch(0.55 0.18 258)', 'oklch(0.55 0.18 30)', 'oklch(0.55 0.18
 const ALERT_TYPE_LABELS: Record<string, string> = { PRICE_SURGE: '涨幅预警', PRICE_DROP: '跌幅预警', EXPIRING: '即将过期', DEVIATION: '偏离均值' };
 const LOG_LABELS: Record<string, string> = { CATALOG_CREATED: '新增目录', CATALOG_UPDATED: '编辑目录', CATALOG_PRICE_CHANGED: '价格调整', CATALOG_STATUS_CHANGED: '状态变更', CATALOG_IMPORTED: '批量导入', CATALOG_TEMPLATE_DOWNLOADED: '模板下载', CATALOG_EXPORTED: '目录导出' };
 
-const TABS: { key: string; label: string; icon: LucideIcon; roles?: string[] }[] = [
-  { key: 'items', label: '目录列表', icon: Package },
-  { key: 'tree', label: '品类树', icon: GitBranch, roles: ['admin', 'leader', 'staff'] },
-  { key: 'entry', label: '价格录入', icon: PenLine },
-  { key: 'approval', label: '价格审批', icon: CheckCircle },
-  { key: 'trends', label: '价格趋势', icon: TrendingUp },
-  { key: 'alerts', label: '价格预警', icon: Bell },
-  { key: 'versions', label: '目录版本', icon: Archive },
-  { key: 'suppliers', label: '供应商维度', icon: Building2 },
-  { key: 'logs', label: '操作日志', icon: FileText },
-];
-
 /** 内部岗位（与后端写接口 @Roles 放行集对齐）；其余角色只读浏览 */
 const INTERNAL_ROLES = ['admin', 'leader', 'staff'] as const;
+
+const TABS: { key: string; label: string; icon: LucideIcon; roles?: readonly string[] }[] = [
+  { key: 'items', label: '目录列表', icon: Package },
+  { key: 'tree', label: '品类树', icon: GitBranch, roles: INTERNAL_ROLES },
+  { key: 'entry', label: '价格录入', icon: PenLine },
+  // 以下 6 个页签的数据接口均为内部角色闸门（@Roles），非内部角色进入即 403 刷屏 → 直接隐藏
+  { key: 'approval', label: '价格审批', icon: CheckCircle, roles: INTERNAL_ROLES },
+  { key: 'trends', label: '价格趋势', icon: TrendingUp, roles: INTERNAL_ROLES },
+  { key: 'alerts', label: '价格预警', icon: Bell, roles: INTERNAL_ROLES },
+  { key: 'versions', label: '目录版本', icon: Archive, roles: INTERNAL_ROLES },
+  { key: 'suppliers', label: '供应商维度', icon: Building2, roles: INTERNAL_ROLES },
+  { key: 'logs', label: '操作日志', icon: FileText, roles: INTERNAL_ROLES },
+];
 
 /** cgzxui 规范 hairline（标题行/KPI 行/区块间分割） */
 const HAIRLINE = { borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)' } as const;
@@ -95,6 +98,33 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(u);
 }
 
+// ── AI 辅助展示 helpers ──
+
+/** 置信度归一为百分数（兼容 0~1 与 0~100 两种返回） */
+const toPct = (c: number | null | undefined) => {
+  const n = typeof c === 'number' && Number.isFinite(c) ? c : 0;
+  return Math.round(n <= 1 ? n * 100 : n);
+};
+
+/** 把 AI 返回的属性值合并进动态属性区（按 templateId 优先、fieldKey 兜底；onlyEmpty 时不覆盖用户已填值；SELECT 校验选项合法性） */
+function mergeAiAttributes(fields: DynamicField[], attrs: AiClassifyAttribute[] | null | undefined, onlyEmpty: boolean): DynamicField[] {
+  if (!attrs?.length || !fields.length) return fields;
+  return fields.map(f => {
+    if (onlyEmpty && f.value) return f;
+    const hit = attrs.find(a => (a.templateId != null && a.templateId === f.templateId) || (!!a.fieldKey && a.fieldKey === f.fieldKey));
+    if (!hit || hit.value == null || String(hit.value) === '') return f;
+    const v = String(hit.value);
+    if (f.fieldType === 'SELECT' && f.options?.length && !f.options.includes(v)) return f;
+    return { ...f, value: v };
+  });
+}
+
+type AiSnapshot = { categoryId: number | null; dynamicFields: DynamicField[] };
+type AiHint =
+  | { kind: 'unavailable' }
+  | { kind: 'suggest'; result: AiClassifyResult; snapshot: AiSnapshot }
+  | { kind: 'applied'; result: AiClassifyResult; snapshot: AiSnapshot };
+
 // ── 目录列表 Tab ──
 
 function ItemsTab({ canManage }: { canManage: boolean }) {
@@ -117,10 +147,16 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
     try {
       const params: Record<string, string | number | undefined> = { status };
       if (selectedCategoryId) params.categoryId = selectedCategoryId;
-      const [list, s] = await Promise.all([listCatalogItems(params), getCatalogStats()]);
-      setItems(list); setStats(s);
-    } catch (e: any) { toast.error(e.message); }
-    finally { setLoading(false); }
+      // stats 与列表解耦：stats 挂掉（非内部角色 403 / 瞬时 500）时 KPI 显示「—」，
+      // 列表照常渲染；只有列表本身失败才报错
+      const [listRes, statsRes] = await Promise.allSettled([listCatalogItems(params), getCatalogStats()]);
+      if (listRes.status === 'fulfilled') {
+        setItems(listRes.value);
+      } else {
+        toast.error(listRes.reason?.message ?? '目录加载失败');
+      }
+      setStats(statsRes.status === 'fulfilled' ? statsRes.value : null);
+    } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [status, selectedCategoryId]);
 
@@ -169,6 +205,26 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
   const tone = (s: string): 'green' | 'gray' | 'orange' | 'red' | 'blue' =>
     s === '有效' ? 'green' : s === '下架' || s === '停用' ? 'gray' : s === '待复核' || s === '价格波动' ? 'orange' : s === '即将过期' ? 'red' : 'blue';
 
+  // ── AI 价格研判（详情区，只展示不写库） ──
+  const [aiPriceLoading, setAiPriceLoading] = useState(false);
+  const [aiPriceResult, setAiPriceResult] = useState<AiPriceAnalysisResult | null>(null);
+  const [aiPriceEmpty, setAiPriceEmpty] = useState(false);
+  useEffect(() => { setAiPriceResult(null); setAiPriceEmpty(false); setAiPriceLoading(false); }, [detailItem?.id]);
+
+  const runAiPriceAnalysis = async (id: string) => {
+    setAiPriceLoading(true); setAiPriceResult(null); setAiPriceEmpty(false);
+    try {
+      const data = await getAiPriceAnalysis(id);
+      if (!data?.backedByData || !data.analysis) setAiPriceEmpty(true);
+      else setAiPriceResult(data);
+    } catch {
+      // 接口报错（含端点未就绪）→ 柔和降级，不阻塞详情浏览
+      setAiPriceEmpty(true);
+    } finally {
+      setAiPriceLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -181,13 +237,13 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
       </div>
       <div className="wb-toolbar flex-wrap">
         <div className="neu-tab-bar">
-          {statuses.map(s => <button key={s} onClick={() => { setStatus(s); setPage(1); }} className={`neu-tab ${status === s ? 'is-active' : ''}`}>{s}</button>)}
+          {statuses.map(s => <button key={s} onClick={() => { setStatus(s); setPage(1); setSelected(new Set()); }} className={`neu-tab ${status === s ? 'is-active' : ''}`}>{s}</button>)}
         </div>
-        <CategoryTreeSelect value={selectedCategoryId} onChange={(id) => { setSelectedCategoryId(id); setPage(1); }} placeholder="按品类筛选" className="min-w-[160px]" />
+        <CategoryTreeSelect value={selectedCategoryId} onChange={(id) => { setSelectedCategoryId(id); setPage(1); setSelected(new Set()); }} placeholder="按品类筛选" className="min-w-[160px]" />
         <div className="relative flex-1 min-w-[140px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索编码、名称、规格、供应商" aria-label="搜索目录" onKeyDown={e => { if (e.key === 'Enter' && search.trim()) { logSearch(search.trim()).catch(() => {}); } }} className="neu-input !pl-9 w-full text-sm" />
-          {search && <button onClick={() => setSearch('')} aria-label="清除搜索" className="absolute right-2 top-1/2 -translate-y-1/2"><X size={14} /></button>}
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); setSelected(new Set()); }} placeholder="搜索编码、名称、规格、供应商" aria-label="搜索目录" onKeyDown={e => { if (e.key === 'Enter' && search.trim()) { logSearch(search.trim()).catch(() => {}); } }} className="neu-input !pl-9 w-full text-sm" />
+          {search && <button onClick={() => { setSearch(''); setSelected(new Set()); }} aria-label="清除搜索" className="absolute right-2 top-1/2 -translate-y-1/2"><X size={14} /></button>}
         </div>
         <button onClick={load} disabled={loading} aria-label="刷新目录列表" className="neu-btn-xs"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
       </div>
@@ -280,7 +336,49 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
               <div><span className="text-[var(--muted-foreground)] text-xs">有效期</span><p>{detailItem.validUntil?.slice(0, 10) || '—'}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">价格区间</span><p className="tabular-nums">¥{(detailItem.priceMin ?? 0).toLocaleString()} - ¥{(detailItem.priceMax ?? 0).toLocaleString()}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">最近成交价</span><p className="font-medium tabular-nums">¥{(detailItem.lastDealPrice ?? 0).toLocaleString()}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">价格变化</span><p className={detailItem.changeRate > 0 ? 'text-[var(--danger)]' : detailItem.changeRate < 0 ? 'text-[var(--success)]' : ''}>{detailItem.changeRate}%</p></div>
+              {detailItem.changeRate != null && (
+                <div><span className="text-[var(--muted-foreground)] text-xs">价格变化</span><p className={detailItem.changeRate > 0 ? 'text-[var(--danger)]' : detailItem.changeRate < 0 ? 'text-[var(--success)]' : ''}>{detailItem.changeRate}%</p></div>
+              )}
+            </div>
+            <div className="mt-4 pt-3 flex items-center gap-2 flex-wrap" style={HAIRLINE}>
+              <button onClick={() => runAiPriceAnalysis(detailItem.id)} disabled={aiPriceLoading}
+                aria-busy={aiPriceLoading} className="neu-btn-soft">
+                {aiPriceLoading ? <RefreshCw size={14} className="animate-spin" /> : <Wand2 size={14} strokeWidth={1.5} />}
+                {aiPriceLoading ? '研判中…' : 'AI 价格研判'}
+              </button>
+              <span className="text-[11px] text-[var(--muted-foreground)]">基于历史成交与同品类价格分布，仅供参考</span>
+            </div>
+            <div aria-live="polite">
+              {aiPriceEmpty && (
+                <p role="status" className="mt-3 text-xs px-3 py-2.5 rounded-xl bg-[var(--accent-tint)] text-[var(--muted-foreground)]">暂无 AI 研判</p>
+              )}
+              {aiPriceResult?.analysis && (() => {
+                const a = aiPriceResult.analysis;
+                const sevCls = a.severity === 'high' ? 'bg-[var(--danger-soft)] text-[var(--danger)]'
+                  : a.severity === 'medium' ? 'bg-[var(--warning-soft)] text-[var(--warning)]'
+                  : 'bg-[var(--success-soft)] text-[var(--success)]';
+                const sevLabel = a.severity === 'high' ? '高风险' : a.severity === 'medium' ? '中风险' : '低风险';
+                return (
+                  <div role="status" className="mt-3 p-3.5 rounded-xl bg-[var(--accent-tint)]">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Wand2 size={14} strokeWidth={1.5} className="text-[var(--accent)]" />
+                      <span className="text-xs font-bold text-[var(--foreground)]">AI 价格研判</span>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${a.abnormal ? sevCls : 'bg-[var(--success-soft)] text-[var(--success)]'}`}>
+                        {a.abnormal ? `异常 · ${sevLabel}` : '未见异常'}
+                      </span>
+                      <span className="text-[11px] text-[var(--muted-foreground)]">置信度 {toPct(a.confidence)}%</span>
+                    </div>
+                    {a.reasons?.length > 0 && (
+                      <ul className="mt-2 flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
+                        {a.reasons.map((r, i) => <li key={i} className="flex gap-1.5"><span className="text-[var(--accent)] flex-shrink-0">·</span><span>{r}</span></li>)}
+                      </ul>
+                    )}
+                    {a.suggestion && (
+                      <p className="mt-2 text-xs"><strong className="text-[var(--foreground)]">建议：</strong><span className="text-[var(--muted-foreground)]">{a.suggestion}</span></p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -478,21 +576,28 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof EntryForm, string>>>({});
   const [draftRestored, setDraftRestored] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const { getDraft, clearDraft } = useFormAutosave('price-entry', form as unknown as Record<string, unknown>);
   const hasChanges = Object.entries(form).some(([k, v]) => v !== (INITIAL_FORM as any)[k]);
+  // enabled 传 hasChanges：表单无改动时不落盘，避免空表单被写成幽灵草稿、
+  // 提交后 clearDraft 又被下一个 tick 写回
+  const { getDraft, clearDraft } = useFormAutosave('price-entry', form as unknown as Record<string, unknown>, hasChanges);
   useUnsavedGuard(hasChanges);
 
-  // 挂载时恢复未提交草稿（仅一次）
+  // 挂载时恢复未提交草稿（仅一次）；草稿与初始表单全等（提交后残留的空草稿）→ 不提示不恢复
   useEffect(() => {
     if (draftRestored) return;
     const draft = getDraft();
     if (draft) {
       const { _savedAt, ...rest } = draft;
-      setForm(prev => ({ ...prev, ...(rest as Partial<EntryForm>) }));
-      toast.info('已恢复未保存的录入草稿');
+      const sameAsInitial = Object.entries(rest).every(([k, v]) => v === (INITIAL_FORM as any)[k]);
+      if (sameAsInitial) {
+        clearDraft();
+      } else {
+        setForm(prev => ({ ...prev, ...(rest as Partial<EntryForm>) }));
+        toast.info('已恢复未保存的录入草稿');
+      }
     }
     setDraftRestored(true);
-  }, [draftRestored, getDraft]);
+  }, [draftRestored, getDraft, clearDraft]);
 
   const handleCategoryChange = (id: number | null, node?: CategoryNode) => {
     setForm(p => ({ ...p, categoryId: id }));
@@ -537,6 +642,83 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
 
   const doDownload = async () => { try { const b = await downloadImportTemplate(); triggerBlobDownload(b, '电子商城目录导入模板.xlsx'); } catch (e: any) { toast.error(e.message); } };
 
+  // ── AI 识别分类与属性（仅预填表单，不直接写库） ──
+  const { tree } = useCategoryTree();
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiHint, setAiHint] = useState<AiHint | null>(null);
+  /** AI 请求在途期间用户可能继续编辑 → 品类判定用 ref 取当前最新值；snapshot 仅供 undo */
+  const categoryIdRef = useRef<number | null>(form.categoryId ?? null);
+  useEffect(() => { categoryIdRef.current = form.categoryId ?? null; }, [form.categoryId]);
+
+  /** 将 AI 结果应用到表单 state（品类走 setState，属性合并进 dynamicFields），返回是否应用成功。
+   *  品类未变时以「当前最新」dynamicFields 为合并基底（函数式 setState 的 prev），
+   *  不用请求发起时的快照，避免抹掉用户在 AI 返回后手填的值 */
+  const applyAiResult = (result: AiClassifyResult): boolean => {
+    if (result.categoryId != null && result.categoryId !== categoryIdRef.current) {
+      const node = findNode(tree, result.categoryId);
+      if (!node) return false; // 树上查不到该品类 → 保留建议态，不自动填
+      const freshFields = node.attributeTemplates?.length ? buildDynamicFields(node.attributeTemplates as any) : [];
+      setForm(p => ({ ...p, categoryId: result.categoryId }));
+      // 品类切换 → 以新建模板为基底覆盖合并（此时字段均为空模板，无用户输入可丢）
+      setDynamicFields(() => mergeAiAttributes(freshFields, result.attributes, false));
+      return true;
+    }
+    // 品类未变 → onlyEmpty：仅填空，不覆盖用户已填内容
+    setDynamicFields(prev => mergeAiAttributes(prev, result.attributes, true));
+    return true;
+  };
+
+  const handleAiClassify = async () => {
+    const name = form.name.trim();
+    if (!name || aiLoading) return;
+    setAiLoading(true);
+    setAiHint(null);
+    try {
+      const result = await aiClassifyCatalogItem({
+        name,
+        specification: form.specification?.trim() || undefined,
+        categoryIdHint: form.categoryId ?? undefined,
+      });
+      // snapshot 仅用于 undo（恢复到 AI 介入前的品类与属性）
+      const snapshot: AiSnapshot = { categoryId: form.categoryId ?? null, dynamicFields };
+      if (!result?.backedByData) {
+        // 后端在「无合适品类」时返回 backedByData:false 但带 reason（LLM 正常工作，
+        // 如「该物资不属于集采目录范围」）→ 走 suggest 展示该 reason；无 reason 才是真降级
+        if (result?.reason) setAiHint({ kind: 'suggest', result, snapshot });
+        else setAiHint({ kind: 'unavailable' });
+        return;
+      }
+      const confidence = typeof result.confidence === 'number' ? result.confidence : 0;
+      // 阈值 0.6 与后端默认对齐：达标自动预填（可撤销），未达标仅建议（用户点「采纳」）
+      if (result.categoryId != null && confidence >= 0.6) {
+        setAiHint({ kind: applyAiResult(result) ? 'applied' : 'suggest', result, snapshot });
+      } else if (result.categoryId == null && !!result.attributes?.length && applyAiResult(result)) {
+        setAiHint({ kind: 'applied', result, snapshot });
+      } else {
+        setAiHint({ kind: 'suggest', result, snapshot });
+      }
+    } catch {
+      // 接口报错（含端点未就绪）→ 柔和降级，不清空用户已填内容
+      setAiHint({ kind: 'unavailable' });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const adoptAi = () => {
+    if (aiHint?.kind !== 'suggest') return;
+    if (applyAiResult(aiHint.result)) {
+      setAiHint({ kind: 'applied', result: aiHint.result, snapshot: aiHint.snapshot });
+    }
+  };
+
+  const undoAi = () => {
+    if (aiHint?.kind !== 'applied') return;
+    setForm(p => ({ ...p, categoryId: aiHint.snapshot.categoryId }));
+    setDynamicFields(aiHint.snapshot.dynamicFields);
+    setAiHint(null);
+  };
+
   if (!roleReady) return <div className="flex justify-center py-16 text-sm text-[var(--muted-foreground)]" aria-live="polite">权限校验中...</div>;
   if (!canManage) return <EmptyHint icon={PenLine} text="当前账号无目录录入权限，仅可查看其他页签" />;
 
@@ -560,8 +742,44 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
   return (
     <div className="flex flex-col gap-4">
       <div className="wb-panel">
-        <div className="wb-panel-header"><h3 className="text-sm font-bold">手动录入</h3></div>
+        <div className="wb-panel-header">
+          <h3 className="text-sm font-bold">手动录入</h3>
+          <button onClick={handleAiClassify} disabled={aiLoading || !form.name.trim()}
+            title={!form.name.trim() ? '请先填写商品名称' : '根据名称与规格识别品类、预填属性'}
+            aria-busy={aiLoading} className="neu-btn-soft">
+            {aiLoading ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} strokeWidth={1.5} />}
+            {aiLoading ? '识别中…' : 'AI 识别'}
+          </button>
+        </div>
         <div className="wb-panel-body">
+          {aiHint && (
+            <div role="status" aria-live="polite" className="mb-4 px-3 py-2.5 rounded-xl bg-[var(--accent-tint)] text-xs flex items-start gap-2">
+              <Sparkles size={14} strokeWidth={1.5} className="text-[var(--accent)] mt-0.5 flex-shrink-0" />
+              {aiHint.kind === 'unavailable' ? (
+                <span className="text-[var(--muted-foreground)]">AI 暂不可用，请手动填写</span>
+              ) : (
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <p className="text-[var(--muted-foreground)] leading-relaxed">
+                    <strong className="text-[var(--foreground)]">AI 建议：{aiHint.result.categoryName || '未识别到品类'}</strong>
+                    {aiHint.result.categoryId != null && aiHint.result.confidence != null && <span>（置信度 {toPct(aiHint.result.confidence)}%）</span>}
+                    {aiHint.result.reason && <span> · {aiHint.result.reason}</span>}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {aiHint.kind === 'suggest' && aiHint.result.categoryId != null && (
+                      <button onClick={adoptAi} className="neu-btn-xs is-info">采纳</button>
+                    )}
+                    {aiHint.kind === 'applied' && (
+                      <>
+                        <span className="text-[var(--success)] font-medium">已预填，随表单保存生效</span>
+                        <button onClick={undoAi} className="neu-btn-xs">撤销</button>
+                      </>
+                    )}
+                    <button onClick={() => setAiHint(null)} aria-label="关闭 AI 提示" className="neu-btn-xs">忽略</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {txtField('code', '目录编码', '唯一编码，如 CG-2025-001', true)}
             {txtField('name', '商品名称', '商品通用名称', true)}
@@ -1015,7 +1233,7 @@ function AlertsTab({ canManage }: { canManage: boolean }) {
                     </div>
                     <div>
                       <label htmlFor="rule-threshold" className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">阈值{ruleForm.alertType === 'EXPIRING' ? '（天）' : '（%）'}</label>
-                      <input id="rule-threshold" type="number" value={ruleForm.threshold} onChange={e => setRuleForm({ ...ruleForm, threshold: Number(e.target.value) })} className="workbench-input w-full text-sm" />
+                      <input id="rule-threshold" type="number" min={0} value={ruleForm.threshold} onChange={e => setRuleForm({ ...ruleForm, threshold: Number(e.target.value) })} className="workbench-input w-full text-sm" />
                     </div>
                     <div className="sm:col-span-2">
                       <span className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">适用品类（留空为全部品类）</span>
@@ -1072,8 +1290,9 @@ function AlertsTab({ canManage }: { canManage: boolean }) {
                           : <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--accent-tint-strong)] text-[var(--accent)] font-semibold">未读</span>}
                       </td>
                       <td className="text-center whitespace-nowrap">
-                        {!a.isResolved && <button onClick={async () => { try { await markAlertResolved(a.id); toast.success('已标记解决'); loadAlerts(); } catch (e: any) { toast.error(e.message); } }} className="neu-btn-xs is-success">解决</button>}
-                        {!a.isRead && <button onClick={async () => { try { await markAlertRead(a.id); loadAlerts(); } catch (e: any) { toast.error(e.message); } }} className="neu-btn-xs ml-1"><CheckCheck size={12} className="inline mr-0.5" />标已读</button>}
+                        {/* 后端解决/已读接口为内部角色闸（@Roles）→ 非内部角色隐藏，避免 403 */}
+                        {!a.isResolved && canManage && <button onClick={async () => { try { await markAlertResolved(a.id); toast.success('已标记解决'); loadAlerts(); } catch (e: any) { toast.error(e.message); } }} className="neu-btn-xs is-success">解决</button>}
+                        {!a.isRead && canManage && <button onClick={async () => { try { await markAlertRead(a.id); loadAlerts(); } catch (e: any) { toast.error(e.message); } }} className="neu-btn-xs ml-1"><CheckCheck size={12} className="inline mr-0.5" />标已读</button>}
                         {a.catalogItem?.code && <button onClick={() => router.push(`/mall-management/catalog?tab=items&q=${encodeURIComponent(a.catalogItem!.code)}`)} className="neu-btn-xs is-info ml-1"><Eye size={12} className="inline mr-0.5" />查看条目</button>}
                       </td>
                     </tr>
@@ -1170,7 +1389,12 @@ function VersionsTab({ canManage }: { canManage: boolean }) {
             </div>
           ))}
         </div>}
-      {(diffA && diffB) && <div className="flex justify-center"><button onClick={async () => { try { setDiff(await compareVersions(diffA, diffB)); } catch (e: any) { toast.error(e.message); } }} className="neu-btn-soft">对比 A vs B</button></div>}
+      {(diffA && diffB) && (
+        <div className="flex items-center justify-center gap-2">
+          <button disabled={diffA === diffB} onClick={async () => { try { setDiff(await compareVersions(diffA, diffB)); } catch (e: any) { toast.error(e.message); } }} className="neu-btn-soft">对比 A vs B</button>
+          {diffA === diffB && <span className="text-xs text-[var(--muted-foreground)]">A/B 选择了同一版本，请选择两个不同版本再对比</span>}
+        </div>
+      )}
       {diff && (
         <div className="wb-panel">
           <div className="wb-panel-header"><h3 className="text-sm font-bold">{diff.versionA} → {diff.versionB}</h3>

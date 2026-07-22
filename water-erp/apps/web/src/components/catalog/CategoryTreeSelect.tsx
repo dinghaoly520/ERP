@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import { useCategoryTree } from '@/lib/hooks/use-category-tree';
 import { findNode, getNodePath, type CategoryNode } from '@/lib/category-tree-utils';
 
@@ -13,6 +13,9 @@ interface Props {
 }
 
 type FlatNode = { node: CategoryNode; depth: number; hasChildren: boolean; isExpanded: boolean };
+
+/** 弹层顶部固定「根节点 / 清除选择」项的哨兵 id（品类 id 恒为正数，-1 不会冲突） */
+const CLEAR_ID = -1;
 
 /**
  * 品类树选择器（select-only combobox）：
@@ -66,6 +69,12 @@ export function CategoryTreeSelect({ value, onChange, placeholder = '选择品�
   };
 
   const select = (node: CategoryNode) => { onChange?.(node.id, node); setOpen(false); };
+  /** 清除选择（onChange(null)）：品类移动时即「留空为根节点」 */
+  const selectClear = () => { onChange?.(null); setOpen(false); };
+
+  /** 键盘导航用的完整序列：清除项固定置顶，其后为可见树节点 */
+  const navIds = useMemo(() => [CLEAR_ID, ...flat.map(f => f.node.id)], [flat]);
+  const optId = (id: number) => (id === CLEAR_ID ? `${listboxId}-opt-clear` : `${listboxId}-opt-${id}`);
 
   const setHighlight = (id: number | null) => {
     setHighlightId(id);
@@ -73,10 +82,10 @@ export function CategoryTreeSelect({ value, onChange, placeholder = '选择品�
   };
 
   const moveHighlight = (delta: number) => {
-    if (flat.length === 0) return;
-    const idx = flat.findIndex(f => f.node.id === highlightId);
-    const next = idx === -1 ? (delta > 0 ? 0 : flat.length - 1) : Math.min(flat.length - 1, Math.max(0, idx + delta));
-    setHighlight(flat[next].node.id);
+    if (navIds.length === 0) return;
+    const idx = navIds.indexOf(highlightId as number);
+    const next = idx === -1 ? (delta > 0 ? 0 : navIds.length - 1) : Math.min(navIds.length - 1, Math.max(0, idx + delta));
+    setHighlight(navIds[next]);
   };
 
   const onTriggerKeyDown = (e: ReactKeyboardEvent) => {
@@ -104,9 +113,9 @@ export function CategoryTreeSelect({ value, onChange, placeholder = '选择品�
         break;
       }
       case 'Enter':
-      case ' ': e.preventDefault(); if (hi) select(hi.node); break;
-      case 'Home': e.preventDefault(); if (flat.length) setHighlight(flat[0].node.id); break;
-      case 'End': e.preventDefault(); if (flat.length) setHighlight(flat[flat.length - 1].node.id); break;
+      case ' ': e.preventDefault(); if (highlightId === CLEAR_ID) selectClear(); else if (hi) select(hi.node); break;
+      case 'Home': e.preventDefault(); if (navIds.length) setHighlight(navIds[0]); break;
+      case 'End': e.preventDefault(); if (navIds.length) setHighlight(navIds[navIds.length - 1]); break;
       case 'Escape': e.preventDefault(); setOpen(false); break;
       case 'Tab': setOpen(false); break;
     }
@@ -116,7 +125,7 @@ export function CategoryTreeSelect({ value, onChange, placeholder = '选择品�
     <div ref={rootRef} className={`relative ${className}`}>
       <button type="button" role="combobox" aria-haspopup="tree"
         aria-expanded={open} aria-controls={listboxId} aria-label={placeholder}
-        aria-activedescendant={open && highlightId != null ? `${listboxId}-opt-${highlightId}` : undefined}
+        aria-activedescendant={open && highlightId != null ? optId(highlightId) : undefined}
         onClick={() => { setOpen(!open); if (!open && highlightId == null) setHighlightId(value ?? flat[0]?.node.id ?? null); }}
         onKeyDown={onTriggerKeyDown}
         className="neu-input w-full text-left text-sm flex items-center justify-between gap-2">
@@ -127,6 +136,21 @@ export function CategoryTreeSelect({ value, onChange, placeholder = '选择品�
       </button>
       {open && (
         <div id={listboxId} role="tree" aria-label={placeholder} className="absolute z-30 mt-1 w-full max-h-64 overflow-y-auto neu-card rounded-xl p-1">
+          {/* 固定置顶的清除项：品类移动「留空为根节点」、筛选/录入清除误选均靠它 */}
+          <button type="button"
+            ref={el => { if (el) optionRefs.current.set(CLEAR_ID, el); else optionRefs.current.delete(CLEAR_ID); }}
+            id={optId(CLEAR_ID)}
+            role="treeitem" aria-level={1} aria-selected={value == null} tabIndex={-1}
+            aria-label="根节点 / 清除选择"
+            className={`w-full text-left py-1.5 text-sm rounded-lg flex items-center gap-1.5 transition-colors ${
+              value == null ? 'bg-[var(--accent-tint-strong)] text-[var(--accent)] font-semibold' : highlightId === CLEAR_ID ? 'bg-[var(--accent-tint)]' : 'hover:bg-[var(--accent-tint)]'
+            }`}
+            style={{ paddingLeft: '8px', paddingRight: '12px' }}
+            onMouseEnter={() => setHighlightId(CLEAR_ID)}
+            onClick={selectClear}>
+            <X size={12} className="flex-shrink-0 text-[var(--muted-foreground)]" aria-hidden />
+            <span className="truncate">根节点 / 清除选择</span>
+          </button>
           {flat.length === 0
             ? <p className="text-xs text-[var(--muted-foreground)] text-center py-4">暂无品类</p>
             : flat.map(f => {

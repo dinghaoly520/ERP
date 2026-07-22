@@ -15,9 +15,9 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 const PORTAL_ROLE_PRIORITY: Record<string, string[]> = {
   mall: ['mall'],
   supplier: ['supplier'],
-  web: ['procurement_staff', 'leader', 'staff', 'bid_host', 'admin'],
+  web: ['leader', 'staff', 'bid_host', 'admin'],
   expert: ['bid_expert', 'bid_host', 'admin'],
-  public: ['procurement_staff', 'leader', 'staff', 'supplier', 'bid_expert', 'bid_host', 'admin', 'mall'],
+  public: ['leader', 'staff', 'supplier', 'bid_expert', 'bid_host', 'admin', 'mall'],
 };
 
 @Injectable()
@@ -45,23 +45,23 @@ export class AuthService {
 
   async login(dto: LoginDto, portal?: string) {
     const priority = (portal && PORTAL_ROLE_PRIORITY[portal]) || PORTAL_ROLE_PRIORITY.public;
+    // 先按用户名取「所有」同名账号（含未激活），按门户角色优先级选其一。
+    // 关键：必须先校验密码，密码正确后才判断是否待审核——否则「错密码+存在未激活用户名」与
+    // 「错密码+用户名不存在」响应不同，会构成用户名枚举。passwordHash 仅在此函数内使用，不外泄。
     const candidates = await this.prisma.user.findMany({
-      where: { username: dto.username, isActive: true },
+      where: { username: dto.username },
+      select: { id: true, username: true, role: true, isActive: true, passwordHash: true },
     });
     const user =
       priority.map((role) => candidates.find((u) => u.role === role)).find(Boolean) ??
       candidates[0];
+    // 密码错误/用户不存在 → 统一 null（不区分是否存在、是否待审核），杜绝枚举。
     if (!user || !user.passwordHash || !compareSync(dto.password, user.passwordHash)) {
-      // 凭证不匹配时，再查「是否存在但待审核/停用」的同名账号——若是，给出专用码而非泛泛的「密码错误」，
-      // 让被供应商在管理员审批前能看到自己在审核，而非被无声锁在门外。
-      const inactive = await this.prisma.user.findFirst({
-        where: { username: dto.username, isActive: false },
-        select: { id: true, role: true },
-      });
-      if (inactive) {
-        return { pending: true as const, role: inactive.role, code: 'ACCOUNT_PENDING' };
-      }
       return null;
+    }
+    // 密码正确但账号未激活 → 专用码，引导前端走「查询审核进度」。此时已证明知道密码，不构成枚举。
+    if (!user.isActive) {
+      return { pending: true as const, role: user.role, code: 'ACCOUNT_PENDING' };
     }
     return this.issueToken(user.id, user.username, user.role);
   }

@@ -277,7 +277,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   // ── Review Execution ──
 
   @Post('review/upload')
-  @Roles('procurement_staff', 'leader', 'admin', 'staff')
+  @Roles('leader', 'admin', 'staff')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload tender document for review' })
   @UseInterceptors(
@@ -331,7 +331,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Post('review/execute')
-  @Roles('procurement_staff', 'leader', 'admin', 'staff')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Execute compliance review' })
   async executeReview(
     @Body() dto: ExecuteReviewDto,

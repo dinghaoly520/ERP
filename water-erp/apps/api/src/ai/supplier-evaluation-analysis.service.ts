@@ -42,25 +42,17 @@ export class SupplierEvaluationAnalysisService {
         id: true, name: true, enterpriseType: true, businessScope: true,
         classification: { select: { name: true } },
         qualifications: {
-          select: { name: true, type: true, validFrom: true, validTo: true, status: true },
+          select: { name: true, type: true, validFrom: true, validTo: true, status: true, updatedAt: true },
         },
         evaluations: {
           orderBy: { createdAt: 'desc' },
           take: 5,
-          select: { score: true, level: true, comment: true, completenessScore: true, responsivenessScore: true, cooperationScore: true, complianceScore: true, overallScore: true, createdAt: true },
+          select: { score: true, level: true, comment: true, completenessScore: true, responsivenessScore: true, cooperationScore: true, complianceScore: true, overallScore: true, createdAt: true, updatedAt: true },
         },
         bidSuppliers: { select: { id: true, projectId: true } },
       },
     });
     if (!supplier) throw new Error('供应商不存在');
-
-    // C2 缓存：评价数 + 最新评价时间为版本号，命中免调 LLM。
-    const latestEvalAt = supplier.evaluations[0]?.createdAt?.getTime() ?? 0;
-    const evalCacheKey = `${EVAL_CACHE_PREFIX}${supplierId}:${supplier.evaluations.length}-${latestEvalAt}`;
-    try {
-      const hit = await this.redis.get(evalCacheKey);
-      if (hit) return JSON.parse(hit) as EvaluationAnalysisResult;
-    } catch { /* redis 不可用 → 跳过缓存 */ }
 
     // 收集资质状态统计
     const now = new Date();
@@ -69,6 +61,16 @@ export class SupplierEvaluationAnalysisService {
       valid: supplier.qualifications.filter(q => !q.validTo || new Date(q.validTo) >= now).length,
       expired: supplier.qualifications.filter(q => q.validTo && new Date(q.validTo) < now).length,
     };
+
+    // C2 缓存：版本号含资质状态(valid/expired) + 最新资质/评价 updatedAt，避免资质编辑/自然过期/评价改写后脏缓存。
+    const latestEvalAt = supplier.evaluations[0]?.createdAt?.getTime() ?? 0;
+    const latestEvalUpd = supplier.evaluations.reduce((m, e) => Math.max(m, e.updatedAt?.getTime() ?? 0), 0);
+    const latestQualUpd = supplier.qualifications.reduce((m, q) => Math.max(m, q.updatedAt?.getTime() ?? 0), 0);
+    const evalCacheKey = `${EVAL_CACHE_PREFIX}${supplierId}:${supplier.evaluations.length}-${latestEvalAt}-${latestEvalUpd}-${qualStats.valid}-${qualStats.expired}-${latestQualUpd}`;
+    try {
+      const hit = await this.redis.get(evalCacheKey);
+      if (hit) return JSON.parse(hit) as EvaluationAnalysisResult;
+    } catch { /* redis 不可用 → 跳过缓存 */ }
 
     // 历史评价汇总
     const evalSummary = supplier.evaluations.length > 0 ? {

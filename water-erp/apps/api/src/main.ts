@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
+import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PORTS } from '@water-erp/config';
@@ -30,8 +31,13 @@ function corsOrigins(): string[] {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // 关闭 NestJS 内置 bodyParser（默认 json 上限仅 100kb），改用显式上限，
+  // 否则 OCR 证件识别等 base64 图片请求（>75KB 原图即超限）会在进入 handler 前被 413 拒绝。
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   const logger = new Logger('Bootstrap');
+  const bodyLimit = process.env.HTTP_BODY_LIMIT || '10mb';
+  app.use(json({ limit: bodyLimit }));
+  app.use(urlencoded({ extended: true, limit: bodyLimit }));
 
   // 信任代理头（X-Forwarded-For 等），使 req.ip 返回真实客户端 IP。
   // 反代后须设 TRUST_PROXY=1（信任一跳），否则 req.ip 显示为代理 IP，限流/审计失真。

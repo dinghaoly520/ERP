@@ -103,6 +103,9 @@ export function ExpertExtractPage({
   const restoredPidRef = useRef('');
   // [pid] effect 是否已以非空 pid 真正执行过（首次挂载时状态均为初始值，无需重置）
   const pidEffectRanRef = useRef(false);
+  // 搜索竞态守卫：递增 requestId，过期响应直接丢弃，避免旧结果覆盖新结果
+  const manualReqIdRef = useRef(0);
+  const excludeReqIdRef = useRef(0);
   const storageKey = 'expert-extract-session';
 
   // 步骤5：轮询专家确认状态（全部邀请达终态后停止轮询）
@@ -253,7 +256,15 @@ export function ExpertExtractPage({
     if (extractMode !== 'manual' || !manualSearch.trim()) { setManualResults([]); return; }
     const t = setTimeout(async () => {
       setManualSearching(true);
-      try { setManualResults(await listExperts({ search: manualSearch.trim() }) as ExpertListItem[]); } catch { setManualResults([]); }
+      const rid = ++manualReqIdRef.current;
+      try {
+        const list = await listExperts({ search: manualSearch.trim() }) as ExpertListItem[];
+        if (rid !== manualReqIdRef.current) return;
+        setManualResults(list);
+      } catch {
+        if (rid !== manualReqIdRef.current) return;
+        setManualResults([]);
+      }
       setManualSearching(false);
     }, 300);
     return () => clearTimeout(t);
@@ -264,7 +275,15 @@ export function ExpertExtractPage({
     if (!excludeSearch.trim()) { setExcludeResults([]); return; }
     const t = setTimeout(async () => {
       setExcludeSearching(true);
-      try { setExcludeResults(await listExperts({ search: excludeSearch.trim() }) as ExpertListItem[]); } catch { setExcludeResults([]); }
+      const rid = ++excludeReqIdRef.current;
+      try {
+        const list = await listExperts({ search: excludeSearch.trim() }) as ExpertListItem[];
+        if (rid !== excludeReqIdRef.current) return;
+        setExcludeResults(list);
+      } catch {
+        if (rid !== excludeReqIdRef.current) return;
+        setExcludeResults([]);
+      }
       setExcludeSearching(false);
     }, 300);
     return () => clearTimeout(t);
@@ -991,7 +1010,11 @@ export function ExpertExtractPage({
               <div className="space-y-4">
                 {/* AI 分析 */}
                 <div className="neu-table-card p-4">
-                  <div className="flex items-center gap-2 mb-3"><Sparkles size={16} className="text-[var(--accent)]" /><h2 className="text-sm font-bold text-[var(--foreground)]">AI 评审组分析</h2></div>
+                  <div className="flex items-center gap-2 mb-3">
+                    {preview.engine === 'deepseek' ? <Sparkles size={16} className="text-[var(--accent)]" /> : <ShieldCheck size={16} className="text-[var(--warning)]" />}
+                    <h2 className="text-sm font-bold text-[var(--foreground)]">{preview.engine === 'deepseek' ? 'AI 评审组分析' : '规则引擎组建'}</h2>
+                    <span className={`inline-flex items-center rounded-[6px] px-1.5 py-0.5 text-[10px] font-bold shadow-[inset_0_0.5px_0_oklch(1_0_0/0.5)] ${preview.engine === 'deepseek' ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]' : 'bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]'}`}>{preview.engine === 'deepseek' ? 'AI' : '规则'}</span>
+                  </div>
                   <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{preview.analysis}</p>
                   {preview.requiredSpecialties.length > 0 && <div className="flex flex-wrap items-center gap-2 mt-3">{preview.requiredSpecialties.map(q => <span key={q.specialty} className="neu-tab-count">{q.specialty} × {q.count}</span>)}</div>}
                 </div>

@@ -1,20 +1,22 @@
 [
   {
-    "id": "cmrburft60007koer9w0mwpj5",
-    "userId": "cmrai35fr0000koddvbs7wjep",
+    "id": "cmrviatdf0004kodwx2i1tiul",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
     "theme": "system",
     "defaultHomePage": "work-arrangements",
     "compactMode": false,
-    "createdAt": "2026-07-08T09:05:29.801Z",
-    "updatedAt": "2026-07-08T09:05:29.801Z"
+    "notificationPrefs": null,
+    "createdAt": "2026-07-22T03:12:02.355Z",
+    "updatedAt": "2026-07-22T03:12:02.355Z"
   },
   {
-    "id": "cmrc0rcd3000bkobfxgfhikr6",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "id": "cmrvk1koa0019kowbx19e7bqb",
+    "userId": "cmrai35gu000akodd8gzem912",
     "theme": "system",
     "defaultHomePage": "work-arrangements",
     "compactMode": false,
-    "createdAt": "2026-07-08T11:53:23.008Z",
-    "updatedAt": "2026-07-08T11:53:23.008Z"
+    "notificationPrefs": null,
+    "createdAt": "2026-07-22T04:00:50.411Z",
+    "updatedAt": "2026-07-22T04:00:50.411Z"
   }
 ]

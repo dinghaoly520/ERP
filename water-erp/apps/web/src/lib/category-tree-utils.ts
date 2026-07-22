@@ -16,7 +16,7 @@ export interface AttributeTemplate {
   categoryId: number;
   name: string;
   fieldKey: string;
-  fieldType: 'TEXT' | 'NUMBER' | 'SELECT' | 'DATE' | 'BOOLEAN';
+  fieldType: string;
   required: boolean;
   options: string[] | null;
   unit: string | null;

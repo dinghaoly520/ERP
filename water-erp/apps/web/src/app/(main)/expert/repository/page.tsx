@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -39,6 +39,8 @@ export default function ExpertRepositoryPage() {
   // 启用/停用二次确认
   const [confirmToggle, setConfirmToggle] = useState<ExpertListItem | null>(null);
   const [toggling, setToggling] = useState(false);
+  // 批量操作二次确认
+  const [confirmBatch, setConfirmBatch] = useState(false);
 
   // 搜索防抖：输入即时反映在 search，300ms 后同步到 query 再触发请求
   useEffect(() => {
@@ -46,10 +48,19 @@ export default function ExpertRepositoryPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // 搜索竞态守卫：递增 requestId，过期响应直接丢弃，避免旧结果覆盖新结果
+  const loadReqIdRef = useRef(0);
   const load = useCallback(async () => {
+    const rid = ++loadReqIdRef.current;
     setLoading(true); setErrored(false);
-    try { setExperts(await listExperts({ search: query || undefined, specialty: specialty || undefined }) as ExpertListItem[]); }
-    catch (err: any) { setErrored(true); toast.error(err?.message || '加载专家列表失败'); }
+    try {
+      const list = await listExperts({ search: query || undefined, specialty: specialty || undefined }) as ExpertListItem[];
+      if (rid !== loadReqIdRef.current) return;
+      setExperts(list);
+    } catch (err: any) {
+      if (rid !== loadReqIdRef.current) return;
+      setErrored(true); toast.error(err?.message || '加载专家列表失败');
+    }
     setLoading(false);
   }, [query, specialty]);
   useEffect(() => { load(); }, [load]);
@@ -78,7 +89,7 @@ export default function ExpertRepositoryPage() {
     try {
       await batchOperation({ action: batchAction, ids: [...selectedIds], reason: batchAction === 'disable' && batchReason ? batchReason : undefined });
       toast.success(`${batchAction === 'enable' ? '启用' : '停用'} ${selectedIds.size} 位专家`);
-      setSelectedIds(new Set()); setBatchMode(false); setBatchReason(''); load();
+      setConfirmBatch(false); setSelectedIds(new Set()); setBatchMode(false); setBatchReason(''); load();
     } catch (e: any) { toast.error(e?.message || '批量操作失败'); }
     setBatchSaving(false);
   };
@@ -234,7 +245,7 @@ export default function ExpertRepositoryPage() {
           <div className="neu-batch-bar-spacer" />
           <select value={batchAction} onChange={e => setBatchAction(e.target.value as any)} className="workbench-input !w-[90px] !h-[30px] text-xs"><option value="disable">批量停用</option><option value="enable">批量启用</option></select>
           {batchAction === 'disable' && <input value={batchReason} onChange={e => setBatchReason(e.target.value)} placeholder="停用原因" className="workbench-input !w-[140px] !h-[30px] text-xs" />}
-          <button onClick={doBatch} disabled={batchSaving} className="neu-btn-xs is-warning">{batchSaving ? '处理中...' : '执行'}</button>
+          <button onClick={() => setConfirmBatch(true)} disabled={batchSaving} className="neu-btn-xs is-warning">{batchSaving ? '处理中...' : '执行'}</button>
           <button onClick={() => { setSelectedIds(new Set()); setBatchMode(false); }} className="neu-btn-xs">取消选择</button>
         </div>
       )}
@@ -344,6 +355,32 @@ export default function ExpertRepositoryPage() {
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmToggle(null)} disabled={toggling} className="neu-btn-soft h-[38px]">取消</button>
               <button onClick={doToggle} disabled={toggling} className={`neu-btn-primary !h-[38px]${confirmToggle.isActive ? ' is-danger' : ''}`}>{toggling ? '处理中...' : '确认'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════ 批量操作二次确认 ══════ */}
+      {confirmBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => !batchSaving && setConfirmBatch(false)} />
+          <div className="relative w-full max-w-[min(420px,92vw)] rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+            <div className="flex items-center gap-3">
+              <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+                <AlertTriangle size={18} className={batchAction === 'disable' ? 'text-[var(--warning)]' : 'text-[var(--success)]'} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">确认{batchAction === 'enable' ? '批量启用' : '批量停用'} {selectedIds.size} 位专家？</h3>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                  {batchAction === 'disable' ? `停用后这 ${selectedIds.size} 位专家将无法参与新的评审抽取` : `启用后这 ${selectedIds.size} 位专家可重新参与评审抽取`}
+                  {batchAction === 'disable' && batchReason.trim() ? ` · 停用原因：${batchReason.trim()}` : ''}
+                </p>
+              </div>
+            </div>
+            <hr className="wb-section-rule my-4" />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmBatch(false)} disabled={batchSaving} className="neu-btn-soft h-[38px]">取消</button>
+              <button onClick={doBatch} disabled={batchSaving} className={`neu-btn-primary !h-[38px]${batchAction === 'disable' ? ' is-danger' : ''}`}>{batchSaving ? '处理中...' : '确认执行'}</button>
             </div>
           </div>
         </div>

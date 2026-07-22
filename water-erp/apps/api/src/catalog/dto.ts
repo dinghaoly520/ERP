@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
 export const CATALOG_STATUSES = ['有效', '价格波动', '即将过期', '待复核', '下架', '停用'] as const;
@@ -55,7 +56,7 @@ export class CatalogAdminListQueryDto {
   search?: string;
 
   @IsOptional()
-  @Type(() => Boolean)
+  @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   includeInactive?: boolean;
 }
@@ -285,9 +286,22 @@ export class UpdateAttributeTemplateDto {
   sortOrder?: number;
 }
 
+export class ItemAttributeValueDto {
+  @Type(() => Number)
+  @IsNumber()
+  templateId!: number;
+
+  @IsString()
+  value!: string;
+}
+
 export class SetItemAttributesDto {
-  @Type(() => Array)
-  attributes!: { templateId: number; value: string }[];
+  // 仅 @Type 不含 class-validator 装饰器的属性会被全局 ValidationPipe(whitelist:true) 剥离 → attributes 变 undefined → 端点恒 500；
+  // 故补 @IsArray + @ValidateNested 保住字段并校验元素形状
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemAttributeValueDto)
+  attributes!: ItemAttributeValueDto[];
 }
 
 // ── 价格预警规则 ──
@@ -466,6 +480,63 @@ export class AiClassifyDto {
   @Type(() => Number)
   @IsNumber()
   categoryIdHint?: number;
+}
+
+// ── 供货申请审核 ──
+
+export class ReviewApplicationDto {
+  @IsIn(['approve', 'reject', 'return', 'counter'])
+  action!: 'approve' | 'reject' | 'return' | 'counter';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reason?: string;
+
+  // 价格字段：前端给 number，@Type 兜底转 number；业务阈值（>0、必填）仍由 service 给出带 code 的精确错误，故此处只做类型/白名单校验，不加 @Min 以免覆盖业务文案
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  counterPrice?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  counterNote?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  finalPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  referencePrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  priceMin?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  priceMax?: number;
+
+  @IsOptional()
+  @IsDateString()
+  validUntil?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reviewerNote?: string;
 }
 
 // ── 目录项附件 ──

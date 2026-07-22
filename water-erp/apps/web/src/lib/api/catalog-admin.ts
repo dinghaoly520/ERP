@@ -5,6 +5,8 @@ export interface CatalogItem {
   specification: string;
   category: string;
   categoryPath?: string;
+  /** 品类树节点 id（后端按品类维度返回；录入/筛选时使用） */
+  categoryId?: number | null;
   group: string;
   unit: string;
   referencePrice: number;
@@ -102,7 +104,8 @@ export async function exportCatalog(params: Record<string, string | undefined> =
 }
 
 export async function downloadImportTemplate() {
-  const res = await fetch('/api/catalog/admin/import-template', { credentials: 'include' });
+  // 与 exportCatalog 一致：裸 fetch 必须带 X-Portal 头，否则后端按缺省门户解析会话
+  const res = await fetch('/api/catalog/admin/import-template', { credentials: 'include', headers: { 'X-Portal': 'web' } });
   if (!res.ok) throw new Error('模板下载失败');
   return res.blob();
 }

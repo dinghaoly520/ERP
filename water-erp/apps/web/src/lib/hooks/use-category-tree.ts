@@ -19,8 +19,9 @@ export function useCategoryTree() {
       fetchPromise = null;
       cachedTree = null;
       const data = await getCategoryTree();
-      cachedTree = data;
-      setTree(data);
+      const list = data ?? [];
+      cachedTree = list;
+      setTree(list);
     } catch (err: any) {
       setError(err.message || '加载品类树失败');
     } finally {
@@ -35,12 +36,22 @@ export function useCategoryTree() {
       return;
     }
     if (fetchPromise) {
-      fetchPromise.then(data => { setTree(data); setLoading(false); }).catch(() => setLoading(false));
+      fetchPromise
+        .then(data => { setTree(data ?? []); setLoading(false); })
+        .catch(() => setLoading(false));
       return;
     }
     fetchPromise = getCategoryTree()
-      .then(data => { cachedTree = data; setTree(data); setLoading(false); return data; })
-      .catch(err => { setError(err.message || '加载品类树失败'); setLoading(false); });
+      .then(data => { const list = data ?? []; cachedTree = list; setTree(list); setLoading(false); return list; })
+      .catch(err => {
+        // 关键：失败必须重置 fetchPromise 并继续 reject。否则该 Promise 会永远 resolve 为
+        // undefined，后续挂载者 setTree(undefined) → 扁平化 walk(undefined) 直接白屏；
+        // 重置后新挂载者会重新发起请求（自动重试）
+        fetchPromise = null;
+        setError(err?.message || '加载品类树失败');
+        setLoading(false);
+        throw err;
+      });
   }, []);
 
   return { tree, loading, error, refresh };

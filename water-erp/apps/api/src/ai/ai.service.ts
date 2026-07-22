@@ -1,10 +1,9 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
 import { NotificationService } from '../notification/notification.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
+import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import type {
   ComplianceItem,
   RiskItem,
@@ -2227,95 +2226,72 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     }
   }
 
-  /* ━━━ 供应商选取历史（无 DB 模型，落 JSON 文件；下列为兼容旧接口的占位，真实实现见下方 A2 持久化区块）━━━ */
-
-  async getSelectionHistory(_userId: string | undefined) {
-    return [];
-  }
-
-  async restoreShortlist(_historyId: string) {
-    return [];
-  }
-
-  // ── 选取历史持久化（A2）：无 DB 模型，落 JSON 文件，使选取历史/候选名单/分享真正可用 ──
-  private readonly selectionHistoryFile = path.join(process.cwd(), 'data', 'supplier-selection-history.json');
-
-  private loadSelectionHistory(): any[] {
-    try {
-      if (fs.existsSync(this.selectionHistoryFile)) return JSON.parse(fs.readFileSync(this.selectionHistoryFile, 'utf-8'));
-    } catch { /* 损坏/不可读 → 当空集合，避免阻塞 */ }
-    return [];
-  }
-
-  private saveSelectionHistory(records: any[]): void {
-    try {
-      fs.mkdirSync(path.dirname(this.selectionHistoryFile), { recursive: true });
-      fs.writeFileSync(this.selectionHistoryFile, JSON.stringify(records, null, 2));
-    } catch (e: any) {
-      this.logger.warn(`选取历史落盘失败: ${e?.message}`);
-    }
-  }
+  // ── 选取历史持久化（#13 落库）：替代多实例不安全的 JSON 文件存储（跨进程 read-modify-write 会丢记录/分裂/阻塞事件循环）。
 
   async saveSelectionHistoryRecord(rec: { requirement: string; classificationId?: string; classificationName?: string; resultSummary: string; recommendations: any[]; candidatePool: number }) {
-    const records = this.loadSelectionHistory();
-    const record = {
-      id: `sh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      requirement: rec.requirement,
-      classificationId: rec.classificationId,
-      classificationName: rec.classificationName,
-      resultSummary: rec.resultSummary,
-      recommendationCount: rec.recommendations.length,
-      candidatePool: rec.candidatePool,
-      shortlistedIds: [] as string[],
-      recommendations: rec.recommendations,
-      createdAt: new Date().toISOString(),
-    };
-    records.unshift(record);
-    this.saveSelectionHistory(records.slice(0, 100)); // 仅保留最近 100 条
-    return record;
+    return this.prisma.supplierSelectionHistory.create({
+      data: {
+        requirement: rec.requirement,
+        classificationId: rec.classificationId ?? null,
+        classificationName: rec.classificationName ?? null,
+        resultSummary: rec.resultSummary,
+        recommendationCount: rec.recommendations.length,
+        candidatePool: rec.candidatePool,
+        shortlistedIds: [],
+        recommendations: rec.recommendations, // any[] → Json 字段，免 cast
+      },
+    });
   }
 
   async listSelectionHistory() {
-    return this.loadSelectionHistory().map(({ recommendations: _r, ...rest }) => rest);
+    return this.prisma.supplierSelectionHistory.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      select: { id: true, requirement: true, classificationId: true, classificationName: true, resultSummary: true, recommendationCount: true, candidatePool: true, shortlistedIds: true, createdAt: true },
+    });
   }
 
   async getSelectionHistoryDetail(id: string) {
-    const rec = this.loadSelectionHistory().find((r) => r.id === id);
+    const rec = await this.prisma.supplierSelectionHistory.findUnique({
+      where: { id },
+      select: { id: true, requirement: true, classificationId: true, classificationName: true, resultSummary: true, recommendationCount: true, candidatePool: true, shortlistedIds: true, createdAt: true },
+    });
     if (!rec) throw new ServiceUnavailableException('选取历史记录不存在');
-    const { recommendations: _r, ...rest } = rec;
-    return rest;
+    return rec;
   }
 
   async getSelectionHistoryShortlist(id: string) {
-    const rec = this.loadSelectionHistory().find((r) => r.id === id);
+    const rec = await this.prisma.supplierSelectionHistory.findUnique({ where: { id }, select: { recommendations: true } });
     if (!rec) throw new ServiceUnavailableException('选取历史记录不存在');
     // 返回候选推荐（含 name/matchScore/reason），供「恢复候选名单」回填比选面板。
-    return (rec.recommendations ?? []) as SupplierRecommendation[];
+    return (rec.recommendations as unknown as SupplierRecommendation[] | null) ?? [];
   }
 
   async updateSelectionShortlist(historyId: string, shortlistedIds: string[]) {
-    const records = this.loadSelectionHistory();
-    const rec = records.find((r) => r.id === historyId);
+    const rec = await this.prisma.supplierSelectionHistory.findUnique({ where: { id: historyId }, select: { id: true } });
     if (!rec) throw new ServiceUnavailableException('选取历史记录不存在');
-    rec.shortlistedIds = Array.isArray(shortlistedIds) ? shortlistedIds : [];
-    this.saveSelectionHistory(records);
+    await this.prisma.supplierSelectionHistory.update({
+      where: { id: historyId },
+      data: { shortlistedIds: Array.isArray(shortlistedIds) ? shortlistedIds : [] },
+    });
     return { success: true };
   }
 
   async deleteSelectionHistory(id: string) {
-    this.saveSelectionHistory(this.loadSelectionHistory().filter((r) => r.id !== id));
+    // deleteMany 避免记录不存在时抛错（与文件版「filter 后写回」语义一致：删除不存在的 id 也返回 success）。
+    await this.prisma.supplierSelectionHistory.deleteMany({ where: { id } });
     return { success: true };
   }
 
   /** 分享候选名单给采购主管：以站内通知下发（无独立分享表，复用通知中心）。 */
-  async shareShortlist(data: { requirement: string; shortlist: { name: string; matchScore: number; reason: string }[]; note?: string }) {
+  async shareShortlist(data: ShareShortlistDto) {
     const names = (data.shortlist || []).map((s) => s.name).filter(Boolean).join('、');
-    await this.notificationService.sendToRole('procurement_staff', {
+    await Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
       type: 'SELECTION_SHARED',
       title: '收到一份供应商候选名单分享',
       content: `需求：${(data.requirement || '').slice(0, 60)}；推荐：${names || '（空）'}${data.note ? `；备注：${data.note}` : ''}`,
       link: '/supplier/selection',
-    }).catch(() => {});
+    }))).catch(() => {});
     return { success: true };
   }
 

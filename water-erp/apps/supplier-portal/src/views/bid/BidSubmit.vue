@@ -7,6 +7,8 @@ import { ElMessage } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
 import { uploadFile, type FileAssetResponse } from '@/api/upload'
 import { useAutoSave, useRouteLeaveGuard } from '@/composables'
+import SpPageHero from '@/components/SpPageHero.vue'
+import { Send, AlertTriangle, Check, X } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const route = useRoute(); const router = useRouter(); const bidStore = useBidStore(); const supplierStore = useSupplierStore()
@@ -16,6 +18,10 @@ const loading = ref(true); const error = ref(false); const submitting = ref(fals
 const projectId = computed(() => route.params.id as string)
 const form = ref({ bidPrice: '', deliveryPeriod: '', technicalFileAssetId: '', businessFileAssetId: '', coverLetter: '', bidBondAssetId: '' })
 const project = computed(() => bidStore.currentProject)
+const heroSub = computed(() => {
+  const p = project.value
+  return p ? `${p.projectCode} · ${p.procurementMethod} · 截止 ${dayjs(p.deadline).format('MM-DD HH:mm')}` : ''
+})
 const existingSubmission = ref<any>(null)
 const techFileMeta = ref<FileAssetResponse | null>(null); const bizFileMeta = ref<FileAssetResponse | null>(null); const bondFileMeta = ref<FileAssetResponse | null>(null)
 const techUploadProgress = ref<number | null>(null); const bizUploadProgress = ref<number | null>(null); const bondUploadProgress = ref<number | null>(null)
@@ -72,9 +78,9 @@ async function confirmSubmit() {
 
 <template>
   <div class="page-container" v-loading="loading">
-    <el-button link @click="router.push(`/bids/${projectId}`)" style="margin-bottom:16px"><el-icon><ArrowLeft /></el-icon>返回项目详情</el-button>
+    <button type="button" class="neu-link back-link" @click="router.push(`/bids/${projectId}`)"><el-icon><ArrowLeft /></el-icon>返回项目详情</button>
     <div v-if="error" class="sp-error-block">
-      <div class="sp-error-icon">⚠</div>
+      <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
@@ -84,23 +90,16 @@ async function confirmSubmit() {
       <el-alert v-if="canSubmit" type="warning" :closable="false" show-icon style="margin-bottom:20px"><template #title>投标截止：{{ dayjs(project.deadline).format('YYYY年MM月DD日 HH:mm') }}，请在截止前完成提交。</template></el-alert>
       <el-alert v-if="showRecovery" type="success" :closable="false" show-icon style="margin-bottom:20px"><template #title>检测到本地草稿（{{ dayjs(draft.storedAt).format('HH:mm') }}），是否恢复？</template><template #default><div style="margin-top:8px;display:flex;gap:12px"><el-button size="small" type="primary" @click="acceptRecovery">恢复草稿</el-button><el-button size="small" @click="discardRecovery">丢弃</el-button></div></template></el-alert>
 
-      <div class="sp-page-hero-card">
-        <div class="sp-page-hero-inner">
-          <div class="sp-page-hero-body">
-            <h1 class="sp-modern-title">{{ project.name }}</h1>
-            <p class="sp-modern-desc">{{ project.projectCode }} · {{ project.procurementMethod }} · 截止 {{ dayjs(project.deadline).format('MM-DD HH:mm') }}</p>
-          </div>
-        </div>
-      </div>
+      <SpPageHero :icon="Send" :title="project.name" :sub="heroSub" />
 
-      <div class="detail-card" style="margin-top:20px">
+      <div class="neu-card detail-card">
         <div class="card-header"><span class="card-title">标书信息</span><el-tag v-if="existingSubmission" :type="existingSubmission.status==='draft'?'info':'success'" effect="plain">{{ existingSubmission.status==='draft'?'草稿':'已提交' }}</el-tag></div>
         <el-form :model="form" label-width="120px" size="large" :disabled="!canSubmit||existingSubmission?.status==='submitted'">
           <el-form-item label="投标报价" required><el-input v-model="form.bidPrice" placeholder="例如：1260.00"><template #append>万元</template></el-input></el-form-item>
           <el-form-item label="交货/工期" required><el-input v-model="form.deliveryPeriod" placeholder="例如：120日历天" /></el-form-item>
-          <el-form-item label="技术方案"><div class="file-area"><el-upload :http-request="uploadTech" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传技术方案</el-button></el-upload><span class="file-hint">PDF，≤{{ maxUploadSizeMB }}MB</span><span v-if="techFileMeta" class="file-name">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span><span v-else-if="form.technicalFileAssetId" class="file-name">已上传</span><el-progress v-if="techUploadProgress!==null" :percentage="techUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
-          <el-form-item label="商务文件"><div class="file-area"><el-upload :http-request="uploadBiz" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传商务文件</el-button></el-upload><span class="file-hint">PDF，≤{{ maxUploadSizeMB }}MB</span><span v-if="bizFileMeta" class="file-name">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span><span v-else-if="form.businessFileAssetId" class="file-name">已上传</span><el-progress v-if="bizUploadProgress!==null" :percentage="bizUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
-          <el-form-item v-if="bidStore.project?.bondRequired" label="保证金凭证" required><div class="file-area"><el-upload :http-request="uploadBond" :show-file-list="false" :disabled="!canSubmit"><el-button type="primary" plain :disabled="!canSubmit"><el-icon><Upload /></el-icon>上传保证金缴纳凭证</el-button></el-upload><span class="file-hint">银行回单/保函，PDF≤{{ maxUploadSizeMB }}MB</span><span v-if="bondFileMeta" class="file-name">{{ bondFileMeta.originalName }}（{{ formatSize(bondFileMeta.size) }}）</span><span v-else-if="form.bidBondAssetId" class="file-name">已上传</span><el-progress v-if="bondUploadProgress!==null" :percentage="bondUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
+          <el-form-item label="技术方案"><div class="file-area"><el-upload :http-request="uploadTech" :show-file-list="false" :disabled="!canSubmit"><div class="neu-drop-zone"><el-icon :size="16"><Upload /></el-icon><span>上传技术方案</span></div></el-upload><span class="file-hint">PDF，≤{{ maxUploadSizeMB }}MB</span><span v-if="techFileMeta" class="neu-attachment-item file-chip">{{ techFileMeta.originalName }}（{{ formatSize(techFileMeta.size) }}）</span><span v-else-if="form.technicalFileAssetId" class="neu-attachment-item file-chip">已上传</span><el-progress v-if="techUploadProgress!==null" :percentage="techUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
+          <el-form-item label="商务文件"><div class="file-area"><el-upload :http-request="uploadBiz" :show-file-list="false" :disabled="!canSubmit"><div class="neu-drop-zone"><el-icon :size="16"><Upload /></el-icon><span>上传商务文件</span></div></el-upload><span class="file-hint">PDF，≤{{ maxUploadSizeMB }}MB</span><span v-if="bizFileMeta" class="neu-attachment-item file-chip">{{ bizFileMeta.originalName }}（{{ formatSize(bizFileMeta.size) }}）</span><span v-else-if="form.businessFileAssetId" class="neu-attachment-item file-chip">已上传</span><el-progress v-if="bizUploadProgress!==null" :percentage="bizUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
+          <el-form-item v-if="bidStore.project?.bondRequired" label="保证金凭证" required><div class="file-area"><el-upload :http-request="uploadBond" :show-file-list="false" :disabled="!canSubmit"><div class="neu-drop-zone"><el-icon :size="16"><Upload /></el-icon><span>上传保证金缴纳凭证</span></div></el-upload><span class="file-hint">银行回单/保函，PDF≤{{ maxUploadSizeMB }}MB</span><span v-if="bondFileMeta" class="neu-attachment-item file-chip">{{ bondFileMeta.originalName }}（{{ formatSize(bondFileMeta.size) }}）</span><span v-else-if="form.bidBondAssetId" class="neu-attachment-item file-chip">已上传</span><el-progress v-if="bondUploadProgress!==null" :percentage="bondUploadProgress" :stroke-width="6" style="width:200px" /></div></el-form-item>
           <el-form-item label="投标函"><el-input v-model="form.coverLetter" type="textarea" :rows="4" placeholder="请输入投标函内容（选填）" /></el-form-item>
         </el-form>
         <div v-if="canSubmit && existingSubmission?.status!=='submitted'" class="submit-actions">
@@ -114,7 +113,11 @@ async function confirmSubmit() {
     <el-dialog v-model="submitDialogVisible" title="提交前检查" width="500px" destroy-on-close>
       <div class="preflight-list">
         <div v-for="item in preflightItems" :key="item.label" class="preflight-item">
-          <span class="preflight-icon" :class="item.ok?'green':(item.required?'red':'orange')">{{ item.ok?'✓':(item.required?'✗':'⚠') }}</span>
+          <span class="preflight-icon" :class="item.ok?'green':(item.required?'red':'orange')">
+            <Check v-if="item.ok" :size="14" :stroke-width="2" />
+            <X v-else-if="item.required" :size="14" :stroke-width="2" />
+            <AlertTriangle v-else :size="13" :stroke-width="1.75" />
+          </span>
           <div class="preflight-text">
             <span class="preflight-label">{{ item.label }}</span>
             <span class="preflight-detail">{{ item.detail }}</span>
@@ -132,21 +135,34 @@ async function confirmSubmit() {
 </template>
 
 <style scoped>
-.detail-card { position: relative; background: rgba(255,255,255,0.78); backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15); border: 1px solid rgba(255,255,255,0.55); border-radius: var(--sp-radius-md); padding: 24px; }
-.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(0,0,0,0.05); }
-.card-title { font-size: 15px; font-weight: 800; color: var(--sp-gray-900); }
+/* ─── Back link — layout only (visuals from cgzxui .neu-link) ─── */
+.back-link { margin-bottom: 16px; }
+
+/* ─── Form card — layout only (visuals from cgzxui .neu-card) ─── */
+.detail-card { margin-top: 20px; padding: 24px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; box-shadow: inset 0 -1px 0 var(--hairline); }
+.card-title { font-size: 15px; font-weight: 800; color: var(--foreground); }
+
+/* ─── Upload area (visuals from cgzxui .neu-drop-zone / .neu-attachment-item) ─── */
 .file-area { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.file-hint { font-size: 12px; color: var(--sp-gray-400); }
-.file-name { font-size: 13px; color: var(--sp-primary); font-weight: 600; }
-.submit-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.05); }
-.auto-save-hint { font-size: 12px; color: var(--sp-gray-400); margin-right: auto; display: flex; align-items: center; }
+.file-hint { font-size: 12px; color: var(--muted-foreground); }
+.file-chip { font-size: 13px; color: var(--brand); font-weight: 600; }
+
+.submit-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 20px; box-shadow: inset 0 1px 0 var(--hairline); }
+.auto-save-hint { font-size: 12px; color: var(--muted-foreground); margin-right: auto; display: flex; align-items: center; }
+
+/* ─── Preflight checklist (concave rows, token tones) ─── */
 .preflight-list { display: flex; flex-direction: column; gap: 12px; }
-.preflight-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(255,255,255,0.52); }
-.preflight-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; flex-shrink: 0; }
-.preflight-icon.green { background: #ecfdf5; color: #059669; }
-.preflight-icon.orange { background: rgba(255,251,235,0.72); color: #d97706; }
-.preflight-icon.red { background: #fef2f2; color: #dc2626; }
+.preflight-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 3px oklch(1 0 0 / 0.6);
+}
+.preflight-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.preflight-icon.green { background: color-mix(in oklab, var(--success) 12%, transparent); color: var(--success); }
+.preflight-icon.orange { background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning); }
+.preflight-icon.red { background: color-mix(in oklab, var(--danger) 12%, transparent); color: var(--danger); }
 .preflight-text { display: flex; flex-direction: column; gap: 2px; }
-.preflight-label { font-size: 14px; font-weight: 700; color: var(--sp-gray-900); }
-.preflight-detail { font-size: 12px; color: var(--sp-gray-500); }
+.preflight-label { font-size: 14px; font-weight: 700; color: var(--foreground); }
+.preflight-detail { font-size: 12px; color: var(--muted-foreground); }
 </style>
