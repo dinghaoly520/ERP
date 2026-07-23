@@ -2600,6 +2600,12 @@ git commit -m "feat(bid-portal): 监督端只读大厅交流记录页签"
       where: { projectId },
       orderBy: { createdAt: 'asc' },
     });
+    // OpeningHallMessage 不存 supplierName（schema 仅 supplierId）；私聊归属经 BidSupplier 反查
+    const hallSupplierNames = new Map(
+      (await this.prisma.bidSupplier.findMany({ where: { projectId }, select: { supplierId: true, supplierName: true } }))
+        .filter(s => s.supplierId)
+        .map(s => [s.supplierId as string, s.supplierName] as const),
+    );
 ```
 
 - [ ] **Step 2: sections 对象增加 hallMessages**
@@ -2608,7 +2614,8 @@ git commit -m "feat(bid-portal): 监督端只读大厅交流记录页签"
 
 ```ts
         hallMessages: hallMessages.map(m => ({
-          id: m.id, roomType: m.roomType, supplierName: m.supplierName,
+          id: m.id, roomType: m.roomType,
+          supplierName: m.supplierId ? (hallSupplierNames.get(m.supplierId) ?? null) : null,
           senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt,
         })),
 ```
