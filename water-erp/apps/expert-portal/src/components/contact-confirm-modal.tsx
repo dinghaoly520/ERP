@@ -40,62 +40,60 @@ export default function ContactConfirmModal({ initialPhone, initialEmail, displa
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0f172a]/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-[#dbe6f3] bg-white shadow-2xl">
-        <div className="border-b border-[#eef3fa] p-6">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]/60 p-4 backdrop-blur-sm">
+      <div className="exp-dialog w-full max-w-md">
+        <div className="p-6">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#064ea2]/10 text-[#064ea2]">
+            <span className="page-hero__icon !h-11 !w-11 !rounded-xl">
               <ShieldCheck size={22} strokeWidth={1.5} />
             </span>
             <div>
-              <h3 className="text-lg font-black text-[#18243a]">确认联系方式</h3>
-              <p className="text-sm text-[#5a6d8a]">{displayName}，请确认以下信息，确保我们能联系到您</p>
+              <h3 className="text-lg font-bold text-[var(--foreground)]">确认联系方式</h3>
+              <p className="text-sm text-[var(--muted-foreground)]">{displayName}，请确认以下信息，确保我们能联系到您</p>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4 p-6">
+        <div className="space-y-4 px-6 pb-2">
           <div>
-            <label className="mb-1.5 block text-sm font-bold text-[#18243a]">
-              手机号 <span className="text-[#e74c3c]">*</span>
+            <label className="mb-1.5 block text-sm font-bold text-[var(--foreground)]">
+              手机号 <span className="text-[var(--danger)]">*</span>
             </label>
             <div className="relative">
-              <Phone size={16} strokeWidth={1.5} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8a96aa]" />
+              <Phone size={16} strokeWidth={1.5} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
               <input
                 value={phone}
                 onChange={e => { setPhone(e.target.value); setPhoneError(''); }}
                 maxLength={11}
                 placeholder="请输入11位手机号"
-                className="w-full rounded-xl border border-[#e5ecf4] py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-[#064ea2] focus:shadow-[0_0_0_3px_rgba(6,78,162,0.10)]"
+                className="neu-input has-icon"
+                aria-invalid={phoneError ? 'true' : undefined}
               />
             </div>
-            {phoneError && <p className="mt-1 text-xs text-[#e74c3c]">{phoneError}</p>}
+            {phoneError && <p className="mt-1.5 text-xs font-semibold text-[var(--danger)]">{phoneError}</p>}
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-bold text-[#18243a]">邮箱（选填）</label>
+            <label className="mb-1.5 block text-sm font-bold text-[var(--foreground)]">邮箱（选填）</label>
             <div className="relative">
-              <Mail size={16} strokeWidth={1.5} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8a96aa]" />
+              <Mail size={16} strokeWidth={1.5} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
               <input
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="用于接收通知（可留空）"
-                className="w-full rounded-xl border border-[#e5ecf4] py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-[#064ea2] focus:shadow-[0_0_0_3px_rgba(6,78,162,0.10)]"
+                className="neu-input has-icon"
               />
             </div>
           </div>
         </div>
 
-        <div className="border-t border-[#eef3fa] p-6 pt-4">
-          <button
-            onClick={handleConfirm}
-            disabled={saving}
-            className="w-full rounded-xl bg-[#064ea2] py-2.5 text-sm font-bold text-white transition hover:bg-[#054280] disabled:opacity-50"
-          >
+        <hr className="wb-section-rule !mx-6" />
+        <div className="p-6 pt-4">
+          <button onClick={handleConfirm} disabled={saving} className="neu-btn-primary !h-11 w-full">
             {saving ? '确认中...' : '确认联系方式'}
           </button>
-          <p className="mt-3 text-center text-xs text-[#8a96aa]">确认后将用于评审通知与身份核验</p>
+          <p className="mt-3 text-center text-xs text-[var(--muted-foreground)]">确认后将用于评审通知与身份核验</p>
         </div>
       </div>
     </div>
