@@ -145,26 +145,71 @@ export class AiService {
   }
 
   /** 生成通知供应商的文案（标题+正文），基于项目信息 */
+  /** 生成通知候选供应商的文案（逐供应商填入真实名称，无需模板占位符） */
   async generateNotificationContent(context: {
-    projectName?: string; projectCode?: string; supplierNames: string[];
+    projectName?: string; projectCode?: string;
+    supplierNames: string[];
+    procurementMethod?: string;
+    procurementCategory?: string;
+    budgetAmount?: string;
+    requesterDepartment?: string;
+    projectReason?: string;
+    fileAnalysisContext?: string;
   }): Promise<{ title: string; body: string }> {
-    const system = `你是一名政府采购中心的项目负责人。需要向候选供应商发送通知。
+    const ctxParts: string[] = [];
+    if (context.projectName) ctxParts.push(`项目名称：${context.projectName}`);
+    if (context.projectCode) ctxParts.push(`项目编号：${context.projectCode}`);
+    if (context.procurementMethod) ctxParts.push(`采购方式：${context.procurementMethod}`);
+    if (context.procurementCategory) ctxParts.push(`采购类别：${context.procurementCategory}`);
+    if (context.budgetAmount) ctxParts.push(`预算金额：${context.budgetAmount} 元`);
+    if (context.requesterDepartment) ctxParts.push(`申请部门：${context.requesterDepartment}`);
+    if (context.projectReason) ctxParts.push(`立项事由：${context.projectReason.slice(0, 500)}`);
 
-要求：标题简洁（含项目关键信息，不超过 30 字）；正文正式友好，包含：告知被纳入候选名单、项目信息、提醒关注后续正式邀请。不要列举供应商名单。输出纯 JSON（不要 markdown）：{ "title": "...", "body": "..." }`;
+    const filesBlock = context.fileAnalysisContext?.trim()
+      ? `\n\n项目已上传文件分析摘要：\n${context.fileAnalysisContext.trim().slice(0, 1500)}`
+      : '';
 
-    const info = [
-      context.projectName ? `项目名称：${context.projectName}` : '',
-      context.projectCode ? `项目编号：${context.projectCode}` : '',
-      `候选供应商（${context.supplierNames.length} 家）：${context.supplierNames.join('、')}`,
-    ].filter(Boolean).join('\n');
+    const suppliersBlock = context.supplierNames.length > 0
+      ? `候选供应商（${context.supplierNames.length} 家）：\n${context.supplierNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
+      : '';
+
+    const system = `你是四川水发集团的正式通知撰写人。请为候选供应商撰写通知正文段落。
+
+要求：
+- 正文是通知的主体段落，不含抬头称呼和落款（抬头和落款由系统自动附加）
+- 正式友好、信息完整，150 字以内
+- 内容必须全部来源于输入数据，不得编造任何未提供的信息
+- 自称使用"四川水发集团"，禁止使用"我中心""政府采购中心""本中心""我院"等任何其他自称
+- ★ 项目编号必须使用输入数据中的真实值；若输入数据中未提供则不得出现项目编号（禁止编造如"GZ2024-001"等示例编号）
+- ★ 所有数字（金额、数量、日期等）必须来自输入数据，不得凭空创造
+- 禁用 Markdown，纯文本`.trim();
+
+    const userPrompt = [
+      `请基于以下信息撰写通知正文（系统会自动在正文前拼接供应商名称和问候语，在正文后附加落款，请仅输出正文段落）：`,
+      '',
+      ctxParts.join('\n'),
+      filesBlock,
+      '',
+      suppliersBlock,
+      '',
+      `正文要求：`,
+      `- 通知对象：${context.supplierNames.slice(0, 3).join('、')}${context.supplierNames.length > 3 ? `等 ${context.supplierNames.length} 家供应商` : ''}`,
+      `- 告知已被纳入候选名单、项目背景简述、提醒关注后续正式采购邀请`,
+      `- 自称使用"四川水发集团"`,
+      `- 严格禁止编造未提供的信息`,
+      `- 不要输出抬头和落款`,
+      '',
+      `输出纯 JSON：{"title": "通知标题", "body": "正文段落（不含抬头和落款）"}`,
+    ].join('\n');
 
     try {
-      const result = await this.llm.chatJson<{ title: string; body: string }>(system, info, 0.3);
+      const result = await this.llm.chatJson<{ title: string; body: string }>(system, userPrompt, 0.3);
       return { title: result.title || '项目候选通知', body: result.body || '' };
     } catch {
+      const names = context.supplierNames.slice(0, 3).join('、') + (context.supplierNames.length > 3 ? `等 ${context.supplierNames.length} 家` : '');
       return {
-        title: '项目候选通知',
-        body: `您已被初步筛选为 ${context.projectName || '相关项目'} 的候选供应商。请留意后续正式采购邀请及招标文件。如有疑问请与采购中心联系。`,
+        title: `「${context.projectName || '采购项目'}」候选供应商通知`,
+        body: `${names} 您好！\n\n您已被初步筛选为「${context.projectName || '相关项目'}」（${context.procurementMethod || '采购'}）的候选供应商。请留意后续正式采购邀请及招标文件。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。\n\n四川水发集团\n${new Date().toLocaleDateString('zh-CN')}`,
       };
     }
   }

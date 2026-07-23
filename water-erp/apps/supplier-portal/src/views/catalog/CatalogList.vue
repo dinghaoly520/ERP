@@ -23,7 +23,6 @@ function openJoin(item:any) { dialogMode.value='JOIN_EXISTING'; dialogItem.value
 function openUpdate(item:any) { dialogMode.value='UPDATE_QUOTE'; dialogItem.value=item; dialogVisible.value=true }
 function openNewItem() { dialogMode.value='NEW_ITEM'; dialogItem.value=null; dialogVisible.value=true }
 function onDialogSuccess() { loadAll() }
-const statusTagType: Record<string,string> = {'有效':'success','价格波动':'warning','即将过期':'warning','待复核':'info'}
 onMounted(loadAll)
 </script>
 
@@ -83,13 +82,11 @@ onMounted(loadAll)
 
         <div class="neu-table-card cat-table-shell">
           <el-table :data="items" style="width:100%" :show-overflow-tooltip="true" empty-text="暂无匹配的目录条目">
-            <el-table-column label="编码 / 物资" min-width="220"><template #default="{row}"><div class="cell-code">{{ row.code }}</div><div class="cell-name">{{ row.name }}</div></template></el-table-column>
-            <el-table-column prop="specification" label="规格型号" min-width="180" />
-            <el-table-column label="分类" width="120"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.category }}</el-tag></template></el-table-column>
-            <el-table-column prop="unit" label="单位" width="70" />
-            <el-table-column prop="region" label="区域" width="80" />
-            <el-table-column label="状态" width="90"><template #default="{row}"><el-tag size="small" :type="(statusTagType[row.status] as any)||'info'">{{ row.status }}</el-tag></template></el-table-column>
-            <el-table-column label="供应商" width="90" align="center"><template #default="{row}"><span class="cell-count">{{ row.supplierCount }}</span><span class="cell-count-label">家</span></template></el-table-column>
+            <el-table-column label="编码 / 物资" min-width="220" align="center"><template #default="{row}"><div class="cell-code">{{ row.code }}</div><div class="cell-name">{{ row.name }}</div></template></el-table-column>
+            <el-table-column prop="specification" label="规格型号" min-width="180" align="center" />
+            <el-table-column label="分类" width="120" align="center"><template #default="{row}"><el-tag size="small" effect="plain">{{ row.category }}</el-tag></template></el-table-column>
+            <el-table-column prop="unit" label="单位" width="70" align="center" />
+            <el-table-column prop="region" label="区域" width="80" align="center" />
             <el-table-column label="操作" width="130" fixed="right" align="center">
               <template #default="{row}">
                 <template v-if="itemStatus(row).canApplyJoin"><el-button size="small" type="primary" @click="openJoin(row)">申请供货</el-button></template>
@@ -163,10 +160,8 @@ onMounted(loadAll)
 /* ── Table shell — cgzxui .neu-table-card handles the plate; keep fixed-column radius clipped ── */
 .cat-table-shell { overflow: hidden; }
 
-.cell-code { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 12px; color: var(--brand); font-weight: 700; }
-.cell-name { font-size: 14px; color: var(--foreground); font-weight: 600; margin-top: 2px; }
-.cell-count { font-size: 16px; font-weight: 800; color: var(--foreground); font-variant-numeric: tabular-nums; }
-.cell-count-label { font-size: 12px; color: var(--muted-foreground); margin-left: 2px; }
+.cell-code { font-family: 'SF Mono','JetBrains Mono',monospace; font-size: 12px; color: var(--brand); font-weight: 700; text-align: center; }
+.cell-name { font-size: 14px; color: var(--foreground); font-weight: 600; margin-top: 2px; text-align: center; }
 
 .cat-sub-enter-active,.cat-sub-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
 .cat-sub-enter-from,.cat-sub-leave-to { opacity: 0; transform: translateY(-6px); }

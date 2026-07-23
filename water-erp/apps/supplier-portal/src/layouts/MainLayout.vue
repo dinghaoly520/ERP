@@ -8,7 +8,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
 import {
   HomeFilled, OfficeBuilding, EditPen,
-  Document, DocumentChecked, Bell, ChatDotRound, Star,
+  Document, DocumentChecked, Bell, ChatDotRound,
   Fold, Expand, SwitchButton, User, Lock,
   Goods, Connection, Box, ArrowDown,
 } from '@element-plus/icons-vue'
@@ -69,7 +69,6 @@ const menuItems = [
   { divider: true, label: '信息中心' },
   { path: '/announcements', title: '公告公示', icon: Bell, desc: '公告与政策' },
   { path: '/notifications', title: '消息通知', icon: ChatDotRound, badge: true, desc: '平台消息' },
-  { path: '/evaluations', title: '履约评价', icon: Star, desc: '评价记录' },
 ]
 
 const activeMenu = computed(() => route.path)

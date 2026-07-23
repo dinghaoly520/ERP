@@ -58,7 +58,7 @@ const statusType: Record<string, string> = {
 
 const STAGES = [
   { key: 'DOWNLOAD',    label: '文件下载', color: '#0891b2' },
-  { key: 'SUBMIT',      label: '加密投递', color: '#0a5eb8' },
+  { key: 'SUBMIT',      label: '加密投递', color: '#c00a6b' },
   { key: 'OPENING',     label: '在线开标', color: '#d97706' },
   { key: 'EVALUATING',  label: '专家评标', color: '#7c3aed' },
   { key: 'ARCHIVED',    label: '已归档',   color: '#059669' },
@@ -233,8 +233,8 @@ const daysSinceReg = computed(() => {
               v-for="(row, idx) in projectRows"
               :key="row.project.id"
               class="db-list-row"
-              :class="[row.urgency, { 'is-last': idx === projectRows.length - 1 }]"
-              @click="router.push(`/bids/${row.project.id}`)"
+              :class="[row.urgency, { 'is-last': idx === projectRows.length - 1, 'submit-stage': row.project.stage === 'SUBMIT' }]"
+              @click="router.push(`/bids/${row.project.id}?from=list`)"
             >
               <div class="db-list-info">
                 <span class="db-list-name">{{ row.project.name }}</span>
@@ -392,15 +392,18 @@ const daysSinceReg = computed(() => {
 }
 .db-list-row.is-last { border-bottom: none; }
 .db-list-row:hover { background: oklch(0.985 0.01 258 / 0.5); border-radius: 8px; }
-.db-list-row.critical { background: linear-gradient(90deg, color-mix(in oklab, var(--danger) 9%, transparent) 0%, transparent 26%); }
-.db-list-row.critical:hover { background: linear-gradient(90deg, color-mix(in oklab, var(--danger) 13%, transparent) 0%, oklch(0.985 0.01 258 / 0.5) 50%); border-radius: 8px; }
+.db-list-row.critical { background: linear-gradient(90deg, color-mix(in oklab, oklch(0.72 0.16 350) 9%, transparent) 0%, transparent 26%); }
+.db-list-row.critical:hover { background: linear-gradient(90deg, color-mix(in oklab, oklch(0.72 0.16 350) 13%, transparent) 0%, oklch(0.985 0.01 258 / 0.5) 50%); border-radius: 8px; }
+/* SUBMIT 阶段洋红色强调 */
+.db-list-row.submit-stage { background: linear-gradient(90deg, color-mix(in oklab, oklch(0.58 0.22 340) 8%, transparent) 0%, transparent 24%); }
+.db-list-row.submit-stage:hover { background: linear-gradient(90deg, color-mix(in oklab, oklch(0.58 0.22 340) 12%, transparent) 0%, oklch(0.985 0.01 258 / 0.5) 50%); border-radius: 8px; }
 .db-list-info { min-width: 0; flex: 1; overflow: hidden; }
 .db-list-name { display: block; font-size: 13px; font-weight: 700; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .db-list-code { display: block; margin-top: 2px; font-size: 11px; color: var(--muted-foreground); font-family: 'SF Mono','JetBrains Mono',monospace; }
 .db-list-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .db-list-stage { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 5px; font-size: 10.5px; font-weight: 700; white-space: nowrap; color: var(--stage-c, var(--muted-foreground)); background: color-mix(in oklab, var(--stage-c, #94a3b8) 12%, transparent); }
 .db-list-dl { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted-foreground); min-width: 44px; text-align: right; }
-.db-list-dl.critical { color: var(--danger); }
+.db-list-dl.critical { color: oklch(0.68 0.14 350); font-weight: 800; }
 .db-list-dl.warning  { color: var(--warning); }
 .db-list-dl.past     { color: var(--muted-foreground); text-decoration: line-through; }
 

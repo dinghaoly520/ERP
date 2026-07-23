@@ -4,9 +4,29 @@ import type { SupplierRecommendation } from '@/lib/api/supplier';
 export function exportShortlistToExcel(
   items: { item: SupplierRecommendation; note: string }[],
   projectName?: string,
+  headerContext?: { lines: string[] },
 ) {
   const wb = new Workbook();
   const ws = wb.addWorksheet('候选供应商名单');
+
+  // ── 项目信息头（在表头上方） ──
+  if (headerContext?.lines?.length) {
+    headerContext.lines.forEach((line, i) => {
+      const row = ws.addRow([line]);
+      ws.mergeCells(`A${row.number}:K${row.number}`);
+      row.getCell(1).font = { bold: line.startsWith('│') || line.startsWith('【') || line.startsWith('  '), size: 10, color: { argb: line.startsWith('【') ? 'FF3B5998' : 'FF333333' } };
+      row.getCell(1).alignment = { wrapText: true };
+      if (line.startsWith('════')) {
+        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF3FB' } };
+        row.getCell(1).font = { bold: true, size: 12, color: { argb: 'FF3B5998' } };
+        row.getCell(1).alignment = { horizontal: 'center' };
+      }
+    });
+    // 空行分隔
+    ws.addRow([]);
+  }
+
+  const HEADER_ROW = headerContext?.lines?.length ? headerContext.lines.length + 2 : 1;
 
   ws.columns = [
     { header: '序号', key: 'index', width: 6 },
@@ -23,7 +43,7 @@ export function exportShortlistToExcel(
   ];
 
   // Header style
-  const headerRow = ws.getRow(1);
+  const headerRow = ws.getRow(HEADER_ROW);
   headerRow.font = { bold: true, color: { argb: 'FF5E7EBD' }, size: 11 };
   headerRow.fill = {
     type: 'pattern',

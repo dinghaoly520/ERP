@@ -16,7 +16,7 @@ const error = ref(false)
 
 const STAGES = [
   { key: 'DOWNLOAD',    label: '文件下载', color: '#0891b2', icon: 'Download' },
-  { key: 'SUBMIT',      label: '加密投递', color: '#0a5eb8', icon: 'Upload'  },
+  { key: 'SUBMIT',      label: '加密投递', color: '#c00a6b', icon: 'Upload'  },
   { key: 'OPENING',     label: '在线开标', color: '#d97706', icon: 'View'    },
   { key: 'EVALUATING',  label: '专家评标', color: '#7c3aed', icon: 'Edit'    },
   { key: 'ARCHIVED',    label: '已归档',   color: '#059669', icon: 'Folder'  },

@@ -67,7 +67,12 @@ export function polishRequirement(data: { text: string; projectName?: string; pr
 }
 
 // ── AI 生成通知文案 ──
-export function generateNotificationContent(data: { projectName?: string; projectCode?: string; supplierNames: string[] }) {
+export function generateNotificationContent(data: {
+  projectName?: string; projectCode?: string; supplierNames: string[];
+  procurementMethod?: string; procurementCategory?: string;
+  budgetAmount?: string; requesterDepartment?: string;
+  projectReason?: string; fileAnalysisContext?: string;
+}) {
   return api.post<{ title: string; body: string }>('/ai/generate-notification', data);
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
-  Megaphone, X, Send, Upload, Loader2, ArrowLeft, ArrowRight,
+  Megaphone, X, Send, Upload, Loader2, ArrowLeft, ArrowRight, Search,
 } from 'lucide-react';
 import {
   createAnnouncement,
@@ -17,6 +17,7 @@ import {
 import type { AnnouncementStatus } from '@/lib/api/announcement';
 import { uploadProjectStageAttachment, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getSupplierList } from '@/lib/api/supplier';
+import { listBidProjects, getBidProjectDetail, type BidProjectOption } from '@/lib/api/expert';
 import type { Supplier } from '@/lib/types';
 import { AnnouncementDialog } from '@/components/tender-write/announcement-dialog';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
@@ -172,9 +173,33 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setCategory(procCat);
     setDraft(filledDraft);
 
-    // ★ 默认公告范围：竞价采购/直接采购 → 部分供应商可见；其余 → 全部可见
-    const defaultRestricted = tt === 'INTERNAL_BIDDING' || tt === 'SINGLE_SOURCE';
+    // ★ 默认引用采购文件
+    setTenderOn(tenderFiles.length > 0);
+
+    // ★ 默认公告范围
+    // 谈判采购 → 部分供应商可见（供应商已在上一邀请步骤中确定）（内置以上步骤禁止公开）
+    // 竞价采购/直接采购 → 部分供应商可见（历史逻辑兼容）
+    const defaultRestricted =
+      tt === 'COMPETITIVE_NEGOTIATION' || tt === 'INTERNAL_BIDDING' || tt === 'SINGLE_SOURCE';
     setVisibility(defaultRestricted ? 'RESTRICTED' : 'PUBLIC');
+
+    // ★ 加载投标项目中被邀供应商 → 自动预选为"部分可见"的已选供应商
+    if (defaultRestricted) {
+      listBidProjects()
+        .then(async (bidProjects: BidProjectOption[]) => {
+          const match = bidProjects.find(
+            (bp) => bp.name === project.title || project.title.includes(bp.name) || bp.name.includes(project.title),
+          );
+          if (!match) return;
+          const detail = await getBidProjectDetail(match.id).catch(() => null);
+          if (!detail?.suppliers?.length) return;
+          const ids = detail.suppliers
+            .filter((s: { supplierId: string | null }) => s.supplierId)
+            .map((s: { supplierId: string | null }) => s.supplierId!);
+          if (ids.length > 0) setRestrictedSupplierIds(ids);
+        })
+        .catch(() => {});
+    }
 
     // ★ 直接采购：自动读取公告中的拟定供应商（draft.supplierName，来自项目 awardedSupplier）
     //   匹配供应商库并选中；供应商列表加载后由下方 useEffect 消费 autoMatchName
@@ -465,9 +490,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               </h2>
 
               {/* Visibility */}
-              <div className="rounded-xl border border-[var(--border)] p-4 space-y-3">
-                <div className="text-xs font-bold text-[var(--accent-strong)]">公告范围</div>
-                <label className="flex items-center gap-2 text-sm">
+              <div className="rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">公告范围</div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input
                     type="radio"
                     name="visibility"
@@ -477,7 +502,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   />
                   全部可见
                 </label>
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input
                     type="radio"
                     name="visibility"
@@ -488,23 +513,27 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   部分供应商可见
                 </label>
                 {visibility === 'RESTRICTED' && (
-                  <div className="border border-[var(--border)] rounded-lg p-3 space-y-2">
+                  <div className="space-y-2 pt-2">
                     <div className="flex items-center gap-2">
-                      <input
-                        value={supplierSearch}
-                        onChange={(e) => setSupplierSearch(e.target.value)}
-                        placeholder="搜索供应商名称"
-                        className={inputCls + ' flex-1'}
-                      />
-                      <span className="text-xs font-semibold text-[var(--accent)] whitespace-nowrap">
+                      <div className="flex-1 relative">
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                        <input
+                          value={supplierSearch}
+                          onChange={(e) => setSupplierSearch(e.target.value)}
+                          placeholder="搜索供应商名称"
+                          className="workbench-input w-full !pl-8 text-sm"
+                        />
+                      </div>
+                      <span className="text-[11px] font-bold tabular-nums text-[var(--muted-foreground)] whitespace-nowrap">
                         已选 {restrictedSupplierIds.length}
                       </span>
                     </div>
-                    <div className="max-h-40 overflow-y-auto rounded border border-[var(--border)] divide-y divide-[var(--border)]">
+                    <div className="max-h-48 overflow-y-auto rounded-[12px] divide-y divide-[oklch(0.6_0.04_258_/_0.08)]"
+                      style={{ background: 'oklch(1 0 0 / 0.38)', boxShadow: 'inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08), inset -1px -1px 2px oklch(1 0 0 / 0.6)' }}>
                       {allSuppliers.map((s) => (
                         <label
                           key={s.id}
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-[var(--muted)] cursor-pointer"
+                          className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-[oklch(1_0_0_/_0.3)] cursor-pointer transition-colors"
                         >
                           <input
                             type="checkbox"
@@ -518,11 +547,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                             }
                             className="accent-[var(--accent)]"
                           />
-                          <span>{s.name}</span>
+                          <span className="text-[var(--foreground)]">{s.name}</span>
                         </label>
                       ))}
                       {allSuppliers.length === 0 && (
-                        <p className="px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                        <p className="px-3 py-3 text-xs text-[var(--muted-foreground)] text-center">
                           无匹配供应商
                         </p>
                       )}
@@ -532,9 +561,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               </div>
 
               {/* Timing */}
-              <div className="rounded-xl border border-[var(--border)] p-4 space-y-3">
-                <div className="text-xs font-bold text-[var(--accent-strong)]">发布时间</div>
-                <label className="flex items-center gap-2 text-sm">
+              <div className="rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">发布时间</div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input
                     type="radio"
                     name="timing"
@@ -544,7 +573,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   />
                   立即发布
                 </label>
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input
                     type="radio"
                     name="timing"
@@ -559,46 +588,48 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     type="datetime-local"
                     value={scheduledDate}
                     onChange={(e) => setScheduledDate(e.target.value)}
-                    className={inputCls}
+                    className="workbench-input w-full text-sm"
                   />
                 )}
               </div>
 
               {/* Toggles */}
-              <div className="rounded-xl border border-[var(--border)] px-4 py-3 flex flex-wrap items-center gap-6">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={attachOn}
-                    onChange={(e) => setAttachOn(e.target.checked)}
-                    className="accent-[var(--accent)]"
-                  />
-                  添加附件
-                </label>
-                <label
-                  className={[
-                    'flex items-center gap-2 text-sm',
-                    tenderAvailable ? '' : 'opacity-60 cursor-not-allowed',
-                  ].join(' ')}
-                >
-                  <input
-                    type="checkbox"
-                    checked={tenderOn && tenderAvailable}
-                    disabled={!tenderAvailable}
-                    onChange={(e) => setTenderOn(e.target.checked)}
-                    className="accent-[var(--accent)]"
-                  />
-                  引用采购文件{tenderAvailable ? ` · ${tenderFiles.length} 份` : ''}
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={notifyOnPublish}
-                    onChange={(e) => setNotifyOnPublish(e.target.checked)}
-                    className="accent-[var(--accent)]"
-                  />
-                  发布后发送通知
-                </label>
+              <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                <div className="flex flex-wrap items-center gap-6">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={attachOn}
+                      onChange={(e) => setAttachOn(e.target.checked)}
+                      className="accent-[var(--accent)]"
+                    />
+                    添加附件
+                  </label>
+                  <label
+                    className={[
+                      'flex items-center gap-2 text-sm',
+                      tenderAvailable ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed',
+                    ].join(' ')}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={tenderOn && tenderAvailable}
+                      disabled={!tenderAvailable}
+                      onChange={(e) => setTenderOn(e.target.checked)}
+                      className="accent-[var(--accent)]"
+                    />
+                    引用采购文件{tenderAvailable ? ` · ${tenderFiles.length} 份` : ''}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notifyOnPublish}
+                      onChange={(e) => setNotifyOnPublish(e.target.checked)}
+                      className="accent-[var(--accent)]"
+                    />
+                    发布后发送通知
+                  </label>
+                </div>
               </div>
 
               {/* Attachment section — 本地暂存，发布时统一上传 */}

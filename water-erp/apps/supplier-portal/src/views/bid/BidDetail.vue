@@ -17,11 +17,14 @@ const supplierStore = useSupplierStore()
 const loading = ref(true)
 const error = ref(false)
 const projectId = computed(() => route.params.id as string)
+const isListMode = computed(() => route.query.from === 'list')
+const backTo = computed(() => isListMode.value ? '/bids' : '/my-bids')
+const backLabel = computed(() => isListMode.value ? '返回可投标项目' : '返回投标进展')
 
 const STAGES = ['DOWNLOAD','SUBMIT','OPENING','EVALUATING','ARCHIVED'] as const
 const stageMap: Record<string, { label: string; color: string; guide: string }> = {
   DOWNLOAD:    { label: '文件下载',  color: '#0891b2', guide: '可下载招标文件、查看项目范围与资质要求，提前准备投标材料。' },
-  SUBMIT:      { label: '加密投递',  color: '#dc2626', guide: '标书已开放投递，请在截止时间前完成标书文件加密上传与提交。' },
+  SUBMIT:      { label: '加密投递',  color: '#c00a6b', guide: '标书已开放投递，请在截止时间前完成标书文件加密上传与提交。' },
   OPENING:     { label: '在线开标',  color: '#d97706', guide: '项目已进入开标流程，届时可在线参与开标确认，核实开标信息。' },
   EVALUATING:  { label: '专家评标',  color: '#7c3aed', guide: '评标委员会正在对标书进行综合评审，请耐心等候评标结果公示。' },
   ARCHIVED:    { label: '已归档',    color: '#059669', guide: '招投标流程已完成并归档，可查看最终评标结果与中标公示。' },
@@ -84,7 +87,7 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 
 <template>
   <div class="page-container" v-loading="loading">
-    <button type="button" class="neu-link back-link" @click="router.push('/my-bids')"><el-icon><ArrowLeft /></el-icon>返回投标进展</button>
+    <button type="button" class="neu-link back-link" @click="router.push(backTo)"><el-icon><ArrowLeft /></el-icon>{{ backLabel }}</button>
 
     <div v-if="error" class="sp-error-block">
       <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
@@ -103,8 +106,8 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
         </template>
       </SpPageHero>
 
-      <!-- ═══ 阶段进度 + 指引（单卡合一）═══ -->
-      <div class="stage-card">
+      <!-- ═══ 阶段进度 + 指引（非列表模式）═══ -->
+      <div v-if="!isListMode" class="stage-card">
         <div class="stage-bar">
           <div
             v-for="(key, i) in STAGES"
@@ -121,17 +124,17 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
         </div>
       </div>
 
-      <!-- ═══ 关键信息（紧凑数字条）═══ -->
-      <div class="info-bar">
+      <!-- ═══ 关键信息（非列表模式）═══ -->
+      <div v-if="!isListMode" class="info-bar">
         <span>截止<strong :class="{ 'danger': project.stage === 'SUBMIT' }">{{ dayjs(project.deadline).format('MM-DD HH:mm') }}</strong></span>
         <span>开标<strong>{{ dayjs(project.openTime).format('MM-DD HH:mm') }}</strong></span>
         <span>保证金<strong>{{ project.bondRequired && project.bondAmount ? '¥'+Number(project.bondAmount).toLocaleString() : '无' }}</strong></span>
         <span v-if="showSupplierCount">投标方<strong>{{ supplierCount }} 家</strong></span>
       </div>
 
-      <!-- ═══ 正文（公告 + 条件）═══ -->
+      <!-- ═══ 公告正文 ═══ -->
       <div class="content-card neu-card">
-        <!-- 招标范围 / 资质 / 联系 -->
+        <!-- 招标条件 -->
         <div v-if="project.scope || project.qualification || project.contact || project.qualityRequirement" class="cc-conds">
           <div v-if="project.scope" class="cc-cond">
             <span class="cc-cond-hd">招标范围</span>
@@ -151,7 +154,6 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           </div>
         </div>
 
-        <!-- 公告正文 HTML -->
         <div v-if="project.announcement?.content" class="cc-body" v-html="formatContent(project.announcement.content)" />
         <div v-else class="cc-empty">
           <FileText :size="20" :stroke-width="1.75" />
@@ -159,8 +161,8 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
         </div>
       </div>
 
-      <!-- ═══ 招标文件 + 澄清答疑（分列底部）═══ -->
-      <div class="bottom-grid">
+      <!-- ═══ 招标文件 + 澄清答疑（非列表模式）═══ -->
+      <div v-if="!isListMode" class="bottom-grid">
         <!-- 招标文件 -->
         <div class="neu-card bottom-card" v-loading="bidDocLoading">
           <div class="bc-hd">招标文件</div>
@@ -280,23 +282,23 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
   margin-top: 16px; padding: 28px;
 }
 .cc-conds {
-  display: flex; flex-direction: column; gap: 12px;
-  padding-bottom: 20px; margin-bottom: 20px;
+  display: flex; flex-direction: column; gap: 10px;
+  padding-bottom: 18px; margin-bottom: 18px;
   box-shadow: inset 0 -1px 0 var(--hairline);
 }
 .cc-cond {
-  border-radius: 8px; padding: 12px 14px;
+  border-radius: 8px; padding: 10px 14px;
   background: color-mix(in oklab, var(--brand) 5%, transparent);
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.04), inset -1px -1px 3px oklch(1 0 0 / 0.5);
 }
 .cc-cond-hd { display: block; font-size: 10px; font-weight: 700; color: var(--brand); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
-.cc-cond-bd { margin: 0; font-size: 13px; line-height: 1.65; color: var(--foreground); white-space: pre-wrap; }
+.cc-cond-bd { margin: 0; font-size: 12px; line-height: 1.6; color: var(--foreground); white-space: pre-wrap; }
 .cc-body { font-size: 14px; line-height: 1.85; color: var(--foreground); word-break: break-word; }
 .cc-body :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; }
 .cc-body :deep(td), .cc-body :deep(th) { border: 1px solid var(--hairline); padding: 7px 10px; font-size: 12px; }
 .cc-body :deep(th) { background: color-mix(in oklab, var(--muted-foreground) 6%, transparent); font-weight: 700; }
-.cc-body :deep(h2) { font-size: 16px; font-weight: 900; margin: 24px 0 12px; padding-bottom: 8px; box-shadow: inset 0 -1px 0 var(--hairline); color: var(--brand); }
-.cc-body :deep(h3) { font-size: 14px; font-weight: 700; margin: 18px 0 8px; color: var(--foreground); }
+.cc-body :deep(h2) { font-size: 16px; font-weight: 800; margin: 20px 0 10px; color: var(--foreground); }
+.cc-body :deep(h3) { font-size: 14px; font-weight: 700; margin: 16px 0 8px; color: var(--foreground); }
 .cc-body :deep(p)  { margin: 0 0 10px; }
 .cc-body :deep(p:last-child) { margin-bottom: 0; }
 .cc-body :deep(ul), .cc-body :deep(ol) { padding-left: 18px; margin: 6px 0; }

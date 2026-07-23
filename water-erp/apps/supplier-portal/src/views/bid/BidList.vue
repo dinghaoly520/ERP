@@ -17,7 +17,7 @@ const pageSize = ref(10)
 
 const stageMap: Record<string, { label: string; color: string }> = {
   DOWNLOAD: { label: '文件下载', color: '#0891b2' },
-  SUBMIT: { label: '加密投递', color: '#dc2626' },
+  SUBMIT: { label: '加密投递', color: '#c00a6b' },
   OPENING: { label: '在线开标', color: '#d97706' },
   EVALUATING: { label: '专家评标', color: '#7c3aed' },
   ARCHIVED: { label: '已归档', color: '#059669' },
@@ -38,6 +38,8 @@ function onPageChange(p: number) { page.value = p; load() }
 onMounted(load)
 
 function isSubmitStage(stage: string) { return stage === 'SUBMIT' }
+function isDeadlineClose(deadline: string): boolean { if (!deadline) return false; const diff = (new Date(deadline).getTime() - Date.now()) / 86400000; return diff > 0 && diff <= 3 }
+function rowClass(p: any) { if (p.stage === 'SUBMIT') return 'is-submit'; if (p.stage === 'DOWNLOAD' && isDeadlineClose(p.deadline)) return 'is-dl-close'; return '' }
 </script>
 
 <template>
@@ -64,7 +66,7 @@ function isSubmitStage(stage: string) { return stage === 'SUBMIT' }
     </div>
 
     <div v-if="bidStore.projects.length > 0" class="opportunity-list">
-      <div v-for="p in bidStore.projects" :key="p.id" class="opportunity-row" :class="{ 'is-submit': isSubmitStage(p.stage) }" @click="router.push(`/bids/${p.id}`)">
+      <div v-for="p in bidStore.projects" :key="p.id" class="opportunity-row" :class="rowClass(p)" @click="router.push(`/bids/${p.id}?from=list`)">
         <div class="row-main">
           <div class="row-title-line"><h3>{{ p.name }}</h3>
             <span class="bid-tag" :class="{ 'bid-tag-submit': p.stage === 'SUBMIT' }">{{ p.accessScope === 'INVITED' || p.accessScope === 'DESIGNATED' ? '受邀' : '公告' }}</span>
@@ -121,16 +123,26 @@ function isSubmitStage(stage: string) { return stage === 'SUBMIT' }
   box-shadow: 7px 7px 16px oklch(0.55 0.03 258 / 0.12), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
 
-/* ── SUBMIT 阶段红色高亮 ── */
+/* ── SUBMIT 阶段洋红色高亮 ── */
 .opportunity-row.is-submit {
-  border-left: 4px solid var(--danger);
-  background: linear-gradient(180deg, oklch(0.993 0.012 20), oklch(0.97 0.015 20));
-  box-shadow: 5px 5px 12px oklch(0.5 0.06 20 / 0.1), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  border-left: 4px solid oklch(0.58 0.22 340);
+  background: linear-gradient(180deg, oklch(0.993 0.012 340), oklch(0.97 0.015 340));
+  box-shadow: 5px 5px 12px oklch(0.5 0.06 340 / 0.1), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
 .opportunity-row.is-submit:hover {
-  box-shadow: 7px 7px 16px oklch(0.45 0.08 20 / 0.14), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  box-shadow: 7px 7px 16px oklch(0.45 0.08 340 / 0.14), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
-.opportunity-row.is-submit .row-title-line h3 { color: oklch(0.35 0.08 20); }
+.opportunity-row.is-submit .row-title-line h3 { color: oklch(0.42 0.15 340); }
+
+/* ── DOWNLOAD 阶段截止临近（≤3天）粉红色渐变高亮 ── */
+.opportunity-row.is-dl-close {
+  border-left: 4px solid oklch(0.72 0.16 350);
+  background: linear-gradient(180deg, oklch(0.994 0.008 350), oklch(0.975 0.012 350));
+  box-shadow: 5px 5px 12px oklch(0.55 0.04 350 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.opportunity-row.is-dl-close:hover {
+  box-shadow: 7px 7px 16px oklch(0.5 0.06 350 / 0.12), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
 
 /* Scope tag */
 .bid-tag {
@@ -155,10 +167,13 @@ function isSubmitStage(stage: string) { return stage === 'SUBMIT' }
 .row-deadline small { display: block; color: var(--muted-foreground); font-size: 11px; }
 .row-deadline strong { display: block; color: var(--foreground); font-size: 14px; margin-top: 2px; font-variant-numeric: tabular-nums; }
 
-/* SUBMIT 阶段截止时间红色预警 */
-.row-deadline.submit-deadline { border-left-color: color-mix(in oklab, var(--danger) 30%, transparent); }
-.row-deadline.submit-deadline small { color: var(--danger); font-weight: 700; }
-.row-deadline.submit-deadline strong { color: var(--danger); font-weight: 900; }
+/* Deadline highlight: SUBMIT = magenta, DOWNLOAD close = pink */
+.row-deadline.submit-deadline { border-left-color: oklch(0.58 0.22 340 / 0.4); }
+.row-deadline.submit-deadline small { color: oklch(0.58 0.22 340); font-weight: 700; }
+.row-deadline.submit-deadline strong { color: oklch(0.58 0.22 340); font-weight: 900; }
+.opportunity-row.is-dl-close .row-deadline { border-left-color: oklch(0.72 0.16 350 / 0.4); }
+.opportunity-row.is-dl-close .row-deadline small { color: oklch(0.68 0.14 350); font-weight: 700; }
+.opportunity-row.is-dl-close .row-deadline strong { color: oklch(0.65 0.12 350); font-weight: 900; }
 
 .pagination-wrap { display: flex; justify-content: center; margin-top: 20px; }
 

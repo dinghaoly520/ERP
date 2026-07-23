@@ -105,12 +105,6 @@ const router = createRouter({
           component: () => import('@/views/notification/NotificationList.vue'),
           meta: { title: '消息中心', icon: 'ChatDotRound' },
         },
-        {
-          path: 'evaluations',
-          name: 'Evaluations',
-          component: () => import('@/views/evaluation/EvaluationList.vue'),
-          meta: { title: '评价记录', icon: 'Star' },
-        },
       ],
     },
     {

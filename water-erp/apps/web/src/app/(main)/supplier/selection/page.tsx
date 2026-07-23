@@ -12,7 +12,7 @@ import type { SupplierClassification, Supplier } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
 import { analyzeProjectManagementItem } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
-import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2 } from 'lucide-react';
+import { Wand2, Copy, Download, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2, ExternalLink, MapPin, Phone, Mail, User } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { StatusBadge } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
@@ -77,7 +77,6 @@ export function SupplierSelectionPage({
   const [shareModal, setShareModal] = useState(false);
   const [shareNote, setShareNote] = useState('');
   const [shareSending, setShareSending] = useState(false);
-  const [notifyModal, setNotifyModal] = useState(false);
   const [notifyTemplate, setNotifyTemplate] = useState({ title: '', body: '' });
   const [notifyChannels, setNotifyChannels] = useState<string[]>(['in_app']);
   const [notifyAiLoading, setNotifyAiLoading] = useState(false);
@@ -105,6 +104,22 @@ export function SupplierSelectionPage({
   // 项目文件分析上下文（用于 AI 润色时提供真实文件内容）
   const [fileContextLoaded, setFileContextLoaded] = useState(false);
   const [fileAnalysisContext, setFileAnalysisContext] = useState('');
+
+  // 供应商详情弹窗
+  const [detailSupplier, setDetailSupplier] = useState<SupplierRecommendation | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailData, setDetailData] = useState<any>(null);
+
+  const openSupplierDetail = async (r: SupplierRecommendation) => {
+    setDetailSupplier(r);
+    setDetailData(null);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/supplier/${r.supplierId}`, { credentials: 'include', headers: { 'X-Portal': 'web' } });
+      if (res.ok) setDetailData(await res.json());
+    } catch { /* 静默 */ }
+    setDetailLoading(false);
+  };
 
   useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); listBidProjects().then(setProjects).catch(() => {}); }, []);
 
@@ -286,68 +301,73 @@ export function SupplierSelectionPage({
   const handleNotifyAi = async () => {
     setNotifyAiLoading(true);
     try {
+      const names = [...shortlist.values()].map(v => v.item.name);
+      // 构建富上下文，注入项目文件分析摘要以杜绝幻觉
+      const ctxParts: string[] = [];
+      if (fileAnalysisContext) ctxParts.push(fileAnalysisContext);
       const res = await generateNotificationContent({
-        projectName: selectedProject?.name,
-        supplierNames: [...shortlist.values()].map(v => v.item.name),
+        projectName: selectedProject?.name || project?.title,
+        projectCode: (project as any)?.projectCode || selectedProject?.projectCode || undefined,
+        supplierNames: names,
+        procurementMethod: project?.procurementMethod,
+        procurementCategory: project?.procurementCategory,
+        budgetAmount: project?.budgetAmount ? Number(project.budgetAmount).toLocaleString('zh-CN') : undefined,
+        requesterDepartment: project?.requesterDepartment,
+        projectReason: project?.projectReason,
+        fileAnalysisContext: ctxParts.join('\n') || undefined,
       });
-      const body = `{供应商名称} 您好！\n\n${res.body}`;
-      setNotifyTemplate({ title: res.title, body });
-      setNotifyPerSupplier(new Map()); // 清空个性化覆盖，统一使用模板
-      toast.success('AI 已生成通知模板');
+      // 直接设置通知标题
+      setNotifyTemplate({ title: res.title, body: res.body });
+      // 为每家供应商组装完整消息：抬头 + AI 正文 + 落款
+      const dateStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+      const perSupplier = new Map<string, { title: string; body: string }>();
+      for (const [sid, { item: r }] of shortlist) {
+        perSupplier.set(sid, {
+          title: res.title,
+          body: `${r.name} 您好！\n\n${res.body}\n\n四川水发集团\n${dateStr}`,
+        });
+      }
+      setNotifyPerSupplier(perSupplier);
+      toast.success('AI 已生成通知');
     } catch (e: any) { toast.error(e?.message || 'AI 生成失败'); }
     setNotifyAiLoading(false);
   };
 
   const handleNotify = async () => {
-    if (!notifyTemplate.title.trim()) { toast.error('请填写通知标题'); return; }
+    if (notifyPerSupplier.size === 0) { toast.error('请先生成供应商通知内容'); return; }
     setNotifySending(true);
     try {
       const ids = [...shortlist.keys()];
-      const hasOverrides = ids.some(sid => notifyPerSupplier.has(sid));
-
       let totalSent = 0;
       let totalNotFound = 0;
-      if (hasOverrides) {
-        for (const sid of ids) {
-          const msg = getSupplierMessage(sid);
-          const name = shortlist.get(sid)?.item.name || '';
-          const r = await notifySuppliers({
-            supplierIds: [sid],
-            channels: notifyChannels,
-            type: 'SELECTION_NOTIFY',
-            title: msg.title.replace(/\{供应商名称\}/g, name),
-            content: msg.body.replace(/\{供应商名称\}/g, name),
-          });
-          totalSent += r.sent || 1;
-          totalNotFound += r.notFound || 0;
-        }
-      } else {
-        const res = await notifySuppliers({
-          supplierIds: ids, channels: notifyChannels, type: 'SELECTION_NOTIFY',
-          title: notifyTemplate.title.trim(), content: notifyTemplate.body.trim(),
+      for (const sid of ids) {
+        const msg = getSupplierMessage(sid);
+        if (!msg.title.trim() || !msg.body.trim()) continue;
+        const r = await notifySuppliers({
+          supplierIds: [sid],
+          channels: notifyChannels,
+          type: 'SELECTION_NOTIFY',
+          title: msg.title,
+          content: msg.body,
         });
-        totalSent = res.sent;
-        totalNotFound = res.notFound;
+        totalSent += r.sent || 1;
+        totalNotFound += r.notFound || 0;
       }
       setNotified(true);
       setNotifyNotFound(totalNotFound);
       setCompleted(false);
       toast.success(`已通知 ${totalSent} 家供应商${totalNotFound > 0 ? `，${totalNotFound} 家未找到关联账户` : ''}`);
-      // 进入第 5 步：供应商确认（初始化全部为待确认）
       setConfirmations(new Map([...shortlist.keys()].map(sid => [sid, 'pending' as const])));
       setStep(5);
-      setNotifyModal(false);
       setNotifyTemplate({ title: '', body: '' });
       setNotifyPerSupplier(new Map());
     } catch (e: any) { toast.error(e?.message || '通知发送失败'); }
     setNotifySending(false);
   };
 
-  // 取某供应商的实际通知内容（有个性化覆盖则用覆盖，否则用模板）
-  const getSupplierMessage = (sid: string) => {
-    const override = notifyPerSupplier.get(sid);
-    if (override) return override;
-    return { title: notifyTemplate.title, body: notifyTemplate.body };
+  // 取某供应商的实际通知内容（无内容时返回空串，不降级到模板——模板概念已移除）
+  const getSupplierMessage = (sid: string): { title: string; body: string } => {
+    return notifyPerSupplier.get(sid) ?? { title: '', body: '' };
   };
 
   const handleShare = async () => {
@@ -391,10 +411,67 @@ export function SupplierSelectionPage({
     const entries = [...shortlist.entries()]; if (to < 0 || to >= entries.length) return;
     const [moved] = entries.splice(from, 1); entries.splice(to, 0, moved); setShortlist(new Map(entries));
   };
-  const buildExportText = () => [...shortlist.entries()].map(([_, { item: r, note }], i) => {
-    const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
-    return [`${i + 1}. ${r.name}`,`   分类：${r.classification || '—'}  企业类型：${r.enterpriseType || '—'}`,`   匹配度：${r.matchScore}  ${r.reason}`,contact ? `   联系人：${contact.name} ${contact.phone}` : '',note ? `   备注：${note}` : ''].filter(Boolean).join('\n');
-  }).join('\n\n');
+  const buildExportHeader = () => {
+    const lines: string[] = [];
+    lines.push('═══════════════════════════════════');
+    lines.push('  供应商候选名单');
+    lines.push('═══════════════════════════════════');
+    if (project) {
+      lines.push('');
+      lines.push('【项目情况】');
+      if (project.title) lines.push(`  项目名称：${project.title}`);
+      if (project.procurementMethod) lines.push(`  采购方式：${project.procurementMethod}`);
+      if (project.procurementCategory) lines.push(`  采购类别：${project.procurementCategory}`);
+      if (project.requesterDepartment) lines.push(`  申请部门：${project.requesterDepartment}`);
+      if (project.requesterName) lines.push(`  申请人：${project.requesterName}`);
+      if (project.budgetAmount) lines.push(`  预算金额：${Number(project.budgetAmount).toLocaleString('zh-CN')} 元`);
+      if (project.supplierRequirements) lines.push(`  供方要求：${project.supplierRequirements.slice(0, 300)}`);
+      if (project.projectReason) lines.push(`  立项事由：${project.projectReason.slice(0, 300)}`);
+    } else if (selectedProject) {
+      lines.push('');
+      lines.push('【项目情况】');
+      if (selectedProject.name) lines.push(`  项目名称：${selectedProject.name}`);
+      if (selectedProject.procurementMethod) lines.push(`  采购方式：${METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}`);
+      if (selectedProject.projectCode) lines.push(`  项目编号：${selectedProject.projectCode}`);
+    }
+    lines.push('');
+    lines.push('【选取原则】');
+    if (selectionMode === 'ai') {
+      lines.push(`  选取方式：AI 智能选取（基于采购需求语义匹配）`);
+      if (classificationId && classifications.length) {
+        const cls = classifications.find(c => c.id === classificationId);
+        if (cls) lines.push(`  供应商分类：${cls.name}`);
+      }
+      if (result) {
+        lines.push(`  候选池规模：${result.candidatePool} 家`);
+        lines.push(`  匹配度区间：≥85 强匹配 / ≥70 较匹配 / ≥55 可考虑 / 弱匹配`);
+      }
+    } else {
+      lines.push(`  选取方式：手动选取`);
+      if (manualSearch) lines.push(`  搜索关键词：${manualSearch}`);
+    }
+    lines.push('');
+    lines.push(`  候选数量：${shortlist.size} 家`);
+    lines.push(`  导出时间：${new Date().toLocaleString('zh-CN')}`);
+    lines.push('');
+    lines.push('───────────────────────────────────');
+    lines.push('');
+    return lines.join('\n');
+  };
+
+  const buildExportText = () => {
+    const header = buildExportHeader();
+    const body = [...shortlist.entries()].map(([_, { item: r, note }], i) => {
+      const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
+      return [`${i + 1}. ${r.name}`,
+        `   分类：${r.classification || '—'}  企业类型：${r.enterpriseType || '—'}  匹配度：${r.matchScore}${selectionMode === 'ai' ? `  ${scoreLabel(r.matchScore)}` : ''}`,
+        `${r.reason !== '手动选取' ? `   推荐理由：${r.reason}` : ''}`,
+        contact ? `   联系人：${contact.name} ${contact.phone}` : '',
+        note ? `   备注：${note}` : '',
+      ].filter(Boolean).join('\n');
+    }).join('\n\n');
+    return header + body;
+  };
   const copyList = async () => { if (shortlist.size === 0) return; try { await navigator.clipboard.writeText(buildExportText()); toast.success('已复制到剪贴板'); } catch { toast.error('复制失败'); } };
   const downloadList = () => { if (shortlist.size === 0) return; const blob = new Blob([buildExportText()], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `供应商候选名单_${new Date().toISOString().slice(0, 10)}.txt`; a.click(); URL.revokeObjectURL(url); };
 
@@ -513,13 +590,14 @@ export function SupplierSelectionPage({
               </div>
             );
           })}
+          {shortlist.size >= 2 && (
+            <button onClick={() => setShowCompare(true)} className="neu-btn-xs w-full justify-center gap-1.5 mb-1.5"><Columns3 size={11} />横向对比</button>
+          )}
           <div className="flex gap-1.5 pt-1">
-            <button onClick={setShortlist.bind(null, new Map())} className="neu-btn-xs is-danger">清空</button>
-            <div className="flex gap-1 flex-1">
-              <button onClick={copyList} title="复制名单" className="neu-btn-xs flex-1 justify-center"><Copy size={11} /></button>
-              <button onClick={downloadList} title="导出 TXT" className="neu-btn-xs flex-1 justify-center"><Download size={11} /></button>
-              <button onClick={() => exportShortlistToExcel([...shortlist.values()], selectedProject?.name)} title="导出 Excel" className="neu-btn-xs flex-1 justify-center"><FileSpreadsheet size={11} /></button>
-            </div>
+            <button onClick={copyList} title="复制名单" className="neu-btn-xs w-0 flex-1 justify-center gap-1"><Copy size={11} />复制</button>
+            <button onClick={downloadList} title="导出 TXT" className="neu-btn-xs w-0 flex-1 justify-center gap-1"><Download size={11} />TXT</button>
+            <button onClick={() => exportShortlistToExcel([...shortlist.values()], selectedProject?.name, { lines: buildExportHeader().split('\n').filter(Boolean) })} title="导出 Excel" className="neu-btn-xs w-0 flex-1 justify-center gap-1"><FileSpreadsheet size={11} />Excel</button>
+            <button onClick={setShortlist.bind(null, new Map())} className="neu-btn-xs is-danger w-0 flex-1 justify-center gap-1"><X size={11} />清空</button>
           </div>
         </div>
       )}
@@ -739,8 +817,8 @@ export function SupplierSelectionPage({
           )}
 
           {result && !loading && (
-            <div className={`grid grid-cols-1 gap-5 items-start ${shortlist.size > 0 ? 'lg:grid-cols-3' : ''}`}>
-              <div className={`space-y-4 ${shortlist.size > 0 ? 'lg:col-span-2' : ''}`}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+              <div className="lg:col-span-2 space-y-4">
                 {error && <div className="rounded-xl px-4 py-3 text-sm font-semibold text-[var(--danger)]" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.3)' }}>{error}</div>}
 
                 {/* 智能分析摘要 */}
@@ -779,7 +857,7 @@ export function SupplierSelectionPage({
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                            <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => router.push(`/supplier/${r.supplierId}?from=selection`)}>{r.name}</span>
+                            <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => openSupplierDetail(r)}>{r.name}</span>
                             {r.classification && <StatusBadge tone="blue">{r.classification}</StatusBadge>}
                             {r.enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType(r.enterpriseType)}</span>}
                             {r.evaluation && (
@@ -805,9 +883,9 @@ export function SupplierSelectionPage({
                             </span>
                           </p>}
                         </div>
-                        <div className="flex flex-col gap-1.5 flex-shrink-0">
-                          <button onClick={() => router.push(`/supplier/${r.supplierId}?from=selection`)} className="neu-btn-xs">详情</button>
-                          <button onClick={() => toggleShortlistAndSave(r)} className={`neu-btn-xs ${inList ? 'is-success' : ''}`}>
+                        <div className="flex flex-col gap-1.5 flex-shrink-0 self-center">
+                          <button onClick={() => openSupplierDetail(r)} className="neu-btn-xs w-14 justify-center">详情</button>
+                          <button onClick={() => toggleShortlistAndSave(r)} className={`neu-btn-xs w-14 justify-center ${inList ? 'is-success' : ''}`}>
                             {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
                           </button>
                         </div>
@@ -817,80 +895,84 @@ export function SupplierSelectionPage({
                 })}
               </div>
 
-              {/* 候选名单 sidebar */}
-              {shortlist.size > 0 && <div className="lg:col-span-1 lg:sticky lg:top-20">{shortlistPanel}</div>}
+              {/* 候选名单 sidebar —— 始终显示 */}
+              <div className="lg:col-span-1 lg:sticky lg:top-20">{shortlistPanel}</div>
             </div>
           )}
 
-          {/* 空态 */}
-          {!result && !loading && selectionMode === 'ai' && (
-            <div className="rounded-[20px] py-16 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-              <Wand2 size={28} className="mx-auto mb-4 text-[var(--muted-foreground)]/30" />
-              <p className="text-sm text-[var(--muted-foreground)]">返回上一步调整需求后重新执行智能推荐</p>
-            </div>
-          )}
+          {/* 空态：两栏布局，右侧始终显示候选名单 */}
+          {!result && !loading && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+              <div className="lg:col-span-2">
+                {selectionMode === 'ai' && (
+                  <div className="rounded-[20px] py-16 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+                    <Wand2 size={28} className="mx-auto mb-4 text-[var(--muted-foreground)]/30" />
+                    <p className="text-sm text-[var(--muted-foreground)]">返回上一步调整需求后重新执行智能推荐</p>
+                  </div>
+                )}
+                {selectionMode === 'manual' && (
+                  <div className="space-y-4">
+                    <div className="rounded-[20px] p-5 space-y-4" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+                      <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                          <input value={manualSearch} onChange={e => setManualSearch(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleManualSearch(); }}
+                            placeholder="按供应商名称、分类或经营范围搜索..." className="workbench-input w-full !pl-9 !pr-8 text-sm" />
+                          {manualSearch && (
+                            <button type="button"
+                              onClick={() => { setManualSearch(''); setManualSuppliers([]); setManualTotal(0); }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-[4px] text-[var(--muted-foreground)]/50 hover:text-[var(--muted-foreground)] transition-colors">
+                              <X size={14} strokeWidth={2} />
+                            </button>
+                          )}
+                        </div>
+                        <button onClick={handleManualSearch} disabled={manualLoading} className="neu-btn-soft text-sm gap-1.5">
+                          <Search size={14} />{manualLoading ? '搜索中…' : '搜索'}
+                        </button>
+                      </div>
+                      {manualTotal > 0 && <p className="text-[11px] tabular-nums text-[var(--muted-foreground)]">共 <strong className="text-[var(--foreground)]">{manualTotal}</strong> 家{manualSuppliers.length < manualTotal ? `（显示前 ${manualSuppliers.length} 家）` : ''}</p>}
+                    </div>
 
-          {/* 手动选取 */}
-          {!result && !loading && selectionMode === 'manual' && (
-            <div className="space-y-4">
-              <div className="rounded-[20px] p-5 space-y-4" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-                <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                    <input value={manualSearch} onChange={e => setManualSearch(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleManualSearch(); }}
-                      placeholder="按供应商名称、分类或经营范围搜索..." className="workbench-input w-full !pl-9 !pr-8 text-sm" />
-                    {manualSearch && (
-                      <button
-                        type="button"
-                        onClick={() => { setManualSearch(''); setManualSuppliers([]); setManualTotal(0); }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-[4px] text-[var(--muted-foreground)]/50 hover:text-[var(--muted-foreground)] transition-colors"
-                      >
-                        <X size={14} strokeWidth={2} />
-                      </button>
+                    {manualSuppliers.map((s) => {
+                      const inList = shortlist.has(s.id);
+                      const contact = (s as any).contacts?.[0];
+                      return (
+                        <div key={s.id} className={`rounded-[16px] p-3 flex items-center gap-3 ${inList ? 'ring-2 ring-[var(--success)]/20' : ''}`}
+                          style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span>
+                              {(s as any).classification?.name && <span className="neu-tab-count">{(s as any).classification.name}</span>}
+                              {(s as any).enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType((s as any).enterpriseType)}</span>}
+                              {inList && <span className="text-[10px] font-bold text-[var(--success)]">✓ 已加入</span>}
+                            </div>
+                            {contact && <div className="text-xs text-[var(--muted-foreground)] mt-0.5">联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}</div>}
+                          </div>
+                          <button onClick={() => toggleManualSupplier(s)} className={`neu-btn-xs flex-shrink-0 ${inList ? 'is-danger' : 'is-success'}`}>
+                            {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {!manualLoading && manualSearch && manualSuppliers.length === 0 && (
+                      <div className="rounded-[20px] py-14 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+                        <Search size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
+                        <p className="text-sm text-[var(--muted-foreground)]">未找到匹配的供应商</p>
+                      </div>
+                    )}
+                    {!manualSearch && (
+                      <div className="rounded-[20px] py-14 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+                        <MousePointer2 size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
+                        <p className="text-sm text-[var(--muted-foreground)]">输入供应商名称或分类关键词搜索</p>
+                      </div>
                     )}
                   </div>
-                  <button onClick={handleManualSearch} disabled={manualLoading} className="neu-btn-soft text-sm gap-1.5">
-                    <Search size={14} />{manualLoading ? '搜索中…' : '搜索'}
-                  </button>
-                </div>
-                {manualTotal > 0 && <p className="text-[11px] tabular-nums text-[var(--muted-foreground)]">共 <strong className="text-[var(--foreground)]">{manualTotal}</strong> 家{manualSuppliers.length < manualTotal ? `（显示前 ${manualSuppliers.length} 家）` : ''}</p>}
+                )}
               </div>
-
-              {manualSuppliers.map((s) => {
-                const inList = shortlist.has(s.id);
-                const contact = (s as any).contacts?.[0];
-                return (
-                  <div key={s.id} className={`rounded-[16px] p-3 flex items-center gap-3 ${inList ? 'ring-2 ring-[var(--success)]/20' : ''}`}
-                    style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span>
-                        {(s as any).classification?.name && <span className="neu-tab-count">{(s as any).classification.name}</span>}
-                        {(s as any).enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType((s as any).enterpriseType)}</span>}
-                        {inList && <span className="text-[10px] font-bold text-[var(--success)]">✓ 已加入</span>}
-                      </div>
-                      {contact && <div className="text-xs text-[var(--muted-foreground)] mt-0.5">联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}</div>}
-                    </div>
-                    <button onClick={() => toggleManualSupplier(s)} className={`neu-btn-xs flex-shrink-0 ${inList ? 'is-danger' : 'is-success'}`}>
-                      {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
-                    </button>
-                  </div>
-                );
-              })}
-
-              {!manualLoading && manualSearch && manualSuppliers.length === 0 && (
-                <div className="rounded-[20px] py-14 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-                  <Search size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-                  <p className="text-sm text-[var(--muted-foreground)]">未找到匹配的供应商</p>
-                </div>
-              )}
-              {!manualSearch && (
-                <div className="rounded-[20px] py-14 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
-                  <MousePointer2 size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />
-                  <p className="text-sm text-[var(--muted-foreground)]">输入供应商名称或分类关键词搜索</p>
-                </div>
-              )}
+              {/* 候选名单 sidebar —— 始终显示 */}
+              <div className="lg:col-span-1 lg:sticky lg:top-20">{shortlistPanel}</div>
             </div>
           )}
 
@@ -909,16 +991,24 @@ export function SupplierSelectionPage({
       {/* ── 步骤 4：确认通知 ── */}
       {step === 4 && (
         <div className="space-y-5">
-          <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+          <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">候选名单已定稿</h2>
-                <p className="mt-1 text-sm tabular-nums text-[var(--foreground)]">
-                  <strong className="text-base">{shortlist.size}</strong> 家供应商
-                  {shortlist.size > 0 && <span className="ml-2 text-xs text-[var(--muted-foreground)]">平均匹配度 <strong className="text-[var(--foreground)]">{Math.round([...shortlist.values()].reduce((s, v) => s + v.item.matchScore, 0) / shortlist.size)}</strong></span>}
+                <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">确认通知</h2>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                  <strong className="tabular-nums text-[var(--foreground)]">{shortlist.size}</strong> 家候选供应商
+                  {shortlist.size > 0 && <span className="ml-2">平均匹配度 <strong className="text-[var(--foreground)]">{Math.round([...shortlist.values()].reduce((s, v) => s + v.item.matchScore, 0) / shortlist.size)}</strong></span>}
                 </p>
               </div>
-              <button onClick={reset} className="neu-btn-xs">重新选取</button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => exportShortlistToExcel([...shortlist.values()], selectedProject?.name, { lines: buildExportHeader().split('\n').filter(Boolean) })} className="neu-btn-xs gap-1">
+                  <FileSpreadsheet size={11} />导出 Excel
+                </button>
+                <button onClick={copyList} className="neu-btn-xs gap-1">
+                  <Copy size={11} />复制名单
+                </button>
+                <button onClick={reset} className="neu-btn-xs">重新选取</button>
+              </div>
             </div>
 
             {/* 候选标签云 */}
@@ -934,29 +1024,97 @@ export function SupplierSelectionPage({
               ))}
             </div>
 
-            {/* 操作网格 */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <button onClick={() => { setNotifyTemplate({ title: '项目邀请通知', body: '' }); setNotifyPerSupplier(new Map()); setNotifyChannels(['in_app']); setNotifyActiveSupplier(''); setNotifyModal(true); }}
-                className="neu-opt flex items-center justify-center gap-2 py-3 text-sm font-semibold">
-                <Bell size={14} />通知候选供应商
-              </button>
-              {projectId && (
-                <button onClick={handleInvite} disabled={inviting} className="neu-opt flex items-center justify-center gap-2 py-3 text-sm font-semibold">
-                  <Send size={14} />{inviting ? '发送中…' : '发送项目邀请'}
+            <div className="wb-section-rule" />
+
+            {/* ═══ 逐供应商通知（去除模板，直接展示每家供应商的通知内容） ═══ */}
+            <div className="space-y-4">
+              {/* 渠道 + AI */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">通知渠道</span>
+                {[
+                  { key: 'in_app', label: '站内通知', icon: <MessageSquare size={12} /> },
+                  { key: 'sms', label: '短信通知', icon: <Bell size={12} /> },
+                ].map(ch => {
+                  const active = notifyChannels.includes(ch.key);
+                  return (
+                    <button key={ch.key}
+                      onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
+                      className={`neu-tab text-[11px] gap-1 ${active ? 'is-active' : ''}`}>
+                      {ch.icon}{ch.label}
+                    </button>
+                  );
+                })}
+                <span className="flex-1" />
+                <button onClick={handleNotifyAi} disabled={notifyAiLoading || shortlist.size === 0} className="neu-btn-xs gap-1">
+                  <Sparkles size={10} />{notifyAiLoading ? 'AI 生成中…' : 'AI 生成'}
                 </button>
-              )}
-              <button onClick={() => { setShareNote(''); setShareModal(true); }} className="neu-opt flex items-center justify-center gap-2 py-3 text-sm font-semibold">
-                <Share2 size={14} />分享给采购主管
-              </button>
-              <button onClick={() => setShowCompare(true)} disabled={shortlist.size < 2} className="neu-opt flex items-center justify-center gap-2 py-3 text-sm font-semibold">
-                <Columns3 size={14} />横向对比
-              </button>
-              <button onClick={() => exportShortlistToExcel([...shortlist.values()], selectedProject?.name)} className="neu-opt flex items-center justify-center gap-2 py-3 text-sm font-semibold">
-                <FileSpreadsheet size={14} />导出 Excel
-              </button>
-              <button onClick={copyList} className="neu-opt flex items-center justify-center gap-2 py-3 text-sm font-semibold">
-                <Copy size={14} />复制名单
-              </button>
+                <button onClick={() => setNotifyPerSupplier(new Map())} disabled={notifyPerSupplier.size === 0} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">
+                  <X size={10} />清空
+                </button>
+              </div>
+
+              {/* 逐供应商通知：紧凑列表 + 点击查看展开编辑 */}
+              <div className="space-y-2">
+                {/* ── 供应商行（紧凑） ── */}
+                {[...shortlist.entries()].map(([sid, { item: r }], idx) => {
+                  const msg = getSupplierMessage(sid);
+                  const hasContent = notifyPerSupplier.has(sid);
+                  const isExpanded = notifyActiveSupplier === sid;
+                  return (
+                    <div key={sid}>
+                      <div className={`rounded-[14px] px-3 py-2 flex items-center gap-2.5 transition-all ${hasContent ? '' : 'opacity-50'} ${isExpanded ? 'rounded-b-none' : ''}`}
+                        style={{ background: isExpanded ? 'oklch(1 0 0 / 0.7)' : 'oklch(1 0 0 / 0.48)', boxShadow: `inset 0 1px 0 oklch(1 0 0 / ${hasContent ? '0.7' : '0.5'}), 1px 1px 3px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.7)` }}>
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] text-[9px] font-extrabold text-white tabular-nums"
+                          style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{idx + 1}</span>
+                        <span className="text-[11px] font-bold text-[var(--foreground)] truncate flex-1 min-w-0">{r.name}</span>
+                        <span className="text-[10px] tabular-nums font-semibold shrink-0" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</span>
+                        <button
+                          onClick={() => {
+                            if (!hasContent) {
+                              // 首次点击：自动生成默认内容
+                              setNotifyPerSupplier(prev => {
+                                const n = new Map(prev);
+                                n.set(sid, {
+                                  title: notifyTemplate.title || `「${project?.title || '采购项目'}」候选供应商通知`,
+                                  body: `${r.name} 您好！\n\n您已被纳入「${project?.title || '采购项目'}」候选供应商名单，请关注后续正式采购邀请。如有疑问请与四川水发集团采购中心联系。\n\n四川水发集团\n${new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+                                });
+                                return new Map(n);
+                              });
+                            }
+                            setNotifyActiveSupplier(prev => prev === sid ? '' : sid);
+                          }}
+                          className={`neu-btn-xs shrink-0 ${hasContent ? 'is-success' : ''}`}>
+                          {hasContent ? <><Check size={10} />{isExpanded ? '收起' : '查看'}</> : '编辑'}
+                        </button>
+                      </div>
+                      {/* 展开编辑区（有内容且当前选中） */}
+                      {hasContent && isExpanded && (
+                        <div className="rounded-b-[14px] p-4 space-y-3 border-t" style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 3px 6px oklch(0.55 0.03 258 / 0.06), -1px -1px 3px oklch(1 0 0 / 0.75)', borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
+                          <input value={msg.title}
+                            onChange={e => setNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg, title: e.target.value }); return n; })}
+                            placeholder="通知标题"
+                            className="workbench-input w-full text-xs !h-8" />
+                          <textarea value={msg.body}
+                            onChange={e => setNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg, body: e.target.value }); return n; })}
+                            rows={10} className="neu-input w-full resize-y text-xs leading-relaxed !min-h-[200px]" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 发送操作栏 */}
+              <div className="flex items-center justify-between pt-1">
+                {projectId ? (
+                  <button onClick={handleInvite} disabled={inviting} className="neu-btn-soft text-sm gap-1.5">
+                    <Send size={14} />{inviting ? '发送中…' : '发送项目邀请'}
+                  </button>
+                ) : <div />}
+                <button onClick={handleNotify} disabled={notifySending || notifyPerSupplier.size === 0} className="neu-btn-primary !h-9 !text-xs gap-2">
+                  <Bell size={13} />{notifySending ? '发送中…' : `一键通知 ${notifyPerSupplier.size} 家供应商`}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1069,6 +1227,91 @@ export function SupplierSelectionPage({
         </div>
       )}
 
+      {/* ═══ 供应商详情弹窗 ═══ */}
+      {detailSupplier && (
+        <div className="fixed inset-0 z-[750] flex items-center justify-center" onClick={() => setDetailSupplier(null)}>
+          <div className="absolute inset-0" style={{ background: 'oklch(0.1 0.02 258 / 0.45)', backdropFilter: 'blur(4px)' }} />
+          <div className="relative z-10 mx-4 w-full max-w-[520px] max-h-[85vh] overflow-y-auto rounded-[24px] p-6"
+            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.96), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 16px oklch(0.46 0.07 258 / 0.2), -3px -3px 10px oklch(1 0 0 / 0.92)' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]" style={{ background: 'color-mix(in oklch, var(--accent-soft) 45%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.1)' }}>
+                  <Building2 size={16} className="text-[var(--accent)]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-[var(--foreground)] truncate">{detailSupplier.name}</div>
+                  <div className="text-[10px] text-[var(--muted-foreground)] mt-0.5">供应商详情</div>
+                </div>
+              </div>
+              <button onClick={() => setDetailSupplier(null)} className="neu-btn-soft !p-2"><X size={16} /></button>
+            </div>
+
+            {detailLoading ? (
+              <div className="py-12 flex items-center justify-center"><RefreshCw size={22} className="animate-spin text-[var(--accent)]" /></div>
+            ) : detailData ? (
+              <div className="space-y-4">
+                {/* 基本信息 */}
+                <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                  <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">基本信息</h4>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
+                    {detailData.creditCode && <div><span className="text-[var(--muted-foreground)]">信用代码</span><p className="font-semibold text-[var(--foreground)]">{detailData.creditCode}</p></div>}
+                    {detailData.legalPerson && <div><span className="text-[var(--muted-foreground)]">法定代表人</span><p className="font-semibold text-[var(--foreground)]">{detailData.legalPerson}</p></div>}
+                    {detailData.enterpriseType && <div><span className="text-[var(--muted-foreground)]">企业类型</span><p className="font-semibold text-[var(--foreground)]">{normalizeEnterpriseType(detailData.enterpriseType)}</p></div>}
+                    {detailData.registeredCapital && <div><span className="text-[var(--muted-foreground)]">注册资本</span><p className="font-semibold text-[var(--foreground)]">{detailData.registeredCapital}</p></div>}
+                    {detailData.establishedDate && <div><span className="text-[var(--muted-foreground)]">成立日期</span><p className="font-semibold text-[var(--foreground)]">{detailData.establishedDate.slice(0, 10)}</p></div>}
+                  </div>
+                  {detailData.businessScope && (
+                    <div>
+                      <span className="text-[var(--muted-foreground)] text-[10px]">经营范围</span>
+                      <p className="text-[11px] leading-relaxed text-[var(--foreground)] mt-0.5">{detailData.businessScope.slice(0, 200)}{detailData.businessScope.length > 200 ? '…' : ''}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 联系人 */}
+                {(detailData.contacts?.length > 0 || detailData.address || detailData.phone || detailData.email) && (
+                  <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                    <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">联系信息</h4>
+                    <div className="space-y-1.5 text-[11px]">
+                      {detailData.address && <div className="flex items-start gap-2"><MapPin size={12} className="text-[var(--muted-foreground)] mt-0.5 shrink-0" /><span className="text-[var(--foreground)]">{detailData.address}</span></div>}
+                      {detailData.phone && <div className="flex items-center gap-2"><Phone size={12} className="text-[var(--muted-foreground)] shrink-0" /><span className="text-[var(--foreground)]">{detailData.phone}</span></div>}
+                      {detailData.email && <div className="flex items-center gap-2"><Mail size={12} className="text-[var(--muted-foreground)] shrink-0" /><span className="text-[var(--foreground)]">{detailData.email}</span></div>}
+                      {detailData.contacts?.map((c: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2"><User size={12} className="text-[var(--muted-foreground)] shrink-0" /><span className="text-[var(--foreground)]">{c.name}{c.phone ? ` · ${c.phone}` : ''}{c.isPrimary ? <span className="ml-1 text-[10px] font-bold text-[var(--accent)]">主联系人</span> : ''}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 分类 / 评价 */}
+                {(detailData.classification || detailData.completeness !== undefined) && (
+                  <div className="rounded-[16px] p-4 space-y-2.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                    <h4 className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">资质概览</h4>
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      {detailData.classification?.name && <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 font-semibold text-[var(--accent-strong)]" style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}>{detailData.classification.name}</span>}
+                      {detailData.completeness !== undefined && <span className="inline-flex items-center rounded-[6px] px-2.5 py-1 font-semibold text-[var(--muted-foreground)]" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 8%, transparent)' }}>资料完整度 {detailData.completeness}%</span>}
+                    </div>
+                    {detailData.qualifications?.length > 0 && (
+                      <div className="space-y-1 mt-2">
+                        {detailData.qualifications.slice(0, 5).map((q: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between text-[10px] text-[var(--muted-foreground)]">
+                            <span>{q.name || q.fileName}</span>
+                            <span>{q.expiryDate ? `有效期至 ${q.expiryDate.slice(0, 10)}` : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-[var(--muted-foreground)]">无法加载供应商详情</div>
+            )}
+          </div>
+        </div>
+      )}
+
       <SelectionHistoryDialog
         isOpen={showHistory}
         onApply={handleApplyHistory}
@@ -1115,128 +1358,6 @@ export function SupplierSelectionPage({
         </Modal>
       )}
 
-      {/* ══════ 通知供应商弹窗 ══════ */}
-      {notifyModal && (
-        <Modal
-          open
-          onClose={() => setNotifyModal(false)}
-          title="通知候选供应商"
-          description={`模板中 {供应商名称} 将自动替换。点击供应商名称可单独调整其通知内容`}
-          size="lg"
-          footer={
-            <>
-              <button onClick={() => setNotifyModal(false)} className="neu-btn-soft">取消</button>
-              <button onClick={handleNotify} disabled={notifySending || !notifyTemplate.title.trim()} className="neu-btn-primary">
-                {notifySending ? `发送中...` : `一键通知 ${shortlist.size} 家供应商`}
-              </button>
-            </>
-          }
-        >
-          {/* 渠道 + AI */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">渠道</span>
-              {[
-                { key: 'in_app', label: '站内通知', icon: <MessageSquare size={12} /> },
-                { key: 'sms', label: '短信通知', icon: <Bell size={12} /> },
-              ].map(ch => {
-                const active = notifyChannels.includes(ch.key);
-                return (
-                  <button
-                    key={ch.key}
-                    onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
-                    className={`neu-tab text-[11px] gap-1 ${active ? 'is-active' : ''}`}
-                  >
-                    {ch.icon}{ch.label}
-                  </button>
-                );
-              })}
-            </div>
-            <button onClick={handleNotifyAi} disabled={notifyAiLoading || shortlist.size === 0} className="neu-btn-xs gap-1">
-              <Sparkles size={10} />
-              {notifyAiLoading ? 'AI 生成中...' : 'AI 生成'}
-            </button>
-          </div>
-
-          {/* 模板编辑 */}
-          <div className="rounded-xl p-3 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-            <p className="text-[10px] font-semibold text-[var(--muted-foreground)] mb-1.5">通知模板（{`{供应商名称}`} 自动替换）</p>
-            <input
-              value={notifyTemplate.title}
-              onChange={e => setNotifyTemplate(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="通知标题"
-              className="neu-input text-sm mb-2"
-            />
-            <textarea
-              value={notifyTemplate.body}
-              onChange={e => setNotifyTemplate(prev => ({ ...prev, body: e.target.value }))}
-              placeholder={`{供应商名称} 您好！\n\n您已被纳入项目候选名单，请关注后续正式采购邀请。`}
-              className="neu-input w-full h-24 resize-none text-xs"
-            />
-          </div>
-
-          {/* 逐供应商标签 + 展开详情 */}
-          <div className="rounded-xl p-3 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {[...shortlist.values()].map(({ item: r }) => (
-                <button
-                  key={r.supplierId}
-                  onClick={() => setNotifyActiveSupplier(prev => prev === r.supplierId ? '' : r.supplierId)}
-                  className={`neu-tab text-[11px] !px-2.5 !py-1.5 gap-1 ${notifyActiveSupplier === r.supplierId ? 'is-active' : ''} ${notifyPerSupplier.has(r.supplierId) ? 'ring-1 ring-[var(--accent)]/30' : ''}`}
-                >
-                  {r.name}{notifyPerSupplier.has(r.supplierId) ? <span className="text-[var(--accent)] text-[9px]">⚙</span> : ''}
-                </button>
-              ))}
-            </div>
-
-            {/* 展开的供应商详情 + 可编辑通知 */}
-            {notifyActiveSupplier && (() => {
-              const supplier = [...shortlist.values()].find(v => v.item.supplierId === notifyActiveSupplier);
-              if (!supplier) return null;
-              const msg = getSupplierMessage(notifyActiveSupplier);
-              const r = supplier.item;
-              return (
-                <div className="rounded-lg bg-[var(--background)]/60 p-3 text-xs space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[var(--foreground)]">{r.name}</span>
-                    <span className="text-[var(--muted-foreground)]/60">匹配 {r.matchScore} 分</span>
-                    <span className="text-[var(--muted-foreground)]/60">·</span>
-                    <span className="text-[var(--muted-foreground)]/60">{r.classification || '未分类'}</span>
-                    {notifyPerSupplier.has(r.supplierId) && (
-                      <button
-                        onClick={() => setNotifyPerSupplier(prev => { const n = new Map(prev); n.delete(r.supplierId); return new Map(n); })}
-                        className="ml-auto neu-btn-xs text-[10px]"
-                      >
-                        恢复为模板
-                      </button>
-                    )}
-                  </div>
-                  <input
-                    value={msg.title}
-                    onChange={e => setNotifyPerSupplier(prev => {
-                      const n = new Map(prev);
-                      n.set(r.supplierId, { ...msg, title: e.target.value });
-                      return n;
-                    })}
-                    placeholder="通知标题"
-                    className="neu-input text-xs !h-8"
-                  />
-                  <textarea
-                    value={msg.body}
-                    onChange={e => setNotifyPerSupplier(prev => {
-                      const n = new Map(prev);
-                      n.set(r.supplierId, { ...msg, body: e.target.value });
-                      return n;
-                    })}
-                    placeholder="通知正文"
-                    className="neu-input w-full h-20 resize-none text-xs"
-                  />
-                </div>
-              );
-            })()}
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

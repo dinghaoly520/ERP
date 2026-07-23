@@ -255,10 +255,12 @@ async function handleSubmit() {
 
           <!-- Footer -->
           <div class="app-dlg-foot">
-            <button type="button" class="neu-btn-soft" @click="handleBeforeClose(() => visible = false)">取消</button>
-            <button type="button" class="neu-btn-primary" :disabled="submitting" @click="handleSubmit">
-              {{ submitting ? '提交中...' : (mode === 'edit' ? '重新提交' : '提交申请') }}
-            </button>
+            <div class="neu-btn-group">
+              <button type="button" class="neu-btn-soft" @click="handleBeforeClose(() => visible = false)">取消</button>
+              <button type="button" class="neu-btn-primary" :disabled="submitting" @click="handleSubmit">
+                {{ submitting ? '提交中...' : (mode === 'edit' ? '重新提交' : '提交申请') }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -267,23 +269,21 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-/* ═══════════ Overlay — soft scrim (floating overlays keep the drop shadow, no pastel drift) ═══════════ */
+/* ═══════════ Overlay — no glass blur, just scrim ═══════════ */
 .app-dlg-overlay {
   position: fixed; inset: 0; z-index: 2100;
   display: flex; align-items: center; justify-content: center;
-  background: oklch(0.3 0.05 258 / 0.18);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  background: oklch(0.35 0.06 258 / 0.28);
 }
 
-/* ═══════════ Panel — cgzxui modal plate (borderless, directional shadow) ═══════════ */
+/* ═══════════ Panel — cgzxui neumorphic plate ═══════════ */
 .app-dlg-panel {
   position: relative;
   width: 540px; max-width: calc(100vw - 48px); max-height: calc(100vh - 64px);
   display: flex; flex-direction: column;
-  background: var(--bg);
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
   border: none; border-radius: 20px;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 0 20px 60px oklch(0.3 0.05 258 / 0.18);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18);
   overflow: hidden;
 }
 
@@ -291,8 +291,8 @@ async function handleSubmit() {
 .app-dlg-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 24px 14px;
-  background: oklch(1 0 0 / 0.3);
   border-bottom: 1px solid var(--hairline);
+  background: oklch(1 0 0 / 0.25);
 }
 .app-dlg-title {
   margin: 0; font-size: 17px; font-weight: 900; color: var(--foreground); letter-spacing: -0.01em;
@@ -318,10 +318,10 @@ async function handleSubmit() {
 /* ── Item badge — concave plate ── */
 .app-dlg-item-badge {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  padding: 12px 16px; margin-bottom: 18px;
-  background: oklch(0.99 0.004 258); border: none; border-radius: 12px;
+  padding: 12px 16px; margin-bottom: 14px;
+  background: var(--surface); border: none; border-radius: 10px;
   font-size: 13px;
-  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.8);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.06), inset -1px -1px 3px oklch(1 0 0 / 0.6);
 }
 .app-dlg-item-code { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-weight: 800; color: var(--brand); font-size: 11px; }
 .app-dlg-item-sep  { color: var(--hairline); }
@@ -332,11 +332,11 @@ async function handleSubmit() {
 /* ── Countered warning ── */
 .app-dlg-countered {
   display: flex; align-items: center; gap: 8px;
-  margin-bottom: 18px; padding: 10px 14px;
-  background: color-mix(in oklab, var(--warning) 10%, transparent);
-  border: none; border-radius: 10px;
+  margin-bottom: 14px; padding: 10px 14px;
+  background: color-mix(in oklab, var(--warning) 8%, transparent);
+  border-radius: 10px;
   font-size: 13px; color: var(--foreground);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.4), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.04), inset -1px -1px 3px oklch(1 0 0 / 0.5);
 }
 .app-dlg-countered .el-icon { color: var(--warning); flex-shrink: 0; }
 .app-dlg-countered strong { color: var(--danger); font-size: 15px; font-variant-numeric: tabular-nums; }
@@ -399,22 +399,30 @@ async function handleSubmit() {
 }
 .app-dlg-price-input .app-dlg-input:focus { box-shadow: none; }
 
-/* ── Select wrappers (el-input wells already styled by cgzxui global layer) ── */
+/* ── Select wrappers — override el-select to match cgzxui concave input wells ── */
 .app-dlg-select-wrap :deep(.el-select) { width: 100%; }
+.app-dlg-select-wrap :deep(.el-input__wrapper) {
+  height: 40px; background: oklch(0.99 0.004 258) !important;
+  border: 1px solid oklch(0.78 0.03 258 / 0.4) !important; border-radius: 10px !important;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7) !important;
+}
+.app-dlg-select-wrap :deep(.el-select .el-input.is-focus .el-input__wrapper) {
+  border-color: oklch(0.5 0.16 258 / 0.5) !important;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08) !important;
+}
 
 /* ── Checkboxes ── */
 .app-dlg-checks { display: flex; align-items: center; gap: 16px; height: 40px; }
 .app-dlg-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--foreground); cursor: pointer; }
 .app-dlg-check input[type="checkbox"] { accent-color: var(--brand); width: 16px; height: 16px; cursor: pointer; }
 
-/* ═══════════ Footer — buttons come from cgzxui .neu-btn-soft / .neu-btn-primary ═══════════ */
+/* ═══════════ Footer ═══════════ */
 .app-dlg-foot {
-  display: flex; justify-content: flex-end; gap: 10px;
+  display: flex; justify-content: flex-end;
   padding: 14px 24px 18px;
   background: oklch(1 0 0 / 0.3);
   border-top: 1px solid var(--hairline);
 }
-.app-dlg-foot .neu-btn-primary { height: 40px; padding: 0 22px; }
 
 /* ═══════════ Transition ═══════════ */
 .app-dlg-enter-active { transition: opacity 0.2s ease; }
@@ -427,8 +435,8 @@ async function handleSubmit() {
 .app-dlg-leave-to .app-dlg-panel { transform: scale(0.97); opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-dlg-close { transition: none; }
+  .app-dlg-close, .app-dlg-input, .app-dlg-price-input { transition: none !important; }
   .app-dlg-enter-active, .app-dlg-enter-active .app-dlg-panel,
-  .app-dlg-leave-active, .app-dlg-leave-active .app-dlg-panel { transition: none; }
+  .app-dlg-leave-active, .app-dlg-leave-active .app-dlg-panel { transition: none !important; }
 }
 </style>

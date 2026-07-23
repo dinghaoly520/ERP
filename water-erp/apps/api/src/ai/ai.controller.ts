@@ -121,7 +121,12 @@ export class AiController {
   @ApiOperation({ summary: 'AI生成供应商通知文案' })
   @Roles('admin', 'bid_expert', 'leader', 'staff')
   async generateNotificationContent(
-    @Body() payload: { projectName?: string; projectCode?: string; supplierNames: string[] },
+    @Body() payload: {
+      projectName?: string; projectCode?: string; supplierNames: string[];
+      procurementMethod?: string; procurementCategory?: string;
+      budgetAmount?: string; requesterDepartment?: string;
+      projectReason?: string; fileAnalysisContext?: string;
+    },
   ) {
     return this.aiService.generateNotificationContent(payload);
   }

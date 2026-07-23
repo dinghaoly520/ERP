@@ -51,7 +51,7 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
       <template v-if="isBidNotice"><el-divider /><div class="bid-doc-section" v-loading="bidDocLoading">
         <template v-if="bidDoc">
           <div class="bid-doc-head"><el-icon class="bid-doc-lock"><Lock /></el-icon><strong>招标文件</strong><span class="bid-doc-title">{{ bidDoc.title }}</span><el-tag v-if="bidDoc.requirePayment" type="warning" size="small">付费 ¥{{ bidDoc.price }}</el-tag><el-tag v-else type="success" size="small">免费</el-tag></div>
-          <p class="bid-doc-hint">{{ scopeHint(bidDoc.accessScope) }} · 已下载 {{ bidDoc.downloadCount }} 次</p>
+          <p class="bid-doc-hint">{{ scopeHint(bidDoc.accessScope) }}</p>
           <div class="bid-doc-actions">
             <el-alert v-if="!bidDoc.eligible" :title="'无法下载：'+bidDoc.reason" type="error" :closable="false" show-icon />
             <template v-else>

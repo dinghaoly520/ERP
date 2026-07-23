@@ -31,12 +31,12 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
     <template v-else>
     <SpPageHero :icon="Megaphone" title="公告公示" sub="集中查看招标公告、中标公示、政策法规和平台通知。" />
 
-    <div class="neu-card ann-filter">
-      <el-input v-model="search" placeholder="搜索公告标题" prefix-icon="Search" clearable size="default" style="width:280px" @keyup.enter="handleSearch" @clear="handleSearch" />
-      <div class="neu-tab-bar ann-tabs">
-        <button v-for="t in typeOptions" :key="t.value" class="neu-tab" :class="{ active: activeType===t.value }" @click="activeType=t.value;handleSearch()">{{ t.label }}</button>
+      <div class="neu-card ann-filter">
+        <div class="neu-tab-bar ann-tabs">
+          <button v-for="t in typeOptions" :key="t.value" class="neu-tab" :class="{ active: activeType===t.value }" @click="activeType=t.value;handleSearch()">{{ t.label }}</button>
+        </div>
+        <el-input v-model="search" placeholder="搜索公告标题" prefix-icon="Search" clearable size="default" style="width:280px;flex-shrink:0" @keyup.enter="handleSearch" @clear="handleSearch" />
       </div>
-    </div>
 
     <div v-if="store.announcements.length>0" class="announcement-list">
       <div v-for="a in store.announcements" :key="a.id" class="announcement-row" @click="router.push(`/announcements/${a.id}`)">
@@ -53,8 +53,10 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 
 <style scoped>
 /* Filter plate — neumorphic; layout only (visuals from cgzxui .neu-card / .neu-tab*) */
-.ann-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; margin: 16px 0; }
-.ann-tabs { overflow-x: auto; }
+.ann-filter { display: flex; flex-direction: row; align-items: center; gap: 16px; padding: 10px 16px; margin: 16px 0; }
+.ann-filter :deep(.el-input) { flex-shrink: 0; }
+.ann-tabs { display: flex; flex-shrink: 0; gap: 4px; }
+.ann-tabs .neu-tab { padding: 6px 12px; font-size: 12px; }
 .ann-tabs .neu-tab.active {
   color: var(--brand); background: var(--surface);
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.7);
