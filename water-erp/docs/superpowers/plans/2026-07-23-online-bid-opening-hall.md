@@ -1920,6 +1920,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
+import { bidApi } from '@/api/bid'
 import { openingHallApi } from '@/api/openingHall'
 import { useBidWebSocket } from '@/composables/useBidWebSocket'
 import ChatPanel from '@/components/bid/ChatPanel.vue'
@@ -1939,7 +1940,7 @@ const supplierName = ref('')
 
 async function refresh() {
   const [p, r] = await Promise.all([
-    supplierApi.getProject(projectId),
+    bidApi.getProject(projectId),
     supplierApi.getOpeningRecord(projectId).catch(() => ({ data: null })),
   ])
   project.value = p.data
