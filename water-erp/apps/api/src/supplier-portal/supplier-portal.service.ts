@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, ConflictException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
@@ -12,6 +12,7 @@ import { wrapKey } from '../common/crypto/envelope-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
+import { BidGateway } from '../bid/bid.gateway';
 import * as crypto from 'crypto';
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
@@ -58,6 +59,7 @@ export class SupplierPortalService {
     private bidDocumentService: BidDocumentService,
     private signatureService: SignatureService,
     private bidBackup: BidBackupService,
+    @Optional() private readonly gateway?: BidGateway,
   ) {}
 
   /**
@@ -848,6 +850,9 @@ export class SupplierPortalService {
         },
       });
     });
+    this.gateway?.notifyOpeningConfirmed(projectId, supplierId, {
+      projectId, supplierId, supplierName: bidSupplier.supplierName, timestamp: Date.now(),
+    });
     return { success: true };
   }
 
@@ -877,6 +882,9 @@ export class SupplierPortalService {
           action: '提出开标异议', result: reason, riskFlag: '中风险',
         },
       });
+    });
+    this.gateway?.notifyOpeningDisputed(projectId, supplierId, {
+      projectId, supplierId, supplierName: bidSupplier.supplierName, reason, timestamp: Date.now(),
     });
     return { success: true };
   }

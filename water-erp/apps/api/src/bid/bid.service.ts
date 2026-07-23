@@ -1073,6 +1073,18 @@ export class BidService {
     });
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: dto.result, riskFlag: '中风险' });
+    if (record.bidSupplierId) {
+      const bs = await this.prisma.bidSupplier.findUnique({
+        where: { id: record.bidSupplierId },
+        select: { supplierId: true },
+      });
+      if (bs?.supplierId) {
+        this.gateway?.notifyOpeningDisputeResolved(projectId, bs.supplierId, {
+          projectId, supplierId: bs.supplierId, supplierName: record.supplierName,
+          recordId, confirm: dto.confirm, result: dto.result, timestamp: Date.now(),
+        });
+      }
+    }
     return this.prisma.bidOpeningRecord.findUnique({ where: { id: recordId } });
   }
 
