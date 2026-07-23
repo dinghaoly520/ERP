@@ -1,6 +1,9 @@
 'use client';
 
-import { ShieldCheck, Edit3, FileCheck, Radio, Users, WifiOff } from 'lucide-react';
+import {
+  ShieldCheck, Edit3, FileCheck, Radio, Users, WifiOff,
+  Unlock, RefreshCw, CheckCircle, MessageSquare,
+} from 'lucide-react';
 import type { ConnectionState, ExpertPresenceAggregatePayload } from '@water-erp/shared';
 
 interface Props {
@@ -11,12 +14,22 @@ interface Props {
   events: { time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[];
 }
 
-const eventIcons: Record<string, string> = { decrypt: '🔓', stage: '🔄', signin: '✅', avoid: '🛡️', score: '📝', report: '📋', clarify: '💬' };
+type EventIcon = 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify';
+
+const eventIcons: Record<EventIcon, React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>> = {
+  decrypt: Unlock,
+  stage: RefreshCw,
+  signin: CheckCircle,
+  avoid: ShieldCheck,
+  score: Edit3,
+  report: FileCheck,
+  clarify: MessageSquare,
+};
 
 export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregate, events }: Props) {
-  const dot =
-    connection === 'connected' ? 'bg-[#11a874]' :
-    connection === 'reconnecting' ? 'bg-[#f5a623] animate-pulse' : 'bg-[#e74c3c]';
+  const pillColor =
+    connection === 'connected' ? 'var(--success)' :
+    connection === 'reconnecting' ? 'var(--warning)' : 'var(--danger)';
 
   const label =
     connection === 'connected' ? '实时连接' :
@@ -31,76 +44,76 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
 
   return (
     <div className="space-y-3 text-xs">
-      {/* Connection pill — matching bid-portal ConnectionIndicator style */}
+      {/* 连接状态 pill */}
       <div className="flex items-center gap-3">
         {connection === 'disconnected' ? (
-          <button onClick={onReconnect} title={tooltip}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#e74c3c] bg-[#fef2f2] px-2.5 py-1 text-[11px] font-bold text-[#e74c3c] hover:bg-red-100 transition"
-          >
-            <WifiOff size={11} /> {label}
+          <button onClick={onReconnect} title={tooltip} className="exp-pill !gap-1.5 !px-3 !py-1 !text-[11px]"
+            style={{ '--c': 'var(--danger)' } as React.CSSProperties}>
+            <WifiOff size={11} strokeWidth={1.8} /> {label}
           </button>
         ) : (
-          <span title={tooltip}
-            className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/50 px-2.5 py-1 text-[11px] font-bold text-[#5a6d8a] backdrop-blur-sm"
-          >
-            <span className={`h-2 w-2 rounded-full ${dot}`} />
+          <span title={tooltip} className="exp-pill !gap-1.5 !px-3 !py-1 !text-[11px]"
+            style={{ '--c': pillColor } as React.CSSProperties}>
+            <span className={`exp-pill-dot ${connection === 'reconnecting' ? 'animate-pulse' : ''}`} />
             {label}
           </span>
         )}
         {lastEventAt && (
-          <span className="text-[10px] text-[#9aa9bb]">{new Date(lastEventAt).toLocaleTimeString('zh-CN')}</span>
+          <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">{new Date(lastEventAt).toLocaleTimeString('zh-CN')}</span>
         )}
       </div>
 
-      {/* Aggregate presence bar — milestones only, no scores */}
+      {/* 专家组在席汇总 — 仅里程碑，不含分数 */}
       {aggregate && (
-        <div className="bg-[#f7f9fc] rounded-lg p-3 space-y-1.5">
+        <div className="neu-card-static !rounded-[14px] space-y-1.5 p-3">
           <div className="flex items-center gap-2">
-            <Users size={12} strokeWidth={1.5} className="text-[#5a6d8a]" />
-            <span className="font-semibold text-[#1a2332]">专家组进度</span>
+            <Users size={12} strokeWidth={1.5} className="text-[var(--muted-foreground)]" />
+            <span className="font-semibold text-[var(--foreground)]">专家组进度</span>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="flex items-center gap-1">
-              <ShieldCheck size={10} className="text-[#11a874]" />
+              <ShieldCheck size={10} className="text-[var(--success)]" />
               <strong className="tabular-nums">{aggregate.signedInCount}/{aggregate.totalExperts}</strong>
-              <span className="text-[#7b8da0]">已签到</span>
+              <span className="text-[var(--muted-foreground)]">已签到</span>
             </span>
             <span className="flex items-center gap-1">
-              <Edit3 size={10} className="text-[#f5a623]" />
+              <Edit3 size={10} className="text-[var(--warning)]" />
               <strong className="tabular-nums">{aggregate.averageProgressPercent}%</strong>
-              <span className="text-[#7b8da0]">平均进度</span>
+              <span className="text-[var(--muted-foreground)]">平均进度</span>
             </span>
             <span className="flex items-center gap-1">
-              <FileCheck size={10} className="text-[#11a874]" />
+              <FileCheck size={10} className="text-[var(--success)]" />
               <strong className="tabular-nums">{aggregate.reportConfirmedCount}/{aggregate.totalExperts}</strong>
-              <span className="text-[#7b8da0]">报告确认</span>
+              <span className="text-[var(--muted-foreground)]">报告确认</span>
             </span>
           </div>
-          {/* Progress bar */}
-          <div className="h-1.5 bg-[#e8eef5] rounded-full overflow-hidden"
+          {/* 进度条 */}
+          <div className="exp-bar"
             role="progressbar" aria-valuenow={aggregate.averageProgressPercent} aria-valuemin={0} aria-valuemax={100}
             aria-label={`评审总进度 ${aggregate.averageProgressPercent}%`}>
-            <div className="h-full bg-[#0b63ce] rounded-full transition-all duration-700"
-              style={{ width: `${aggregate.averageProgressPercent}%` }} />
+            <i style={{ width: `${aggregate.averageProgressPercent}%` } as React.CSSProperties} />
           </div>
         </div>
       )}
 
-      {/* Event stream — most recent 5, newest first */}
+      {/* 事件流 — 最近 5 条，新→旧 */}
       {events.length > 0 && (
         <div className="space-y-1">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#7b8da0] uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
             <Radio size={10} /> 最近事件
           </div>
-          {events.slice(0, 5).map((e, i) => (
-            <div key={i} className="flex items-center gap-1.5 text-[11px] text-[#5a6d8a] pl-4">
-              <span className="text-[10px] tabular-nums text-[#9aa9bb] w-12">
-                {new Date(e.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              <span className="flex-shrink-0" aria-hidden="true">{eventIcons[e.icon]}</span>
-              <span className="truncate">{e.label}</span>
-            </div>
-          ))}
+          {events.slice(0, 5).map((e, i) => {
+            const Icon = eventIcons[e.icon] ?? RefreshCw;
+            return (
+              <div key={i} className="flex items-center gap-1.5 pl-4 text-[11px] text-[var(--muted-foreground)]">
+                <span className="w-12 shrink-0 text-[10px] tabular-nums text-[var(--muted-foreground)] opacity-70">
+                  {new Date(e.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <Icon size={11} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" aria-hidden="true" />
+                <span className="truncate">{e.label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -14,7 +14,7 @@ const TAG = { objectivePrice: '客观·公式', subjective: '主观·AI 建议',
 
 function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[oklch(0.94_0.004_264)] text-[oklch(0.45_0.01_264)]">
+    <span className="exp-pill" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>
       {children}
     </span>
   );
@@ -28,12 +28,12 @@ function ConfidenceWarnings({ items }: { items: AiScoreItem[] }) {
   return (
     <>
       {low.length > 0 && (
-        <Warn cls="amber">
+        <Warn>
           有 {low.length} 项评分置信度较低（&lt;60%），建议人工重点复核。
         </Warn>
       )}
       {unstable.length > 0 && (
-        <Warn cls="orange">
+        <Warn>
           有 {unstable.length} 项评分多次采样差异大（AI 把握度低），请重点复核。
         </Warn>
       )}
@@ -41,13 +41,9 @@ function ConfidenceWarnings({ items }: { items: AiScoreItem[] }) {
   );
 }
 
-function Warn({ cls, children }: { cls: 'amber' | 'orange'; children: React.ReactNode }) {
-  const c =
-    cls === 'amber'
-      ? 'border-amber-200 bg-amber-50 text-amber-700'
-      : 'border-orange-200 bg-orange-50 text-orange-700';
+function Warn({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`p-2.5 rounded-lg border ${c} text-[11px] flex items-start gap-1.5`}>
+    <div className="exp-alert exp-alert--warn flex items-start gap-1.5 !text-[11px]">
       <AlertCircle size={12} className="mt-px shrink-0" />
       {children}
     </div>
@@ -65,16 +61,16 @@ function ClauseEvidence({ resp }: { resp: AssistData['requirementResponses'] }) 
   if (!bad.length) return null;
   const shown = showAll ? bad : bad.slice(0, EVIDENCE_PREVIEW);
   return (
-    <div className="rounded-lg border border-[oklch(0.91_0.006_264)] bg-[oklch(0.985_0.002_264)] p-2.5">
-      <div className="text-[10px] font-semibold text-[oklch(0.45_0.01_264)] mb-1">条款响应佐证</div>
+    <div className="neu-card-static !rounded-[12px] p-2.5">
+      <div className="mb-1 text-[10px] font-semibold text-[var(--muted-foreground)]">条款响应佐证</div>
       {shown.map((r, i) => (
-        <div key={i} className="text-[11px] text-[oklch(0.35_0.01_264)] truncate" title={r.excerpt}>
+        <div key={i} className="truncate text-[11px] text-[var(--foreground)]" title={r.excerpt}>
           · {r.excerpt || r.requirementId}
           {r.location ? `（第${r.location.page}页）` : ''}
         </div>
       ))}
       {bad.length > EVIDENCE_PREVIEW && (
-        <button onClick={() => setShowAll(v => !v)} className="mt-1 text-[11px] text-[var(--color-primary)] hover:underline">
+        <button onClick={() => setShowAll(v => !v)} className="mt-1 text-[11px] text-[var(--accent-strong)] hover:underline">
           {showAll ? '收起' : `展开全部 ${bad.length} 项`}
         </button>
       )}
@@ -96,20 +92,20 @@ function ExpertComparisonTable({
   activeSupplier: string;
 }) {
   return (
-    <div className="glass-card rounded-xl p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Edit3 size={14} strokeWidth={1.5} className="text-[var(--color-primary)]" />
-        <h4 className="font-bold text-sm text-[var(--color-text)]">AI 建议 vs 您的评分</h4>
+    <div className="neu-card-static p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Edit3 size={14} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
+        <h4 className="text-sm font-bold text-[var(--foreground)]">AI 建议 vs 您的评分</h4>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-xs text-[var(--color-text-tertiary)] border-b border-[oklch(0.91_0.006_264)]">
-              <th className="text-left pb-2 font-medium">评分项</th>
-              <th className="text-right pb-2 font-medium">AI 建议</th>
-              <th className="text-right pb-2 font-medium">您的评分</th>
-              <th className="text-right pb-2 font-medium">偏差</th>
-              <th className="text-left pb-2 font-medium">理由对照</th>
+            <tr className="text-xs text-[var(--muted-foreground)] shadow-[inset_0_-1px_0_oklch(0.55_0.03_258/0.1)]">
+              <th className="pb-2 text-left font-medium">评分项</th>
+              <th className="pb-2 text-right font-medium">AI 建议</th>
+              <th className="pb-2 text-right font-medium">您的评分</th>
+              <th className="pb-2 text-right font-medium">偏差</th>
+              <th className="pb-2 text-left font-medium">理由对照</th>
             </tr>
           </thead>
           <tbody>
@@ -119,26 +115,26 @@ function ExpertComparisonTable({
               const aiScore = aiItem ? Number(aiItem.score) : null;
               const diff = aiScore != null ? Number(myScore.score) - aiScore : null;
               return (
-                <tr key={si.id} className="border-b border-[oklch(0.94_0.004_264)] last:border-0">
-                  <td className="py-2 text-[var(--color-text-secondary)]">{si.name}</td>
-                  <td className="py-2 text-right text-[var(--color-primary)] font-semibold">
+                <tr key={si.id} className="[&>td]:border-t [&>td]:border-[oklch(0.55_0.03_258/0.06)]">
+                  <td className="py-2 text-[var(--muted-foreground)]">{si.name}</td>
+                  <td className="py-2 text-right font-semibold text-[var(--accent-strong)]">
                     {aiScore != null ? aiScore.toFixed(1) : '—'}
                   </td>
-                  <td className="py-2 text-right font-bold text-[var(--color-text)]">
+                  <td className="py-2 text-right font-bold text-[var(--foreground)]">
                     {Number(myScore.score).toFixed(1)}
                   </td>
                   <td
                     className={`py-2 text-right text-xs font-semibold ${
                       diff != null && Math.abs(diff) >= 2
-                        ? 'text-[var(--color-danger)]'
+                        ? 'text-[var(--danger)]'
                         : diff != null && Math.abs(diff) >= 1
-                          ? 'text-[var(--color-warning)]'
-                          : 'text-[var(--color-success)]'
+                          ? 'text-[var(--warning)]'
+                          : 'text-[var(--success)]'
                     }`}
                   >
                     {diff != null ? (diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)) : '—'}
                   </td>
-                  <td className="py-2 text-[11px] text-[var(--color-text-tertiary)] max-w-[200px]">
+                  <td className="max-w-[200px] py-2 text-[11px] text-[var(--muted-foreground)]">
                     <div className="truncate" title={aiItem?.reason}>
                       AI：{aiItem?.reason ?? '—'}
                     </div>
@@ -152,7 +148,7 @@ function ExpertComparisonTable({
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-[var(--color-text-tertiary)] mt-2">
+      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
         偏差 ≥2 分标红，≥1 分标黄，建议复核相应评分依据。
       </p>
     </div>
@@ -166,16 +162,16 @@ function Summary({ assistData }: { assistData: AssistData }) {
   const s = (assistData.strengths as SwItem[] | null) ?? [];
   const w = (assistData.weaknesses as SwItem[] | null) ?? [];
   return (
-    <div className="glass-card rounded-xl p-4 space-y-3">
+    <div className="neu-card-static space-y-3 p-4">
       <Tag>{TAG.summary}</Tag>
       {obs.length > 0 && (
         <div>
-          <div className="flex items-center gap-1.5 mb-1.5 text-sm font-bold text-[var(--color-primary)]">
+          <div className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-[var(--accent-strong)]">
             <Lightbulb size={13} /> 关键观察
           </div>
           <ol className="space-y-1">
             {obs.map((o, i) => (
-              <li key={i} className="text-xs flex gap-1.5">
+              <li key={i} className="flex gap-1.5 text-xs">
                 <span className="font-bold">{i + 1}.</span>
                 {o}
               </li>
@@ -185,8 +181,8 @@ function Summary({ assistData }: { assistData: AssistData }) {
       )}
       {s.length > 0 && (
         <div>
-          <div className="flex items-center gap-1.5 mb-1 text-sm font-bold">
-            <TrendingUp size={13} className="text-emerald-500" />
+          <div className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+            <TrendingUp size={13} className="text-[var(--success)]" />
             正向依据（{s.length}）
           </div>
           <div className="space-y-1.5">
@@ -198,8 +194,8 @@ function Summary({ assistData }: { assistData: AssistData }) {
       )}
       {w.length > 0 && (
         <div>
-          <div className="flex items-center gap-1.5 mb-1 text-sm font-bold">
-            <AlertCircle size={13} className="text-amber-500" />
+          <div className="mb-1 flex items-center gap-1.5 text-sm font-bold">
+            <AlertCircle size={13} className="text-[var(--warning)]" />
             需关注事项（{w.length}）
           </div>
           <div className="space-y-1.5">
@@ -211,11 +207,11 @@ function Summary({ assistData }: { assistData: AssistData }) {
       )}
       {assistData.overallComment && (
         <div>
-          <div className="flex items-center gap-1.5 mb-1 text-sm font-bold">
+          <div className="mb-1 flex items-center gap-1.5 text-sm font-bold">
             <MessageSquare size={13} />
             AI 分析评语
           </div>
-          <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
+          <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
             {assistData.overallComment}
           </p>
         </div>
@@ -254,7 +250,7 @@ export function ScoringLayer({
 
       {/* ③a 客观·价格 */}
       {price.length > 0 && (
-        <div className="glass-card rounded-xl p-4">
+        <div className="neu-card-static p-4">
           <Tag>{TAG.objectivePrice}</Tag>
           <div className="mt-2">
             <ScoreBreakdownBars scoreItems={price} flat reasonLines={2} />
@@ -265,7 +261,7 @@ export function ScoringLayer({
 
       {/* ③b 主观·商务/技术（默认展开） */}
       {subjective.length > 0 && (
-        <div className="glass-card rounded-xl p-4 space-y-3">
+        <div className="neu-card-static space-y-3 p-4">
           <Tag>{TAG.subjective}</Tag>
           {/* 单项 confidence/unstable 警告（仅 BUSINESS+TECHNICAL，不含 PRICE） */}
           <ConfidenceWarnings items={subjective} />
@@ -278,7 +274,7 @@ export function ScoringLayer({
                 key={cat}
                 defaultOpen
                 title={CATEGORY_LABEL[cat] ?? cat}
-                accent={cat === 'BUSINESS' ? '#f5a623' : '#11a874'}
+                accent={cat === 'BUSINESS' ? 'var(--warning)' : 'var(--success)'}
                 summary={
                   <ScoreBreakdownBars scoreItems={sub} flat reasonLines={2} expandable />
                 }

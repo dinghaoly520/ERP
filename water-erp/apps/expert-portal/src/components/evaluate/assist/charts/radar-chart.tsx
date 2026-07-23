@@ -139,10 +139,10 @@ export function RadarChart({ axes, bidders, size = 380 }: RadarChartProps) {
           {bidders.map((b, i) => (
             <div key={i} className="flex items-center gap-2">
               <span
-                className="w-3.5 h-3.5 rounded-full shrink-0"
-                style={{ background: RADAR_COLORS[i % RADAR_COLORS.length] }}
+                className="exp-swatch"
+                style={{ '--c': RADAR_COLORS[i % RADAR_COLORS.length] } as React.CSSProperties}
               />
-              <span className="text-[var(--color-text-secondary)] truncate max-w-[140px]">
+              <span className="text-[var(--muted-foreground)] truncate max-w-[140px]">
                 {b.name}
               </span>
             </div>

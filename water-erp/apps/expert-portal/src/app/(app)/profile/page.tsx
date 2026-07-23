@@ -2,15 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, ClipboardList, CheckCircle, FileText, TrendingUp } from 'lucide-react';
+import { Pencil, ClipboardList, CheckCircle, FileText, TrendingUp, ScrollText, ChevronRight, UserCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { SectionCard, MetricCard } from '@water-erp/ui';
-import { STAGE_LABEL } from '@water-erp/shared';
+import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 
 interface ExpertProfile {
   id: string; username: string; displayName: string; email: string; role: string; isActive: boolean;
+  phone?: string;
   averageScore: number;
+  expertProfile?: {
+    specialty?: string; title?: string; employer?: string; phone?: string;
+    idNumber?: string; ethnicity?: string; education?: string; licenseNo?: string;
+    contactConfirmedAt?: string | null;
+  } | null;
   assignments: {
     id: string; expertName: string; major: string; signedIn: boolean; avoidanceConfirmed: boolean; progress: number; totalScore: number; createdAt: string;
     project: { id: string; projectCode: string; name: string; stage: string; openTime: string };
@@ -47,198 +52,229 @@ export default function ExpertProfilePage() {
     setSaving(false);
   };
 
-  if (loading) return <div className="py-20 text-center text-sm text-[#8a96aa]">加载中...</div>;
-  if (!profile) return <div className="py-20 text-center text-sm text-[#e74c3c]">未找到专家信息</div>;
+  const cancelEdit = () => {
+    setEditing(false);
+    if (profile) setForm({ displayName: profile.displayName, email: profile.email || '' });
+  };
+
+  if (loading) return <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">加载中...</div>;
+  if (!profile) return <div className="py-20 text-center text-sm text-[var(--danger)]">未找到专家信息</div>;
 
   const totalProjects = profile.assignments.length;
   const completedProjects = profile.assignments.filter(a => a.progress >= 100).length;
   const totalScoreRecords = profile.assignments.reduce((s, a) => s + a.scoreRecords.length, 0);
 
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-[1fr_380px] gap-6">
-        <div className="space-y-6">
-          {/* 资料卡片 */}
-          <SectionCard className="overflow-hidden p-0">
-            <div className="bg-[#064ea2]/80 backdrop-blur-md p-6 text-white">
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-2xl font-black">
-                  {profile.displayName?.[0] || '?'}
-                </div>
-                <div>
-                  <h2 className="text-xl font-black">{profile.displayName}</h2>
-                  <p className="text-white/70 text-sm mt-0.5">评审专家 · {profile.username}</p>
-                </div>
-              </div>
-            </div>
-            <div className="p-6">
-              {editing ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-[#18243a] mb-1.5">姓名</label>
-                    <input
-                      value={form.displayName}
-                      onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
-                      className="w-full rounded-xl border border-[#e5ecf4] px-4 py-2.5 text-sm focus:border-[#064ea2] focus:shadow-[0_0_0_3px_rgba(124,58,237,0.12)] outline-none transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#18243a] mb-1.5">邮箱</label>
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                      className="w-full rounded-xl border border-[#e5ecf4] px-4 py-2.5 text-sm focus:border-[#064ea2] focus:shadow-[0_0_0_3px_rgba(124,58,237,0.12)] outline-none transition"
-                    />
-                  </div>
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="rounded-xl bg-[#064ea2] px-5 py-2 text-sm font-bold text-white hover:bg-[#054280] transition disabled:opacity-50"
-                    >
-                      {saving ? '保存中...' : '保存'}
-                    </button>
-                    <button
-                      onClick={() => { setEditing(false); setForm({ displayName: profile.displayName, email: profile.email || '' }); }}
-                      className="rounded-xl border border-[#dce6f3] bg-white/60 px-5 py-2 text-sm font-bold text-[#5a6d8a] hover:bg-white/80 transition"
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-x-12 gap-y-4">
-                    {[
-                      ['用户名', profile.username],
-                      ['姓名', profile.displayName],
-                      ['邮箱', profile.email || '未设置'],
-                      ['角色', '评审专家'],
-                    ].map(([label, value]) => (
-                      <div key={label as string}>
-                        <p className="text-xs font-semibold text-[#5a6d8a] mb-1">{label}</p>
-                        <p className="text-sm font-bold text-[#18243a]">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => setEditing(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#bfdbfe] bg-[#eff6ff]/50 px-4 py-2 text-sm font-bold text-[#064ea2] hover:bg-[#eff6ff]/70 transition"
-                  >
-                    <Pencil size={14} strokeWidth={1.5} />
-                    编辑资料
-                  </button>
-                </div>
-              )}
-            </div>
-          </SectionCard>
+  const kpis = [
+    { label: '参与项目', value: totalProjects, sub: '累计分配评审项目', sig: 'var(--accent-strong)', sigLabel: '进行中', Icon: ClipboardList },
+    { label: '已完成', value: completedProjects, sub: '评审完成并归档', sig: 'var(--success)', sigLabel: '已完成', Icon: CheckCircle },
+    { label: '评分记录', value: totalScoreRecords, sub: '累计提交评分项', sig: 'var(--warning)', sigLabel: '累计', Icon: FileText },
+    { label: '平均给分', value: profile.averageScore ?? 0, sub: '历史评分均值', sig: 'var(--accent)', sigLabel: '均值', Icon: TrendingUp },
+  ];
 
-          {/* 统计卡片 */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <MetricCard
-              label="参与项目"
-              value={totalProjects}
-              tone="purple"
-              icon={<ClipboardList size={16} strokeWidth={1.5} />}
-            />
-            <MetricCard
-              label="已完成"
-              value={completedProjects}
-              tone="green"
-              icon={<CheckCircle size={16} strokeWidth={1.5} />}
-            />
-            <MetricCard
-              label="评分记录"
-              value={totalScoreRecords}
-              tone="orange"
-              icon={<FileText size={16} strokeWidth={1.5} />}
-            />
-            <MetricCard
-              label="平均给分"
-              value={profile.averageScore ?? 0}
-              tone="purple"
-              icon={<TrendingUp size={16} strokeWidth={1.5} />}
-            />
+  const infoFields: [string, string][] = [
+    ['姓名', profile.displayName],
+    ['用户名', profile.username],
+    ['手机', profile.expertProfile?.phone || profile.phone || '未设置'],
+    ['邮箱', profile.email || '未设置'],
+    ['专业', profile.expertProfile?.specialty || '未设置'],
+    ['职称', profile.expertProfile?.title || '未设置'],
+    ['工作单位', profile.expertProfile?.employer || '未设置'],
+    ['身份证号', profile.expertProfile?.idNumber || '未设置'],
+    ['角色', '评审专家'],
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* 页面标题卡片 + KPI 指标瓷片 */}
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon"><UserCircle size={18} strokeWidth={1.5} /></div>
+            <div>
+              <div className="page-hero__title">个人信息</div>
+              <div className="page-hero__sub">评审专家 · {profile.username} — 基本资料维护与评审记录总览</div>
+            </div>
+          </div>
+          <div className="page-hero__right">
+            {editing ? (
+              <>
+                <button onClick={cancelEdit} className="neu-btn-soft">取消</button>
+                <button onClick={handleSave} disabled={saving} className="neu-btn-primary">
+                  {saving ? '保存中...' : '保存'}
+                </button>
+              </>
+            ) : (
+              <button onClick={() => setEditing(true)} className="neu-btn-soft">
+                <Pencil size={14} strokeWidth={1.6} />
+                编辑资料
+              </button>
+            )}
           </div>
         </div>
 
-        {/* 右侧 — 评审记录 */}
-        <div className="space-y-4">
-          <SectionCard
-            title="评审记录"
-            action={
-              <button
-                onClick={() => router.push('/projects')}
-                className="text-xs font-bold text-[#064ea2] hover:text-[#054280] transition"
-              >
-                查看全部
-              </button>
-            }
-          >
-            {profile.assignments.length === 0 ? (
-              <div className="py-8 text-center">
-                <ClipboardList size={40} strokeWidth={1} className="text-[#cbd5e1] mx-auto mb-3" />
-                <p className="text-sm text-[#8a96aa]">暂无评审记录</p>
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-                {profile.assignments.map(a => (
-                  <div key={a.id}
-                    className="glass-card glass-card-lighter glass-card-purple rounded-xl p-4 hover:border-[#bfdbfe] transition cursor-pointer"
-                    onClick={() => router.push(`/evaluate/${a.project.id}`)}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-sm font-bold text-[#18243a] truncate flex-1 mr-2">{a.project.name}</h4>
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold flex-shrink-0 ${
-                        a.progress >= 100
-                          ? 'border border-[#bbf7d0] bg-[#f0fdf4] text-[#11a874]'
-                          : 'border border-[#bfdbfe] bg-white/60 text-[#064ea2]'
-                      }`}>
-                        {a.progress >= 100 ? '已完成' : STAGE_LABEL[a.project.stage] || a.project.stage}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-[#5a6d8a] mb-2">
-                      <span className="font-mono">{a.project.projectCode}</span>
-                      <span>评分 {a.scoreRecords.length} 项</span>
-                    </div>
-                    <div className="h-1.5 bg-white/25 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          a.progress >= 100
-                            ? 'bg-[#11a874]/60'
-                            : 'bg-[#064ea2]/60'
-                        }`}
-                        style={{ width: `${a.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SectionCard>
+        <div className="wb-section-rule" />
 
-          {/* 评审须知 */}
-          <SectionCard title="评审须知">
-            <ul className="space-y-2 text-sm text-[#5a6d8a]">
-              <li className="flex items-start gap-2">
-                <span className="text-[#064ea2] mt-0.5">•</span>
-                评审前需完成身份核验与回避确认
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {kpis.map(k => (
+            <div key={k.label} className="kpi-card flex flex-col gap-1.5 p-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
+                  <k.Icon size={13} strokeWidth={1.7} />
+                  {k.label}
+                </span>
+                <span className="kpi-signal text-[9px] font-bold" style={{ '--s': k.sig } as React.CSSProperties}>
+                  <span className="kpi-signal-dot" />
+                  {k.sigLabel}
+                </span>
+              </div>
+              <span className="text-[1.7rem] font-black leading-none tracking-[-0.04em] tabular-nums text-[var(--foreground)]">{k.value}</span>
+              <span className="text-[10px] font-medium text-[var(--muted-foreground)]">{k.sub}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* 资料卡片 */}
+        <div className="neu-card-static p-6">
+          <div className="mb-5 flex items-center gap-4">
+            <span className="exp-user-chip-avatar !h-16 !w-16 !rounded-2xl !text-2xl">
+              {profile.displayName?.[0] || '?'}
+            </span>
+            <div>
+              <h2 className="text-xl font-black tracking-tight text-[var(--foreground)]">{profile.displayName}</h2>
+              <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">评审专家 · {profile.username}</p>
+            </div>
+          </div>
+
+          <hr className="wb-section-rule mb-5" />
+
+          {editing ? (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-[var(--muted-foreground)]">姓名</label>
+                <input
+                  value={form.displayName}
+                  onChange={e => setForm(f => ({ ...f, displayName: e.target.value }))}
+                  className="neu-input"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-[var(--muted-foreground)]">邮箱</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  className="neu-input"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button onClick={handleSave} disabled={saving} className="neu-btn-primary !h-[38px]">
+                  {saving ? '保存中...' : '保存'}
+                </button>
+                <button onClick={cancelEdit} className="neu-btn-soft h-[38px]">取消</button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+              {infoFields.map(([label, value]) => (
+                <div key={label}>
+                  <p className="mb-1 text-xs font-semibold text-[var(--muted-foreground)]">{label}</p>
+                  <p className="text-sm font-bold text-[var(--foreground)]">{value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 评审须知 */}
+        <div className="neu-card-static h-fit p-5">
+          <h3 className="mb-2 flex items-center gap-2 text-[0.95rem] font-bold text-[var(--foreground)]">
+            <ScrollText size={16} strokeWidth={1.6} className="text-[var(--accent-strong)]" />
+            评审须知
+          </h3>
+          <ul className="space-y-0.5 text-sm text-[var(--muted-foreground)]">
+            {[
+              '评审前需完成身份核验与回避确认',
+              '独立评审，不得与其他专家商议',
+              '所有评分需给出客观理由',
+              '评审全程留痕，受监督审计',
+            ].map(t => (
+              <li key={t} className="exp-list-item">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-strong)]" />
+                <span>{t}</span>
               </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#064ea2] mt-0.5">•</span>
-                独立评审，不得与其他专家商议
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#064ea2] mt-0.5">•</span>
-                所有评分需给出客观理由
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#064ea2] mt-0.5">•</span>
-                评审全程留痕，受监督审计
-              </li>
-            </ul>
-          </SectionCard>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* 评审记录 */}
+      <div className="neu-table-card">
+        <div className="neu-table-card-header flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-[0.95rem] font-bold text-[var(--foreground)]">
+            <ClipboardList size={16} strokeWidth={1.6} className="text-[var(--accent-strong)]" />
+            评审记录
+          </h2>
+          <button onClick={() => router.push('/projects')} className="neu-btn-xs is-info">
+            查看全部 <ChevronRight size={13} strokeWidth={1.8} />
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="neu-table is-dense w-full min-w-[760px]">
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>角色 / 专业</th>
+                <th>阶段</th>
+                <th>评分</th>
+                <th>时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              {profile.assignments.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>
+                    <div className="py-10 text-center">
+                      <ClipboardList size={40} strokeWidth={1} className="mx-auto mb-3 text-[oklch(0.75_0.02_258)]" />
+                      <p className="text-sm text-[var(--muted-foreground)]">暂无评审记录</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                profile.assignments.map(a => {
+                  const done = a.progress >= 100;
+                  const sc = done ? 'var(--success)' : STAGE_COLOR[a.project.stage] || 'var(--muted-foreground)';
+                  return (
+                    <tr key={a.id} className="row-clickable" onClick={() => router.push(`/evaluate/${a.project.id}`)}>
+                      <td>
+                        <p className="max-w-[280px] truncate font-bold text-[var(--foreground)]">{a.project.name}</p>
+                        <p className="mt-0.5 font-mono text-xs text-[var(--muted-foreground)]">{a.project.projectCode}</p>
+                      </td>
+                      <td className="text-sm text-[var(--muted-foreground)]">评审专家 · {a.major || '综合评审'}</td>
+                      <td>
+                        <span className="exp-pill" style={{ '--c': sc } as React.CSSProperties}>
+                          {done ? '已完成' : STAGE_LABEL[a.project.stage] || a.project.stage}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold tabular-nums text-[var(--foreground)]">{a.scoreRecords.length} 项</span>
+                          <div className="exp-bar w-20">
+                            <i style={{ width: `${a.progress}%`, '--bar': sc } as React.CSSProperties} />
+                          </div>
+                          <span className="text-xs tabular-nums text-[var(--muted-foreground)]">{a.progress}%</span>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap text-sm tabular-nums text-[var(--muted-foreground)]">
+                        {new Date(a.createdAt).toLocaleDateString('zh-CN')}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

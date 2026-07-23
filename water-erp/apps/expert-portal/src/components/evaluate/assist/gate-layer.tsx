@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { ShieldCheck, ClipboardCheck, ShieldAlert, CheckCircle, XCircle, Star, ChevronDown } from 'lucide-react';
 import type { AssistData, RequirementResponse } from '@water-erp/shared';
 
-const RISK_BADGE: Record<string, { label: string; cls: string }> = {
-  high: { label: '高风险', cls: 'bg-red-100 text-red-700' },
-  medium: { label: '中风险', cls: 'bg-amber-100 text-amber-700' },
-  low: { label: '低风险', cls: 'bg-emerald-100 text-emerald-700' },
+const RISK_BADGE: Record<string, { label: string; c: string }> = {
+  high: { label: '高风险', c: 'var(--danger)' },
+  medium: { label: '中风险', c: 'var(--warning)' },
+  low: { label: '低风险', c: 'var(--success)' },
 };
 
 const UNMET_PREVIEW = 4;
@@ -37,19 +37,19 @@ export function GateLayer({ assistData }: { assistData: AssistData }) {
     : null;
 
   const bandCls = anyFail
-    ? 'bg-red-50/80 border-red-200 text-red-700'
-    : allOk ? 'bg-emerald-50/80 border-emerald-200 text-emerald-700' : 'bg-amber-50/80 border-amber-200 text-amber-700';
+    ? 'exp-alert'
+    : allOk ? 'exp-alert exp-alert--success' : 'exp-alert exp-alert--warn';
 
   const riskBadge = assistData.riskLevel ? RISK_BADGE[assistData.riskLevel] : null;
 
   return (
     <section>
-      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${bandCls}`}>
-        <span className="text-sm font-bold">合规门</span>
+      <div className={`${bandCls} flex items-center gap-3 !px-4 !py-3`}>
+        <span className="!text-sm !font-bold">合规门</span>
         <Verdict ok={qualOk} fail={qualFail} label="资格审查" icon={<ShieldCheck size={13} />} />
         <Verdict ok={responsiveOk} fail={responsiveFail} label="响应性" icon={<ClipboardCheck size={13} />} />
         {riskBadge && (
-          <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${riskBadge.cls}`}>
+          <span className="exp-pill ml-auto" style={{ '--c': riskBadge.c } as React.CSSProperties}>
             {riskBadge.label}
           </span>
         )}
@@ -57,18 +57,18 @@ export function GateLayer({ assistData }: { assistData: AssistData }) {
 
       {/* 阻断条归位（原浮在头条下） */}
       {qualFail && (
-        <div className="flex items-start gap-2.5 px-4 py-2.5 mt-2 rounded-xl border border-red-200 bg-red-50/80">
-          <ShieldAlert size={15} className="text-red-500 shrink-0 mt-0.5" />
-          <div className="text-xs text-red-700">
+        <div className="exp-alert mt-2 flex items-start gap-2.5 !px-4 !py-2.5">
+          <ShieldAlert size={15} className="mt-0.5 shrink-0" />
+          <div className="!text-xs">
             <span className="font-semibold">资格审查不通过 · AI 自动判定</span>
-            <p className="mt-0.5 text-red-600/90">{qualAutoNote ?? '存在资质一致性冲突或★实质性条款未响应，建议重点核实资格材料。'}</p>
+            <p className="mt-0.5 opacity-80">{qualAutoNote ?? '存在资质一致性冲突或★实质性条款未响应，建议重点核实资格材料。'}</p>
           </div>
         </div>
       )}
 
       {/* 资格条款证据（亮出 B'） */}
       {qualResps.length > 0 && (
-        <div className="mt-2 text-[11px] text-[oklch(0.45_0.01_264)] flex flex-wrap gap-x-4 gap-y-1 px-4">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 px-4 text-[11px] text-[var(--muted-foreground)]">
           <span>资格条款：满足 {tally(qualResps,'met')} · 部分 {tally(qualResps,'partial')} · 不满足 {tally(qualResps,'unmet')} · 未提及 {tally(qualResps,'not_found')}</span>
         </div>
       )}
@@ -76,7 +76,7 @@ export function GateLayer({ assistData }: { assistData: AssistData }) {
         <div className="mt-1.5 px-4">
           <ul className="space-y-1">
             {shownUnmetQual.map((r,i) => (
-              <li key={i} className="text-[11px] text-red-700 flex items-start gap-1">
+              <li key={i} className="flex items-start gap-1 text-[11px] text-[var(--danger)]">
                 <XCircle size={11} className="mt-0.5 shrink-0" />
                 <span className="truncate" title={r.excerpt}>{r.excerpt || r.requirementId}{r.location ? `（第${r.location.page}页）` : ''}</span>
               </li>
@@ -93,9 +93,9 @@ export function GateLayer({ assistData }: { assistData: AssistData }) {
         <div className="mt-1.5 px-4">
           <ul className="space-y-1">
             {shownStarredUnmet.map((u,i) => (
-              <li key={i} className="text-[11px] text-amber-700 flex items-start gap-1">
-                <Star size={11} className="mt-0.5 shrink-0 fill-amber-400 text-amber-500" />
-                <span className="truncate" title={u}>{u}</span>
+              <li key={i} className="flex items-start gap-1 text-[11px]">
+                <Star size={11} className="mt-0.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" />
+                <span className="truncate text-[oklch(0.52_0.13_70)]" title={u}>{u}</span>
               </li>
             ))}
           </ul>
@@ -110,7 +110,7 @@ export function GateLayer({ assistData }: { assistData: AssistData }) {
 
 function ExpandButton({ open, onClick, total }: { open: boolean; onClick: () => void; total: number }) {
   return (
-    <button onClick={onClick} className="mt-1 inline-flex items-center gap-0.5 text-[11px] text-[var(--color-primary)] hover:underline">
+    <button onClick={onClick} className="mt-1 inline-flex items-center gap-0.5 text-[11px] text-[var(--accent-strong)] hover:underline">
       <ChevronDown size={11} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
       {open ? '收起' : `展开全部 ${total} 项`}
     </button>
@@ -118,9 +118,9 @@ function ExpandButton({ open, onClick, total }: { open: boolean; onClick: () => 
 }
 
 function Verdict({ ok, fail, label, icon }: { ok: boolean; fail: boolean; label: string; icon: React.ReactNode }) {
+  const c = ok ? 'var(--success)' : fail ? 'var(--danger)' : 'var(--warning)';
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full
-      ${ok ? 'bg-emerald-100 text-emerald-700' : fail ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+    <span className="exp-pill !gap-1 !px-2 !py-0.5 !text-xs" style={{ '--c': c } as React.CSSProperties}>
       {icon}
       {label}
       {ok ? <CheckCircle size={11}/> : fail ? <XCircle size={11}/> : null}

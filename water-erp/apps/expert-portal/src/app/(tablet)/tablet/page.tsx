@@ -9,9 +9,9 @@ import type { ExpertProject } from '@/lib/types';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 
 /**
- * 开始打分落地页（无线隔离）
+ * 开始打分落地页（无线隔离 · cgzxui 新拟态）
  *
- * 仅展示评标项目列表 + 开始打分按钮。
+ * 仅展示评标项目列表 + 整卡点按进入打分。
  * 不含桌面端的统计卡片、侧边栏、快捷操作、评审须知。
  */
 export default function TabletLandingPage() {
@@ -34,44 +34,44 @@ export default function TabletLandingPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div>
-        <h1 className="text-xl font-black text-[oklch(0.18_0.012_265)]">评标项目</h1>
-        <p className="mt-1 text-sm text-[oklch(0.55_0.01_264)]">
+        <h1 className="text-[1.35rem] font-black tracking-[-0.01em] text-[var(--foreground)]">评标项目</h1>
+        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
           选择项目进入开始打分界面
         </p>
       </div>
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="animate-pulse rounded-2xl border border-[oklch(0.91_0.006_264)] bg-white/70 p-5"
-            >
-              <div className="mb-3 h-5 w-20 rounded bg-[oklch(0.94_0.004_264)]" />
-              <div className="mb-2 h-4 w-48 rounded bg-[oklch(0.94_0.004_264)]" />
-              <div className="h-4 w-32 rounded bg-[oklch(0.94_0.004_264)]" />
+            <div key={i} className="neu-card-static animate-pulse p-6">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="h-6 w-24 rounded-lg bg-[oklch(0.55_0.03_258/0.12)]" />
+                <div className="h-5 w-44 rounded bg-[oklch(0.55_0.03_258/0.12)]" />
+              </div>
+              <div className="mb-4 h-4 w-56 rounded bg-[oklch(0.55_0.03_258/0.1)]" />
+              <div className="h-2 w-full rounded-full bg-[oklch(0.55_0.03_258/0.12)]" />
             </div>
           ))}
         </div>
       ) : projects.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-[oklch(0.91_0.006_264)] bg-white/70 py-16 text-center">
-          <Clock size={48} strokeWidth={1} className="mb-4 text-[oklch(0.80_0.006_264)]" />
-          <h3 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">暂无评审任务</h3>
-          <p className="mt-1 text-sm text-[oklch(0.55_0.01_264)]">
+        <div className="neu-card-static px-6 py-16 text-center">
+          <Clock size={52} strokeWidth={1} className="mx-auto mb-4 text-[oklch(0.75_0.02_258)]" />
+          <h3 className="text-lg font-bold text-[var(--foreground)]">暂无评审任务</h3>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
             当您被分配为评审专家时，任务将显示在这里
           </p>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* 进行中的项目 */}
           {activeProjects.length > 0 && (
             <section>
-              <h2 className="mb-3 text-sm font-bold text-[#11a874]">
+              <h2 className="mb-3.5 text-[1.05rem] font-bold tracking-[-0.01em] text-[var(--foreground)]">
                 进行中 · {activeProjects.length} 个
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {activeProjects.map((ep) => {
-                  const sc = STAGE_COLOR[ep.project.stage] || '#5a6d8a';
+                  const sc = STAGE_COLOR[ep.project.stage] || 'var(--muted-foreground)';
                   return (
                     <ProjectCard
                       key={ep.id}
@@ -88,12 +88,12 @@ export default function TabletLandingPage() {
           {/* 其他项目 */}
           {inactiveProjects.length > 0 && (
             <section>
-              <h2 className="mb-3 text-sm font-bold text-[oklch(0.55_0.01_264)]">
+              <h2 className="mb-3.5 text-[1.05rem] font-bold tracking-[-0.01em] text-[var(--foreground)]">
                 其他 · {inactiveProjects.length} 个
               </h2>
-              <div className="space-y-2 opacity-60">
+              <div className="space-y-3 opacity-60">
                 {inactiveProjects.map((ep) => {
-                  const sc = STAGE_COLOR[ep.project.stage] || '#5a6d8a';
+                  const sc = STAGE_COLOR[ep.project.stage] || 'var(--muted-foreground)';
                   return (
                     <ProjectCard
                       key={ep.id}
@@ -125,73 +125,55 @@ function ProjectCard({
   disabled?: boolean;
 }) {
   const clickable = !disabled && !!onEvaluate;
+  const done = ep.progress >= 100;
   return (
     <div
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
       onClick={clickable ? onEvaluate : undefined}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEvaluate?.(); } } : undefined}
-      className={`rounded-2xl border border-[oklch(0.91_0.006_264)] bg-white/70 p-5 transition ${
-        clickable ? 'cursor-pointer hover:border-[#bfdbfe] hover:shadow-sm active:scale-[0.99]' : ''
-      }`}
+      className={`${clickable ? 'neu-card cursor-pointer' : 'neu-card-static'} p-6`}
     >
       {/* 头部：编号 + 名称 + 阶段 */}
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="shrink-0 rounded-lg bg-[#eff6ff]/50 px-3 py-1 text-sm font-semibold text-[#064ea2]">
-            {ep.project.projectCode}
-          </span>
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate font-bold text-[oklch(0.18_0.012_265)]">
+          <span className="exp-code-chip shrink-0">{ep.project.projectCode}</span>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <h3 className="truncate text-[1.05rem] font-bold tracking-[-0.01em] text-[var(--foreground)]">
               {ep.project.name}
             </h3>
             {!disabled && (
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span
-                  className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-                  style={{ backgroundColor: sc }}
-                />
-                <span
-                  className="relative inline-flex h-2 w-2 rounded-full"
-                  style={{ backgroundColor: sc }}
-                />
-              </span>
+              <span className="exp-live-dot" style={{ '--c': sc } as React.CSSProperties} />
             )}
           </div>
         </div>
-        <span
-          className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
-          style={{ color: sc, backgroundColor: sc + '18' }}
-        >
+        <span className="exp-pill shrink-0" style={{ '--c': sc } as React.CSSProperties}>
           {STAGE_LABEL[ep.project.stage] || ep.project.stage}
         </span>
       </div>
 
       {/* 统计信息 */}
-      <div className="mb-3 flex items-center gap-6 text-sm text-[oklch(0.55_0.01_264)]">
+      <div className="mb-4 flex items-center gap-7 text-sm text-[var(--muted-foreground)]">
         <span>投标单位：{ep.project.suppliers?.length ?? 0} 家</span>
         <span>评分项：{ep.project.scoreItems?.length ?? 0} 项</span>
       </div>
 
       {/* 进度条 */}
       <div className="flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[oklch(0.94_0.004_264)]">
-          <div
-            className="h-full rounded-full bg-[#064ea2]/60 transition-all duration-500"
-            style={{ width: `${ep.progress}%` }}
-          />
+        <div className="exp-bar flex-1">
+          <i style={{ width: `${ep.progress}%`, '--bar': done ? 'var(--success)' : sc } as React.CSSProperties} />
         </div>
-        <span className="w-12 text-right text-xs font-semibold text-[#064ea2]">
+        <span className="w-12 text-right text-sm font-bold tabular-nums text-[var(--accent-strong)]">
           {ep.progress}%
         </span>
 
-        {ep.progress >= 100 && (
-          <span className="shrink-0 rounded bg-emerald-50/80 px-2 py-0.5 text-xs font-semibold text-emerald-600">
+        {done && (
+          <span className="exp-pill shrink-0" style={{ '--c': 'var(--success)' } as React.CSSProperties}>
             已完成
           </span>
         )}
         {!ep.signedIn && (
-          <span className="shrink-0 rounded bg-amber-50/80 px-2 py-0.5 text-xs font-semibold text-amber-600">
+          <span className="exp-pill shrink-0" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>
             待核验
           </span>
         )}

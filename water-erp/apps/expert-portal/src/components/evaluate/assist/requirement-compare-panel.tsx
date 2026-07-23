@@ -24,17 +24,17 @@ const CAT_LABEL: Record<string, string> = {
   commercial: '商务要求',
 };
 
-const STATUS_CFG: Record<string, { label: string; color: string; badge: string; icon: any }> = {
-  met: { label: '满足', color: 'text-emerald-600', badge: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle },
-  partial: { label: '部分', color: 'text-amber-600', badge: 'bg-amber-100 text-amber-700 border-amber-200', icon: HelpCircle },
-  unmet: { label: '不满足', color: 'text-red-600', badge: 'bg-red-100 text-red-700 border-red-200', icon: XCircle },
-  not_found: { label: '未提及', color: 'text-[oklch(0.55_0.01_264)]', badge: 'bg-[oklch(0.96_0.004_264)] text-[oklch(0.45_0.01_264)] border-[oklch(0.91_0.006_264)]', icon: AlertCircle },
+const STATUS_CFG: Record<string, { label: string; c: string; icon: any }> = {
+  met: { label: '满足', c: 'var(--success)', icon: CheckCircle },
+  partial: { label: '部分', c: 'var(--warning)', icon: HelpCircle },
+  unmet: { label: '不满足', c: 'var(--danger)', icon: XCircle },
+  not_found: { label: '未提及', c: 'var(--muted-foreground)', icon: AlertCircle },
 };
 
-const VERDICT_CFG: { key: 'ack' | 'dispute' | 'doubt'; label: string; active: string }[] = [
-  { key: 'ack', label: '认可', active: 'bg-emerald-100 border-emerald-300 text-emerald-700' },
-  { key: 'dispute', label: '异议', active: 'bg-red-100 border-red-300 text-red-700' },
-  { key: 'doubt', label: '存疑', active: 'bg-amber-100 border-amber-300 text-amber-700' },
+const VERDICT_CFG: { key: 'ack' | 'dispute' | 'doubt'; label: string; activeCls: string; activeBg: string }[] = [
+  { key: 'ack', label: '认可', activeCls: 'is-success', activeBg: '!bg-[oklch(0.96_0.05_164/0.5)]' },
+  { key: 'dispute', label: '异议', activeCls: 'is-danger', activeBg: '!bg-[oklch(0.96_0.05_27/0.5)]' },
+  { key: 'doubt', label: '存疑', activeCls: 'is-warning', activeBg: '!bg-[oklch(0.96_0.05_83/0.5)]' },
 ];
 
 export function RequirementComparePanel({
@@ -136,7 +136,7 @@ export function RequirementComparePanel({
 
   if (!flat.length) {
     return (
-      <div className="text-center py-6 text-xs text-[oklch(0.55_0.01_264)]">
+      <div className="py-6 text-center text-xs text-[var(--muted-foreground)]">
         招标条款分析中或暂无条款数据
       </div>
     );
@@ -155,60 +155,52 @@ export function RequirementComparePanel({
   const grouped = ['qualification', 'technical', 'commercial'] as const;
 
   return (
-    <div className={isFs ? 'fixed inset-0 z-50 bg-white p-4 space-y-2' : 'relative space-y-2'}>
+    <div className={isFs ? 'fixed inset-0 z-50 space-y-2 bg-[var(--background)] p-4' : 'relative space-y-2'}>
       <button onClick={toggleFs} title={isFs ? '退出全屏' : '全屏'}
-        className="fixed bottom-4 right-12 z-[60] w-9 h-9 flex items-center justify-center rounded-lg bg-white/90 border border-[oklch(0.91_0.006_264)] text-[oklch(0.45_0.01_264)] hover:bg-white hover:text-[var(--color-primary)] transition-colors shadow-md">
+        className="neu-btn-xs is-square fixed bottom-4 right-12 z-[60] !h-9 !w-9">
         {isFs ? <Minimize2 size={15} strokeWidth={1.5} /> : <Maximize2 size={15} strokeWidth={1.5} />}
       </button>
       <PanelGroup orientation="horizontal" className="gap-0" style={{ height: isFs ? 'calc(100vh - 32px)' : 'calc(100vh - 150px)', minHeight: '460px' }}>
         {/* ━━━ 左栏 1/4：双模式（tab：条款清单 / 招标原文） ━━━ */}
         <Panel defaultSize={25} minSize={15} className="px-0">
-        <aside className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
-          <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50">
+        <aside className="neu-card-static flex h-full flex-col overflow-hidden">
+          <header className="flex items-center gap-2 px-3 py-2">
             {/* tab 切换：招标文件缺失时隐藏「招标文件」tab */}
-            <div className="flex items-center gap-3">
+            <div className="neu-tab-bar !gap-1 !p-1">
               <button
                 onClick={() => setLeftMode('list')}
-                className={`text-sm font-bold transition-colors ${
-                  leftMode === 'list'
-                    ? 'text-[var(--color-primary)]'
-                    : 'text-[oklch(0.55_0.01_264)] hover:text-[var(--color-text)]'
-                }`}
+                className={`neu-tab !px-2.5 !py-1 !text-xs ${leftMode === 'list' ? 'is-active' : ''}`}
               >
                 条款清单
               </button>
               {tenderDocUrl && (
                 <button
                   onClick={() => setLeftMode('tender')}
-                  className={`text-sm font-bold transition-colors ${
-                    leftMode === 'tender'
-                      ? 'text-[var(--color-primary)]'
-                      : 'text-[oklch(0.55_0.01_264)] hover:text-[var(--color-text)]'
-                  }`}
+                  className={`neu-tab !px-2.5 !py-1 !text-xs ${leftMode === 'tender' ? 'is-active' : ''}`}
                 >
                   招标文件
                 </button>
               )}
-              <span className="ml-auto text-[10px] text-[oklch(0.55_0.01_264)]">
-                {leftMode === 'list' ? `· ${flat.length} 条` : '· 原文参考'}
-              </span>
             </div>
+            <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">
+              {leftMode === 'list' ? `· ${flat.length} 条` : '· 原文参考'}
+            </span>
           </header>
 
           {leftMode === 'list' ? (
             /* 模式 1：条款清单（按 category 分组，点击选中 → 联动中/右） */
-            <div className="flex-1 overflow-y-auto divide-y divide-[oklch(0.94_0.004_264)]">
+            <div className="flex-1 overflow-y-auto divide-y divide-[oklch(0.55_0.03_258/0.06)]">
               {grouped.map((cat) => {
                 const items = flat.filter((i) => i.category === cat);
                 if (!items.length) return null;
                 return (
                   <div key={cat}>
-                    <div className="sticky top-0 px-3 py-1.5 bg-[oklch(0.97_0.005_264)]/95 backdrop-blur-sm border-b border-[oklch(0.91_0.006_264)]">
-                      <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
+                    <div className="sticky top-0 bg-[oklch(0.985_0.005_258/0.95)] px-3 py-1.5 backdrop-blur-sm">
+                      <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">
                         {CAT_LABEL[cat]}
                       </span>
                       {cat === 'technical' && (
-                        <span className="text-[10px] text-amber-600 ml-1">★ 实质性</span>
+                        <span className="ml-1 text-[10px] text-[oklch(0.52_0.13_70)]">★ 实质性</span>
                       )}
                     </div>
                     {items.map((item) => {
@@ -219,38 +211,38 @@ export function RequirementComparePanel({
                         <button
                           key={item.id}
                           onClick={() => setSelectedId(item.id)}
-                          className={`w-full text-left px-3 py-2 flex items-start gap-1.5 transition-colors border-l-2 ${
+                          className={`flex w-full items-start gap-1.5 px-3 py-2 text-left transition-colors ${
                             isActive
-                              ? 'bg-[var(--color-primary-light)] border-[var(--color-primary)]'
-                              : 'border-transparent hover:bg-white/60'
+                              ? 'bg-[oklch(0.96_0.03_251/0.28)] shadow-[inset_2px_0_0_var(--accent-strong)]'
+                              : 'hover:bg-[oklch(1_0_0/0.45)]'
                           }`}
                         >
                           {item.isStarred ? (
-                            <Star size={12} className="text-amber-500 fill-amber-400 shrink-0 mt-0.5" />
+                            <Star size={12} className="mt-0.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" />
                           ) : (
                             <span className="w-3 shrink-0" />
                           )}
                           <div className="min-w-0 flex-1">
-                            <p className={`text-xs leading-snug line-clamp-2 ${isActive ? 'text-[var(--color-primary)] font-medium' : 'text-[var(--color-text)]'}`}>
+                            <p className={`line-clamp-2 text-xs leading-snug ${isActive ? 'font-medium text-[var(--accent-strong)]' : 'text-[var(--foreground)]'}`}>
                               {item.content}
                             </p>
-                            <div className="flex items-center gap-1 mt-0.5">
+                            <div className="mt-0.5 flex items-center gap-1">
                               {sc ? (
-                                <span className={`inline-flex items-center gap-0.5 text-[10px] ${sc.color}`}>
+                                <span className="exp-pill !gap-1 !px-1.5 !py-0 !text-[10px]" style={{ '--c': sc.c } as React.CSSProperties}>
                                   <sc.icon size={10} /> {sc.label}
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-[oklch(0.55_0.01_264)]">AI 定位中</span>
+                                <span className="text-[10px] text-[var(--muted-foreground)]">AI 定位中</span>
                               )}
                               {local[item.id]?.verdict === 'dispute' && (
-                                <span className="text-[10px] text-red-600">·异议</span>
+                                <span className="text-[10px] text-[var(--danger)]">·异议</span>
                               )}
                               {item.sourcePage && (
                                 <span role="button" tabIndex={0}
                                   onClick={(e) => { e.stopPropagation(); setTenderPage(item.sourcePage!); setLeftMode('tender'); }}
                                   onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setTenderPage(item.sourcePage!); setLeftMode('tender'); } }}
                                   title={`跳转到招标文件第 ${item.sourcePage} 页`}
-                                  className="text-[10px] text-[var(--color-primary)] hover:underline ml-auto shrink-0 cursor-pointer"
+                                  className="ml-auto shrink-0 cursor-pointer text-[10px] text-[var(--accent-strong)] hover:underline"
                                 >
                                   原文 p.{item.sourcePage}
                                 </span>
@@ -271,24 +263,24 @@ export function RequirementComparePanel({
                 key={`tender-p${tenderPage ?? 1}`}
                 src={tenderPage ? `${tenderDocUrl}#page=${tenderPage}` : tenderDocUrl}
                 title="招标文件原文"
-                className="w-full h-full border-0"
+                className="h-full w-full border-0"
                 style={{ minHeight: '500px' }}
               />
             </div>
           )}
         </aside>
         </Panel>
-        <PanelResizeHandle className="w-1.5 bg-transparent hover:bg-[var(--color-primary)]/30 cursor-col-resize transition-colors" />
+        <PanelResizeHandle className="w-1.5 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent)]/30" />
 
         {/* ━━━ 中栏 1/2：投标 PDF 内嵌预览 ━━━ */}
         <Panel defaultSize={50} minSize={30} className="px-0">
-        <section className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
-          <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <FileText size={13} className="text-[var(--color-primary)] shrink-0" />
-              <span className="font-bold text-sm text-[var(--color-text)] truncate">投标原文</span>
+        <section className="neu-card-static flex h-full flex-col overflow-hidden">
+          <header className="flex items-center justify-between px-3 py-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <FileText size={13} className="shrink-0 text-[var(--accent-strong)]" />
+              <span className="truncate text-sm font-bold text-[var(--foreground)]">投标原文</span>
               {selectedResp?.location && (
-                <span className="text-[10px] text-[oklch(0.55_0.01_264)] shrink-0">· 第 {selectedResp.location.page} 页</span>
+                <span className="shrink-0 text-[10px] text-[var(--muted-foreground)]">· 第 {selectedResp.location.page} 页</span>
               )}
             </div>
             {selectedResp?.location && (
@@ -296,7 +288,7 @@ export function RequirementComparePanel({
                 href={iframeSrc}
                 target="_blank"
                 rel="noopener"
-                className="inline-flex items-center gap-0.5 text-[10px] text-[var(--color-primary)] hover:underline shrink-0"
+                className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-[var(--accent-strong)] hover:underline"
               >
                 <ExternalLink size={10} /> 新窗口
               </a>
@@ -308,14 +300,14 @@ export function RequirementComparePanel({
                 key={iframeSrc} // src 变化即重载，确保 #page=N 跳页生效
                 src={iframeSrc}
                 title="投标文件预览"
-                className="w-full h-full border-0"
+                className="h-full w-full border-0"
                 style={{ minHeight: '500px' }}
               />
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center px-6 py-10">
-                <AlertCircle size={28} className="text-[oklch(0.62_0.008_264)] mb-2" />
-                <p className="text-sm text-[var(--color-text-secondary)] font-medium">未定位到投标原文</p>
-                <p className="text-[11px] text-[oklch(0.55_0.01_264)] mt-1">
+              <div className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
+                <AlertCircle size={28} className="mb-2 opacity-60" />
+                <p className="text-sm font-medium text-[var(--muted-foreground)]">未定位到投标原文</p>
+                <p className="mt-1 text-[11px] text-[var(--muted-foreground)]">
                   {selectedResp
                     ? 'AI 未能定位本条款对应的投标响应位置，请在原文中手动核对。'
                     : '选中条款后，AI 响应定位的页面将显示于此。'}
@@ -325,34 +317,35 @@ export function RequirementComparePanel({
           </div>
         </section>
         </Panel>
-        <PanelResizeHandle className="w-1.5 bg-transparent hover:bg-[var(--color-primary)]/30 cursor-col-resize transition-colors" />
+        <PanelResizeHandle className="w-1.5 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent)]/30" />
 
         {/* ━━━ 右栏 1/4：AI 响应 + 标注 ━━━ */}
         <Panel defaultSize={25} minSize={15} className="px-0">
-        <aside className="glass-card glass-card-lighter rounded-xl overflow-hidden flex flex-col h-full">
-          <header className="px-3 py-2 border-b border-[oklch(0.91_0.006_264)] bg-white/50">
-            <span className="font-bold text-sm text-[var(--color-text)]">响应与标注</span>
+        <aside className="neu-card-static flex h-full flex-col overflow-hidden">
+          <header className="px-3 py-2">
+            <span className="text-sm font-bold text-[var(--foreground)]">响应与标注</span>
           </header>
           {selectedItem ? (
-            <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden p-3 space-y-3">
+            <div className="flex-1 space-y-3 overflow-y-auto p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {/* 选中条款全文 */}
               <div>
                 <div className="flex items-start gap-1.5">
                   {selectedItem.isStarred && (
-                    <Star size={12} className="text-amber-500 fill-amber-400 shrink-0 mt-0.5" />
+                    <Star size={12} className="mt-0.5 shrink-0 fill-[var(--warning)] text-[var(--warning)]" />
                   )}
-                  <p className="text-xs text-[var(--color-text)] leading-relaxed">{selectedItem.content}</p>
+                  <p className="text-xs leading-relaxed text-[var(--foreground)]">{selectedItem.content}</p>
                 </div>
                 {(selectedItem.acceptanceCriteria || selectedItem.threshold) && (
-                  <p className="text-[10px] text-[oklch(0.55_0.01_264)] mt-1 ml-5">
+                  <p className="ml-5 mt-1 text-[10px] text-[var(--muted-foreground)]">
                     验收/阈值：{selectedItem.acceptanceCriteria || selectedItem.threshold}
                   </p>
                 )}
               </div>
 
               {/* AI 响应 */}
-              <div className="pt-2 border-t border-[oklch(0.94_0.004_264)]">
-                <div className="text-[10px] text-[oklch(0.55_0.01_264)] mb-1.5 font-semibold tracking-wide">
+              <div className="pt-2">
+                <hr className="wb-section-rule mb-2" />
+                <div className="mb-1.5 text-[10px] font-semibold tracking-wide text-[var(--muted-foreground)]">
                   AI 响应
                 </div>
                 {selectedResp ? (
@@ -360,38 +353,39 @@ export function RequirementComparePanel({
                     const sc = STATUS_CFG[selectedResp.status];
                     return (
                       <>
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${sc.badge}`}>
+                        <span className="exp-pill !gap-1" style={{ '--c': sc.c } as React.CSSProperties}>
                           <sc.icon size={11} /> {sc.label}
                         </span>
                         {selectedResp.excerpt && (
                           <div className="mt-2">
-                            <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed italic">
+                            <p className="text-[11px] italic leading-relaxed text-[var(--muted-foreground)]">
                               “{selectedResp.excerpt}”
                             </p>
                             {selectedResp.verified === false && (
-                              <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-0.5 not-italic">
+                              <p className="mt-1 flex items-center gap-0.5 text-[10px] text-[oklch(0.52_0.13_70)] not-italic">
                                 <AlertCircle size={10} /> AI 摘录未在标书中复核通过，请手动核对
                               </p>
                             )}
                             {selectedResp.pageCorrected && (
-                              <p className="text-[10px] text-[oklch(0.55_0.01_264)] mt-0.5 not-italic">· 页码已自动修正</p>
+                              <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)] not-italic">· 页码已自动修正</p>
                             )}
                           </div>
                         )}
                         {!selectedResp.location && (
-                          <p className="text-[10px] text-[oklch(0.55_0.01_264)] mt-2">（未定位到投标原文页码）</p>
+                          <p className="mt-2 text-[10px] text-[var(--muted-foreground)]">（未定位到投标原文页码）</p>
                         )}
                       </>
                     );
                   })()
                 ) : (
-                  <span className="text-[10px] text-[oklch(0.55_0.01_264)]">AI 响应定位中</span>
+                  <span className="text-[10px] text-[var(--muted-foreground)]">AI 响应定位中</span>
                 )}
               </div>
 
               {/* 标注 */}
-              <div className="pt-2 border-t border-[oklch(0.94_0.004_264)]">
-                <div className="text-[10px] text-[oklch(0.55_0.01_264)] mb-1.5 font-semibold tracking-wide">
+              <div className="pt-2">
+                <hr className="wb-section-rule mb-2" />
+                <div className="mb-1.5 text-[10px] font-semibold tracking-wide text-[var(--muted-foreground)]">
                   专家标注
                 </div>
                 <div className="flex gap-1.5">
@@ -399,10 +393,8 @@ export function RequirementComparePanel({
                     <button
                       key={v.key}
                       onClick={() => setVerdict(selectedItem, v.key)}
-                      className={`text-[11px] px-2 py-1 rounded border transition-colors ${
-                        selectedReview?.verdict === v.key
-                          ? v.active
-                          : 'border-[oklch(0.91_0.006_264)] text-[oklch(0.55_0.01_264)] hover:bg-white/60'
+                      className={`neu-btn-xs !px-2 !py-1 !text-[11px] ${
+                        selectedReview?.verdict === v.key ? `${v.activeCls} ${v.activeBg}` : ''
                       }`}
                     >
                       {v.label}
@@ -416,13 +408,13 @@ export function RequirementComparePanel({
                     onBlur={() => saveNote(selectedItem)}
                     placeholder="备注（可选，失焦保存）"
                     rows={3}
-                    className="mt-2 w-full text-[11px] px-2 py-1.5 rounded border border-[oklch(0.91_0.006_264)] bg-white/70 resize-none focus:outline-none focus:border-[var(--color-primary)] tabular-nums"
+                    className="neu-input mt-2 !min-h-[70px] !p-2 !text-[11px]"
                   />
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-[10px] text-[oklch(0.55_0.01_264)]">
+            <div className="flex flex-1 items-center justify-center text-[10px] text-[var(--muted-foreground)]">
               请在左侧选择条款
             </div>
           )}
@@ -430,7 +422,7 @@ export function RequirementComparePanel({
         </Panel>
       </PanelGroup>
 
-      <p className="text-[10px] text-[oklch(0.55_0.01_264)] text-center">
+      <p className="text-center text-[10px] text-[var(--muted-foreground)]">
         标注仅本人可见；异议将在评审报告中披露，并在打分页提示核对。
       </p>
     </div>

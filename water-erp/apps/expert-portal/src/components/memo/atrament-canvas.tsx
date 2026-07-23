@@ -330,19 +330,21 @@ export const AtramentCanvas = forwardRef<AtramentCanvasHandle, Props>(
       }),
     }), [width, height]);
 
+    // cgzxui：内凹「纸面」容器（无外侧框线，inset 双影沉入页面）；
+    // 宽高比撑高与缩放尺寸经 CSS 变量传递，不写装饰性内联 style。
     return (
-      <div className={`relative rounded-xl border border-[oklch(0.88_0.005_264)] bg-white ${className}`}
-        style={fillContainer
-          ? { width: '100%' }
-          : { width: '100%', paddingBottom: `${(height / width) * 100}%` }}>
+      <div
+        className={`relative w-full rounded-xl bg-[oklch(1_0_0)] shadow-[inset_1.5px_1.5px_4px_oklch(0.55_0.03_258/0.1),inset_-1px_-1px_3px_oklch(1_0_0/0.6)] ${fillContainer ? '' : '[padding-bottom:var(--pad)]'} ${className}`}
+        style={fillContainer ? undefined : { '--pad': `${(height / width) * 100}%` } as React.CSSProperties}
+      >
         <div ref={scrollRef} className="absolute inset-0 overflow-auto rounded-xl">
-          <canvas ref={cbRef} className="block"
+          <canvas
+            ref={cbRef}
+            className="block h-[var(--ch)] w-[var(--cw)] touch-none select-none [-webkit-touch-callout:none]"
             style={{
-              ...(zoom <= 1
-                ? { width: '100%', height: '100%' }
-                : { width: width * zoom, height: height * zoom }),
-              touchAction:'none', WebkitUserSelect:'none', userSelect:'none', WebkitTouchCallout:'none',
-            }}
+              '--cw': zoom <= 1 ? '100%' : `${width * zoom}px`,
+              '--ch': zoom <= 1 ? '100%' : `${height * zoom}px`,
+            } as React.CSSProperties}
           />
         </div>
       </div>

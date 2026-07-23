@@ -27,7 +27,7 @@ type ScoreEntry = {
 const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 
 /**
- * 平板触屏评标页（Phase ⑤ Task 6 —— MINIMAL 版）
+ * 平板触屏评标页（Phase ⑤ Task 6 —— MINIMAL 版 · cgzxui 新拟态重构）
  *
  * 范围：header + SupplierTabBar + 分组评分项（PointChecklistScoring compact）+ MemoPanel 侧栏
  *       + 评分草稿暂存/自动恢复（localStorage）+ 暂存/重置/提交操作栏。
@@ -335,13 +335,9 @@ export default function TabletEvaluatePage() {
 
   if (loadError) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3 text-[oklch(0.55_0.01_264)]">
+      <div className="flex h-64 flex-col items-center justify-center gap-4 text-[var(--muted-foreground)]">
         <p>加载失败：{loadError}</p>
-        <button
-          type="button"
-          onClick={() => loadProject()}
-          className="rounded-lg bg-[#064ea2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#054280] active:scale-95"
-        >
+        <button type="button" onClick={() => loadProject()} className="neu-btn-primary">
           重试
         </button>
       </div>
@@ -349,7 +345,7 @@ export default function TabletEvaluatePage() {
   }
   if (loading || !project) {
     return (
-      <div className="flex h-64 items-center justify-center text-[oklch(0.55_0.01_264)]">
+      <div className="flex h-64 items-center justify-center text-[var(--muted-foreground)]">
         加载中…
       </div>
     );
@@ -365,26 +361,27 @@ export default function TabletEvaluatePage() {
     <div className="mx-auto flex h-full max-w-[1400px] flex-col gap-3 px-3 pt-2 pb-3">
       {/* 顶部信息 */}
       <div className="flex flex-shrink-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
           <button
             type="button"
             onClick={() => router.push('/tablet')}
             aria-label="返回平板工作台"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-[oklch(0.55_0.01_264)] transition hover:bg-[oklch(0.97_0.005_264)]"
+            className="neu-btn-soft !h-11 !w-11 flex-shrink-0 !p-0"
           >
-            <ArrowLeft size={16} strokeWidth={1.7} />
+            <ArrowLeft size={17} strokeWidth={1.7} />
           </button>
-          <h1 className="truncate text-base font-bold text-[oklch(0.18_0.012_265)]">{project.name}</h1>
-          <span className="shrink-0 text-xs text-[oklch(0.55_0.01_264)]">{project.projectCode}</span>
+          <h1 className="truncate text-base font-bold tracking-[-0.01em] text-[var(--foreground)]">{project.name}</h1>
+          <span className="exp-code-chip flex-shrink-0">{project.projectCode}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-3 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white/70 px-3 py-1.5">
-          <span className="text-xs text-[oklch(0.55_0.01_264)]">总分</span>
-          <span className="text-lg font-bold text-[#064ea2]">{totalScored}</span>
-          <span className="text-xs text-[oklch(0.55_0.01_264)]">/ {totalMax}</span>
+        {/* 总分 pod */}
+        <div className="neu-card-static flex flex-shrink-0 items-center gap-2 !rounded-xl px-4 py-2">
+          <span className="text-xs font-semibold text-[var(--muted-foreground)]">总分</span>
+          <span className="text-lg font-black tabular-nums leading-none text-[var(--accent-strong)]">{totalScored}</span>
+          <span className="text-xs tabular-nums text-[var(--muted-foreground)]">/ {totalMax}</span>
         </div>
       </div>
 
-      {/* 供应商选择条（复用桌面端 SupplierTabBar） */}
+      {/* 供应商选择条（横滑磁贴，复用 SupplierTabBar） */}
       <SupplierTabBar
         suppliers={project.suppliers}
         activeSupplier={activeSupplier}
@@ -398,67 +395,52 @@ export default function TabletEvaluatePage() {
       <PanelGroup orientation="horizontal" className="min-h-0 flex-1 gap-0">
         <Panel defaultSize={65} minSize={40} className="min-h-0">
         {/* 评分区 */}
-        <div className="h-full overflow-y-auto rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60 p-3">
+        <div className="h-full overflow-y-auto p-3 pt-1">
           {!canScoreActiveSupplier && (
-            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+            <div className="exp-alert exp-alert--warn mb-3">
               该投标单位未解密成功、已撤回、已废标或已回避，不能评分。
             </div>
           )}
           {scoreLocked && (
-            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+            <div className="exp-alert exp-alert--warn mb-3">
               评审报告已确认，评分已锁定，不可再修改。
             </div>
           )}
           {!verificationComplete && !scoreLocked && (
-            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+            <div className="exp-alert exp-alert--warn mb-3">
               请先完成身份核验、回避确认与 AI 辅助评标声明后再提交评分。
             </div>
           )}
 
           {/* 评分草稿恢复提示 */}
           {draftAvailable && !draftDismissed && (
-            <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
-              <span className="flex-1 text-xs text-amber-700">
+            <div className="exp-alert exp-alert--warn mb-3 flex items-center gap-2.5">
+              <span className="flex-1">
                 检测到未提交的评分草稿（{draftAvailable.count} 项 · {new Date(draftAvailable.savedAt).toLocaleString('zh-CN')}）
               </span>
-              <button
-                type="button"
-                onClick={discardDraft}
-                className="shrink-0 rounded-md border border-amber-300 px-2 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-100 transition"
-              >
+              <button type="button" onClick={discardDraft} className="neu-btn-xs !h-9 !px-3">
                 丢弃
               </button>
-              <button
-                type="button"
-                onClick={restoreDraft}
-                className="shrink-0 rounded-md bg-amber-500 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-amber-600 transition"
-              >
+              <button type="button" onClick={restoreDraft} className="neu-btn-xs is-warning !h-9 !px-3">
                 恢复
               </button>
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {Object.entries(grouped).map(([category, items]) => {
-              const catColor = CATEGORY_COLOR[category] || '#064ea2';
+              const catColor = CATEGORY_COLOR[category] || 'var(--accent-strong)';
               return (
-                <div
-                  key={category}
-                  className="overflow-hidden rounded-xl border border-blue-100 bg-blue-50/50"
-                  style={{ borderLeft: `2px solid ${catColor}` }}
-                >
-                  <div className="flex items-center justify-between border-b border-blue-100 px-3 py-2">
-                    <span
-                      className="rounded-md px-2 py-0.5 text-xs font-bold"
-                      style={{ color: catColor, backgroundColor: catColor + '18' }}
-                    >
+                <section key={category}>
+                  {/* 类目分组标题（.exp-category-group 外壳由 point-checklist-scoring 自行处理） */}
+                  <div className="mb-2 flex items-center gap-2 px-1">
+                    <span className="exp-category-chip" style={{ '--cat': catColor } as React.CSSProperties} />
+                    <h3 className="text-sm font-bold tracking-[-0.01em] text-[var(--foreground)]">
                       {CATEGORY_LABEL[category] || category}
-                    </span>
-                    <span className="text-[10px] text-[oklch(0.55_0.01_264)]">
-                      {items.length} 项
-                    </span>
+                    </h3>
+                    <span className="neu-tab-count">{items.length} 项</span>
                   </div>
-                  <div className="space-y-2 p-2">
+                  <div className="space-y-2">
                     {items.map(item => {
                       const k = scoreKey(activeSupplier, item.id);
                       const val = scores[k];
@@ -480,12 +462,12 @@ export default function TabletEvaluatePage() {
                           <div
                             key={item.id}
                             data-score-item={item.id}
-                            className="rounded-lg border border-blue-100 bg-white p-2.5"
+                            className="rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3"
                           >
-                            <h4 className="mb-2 text-sm font-semibold text-[oklch(0.18_0.012_265)]">
+                            <h4 className="mb-2.5 text-sm font-bold text-[var(--foreground)]">
                               {item.name}
                             </h4>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2.5">
                               {[
                                 { v: true, label: '通过' },
                                 { v: false, label: '不通过' },
@@ -502,15 +484,7 @@ export default function TabletEvaluatePage() {
                                         [k]: { score: 0, reason: prev[k]?.reason || '', passed: opt.v },
                                       }))
                                     }
-                                    className={`flex-1 rounded-lg border-2 py-2.5 text-sm font-bold transition disabled:opacity-50 ${
-                                      selected
-                                        ? opt.v
-                                          ? 'border-[#11a874] bg-[#11a874] text-white'
-                                          : 'border-[#e74c3c] bg-[#e74c3c] text-white'
-                                        : opt.v
-                                          ? 'border-[#11a874]/40 bg-white text-[#11a874] hover:bg-[#ecfdf5]'
-                                          : 'border-[#e74c3c]/40 bg-white text-[#e74c3c] hover:bg-[#fef2f2]'
-                                    }`}
+                                    className={`${selected ? 'neu-btn-primary' : 'neu-btn-soft'} ${opt.v ? 'is-success' : 'is-danger'} !h-12 flex-1`}
                                   >
                                     {opt.label}
                                   </button>
@@ -529,7 +503,7 @@ export default function TabletEvaluatePage() {
                                   }));
                                 }}
                                 disabled={readOnly}
-                                className="mt-2 h-14 w-full resize-none rounded-lg border border-blue-100 px-2 py-1.5 text-sm focus:border-[#064ea2] focus:outline-none focus:ring-1 focus:ring-[#064ea2] disabled:opacity-60"
+                                className="neu-input !mt-2.5 !h-14 !min-h-0 resize-none text-sm disabled:opacity-60"
                               />
                             )}
                           </div>
@@ -540,13 +514,13 @@ export default function TabletEvaluatePage() {
                         <div
                           key={item.id}
                           data-score-item={item.id}
-                          className="rounded-lg border border-blue-100 bg-white p-2.5"
+                          className="rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3"
                         >
-                          <div className="mb-2 flex items-center justify-between">
-                            <h4 className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <h4 className="text-sm font-bold text-[var(--foreground)]">
                               {item.name}
                             </h4>
-                            <span className="text-[10px] text-[oklch(0.55_0.01_264)]">
+                            <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">
                               满分 {max}
                             </span>
                           </div>
@@ -587,10 +561,7 @@ export default function TabletEvaluatePage() {
                                     [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '' },
                                   }))
                                 }
-                                className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-[oklch(0.94_0.004_264)] accent-[#064ea2] disabled:opacity-60"
-                                style={{
-                                  background: `linear-gradient(to right, ${catColor} ${((val?.score ?? 0) / Math.max(max, 1)) * 100}%, #f0f4f8 ${((val?.score ?? 0) / Math.max(max, 1)) * 100}%)`,
-                                }}
+                                className="h-2 flex-1 cursor-pointer accent-[var(--accent-strong)] disabled:opacity-60"
                                 aria-label={`${item.name} 评分`}
                               />
                               <input
@@ -609,7 +580,7 @@ export default function TabletEvaluatePage() {
                                     },
                                   }))
                                 }
-                                className="w-16 rounded-lg border border-blue-100 px-2 py-1.5 text-center text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:outline-none focus:ring-1 focus:ring-[#064ea2] disabled:opacity-60"
+                                className="exp-score-input !h-11 disabled:opacity-60"
                               />
                             </div>
                           )}
@@ -625,22 +596,22 @@ export default function TabletEvaluatePage() {
                               });
                             }}
                             disabled={readOnly}
-                            className="mt-2 h-12 w-full resize-none rounded-lg border border-blue-100 px-2 py-1.5 text-xs focus:border-[#064ea2] focus:outline-none focus:ring-1 focus:ring-[#064ea2] disabled:opacity-60"
+                            className="neu-input !mt-2 !h-12 !min-h-0 resize-none text-xs disabled:opacity-60"
                           />
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                </section>
               );
             })}
           </div>
         </div>
         </Panel>
-        <PanelResizeHandle className="w-1 bg-transparent hover:bg-[#064ea2]/10 transition-colors cursor-col-resize" />
+        <PanelResizeHandle className="w-2 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent)]/10" />
         <Panel defaultSize={35} minSize={20} className="min-h-0">
         {/* 备忘侧栏 */}
-        <aside className="h-full overflow-y-auto rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/70 p-3">
+        <aside className="h-full overflow-y-auto rounded-2xl bg-[oklch(1_0_0/0.45)] p-3">
           <MemoPanel
             projectId={projectId}
             supplierId={activeSupplier || undefined}
@@ -653,8 +624,8 @@ export default function TabletEvaluatePage() {
         </Panel>
       </PanelGroup>
 
-      {/* 操作栏：暂存 / 重置 / 提交 */}
-      <div className="flex flex-shrink-0 items-center justify-center gap-2">
+      {/* 操作栏：暂存 / 重置 / 提交（平板大按钮 !h-12） */}
+      <div className="flex flex-shrink-0 items-center justify-center gap-3">
         {!scoreLocked && (
           <>
             {/* 暂存评分到本地 */}
@@ -662,9 +633,9 @@ export default function TabletEvaluatePage() {
               type="button"
               onClick={saveDraft}
               disabled={busy || draftSaving || !canScoreActiveSupplier}
-              className="flex items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white/80 px-4 py-2.5 text-sm font-semibold text-[oklch(0.45_0.01_264)] transition hover:bg-[oklch(0.97_0.005_264)] active:scale-95 disabled:opacity-50"
+              className="neu-btn-soft !h-12 !px-6"
             >
-              <Save size={14} strokeWidth={1.7} />
+              <Save size={16} strokeWidth={1.7} />
               {draftSaving ? '暂存中…' : '暂存'}
             </button>
 
@@ -673,9 +644,9 @@ export default function TabletEvaluatePage() {
               type="button"
               onClick={() => setResetConfirmOpen(true)}
               disabled={busy || !canScoreActiveSupplier}
-              className="flex items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white/80 px-4 py-2.5 text-sm font-semibold text-[oklch(0.45_0.01_264)] transition hover:border-[#e74c3c]/30 hover:text-[#e74c3c] active:scale-95 disabled:opacity-50"
+              className="neu-btn-soft is-danger !h-12 !px-6"
             >
-              <RotateCcw size={14} strokeWidth={1.7} />
+              <RotateCcw size={16} strokeWidth={1.7} />
               重置
             </button>
             <ConfirmDialog
@@ -695,9 +666,9 @@ export default function TabletEvaluatePage() {
           type="button"
           onClick={handleSubmit}
           disabled={busy || !canScoreActiveSupplier || scoreLocked || !verificationComplete}
-          className="flex items-center gap-1.5 rounded-lg bg-[#064ea2] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#054280] disabled:opacity-50 active:scale-95"
+          className="neu-btn-primary !h-12 !px-8"
         >
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} strokeWidth={1.7} />}
+          {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={1.7} />}
           {busy ? '提交中…' : scoreLocked ? '评分已锁定' : !verificationComplete ? '请先完成核验' : '提交'}
         </button>
       </div>

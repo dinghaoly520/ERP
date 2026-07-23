@@ -22,6 +22,8 @@ interface AssistPanelProps {
   onRetry: () => void;
 }
 
+const DOT_DELAYS = ['[animation-delay:0s]', '[animation-delay:0.15s]', '[animation-delay:0.3s]'];
+
 // ═══════════════════════════════════════════════════════════════
 // 主组件
 // ═══════════════════════════════════════════════════════════════
@@ -41,20 +43,19 @@ export function AssistPanel({
   if (assistLoading) {
     return (
       <div className="p-6">
-        <div className="text-center py-16">
+        <div className="py-16 text-center">
           <div className="mb-5">
-            <Sparkles size={48} strokeWidth={1} className="text-[var(--color-primary)] animate-pulse mx-auto" />
+            <Sparkles size={48} strokeWidth={1} className="mx-auto animate-pulse text-[var(--accent-strong)]" />
           </div>
-          <p className="font-semibold text-[var(--color-text)] text-lg">AI 正在分析投标文件…</p>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-2">
+          <p className="text-lg font-semibold text-[var(--foreground)]">AI 正在分析投标文件…</p>
+          <p className="mt-2 text-sm text-[var(--muted-foreground)]">
             正在生成 compliance 检查、风险分析与评分建议，请耐心等待
           </p>
           <div className="mt-5 flex justify-center gap-1.5">
-            {[0, 1, 2].map((i) => (
+            {DOT_DELAYS.map((delay, i) => (
               <div
                 key={i}
-                className="w-2.5 h-2.5 rounded-full bg-[var(--color-primary)]/50 animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
+                className={`h-2.5 w-2.5 animate-bounce rounded-full bg-[var(--accent-strong)]/50 ${delay}`}
               />
             ))}
           </div>
@@ -67,12 +68,12 @@ export function AssistPanel({
   if (!assistData) {
     return (
       <div className="p-6">
-        <div className="text-center py-16">
+        <div className="py-16 text-center">
           <div className="mb-4">
-            <Sparkles size={48} strokeWidth={1} className="text-[oklch(0.75_0.008_264)] mx-auto" />
+            <Sparkles size={48} strokeWidth={1} className="mx-auto opacity-50" />
           </div>
-          <p className="text-[var(--color-text-secondary)]">请先在上方选择一个投标单位</p>
-          <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+          <p className="text-[var(--muted-foreground)]">请先在上方选择一个投标单位</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
             AI 引擎将分析投标文件并生成辅助评估报告
           </p>
         </div>
@@ -84,20 +85,21 @@ export function AssistPanel({
   if (assistData.source !== 'ai_bidder_result') {
     return (
       <div className="p-5">
-        <div className="glass-card rounded-xl p-8 text-center">
-          <AlertCircle size={32} strokeWidth={1} className="text-[var(--color-warning)] mx-auto mb-3" />
-          <p className="text-sm text-[var(--color-text-secondary)]">AI 深度分析尚未完成，当前使用规则引擎降级结果</p>
-          <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+        <div className="neu-card-static p-8 text-center">
+          <AlertCircle size={32} strokeWidth={1} className="mx-auto mb-3 text-[var(--warning)]" />
+          <p className="text-sm text-[var(--muted-foreground)]">AI 深度分析尚未完成，当前使用规则引擎降级结果</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
             请等待 AI 分析完成或联系管理员触发分析任务
           </p>
           <button
             onClick={onRetry}
-            className="mt-3 text-xs text-[var(--color-primary)] hover:underline font-semibold"
+            className="mt-3 text-xs font-semibold text-[var(--accent-strong)] hover:underline"
           >
             重新加载
           </button>
         </div>
-        <div className="text-xs text-[var(--color-text-tertiary)] text-center mt-4 pt-3 border-t border-[oklch(0.91_0.006_264)]">
+        <div className="mt-4 pt-3 text-center text-xs text-[var(--muted-foreground)]">
+          <hr className="wb-section-rule mb-3" />
           以上结果由 AI（大模型 + 文档识别）辅助生成，仅供参考，以专家独立评分为准。
         </div>
       </div>
@@ -106,7 +108,7 @@ export function AssistPanel({
 
   // ── 正常态：垂直分区滚动页 ──
   return (
-    <div className="p-5 space-y-6">
+    <div className="space-y-6 p-5">
       {/* 快速状态条 */}
       <StatusBar assistData={assistData} supplierName={supplierName} decryptStatus={decryptStatus} />
 
@@ -125,22 +127,18 @@ export function AssistPanel({
       />
 
       {/* ── 单供应商区 / 跨供应商区分隔线 ── */}
-      <div className="relative pt-6">
-        <div className="absolute inset-0 flex items-center" aria-hidden="true">
-          <div className="w-full border-t border-[oklch(0.91_0.006_264)]" />
-        </div>
-        <div className="relative flex justify-center">
-          <span className="bg-[oklch(0.975_0.012_258)] px-4 text-xs font-medium text-[var(--color-text-tertiary)]">
-            跨供应商对比
-          </span>
-        </div>
+      <div className="flex items-center gap-4 pt-2">
+        <span className="wb-section-rule flex-1" />
+        <span className="text-xs font-medium text-[var(--muted-foreground)]">跨供应商对比</span>
+        <span className="wb-section-rule flex-1" />
       </div>
 
       {/* ④ 横向对比 */}
       <CrossBidderLayer projectId={projectId} activeSupplier={activeSupplier} />
 
       {/* 页脚声明 */}
-      <div className="text-xs text-[var(--color-text-tertiary)] text-center pt-2 border-t border-[oklch(0.91_0.006_264)]">
+      <div className="pt-2 text-center text-xs text-[var(--muted-foreground)]">
+        <hr className="wb-section-rule mb-3" />
         以上结果由 AI（大模型 + 文档识别）辅助生成，仅供参考，以专家独立评分为准。
       </div>
     </div>

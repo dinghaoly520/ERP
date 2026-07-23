@@ -5,8 +5,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '../lib/types';
 import {
   LayoutDashboard, ClipboardList, UserCircle,
-  PanelLeftClose, PanelLeft, AlertTriangle, RefreshCw,
+  PanelLeftClose, PanelLeft, AlertTriangle, RefreshCw, LogOut,
 } from 'lucide-react';
+import ContactConfirmModal from './contact-confirm-modal';
+import { api } from '../lib/api';
 
 const LOGIN_URL = '/login';
 
@@ -23,6 +25,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [authRetrying, setAuthRetrying] = useState(false);
+  const [contactInfo, setContactInfo] = useState<{ phone: string; email: string; displayName: string; contactConfirmedAt: string | null } | null>(null);
 
   const checkAuth = () => {
     setAuthRetrying(true);
@@ -49,6 +52,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { checkAuth(); }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    api.get<{ phone: string; email: string; displayName: string; contactConfirmedAt: string | null }>('/expert/profile/contact-check')
+      .then(setContactInfo)
+      .catch(() => { /* 检查失败时不阻断使用（fail-open） */ });
+  }, [user]);
+
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     router.replace(LOGIN_URL);
@@ -63,66 +73,41 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const userInitial = registeredName.slice(0, 1);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden workbench-page-bg text-[#18243a]">
-      <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/86 backdrop-blur-xl">
-        <div className="flex h-[68px] items-center justify-between px-6">
+    <div className="flex h-screen flex-col overflow-hidden exp-page text-[var(--foreground)]">
+      <header className="exp-topbar">
+        <div className="flex h-[66px] items-center justify-between px-5">
           <button onClick={() => router.push('/')} className="flex items-center gap-3 text-left">
             <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
-            <div>
-              <strong
-                className="block text-lg font-black tracking-[0.10em]"
-                style={{
-                  fontFamily: '"SimHei","黑体",sans-serif',
-                  background: 'linear-gradient(to right, #1a2332, #2563EB, #0891b2, #18a56c, #1a2332)',
-                  backgroundSize: '200% auto',
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  animation: 'brandShift 6s ease infinite',
-                }}
-              >
-                智慧水发 · 蜀水云采
-              </strong>
-            </div>
+            <span className="exp-brand-mark block text-lg leading-none">智慧水发 · 蜀水云采</span>
           </button>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-white/30 bg-white/50 px-3 py-2 shadow-sm backdrop-blur-sm">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-xs font-black text-white">
-                {userInitial}
-              </span>
-              <div className="hidden leading-tight sm:block">
-                <div className="text-sm font-black text-[#18243a]">{registeredName}</div>
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="exp-user-chip">
+              <span className="exp-user-chip-avatar">{userInitial}</span>
+              <span className="hidden text-sm font-bold text-[var(--foreground)] md:block">{registeredName}</span>
             </div>
-            <button
-              onClick={logout}
-              className="rounded-xl border border-white/30 bg-white/50 px-3 py-2 text-sm font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c] backdrop-blur-sm"
-            >
-              退出登录
+            <button onClick={logout} className="neu-btn-soft is-danger">
+              <LogOut size={15} strokeWidth={1.7} />
+              <span className="hidden sm:inline">退出登录</span>
             </button>
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        <aside className={`${collapsed ? 'w-[68px]' : 'w-[272px]'} m-3 mr-0 flex flex-shrink-0 flex-col overflow-hidden rounded-[24px] border border-[#dbe6f3] bg-white/88 shadow-[0_18px_60px_rgba(15,47,87,0.10)] backdrop-blur transition-all duration-200`}>
-          <nav className="flex-1 overflow-y-auto px-2 py-3">
+        <aside className={`exp-sidebar ${collapsed ? 'w-[76px]' : 'w-[264px]'} m-3 mr-0`}>
+          <nav className="flex-1 overflow-y-auto px-2.5 py-3" style={{ scrollbarWidth: 'thin' }}>
             {navItems.map(item => (
               <button
                 key={item.path}
                 onClick={() => router.push(item.path)}
-                className={`relative flex w-full items-center gap-3 rounded-2xl px-3 py-3 mb-1.5 text-left transition-all ${
-                  isActive(item.path)
-                    ? 'bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white shadow-[0_12px_28px_rgba(6,78,162,0.24)]'
-                    : 'text-[#5a6d8a] hover:bg-[#eff6ff] hover:text-[#064ea2]'
-                }`}
+                className={`exp-nav-item ${isActive(item.path) ? 'is-active' : ''}`}
+                title={collapsed ? item.label : undefined}
               >
-                {isActive(item.path) && <div className="absolute left-0 h-6 w-[3px] rounded-r bg-[#67e8f9]" />}
-                <div className="flex-shrink-0"><item.icon size={collapsed ? 20 : 18} strokeWidth={1.7} /></div>
+                <item.icon size={collapsed ? 20 : 18} strokeWidth={1.7} className="flex-shrink-0" />
                 {!collapsed && (
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black tracking-tight">{item.label}</span>
+                    <span className="block text-sm font-bold tracking-tight">{item.label}</span>
                     {item.caption && <span className="mt-0.5 block truncate text-[11px] opacity-70">{item.caption}</span>}
                   </span>
                 )}
@@ -132,7 +117,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="m-2 flex h-11 items-center justify-center rounded-2xl border border-[#e5ecf4] bg-[#f8fbff] text-[#5a6d8a] transition-colors hover:border-[#bfdbfe] hover:text-[#064ea2]"
+            className="neu-btn-soft m-2.5 !h-10 !w-[calc(100%-20px)] justify-center"
+            aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
           >
             {collapsed ? <PanelLeft size={16} strokeWidth={1.7} /> : <PanelLeftClose size={16} strokeWidth={1.7} />}
           </button>
@@ -140,17 +126,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {authError && (
-            <div className="mx-6 mt-3 flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 text-sm">
-              <AlertTriangle size={16} strokeWidth={1.5} className="text-amber-500 shrink-0" />
-              <span className="flex-1 font-semibold text-amber-700">身份验证失败，请检查网络后重试</span>
-              <button
-                onClick={checkAuth}
-                disabled={authRetrying}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition disabled:opacity-50"
-              >
-                <RefreshCw size={12} className={authRetrying ? 'animate-spin' : ''} />
-                {authRetrying ? '重试中…' : '重试'}
-              </button>
+            <div className="mx-5 mt-3">
+              <div className="exp-alert exp-alert--warn flex items-center gap-3">
+                <AlertTriangle size={16} strokeWidth={1.6} className="shrink-0" />
+                <span className="flex-1">身份验证失败，请检查网络后重试</span>
+                <button onClick={checkAuth} disabled={authRetrying} className="neu-btn-xs is-warning">
+                  <RefreshCw size={12} className={authRetrying ? 'animate-spin' : ''} />
+                  {authRetrying ? '重试中…' : '重试'}
+                </button>
+              </div>
             </div>
           )}
           <main className="flex-1 overflow-y-auto p-6">
@@ -158,6 +142,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      {contactInfo && !contactInfo.contactConfirmedAt && (
+        <ContactConfirmModal
+          initialPhone={contactInfo.phone}
+          initialEmail={contactInfo.email}
+          displayName={contactInfo.displayName}
+          onConfirmed={() => setContactInfo(prev => (prev ? { ...prev, contactConfirmedAt: new Date().toISOString() } : prev))}
+        />
+      )}
     </div>
   );
 }
