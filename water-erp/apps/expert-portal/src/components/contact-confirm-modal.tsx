@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Phone, Mail, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { toast } from 'sonner';
@@ -32,30 +32,36 @@ export default function ContactConfirmModal({ initialPhone, initialEmail, displa
     };
   }, []);
 
-  // 焦点陷阱：Tab/Shift+Tab 只在弹窗内循环（跳过 disabled，保存中确认键禁用时自动跳过）
-  const handleTrapKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'Tab') return;
-    const container = dialogRef.current;
-    if (!container) return;
-    const focusables = Array.from(
-      container.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter(el => el.offsetParent !== null);
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    const active = document.activeElement;
-    if (e.shiftKey) {
-      if (!active || active === first || !container.contains(active)) {
+  // 焦点陷阱：Tab/Shift+Tab 只在弹窗内循环（跳过 disabled，保存中确认键禁用时自动跳过）。
+  // 必须用 document 级原生监听：React 容器 onKeyDown 只在事件目标为容器后代时触发，
+  // 点背景后焦点落到 <body>、Tab 不经容器 → 拉回逻辑成死代码，焦点可逃出强制弹窗。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const container = dialogRef.current;
+      if (!container) return;
+      const focusables = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter(el => el.offsetParent !== null);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey) {
+        if (!active || active === first || !container.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (!active || active === last || !container.contains(active)) {
         e.preventDefault();
-        last.focus();
+        first.focus();
       }
-    } else if (!active || active === last || !container.contains(active)) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleConfirm = async () => {
     const trimmedPhone = phone.trim();
@@ -85,7 +91,6 @@ export default function ContactConfirmModal({ initialPhone, initialEmail, displa
       aria-modal="true"
       aria-labelledby="contact-confirm-title"
       aria-describedby="contact-confirm-desc"
-      onKeyDown={handleTrapKeyDown}
       className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--background)]/60 p-4 backdrop-blur-sm"
     >
       <div className="exp-dialog w-full max-w-md">
