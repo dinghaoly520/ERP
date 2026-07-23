@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
+import { streamToBuffer } from '../announcement/bid-document.crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
@@ -128,5 +130,67 @@ export class BidBackupService {
       update: data,
       create: { projectId: meta.projectId, supplierId: meta.supplierId, fileRole: staged.fileRole, ...data },
     });
+  }
+
+  private async lookupReceiptNo(projectId: string, supplierId: string): Promise<string | null> {
+    const bs = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { receiptNo: true } });
+    return bs?.receiptNo ?? null;
+  }
+
+  /** 每 15 分钟：为已提交但缺备份的记录，从 sealedPath 读密文补齐。仍只碰密文，不解密。 */
+  @Cron('*/15 * * * *')
+  async reconcileMissing(): Promise<number> {
+    if (!this.enabled) return 0;
+    const submissions = await this.prisma.supplierBidSubmission.findMany({
+      where: { status: 'submitted' },
+      select: {
+        id: true, supplierId: true, projectId: true, submittedAt: true,
+        technicalFileAssetId: true, businessFileAssetId: true, coverLetterAssetId: true,
+        technicalSealedKey: true, businessSealedKey: true, coverLetterSealedKey: true,
+      },
+    });
+    let fixed = 0;
+    for (const sub of submissions) {
+      const candidates: Array<{ role: BackupFileRole; assetId: string | null; sealedKey: string | null }> = [
+        { role: 'technical', assetId: sub.technicalFileAssetId, sealedKey: sub.technicalSealedKey },
+        { role: 'business', assetId: sub.businessFileAssetId, sealedKey: sub.businessSealedKey },
+        { role: 'coverLetter', assetId: sub.coverLetterAssetId, sealedKey: sub.coverLetterSealedKey },
+      ];
+      for (const c of candidates) {
+        if (!c.assetId || !c.sealedKey) continue; // 无该文件或 legacy 未封标 → 跳过
+        const existing = await this.prisma.bidFileBackup.findUnique({
+          where: { supplierId_projectId_fileRole: { supplierId: sub.supplierId, projectId: sub.projectId, fileRole: c.role } },
+        });
+        if (existing) continue;
+        try {
+          const asset = await this.prisma.fileAsset.findUnique({ where: { id: c.assetId } });
+          if (!asset?.sealedPath) continue;
+          const ciphertext = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.sealedPath));
+          const staged: StagedBackup = {
+            fileAssetId: c.assetId,
+            fileRole: c.role,
+            backupKey: this.buildBackupKey(sub.projectId, sub.supplierId, c.role, asset.sealedPath),
+            sealedPath: asset.sealedPath,
+            wrappedDek: c.sealedKey,
+            ciphertextSha256: this.computeSha256(ciphertext),
+            plaintextSha256: asset.sha256 ?? null,
+            size: ciphertext.length,
+          };
+          await minioClient.putObject(MINIO_BUCKET, staged.backupKey, ciphertext, ciphertext.length, {
+            'Content-Type': 'application/octet-stream',
+          });
+          const receiptNo = await this.lookupReceiptNo(sub.projectId, sub.supplierId);
+          await this.persistBackup(this.prisma, staged, {
+            projectId: sub.projectId, supplierId: sub.supplierId, receiptNo,
+            submittedAt: sub.submittedAt ?? new Date(), backupSource: 'reconcile',
+          });
+          fixed++;
+        } catch (err) {
+          this.logger.warn(`投标文件补备失败: submission=${sub.id} role=${c.role} err=${(err as Error).message}`);
+        }
+      }
+    }
+    if (fixed > 0) this.logger.log(`投标文件补备完成：补齐 ${fixed} 份`);
+    return fixed;
   }
 }

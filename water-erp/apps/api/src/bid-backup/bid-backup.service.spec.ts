@@ -102,4 +102,61 @@ describe('BidBackupService', () => {
       });
     });
   });
+
+  describe('reconcileMissing', () => {
+    it('功能关闭：直接返回 0，不查询', async () => {
+      process.env.BID_BACKUP_ENABLED = 'false';
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [BidBackupService, { provide: PrismaService, useValue: prisma }],
+      }).compile();
+      const disabled = module.get(BidBackupService);
+      await expect(disabled.reconcileMissing()).resolves.toBe(0);
+      expect(prisma.supplierBidSubmission.findMany).not.toHaveBeenCalled();
+    });
+
+    it('缺失的从 sealedPath 读密文补齐（backupSource=reconcile）', async () => {
+      const ciphertext = Buffer.from('sealed-cipher');
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{
+        id: 'sub1', supplierId: 's1', projectId: 'p1', submittedAt: new Date('2026-01-01'),
+        technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null,
+        technicalSealedKey: 'wd', businessSealedKey: null, coverLetterSealedKey: null,
+      }]);
+      prisma.bidFileBackup.findUnique.mockResolvedValue(null); // 无备份
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'a1', sealedPath: 'sealed/p1/s1/bid.enc', sha256: 'psha' });
+      (minioClient.getObject as jest.Mock).mockResolvedValue(fakeStream(ciphertext));
+      (minioClient.putObject as jest.Mock).mockResolvedValue({});
+      prisma.bidSupplier.findFirst.mockResolvedValue({ receiptNo: 'TB-9' });
+      prisma.bidFileBackup.upsert.mockResolvedValue({});
+
+      const n = await service.reconcileMissing();
+      expect(n).toBe(1);
+      expect(minioClient.getObject).toHaveBeenCalledWith('test-bucket', 'sealed/p1/s1/bid.enc');
+      expect(prisma.bidFileBackup.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        update: expect.objectContaining({ backupSource: 'reconcile', ciphertextSha256: sha(ciphertext), receiptNo: 'TB-9' }),
+      }));
+    });
+
+    it('已存在备份 → 跳过不补', async () => {
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{
+        id: 'sub1', supplierId: 's1', projectId: 'p1', submittedAt: new Date(),
+        technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null,
+        technicalSealedKey: 'wd', businessSealedKey: null, coverLetterSealedKey: null,
+      }]);
+      prisma.bidFileBackup.findUnique.mockResolvedValue({ id: 'b1' }); // 已有
+      await expect(service.reconcileMissing()).resolves.toBe(0);
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('单条补备失败不中断整体', async () => {
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{
+        id: 'sub1', supplierId: 's1', projectId: 'p1', submittedAt: new Date(),
+        technicalFileAssetId: 'a1', businessFileAssetId: null, coverLetterAssetId: null,
+        technicalSealedKey: 'wd', businessSealedKey: null, coverLetterSealedKey: null,
+      }]);
+      prisma.bidFileBackup.findUnique.mockResolvedValue(null);
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'a1', sealedPath: 'sealed/x.enc', sha256: 'p' });
+      (minioClient.getObject as jest.Mock).mockRejectedValue(new Error('read fail'));
+      await expect(service.reconcileMissing()).resolves.toBe(0);
+    });
+  });
 });
