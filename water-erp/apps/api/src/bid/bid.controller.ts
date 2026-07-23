@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { BidService } from './bid.service';
 import { ScorePointExtractorService } from './score-point-extractor.service';
+import { BidBackupService } from '../bid-backup/bid-backup.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
@@ -28,6 +29,7 @@ export class BidController {
   constructor(
     private readonly bidService: BidService,
     private readonly scorePointExtractor: ScorePointExtractorService,
+    private readonly bidBackup: BidBackupService,
   ) {}
 
   @Get('dashboard-stats')
@@ -145,6 +147,13 @@ export class BidController {
   @ApiOperation({ summary: '解密供应商投标' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.bidService.decryptSupplier(id, supplierId, dto, userId); }
+
+  @Get('projects/:id/backup-verify/:supplierId')
+  @ApiOperation({ summary: '核验未解密投标文件备份（争议举证：三方哈希比对，只读，仅 admin/bid_host）' })
+  @Roles('admin', 'bid_host')
+  verifyBackup(@Param('id') id: string, @Param('supplierId') supplierId: string, @CurrentUser('sub') userId?: string) {
+    return this.bidBackup.verify(id, supplierId, userId);
+  }
 
   @Get('projects/:id/opening-records')
   @ApiOperation({ summary: '开标记录' })
