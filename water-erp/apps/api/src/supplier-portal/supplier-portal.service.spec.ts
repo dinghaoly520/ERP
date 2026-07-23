@@ -3,6 +3,7 @@ import { SupplierPortalService } from './supplier-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { SignatureService } from '../common/crypto/signature.service';
+import { BidBackupService } from '../bid-backup/bid-backup.service';
 
 jest.mock('../announcement/bid-document.crypto', () => ({
   encryptBuffer: jest.fn().mockReturnValue({
@@ -55,8 +56,9 @@ describe('SupplierPortalService', () => {
 
   beforeEach(async () => {
     prisma = {
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
       supplier: { findUnique: jest.fn() },
-      bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+      bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
       supplierEvaluation: { count: jest.fn() },
       supplierBidSubmission: {
         count: jest.fn(),
@@ -87,6 +89,7 @@ describe('SupplierPortalService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: BidDocumentService, useValue: { getForSupplier: jest.fn() } },
         { provide: SignatureService, useValue: { verify: jest.fn().mockReturnValue(true), isValidPublicKey: jest.fn().mockReturnValue(true) } },
+        { provide: BidBackupService, useValue: { stageBackup: jest.fn().mockResolvedValue(null), persistBackup: jest.fn(), isEnabled: jest.fn().mockReturnValue(true) } },
       ],
     }).compile();
 
@@ -491,6 +494,7 @@ describe('SupplierPortalService', () => {
     it('返回招标项目列表，仅公开字段 + 投标方数量', async () => {
       prisma.bidProject.count.mockResolvedValue(1);
       prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', name: '项目一', stage: 'SUBMIT' }]);
+      prisma.bidProject.groupBy.mockResolvedValue([]);
 
       const result = await service.listBidProjects();
 
