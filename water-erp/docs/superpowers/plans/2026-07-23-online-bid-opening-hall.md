@@ -1973,7 +1973,8 @@ async function confirmRecord() {
     ElMessage.success('已确认开标记录')
     await refresh()
   } catch (e: any) {
-    if (e === 'cancel' || e?.toString?.().includes('cancel')) return
+    // ElMessageBox：取消按钮 reject 'cancel'，ESC/X 关闭 reject 'close'——都属用户关闭，不报错
+    if (e === 'cancel' || e === 'close' || e?.toString?.().includes('cancel') || e?.toString?.().includes('close')) return
     ElMessage.error(e?.response?.data?.error || '确认失败')
   }
 }
@@ -1988,7 +1989,7 @@ async function disputeRecord() {
     ElMessage.success('异议已提交，请等待主持人处理')
     await refresh()
   } catch (e: any) {
-    if (e === 'cancel' || e?.toString?.().includes('cancel')) return
+    if (e === 'cancel' || e === 'close' || e?.toString?.().includes('cancel') || e?.toString?.().includes('close')) return
     ElMessage.error(e?.response?.data?.error || '提交失败')
   }
 }
@@ -2036,7 +2037,8 @@ onMounted(async () => {
         <div class="actions">
           <el-button v-if="isOpening && !checkedInAt" type="primary" @click="checkIn">签到</el-button>
           <el-tag v-else-if="checkedInAt" type="info">已签到 {{ new Date(checkedInAt).toLocaleTimeString('zh-CN') }}</el-tag>
-          <template v-if="isOpening && record && record.confirmStatus === '待确认'">
+          <!-- 后端/种子数据实际写入 '待供应商确认'（bid.service.ts:913），旧页兼容 '待确认'，两者都接受 -->
+          <template v-if="isOpening && record && (record.confirmStatus === '待确认' || record.confirmStatus === '待供应商确认')">
             <el-button type="success" @click="confirmRecord">确认开标记录</el-button>
             <el-button type="warning" @click="disputeRecord">提出异议</el-button>
           </template>
