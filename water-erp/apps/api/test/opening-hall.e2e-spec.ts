@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
+import { hashSync } from 'bcryptjs';
 import { io, Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -40,10 +41,12 @@ describe('Opening Hall (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let base: string;
-  let hostCookie: string, sup1Cookie: string, sup2Cookie: string;
+  let hostCookie: string, sup1Cookie: string, sup2Cookie: string, expertCookie: string;
   let projectId: string, sup1Id: string, sup2Id: string;
   const sockets: Socket[] = [];
   const extraProjectIds: string[] = []; // 用例内临时创建、需在 afterAll 兜底清理的项目
+  let nonMemberCookie: string;
+  let nonMemberSupplierId: string, nonMemberUserId: string; // 临时「非参投供应商」，afterAll 清理
 
   beforeAll(async () => {
     const mod: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -59,9 +62,30 @@ describe('Opening Hall (e2e)', () => {
     hostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
     sup1Cookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
     sup2Cookie = await loginAs(app, 'huaxi', 'huaxi@2026', 'supplier');
+    expertCookie = await loginAs(app, '刘苡池', 'expert@2026', 'expert');
     expect(hostCookie).toContain('token_web=');
     expect(sup1Cookie).toContain('token_supplier=');
     expect(sup2Cookie).toContain('token_supplier=');
+    expect(expertCookie).toContain('token_expert=');
+
+    // 临时「非参投供应商」：裸 User + Supplier 对（无 BidSupplier 行），用于成员门 E2E
+    const ts0 = Date.now();
+    const nmUser = await prisma.user.create({
+      data: {
+        username: `e2e-nonmember-${ts0}`, displayName: `E2E非参投-${ts0}`,
+        role: 'supplier', isActive: true, passwordHash: hashSync('e2e@2026', 10),
+      },
+    });
+    nonMemberUserId = nmUser.id;
+    const nmSupplier = await prisma.supplier.create({
+      data: {
+        userId: nmUser.id, name: `E2E非参投供应商-${ts0}`, normalizedName: `E2E非参投供应商-${ts0}`,
+        enterpriseType: '有限责任公司', legalPerson: '测试', registeredAddress: '成都', businessScope: '测试',
+      },
+    });
+    nonMemberSupplierId = nmSupplier.id;
+    nonMemberCookie = await loginAs(app, `e2e-nonmember-${ts0}`, 'e2e@2026', 'supplier');
+    expect(nonMemberCookie).toContain('token_supplier=');
 
     const u1 = await prisma.user.findFirst({ where: { username: 'supplier1', role: 'supplier' } });
     const u2 = await prisma.user.findFirst({ where: { username: 'huaxi', role: 'supplier' } });
@@ -111,6 +135,8 @@ describe('Opening Hall (e2e)', () => {
     for (const id of extraProjectIds) {
       await prisma.bidProject.deleteMany({ where: { id } }).catch(() => {});
     }
+    if (nonMemberSupplierId) await prisma.supplier.deleteMany({ where: { id: nonMemberSupplierId } }).catch(() => {});
+    if (nonMemberUserId) await prisma.user.deleteMany({ where: { id: nonMemberUserId } }).catch(() => {});
     await app.close();
   });
 
@@ -242,6 +268,29 @@ describe('Opening Hall (e2e)', () => {
       .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: '复核无误', confirm: true }).expect(201);
     const rd = await pResolved;
     expect(rd.confirm).toBe(true);
+  });
+
+  it('授权收口：专家读私聊转录 → 403 HOST_ONLY（非主持非供应商角色）', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/opening-hall/${projectId}/messages?roomType=PRIVATE&supplierId=${sup1Id}`)
+      .set('Cookie', expertCookie).set('X-Portal', 'expert')
+      .expect(403)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'HOST_ONLY' }));
+    // 未读分布与在场名单同样拒绝
+    await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/unread`)
+      .set('Cookie', expertCookie).set('X-Portal', 'expert').expect(403);
+    await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/presence`)
+      .set('Cookie', expertCookie).set('X-Portal', 'expert').expect(403);
+  });
+
+  it('授权收口：非参投供应商发公聊 → NOT_PROJECT_MEMBER（不落库）', async () => {
+    // 服务层抛 BadRequestException（与 checkIn 的 NOT_PROJECT_MEMBER 一致），故 HTTP 400
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', nonMemberCookie).set('X-Portal', 'supplier').send({ roomType: 'PUBLIC', content: '越权发言' })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'NOT_PROJECT_MEMBER' }));
+    const leaked = await prisma.openingHallMessage.findFirst({ where: { projectId, content: '越权发言' } });
+    expect(leaked).toBeNull();
   });
 
   it('阶段门：EVALUATING 阶段发消息 403', async () => {

@@ -149,6 +149,14 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { ok: true, supplierId: supplier.id, supplierName: member.supplierName };
     }
 
+    if (role === 'bid_expert') {
+      // 专家保留项目房访问（历来如此）+ 专家聚合进度房（§4.3 供应商不可见，无需成员门控，
+      // 专家指派校验由专家门户自身负责）；断连时 socket.io 自动移出其加入的房间。
+      client.join(`project:${projectId}`);
+      client.join(`experts:${projectId}`);
+      return { ok: true };
+    }
+
     client.join(`project:${projectId}`);
     if (canJoinHostRoom(role)) client.join(`host:${projectId}`);
     return { ok: true };
@@ -158,6 +166,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleLeaveProject(client: Socket, projectId: string) {
     client.leave(`project:${projectId}`);
     client.leave(`host:${projectId}`);
+    client.leave(`experts:${projectId}`);
   }
 
   // ── Heartbeat ──
@@ -226,8 +235,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       averageProgressPercent: total > 0 ? Math.round(experts.reduce((s, e) => s + (e.progress ?? 0), 0) / total) : 0,
       timestamp: Date.now(),
     };
-    // 设计 §4.3：评标进度聚合仅主持内部可见，供应商不可见
+    // 设计 §4.3：供应商不可见（§4.3）；主持端 + 专家端可见
     this.server.to(`host:${projectId}`).emit(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, payload);
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, payload);
   }
 
   // ── Bid validity: broadcast to everyone in the project room (experts grey-out the supplier) ──
