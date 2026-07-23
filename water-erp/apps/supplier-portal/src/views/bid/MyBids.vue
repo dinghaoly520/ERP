@@ -231,6 +231,12 @@ async function handleWithdraw(id: string) {
 
           <!-- Right actions — cgzxui 原生按钮，统一居中 -->
           <div class="mb-card-actions">
+            <el-button
+              v-if="row.project?.stage === 'OPENING'"
+              link
+              type="primary"
+              @click="router.push(`/my-bids/${row.projectId}/opening-hall`)"
+            >进入开标大厅</el-button>
             <button
               v-if="row.confirmStatus === 'CONFIRMED'"
               class="neu-btn-xs is-success"
