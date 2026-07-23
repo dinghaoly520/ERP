@@ -1822,6 +1822,17 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
+    const hallMessages = await this.prisma.openingHallMessage.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+    });
+    // OpeningHallMessage 不存 supplierName（schema 仅 supplierId）；私聊归属经 BidSupplier 反查
+    const hallSupplierNames = new Map(
+      (await this.prisma.bidSupplier.findMany({ where: { projectId }, select: { supplierId: true, supplierName: true } }))
+        .filter(s => s.supplierId)
+        .map(s => [s.supplierId as string, s.supplierName] as const),
+    );
+
     const chain = computeArchiveChain(
       { id: project.id, projectCode: project.projectCode, name: project.name, stage: project.stage },
       project.archiveItems,
@@ -1925,6 +1936,11 @@ export class BidService {
         evaluationResults: project.evaluationResults,
         supervisionLogs: project.supervisionLogs,
         clarifications: project.clarifications,
+        hallMessages: hallMessages.map(m => ({
+          id: m.id, roomType: m.roomType,
+          supplierName: m.supplierId ? (hallSupplierNames.get(m.supplierId) ?? null) : null,
+          senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt,
+        })),
         confirmationRecords: project.suppliers.filter(s => s.confirmStatus !== 'PENDING').map(s => ({ supplierName: s.supplierName, status: s.confirmStatus, error: s.decryptError })),
       },
       hashChain: {
