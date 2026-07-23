@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { openingHallApi } from '@/lib/opening-hall';
 import type { BidProjectDetail } from '@/lib/types';
 import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { getSupervisionAnnotations, upsertSupervisionAnnotation, deleteSupervisionAnnotation } from '@/lib/api/bid';
@@ -38,8 +39,15 @@ function exportSupervisionCSV(logs: Array<{ time: string; role: string; target: 
   toast.success('导出成功');
 }
 
+const TABS = [
+  { key: 'overview', label: '监督总览' },
+  { key: 'hall', label: '大厅交流' },
+] as const;
+type SuperviseTab = (typeof TABS)[number]['key'];
+
 export default function BidSupervisePage() {
   const { projectId } = useBidProjectContext();
+  const [tab, setTab] = useState<SuperviseTab>('overview');
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [supervisionLogs, setSupervisionLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,6 +147,21 @@ export default function BidSupervisePage() {
         <span className="rounded-full border border-[#fecaca] bg-[#fef2f2] px-3 py-1 text-xs font-bold text-[#e74c3c]">禁止干预评分</span>
       </div>
 
+      {/* Tab switcher */}
+      <div className="flex items-center gap-1 border-b border-[#e5ecf4]">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`-mb-px border-b-2 px-4 py-2 text-[13px] font-bold transition ${
+              tab === t.key
+                ? 'border-[#064ea2] text-[#064ea2]'
+                : 'border-transparent text-[oklch(0.55_0.01_264)] hover:text-[#18243a]'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && (<>
       <div className="grid grid-cols-[1fr_1fr] gap-6">
         {/* Timeline */}
         <SectionCard title="过程时间线">
@@ -315,6 +338,63 @@ export default function BidSupervisePage() {
           </tbody>
         </table>
       </SectionCard>
+      </>)}
+
+      {tab === 'hall' && projectId && <HallExchangeReadonly projectId={projectId} />}
+    </div>
+  );
+}
+
+function HallExchangeReadonly({ projectId }: { projectId: string }) {
+  const [publicMsgs, setPublicMsgs] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [active, setActive] = useState<string | null>(null);
+  const [privateMsgs, setPrivateMsgs] = useState<any[]>([]);
+
+  useEffect(() => {
+    openingHallApi.messages(projectId, { roomType: 'PUBLIC', limit: 100 })
+      .then(r => setPublicMsgs(r.items)).catch(() => {});
+    openingHallApi.unread(projectId).then(r => setSessions(r.sessions ?? [])).catch(() => {});
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!active) return;
+    openingHallApi.messages(projectId, { roomType: 'PRIVATE', supplierId: active, limit: 100 })
+      .then(r => setPrivateMsgs(r.items)).catch(() => {});
+  }, [active, projectId]);
+
+  const MsgList = ({ items }: { items: any[] }) => (
+    <div className="max-h-[480px] space-y-2 overflow-y-auto">
+      {items.length === 0 && <div className="py-8 text-center text-xs text-slate-400">暂无记录</div>}
+      {items.map((m: any) => (
+        <div key={m.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+          <div className="mb-0.5 text-[11px] text-slate-400">
+            {m.senderRole === 'HOST' ? '主持人' : m.senderRole === 'SYSTEM' ? '系统' : m.senderName} · {new Date(m.createdAt).toLocaleString('zh-CN')}
+          </div>
+          <div className="whitespace-pre-wrap break-all">{m.content}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-slate-200 p-4">
+        <h4 className="mb-2 text-sm font-semibold">公聊记录</h4>
+        <MsgList items={publicMsgs} />
+      </div>
+      <div className="rounded-xl border border-slate-200 p-4">
+        <h4 className="mb-2 text-sm font-semibold">私聊记录（按供应商）</h4>
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {sessions.map((s: any) => (
+            <button key={s.supplierId} onClick={() => setActive(s.supplierId)}
+              className={`rounded-lg px-2 py-1 text-xs ${active === s.supplierId ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              {s.supplierName}
+            </button>
+          ))}
+        </div>
+        {active ? <MsgList items={privateMsgs} /> : <div className="text-xs text-slate-400">选择供应商查看私聊留痕</div>}
+      </div>
     </div>
   );
 }
