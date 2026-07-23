@@ -23,6 +23,13 @@ export const BID_EVENT = {
   ANOMALY_DETECTED: 'anomaly:detected',
   PRESENCE_HEARTBEAT: 'presence:heartbeat',
   BID_VALIDITY_CHANGE: 'bid:validity:change',
+  HALL_MESSAGE_NEW: 'hall:message:new',
+  HALL_PRESENCE_UPDATE: 'hall:presence:update',
+  HALL_CHECKIN: 'hall:checkin',
+  HALL_EXCHANGE_CONTROL: 'hall:exchange:control',
+  OPENING_CONFIRMED: 'opening:confirmed',
+  OPENING_DISPUTED: 'opening:disputed',
+  OPENING_DISPUTE_RESOLVED: 'opening:dispute:resolved',
 } as const;
 
 // ── 载荷类型 ──
@@ -119,3 +126,69 @@ export interface BidValidityChangePayload {
 }
 
 export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
+
+// ── 开标大厅（迭代一：实时文字地基）──
+
+export type OpeningHallRoomType = 'PUBLIC' | 'PRIVATE';
+export type OpeningHallSenderRole = 'HOST' | 'SUPPLIER' | 'SYSTEM';
+
+export interface HallMessagePayload {
+  id: string;
+  projectId: string;
+  roomType: OpeningHallRoomType;
+  supplierId: string | null;   // PRIVATE 时为 Supplier.id；PUBLIC 为 null
+  supplierName: string | null;
+  senderId: string;
+  senderRole: OpeningHallSenderRole;
+  senderName: string;
+  content: string;
+  createdAt: string;           // ISO
+  timestamp: number;
+}
+
+export interface HallPresenceUpdatePayload {
+  projectId: string;
+  onlineSuppliers: Array<{ supplierId: string; supplierName: string; checkInAt: string | null }>;
+  onlineCount: number;
+  timestamp: number;
+}
+
+export interface HallCheckinPayload {
+  projectId: string;
+  supplierId: string;
+  supplierName: string;
+  checkInAt: string;
+  timestamp: number;
+}
+
+export interface HallExchangeControlPayload {
+  projectId: string;
+  control: 'OPEN' | 'MUTED' | 'CLOSED';
+  by: string;
+  timestamp: number;
+}
+
+export interface OpeningConfirmedPayload {
+  projectId: string;
+  supplierId: string;
+  supplierName: string;
+  timestamp: number;
+}
+
+export interface OpeningDisputedPayload {
+  projectId: string;
+  supplierId: string;
+  supplierName: string;
+  reason: string;
+  timestamp: number;
+}
+
+export interface OpeningDisputeResolvedPayload {
+  projectId: string;
+  supplierId: string;
+  supplierName: string;
+  recordId: string;
+  confirm: boolean;
+  result: string;
+  timestamp: number;
+}
