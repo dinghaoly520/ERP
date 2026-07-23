@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
-  AlertTriangle, ArrowLeft, RefreshCw,
+  AlertTriangle, ArrowLeft, LogOut, RefreshCw,
 } from 'lucide-react';
 import type { User } from '@/lib/types';
 
 /**
- * 平板触屏 layout（Phase ⑤ Task 6）
+ * 平板触屏 layout（Phase ⑤ Task 6 · cgzxui 新拟态重构）
  *
  * 与桌面 AppShell 的差异：
- * - 无左侧 sidebar —— 平板横向空间宝贵，改为顶部紧凑 header + 全宽 content
- * - 退出/重试按钮放大、touch target ≥ 44px
+ * - 无左侧 sidebar —— 平板横向空间宝贵，改为顶部紧凑 header（h-14）+ 全宽 content
+ * - 退出/返回/重试按钮放大，主触控目标 ≥ 44px
  * - 鉴权同 (app)：fetch /api/auth/me，401 → /login（cookie + X-Portal 由 api 客户端处理）
  */
 const LOGIN_URL = '/login';
@@ -66,38 +66,33 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
   const isEvaluatePage = pathname.includes('/evaluate/');
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden workbench-page-bg text-[#18243a]">
-      {/* 紧凑 header —— 评标页隐藏，落地页展示（含退出） */}
+    <div className="exp-page flex h-screen flex-col overflow-hidden text-[var(--foreground)]">
+      {/* 紧凑顶栏 —— 评标页隐藏，落地页展示（含退出） */}
       {!isEvaluatePage && (
-        <header className="sticky top-0 z-50 flex-shrink-0 border-b border-[#dbe6f3] bg-white/90 backdrop-blur-xl">
+        <header className="exp-topbar">
           <div className="flex h-14 items-center justify-between px-4">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2.5">
               {pathname !== '/tablet' && (
                 <button
                   type="button"
                   onClick={() => router.push('/tablet')}
                   aria-label="返回平板工作台"
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-[oklch(0.55_0.01_264)] transition hover:bg-[oklch(0.97_0.005_264)]"
+                  className="neu-btn-soft !h-11 !w-11 !p-0"
                 >
-                  <ArrowLeft size={18} strokeWidth={1.7} />
+                  <ArrowLeft size={17} strokeWidth={1.7} />
                 </button>
               )}
-              <img src="/assets/logo.png" alt="" className="h-7 w-auto object-contain" />
-              <strong className="text-sm font-black tracking-wide text-[#18243a]">专家评标</strong>
+              <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="h-8 w-auto object-contain" />
+              <span className="exp-brand-mark truncate text-base leading-none">专家评标</span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 rounded-lg border border-white/40 bg-white/60 px-2.5 py-1.5">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-[11px] font-black text-white">
-                  {userInitial}
-                </span>
-                <span className="text-xs font-bold text-[#18243a]">{registeredName}</span>
+            <div className="flex items-center gap-2.5">
+              <div className="exp-user-chip">
+                <span className="exp-user-chip-avatar">{userInitial}</span>
+                <span className="hidden text-sm font-bold text-[var(--foreground)] sm:block">{registeredName}</span>
               </div>
-              <button
-                type="button"
-                onClick={logout}
-                className="rounded-lg border border-white/40 bg-white/60 px-3 py-2 text-xs font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
-              >
+              <button type="button" onClick={logout} className="neu-btn-soft is-danger !h-11">
+                <LogOut size={15} strokeWidth={1.7} />
                 退出
               </button>
             </div>
@@ -106,18 +101,20 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
       )}
 
       {authError && (
-        <div className="mx-4 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
-          <AlertTriangle size={16} strokeWidth={1.5} className="shrink-0 text-amber-500" />
-          <span className="flex-1 font-semibold text-amber-700">身份验证失败，请检查网络后重试</span>
-          <button
-            type="button"
-            onClick={() => { retryRef.current = 0; checkAuth(); }}
-            disabled={authRetrying}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600 disabled:opacity-50"
-          >
-            <RefreshCw size={12} className={authRetrying ? 'animate-spin' : ''} />
-            {authRetrying ? '重试中…' : '重试'}
-          </button>
+        <div className="mx-4 mt-3">
+          <div className="exp-alert exp-alert--warn flex items-center gap-3">
+            <AlertTriangle size={16} strokeWidth={1.6} className="shrink-0" />
+            <span className="flex-1">身份验证失败，请检查网络后重试</span>
+            <button
+              type="button"
+              onClick={() => { retryRef.current = 0; checkAuth(); }}
+              disabled={authRetrying}
+              className="neu-btn-soft is-warning !h-11"
+            >
+              <RefreshCw size={13} className={authRetrying ? 'animate-spin' : ''} />
+              {authRetrying ? '重试中…' : '重试'}
+            </button>
+          </div>
         </div>
       )}
 

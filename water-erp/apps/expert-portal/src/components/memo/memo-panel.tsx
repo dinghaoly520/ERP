@@ -300,143 +300,128 @@ export function MemoPanel({
     } catch (e) { toast.error('获取墨迹失败'); }
   };
 
-  const padY = compact ? 'py-1.5' : 'py-2';
+  // cgzxui 工具栏图标按钮（36px 方形凸起，平板触控友好）
+  const toolBtn = 'neu-btn-xs is-square !h-9 !w-9';
 
-  // 新拟态按钮共享样式（tooltip/inline 型——无外凸阴影，仅 hover/active 反馈）
-  const btnBase = `rounded-lg border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-1.5 ${padY} text-[10px] font-semibold
-    transition-all duration-150
-    shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
-    hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
-    active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12),inset_0_-1px_0_oklch(1_0_0_/_.5)] active:translate-y-px`;
-
-  const sliderCls = `h-1 cursor-pointer appearance-none rounded-full
-    bg-[oklch(0.92_0.004_265)]
-    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+  const sliderCls = `h-1.5 cursor-pointer appearance-none rounded-full
+    bg-[oklch(0.96_0.01_258)]
+    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
-    [&::-webkit-slider-thumb]:shadow-[0_1px_2px_oklch(0.55_0.03_258_/_.15),inset_0_1px_0_oklch(1_0_0_/_.7)]`;
+    [&::-webkit-slider-thumb]:shadow-[2px_2px_4px_oklch(0.55_0.03_258/0.2),inset_0_1px_0_oklch(1_0_0/0.5)]`;
 
   // 工具栏：全屏带缩放(zoom:true)，略缩页去缩放、清屏占位(zoom:false)；清屏统一居末，点击弹 ConfirmDialog
   const renderToolbar = ({ zoom }: { zoom: boolean }) => (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       {/* 颜色 */}
       {COLORS.map(c => (
         <button
           key={c.value}
           type="button" title={c.label}
           onClick={() => { setCurrentColor(c.value); activeCanvas()?.setColor(c.value); }}
-          className={`size-[10px] rounded-full transition-all duration-150
-            shadow-[0_1px_1.5px_oklch(0.55_0.03_258_/_.12),inset_0_1px_0_oklch(1_0_0_/_.5)]
-            hover:scale-110
-            ${currentColor === c.value
-              ? 'ring-2 ring-[#064ea2] ring-offset-1 ring-offset-white scale-110 shadow-[0_1px_2px_oklch(0.55_0.03_258_/_.2),inset_0_1px_0_oklch(1_0_0_/_.6)]'
-              : ''}`}
-          style={{ backgroundColor: c.value }}
-        />
+          className={`neu-btn-xs is-square !h-9 !w-9 ${
+            currentColor === c.value
+              ? '!bg-[oklch(0.96_0.04_251/0.5)] shadow-[inset_1.5px_1.5px_3px_oklch(0.55_0.03_258/0.14),inset_-1px_-1px_2px_oklch(1_0_0/0.5)]'
+              : ''
+          }`}
+        >
+          <span className="h-2.5 w-2.5 rounded-full bg-[var(--c)]" style={{ '--c': c.value } as React.CSSProperties} />
+        </button>
       ))}
-      <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+      <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
       {/* 线宽滑块 */}
       <input type="range" min={2} max={12} value={currentWeight}
         onChange={e => { const v=Number(e.target.value); setCurrentWeight(v); activeCanvas()?.setWeight(v); }}
-        className={`w-16 ${sliderCls} [&::-webkit-slider-thumb]:bg-[#064ea2]`}
+        className={`w-20 ${sliderCls} [&::-webkit-slider-thumb]:bg-[var(--accent-strong)]`}
         title="笔触粗细"
       />
-      <span className="inline-flex items-center justify-center w-5 h-5 shrink-0">
-        <span className="rounded-full transition-all duration-100"
-          style={{ backgroundColor: currentColor, width: Math.max(2, currentWeight / 2), height: Math.max(2, currentWeight / 2) }} />
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center">
+        <span
+          className="h-[var(--d)] w-[var(--d)] rounded-full bg-[var(--c)] transition-all duration-100"
+          style={{ '--c': currentColor, '--d': `${Math.max(2, currentWeight / 2)}px` } as React.CSSProperties}
+        />
       </span>
-      <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-4 text-right">{currentWeight}</span>
-      <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+      <span className="w-5 text-right text-[10px] font-mono tabular-nums text-[var(--muted-foreground)]">{currentWeight}</span>
+      <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
       {/* 画笔/橡皮 */}
       <button
         type="button"
         onClick={() => { const next = !eraseMode; setEraseMode(next); activeCanvas()?.setMode(next ? 'erase' : 'draw'); if(next) activeCanvas()?.setEraserMul(eraserSize); }}
-        className={`${btnBase} ${eraseMode ? 'text-amber-600 border-amber-200 bg-amber-50' : 'text-[oklch(0.45_0.01_265)]'}`}
+        aria-pressed={eraseMode}
+        title={eraseMode ? '橡皮擦（开）' : '橡皮擦'}
+        className={`${toolBtn} ${eraseMode ? 'is-warning !bg-[oklch(0.96_0.05_83/0.45)] shadow-[inset_1.5px_1.5px_3px_oklch(0.55_0.03_258/0.14),inset_-1px_-1px_2px_oklch(1_0_0/0.5)]' : ''}`}
       >
-        <Eraser size={11} strokeWidth={1.5} />
+        <Eraser size={14} strokeWidth={1.5} />
       </button>
       {/* 橡皮大小（仅擦除模式） */}
       {eraseMode && (
         <>
           <input type="range" min={1} max={20} value={eraserSize}
             onChange={e => { const v=Number(e.target.value); setEraserSize(v); activeCanvas()?.setEraserMul(v); }}
-            className={`w-14 ${sliderCls} [&::-webkit-slider-thumb]:bg-amber-500`}
+            className={`w-16 ${sliderCls} [&::-webkit-slider-thumb]:bg-[var(--warning)]`}
             title="橡皮大小"
           />
-          <span className="inline-flex items-center justify-center w-5 h-5 shrink-0">
-            <span className="rounded-full border border-amber-400/60 transition-all duration-100"
-              style={{ width: Math.max(3, eraserSize * 1.5), height: Math.max(3, eraserSize * 1.5) }} />
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center">
+            <span
+              className="h-[var(--d)] w-[var(--d)] rounded-full bg-[oklch(0.95_0.05_83/0.5)] transition-all duration-100"
+              style={{ '--d': `${Math.max(3, eraserSize * 1.5)}px` } as React.CSSProperties}
+            />
           </span>
-          <span className="text-[10px] font-mono tabular-nums text-amber-600 w-4 text-right">{eraserSize}</span>
+          <span className="w-5 text-right text-[10px] font-mono tabular-nums text-[var(--warning)]">{eraserSize}</span>
         </>
       )}
-      <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+      <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
       {/* 撤销 */}
-      <button type="button" onClick={() => activeCanvas()?.undo()}
-        className={`${btnBase} text-[oklch(0.45_0.01_265)]`} title="撤销上一笔">
-        <Undo2 size={11} strokeWidth={1.5} />
+      <button type="button" onClick={() => activeCanvas()?.undo()} className={toolBtn} title="撤销上一笔">
+        <Undo2 size={14} strokeWidth={1.5} />
       </button>
       {/* 缩放（仅全屏） */}
       {zoom && (
         <>
-          <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+          <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
           <button type="button"
             onClick={() => { const v = Math.max(0.5, zoomLevel - 0.25); setZoomLevel(v); activeCanvas()?.setZoom(v); }}
-            className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
-            <ZoomOut size={11} strokeWidth={1.5} />
+            className={toolBtn} title="缩小">
+            <ZoomOut size={14} strokeWidth={1.5} />
           </button>
-          <span className="text-[10px] font-mono tabular-nums text-[oklch(0.45_0.01_264)] w-[26px] text-center">{Math.round(zoomLevel * 100)}%</span>
+          <span className="w-[34px] text-center text-[10px] font-mono tabular-nums text-[var(--muted-foreground)]">{Math.round(zoomLevel * 100)}%</span>
           <button type="button"
             onClick={() => { const v = Math.min(3, zoomLevel + 0.25); setZoomLevel(v); activeCanvas()?.setZoom(v); }}
-            className={`${btnBase} text-[oklch(0.45_0.01_265)]`}>
-            <ZoomIn size={11} strokeWidth={1.5} />
+            className={toolBtn} title="放大">
+            <ZoomIn size={14} strokeWidth={1.5} />
           </button>
         </>
       )}
-      <span className="w-px h-3.5 bg-[oklch(0.88_0.005_264)]" />
+      <span className="h-4 w-px bg-[oklch(0.6_0.04_258/0.2)]" />
       {/* 清屏：弹 ConfirmDialog */}
       <button type="button"
         onClick={() => setClearConfirmOpen(true)}
-        className={`${btnBase} flex items-center gap-0.5 text-[oklch(0.45_0.01_265)] hover:border-[#e74c3c]/40 hover:text-[#e74c3c]`}
+        className="neu-btn-xs is-danger !h-9"
         title="清空全部笔画">
-        <Trash2 size={11} strokeWidth={1.5} /> 清屏
+        <Trash2 size={13} strokeWidth={1.5} /> 清屏
       </button>
     </div>
   );
 
   const fullscreenOverlay = fullscreen && mode === 'handwriting'
     ? createPortal(
-      <div className="fixed inset-0 z-50 flex flex-col bg-white"
-        style={{ WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
+      <div className="fixed inset-0 z-50 flex select-none flex-col bg-[var(--background)] [-webkit-touch-callout:none]"
         onContextMenu={e => e.preventDefault()}
         onTouchStart={e => e.preventDefault()}>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2 border-b border-[oklch(0.92_0.004_265)]">
+        <div className="exp-topbar relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2.5">
           {/* 左：退出全屏 */}
-          <button
-            type="button" onClick={exitFullscreen}
-            className="justify-self-start flex items-center gap-1 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-3 py-1.5 text-xs font-semibold text-[oklch(0.45_0.01_265)]
-              shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
-              hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
-              active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px transition-all duration-150"
-          >
-            <Minimize2 size={13} strokeWidth={1.5} /> 退出全屏
+          <button type="button" onClick={exitFullscreen} className="neu-btn-soft !h-11 justify-self-start">
+            <Minimize2 size={15} strokeWidth={1.6} /> 退出全屏
           </button>
           {/* 中：工具栏（含清屏），顶部居中 */}
           <div className="justify-self-center">{renderToolbar({ zoom: true })}</div>
           {/* 右：保存 */}
-          <button
-            type="button" onClick={doSave} disabled={saving}
-            className="justify-self-end flex items-center gap-1 rounded-xl bg-[#064ea2] px-3 py-1.5 text-xs font-bold text-white
-              shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.25)]
-              hover:shadow-[0_2px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.3)]
-              active:shadow-[inset_0_1px_3px_oklch(0.3_0.08_264_/_.4)] active:translate-y-px
-              disabled:opacity-50 transition-all duration-150"
-          >
-            {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} strokeWidth={1.5} />}
+          <button type="button" onClick={doSave} disabled={saving} className="neu-btn-primary !h-11 justify-self-end">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} strokeWidth={1.6} />}
             {saving ? '保存中…' : '保存'}
           </button>
         </div>
         <AtramentCanvas ref={fullscreenCanvasRef} width={800} height={560} fillContainer
-          className="flex-1 min-h-0 rounded-none border-0"
+          className="min-h-0 flex-1 !rounded-none"
           onNonPenHint={() => toast.info('手写模式请使用触控笔')} />
       </div>,
       document.body,
@@ -473,105 +458,93 @@ export function MemoPanel({
         }}
         onCancel={() => setDeleteTargetId(null)}
       />
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-sm font-bold text-[oklch(0.18_0.012_265)]">
-          <PenLine size={14} strokeWidth={1.5} /> 专家备忘
-          {scorePointName && <span className="text-[11px] font-normal text-[#064ea2]">· {scorePointName}</span>}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-[var(--foreground)]">
+          <PenLine size={15} strokeWidth={1.6} className="shrink-0 text-[var(--accent-strong)]" />
+          <span className="truncate">专家备忘</span>
+          {scorePointName && (
+            <span className="exp-pill max-w-[160px] truncate" style={{ '--c': 'var(--accent-strong)' } as React.CSSProperties}>
+              {scorePointName}
+            </span>
+          )}
         </h3>
-        <div className="flex items-center gap-0 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] p-0.5
-          shadow-[inset_0_1px_2px_oklch(0.55_0.03_258_/_.06)]">
+        <div className="neu-tab-bar flex-shrink-0">
           <button type="button" onClick={() => setMode('handwriting')} aria-pressed={mode === 'handwriting'}
-            className={`flex items-center gap-1 rounded-lg px-2.5 ${padY} text-xs font-semibold transition-all duration-150 ${
-              mode === 'handwriting'
-                ? 'bg-[#064ea2] text-white shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.2)]'
-                : 'text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.35_0.01_264)]'
-            }`}>
-            <PenLine size={12} strokeWidth={1.5} /> 手写
+            className={`neu-tab !py-2.5 ${mode === 'handwriting' ? 'is-active' : ''}`}>
+            <PenLine size={13} strokeWidth={1.6} /> 手写
           </button>
           <button type="button" onClick={() => setMode('keyboard')} aria-pressed={mode === 'keyboard'}
-            className={`flex items-center gap-1 rounded-lg px-2.5 ${padY} text-xs font-semibold transition-all duration-150 ${
-              mode === 'keyboard'
-                ? 'bg-[#064ea2] text-white shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.2)]'
-                : 'text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.35_0.01_264)]'
-            }`}>
-            <Keyboard size={12} strokeWidth={1.5} /> 键盘
+            className={`neu-tab !py-2.5 ${mode === 'keyboard' ? 'is-active' : ''}`}>
+            <Keyboard size={13} strokeWidth={1.6} /> 键盘
           </button>
         </div>
       </div>
 
       <div className="flex min-h-0 flex-col">
         {/* P1-14：手写/键盘两块同时挂载，用 hidden 切换可见性，避免切键盘卸载画布丢墨迹 */}
-        <div className={mode === 'handwriting' ? 'flex flex-col gap-2' : 'hidden'}>
+        <div className={mode === 'handwriting' ? 'flex flex-col gap-2.5' : 'hidden'}>
             {/* 工具栏（略缩页：去缩放，清屏占位） */}
             {renderToolbar({ zoom: false })}
-            <div className="relative" style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
-              onContextMenu={e => e.preventDefault()}>
+            <div className="relative select-none [-webkit-touch-callout:none]" onContextMenu={e => e.preventDefault()}>
               <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} onNonPenHint={() => toast.info('手写模式请使用触控笔')} />
               <button type="button" onClick={enterFullscreen}
-                className="absolute right-2 top-2 rounded-lg border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)]/80 p-1 text-[oklch(0.45_0.01_264)] transition-all duration-150
-                  shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
-                  hover:text-[#064ea2] hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]"
+                className="neu-btn-xs is-square absolute right-2 top-2 !h-10 !w-10"
                 title="全屏手写">
-                <Maximize2 size={14} strokeWidth={1.5} />
+                <Maximize2 size={15} strokeWidth={1.6} />
               </button>
             </div>
             <div className="flex items-center gap-2">
               <button type="button" onClick={doSave} disabled={saving}
-                className="flex flex-1 items-center justify-center gap-1 rounded-xl bg-[#064ea2] px-3 py-2.5 text-xs font-bold text-white
-                  shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.25)]
-                  hover:shadow-[0_2px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.3)]
-                  active:shadow-[inset_0_1px_3px_oklch(0.3_0.08_264_/_.4)] active:translate-y-px
-                  disabled:opacity-50 transition-all duration-150">
-                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} strokeWidth={1.5} />}
+                className="neu-btn-primary !h-11 flex-1">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} strokeWidth={1.6} />}
                 {saving ? '保存中…' : '保存手写'}
               </button>
             </div>
           </div>
-        <div className={mode === 'keyboard' ? 'flex flex-col gap-2' : 'hidden'}>
+        <div className={mode === 'keyboard' ? 'flex flex-col gap-2.5' : 'hidden'}>
             <textarea
               value={text} onChange={e => setText(e.target.value)}
               rows={compact ? 5 : 7} placeholder="键入备忘内容…"
-              className="w-full resize-none rounded-xl border border-[oklch(0.91_0.006_264)] px-3 py-2 text-sm focus:border-[#064ea2] focus:outline-none focus:ring-1 focus:ring-[#064ea2]"
+              className="neu-input resize-none text-sm"
             />
             <button type="button" onClick={doSave} disabled={saving}
-              className="flex items-center justify-center gap-1 rounded-lg bg-[#064ea2] px-3 py-2 text-xs font-bold text-white hover:bg-[#054280] disabled:opacity-50">
-              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} strokeWidth={1.7} />}
+              className="neu-btn-primary !h-11">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} strokeWidth={1.6} />}
               {saving ? '保存中…' : '保存文本'}
             </button>
           </div>
       </div>
 
       {/* 备忘列表（限制高度，内滚动，不挤压上方画布） */}
-      <div className="mt-2 max-h-[28%] min-h-0 flex-shrink-0 space-y-1.5 overflow-y-auto border-t border-[oklch(0.91_0.006_264)] pt-2">
+      <hr className="wb-section-rule mb-2 mt-3 flex-shrink-0" />
+      <div className="max-h-[28%] min-h-0 flex-shrink-0 space-y-1.5 overflow-y-auto">
         {loading ? (
-          <p className="py-3 text-center text-xs text-[oklch(0.62_0.008_264)]">加载中…</p>
+          <p className="py-3 text-center text-xs text-[var(--muted-foreground)]">加载中…</p>
         ) : memos.length === 0 ? (
-          <p className="py-3 text-center text-xs text-[oklch(0.62_0.008_264)]">暂无备忘</p>
+          <p className="py-3 text-center text-xs text-[var(--muted-foreground)]">暂无备忘</p>
         ) : (
           memos.map(m => (
-            <div key={m.id} className="rounded-lg border border-[oklch(0.91_0.006_264)] bg-white px-2.5 py-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  {m.contentText ? (
-                    <p className="line-clamp-2 break-words text-xs text-[oklch(0.18_0.012_265)]">{m.contentText}</p>
-                  ) : m.inkFileId ? (
-                    <button type="button" onClick={() => openInkUrl(m.id)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#064ea2] hover:underline">
-                      <ExternalLink size={11} strokeWidth={1.7} /> 查看墨迹原图
-                    </button>
-                  ) : (
-                    <span className="text-xs italic text-[oklch(0.62_0.008_264)]">（空备忘）</span>
-                  )}
-                  <div className="mt-0.5 text-[10px] text-[oklch(0.62_0.008_264)]">
-                    {new Date(m.createdAt).toLocaleString('zh-CN')}
-                    {m.sourceDevice && ` · ${memoDeviceLabel(m.sourceDevice)}`}
-                  </div>
+            <div key={m.id} className="neu-attachment-item items-start">
+              <div className="min-w-0 flex-1">
+                {m.contentText ? (
+                  <p className="line-clamp-2 break-words text-xs text-[var(--foreground)]">{m.contentText}</p>
+                ) : m.inkFileId ? (
+                  <button type="button" onClick={() => openInkUrl(m.id)}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent-strong)] hover:underline">
+                    <ExternalLink size={11} strokeWidth={1.7} /> 查看墨迹原图
+                  </button>
+                ) : (
+                  <span className="text-xs italic text-[var(--muted-foreground)]">（空备忘）</span>
+                )}
+                <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
+                  {new Date(m.createdAt).toLocaleString('zh-CN')}
+                  {m.sourceDevice && ` · ${memoDeviceLabel(m.sourceDevice)}`}
                 </div>
-                <button type="button" onClick={() => setDeleteTargetId(m.id)} aria-label="删除备忘"
-                  className="shrink-0 rounded p-1 text-[oklch(0.62_0.008_264)] hover:bg-red-50 hover:text-red-500">
-                  <Trash2 size={12} strokeWidth={1.7} />
-                </button>
               </div>
+              <button type="button" onClick={() => setDeleteTargetId(m.id)} aria-label="删除备忘"
+                className="neu-btn-xs is-square is-danger shrink-0 !h-8 !w-8">
+                <Trash2 size={13} strokeWidth={1.7} />
+              </button>
             </div>
           ))
         )}
