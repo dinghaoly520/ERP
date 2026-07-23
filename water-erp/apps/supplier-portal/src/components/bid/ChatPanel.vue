@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, nextTick, onMounted, computed } from 'vue'
+import { ref, nextTick, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { openingHallApi } from '@/api/openingHall'
 import { useBidWebSocket } from '@/composables/useBidWebSocket'
@@ -18,7 +18,7 @@ const sending = ref(false)
 const exchangeControl = ref<'OPEN' | 'MUTED' | 'CLOSED'>('OPEN')
 const listEl = ref<HTMLElement | null>(null)
 
-const current = computed(() => (tab.value === 'PUBLIC' ? publicMsgs : privateMsgs))
+const current = computed(() => (tab.value === 'PUBLIC' ? publicMsgs.value : privateMsgs.value))
 const canSend = computed(() => exchangeControl.value === 'OPEN')
 const controlHint = computed(() =>
   exchangeControl.value === 'MUTED' ? '主持人已开启全员禁言' :
@@ -45,8 +45,10 @@ async function loadHistory(room: 'PUBLIC' | 'PRIVATE') {
   // supplier-portal 的 axios 拦截器已解包 response.data（src/api/index.ts），返回值即响应体
   const res = await openingHallApi.messages(props.projectId, { roomType: room, supplierId: room === 'PRIVATE' ? props.supplierId : undefined, limit: 100 })
   const items: Msg[] = (res.items || []).map((m: any) => ({ id: m.id, senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt, roomType: m.roomType }))
-  if (room === 'PUBLIC') publicMsgs.value = items
-  else privateMsgs.value = items
+  // 与在途 socket 增量合并（按 id 去重），避免整体赋值覆盖先到的实时消息
+  const target = room === 'PUBLIC' ? publicMsgs : privateMsgs
+  const fresh = target.value.filter(m => !items.some(i => i.id === m.id))
+  target.value = [...items, ...fresh]
   void nextTick(() => { if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight })
 }
 
