@@ -12,6 +12,9 @@ import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
 
+/** 书面来函（type=question）携带可选附件 —— 共享类型 BidClarification 暂无 fileAssetId 字段，前端按实际响应扩展 */
+type WrittenLetter = BidClarification & { fileAssetId?: string };
+
 export default function BidClarificationsPage() {
   const { projectId } = useBidProjectContext();
   const [project, setProject] = useState<BidProjectDetail | null>(null);
@@ -144,6 +147,9 @@ export default function BidClarificationsPage() {
     }
   };
 
+  // 书面来函：供应商经书面交流渠道提交的 type=question 记录（异步，无实时推送）
+  const letters = clarifications.filter((c): c is WrittenLetter => c.type === 'question');
+
   if (!projectId) return <NoProjectGuide />;
   if (loading) return <TableSkeleton rows={6} cols={4} />;
   if (error) return (
@@ -252,6 +258,48 @@ export default function BidClarificationsPage() {
           </div>
         </div>
       )}
+
+      {/* 书面来函（供应商书面交流来函，type=question） */}
+      <div className="glass-card glass-card-blue rounded-2xl">
+        <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
+          <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
+            书面来函
+          </h2>
+          <p className="mt-1 text-[11px] text-[oklch(0.62_0.008_264)]">
+            供应商经书面交流渠道提交的来函（异步，需回复请致电或发起澄清）
+          </p>
+        </div>
+        {letters.length === 0 ? (
+          <div className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">
+            暂无书面来函
+          </div>
+        ) : (
+          <div className="divide-y divide-[oklch(0.94_0.004_264)]">
+            {letters.map(c => (
+              <div key={c.id} className="px-5 py-3">
+                <div className="flex items-center gap-2 text-[12px]">
+                  <span className="font-medium text-[oklch(0.42_0.14_260)]">{c.supplierName}</span>
+                  <span className="text-[oklch(0.62_0.008_264)] font-mono whitespace-nowrap">
+                    {new Date(c.createdAt).toLocaleString('zh-CN')}
+                  </span>
+                  {c.fileAssetId && (
+                    /* 受保护下载：不可加 rel="noreferrer"（丢 Referer → portal 识别失败 401，项目既有坑） */
+                    <a
+                      href={`/api/upload/files/${c.fileAssetId}`}
+                      target="_blank"
+                      rel="noopener"
+                      className="ml-auto text-xs text-blue-600 underline"
+                    >
+                      附件下载
+                    </a>
+                  )}
+                </div>
+                <p className="mt-1 text-[13px] leading-relaxed text-[oklch(0.18_0.012_265)] whitespace-pre-line">{c.question}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Clarifications Table */}
       <div className="glass-card glass-card-blue rounded-2xl">

@@ -442,6 +442,7 @@ export class SupplierPortalService {
         supplierName: supplier.name,
         supplierId: supplier.id,
         status: '待回复',
+        fileAssetId: dto.fileAssetId ?? null,
       },
     });
   }
