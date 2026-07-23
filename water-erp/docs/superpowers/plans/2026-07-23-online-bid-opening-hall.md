@@ -1800,8 +1800,9 @@ useBidWebSocket(props.projectId, {
 })
 
 async function loadHistory(room: 'PUBLIC' | 'PRIVATE') {
+  // supplier-portal 的 axios 拦截器已解包 response.data（src/api/index.ts），返回值即响应体
   const res = await openingHallApi.messages(props.projectId, { roomType: room, supplierId: room === 'PRIVATE' ? props.supplierId : undefined, limit: 100 })
-  const items: Msg[] = (res.data.items || []).map((m: any) => ({ id: m.id, senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt, roomType: m.roomType }))
+  const items: Msg[] = (res.items || []).map((m: any) => ({ id: m.id, senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt, roomType: m.roomType }))
   if (room === 'PUBLIC') publicMsgs.value = items
   else privateMsgs.value = items
   void nextTick(() => { if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight })
@@ -1809,8 +1810,8 @@ async function loadHistory(room: 'PUBLIC' | 'PRIVATE') {
 
 async function loadUnread() {
   const res = await openingHallApi.unread(props.projectId)
-  publicUnread.value = res.data.public ?? 0
-  privateUnread.value = res.data.private ?? 0
+  publicUnread.value = res.public ?? 0
+  privateUnread.value = res.private ?? 0
 }
 
 async function switchTab(t: 'PUBLIC' | 'PRIVATE') {
@@ -1939,23 +1940,24 @@ const supplierId = ref('')
 const supplierName = ref('')
 
 async function refresh() {
+  // supplier-portal 的 axios 拦截器已解包 response.data（src/api/index.ts），返回值即响应体
   const [p, r] = await Promise.all([
     bidApi.getProject(projectId),
-    supplierApi.getOpeningRecord(projectId).catch(() => ({ data: null })),
+    supplierApi.getOpeningRecord(projectId).catch(() => null),
   ])
-  project.value = p.data
-  record.value = r.data
+  project.value = p
+  record.value = r
 }
 
 async function loadPresence() {
   const res = await openingHallApi.presence(projectId).catch(() => null)
-  if (res?.data) onlineCount.value = res.data.onlineCount ?? 0
+  if (res) onlineCount.value = res.onlineCount ?? 0
 }
 
 async function checkIn() {
   try {
     const res = await openingHallApi.checkIn(projectId)
-    checkedInAt.value = res.data.checkInAt
+    checkedInAt.value = res.checkInAt
     ElMessage.success('签到成功')
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.error || '签到失败')
@@ -2001,8 +2003,8 @@ useBidWebSocket(projectId, {
 
 onMounted(async () => {
   const profile = await supplierApi.getProfile().catch(() => null)
-  supplierId.value = profile?.data?.id ?? ''
-  supplierName.value = profile?.data?.name ?? ''
+  supplierId.value = profile?.id ?? ''
+  supplierName.value = profile?.name ?? ''
   await refresh()
   await loadPresence()
 })
