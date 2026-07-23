@@ -137,6 +137,63 @@ export class BidBackupService {
     return bs?.receiptNo ?? null;
   }
 
+  /**
+   * 争议核验：三方哈希比对，只读密文算哈希，绝不解密、绝不返回内容。
+   * a) backupIntact：备份对象自身 sha256 == 入库 ciphertextSha256（备份未被篡改）
+   * b) sealedMatchesBackup：开标读取的 sealedPath 密文 sha256 == 备份密文 sha256（开标内容 == 提交内容）
+   */
+  async verify(projectId: string, supplierId: string, actorId?: string): Promise<BackupVerifyResult> {
+    const submission = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId, projectId } },
+    });
+    const receiptNo = await this.lookupReceiptNo(projectId, supplierId);
+    const expected: Array<{ role: BackupFileRole; assetId: string }> = submission
+      ? ([
+          { role: 'technical', assetId: submission.technicalFileAssetId },
+          { role: 'business', assetId: submission.businessFileAssetId },
+          { role: 'coverLetter', assetId: submission.coverLetterAssetId },
+        ].filter(x => !!x.assetId) as Array<{ role: BackupFileRole; assetId: string }>)
+      : [];
+
+    const perFile: BackupVerifyFileResult[] = [];
+    for (const e of expected) {
+      const backup = await this.prisma.bidFileBackup.findUnique({
+        where: { supplierId_projectId_fileRole: { supplierId, projectId, fileRole: e.role } },
+      });
+      if (!backup) {
+        perFile.push({ fileRole: e.role, status: 'missing', backupIntact: null, sealedMatchesBackup: null, recordedSha256: null, backupSha256: null, sealedSha256: null, backupSource: null, submittedAt: null });
+        continue;
+      }
+      let backupSha256: string | null = null;
+      let sealedSha256: string | null = null;
+      try { backupSha256 = this.computeSha256(await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, backup.backupKey))); } catch { backupSha256 = null; }
+      try { sealedSha256 = this.computeSha256(await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, backup.sealedPath))); } catch { sealedSha256 = null; }
+      const backupIntact = backupSha256 !== null && backupSha256 === backup.ciphertextSha256;
+      const sealedMatchesBackup = backupSha256 !== null && sealedSha256 !== null && sealedSha256 === backupSha256;
+      const status: BackupVerifyFileResult['status'] = backupIntact && sealedMatchesBackup ? 'consistent' : 'tampered';
+      perFile.push({ fileRole: e.role, status, backupIntact, sealedMatchesBackup, recordedSha256: backup.ciphertextSha256, backupSha256, sealedSha256, backupSource: backup.backupSource, submittedAt: backup.submittedAt });
+    }
+
+    let overall: BackupVerifyResult['overall'];
+    if (perFile.length === 0) overall = 'missing';
+    else if (perFile.some(f => f.status === 'tampered')) overall = 'tampered';
+    else if (perFile.some(f => f.status === 'missing')) overall = 'missing';
+    else overall = 'consistent';
+
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: actorId,
+          action: 'BID_BACKUP_VERIFY',
+          resourceType: 'sealed-bid-backup',
+          resourceId: `${projectId}:${supplierId}`,
+          details: { overall, perFile: perFile.map(f => ({ role: f.fileRole, status: f.status })) },
+        },
+      }).catch(() => {}); // 审计失败不影响核验结果
+    }
+    return { projectId, supplierId, receiptNo, overall, perFile };
+  }
+
   /** 每 15 分钟：为已提交但缺备份的记录，从 sealedPath 读密文补齐。仍只碰密文，不解密。 */
   @Cron('*/15 * * * *')
   async reconcileMissing(): Promise<number> {
