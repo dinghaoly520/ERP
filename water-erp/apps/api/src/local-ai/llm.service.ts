@@ -6,37 +6,192 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 /**
- * LlmService（DeepSeek-only 精简版）
+ * LlmService（DeepSeek-only 精简版）—— 全系统 LLM 调用唯一入口
  *
- * 移植自 procurement apps/api/src/local-ai/llm.service.ts，按 v4.1 方案 8.1 精简：
- *  - 剥离 local / vLLM provider（ERP 无 vLLM 基建）
- *  - 剥离 VllmMonitorService / EmbeddingService 强依赖（原 forwardRef 注入会致 DI 启动即崩）
- *  - 原 llm.service.ts:37 硬编码 model:'deepseek-v4-pro' → 改 config.get('DEEPSEEK_MODEL') env 驱动
+ * 移植自 procurement apps/api/src/local-ai/llm.service.ts，按 v4.1 方案 8.1 精简；
+ * 2026-07 生产加固：
+ *  - 收口全部直连 fetch 调用点（announcement-ai / supplier-selection-ai / ai.service.dashboardSummary / assistant DeepSeekProvider）
+ *  - 新增 `LlmCallOptions`（model/maxTokens/timeoutMs/retries）—— 位置签名向后兼容
+ *  - 新增 `chatMessages()` 多轮对话 API（assistant 用）
+ *  - 429/5xx/网络/超时自动重试（LLM_MAX_RETRIES，指数退避，遵守 Retry-After≤8s）；调用方 abort 与 JSON 解析失败不重试
+ *  - 进程内并发信号量（LLM_MAX_CONCURRENCY）：突发并发排队而非打爆上游配额
  */
+
 interface DeepSeekConfig {
   baseUrl: string;
   model: string;
   apiKey: string;
 }
 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+}
+
+export interface LlmCallOptions {
+  /** 本次调用模型覆盖（默认 env DEEPSEEK_MODEL）——供 flash/chat 等不同档位的调用点使用 */
+  model?: string;
+  /** 默认 chat/chatJson 16384、chatMessages 8192 */
+  maxTokens?: number;
+  /** 默认 180_000 ms */
+  timeoutMs?: number;
+  /** 覆盖 env LLM_MAX_RETRIES（如 0：延迟敏感的调用放弃重试） */
+  retries?: number;
+}
+
+/** HTTP 失败：429/5xx 可重试，携带 Retry-After（毫秒，已解析） */
+export class LlmHttpError extends ServiceUnavailableException {
+  readonly retryable: boolean;
+  readonly retryAfterMs?: number;
+  constructor(status: number, body: string, retryAfterMs?: number) {
+    super(
+      `DeepSeek LLM request failed: ${status} ${body.slice(0, 200)}`,
+    );
+    this.retryable = status === 429 || status >= 500;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+function intEnv(
+  config: ConfigService,
+  name: string,
+  fallback: number,
+  min = 0,
+): number {
+  const v = Number(config.get<string>(name));
+  return Number.isInteger(v) && v >= min ? v : fallback;
+}
+
+function parseRetryAfter(header: string | null): number | undefined {
+  if (!header) return undefined;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return seconds * 1000;
+  const date = Date.parse(header);
+  if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
+  return undefined;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new Error('aborted'));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason ?? new Error('aborted'));
+      },
+      { once: true },
+    );
+  });
+}
+
+/** FIFO 并发信号量：abort 感知、出错必释放 */
+export class LlmSemaphore {
+  private active = 0;
+  private warnedHighWater = false;
+  private readonly queue: Array<{
+    resolve: (release: () => void) => void;
+    reject: (err: unknown) => void;
+  }> = [];
+
+  constructor(
+    private readonly max: number,
+    private readonly onHighWater?: () => void,
+  ) {}
+
+  get pending(): number {
+    return this.queue.length;
+  }
+
+  async run<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    const release = await this.acquire(signal);
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  }
+
+  private acquire(signal?: AbortSignal): Promise<() => void> {
+    if (this.active < this.max) {
+      this.active++;
+      return Promise.resolve(this.makeRelease());
+    }
+    if (this.queue.length > 20 && !this.warnedHighWater) {
+      this.warnedHighWater = true;
+      this.onHighWater?.();
+    }
+    return new Promise<() => void>((resolve, reject) => {
+      const item = { resolve, reject };
+      this.queue.push(item);
+      signal?.addEventListener(
+        'abort',
+        () => {
+          const i = this.queue.indexOf(item);
+          if (i >= 0) {
+            this.queue.splice(i, 1);
+            reject(signal.reason ?? new Error('aborted while queued'));
+          }
+        },
+        { once: true },
+      );
+    });
+  }
+
+  private makeRelease(): () => void {
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      const next = this.queue.shift();
+      if (next) next.resolve(this.makeRelease());
+      else this.active--;
+    };
+  }
+}
+
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
   private readonly deepseek: DeepSeekConfig | null;
+  private readonly maxRetries: number;
+  private readonly retryBaseMs: number;
+  private readonly retryAfterCapMs = 8_000;
+  private readonly semaphore: LlmSemaphore;
 
   constructor(private readonly config: ConfigService) {
     const apiKey = config.get<string>('DEEPSEEK_API_KEY');
+    const rawBaseUrl = apiKey
+      ? config.get<string>(
+          'DEEPSEEK_BASE_URL',
+          config.get<string>('DEEPSEEK_API_URL', 'https://api.deepseek.com'),
+        )
+      : '';
     this.deepseek = apiKey
       ? {
-          baseUrl: config.get<string>(
-            'DEEPSEEK_BASE_URL',
-            config.get<string>('DEEPSEEK_API_URL', 'https://api.deepseek.com'),
-          ),
+          // 规范化：去尾斜杠与 /v1，统一 `${baseUrl}/chat/completions`（DeepSeek 两种约定都兼容）
+          baseUrl: rawBaseUrl.replace(/\/+$/, '').replace(/\/v1$/, ''),
           // ★ v4.1：原 procurement 硬编码 'deepseek-v4-pro'，改为 env 驱动（.env DEEPSEEK_MODEL）
           model: config.get<string>('DEEPSEEK_MODEL', 'deepseek-v4-pro'),
           apiKey,
         }
       : null;
+    this.maxRetries = intEnv(config, 'LLM_MAX_RETRIES', 2);
+    this.retryBaseMs = Math.max(1, intEnv(config, 'LLM_RETRY_BASE_MS', 500, 1));
+    this.semaphore = new LlmSemaphore(
+      Math.max(1, intEnv(config, 'LLM_MAX_CONCURRENCY', 10, 1)),
+      () =>
+        this.logger.warn(
+          `LLM 并发排队超过 20（LLM_MAX_CONCURRENCY=${Math.max(
+            1,
+            intEnv(config, 'LLM_MAX_CONCURRENCY', 10, 1),
+          )}）——上游可能过载或配额不足`,
+        ),
+    );
   }
 
   private getPrimary(): DeepSeekConfig {
@@ -59,15 +214,25 @@ export class LlmService {
     temperature = 0.3,
     signal?: AbortSignal,
     seed?: number,
+    options?: LlmCallOptions,
   ): Promise<string> {
-    const provider = this.getPrimary();
-    return this.callChat(
-      provider,
-      systemPrompt,
-      userPrompt,
-      temperature,
+    this.getPrimary();
+    return this.withRetry(
+      () =>
+        this.requestOnce({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature,
+          maxTokens: options?.maxTokens ?? 16384,
+          timeoutMs: options?.timeoutMs ?? 180_000,
+          model: options?.model,
+          seed,
+          signal,
+        }),
+      options,
       signal,
-      seed,
     );
   }
 
@@ -77,100 +242,13 @@ export class LlmService {
     temperature = 0,
     signal?: AbortSignal,
     seed?: number,
+    options?: LlmCallOptions,
   ): Promise<T> {
-    const provider = this.getPrimary();
-    // DeepSeek 支持 response_format 强制 JSON
-    return this.deepseekChatJson<T>(
-      provider,
-      systemPrompt,
-      userPrompt,
-      temperature,
-      signal,
-      seed,
-    );
-  }
-
-  private async callChat(
-    provider: DeepSeekConfig,
-    systemPrompt: string,
-    userPrompt: string,
-    temperature: number,
-    signal?: AbortSignal,
-    seed?: number,
-  ): Promise<string> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-    if (signal) {
-      signal.addEventListener('abort', () => controller.abort(), {
-        once: true,
-      });
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(`${provider.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${provider.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: provider.model,
-          temperature,
-          max_tokens: 16384,
-          ...(seed != null ? { seed } : {}),
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ServiceUnavailableException(
-        `DeepSeek LLM request failed: ${response.status} ${errorText.slice(0, 200)}`,
-      );
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content ?? '';
-  }
-
-  private async deepseekChatJson<T>(
-    provider: DeepSeekConfig,
-    systemPrompt: string,
-    userPrompt: string,
-    temperature: number,
-    signal?: AbortSignal,
-    seed?: number,
-  ): Promise<T> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-    if (signal) {
-      signal.addEventListener('abort', () => controller.abort(), {
-        once: true,
-      });
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(`${provider.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${provider.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: provider.model,
-          temperature,
-          max_tokens: 16384,
-          response_format: { type: 'json_object' },
-          ...(seed != null ? { seed } : {}),
+    this.getPrimary();
+    // DeepSeek 支持 response_format 强制 JSON；解析失败不重试（在 withRetry 之外）
+    const content = await this.withRetry(
+      () =>
+        this.requestOnce({
           messages: [
             {
               role: 'system',
@@ -178,23 +256,162 @@ export class LlmService {
             },
             { role: 'user', content: userPrompt },
           ],
+          temperature,
+          maxTokens: options?.maxTokens ?? 16384,
+          timeoutMs: options?.timeoutMs ?? 180_000,
+          model: options?.model,
+          seed,
+          signal,
+          responseFormat: { type: 'json_object' },
+        }),
+      options,
+      signal,
+    );
+    return this.parseJson<T>(content);
+  }
+
+  /** 多轮对话（assistant 等需要完整 messages 历史的场景） */
+  async chatMessages(
+    messages: ChatMessage[],
+    options?: LlmCallOptions & {
+      temperature?: number;
+      signal?: AbortSignal;
+      seed?: number;
+    },
+  ): Promise<string> {
+    this.getPrimary();
+    return this.withRetry(
+      () =>
+        this.requestOnce({
+          messages,
+          temperature: options?.temperature ?? 0.7,
+          maxTokens: options?.maxTokens ?? 8192,
+          timeoutMs: options?.timeoutMs ?? 180_000,
+          model: options?.model,
+          seed: options?.seed,
+          signal: options?.signal,
+        }),
+      options,
+      options?.signal,
+    );
+  }
+
+  /** 重试外壳：仅 retryable 错误重试；调用方 abort 立即放弃 */
+  private async withRetry<T>(
+    fn: () => Promise<T>,
+    options: LlmCallOptions | undefined,
+    callerSignal?: AbortSignal,
+  ): Promise<T> {
+    const retries = options?.retries ?? this.maxRetries;
+    let attempt = 0;
+    for (;;) {
+      try {
+        return await this.semaphore.run(fn, callerSignal);
+      } catch (err) {
+        const retryable = (err as { retryable?: boolean })?.retryable === true;
+        if (!retryable || attempt >= retries || callerSignal?.aborted) {
+          throw err;
+        }
+        attempt++;
+        const delay = this.retryDelay(err, attempt);
+        this.logger.warn(
+          `LLM 第 ${attempt}/${retries + 1} 次尝试失败（${String(
+            (err as Error)?.message,
+          ).slice(0, 120)}），${Math.round(delay)}ms 后重试`,
+        );
+        await sleep(delay, callerSignal);
+      }
+    }
+  }
+
+  private retryDelay(err: unknown, attempt: number): number {
+    const retryAfter = (err as LlmHttpError)?.retryAfterMs;
+    if (retryAfter != null) {
+      return Math.min(retryAfter, this.retryAfterCapMs);
+    }
+    // 指数退避 500/1000/2000ms + 抖动
+    return this.retryBaseMs * 2 ** (attempt - 1) + Math.random() * this.retryBaseMs;
+  }
+
+  /** 单次 HTTP 请求（无重试）；超时/网络错误标记 retryable，调用方 abort 原样上抛 */
+  private async requestOnce(p: {
+    messages: ChatMessage[];
+    temperature: number;
+    maxTokens: number;
+    timeoutMs: number;
+    model?: string;
+    seed?: number;
+    signal?: AbortSignal;
+    responseFormat?: { type: 'json_object' };
+  }): Promise<string> {
+    const provider = this.getPrimary();
+    // 调用方已取消：快速失败，不发起请求
+    if (p.signal?.aborted) {
+      const e = new Error('The operation was aborted');
+      e.name = 'AbortError';
+      throw e;
+    }
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, p.timeoutMs);
+    const onCallerAbort = () => controller.abort();
+    p.signal?.addEventListener('abort', onCallerAbort, { once: true });
+
+    try {
+      const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${provider.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: p.model ?? provider.model,
+          temperature: p.temperature,
+          max_tokens: p.maxTokens,
+          ...(p.responseFormat ? { response_format: p.responseFormat } : {}),
+          ...(p.seed != null ? { seed: p.seed } : {}),
+          messages: p.messages,
         }),
         signal: controller.signal,
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new LlmHttpError(
+          response.status,
+          errorText,
+          response.status === 429 || response.status >= 500
+            ? parseRetryAfter(response.headers.get('retry-after'))
+            : undefined,
+        );
+      }
+
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content ?? '';
+    } catch (err) {
+      if (err instanceof LlmHttpError) throw err;
+      // 调用方主动取消：原样上抛（不重试）
+      if (p.signal?.aborted) throw err;
+      if (timedOut || (err as Error)?.name === 'AbortError') {
+        const e = new ServiceUnavailableException(
+          `DeepSeek LLM request timed out after ${p.timeoutMs}ms`,
+        ) as ServiceUnavailableException & { retryable: boolean };
+        e.retryable = true;
+        throw e;
+      }
+      // 网络层失败（fetch failed 等）
+      const e = new ServiceUnavailableException(
+        `DeepSeek LLM network error: ${String((err as Error)?.message ?? err).slice(0, 200)}`,
+      ) as ServiceUnavailableException & { retryable: boolean };
+      e.retryable = true;
+      throw e;
     } finally {
       clearTimeout(timeout);
+      p.signal?.removeEventListener('abort', onCallerAbort);
     }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ServiceUnavailableException(
-        `DeepSeek LLM request failed: ${response.status} ${errorText.slice(0, 200)}`,
-      );
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content ?? '';
-    return this.parseJson<T>(content);
   }
 
   private parseJson<T>(content: string): T {

@@ -18,11 +18,13 @@ function toBlobPart(buffer: Buffer): Uint8Array<ArrayBuffer> {
 
 @Injectable()
 export class OcrService {
-  private readonly baseUrl: string;
+  private readonly baseUrls: string[];
+  private rrIndex = 0;
   private readonly logger = new Logger(OcrService.name);
 
   // 批处理配置
-  // OCR 服务有 2 个并行 worker，每批 40 页 = 每个 worker 处理 20 页
+  // 单副本 OCR 服务有 2 个并行 worker，每批 40 页 = 每个 worker 处理 20 页；
+  // OCR_SERVICE_URL 配逗号多副本时，各批再 round-robin 分发到不同副本（见 nextBaseUrl）
   private readonly BATCH_PAGES = 40;
   private readonly LARGE_FILE_THRESHOLD_MB = 20;
   private readonly BATCH_DELAY_MS = 500;
@@ -30,21 +32,40 @@ export class OcrService {
   private readonly RETRY_DELAY_MS = 500;
 
   constructor(private config: ConfigService) {
-    this.baseUrl = config.get<string>(
-      'OCR_SERVICE_URL',
-      'http://localhost:8100',
-    );
+    const raw = config.get<string>('OCR_SERVICE_URL', 'http://localhost:8100');
+    this.baseUrls = raw
+      .split(',')
+      .map((s) => s.trim().replace(/\/+$/, ''))
+      .filter(Boolean);
+    if (this.baseUrls.length === 0) {
+      this.baseUrls = ['http://localhost:8100'];
+    }
+    if (this.baseUrls.length > 1) {
+      this.logger.log(
+        `OCR 多副本模式：${this.baseUrls.join(', ')}（round-robin 分发）`,
+      );
+    }
+  }
+
+  /** round-robin 取下一个副本地址（请求无会话亲和，任意副本可服务任意请求） */
+  private nextBaseUrl(): string {
+    const url = this.baseUrls[this.rrIndex % this.baseUrls.length];
+    this.rrIndex = (this.rrIndex + 1) % this.baseUrls.length;
+    return url;
   }
 
   async isAvailable(): Promise<boolean> {
-    try {
-      const res = await fetch(`${this.baseUrl}/health`, {
-        signal: AbortSignal.timeout(3000),
-      });
-      return res.ok;
-    } catch {
-      return false;
+    for (const base of this.baseUrls) {
+      try {
+        const res = await fetch(`${base}/health`, {
+          signal: AbortSignal.timeout(3000),
+        });
+        if (res.ok) return true;
+      } catch {
+        // 试下一个副本
+      }
     }
+    return false;
   }
 
   /**
@@ -89,7 +110,8 @@ export class OcrService {
       `OCR request: ${(buffer.length / 1024 / 1024).toFixed(1)} MB, ${rangeDesc}, dpi=${dpi}`,
     );
 
-    const response = await fetch(`${this.baseUrl}/ocr`, {
+    const ocrBase = this.nextBaseUrl();
+    const response = await fetch(`${ocrBase}/ocr`, {
       method: 'POST',
       body: formData,
       signal: AbortSignal.timeout(300_000), // 单批 5 分钟超时
@@ -268,7 +290,8 @@ export class OcrService {
       filename,
     );
 
-    const response = await fetch(`${this.baseUrl}/ocr`, {
+    const ocrBase = this.nextBaseUrl();
+    const response = await fetch(`${ocrBase}/ocr`, {
       method: 'POST',
       body: formData,
       signal: AbortSignal.timeout(120_000),

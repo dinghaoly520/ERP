@@ -30,6 +30,8 @@
     "db:studio": "pnpm --filter api exec prisma studio",
     "db:seed": "pnpm --filter api exec prisma db seed",
     "db:validate": "pnpm --filter api exec prisma validate",
+    "db:backup": "bash scripts/db-backup.sh",
+    "db:restore": "bash scripts/db-restore.sh",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "infra:logs": "docker compose logs -f"

@@ -3,16 +3,35 @@ services:
     image: postgres:16-alpine
     container_name: water-erp-postgres
     restart: unless-stopped
+    command: ["postgres", "-c", "max_connections=200"]  # 为 pgbouncer 池 + 直连脚本留余量
     environment:
       POSTGRES_USER: water_erp
       POSTGRES_PASSWORD: water_erp_dev
       POSTGRES_DB: water_erp
     ports:
-      - "5432:5432"
+      - "5432:5432"   # 直连（prisma migrate/db execute/studio、备份脚本）
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U water_erp -d water_erp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 连接池：API 运行时走 6432（transaction 模式），Prisma CLI 迁移走 5432 直连（DIRECT_URL）
+  # 本地构建：公共 registry-mirror 对 pgbouncer 系镜像返回 403 / 只有 1.15 老版（见 docker/pgbouncer/Dockerfile）
+  pgbouncer:
+    build: ./docker/pgbouncer
+    image: water-erp-pgbouncer:local
+    container_name: water-erp-pgbouncer
+    restart: unless-stopped
+    ports:
+      - "6432:6432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 6432 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

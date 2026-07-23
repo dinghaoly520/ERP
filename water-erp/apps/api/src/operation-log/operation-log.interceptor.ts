@@ -22,7 +22,7 @@ export class OperationLogInterceptor {
     if (!this.enabled) return next.handle();
     const http = context.switchToHttp();
     const req = http.getRequest<Request>();
-    if (shouldExclude(req.path, this.exclude)) return next.handle();
+    if (shouldExclude(req.method, req.path, this.exclude)) return next.handle();
 
     const start = Date.now();
     const record = (statusCode: number, error: unknown | null) => {

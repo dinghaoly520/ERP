@@ -31,8 +31,12 @@ interface BidderJobData {
   taskId: string;
 }
 
-// concurrency: 2 — DeepSeek + rapid OCR 并行；lockDuration 10min 容忍 LLM/OCR 慢
-@Processor(QUEUE_NAMES.BIDDER_PROCESSING, { concurrency: 2, lockDuration: 600000 })
+// concurrency 默认 2（AI_BID_WORKER_CONCURRENCY 可调）— DeepSeek + rapid OCR 并行；lockDuration 10min 容忍 LLM/OCR 慢
+// 水平扩容：直接多开 worker 进程即可（BullMQ 同队列多 worker 天然分担、jobId 去重），见 docs/ops-scaling.md
+@Processor(QUEUE_NAMES.BIDDER_PROCESSING, {
+  concurrency: Math.max(1, Number(process.env.AI_BID_WORKER_CONCURRENCY) || 2),
+  lockDuration: 600000,
+})
 export class BidderProcessor extends WorkerHost {
   private readonly logger = new Logger(BidderProcessor.name);
 

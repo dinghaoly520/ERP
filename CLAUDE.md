@@ -385,3 +385,14 @@ Same-stage transitions are idempotent; invalid transitions throw `ConflictExcept
 ### Prisma Migration Notes
 
 In non-interactive environments, use `prisma migrate dev --create-only` → `prisma db execute` → `prisma migrate resolve --applied`, or set `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=1`.
+
+## 运维环境变量（2026-07 production hardening）
+- **DATABASE_URL**：现在走 pgbouncer `localhost:6432`（`?pgbouncer=true&connection_limit=10`）。直连用 `DIRECT_URL=localhost:5432`。
+- **pgbouncer**：`docker-compose.yml` 新增服务 `water-erp-pgbouncer`（本地构建于 `docker/pgbouncer/`），transaction 池，scram-sha-256 认证，6432→容器6432。postgres `max_connections=200`。
+- **prisma studio** 不读 `directUrl`，需 `DATABASE_URL="$DIRECT_URL" pnpm db:studio`。
+- **OperationLog**：20260723000000 起为按月 RANGE 分区表，PK=`(id, createdAt)`。@Cron 04:00 预建未来 `OPERATION_LOG_PARTITION_MONTHS_AHEAD`（默认 2）个月分区 + DROP 整月过期分区（O(1)），保留期默认 180 天。**禁止 migrate diff 重生成该表 DDL**（diff 会试图改回单列 PK）。
+- **pnpm db:backup / db:restore**：`scripts/db-backup.sh`（docker exec pg_dump → gzip），`BACKUP_KEEP_DAYS` 默认 14，输出 `backups/`（gitignored）。host cron 见 `docs/db-backup.md`。
+- **LLM 收口**：全部 DeepSeek 调用统一走 `local-ai/LlmService`（chat/chatJson/chatMessages）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。`tender-review/services/llm.service.ts` 已删除（死代码）。`apps/mall` 的 AI 路由待整合（残留）。
+- **OCR 多副本**：`services/ocr/start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化。副本间 `OCR_HYBRID_PORT` 段不可重叠。API 侧 `OCR_SERVICE_URL` 支持逗号列表 round-robin（`ocr.service.ts`）。
+- **ai-bid worker 扩容**：`AI_BID_WORKER_CONCURRENCY`（默认 2）；水平扩容=多开 worker 进程，BullMQ 天然安全（job ID 去重）。见 `docs/ops-scaling.md`。
+- **操作日志排除默认值**：`operation-log.filter.ts` 新增 8 个高频轮询端点（通知角标/驾驶舱统计/审查任务轮询等，带方法限定 GET-only）。
