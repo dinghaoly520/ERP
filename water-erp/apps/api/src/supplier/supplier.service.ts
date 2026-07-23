@@ -494,7 +494,7 @@ export class SupplierService {
     // 获取旧值
     const oldValue = supplier[dto.fieldName as keyof typeof supplier] as string;
 
-    return this.prisma.supplierChangeRecord.create({
+    const record = await this.prisma.supplierChangeRecord.create({
       data: {
         supplierId,
         fieldName: dto.fieldName,
@@ -505,6 +505,19 @@ export class SupplierService {
         status: 'PENDING',
       },
     });
+
+    // 通知采购管理员：供应商变更申请待审核（待办型，审批后 resolve；此前提交变更无任何通知，
+    // 管理员无感知。link 指向供应商详情页，其内有变更审批动作 approveChange/rejectChange）。
+    void Promise.all(['admin', 'leader', 'staff'].map((r) =>
+      this.notificationService.sendToRole(r, {
+        type: 'SUPPLIER_PENDING',
+        title: '供应商变更申请待审核',
+        content: `${supplier.name} 提交了变更申请（${dto.fieldLabel}），请前往审核。`,
+        link: `/supplier/${supplierId}`,
+      }),
+    ));
+
+    return record;
   }
 
   async approveChange(changeId: string, reviewerId: string) {
@@ -551,6 +564,9 @@ export class SupplierService {
       await tx.supplier.update({ where: { id: change.supplierId }, data });
     });
 
+    // 待办清零：resolve 该供应商的 SUPPLIER_PENDING（变更申请通知，link 与 createChangeRequest 全等）
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${change.supplierId}`);
+
     return { success: true };
   }
 
@@ -578,6 +594,10 @@ export class SupplierService {
     if (claimed.count === 0) {
       throw new BadRequestException({ error: '变更记录已被处理，请勿重复审批', code: 'CONFLICT' });
     }
+
+    // 待办清零：resolve 该供应商的 SUPPLIER_PENDING（变更申请通知）
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${change.supplierId}`);
+
     return { success: true };
   }
 

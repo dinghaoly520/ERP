@@ -153,7 +153,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   }, [loadAnnouncements, typeGroups]);
 
   // 从数据按类型分组（仅展示数据库中的真实数据，不使用本地兜底）
-  const announceData = typeGroups.map(type => {
+  const announceData = useMemo(() => typeGroups.map(type => {
     const items = fetchedAnnouncements.filter(a => a.type === type);
     if (items.length === 0) return null;
     return {
@@ -161,7 +161,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
       deadlineLabel: items[0].deadlineLabel,
       items: items.map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id })),
     };
-  }).filter(Boolean) as { color: string; deadlineLabel: string; items: { tag: string; date: string; urgent: boolean; title: string; desc: string; content: string; aiSummary?: string; code: string; deadline: string; id: string }[] }[];
+  }).filter(Boolean) as { color: string; deadlineLabel: string; items: { tag: string; date: string; urgent: boolean; title: string; desc: string; content: string; aiSummary?: string; code: string; deadline: string; id: string }[] }[], [fetchedAnnouncements, typeGroups]);
 
   // 当前选中类型（安全访问：加载中或数据为空时为 undefined）
   const currentAnnounce = announceData.length > 0
@@ -398,10 +398,12 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             {/* ── 内容网格 ── */}
             {currentAnnounce && featuredItem ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-              {/* Featured card — spans 2 cols */}
-              <a href={`/announcements/${featuredItem.id}?from=home`}
+              {/* Featured card — spans 2 cols (div + onClick 导航，标题内嵌 <a> 保证 SEO/右键) */}
+              <div
                 className="announce-featured lg:col-span-2 group"
-                style={{ '--card-color': currentAnnounce.color } as React.CSSProperties}>
+                style={{ '--card-color': currentAnnounce.color } as React.CSSProperties}
+                onClick={() => router.push(`/announcements/${featuredItem.id}?from=home`)}
+                role="article">
                 <div className="announce-featured-border" />
                 <div className="announce-featured-inner">
                   {/* 标签行 */}
@@ -415,13 +417,19 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                       </span>
                     )}
                   </div>
-                  {/* 标题 */}
-                  <h3 key={featuredItem.id} className="announce-featured-title" style={{ animation: 'announceContentIn 0.4s ease' }}>{featuredItem.title}</h3>
+                  {/* 标题 — 内嵌 <a> 提供真实链接（SEO + 右键新窗口） */}
+                  <h3 key={featuredItem.id} className="announce-featured-title" style={{ animation: 'announceContentIn 0.4s ease' }}>
+                    <a href={`/announcements/${featuredItem.id}?from=home`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="announce-featured-title-link">
+                      {featuredItem.title}
+                    </a>
+                  </h3>
                   {/* 正文预览 */}
                   <p key={`content-${featuredItem.id}`} className="announce-featured-content-preview" style={{ animation: 'announceContentIn 0.4s ease 0.05s both' }}>
                     {featuredItem.aiSummary || featuredItem.desc || featuredItem.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320)}
                   </p>
-                  {/* 底部：元信息 + 轮播进度 */}
+                  {/* 底部元信息 */}
                   <div className="flex items-center justify-between mt-auto">
                     <div className="flex gap-6 text-xs">
                       <span className="announce-meta">项目编号 <span className="announce-meta-val">{featuredItem.code}</span></span>
@@ -431,7 +439,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     </div>
                     <span className="announce-detail-btn">查看详情</span>
                   </div>
-                  {/* 轮播进度指示器 */}
+                  {/* 轮播进度指示器 — stopPropagation 阻止冒泡到 div onClick */}
                   {currentAnnounce.items.length > 1 && (
                     <div className="announce-progress-dots">
                       {currentAnnounce.items.map((_, i) => (
@@ -440,13 +448,13 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                           type="button"
                           aria-label={`切换到第 ${i + 1} 条公告`}
                           className={`announce-progress-dot ${i === featuredIndex ? 'is-active' : ''}`}
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFeaturedIndex(i); }}
+                          onClick={(e) => { e.stopPropagation(); setFeaturedIndex(i); }}
                         />
                       ))}
                     </div>
                   )}
                 </div>
-              </a>
+              </div>
 
               {/* Side list — 1 col */}
               <div className="announce-side">
@@ -510,9 +518,6 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
 
         {/* ═══════════════════ 友情链接 · Footer（玻璃雾化，与顶栏通透呼应）═══════════════════ */}
         <footer className="footer-glass">
-          {/* 顶部青色流光细线 — 与顶栏底边同款流动语言 */}
-          <div className="footer-edge-line" />
-
           <div className="px-[clamp(40px,4vw,72px)]">
             {/* ── 友情链接 ── */}
             <div className="flex items-center justify-center max-sm:flex-col max-sm:py-5 max-sm:gap-3">

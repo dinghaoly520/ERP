@@ -869,6 +869,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
                   type="datetime-local"
                   className="workbench-input !h-[36px]"
                   value={delayTime}
+                  min={new Date().toISOString().slice(0, 16)}
                   onChange={(e) => setDelayTime(e.target.value)}
                 />
                 <div className="ml-auto flex items-center gap-2">

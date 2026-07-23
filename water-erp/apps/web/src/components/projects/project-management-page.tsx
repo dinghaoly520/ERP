@@ -93,7 +93,7 @@ export function ProjectManagementPage() {
     const normalized = keyword.trim().toLowerCase();
     if (normalized) {
       result = result.filter((item) =>
-        [item.title, item.requesterName, item.requesterDepartment]
+        [item.title, item.requesterName, item.requesterDepartment, item.projectCode ?? '', item.contractNumber ?? '', item.departmentNumber ?? '']
           .join(' ')
           .toLowerCase()
           .includes(normalized),

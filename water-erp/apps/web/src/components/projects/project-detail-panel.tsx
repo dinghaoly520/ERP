@@ -19,6 +19,7 @@ import {
 } from '@/lib/api/project-management';
 import {
   PROCUREMENT_METHODS,
+  PROCUREMENT_CATEGORY_OPTIONS,
   PROJECT_STAGE_STATUS_LABELS,
   PROJECT_WORKFLOW_STAGES,
   type ProjectDetailAnalysis,
@@ -39,15 +40,6 @@ import { Modal } from '@/components/workbench';
 
 // ─── Extracted Info Field Components ───────────────────────────────────────────
 
-const PROCUREMENT_CATEGORY_OPTIONS = [
-  '生产技术类采购',
-  'EPC项目采购',
-  'EPC管理采购',
-  '公用集中采购',
-  '科技研发类采购',
-  '信息化采购',
-  '其他',
-];
 
 // Expert info display component - handles structured expert data
 function ExpertInfoField({

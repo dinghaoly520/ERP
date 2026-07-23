@@ -29,7 +29,7 @@
     "content": "您关注的「勘测设计与测绘」品类有新项目发布：水库大坝安全监测自动化改造项目，投标截止时间为 2026 年 7 月 20 日 09:00。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bids",
+    "link": "/projects",
     "createdAt": "2026-06-10T10:30:00.000Z"
   },
   {
@@ -40,7 +40,7 @@
     "content": "项目「都江堰灌区现代化改造工程设备采购」投标截止时间为 2026 年 7 月 5 日 09:00，距截止还有 17 天，请合理安排时间完成标书提交。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/my-bids",
+    "link": "/projects",
     "createdAt": "2026-06-18T08:00:00.000Z"
   },
   {
@@ -51,7 +51,7 @@
     "content": "您的资质证书「工程勘察专业类（水文地质勘察）乙级」将于 2026 年 8 月 31 日到期，请在 90 天内完成续期或更新。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/profile/qualifications",
+    "link": "/supplier/qualification-alerts",
     "createdAt": "2026-06-01T09:00:00.000Z"
   },
   {
@@ -62,7 +62,7 @@
     "content": "您对项目「水库大坝安全监测自动化改造项目」提出的澄清问题已收到招标人回复，请前往项目详情页查看。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bids",
+    "link": "/projects",
     "createdAt": "2026-06-15T14:20:00.000Z"
   },
   {
@@ -73,7 +73,7 @@
     "content": "您参与的项目「智慧水务信息化系统建设项目」将于 2026 年 6 月 21 日 10:00 在线开标，请准时登录开标大厅参与解密确认。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/my-bids",
+    "link": "/projects",
     "createdAt": "2026-06-19T09:00:00.000Z"
   },
   {
@@ -84,7 +84,7 @@
     "content": "项目「2026年度智慧水利大数据平台建设项目」评标已结束，评审结果已公示。您的综合得分 87.6 分，排名第 2 位。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/bids",
+    "link": "/projects",
     "createdAt": "2026-06-12T16:00:00.000Z"
   },
   {
@@ -95,7 +95,7 @@
     "content": "您已被邀请参与「渠道清淤及生态修复工程施工」（BID-2026-0706）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b6605zqe2cv2en1ty",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -106,7 +106,7 @@
     "content": "您已被邀请参与「水库大坝安全监测自动化改造项目」（BID-2026-0620）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b660c2yk1fkg51y9t",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -117,7 +117,7 @@
     "content": "您已被邀请参与「都江堰灌区现代化改造工程设备采购」（BID-2026-0605）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b660404nfsdqsohyg",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -128,7 +128,7 @@
     "content": "您已被邀请参与「水利工程档案数字化加工服务」（BID-2026-0712）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b660dp2cj9l2pih3g",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -139,7 +139,7 @@
     "content": "您已被邀请参与「岷江流域水质在线监测站建设项目」（BID-2026-0610）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b66080mcpcdgjop7a",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -150,7 +150,7 @@
     "content": "您已被邀请参与「智慧水务信息化系统建设项目」（BID-2026-0522）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b6601vl16837waroy",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -161,7 +161,7 @@
     "content": "您已被邀请参与「泵站节能改造及电气设备采购」（BID-2026-0625）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b66035ulrxdim5v4j",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -172,7 +172,7 @@
     "content": "您已被邀请参与「重点水源工程生态流量监测设备采购」（BID-2026-0718）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b660bzl0nzdxxq80r",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -183,7 +183,7 @@
     "content": "您已被邀请参与「2026年度防汛抗旱物资储备采购」（BID-2026-0601）的投标，请登录查看招标文件并按时提交标书。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/bidding/cm19ed36b66096dv9uvd0jp54",
+    "link": "/projects",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -194,7 +194,7 @@
     "content": "您已被邀请参与「2026年度智慧水利大数据平台建设项目」的投标，请登录查看详情并下载招标文件。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bid/cmqhero-bid-proj01",
+    "link": "/projects",
     "createdAt": "2026-06-10T00:00:00.000Z"
   },
   {
@@ -205,7 +205,7 @@
     "content": "您已被邀请参与「2026年度智慧水利大数据平台建设项目」的投标，请登录查看详情并下载招标文件。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/bid/cmqhero-bid-proj01",
+    "link": "/projects",
     "createdAt": "2026-06-10T00:00:00.000Z"
   },
   {
@@ -216,7 +216,7 @@
     "content": "您已被邀请参与「2026年度智慧水利大数据平台建设项目」的投标，请登录查看详情并下载招标文件。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/bid/cmqhero-bid-proj01",
+    "link": "/projects",
     "createdAt": "2026-06-10T00:00:00.000Z"
   },
   {
@@ -315,7 +315,7 @@
     "content": "岷江流域防洪治理项目定于7月22日10:00在集团2号评标室开标，请提前准备签到、解密设备及监督记录表。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bid/open",
+    "link": "/projects",
     "createdAt": "2026-07-16T03:04:08.777Z"
   },
   {
@@ -359,7 +359,7 @@
     "content": "成都信息公司对智慧水务项目技术规格书第2.3、3.1、5.4条款提出澄清，请在48小时内回复。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bid/clarifications",
+    "link": "/projects",
     "createdAt": "2026-07-16T03:04:08.787Z"
   },
   {
@@ -414,7 +414,7 @@
     "content": "管理员对您的申请（目录物资）提出反报价 ¥95，请在门户确认或再报价。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/catalog-applications",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-22T02:55:52.940Z"
   },
   {
@@ -425,7 +425,7 @@
     "content": "您的供货申请（目录物资）已通过审核，最终报价 ¥95。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/catalog-applications",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-22T02:55:53.001Z"
   },
   {
@@ -436,7 +436,7 @@
     "content": "您的供货申请（目录物资）已通过审核，最终报价 ¥4300。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/catalog-applications",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-22T02:55:53.039Z"
   },
   {
@@ -447,7 +447,7 @@
     "content": "您的供货申请（新增品类·E2E 测试物资）已通过审核，最终报价 ¥200。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/catalog-applications",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-22T02:55:53.073Z"
   },
   {
@@ -480,7 +480,7 @@
     "content": "项目\"2026年度水利工程物资集中采购\"已有3位专家提交评分，当前进度85%。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bid",
+    "link": "/projects",
     "createdAt": "2026-06-13T06:18:29.688Z"
   },
   {
@@ -513,7 +513,7 @@
     "content": "项目“都江堰灌区现代化改造工程设备采购”将于2026年7月18日开标，请准备开标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bid",
+    "link": "/projects",
     "createdAt": "2026-07-12T13:00:00.000Z"
   },
   {
@@ -568,7 +568,7 @@
     "content": "断路器CDB6i系列报价调整申请，原价¥128/件 → 新报价¥115/件，降幅10.2%，供货周期7天。请复核审批。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/approval",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-13T08:00:00.000Z"
   },
   {
@@ -579,7 +579,7 @@
     "content": "\"配电柜XL-21系列\"申请加入集中采购目录，报价¥3,280/台，MOQ 10台。请复核价格合理性。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/approval",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-13T05:00:00.000Z"
   },
   {
@@ -590,7 +590,7 @@
     "content": "\"铜芯电力电缆YJV22\"价格调整，原价¥85/米 → ¥92/米，涨幅8.2%，供应商说明原材料上涨。请复核。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/approval",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-13T07:00:00.000Z"
   },
   {
@@ -601,7 +601,7 @@
     "content": "\"智能水表DN20\"报价调整，原价¥320 → ¥305，降幅4.7%。请复核。",
     "isRead": true,
     "resolvedAt": "2026-07-12T23:00:00.000Z",
-    "link": "/mall-management/approval",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-12T15:00:00.000Z"
   },
   {
@@ -612,7 +612,7 @@
     "content": "\"不锈钢阀门DN100\"申请加入目录，报价¥1,560/台。请复核。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/approval",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-13T09:00:00.000Z"
   },
   {
@@ -623,7 +623,7 @@
     "content": "\"PE给水管DN200\"价格调整申请，原价¥42 → ¥45/米，涨幅7.1%。请复核审批。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/approval",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-13T10:00:00.000Z"
   },
   {
@@ -810,7 +810,7 @@
     "content": "项目“智慧水务信息化系统建设项目”将于2026年7月22日开标，请确认开标流程。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bid",
+    "link": "/projects",
     "createdAt": "2026-07-12T09:00:00.000Z"
   },
   {
@@ -821,7 +821,7 @@
     "content": "项目“2026年度智慧水利大数据平台建设项目”评标已结束，中科院成都信息技术股份有限公司综合排名第一。请确认。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bid",
+    "link": "/projects",
     "createdAt": "2026-07-12T01:00:00.000Z"
   },
   {
@@ -832,7 +832,7 @@
     "content": "供应商对项目“水库大坝安全监测自动化改造项目”提出的3条澄清问题已回复，请查看。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/bid/clarifications",
+    "link": "/projects",
     "createdAt": "2026-07-12T21:00:00.000Z"
   },
   {
@@ -843,7 +843,7 @@
     "content": "供应商对项目“岷江流域水质在线监测站建设项目”的技术参数疑问已解答，请确认。",
     "isRead": true,
     "resolvedAt": "2026-07-10T23:00:00.000Z",
-    "link": "/bid/clarifications",
+    "link": "/projects",
     "createdAt": "2026-07-10T18:00:00.000Z"
   },
   {
@@ -898,7 +898,7 @@
     "content": "供应商已接受反报价 ¥95，请进行最终审核。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/catalog-review",
+    "link": "/mall-management/catalog?tab=approval",
     "createdAt": "2026-07-22T02:55:52.967Z"
   }
 ]

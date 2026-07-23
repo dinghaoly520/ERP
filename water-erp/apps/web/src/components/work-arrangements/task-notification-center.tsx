@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import { ListChecks } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta, statusTone } from '@water-erp/shared';
+import { portalURL } from '@water-erp/config';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import { Modal } from '@/components/workbench';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import type { NotificationItem } from '@/lib/api/notification';
 import { listNotifications } from '@/lib/api/notification';
+import { handleNotificationClick } from '@/lib/notification-click';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 
 export interface PlannedItem {
@@ -36,18 +38,21 @@ const TYPE_LABELS: Record<string, string> = {
   SYSTEM:                 '系统通知',
 };
 
+// 兜底链接：仅在后端未下发 link 时使用。注意 /bid、/bid/clarifications、
+// /supplier/qualifications 在 :3005 不存在（属开评标端 :3007 或写错），
+// 故此处一律改指 :3005 内真实页面；澄清答疑在 enrich 中特判跳 :3007 外链。
 const TYPE_LINKS: Record<string, string> = {
   SUPPLIER_PENDING:       '/supplier/approval',
   SUPPLIER_APPROVED:      '/supplier/repository',
   SUPPLIER_REJECTED:      '/supplier/approval',
   SUPPLIER_RETURNED:      '/supplier/approval',
   PRICE_REVIEW:           '/mall-management/catalog?tab=approval',
-  QUALIFICATION_EXPIRING: '/supplier/repository',
+  QUALIFICATION_EXPIRING: '/supplier/qualification-alerts',
   BID_PUBLISHED:          '/projects',
   BID_REMINDER:           '/projects',
-  BID_OPENING:            '/bid',
-  BID_EVALUATION_RESULT:  '/bid',
-  CLARIFICATION_REPLIED:  '/bid/clarifications',
+  BID_OPENING:            '/projects',
+  BID_EVALUATION_RESULT:  '/projects',
+  CLARIFICATION_REPLIED:  '/projects', // 兜底；enrich 会覆盖为 :3007 外链
   CATALOG_APPLICATION:    '/mall-management/catalog?tab=approval',
   SYSTEM:                 '/notifications',
 };
@@ -87,10 +92,16 @@ type EnrichedItem = NotificationItem & {
 function enrich(item: NotificationItem): EnrichedItem {
   const meta = getNotificationMeta(item.type);
   const tone = statusTone[meta.tone] ?? statusTone.gray;
+  // 澄清答疑在 :3005 无处理 UI，统一跳开评标端 :3007 外链（portalURL 已 SSR 安全）。
+  // 放在 item.link 之后强制覆盖，使种子/历史里写死的死链 /bid/clarifications 也失效。
+  const link =
+    item.type === 'CLARIFICATION_REPLIED'
+      ? portalURL('bid', '/bid/clarifications')
+      : item.link || TYPE_LINKS[item.type] || '/notifications';
   return {
     ...item,
     typeLabel: TYPE_LABELS[item.type] ?? item.type,
-    link: item.link || TYPE_LINKS[item.type] || '/notifications',
+    link,
     icon: resolveIcon(item.type, item.title),
     toneColor: tone.color,
     toneBg: tone.bg,
@@ -228,7 +239,7 @@ export function TaskNotificationCenter({
               <NotificationRow
                 key={item.id}
                 item={item}
-                onClick={() => router.push(item.link)}
+                onClick={() => handleNotificationClick(item, router)}
               />
             ))}
 
@@ -278,7 +289,7 @@ export function TaskNotificationCenter({
                 key={item.id}
                 item={item}
                 onClick={() => {
-                  router.push(item.link);
+                  handleNotificationClick(item, router);
                   setShowAll(false);
                 }}
               />

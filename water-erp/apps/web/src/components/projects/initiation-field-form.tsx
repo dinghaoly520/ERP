@@ -4,17 +4,7 @@ import { useState, useEffect } from 'react';
 import { Info, Loader2, X } from 'lucide-react';
 import { fetchProcurements } from '@/lib/api/procurements';
 import { fetchReferenceBudget } from '@/lib/api/ai';
-import { PROCUREMENT_METHODS } from '@/lib/types/project-management';
-
-const PROCUREMENT_CATEGORY_OPTIONS = [
-  '生产技术类采购',
-  'EPC项目采购',
-  'EPC管理采购',
-  '公用集中采购',
-  '科技研发类采购',
-  '信息化采购',
-  '其他',
-] as const;
+import { PROCUREMENT_METHODS, PROCUREMENT_CATEGORY_OPTIONS } from '@/lib/types/project-management';
 
 type HistoricalProject = {
   projectName: string;

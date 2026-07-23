@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta } from '@water-erp/shared';
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from '@/lib/api/notification';
+import { handleNotificationClick } from '@/lib/notification-click';
 import { Check, Bell, RefreshCw, CheckCheck, X, ChevronUp, ChevronDown, ChevronsUpDown, ArrowRight } from 'lucide-react';
 
 type SortKey = 'createdAt' | 'type' | 'isRead';
@@ -62,14 +63,9 @@ export default function NotificationsPage() {
   };
 
   const handleAction = (n: NotificationItem) => {
-    if (!n.isRead) onRead(n.id);
-    if (n.link) {
-      if (n.link.startsWith('/')) {
-        router.push(n.link);
-      } else {
-        window.open(n.link, '_blank');
-      }
-    }
+    handleNotificationClick(n, router, (id) =>
+      setItems((xs) => xs.map((x) => (x.id === id ? { ...x, isRead: true } : x))),
+    );
   };
 
   /* ── 统计 ── */

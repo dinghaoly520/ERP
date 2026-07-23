@@ -42,36 +42,10 @@ export function WorkbenchPlanningPanel({
           </div>
       </>)}
 
+      {!isChairman && dailyPlan?.completionAdvice && (
       <div className={showAiScheduling ? 'mt-4' : ''}>
         <hr className="wb-section-rule" />
-        {isChairman ? (<>
-          <div className="mt-4 p-4 rounded-[16px] bg-[var(--accent-soft)]/15">
-            <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><Lightbulb size={14} className="inline-block mr-1.5" />项目简报</p>
-            <div className="mt-3">
-            {dailyPlan?.completionAdvice ? (() => {
-              const briefText = dailyPlan.completionAdvice;
-              const sections: { title: string; body: string }[] = [];
-              const firstBracket = briefText.indexOf('【');
-              const preamble = firstBracket > 0 ? briefText.slice(0, firstBracket).trim() : '';
-              if (firstBracket >= 0) {
-                const parts = briefText.slice(firstBracket).split('【');
-                for (const part of parts) {
-                  const sepIdx = part.indexOf('】');
-                  if (sepIdx > 0) { const t = part.slice(0, sepIdx).trim(); const c = part.slice(sepIdx + 1).trim(); if (t) sections.push({ title: t, body: c }); }
-                }
-              }
-              return (<>
-                {preamble && <p className="mt-3 text-sm leading-7 text-pretty text-[color:var(--foreground)]">{preamble}</p>}
-                {sections.map((s, idx) => {
-                  const items = s.body.match(/\d+\.「/g);
-                  const subs = items && items.length > 1 ? s.body.split(/(?=\d+\.「)/).filter(Boolean).map(x => x.trim()) : [s.body];
-                  return <div key={idx} className="mt-3"><h4 className="text-sm font-semibold text-[color:var(--foreground)]">【{s.title}】</h4>{subs.map((sub, si) => <p key={si} className="mt-1 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">{sub}</p>)}</div>;
-                })}
-              </>);
-            })() : <div className="neu-icon-well rounded-[14px] mt-3 flex items-center justify-center px-3 py-4 text-sm text-[color:var(--muted-foreground)]">正在生成项目简报...</div>}
-          </div>
-          </div>
-        </>) : dailyPlan?.completionAdvice ? (() => {
+        {(() => {
           const advText = dailyPlan.completionAdvice;
           if (!advText.includes('【')) return (
             <div className="mt-4 p-4 rounded-[16px] bg-[var(--accent-soft)]/15">
@@ -79,6 +53,16 @@ export function WorkbenchPlanningPanel({
               <p className="mt-3 text-justify text-sm leading-7 text-pretty text-[color:var(--foreground)]">{advText}</p>
             </div>
           );
+          const sections: { title: string; body: string }[] = [];
+          const firstBracket = advText.indexOf('【');
+          const preamble = firstBracket > 0 ? advText.slice(0, firstBracket).trim() : '';
+          if (firstBracket >= 0) {
+            const parts = advText.slice(firstBracket).split('【');
+            for (const part of parts) {
+              const sepIdx = part.indexOf('】');
+              if (sepIdx > 0) { const t = part.slice(0, sepIdx).trim(); const c = part.slice(sepIdx + 1).trim(); if (t) sections.push({ title: t, body: c }); }
+            }
+          }
           return (
             <div className="mt-4 p-4 rounded-[16px] bg-[var(--accent-soft)]/15">
               <p className="text-sm font-semibold tracking-wide uppercase text-[color:var(--muted-foreground)]"><Lightbulb size={14} className="inline-block mr-1.5" />具体建议</p>
@@ -90,8 +74,9 @@ export function WorkbenchPlanningPanel({
               })}
             </div>
           );
-        })() : null}
+        })()}
       </div>
+      )}
     </section>
   );
 }

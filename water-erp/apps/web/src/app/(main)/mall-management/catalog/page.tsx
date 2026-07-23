@@ -861,6 +861,18 @@ function ApprovalTab({ canManage }: { canManage: boolean }) {
   };
   useEffect(() => { load(); }, []);
 
+  // 深链：?appId= 来自工作台任务通知，数据就绪后切「全部」并展开该行，直达待处理申请。
+  // 在 effect 内读 window.location.search（仅客户端执行），避免 useSearchParams 的 Suspense 约束。
+  useEffect(() => {
+    const appIdParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('appId') : null;
+    if (appIdParam && apps.some((a) => a.id === appIdParam)) {
+      setStatusFilter('全部');
+      setTypeFilter('全部');
+      setSearch('');
+      setExpanded((prev) => (prev.has(appIdParam) ? prev : new Set(prev).add(appIdParam)));
+    }
+  }, [apps]);
+
   const filtered = useMemo(() => {
     let list = apps;
     if (statusFilter !== '全部') list = list.filter(a => a.status === statusFilter);
