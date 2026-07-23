@@ -6,14 +6,18 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Pagination } from '@/components/pagination';
 import { getProjectsDashboard, openSubmission, generateEvaluationResults, nudgeSuppliers, nudgeExperts, type DashboardProject } from '@/lib/api/bid';
-import { Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck, Megaphone, BellRing, UserPlus, FlaskConical, MessageSquareText, ShieldCheck, ExternalLink, type LucideIcon } from 'lucide-react';
+import {
+  Plus, Search, Pencil, ChevronDown, ChevronRight, AlertTriangle, Clock, Users, UserCheck,
+  Megaphone, BellRing, UserPlus, FlaskConical, MessageSquareText, ShieldCheck, ExternalLink,
+  RefreshCw, Gauge, type LucideIcon,
+} from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
-import { SectionCard, MetricCard, DataToolbar } from '@water-erp/ui';
 import { portalURL } from '@water-erp/config';
 import { TableSkeleton } from '@/components/skeleton';
 import CreateProjectDialog from '@/components/create-project-dialog';
 import EditProjectDialog from '@/components/edit-project-dialog';
 import InviteSuppliersDialog from '@/components/invite-suppliers-dialog';
+
 /** 操作列次操作项（点击「更多」后在行下方横向展开的快捷动作）。 */
 interface ActionMenuItem {
   key: string;
@@ -37,13 +41,6 @@ const READINESS_LABEL: Record<string, string> = {
   partial: '部分就绪',
   'not-ready': '未就绪',
   archived: '已归档',
-};
-
-const READINESS_COLOR: Record<string, string> = {
-  ready: '#11a874',
-  partial: '#f5a623',
-  'not-ready': '#e74c3c',
-  archived: '#94a3b8',
 };
 
 /** Stage → sub-route mapping for context-aware row navigation */
@@ -70,6 +67,47 @@ function isOverdue(iso: string): boolean {
 }
 
 const PAGE_SIZE = 20;
+
+/** KPI 信号徽标颜色映射（cgzxui 语义令牌）*/
+const SIGNAL_VAR: Record<string, string> = {
+  success: 'var(--success)',
+  warning: 'var(--warning)',
+  danger: 'var(--danger)',
+};
+const SIGNAL_LABEL: Record<string, string> = {
+  success: '达标',
+  warning: '关注',
+  danger: '风险',
+};
+
+/** page-hero 内的紧凑指标瓷片 */
+function Kpi({
+  label, value, sub, signal,
+}: {
+  label: string;
+  value: number | string;
+  sub?: string;
+  signal?: 'success' | 'warning' | 'danger';
+}) {
+  return (
+    <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</span>
+        {signal && (
+          <span
+            className="kpi-signal inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+            style={{ '--s': SIGNAL_VAR[signal] } as React.CSSProperties}
+          >
+            <span className="kpi-signal-dot h-1 w-1 rounded-full" />
+            {SIGNAL_LABEL[signal]}
+          </span>
+        )}
+      </div>
+      <span className="text-[1.55rem] font-black leading-none tracking-[-0.04em] tabular-nums text-[var(--foreground)]">{value}</span>
+      {sub && <span className="text-[10px] font-medium text-[var(--muted-foreground)]">{sub}</span>}
+    </div>
+  );
+}
 
 export default function BidDashboard() {
   const router = useRouter();
@@ -131,6 +169,7 @@ export default function BidDashboard() {
   const evaluating = stageDistribution['EVALUATING'] ?? 0;
   const downloading = stageDistribution['DOWNLOAD'] ?? 0;
   const submitting = stageDistribution['SUBMIT'] ?? 0;
+  const archived = stageDistribution['ARCHIVED'] ?? 0;
   const readyCount = projects.filter(p => p.readiness === 'ready').length;
   const notReadyCount = projects.filter(p => p.readiness === 'not-ready').length;
 
@@ -174,6 +213,10 @@ export default function BidDashboard() {
     }
     return risks;
   };
+
+  // ── 顶部健康度 KPI（与阶段分布互补：聚焦风险/就绪而非阶段计数）──
+  const overdueCount = projects.filter(p => p.stage !== 'ARCHIVED' && isOverdue(p.deadline)).length;
+  const riskCount = projects.filter(p => getRisks(p).length > 0).length;
 
   // ── 操作列：阶段门控的快捷管理动作 ──
 
@@ -274,146 +317,143 @@ export default function BidDashboard() {
     return items;
   };
 
+  /** 进度条填充色（绿=完成 / 橙=进行中 / 灰=未开始）—— 通过 --bar 传入 CSS */
+  const barColor = (done: number, totalN: number) =>
+    done === totalN ? 'var(--success)' : done > 0 ? 'var(--warning)' : 'oklch(0.78 0.01 258)';
+
   return (
-    <div className="space-y-6">
-      {/* ── Key metrics ── */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <MetricCard label="项目总数" value={total} tone="blue" />
-        <MetricCard
-          label="就绪可开"
-          value={readyCount}
-          tone="green"
-          hint={`${opening} 个在开标阶段`}
-        />
-        <MetricCard
-          label="准备中"
-          value={notReadyCount}
-          tone="red"
-          hint={`${downloading + submitting} 个在准备阶段`}
-        />
+    <div className="space-y-5">
+      {/* ── 页面标题卡片 .page-hero ── */}
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon"><Gauge size={17} strokeWidth={1.5} /></div>
+            <div>
+              <div className="page-hero__title">开评标总览</div>
+              <div className="page-hero__sub">招投标项目全生命周期监控 · 阶段分布与就绪度一目了然</div>
+            </div>
+          </div>
+          <div className="page-hero__right">
+            <span className="page-hero__stat page-hero__stat--info">共 {total} 项目</span>
+            {notReadyCount > 0 && (
+              <span className="page-hero__stat page-hero__stat--warn">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--danger)]" />
+                {notReadyCount} 待处理
+              </span>
+            )}
+            <button onClick={fetchData} disabled={loading} className="neu-btn-xs" title="刷新"><RefreshCw size={13} strokeWidth={1.7} /></button>
+            <button onClick={() => setShowCreate(true)} className="neu-btn-soft"><Plus size={15} strokeWidth={1.7} /> 手动创建</button>
+          </div>
+        </div>
+
+        <div className="wb-section-rule" />
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <Kpi label="项目总数" value={total} sub="全周期项目" />
+          <Kpi label="就绪可开" value={readyCount} sub={`${opening} 个开标中`} signal={readyCount > 0 ? 'success' : undefined} />
+          <Kpi label="准备中" value={notReadyCount} sub={`${downloading + submitting} 准备阶段`} signal={notReadyCount > 0 ? 'warning' : undefined} />
+          <Kpi label="截标逾期" value={overdueCount} sub="需立即处理" signal={overdueCount > 0 ? 'danger' : undefined} />
+          <Kpi label="风险项目" value={riskCount} sub="供应商/专家缺口" signal={riskCount > 0 ? 'danger' : undefined} />
+        </div>
       </div>
 
-      {/* ── Stage pipeline ── */}
-      <SectionCard className="p-4">
-        <div className="flex items-center gap-0">
+      {/* ── 阶段分布 · 点击筛选（neumorphic 静态容器 + 阶段磁贴）── */}
+      <div className="neu-card-static p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">阶段分布 · 点击筛选</span>
+          {stageFilter && (
+            <button onClick={() => setStageFilter('')} className="neu-btn-xs">清除筛选</button>
+          )}
+        </div>
+        <div className="flex items-stretch">
           {(['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING', 'ARCHIVED'] as const).map((stage, i) => {
             const count = stageDistribution[stage] ?? 0;
             const label = STAGE_LABEL[stage];
             const color = STAGE_COLOR[stage];
             const isCurrent = stageFilter === stage;
             return (
-              <div key={stage} className="flex items-center gap-0 flex-1">
+              <Fragment key={stage}>
                 <button
+                  aria-pressed={isCurrent}
                   onClick={() => setStageFilter(isCurrent ? '' : stage)}
-                  className={`flex-1 rounded-xl px-3 py-3 text-center transition-all ${
-                    isCurrent
-                      ? 'shadow-md'
-                      : 'hover:shadow-sm'
-                  }`}
-                  style={{
-                    backgroundColor: isCurrent ? `${color}15` : `${color}06`,
-                    border: isCurrent ? `2px solid ${color}` : `1px solid ${color}25`,
-                  }}
+                  className="bid-stage-tile"
+                  style={{ '--stage-color': color } as React.CSSProperties}
                   title={`${label}: ${count} 个项目`}
                 >
-                  <div className="text-2xl font-black tracking-tight" style={{ color }}>
-                    {count}
-                  </div>
-                  <div className="text-[10px] font-semibold mt-0.5" style={{ color: isCurrent ? color : '#5a6d8a' }}>
-                    {label}
-                  </div>
+                  <span className="bid-stage-num">{count}</span>
+                  <span className="bid-stage-label">{label}</span>
                 </button>
                 {i < 4 && (
-                  <ChevronRight size={14} strokeWidth={1.5} className="flex-shrink-0 text-[#cbd5e1]" />
+                  <ChevronRight size={14} strokeWidth={1.5} className="mx-1 shrink-0 self-center text-[color:var(--muted-foreground)] opacity-30" />
                 )}
-              </div>
+              </Fragment>
             );
           })}
         </div>
-        {stageFilter && (
-          <div className="mt-3 text-center">
-            <button
-              onClick={() => setStageFilter('')}
-              className="text-[10px] font-semibold text-[#5a6d8a] hover:text-[#18243a] transition"
-            >
-              清除阶段筛选
-            </button>
+      </div>
+
+      {/* ── 数据表格卡片 .neu-table-card ── */}
+      <div className="neu-table-card">
+        {/* 工具栏：搜索 + 筛选 */}
+        <div className="neu-table-card-header flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[200px] flex-1">
+            <Search size={14} strokeWidth={1.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)]" />
+            <input
+              type="text"
+              placeholder="搜索项目名称或编号…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="neu-input has-icon"
+            />
           </div>
-        )}
-      </SectionCard>
-
-      {/* ── Filter bar ── */}
-      <DataToolbar>
-        <div className="relative flex-1 min-w-[180px]">
-          <Search size={14} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
-          <input
-            type="text"
-            placeholder="搜索项目名称或编号…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="workbench-input w-full pl-9"
-          />
+          <select
+            value={stageFilter}
+            onChange={e => { setStageFilter(e.target.value); setReadinessFilter(''); }}
+            className="neu-select"
+          >
+            <option value="">全部阶段</option>
+            {Object.entries(STAGE_LABEL).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          <select
+            value={readinessFilter}
+            onChange={e => setReadinessFilter(e.target.value)}
+            className="neu-select"
+          >
+            <option value="">全部状态</option>
+            <option value="ready">就绪</option>
+            <option value="partial">部分就绪</option>
+            <option value="not-ready">未就绪</option>
+            <option value="archived">已归档</option>
+          </select>
         </div>
-        <select
-          value={stageFilter}
-          onChange={e => { setStageFilter(e.target.value); setReadinessFilter(''); }}
-          className="workbench-input cursor-pointer text-sm font-semibold !text-[#5a6d8a] py-2"
-        >
-          <option value="">全部阶段</option>
-          {Object.entries(STAGE_LABEL).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-        <select
-          value={readinessFilter}
-          onChange={e => setReadinessFilter(e.target.value)}
-          className="workbench-input cursor-pointer text-sm font-semibold !text-[#5a6d8a] py-2"
-        >
-          <option value="">全部状态</option>
-          <option value="ready">● 就绪</option>
-          <option value="partial">● 部分就绪</option>
-          <option value="not-ready">● 未就绪</option>
-          <option value="archived">● 已归档</option>
-        </select>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 rounded-xl border border-[#dce3eb] px-3 py-2 text-sm font-semibold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
-        >
-          <Plus size={14} strokeWidth={1.5} />
-          手动创建
-        </button>
-      </DataToolbar>
 
-      {/* ── Project table ── */}
-      <SectionCard title="项目状态" className="overflow-hidden pt-5 px-5 pb-0">
+        {/* 表格主体 */}
         <div className="overflow-x-auto">
           {loading ? (
             <TableSkeleton rows={8} cols={8} />
           ) : filtered.length === 0 ? (
-            <div className="py-16 text-center space-y-3">
-              <p className="text-sm text-[#8a96aa]">暂无匹配的项目</p>
+            <div className="space-y-3 py-16 text-center">
+              <p className="text-sm text-[var(--muted-foreground)]">暂无匹配的项目</p>
               {projects.length === 0 && (
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#064ea2] px-4 py-2 text-xs font-bold text-[#064ea2] hover:bg-[#eff6ff] transition"
-                >
-                  <Plus size={12} strokeWidth={1.5} />
-                  创建第一个项目
+                <button onClick={() => setShowCreate(true)} className="neu-btn-soft">
+                  <Plus size={13} strokeWidth={1.7} /> 创建第一个项目
                 </button>
               )}
             </div>
           ) : (
-            <table className="workbench-table">
+            <table className="neu-table is-dense min-w-[920px]">
               <thead>
-                <tr className="bg-[#f3f7fc]">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a] whitespace-nowrap">项目编号</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a]">项目名称</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a] whitespace-nowrap">采购方式</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a] whitespace-nowrap">截标 · 开标</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a] whitespace-nowrap">准备进度</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a] whitespace-nowrap">阶段</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a] whitespace-nowrap">就绪</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a] whitespace-nowrap">操作</th>
+                <tr>
+                  <th>项目编号</th>
+                  <th>项目名称</th>
+                  <th>采购方式</th>
+                  <th>截标 · 开标</th>
+                  <th>准备进度</th>
+                  <th>阶段</th>
+                  <th>就绪</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -421,340 +461,282 @@ export default function BidDashboard() {
                   const stageLabel = STAGE_LABEL[p.stage] || p.stage;
                   const stageColor = STAGE_COLOR[p.stage] || '#94a3b8';
                   const readinessLabel = READINESS_LABEL[p.readiness] || p.readiness;
-                  const readinessColor = READINESS_COLOR[p.readiness] || '#94a3b8';
+                  const readinessColor = p.readiness === 'ready' ? 'var(--success)'
+                    : p.readiness === 'not-ready' ? 'var(--danger)'
+                    : p.readiness === 'partial' ? 'var(--warning)'
+                    : 'var(--muted-foreground)';
                   const risks = getRisks(p);
                   const deadlineOverdue = p.stage !== 'ARCHIVED' && isOverdue(p.deadline);
                   const clickable = !!STAGE_ROUTE[p.stage];
 
                   return (
                     <Fragment key={p.id}>
-                    <tr
-                      onClick={() => clickable && handleRowClick(p)}
-                      className={`transition-colors ${clickable ? 'cursor-pointer hover:bg-[#f8fafc]' : ''} ${risks.length > 0 ? 'bg-[#fef9f5]' : ''}`}
-                    >
-                      {/* 项目编号 */}
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-sm font-semibold text-[#064ea2]">{p.projectCode}</span>
-                        {p.riskNote?.includes('来自公告') ? (
-                          <span className="ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold text-[#11a874] bg-[#11a87412]">公告</span>
-                        ) : (
-                          <span className="ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold text-[#5a6d8a] bg-[#5a6d8a10]">手动</span>
-                        )}
-                      </td>
+                      <tr
+                        onClick={() => clickable && handleRowClick(p)}
+                        className={clickable ? 'row-clickable' : ''}
+                        data-risk={risks.length > 0 ? 'true' : undefined}
+                      >
+                        {/* 项目编号 */}
+                        <td>
+                          <span className="font-mono text-sm font-semibold text-[var(--accent-strong)]">{p.projectCode}</span>
+                          {p.riskNote?.includes('来自公告') ? (
+                            <span className="bid-pill ml-2" style={{ '--c': 'var(--success)' } as React.CSSProperties}>公告</span>
+                          ) : (
+                            <span className="bid-pill ml-2" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>手动</span>
+                          )}
+                        </td>
 
-                      {/* 项目名称 + risk icons */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium text-[#18243a]">{p.name}</span>
-                          {risks.map(r => (
-                            <span
-                              key={r}
-                              className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-[#e74c3c] bg-[#fef2f2] border border-[#fecaca]"
-                              title={r}
-                            >
-                              <AlertTriangle size={9} strokeWidth={2} />
-                              {r}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-
-                      {/* 采购方式 */}
-                      <td className="px-4 py-3 text-sm text-[#5a6d8a]">{p.procurementMethod}</td>
-
-                      {/* 截标 · 开标 */}
-                      <td className="px-4 py-3">
-                        <div className="space-y-0.5 text-xs font-mono">
-                          <div className={`flex items-center gap-1 ${deadlineOverdue ? 'text-[#e74c3c] font-bold' : 'text-[#5a6d8a]'}`}>
-                            <Clock size={10} strokeWidth={1.5} />
-                            <span>截 {fmtDateTime(p.deadline)}</span>
-                            {deadlineOverdue && <span className="text-[9px] text-[#e74c3c]">逾期</span>}
-                          </div>
-                          <div className="flex items-center gap-1 text-[#8a96aa]">
-                            <span className="inline-block w-2.5" />
-                            <span>开 {fmtDateTime(p.openTime)}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 准备进度：供应商 + 专家 */}
-                      <td className="px-4 py-3">
-                        <div className="space-y-1.5">
-                          {/* 供应商进度条 */}
+                        {/* 项目名称 + risk pills */}
+                        <td>
                           <div className="flex items-center gap-1.5">
-                            <Users size={10} strokeWidth={1.5} className="text-[#8a96aa] shrink-0" />
-                            {p.supplierCount > 0 ? (
-                              <>
-                                <div className="w-14 h-1.5 bg-[#e8f0fa] rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full transition-all"
-                                    style={{
-                                      width: `${(p.supplierSubmitted / p.supplierCount) * 100}%`,
-                                      backgroundColor:
-                                        p.supplierSubmitted === p.supplierCount ? '#11a874' :
-                                        p.supplierSubmitted > 0 ? '#f5a623' : '#d1d5db',
-                                    }}
-                                  />
-                                </div>
-                                <span className="text-[10px] font-mono text-[#5a6d8a]">
-                                  {p.supplierSubmitted}/{p.supplierCount}
-                                </span>
-                              </>
-                            ) : (
-                              <span className="text-[10px] text-[#94a3b8]">—</span>
-                            )}
-                          </div>
-                          {/* 专家签到 */}
-                          <div className="flex items-center gap-1.5">
-                            <UserCheck size={10} strokeWidth={1.5} className="text-[#8a96aa] shrink-0" />
-                            {p.expertCount > 0 ? (
-                              <span className="text-[10px] font-mono text-[#5a6d8a]">
-                                {p.expertSignedIn}/{p.expertCount}
-                                {p.expertSignedIn === p.expertCount && p.expertCount > 0 ? (
-                                  <span className="ml-0.5 text-[#11a874]">✓</span>
-                                ) : (
-                                  <span className="ml-0.5 text-[#94a3b8]">
-                                    {p.expertSignedIn > 0 ? '…' : ''}
-                                  </span>
-                                )}
+                            <span className="text-sm font-medium text-[var(--foreground)]">{p.name}</span>
+                            {risks.map(r => (
+                              <span
+                                key={r}
+                                className="bid-pill"
+                                style={{ '--c': 'var(--danger)' } as React.CSSProperties}
+                                title={r}
+                              >
+                                <AlertTriangle size={9} strokeWidth={2} />
+                                {r}
                               </span>
-                            ) : (
-                              <span className="text-[10px] text-[#94a3b8]">—</span>
-                            )}
+                            ))}
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* 阶段 */}
-                      <td className="px-4 py-3">
-                        <span
-                          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap"
-                          style={{ color: stageColor, backgroundColor: `${stageColor}18` }}
-                        >
-                          {stageLabel}
-                        </span>
-                      </td>
+                        {/* 采购方式 */}
+                        <td className="text-sm text-[var(--muted-foreground)]">{p.procurementMethod}</td>
 
-                      {/* 就绪状态 */}
-                      <td className="px-4 py-3">
-                        <span
-                          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap"
-                          style={{ color: readinessColor, backgroundColor: `${readinessColor}15` }}
-                        >
-                          <span
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: readinessColor }}
-                          />
-                          {readinessLabel}
-                        </span>
-                      </td>
-
-                      {/* 操作 */}
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {/* Primary action: context-aware based on stage */}
-                          {p.stage === 'DOWNLOAD' && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleOpenSubmission(p); }}
-                              className="flex items-center gap-1 rounded-lg bg-[#11a874] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#0f9f6e] transition"
-                            >
-                              开放投递
-                            </button>
-                          )}
-                          {p.stage === 'SUBMIT' && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); gotoTab(p, 'standard'); }}
-                              className="flex items-center gap-1 rounded-lg border border-[#dce3eb] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
-                            >
-                              进入项目
-                            </button>
-                          )}
-                          {p.stage === 'OPENING' && p.readiness === 'ready' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/bid/project/${p.id}?tab=open`);
-                              }}
-                              className="flex items-center gap-1 rounded-lg bg-[#11a874] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#0f9f6e] transition"
-                            >
-                              启动开标
-                            </button>
-                          )}
-                          {p.stage === 'OPENING' && p.readiness !== 'ready' && (
-                            <span className="text-[10px] text-[#8a96aa] italic">等待就绪</span>
-                          )}
-                          {p.stage === 'EVALUATING' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/bid/project/${p.id}?tab=evaluate`);
-                              }}
-                              className="flex items-center gap-1 rounded-lg bg-[#7c3aed] px-2.5 py-1 text-[10px] font-bold text-white hover:bg-[#6d28d9] transition"
-                            >
-                              进入评标
-                            </button>
-                          )}
-                          {p.stage === 'ARCHIVED' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/bid/project/${p.id}?tab=open`);
-                              }}
-                              className="flex items-center gap-1 rounded-lg border border-[#dce3eb] px-2.5 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
-                            >
-                              查看归档
-                            </button>
-                          )}
-
-                          {/* Secondary actions: toggle inline expansion row (在行下方横向展开) */}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleActionMenu(p.id); }}
-                            className="flex items-center gap-1 rounded-lg border border-[#dce3eb] px-2 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
-                            title="更多操作"
-                          >
-                            更多
-                            <ChevronDown size={11} strokeWidth={2} className={`transition-transform ${actionExpandedIds.has(p.id) ? 'rotate-180' : ''}`} />
-                          </button>
-
-                          {/* Edit button */}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditProject(p); }}
-                            className="rounded-lg p-1.5 text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#064ea2] transition"
-                            title="编辑"
-                          >
-                            <Pencil size={13} strokeWidth={1.5} />
-                          </button>
-
-                          {/* Workspace inspect toggle */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleWorkspace(p.id);
-                            }}
-                            className="flex items-center gap-1 rounded-lg border border-[#dce3eb] px-2 py-1 text-[10px] font-bold text-[#5a6d8a] hover:bg-[#f8fafc] transition"
-                            title="检查工作区"
-                          >
-                            {expandedIds.has(p.id) ? <ChevronDown size={11} strokeWidth={2} /> : <ChevronRight size={11} strokeWidth={2} />}
-                            检查
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {/* Inline action expansion：快捷操作横向展开（不挤压表格） */}
-                    {actionExpandedIds.has(p.id) && (() => {
-                      const items = buildMenuItems(p);
-                      if (items.length === 0) return null;
-                      return (
-                        <tr key={`${p.id}-actions`} className="bg-[#f8fafb] border-b border-[#edf2f7]">
-                          <td colSpan={8} className="px-5 py-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-bold text-[#8a96aa] mr-1 select-none">快捷操作</span>
-                              {items.map(item => {
-                                const Icon = item.icon;
-                                const tone = item.tone ?? 'default';
-                                const toneText = tone === 'danger' ? 'text-[#e74c3c]' : tone === 'highlight' ? 'text-[#d97706]' : 'text-[#334155]';
-                                const toneBorder = tone === 'highlight' ? 'border-[#fcd34d]' : 'border-[#dce3eb]';
-                                return (
-                                  <button
-                                    key={item.key}
-                                    disabled={item.disabled}
-                                    title={item.disabled ? item.disabledReason : undefined}
-                                    onClick={(e) => { e.stopPropagation(); if (!item.disabled) item.onClick(); }}
-                                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition ${
-                                      item.disabled
-                                        ? 'border-[#e8edf3] text-[#cbd5e1] cursor-not-allowed'
-                                        : `${toneBorder} ${toneText} hover:bg-white`
-                                    }`}
-                                  >
-                                    {Icon && <Icon size={13} strokeWidth={1.5} />}
-                                    {item.label}
-                                  </button>
-                                );
-                              })}
+                        {/* 截标 · 开标 */}
+                        <td>
+                          <div className="space-y-0.5 font-mono text-xs">
+                            <div className={`flex items-center gap-1 ${deadlineOverdue ? 'font-bold text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
+                              <Clock size={10} strokeWidth={1.5} />
+                              <span>截 {fmtDateTime(p.deadline)}</span>
+                              {deadlineOverdue && <span className="text-[9px]">逾期</span>}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                    {/* Inline workspace expansion */}
-                    {expandedIds.has(p.id) && (() => {
-                      const wd = workspaceMap.get(p.id);
-                      const isLoaded = !!wd;
-                      return (
-                        <tr key={`${p.id}-ws`} className="bg-[#f8fafb] border-b border-[#edf2f7]">
-                          <td colSpan={8} className="px-5 py-4">
-                            {!isLoaded ? (
-                              <div className="flex items-center gap-2 py-2">
-                                <div className="w-4 h-4 border-2 border-[#bfdbfe] border-t-[#064ea2] rounded-full animate-spin" />
-                                <span className="text-xs text-[#8a96aa]">加载工作区数据…</span>
+                            <div className="flex items-center gap-1 text-[var(--muted-foreground)] opacity-70">
+                              <span className="inline-block w-2.5" />
+                              <span>开 {fmtDateTime(p.openTime)}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 准备进度：供应商 + 专家 */}
+                        <td>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Users size={10} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)] opacity-70" />
+                              {p.supplierCount > 0 ? (
+                                <>
+                                  <div className="bid-bar w-14">
+                                    <i style={{ width: `${(p.supplierSubmitted / p.supplierCount) * 100}%`, '--bar': barColor(p.supplierSubmitted, p.supplierCount) } as React.CSSProperties} />
+                                  </div>
+                                  <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+                                    {p.supplierSubmitted}/{p.supplierCount}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-[10px] text-[var(--muted-foreground)] opacity-60">—</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <UserCheck size={10} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)] opacity-70" />
+                              {p.expertCount > 0 ? (
+                                <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+                                  {p.expertSignedIn}/{p.expertCount}
+                                  {p.expertSignedIn === p.expertCount && p.expertCount > 0 ? (
+                                    <span className="ml-0.5 text-[var(--success)]">✓</span>
+                                  ) : (
+                                    <span className="ml-0.5 text-[var(--muted-foreground)] opacity-60">
+                                      {p.expertSignedIn > 0 ? '…' : ''}
+                                    </span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-[var(--muted-foreground)] opacity-60">—</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 阶段 */}
+                        <td>
+                          <span className="bid-pill" style={{ '--c': stageColor } as React.CSSProperties}>
+                            {stageLabel}
+                          </span>
+                        </td>
+
+                        {/* 就绪状态 */}
+                        <td>
+                          <span className="bid-pill" style={{ '--c': readinessColor } as React.CSSProperties}>
+                            <span className="bid-pill-dot" />
+                            {readinessLabel}
+                          </span>
+                        </td>
+
+                        {/* 操作 */}
+                        <td>
+                          <div className="flex items-center gap-1.5">
+                            {p.stage === 'DOWNLOAD' && (
+                              <button onClick={(e) => { e.stopPropagation(); handleOpenSubmission(p); }} className="neu-btn-xs is-success">开放投递</button>
+                            )}
+                            {p.stage === 'SUBMIT' && (
+                              <button onClick={(e) => { e.stopPropagation(); gotoTab(p, 'standard'); }} className="neu-btn-xs">进入项目</button>
+                            )}
+                            {p.stage === 'OPENING' && p.readiness === 'ready' && (
+                              <button onClick={(e) => { e.stopPropagation(); router.push(`/bid/project/${p.id}?tab=open`); }} className="neu-btn-xs is-success">启动开标</button>
+                            )}
+                            {p.stage === 'OPENING' && p.readiness !== 'ready' && (
+                              <span className="text-[10px] italic text-[var(--muted-foreground)] opacity-70">等待就绪</span>
+                            )}
+                            {p.stage === 'EVALUATING' && (
+                              <button onClick={(e) => { e.stopPropagation(); router.push(`/bid/project/${p.id}?tab=evaluate`); }} className="neu-btn-xs is-info">进入评标</button>
+                            )}
+                            {p.stage === 'ARCHIVED' && (
+                              <button onClick={(e) => { e.stopPropagation(); router.push(`/bid/project/${p.id}?tab=open`); }} className="neu-btn-xs">查看归档</button>
+                            )}
+
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleActionMenu(p.id); }}
+                              className="neu-btn-xs"
+                              title="更多操作"
+                            >
+                              更多
+                              <ChevronDown size={11} strokeWidth={2} className={`transition-transform ${actionExpandedIds.has(p.id) ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditProject(p); }}
+                              className="neu-btn-xs"
+                              title="编辑"
+                            >
+                              <Pencil size={12} strokeWidth={1.7} />
+                            </button>
+
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleWorkspace(p.id); }}
+                              className="neu-btn-xs"
+                              title="检查工作区"
+                            >
+                              {expandedIds.has(p.id) ? <ChevronDown size={11} strokeWidth={2} /> : <ChevronRight size={11} strokeWidth={2} />}
+                              检查
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* 快捷操作横向展开 */}
+                      {actionExpandedIds.has(p.id) && (() => {
+                        const items = buildMenuItems(p);
+                        if (items.length === 0) return null;
+                        return (
+                          <tr key={`${p.id}-actions`} className="bid-expand-row">
+                            <td colSpan={8} className="!px-5 !py-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="mr-1 select-none text-[10px] font-bold text-[var(--muted-foreground)]">快捷操作</span>
+                                {items.map(item => {
+                                  const Icon = item.icon;
+                                  const tone = item.tone ?? 'default';
+                                  const variant = tone === 'danger' ? 'is-danger' : tone === 'highlight' ? 'is-warning' : '';
+                                  return (
+                                    <button
+                                      key={item.key}
+                                      disabled={item.disabled}
+                                      title={item.disabled ? item.disabledReason : undefined}
+                                      onClick={(e) => { e.stopPropagation(); if (!item.disabled) item.onClick(); }}
+                                      className={`neu-btn-xs ${variant}`}
+                                    >
+                                      {Icon && <Icon size={13} strokeWidth={1.5} />}
+                                      {item.label}
+                                    </button>
+                                  );
+                                })}
                               </div>
-                            ) : (
-                              <div className="space-y-4">
-                                <div className="flex items-center gap-6">
-                                  <div className="flex-1 max-w-xs">
-                                    <div className="flex items-center justify-between mb-1.5">
-                                      <span className="text-xs font-bold text-[#18243a]">供应商提交进度</span>
-                                      <span className="text-[10px] font-mono text-[#5a6d8a]">
-                                        {wd?.stats?.submitted ?? 0} / {wd?.stats?.supplierTotal ?? 0}
+                            </td>
+                          </tr>
+                        );
+                      })()}
+
+                      {/* 工作区检查展开 */}
+                      {expandedIds.has(p.id) && (() => {
+                        const wd = workspaceMap.get(p.id);
+                        const isLoaded = !!wd;
+                        return (
+                          <tr key={`${p.id}-ws`} className="bid-expand-row">
+                            <td colSpan={8} className="!px-5 !py-4">
+                              {!isLoaded ? (
+                                <div className="flex items-center gap-2 py-2">
+                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+                                  <span className="text-xs text-[var(--muted-foreground)]">加载工作区数据…</span>
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  <div className="flex items-center gap-6">
+                                    <div className="max-w-xs flex-1">
+                                      <div className="mb-1.5 flex items-center justify-between">
+                                        <span className="text-xs font-bold text-[var(--foreground)]">供应商提交进度</span>
+                                        <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+                                          {wd?.stats?.submitted ?? 0} / {wd?.stats?.supplierTotal ?? 0}
+                                        </span>
+                                      </div>
+                                      <div className="bid-bar w-full">
+                                        <i style={{
+                                          width: `${(wd?.stats?.supplierTotal ?? 0) > 0 ? ((wd?.stats?.submitted ?? 0) / wd.stats.supplierTotal) * 100 : 0}%`,
+                                          '--bar': barColor(wd?.stats?.submitted ?? 0, wd?.stats?.supplierTotal ?? 0),
+                                        } as React.CSSProperties} />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span className="mr-3 text-xs font-bold text-[var(--foreground)]">专家签到</span>
+                                      <span className="font-mono text-xs font-semibold text-[var(--accent-strong)]">
+                                        {wd?.stats?.expertSignedIn ?? 0}
+                                      </span>
+                                      <span className="text-xs text-[var(--muted-foreground)]"> / {wd?.stats?.expertCount ?? 0} 已签到</span>
+                                      <span className="ml-3 text-xs text-[var(--muted-foreground)]">
+                                        回避：{wd?.experts?.filter((e: any) => e.avoidanceConfirmed).length ?? 0}
                                       </span>
                                     </div>
-                                    <div className="w-full h-1.5 bg-[#e8f0fa] rounded-full overflow-hidden">
-                                      <div
-                                        className="h-full rounded-full transition-all duration-300"
-                                        style={{
-                                          width: `${(wd?.stats?.supplierTotal ?? 0) > 0 ? ((wd?.stats?.submitted ?? 0) / wd.stats.supplierTotal) * 100 : 0}%`,
-                                          backgroundColor: (wd?.stats?.submitted ?? 0) === (wd?.stats?.supplierTotal ?? 0) && (wd?.stats?.supplierTotal ?? 0) > 0
-                                            ? '#11a874' : (wd?.stats?.submitted ?? 0) > 0 ? '#f5a623' : '#d1d5db',
-                                        }}
-                                      />
-                                    </div>
                                   </div>
-                                  <div>
-                                    <span className="text-xs font-bold text-[#18243a] mr-3">专家签到</span>
-                                    <span className="text-xs font-mono text-[#064ea2] font-semibold">
-                                      {wd?.stats?.expertSignedIn ?? 0}
-                                    </span>
-                                    <span className="text-xs text-[#8a96aa]"> / {wd?.stats?.expertCount ?? 0} 已签到</span>
-                                    <span className="text-xs text-[#8a96aa] ml-3">
-                                      回避：{wd?.experts?.filter((e: any) => e.avoidanceConfirmed).length ?? 0}
-                                    </span>
+                                  <div className="wb-section-rule" />
+                                  <div className="flex items-center gap-2">
+                                    {(() => {
+                                      const sub = wd?.stats?.submitted ?? 0;
+                                      const sTot = wd?.stats?.supplierTotal ?? 0;
+                                      const sig = wd?.stats?.expertSignedIn ?? 0;
+                                      const eTot = wd?.stats?.expertCount ?? 0;
+                                      const allSub = sub === sTot && sTot > 0;
+                                      const allSig = sig === eTot && eTot > 0;
+                                      if (allSub && allSig) {
+                                        return <><span className="h-2 w-2 rounded-full bg-[var(--success)]" /><span className="text-xs font-bold text-[var(--success)]">就绪 — 所有供应商已提交，所有专家已签到</span></>;
+                                      }
+                                      if (allSub || allSig || sub > 0 || sig > 0) {
+                                        return <><span className="h-2 w-2 rounded-full bg-[var(--warning)]" /><span className="text-xs font-bold text-[var(--warning)]">部分就绪 — 仍有环节未完成</span></>;
+                                      }
+                                      return <><span className="h-2 w-2 rounded-full bg-[var(--danger)]" /><span className="text-xs font-bold text-[var(--danger)]">未就绪 — 等待供应商提交和专家签到</span></>;
+                                    })()}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2 pt-3 border-t border-[#edf2f7]">
-                                  {(() => {
-                                    const sub = wd?.stats?.submitted ?? 0;
-                                    const sTot = wd?.stats?.supplierTotal ?? 0;
-                                    const sig = wd?.stats?.expertSignedIn ?? 0;
-                                    const eTot = wd?.stats?.expertCount ?? 0;
-                                    const allSub = sub === sTot && sTot > 0;
-                                    const allSig = sig === eTot && eTot > 0;
-                                    if (allSub && allSig) {
-                                      return <><span className="w-2 h-2 rounded-full bg-[#11a874]" /><span className="text-xs font-bold text-[#11a874]">就绪 — 所有供应商已提交，所有专家已签到</span></>;
-                                    }
-                                    if (allSub || allSig || sub > 0 || sig > 0) {
-                                      return <><span className="w-2 h-2 rounded-full bg-[#f5a623]" /><span className="text-xs font-bold text-[#f5a623]">部分就绪 — 仍有环节未完成</span></>;
-                                    }
-                                    return <><span className="w-2 h-2 rounded-full bg-[#e74c3c]" /><span className="text-xs font-bold text-[#e74c3c]">未就绪 — 等待供应商提交和专家签到</span></>;
-                                  })()}
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                  </Fragment>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })()}
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
           )}
         </div>
+
         {!loading && filtered.length > 0 && (
-          <Pagination page={projectsPage} totalPages={Math.ceil(filtered.length / PAGE_SIZE)}
-            totalItems={filtered.length} pageSize={PAGE_SIZE} onPage={setProjectsPage} />
+          <div className="neu-table-card-footer">
+            <Pagination page={projectsPage} totalPages={Math.ceil(filtered.length / PAGE_SIZE)}
+              totalItems={filtered.length} pageSize={PAGE_SIZE} onPage={setProjectsPage} />
+          </div>
         )}
-      </SectionCard>
+      </div>
 
       <CreateProjectDialog
         open={showCreate}

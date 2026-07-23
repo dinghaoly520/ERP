@@ -264,3 +264,426 @@ select.workbench-input:focus {
   }
 }
 
+/* =============================================================================
+   cgzxui 新拟态设计系统 —— 移植自 public-portal :3002 / web :3005
+   单一 CSS 源；方向性双影 + oklch 色彩 + 三态完整；禁止外侧框线。
+   仅新增类名，不覆盖本文件既有 workbench-* / glass-* 定义，零影响其他页面。
+   ============================================================================= */
+
+/* ── 设计令牌（cgzxui 命名空间）── */
+:root {
+  --background: oklch(0.975 0.012 258);
+  --foreground: oklch(0.29 0.03 248);
+  --muted-foreground: oklch(0.55 0.028 244);
+  --accent: oklch(0.63 0.128 247);
+  --accent-strong: oklch(0.56 0.153 251);
+  --success: oklch(0.71 0.112 164);
+  --warning: oklch(0.78 0.122 83);
+  --danger: oklch(0.66 0.175 27);
+  --font-display: 'Manrope', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  /* 新拟态阴影令牌 */
+  --neu-light: oklch(1 0 0);
+  --neu-dark: oklch(0.55 0.03 258);
+  --neu-brand: var(--accent-strong);
+  --neu-brand-deep: oklch(0.42 0.16 251);
+  --neu-raised-bg: #edf2f8;
+  --neu-raised-bg-hover: #e4eaf3;
+}
+
+/* ── 主按钮 .neu-btn-primary ── */
+.neu-btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 28px; font-size: 14px; font-weight: 700; color: #fff;
+  background: var(--neu-brand); border: none; border-radius: 9px; cursor: pointer;
+  box-shadow: 3px 3px 6px oklch(0.5 0.08 258 / 0.25), -2px -2px 5px oklch(1 0 0 / 0.5);
+  transition: all 0.2s ease; white-space: nowrap;
+}
+.neu-btn-primary:hover {
+  background: var(--neu-brand-deep); transform: translateY(-1px);
+  box-shadow: 4px 4px 10px oklch(0.45 0.08 258 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.55);
+}
+.neu-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: inset 2px 2px 5px oklch(0.35 0.08 258 / 0.35), inset -2px -2px 5px oklch(1 0 0 / 0.25);
+}
+.neu-btn-primary:disabled {
+  opacity: 0.55; cursor: not-allowed; transform: none;
+  box-shadow: 2px 2px 4px oklch(0.5 0.05 258 / 0.15), -1px -1px 3px oklch(1 0 0 / 0.4);
+}
+.neu-btn-primary.is-success { background: oklch(0.6 0.13 164); }
+.neu-btn-primary.is-success:hover { background: oklch(0.52 0.14 164); }
+
+/* ── 柔和按钮 .neu-btn-soft（次要操作）── */
+.neu-btn-soft {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px;
+  font-size: 13px; font-weight: 600; color: var(--muted-foreground);
+  background: var(--neu-raised-bg); border: none; border-radius: 8px; cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.3s ease; white-space: nowrap;
+}
+.neu-btn-soft:hover {
+  color: var(--accent-strong); background: var(--neu-raised-bg-hover);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.neu-btn-soft:active {
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+.neu-btn-soft:disabled { opacity: 0.35; pointer-events: none; }
+.neu-btn-soft.is-success { color: var(--success); }
+.neu-btn-soft.is-success:hover { background: oklch(0.95 0.05 164 / 0.5); }
+.neu-btn-soft.is-danger { color: var(--danger); }
+.neu-btn-soft.is-danger:hover { background: oklch(0.95 0.05 27 / 0.5); }
+.neu-btn-soft.is-warning { color: var(--warning); }
+.neu-btn-soft.is-warning:hover { background: oklch(0.95 0.05 83 / 0.5); }
+
+/* ── 紧凑行按钮 .neu-btn-xs（表格行内操作）── */
+.neu-btn-xs {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px;
+  font-size: 12px; font-weight: 700; color: var(--muted-foreground);
+  background: oklch(0.98 0.005 258); border: none; border-radius: 7px; cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.65),
+    1px 1px 3px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 2px oklch(1 0 0 / 0.8);
+  transition: all 0.25s ease; white-space: nowrap;
+}
+.neu-btn-xs:hover {
+  color: var(--accent-strong); background: oklch(0.96 0.008 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+}
+.neu-btn-xs:active {
+  box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.15), inset -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+.neu-btn-xs:disabled { opacity: 0.35; pointer-events: none; }
+.neu-btn-xs.is-success { color: var(--success); }
+.neu-btn-xs.is-success:hover { background: oklch(0.96 0.05 164 / 0.4); }
+.neu-btn-xs.is-danger { color: var(--danger); }
+.neu-btn-xs.is-danger:hover { background: oklch(0.96 0.05 27 / 0.4); }
+.neu-btn-xs.is-warning { color: var(--warning); }
+.neu-btn-xs.is-warning:hover { background: oklch(0.96 0.05 83 / 0.4); }
+.neu-btn-xs.is-info { color: var(--accent-strong); }
+.neu-btn-xs.is-info:hover { background: oklch(0.96 0.04 251 / 0.4); }
+
+/* ── 通用卡片 .neu-card / .neu-card-static ── */
+.neu-card {
+  background: oklch(1 0 0 / 0.55);
+  backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: none; border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+.neu-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    4px 4px 10px oklch(0.45 0.08 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+/* 静态容器（不响应 hover —— 用于流程/信息容器）*/
+.neu-card-static {
+  background: oklch(1 0 0 / 0.6);
+  backdrop-filter: blur(14px) saturate(135%); -webkit-backdrop-filter: blur(14px) saturate(135%);
+  border: none; border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 6px oklch(1 0 0 / 0.8);
+}
+
+/* ── 内凹输入 / 下拉 .neu-input / .neu-select ── */
+.neu-input,
+.neu-select {
+  height: 40px; padding: 0 14px;
+  border: 1px solid oklch(0.78 0.03 258 / 0.45); border-radius: 9px;
+  font-size: 14px; color: var(--foreground); background: oklch(0.99 0.004 258); outline: none;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.6);
+  transition: all 0.2s ease;
+}
+.neu-input { width: 100%; }
+.neu-input::placeholder { color: #bcc6d4; }
+.neu-input:focus,
+.neu-select:focus {
+  border-color: oklch(0.5 0.16 251 / 0.5);
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.06),
+    inset -2px -2px 4px oklch(1 0 0 / 0.45),
+    0 0 0 3px oklch(0.5 0.16 251 / 0.08);
+}
+/* 带前置图标的输入框 */
+.neu-input.has-icon { padding-left: 38px; }
+/* 下拉箭头 */
+select.neu-select {
+  cursor: pointer; appearance: none; -webkit-appearance: none; min-width: 120px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235a6d8a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+}
+
+/* ── hairline 分割线（page-hero 行间）── */
+.wb-section-rule { height: 0; border: 0; border-top: 1px solid oklch(0.6 0.04 258 / 0.16); }
+
+/* ── 页面标题卡片 .page-hero ── */
+.page-hero {
+  position: relative; display: flex; flex-direction: column; gap: 1.25rem;
+  overflow: hidden; border-radius: 20px; border: none;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 55%);
+  padding: 1.25rem;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    2px 2px 8px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+.page-hero::after {
+  content: ""; position: absolute; top: -40%; right: -12%; width: 48%; height: 180%;
+  background:
+    radial-gradient(ellipse at 70% 35%, color-mix(in oklch, var(--accent) 8%, transparent) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 60%, color-mix(in oklch, var(--success) 6%, transparent) 0%, transparent 50%);
+  pointer-events: none;
+}
+.page-hero__row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; position: relative; z-index: 1; }
+.page-hero__left { display: flex; align-items: center; gap: 0.875rem; min-width: 0; }
+.page-hero__icon {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 11px; background: oklch(0.985 0.005 258); color: var(--accent);
+  box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.75);
+}
+.page-hero__title {
+  font-family: var(--font-display); font-size: 1.15rem; font-weight: 500;
+  letter-spacing: -0.015em; line-height: 1.15; color: var(--foreground);
+}
+.page-hero__sub {
+  margin-top: 0.2rem; font-size: 0.75rem; font-weight: 400;
+  letter-spacing: 0.01em; line-height: 1.3; color: var(--muted-foreground);
+}
+.page-hero__right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.page-hero__stat {
+  display: flex; align-items: center; gap: 0.35rem; font-size: 0.688rem; font-weight: 600;
+  white-space: nowrap; padding: 0.25rem 0.6rem; border-radius: 999px;
+  border: 1px solid oklch(0.6 0.04 258 / 0.22); background: oklch(0.99 0.004 258); line-height: 1.4;
+}
+.page-hero__stat--info {
+  color: var(--accent); border-color: color-mix(in oklch, var(--accent) 25%, transparent);
+  background: color-mix(in oklch, var(--accent) 6%, transparent);
+}
+.page-hero__stat--warn {
+  color: var(--danger); border-color: color-mix(in oklch, var(--danger) 28%, transparent);
+  background: color-mix(in oklch, var(--danger) 6%, transparent);
+}
+.page-hero > .wb-section-rule,
+.page-hero > .grid { position: relative; z-index: 1; }
+
+/* ── KPI 指标瓷片 .kpi-card ── */
+.kpi-card {
+  background: oklch(0.985 0.005 258); border: none; border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    4px 4px 8px oklch(0.55 0.03 258 / 0.15),
+    -2.5px -2.5px 7px oklch(1 0 0 / 0.95);
+}
+.kpi-signal { color: var(--s); }
+.kpi-signal-dot { background: var(--s); }
+
+/* ── 数据表格外壳 .neu-table-card ── */
+.neu-table-card {
+  position: relative;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%);
+  backdrop-filter: blur(18px) saturate(135%); -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border: none; border-radius: 20px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    3px 3px 10px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 8px oklch(1 0 0 / 0.9);
+  transition: box-shadow 0.35s ease;
+}
+.neu-table-card:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.82),
+    4px 4px 14px oklch(0.55 0.03 258 / 0.16),
+    -3px -3px 10px oklch(1 0 0 / 0.95);
+}
+.neu-table-card-header { padding: 14px 18px; border-bottom: 1px solid oklch(0.55 0.03 258 / 0.1); }
+.neu-table-card-footer { padding: 12px 18px; border-top: 1px solid oklch(0.55 0.03 258 / 0.1); }
+
+/* ── 表格基类 .neu-table ── */
+.neu-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.neu-table thead { background: transparent; box-shadow: inset 0 -1px 0 oklch(0.55 0.03 258 / 0.08); }
+.neu-table thead tr:first-child th:first-child { border-top-left-radius: 20px; }
+.neu-table thead tr:first-child th:last-child { border-top-right-radius: 20px; }
+.neu-table th {
+  padding: 14px 16px; font-weight: 700; font-size: 11.5px; text-align: center;
+  white-space: nowrap; letter-spacing: 0.05em; color: var(--muted-foreground);
+}
+.neu-table td {
+  padding: 14px 16px; color: var(--foreground);
+  border-top: 1px solid oklch(0.55 0.03 258 / 0.06); vertical-align: middle; text-align: center;
+}
+/* 密集数据表修饰符 —— 左对齐（项目编号/名称等富文本列）*/
+.neu-table.is-dense th,
+.neu-table.is-dense td { text-align: left; }
+/* 行交互四层 */
+.neu-table tbody tr {
+  background: transparent;
+  transition: background 0.18s ease, box-shadow 0.22s ease, transform 0.18s ease;
+}
+.neu-table tbody tr:hover {
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.44) 0%, oklch(0.99 0.003 258 / 0.24) 35%, transparent 65%);
+  box-shadow: 0 1px 3px oklch(0.55 0.03 258 / 0.06), inset 0 0 0 1px oklch(0.5 0.16 251 / 0.06);
+  transform: translateY(-1px); position: relative; z-index: 1;
+}
+.neu-table tbody tr[data-selected="true"] {
+  background: oklch(0.96 0.03 251 / 0.28); box-shadow: inset 2px 0 0 var(--accent-strong);
+}
+.neu-table tbody tr.row-clickable:active {
+  transform: scale(0.995); box-shadow: inset 1px 1px 3px oklch(0.55 0.03 258 / 0.08);
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+/* 风险行底色 */
+.neu-table tbody tr[data-risk="true"] { background: color-mix(in oklch, var(--danger) 5%, transparent); }
+/* 内联展开行 —— 取消浮起 hover，给一层浅凹底 */
+.neu-table tbody tr.bid-expand-row { background: oklch(0.97 0.008 258 / 0.55); }
+.neu-table tbody tr.bid-expand-row:hover { transform: none; box-shadow: none; background: oklch(0.97 0.008 258 / 0.78); }
+
+/* ── 阶段筛选磁贴 .bid-stage-tile（neumorphic，--stage-color 驱动配色，无 border 框线）── */
+.bid-stage-tile {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 14px 8px; border: none; border-radius: 14px; cursor: pointer;
+  background: color-mix(in oklch, var(--stage-color) 7%, oklch(0.985 0.005 258));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 4px oklch(1 0 0 / 0.85);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bid-stage-tile:hover {
+  transform: translateY(-2px);
+  background: color-mix(in oklch, var(--stage-color) 12%, oklch(0.985 0.005 258));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 8px oklch(0.55 0.03 258 / 0.14),
+    -2px -2px 6px oklch(1 0 0 / 0.9);
+}
+.bid-stage-tile:active {
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+.bid-stage-tile[aria-pressed="true"] {
+  background: color-mix(in oklch, var(--stage-color) 16%, oklch(0.985 0.005 258));
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    inset -2px -2px 5px oklch(1 0 0 / 0.5),
+    0 0 0 2px color-mix(in oklch, var(--stage-color) 45%, transparent);
+}
+.bid-stage-num {
+  font-size: 1.6rem; font-weight: 900; line-height: 1; letter-spacing: -0.03em;
+  color: var(--stage-color); font-variant-numeric: tabular-nums;
+}
+.bid-stage-label { font-size: 11px; font-weight: 700; color: var(--muted-foreground); }
+.bid-stage-tile[aria-pressed="true"] .bid-stage-label { color: var(--stage-color); }
+
+/* ── 行内彩色徽标 .bid-pill（--c 驱动，无内联 hex）── */
+.bid-pill {
+  display: inline-flex; align-items: center; gap: 0.25rem; padding: 2px 8px;
+  border-radius: 999px; font-size: 10px; font-weight: 700; line-height: 1.4;
+  color: var(--c); background: color-mix(in oklch, var(--c) 12%, transparent); white-space: nowrap;
+}
+.bid-pill-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--c); flex-shrink: 0; }
+
+/* ── 进度条 .bid-bar（内凹轨道 + --bar 驱动填充）── */
+.bid-bar {
+  height: 6px; border-radius: 999px; overflow: hidden; background: oklch(0.96 0.01 258);
+  box-shadow: inset 1px 1px 2px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.6);
+}
+.bid-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--bar); transition: width 0.3s ease; }
+
+/* ── reduced motion：cgzxui 全量降级 ── */
+@media (prefers-reduced-motion: reduce) {
+  .neu-btn-primary, .neu-btn-soft, .neu-btn-xs, .neu-card, .neu-table-card,
+  .neu-table tbody tr, .bid-stage-tile, .kpi-card, .bid-bar > i { transition: none !important; }
+  .neu-btn-primary:hover, .neu-btn-soft:hover, .neu-btn-xs:hover, .neu-card:hover,
+  .kpi-card:hover, .bid-stage-tile:hover, .neu-table tbody tr:hover { transform: none !important; }
+}
+/* cgzxui port applied — bid dashboard refactor */
+
+/* ── 弹窗外壳 .bid-dialog（cgzxui 模态规范：浮动薄板 + 顶缘内高光 + 环境投影，无外侧框线）── */
+.bid-dialog {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--background);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    0 20px 60px oklch(0.3 0.05 258 / 0.2);
+}
+
+/* ── 内联错误提示（无边框，danger 色调底）── */
+.bid-alert {
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--danger);
+  background: color-mix(in oklch, var(--danger) 8%, transparent);
+}
+
+/* ── 可选列表行（邀请供应商等）── */
+.bid-pick-row {
+  border-radius: 10px;
+  transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+.bid-pick-row:hover {
+  background: color-mix(in oklch, var(--accent) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 14%, transparent);
+}
+
+/* ── 复选框 .neu-checkbox（22px 圆形内凹 + checked 品牌蓝）── */
+.neu-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  background: oklch(0.985 0.005 258);
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12),
+    inset -2px -2px 4px oklch(1 0 0 / 0.6);
+  transition: all 0.2s ease;
+}
+.neu-checkbox:hover { background: var(--neu-raised-bg-hover); }
+.neu-checkbox:checked { background: var(--accent); box-shadow: none; }
+.neu-checkbox:checked::after {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin: 3px 0 0 7px;
+}
+.neu-checkbox:disabled { opacity: 0.6; cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  .neu-checkbox, .bid-pick-row { transition: none !important; }
+}
+

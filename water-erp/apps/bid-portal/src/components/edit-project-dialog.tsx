@@ -44,6 +44,9 @@ function toLocalInput(value: string | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const FIELD_LABEL =
+  'mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]';
+
 export default function EditProjectDialog({ open, project, onClose, onUpdated }: Props) {
   const [name, setName] = useState('');
   const [procurementMethod, setProcurementMethod] = useState('公开招标');
@@ -95,78 +98,49 @@ export default function EditProjectDialog({ open, project, onClose, onUpdated }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="glass-card glass-card-deeper glass-card-blue w-full max-w-[480px] shadow-sm rounded-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="bid-dialog relative mx-4 w-full max-w-[480px]" role="dialog" aria-modal="true">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[oklch(0.91_0.006_264)]">
-          <h2
-            className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight"
-          >
-            编辑项目
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)] transition-colors"
-          >
-            <X size={16} strokeWidth={1.5} />
-          </button>
+        <div className="flex items-center justify-between gap-4 px-6 pb-4 pt-5">
+          <h2 className="text-[15px] font-bold tracking-tight text-[var(--foreground)]">编辑项目</h2>
+          <button onClick={onClose} className="neu-btn-xs" title="关闭"><X size={15} strokeWidth={1.7} /></button>
         </div>
+        <div className="wb-section-rule" />
 
         {/* Project metadata bar */}
-        <div className="px-6 py-3 border-b border-[oklch(0.91_0.006_264)] flex items-center gap-4 text-[11px]">
-          <span className="text-[oklch(0.55_0.01_264)] uppercase tracking-wider font-semibold">
-            {project.projectCode}
-          </span>
-          <span className="text-[oklch(0.62_0.008_264)]">|</span>
-          <span className="text-[oklch(0.55_0.01_264)] uppercase tracking-wider font-semibold">
-            当前阶段：
-          </span>
-          <span className="text-[oklch(0.30_0.08_250)] font-semibold tracking-tight">
-            {stageLabel}
-          </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-6 py-3 text-[11px]">
+          <span className="font-mono font-semibold tracking-wide text-[var(--muted-foreground)]">{project.projectCode}</span>
+          <span className="bid-pill" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>{stageLabel}</span>
           {nextStages.length > 0 && (
-            <>
-              <span className="text-[oklch(0.62_0.008_264)]">|</span>
-              <span className="text-[oklch(0.55_0.01_264)] uppercase tracking-wider font-semibold">
-                可流转至：
-              </span>
-              {nextStages.map((s) => (
-                <span
-                  key={s}
-                  className="text-[oklch(0.42_0.14_260)] font-medium tracking-tight"
-                >
-                  {STAGE_LABEL[s] ?? s}
-                </span>
-              ))}
-            </>
+            <span className="text-[var(--muted-foreground)]">
+              可流转至 <span className="font-semibold text-[var(--accent-strong)]">{nextStages.map(s => STAGE_LABEL[s] ?? s).join(' / ')}</span>
+            </span>
           )}
         </div>
+        <div className="wb-section-rule" />
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="space-y-4 px-6 py-5">
           <div>
-            <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-              项目名称 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+            <label className={FIELD_LABEL}>
+              项目名称 <span className="text-[var(--danger)]">*</span>
             </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="例：2026年度水利工程材料采购"
-              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65
-                focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors
-                placeholder:text-[oklch(0.72_0.008_264)]"
+              className="neu-input"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-              采购方式
-            </label>
+            <label className={FIELD_LABEL}>采购方式</label>
             <select
               value={procurementMethod}
               onChange={(e) => setProcurementMethod(e.target.value)}
-              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65
-                focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors"
+              className="neu-select w-full"
             >
               {METHODS.map((m) => (
                 <option key={m} value={m}>
@@ -178,72 +152,51 @@ export default function EditProjectDialog({ open, project, onClose, onUpdated }:
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-                开标时间 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+              <label className={FIELD_LABEL}>
+                开标时间 <span className="text-[var(--danger)]">*</span>
               </label>
               <input
                 type="datetime-local"
                 value={openTime}
                 onChange={(e) => setOpenTime(e.target.value)}
-                className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65
-                  focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors"
+                className="neu-input"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-                截标时间 <span className="text-[oklch(0.50_0.18_22)]">*</span>
+              <label className={FIELD_LABEL}>
+                截标时间 <span className="text-[var(--danger)]">*</span>
               </label>
               <input
                 type="datetime-local"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65
-                  focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors"
+                className="neu-input"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-[oklch(0.55_0.01_264)] uppercase tracking-wider mb-1.5">
-              风险备注
-            </label>
+            <label className={FIELD_LABEL}>风险备注</label>
             <input
               value={riskNote}
               onChange={(e) => setRiskNote(e.target.value)}
               placeholder="选填"
-              className="w-full px-3 py-2 text-[13px] border border-[oklch(0.91_0.006_264)] bg-white/65
-                focus:outline-none focus:border-[oklch(0.42_0.14_260)] transition-colors
-                placeholder:text-[oklch(0.72_0.008_264)]"
+              className="neu-input"
             />
           </div>
 
-          {error && (
-            <div className="bg-[oklch(0.96_0.03_22)] border border-[oklch(0.88_0.06_22)] p-3 text-[12px] text-[oklch(0.50_0.18_22)]">
-              {error}
-            </div>
-          )}
+          {error && <div className="bid-alert">{error}</div>}
         </div>
 
+        <div className="wb-section-rule" />
+
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[oklch(0.91_0.006_264)] flex items-center justify-between">
-          <p className="text-[11px] text-[oklch(0.62_0.008_264)]">
-            项目编号：{project.projectCode}
-          </p>
+        <div className="flex items-center justify-between gap-3 px-6 py-4">
+          <p className="text-[11px] text-[var(--muted-foreground)]">项目编号：{project.projectCode}</p>
           <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-[12px] font-semibold text-[oklch(0.55_0.01_264)] tracking-tight
-                hover:text-[oklch(0.18_0.012_265)] transition-colors"
-            >
-              取消
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="flex items-center gap-1.5 px-5 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px]
-                font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50"
-            >
-              <Save size={13} strokeWidth={2} />
+            <button onClick={onClose} className="neu-btn-soft h-[38px]">取消</button>
+            <button onClick={handleSubmit} disabled={submitting} className="neu-btn-primary !h-[38px]">
+              <Save size={14} strokeWidth={2} />
               {submitting ? '保存中…' : '保存修改'}
             </button>
           </div>
