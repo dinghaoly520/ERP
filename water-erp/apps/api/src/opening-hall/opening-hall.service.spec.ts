@@ -23,6 +23,7 @@ const notificationMock = { create: jest.fn() } as any;
 
 const host = { userId: 'u-host', role: 'bid_host', supplierId: undefined, supplierName: undefined };
 const sup = { userId: 'u-sup', role: 'supplier', supplierId: 'sup-1', supplierName: '测试供应商' };
+const outsider = { userId: 'u-expert', role: 'bid_expert', supplierId: undefined, supplierName: undefined };
 
 function setup() {
   prismaMock.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
@@ -97,6 +98,25 @@ describe('OpeningHallService', () => {
     expect(res.checkInAt).toBeInstanceOf(Date);
     expect(prismaMock.bidSupervisionLog.create).toHaveBeenCalled();
     expect(gatewayMock.notifyHallCheckin).toHaveBeenCalled();
+  });
+
+  it('非主持非供应商角色：发言/历史/未读/在场全部 403 HOST_ONLY', async () => {
+    await expect(svc.sendMessage(outsider, 'p1', { roomType: 'PUBLIC', content: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.listMessages(outsider, 'p1', { roomType: 'PUBLIC' })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.listMessages(outsider, 'p1', { roomType: 'PRIVATE', supplierId: 'sup-1' })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.unreadCounts(outsider, 'p1')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.presence('p1', outsider)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prismaMock.openingHallMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('非参投供应商发公聊 → 400 NOT_PROJECT_MEMBER（不落库）', async () => {
+    prismaMock.bidSupplier.findFirst.mockResolvedValue(null);
+    await expect(svc.sendMessage(sup, 'p1', { roomType: 'PUBLIC', content: 'x' })).rejects.toBeInstanceOf(BadRequestException);
+    expect(prismaMock.openingHallMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('供应商读他人私聊转录仍被原有 PRIVATE_ROOM_MISMATCH 拒绝（角色门放行供应商）', async () => {
+    await expect(svc.listMessages(sup, 'p1', { roomType: 'PRIVATE', supplierId: 'sup-2' })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('交流控制切换写库+监督日志+广播', async () => {

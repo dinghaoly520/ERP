@@ -43,6 +43,15 @@ export class OpeningHallService {
     const isSupplier = actor.role === 'supplier';
     if (control === 'MUTED' && isSupplier) throw new ForbiddenException({ error: '主持人已开启全员禁言', code: 'EXCHANGE_MUTED' });
 
+    // 授权收口：非供应商角色仅主持人可以 HOST 身份发言（防其他角色冒充主持人留痕）；
+    // 供应商须参投本项目（PUBLIC/PRIVATE 均门控，PRIVATE 分支内对主持发送方的目标成员校验保持不变）。
+    if (!isSupplier) {
+      this.assertHost(actor);
+    } else {
+      const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId: actor.supplierId } });
+      if (!member) throw new BadRequestException({ error: '您未参与该项目投标', code: 'NOT_PROJECT_MEMBER' });
+    }
+
     let supplierId: string | null = null;
     let supplierName: string | null = null;
     if (dto.roomType === 'PRIVATE') {
@@ -94,6 +103,7 @@ export class OpeningHallService {
   }
 
   async listMessages(actor: HallActor, projectId: string, q: { roomType: OpeningHallRoomType; supplierId?: string; cursor?: string; limit?: number }) {
+    if (actor.role !== 'supplier') this.assertHost(actor); // 非供应商仅主持人可读大厅消息（含私聊转录）
     const limit = Math.min(Math.max(q.limit ?? 50, 1), 100);
     if (q.roomType === 'PRIVATE') {
       if (actor.role === 'supplier' && q.supplierId !== actor.supplierId) {
@@ -120,6 +130,7 @@ export class OpeningHallService {
   }
 
   async unreadCounts(actor: HallActor, projectId: string) {
+    if (actor.role !== 'supplier') this.assertHost(actor); // 非供应商仅主持人可读未读分布
     const countSince = async (roomKey: string, where: any) => {
       const cursor = await this.prisma.openingHallReadCursor.findUnique({
         where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },
@@ -183,6 +194,7 @@ export class OpeningHallService {
   }
 
   async presence(projectId: string, actor: HallActor) {
+    if (actor.role !== 'supplier') this.assertHost(actor); // 非供应商仅主持人可查完整在场名单
     const online = this.gateway?.getOnlineSupplierIds(projectId) ?? new Set<string>();
     const rows = await this.prisma.bidSupplier.findMany({
       where: { projectId, supplierId: { not: null } },
