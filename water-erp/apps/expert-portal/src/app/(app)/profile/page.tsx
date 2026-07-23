@@ -10,7 +10,13 @@ import { STAGE_LABEL } from '@water-erp/shared';
 
 interface ExpertProfile {
   id: string; username: string; displayName: string; email: string; role: string; isActive: boolean;
+  phone?: string;
   averageScore: number;
+  expertProfile?: {
+    specialty?: string; title?: string; employer?: string; phone?: string;
+    idNumber?: string; ethnicity?: string; education?: string; licenseNo?: string;
+    contactConfirmedAt?: string | null;
+  } | null;
   assignments: {
     id: string; expertName: string; major: string; signedIn: boolean; avoidanceConfirmed: boolean; progress: number; totalScore: number; createdAt: string;
     project: { id: string; projectCode: string; name: string; stage: string; openTime: string };
@@ -111,9 +117,14 @@ export default function ExpertProfilePage() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-x-12 gap-y-4">
                     {[
-                      ['用户名', profile.username],
                       ['姓名', profile.displayName],
+                      ['用户名', profile.username],
+                      ['手机', profile.expertProfile?.phone || profile.phone || '未设置'],
                       ['邮箱', profile.email || '未设置'],
+                      ['专业', profile.expertProfile?.specialty || '未设置'],
+                      ['职称', profile.expertProfile?.title || '未设置'],
+                      ['工作单位', profile.expertProfile?.employer || '未设置'],
+                      ['身份证号', profile.expertProfile?.idNumber || '未设置'],
                       ['角色', '评审专家'],
                     ].map(([label, value]) => (
                       <div key={label as string}>
