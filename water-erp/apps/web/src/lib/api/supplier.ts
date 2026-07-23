@@ -62,7 +62,7 @@ export function recommendSuppliers(data: { requirement: string; classificationId
 }
 
 // AI 润色采购需求描述
-export function polishRequirement(data: { text: string; projectName?: string; procurementMethod?: string; deadline?: string }) {
+export function polishRequirement(data: { text: string; projectName?: string; procurementMethod?: string; deadline?: string; additionalContext?: string }) {
   return api.post<{ polished: string }>('/ai/polish-requirement', data);
 }
 

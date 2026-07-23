@@ -168,7 +168,6 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
             <div class="bdoc">
               <Lock :size="14" :stroke-width="1.75" class="bdoc-icon" />
               <span class="bdoc-name">{{ bidDoc.title }}</span>
-              <span class="bdoc-meta">{{ bidDoc.downloadCount || 0 }} 次下载</span>
             </div>
             <div class="bdoc-acts">
               <el-alert v-if="!bidDoc.eligible" :title="'无法下载：' + bidDoc.reason" type="error" :closable="false" show-icon />
@@ -188,7 +187,7 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           <div class="bc-hd">澄清答疑</div>
           <div class="cq-ask">
             <el-input v-model="questionText" placeholder="对招标有疑问？在此提问…" :rows="2" type="textarea" size="small" />
-            <button class="neu-btn-xs" :disabled="questionPosting" @click="postQuestion">提交</button>
+            <button class="neu-btn-xs cq-submit-btn" :disabled="questionPosting" @click="postQuestion">提交</button>
           </div>
           <div v-if="project.clarifications?.length" class="cq-list">
             <div v-for="c in project.clarifications" :key="c.id" class="cq-item">
@@ -331,6 +330,7 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 
 /* 澄清答疑 */
 .cq-ask   { display: flex; gap: 8px; margin-bottom: 12px; }
+.cq-submit-btn { min-width: 64px; flex-shrink: 0; align-self: center; }
 .cq-list  { display: flex; flex-direction: column; }
 .cq-item  { padding: 9px 0; border-bottom: 1px solid var(--hairline); }
 .cq-item:last-child { border-bottom: none; }

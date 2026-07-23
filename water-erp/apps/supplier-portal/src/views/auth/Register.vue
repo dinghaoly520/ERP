@@ -187,7 +187,7 @@ async function submitRegister() {
     await authStore.register(data)
     draft.clearDraft()
     ElMessage.success('注册成功，正在登录...')
-    router.push('/onboarding')
+    router.push('/dashboard')
   } catch {
     ElMessage.error('注册失败，请检查信息后重试')
   } finally {

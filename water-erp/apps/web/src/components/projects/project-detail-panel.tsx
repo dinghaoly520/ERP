@@ -1627,7 +1627,7 @@ export function ProjectDetailPanel({
         project={item}
       />
 
-      {/* 供应商抽取弹窗 */}
+      {/* 供应商邀请弹窗 */}
       <SupplierExtractModal
         isOpen={supplierExtractOpen}
         onClose={() => setSupplierExtractOpen(false)}

@@ -150,6 +150,16 @@ body {
 .neu-btn-xs.is-success { color: var(--success); }
 .neu-btn-xs.is-warning { color: var(--warning); }
 
+/* ── 按钮行：统一并排按钮高度─── */
+/*  当 .neu-btn-primary (44px) 与 .neu-btn-soft (38px) 并排时，
+    包裹在此容器中即可自动对齐为 38px 统一高度。
+    用法：<div class="neu-btn-group"><button class="neu-btn-soft">取消</button><button class="neu-btn-primary">确认</button></div> */
+.neu-btn-group {
+  display: flex; align-items: center; gap: 10px;
+}
+.neu-btn-group > .neu-btn-primary { height: 38px; font-size: 13px; padding: 0 20px; }
+.neu-btn-group > .neu-btn-soft    { height: 38px; }
+
 .neu-link {
   display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
   font: inherit; font-size: 13px; font-weight: 600; color: #5a6d8a; text-decoration: none;

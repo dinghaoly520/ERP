@@ -42,19 +42,25 @@ export class AiService {
   /** 润色采购需求描述 —— AI 优化表达，使需求更精准 */
   async polishRequirement(
     text: string,
-    projectCtx?: { projectName?: string; procurementMethod?: string; deadline?: string },
+    projectCtx?: { projectName?: string; procurementMethod?: string; deadline?: string; additionalContext?: string },
   ): Promise<{ polished: string }> {
     const ctxParts: string[] = [];
     if (projectCtx?.projectName) {
       ctxParts.push(`关联项目名称：${projectCtx.projectName}`);
-      ctxParts.push(`（根据项目名称推断项目类型、行业归属和常规需求）`);
     }
     if (projectCtx?.procurementMethod) ctxParts.push(`采购方式：${projectCtx.procurementMethod}`);
     if (projectCtx?.deadline) ctxParts.push(`截止日期：${projectCtx.deadline}`);
 
-    const projectContext = ctxParts.length > 0
-      ? `\n\n【项目背景信息】\n${ctxParts.join('\n')}\n请根据项目名称推断该项目所属行业和常规采购内容，在润色时补充合理的项目概况（建设地点可写项目所在地区）、采购范围（根据行业推断常规采购项）、资质要求（根据行业查相关资质标准）和特殊要求（工期、质量、业绩门槛）。对于无法从项目名精确推断的具体数值（如工期天数、投资概算金额），请保留「（填写…）」占位符。`
+    // 项目已上传文件的分析内容
+    const fileAnalysisBlock = projectCtx?.additionalContext?.trim()
+      ? `\n\n【项目已上传文件分析摘要】\n${projectCtx.additionalContext.trim()}\n\n请优先使用上述文件分析中的真实信息（项目名称、预算金额、申请人、部门、采购事项内容等）填充需求描述。`
       : '';
+
+    const projectContext = ctxParts.length > 0
+      ? `\n\n【项目背景信息】\n${ctxParts.join('\n')}${fileAnalysisBlock}\n请根据以上信息推断该项目所属行业和常规采购内容，在润色时补充合理的项目概况（建设地点可写项目所在地区）、采购范围（根据行业和文件内容推断常规采购项）、资质要求（根据行业查相关资质标准）和特殊要求（工期、质量、业绩门槛）。`
+      : (fileAnalysisBlock
+        ? `\n${fileAnalysisBlock}\n请根据文件分析摘要中的实际信息，推断项目行业和常规采购内容，补充合理的项目概况、采购范围、资质要求和特殊要求。`
+        : '');
 
     const system = `你是一名政府采购招标文件撰写专家。请对用户的采购需求描述进行文字润色：
 1. 修正语法错误、错别字和不规范的表达
@@ -62,6 +68,15 @@ export class AiService {
 3. 补充缺失但行业惯例应有的内容维度（如验收标准、质保要求等）
 4. 保持原文的结构框架（【项目概况】【采购范围】【资质要求】【特殊要求】），不要改变格式
 5. 如果原文内容已经很好，直接返回原文，不要强行修改
+
+★★★ 严禁占位符 ★★★
+润色后的内容中绝对不允许出现任何需要人工填写的占位符，包括但不限于：
+- 禁止出现「（填写…）」「（待定）」「【】」「（）」「XX」「***」「…」等任何形式的占位符
+- 禁止出现需要人工填入的空白数字（如"XX万元""N家""【】日历天"）
+- 对于无法精确推断的具体数值，请根据行业惯例给出合理默认值（如工期90日历天、合同金额500万元等），并在数值前加"约"或"不少于"等弹性表述
+- 对于无法确定的具体信息，请使用「以采购文件为准」「详见招标文件」「按行业通行标准执行」等兜底表述，不得留空
+- 资质要求中不得使用"X级"等占位，应给出明确等级（如"建筑工程施工总承包一级及以上"）
+
 只输出润色后的文本，不要添加任何解释或标记。`;
 
     const input = text + projectContext;

@@ -28,34 +28,16 @@ const router = createRouter({
           meta: { title: '工作台', icon: 'HomeFilled' },
         },
         {
-          path: 'onboarding',
-          name: 'Onboarding',
-          component: () => import('@/views/onboarding/Status.vue'),
-          meta: { title: '入驻状态', icon: 'Stamp' },
-        },
-        {
           path: 'profile',
           name: 'Profile',
           component: () => import('@/views/profile/CompanyInfo.vue'),
           meta: { title: '企业信息', icon: 'OfficeBuilding' },
         },
         {
-          path: 'qualifications',
-          name: 'Qualifications',
-          component: () => import('@/views/profile/Qualifications.vue'),
-          meta: { title: '资质管理', icon: 'Medal' },
-        },
-        {
-          path: 'contacts',
-          name: 'Contacts',
-          component: () => import('@/views/profile/Contacts.vue'),
-          meta: { title: '联系人管理', icon: 'Phone' },
-        },
-        {
           path: 'change-records',
           name: 'ChangeRecords',
           component: () => import('@/views/profile/ChangeRequest.vue'),
-          meta: { title: '信息变更', icon: 'EditPen' },
+          meta: { title: '申请记录', icon: 'EditPen' },
         },
         {
           path: 'bids',

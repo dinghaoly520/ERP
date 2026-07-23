@@ -136,7 +136,11 @@ box-shadow:
 | `.flow-back` | "返回首页"链接 | `#f4f7fc` | 箭头左滑 4px |
 | `.announce-view-all` | "全部公告"链接 | `#f4f7fc` | 箭头右滑 4px |
 | `.neu-btn-primary` | 主要操作按钮 | `var(--brand)` | 44px 实心 |
+| `.neu-btn-soft` | 次要操作按钮 | `var(--surface)` | 38px 凸起，hover 抬升，active 内凹 |
+| `.neu-btn-xs` | 紧凑按钮 | `var(--surface)` | 30px，含 `.is-danger`/`.is-success`/`.is-warning` 颜色变体 |
 | `.neu-link` | 次级链接 | `#e8ecf2` | 经典 neumorphic |
+| `.neu-btn-group` | **按钮组容器** | — | 将并排的 `.neu-btn-primary`(44px) 与 `.neu-btn-soft`(38px) 统一为 38px 等高，消除高度不齐 |
+| `.flow-cta-btn` | CTA 底栏按钮 | `var(--brand)` | 54px |
 | `.hero-btn` | Hero 主 CTA | `var(--brand)` | 52px 大尺寸 |
 | `.hero-btn-outline` | Hero 描边 CTA | transparent | 描边变体 |
 | `.flow-cta-btn` | CTA 底栏按钮 | `var(--brand)` | 54px |
@@ -215,7 +219,8 @@ box-shadow:
 | `className="rounded-full border border-gray-200 bg-white"` | 非 cgzxui 风格，无三态，无内凹 | "按钮不就该有个边吗" |
 | 给卡片/面板/容器加 `border` 或 `border-[...]` | 框线把 neumorphic"浮起"感退化为"贴上去的带框方块"，方向性双影已足够表达层次 | "卡片总得有个边吧" |
 | 漏 `:active` | 按下无反馈 | "hover 就够了" |
-| 保存按钮默认 44px 高于取消 38px | 底部按钮不齐平 | "高度不一样没关系" |
+| 保存按钮默认 44px 高于取消 38px | 底部按钮不齐平，视觉凌乱 | "高度不一样没关系" |
+| 并排按钮不用 `.neu-btn-group` 包裹 | 高度不一致，对齐偏移 | "我手动设了 height" |
 | 给文字/标签/badge 加 neumorphic shadow | 小元素变臃肿模糊 | "让标签突出一点" |
 
 ### 红牌自检

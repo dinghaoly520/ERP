@@ -2031,6 +2031,12 @@ a.group:hover::after {
   50%      { opacity: 0.5; transform: scale(0.7); }
 }
 
+/* ── Featured 内容轮播过渡 ── */
+@keyframes announceContentIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Featured 内容 ── */
 .announce-featured-title {
   font-size: 20px;
@@ -2133,6 +2139,34 @@ a.group:hover::after {
     inset 0 1px 0 oklch(1 0 0 / 0.8),
     3px 3px 6px oklch(0.55 0.03 258 / 0.14),
     -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+
+/* ── 轮播进度指示器 ── */
+.announce-progress-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.announce-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: oklch(0.55 0.03 258 / 0.25);
+  transition: all 0.35s ease;
+  cursor: pointer;
+}
+
+.announce-progress-dot.is-active {
+  width: 22px;
+  border-radius: 3px;
+  background: var(--card-color, #064ea2);
+}
+
+.announce-progress-dot:hover:not(.is-active) {
+  background: oklch(0.55 0.03 258 / 0.5);
+  transform: scale(1.3);
 }
 
 /* ── Side List ── */

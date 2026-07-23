@@ -129,12 +129,13 @@ export class AiController {
   @Post('polish-requirement')
   @ApiOperation({ summary: 'AI润色采购需求描述' })
   @Roles('admin', 'bid_expert', 'leader', 'staff')
-  async polishRequirement(@Body() payload: { text: string; projectName?: string; procurementMethod?: string; deadline?: string }) {
+  async polishRequirement(@Body() payload: { text: string; projectName?: string; procurementMethod?: string; deadline?: string; additionalContext?: string }) {
     if (!payload.text?.trim()) throw new BadRequestException('请提供需求文本');
     return this.aiService.polishRequirement(payload.text.trim(), {
       projectName: payload.projectName,
       procurementMethod: payload.procurementMethod,
       deadline: payload.deadline,
+      additionalContext: payload.additionalContext,
     });
   }
 

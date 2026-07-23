@@ -7,7 +7,7 @@ import { useNotificationStore } from '@/stores/notification'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
 import {
-  HomeFilled, Stamp, OfficeBuilding, Medal, Phone, EditPen,
+  HomeFilled, OfficeBuilding, EditPen,
   Document, DocumentChecked, Bell, ChatDotRound, Star,
   Fold, Expand, SwitchButton, User, Lock,
   Goods, Connection, Box, ArrowDown,
@@ -64,11 +64,8 @@ const menuItems = [
   { path: '/catalog-applications', title: '供货申请', icon: Connection, desc: '申请进度与议价' },
   { path: '/supply', title: '我的供货', icon: Box, desc: '已准入品类与报价' },
   { divider: true, label: '企业档案' },
-  { path: '/onboarding', title: '入驻状态', icon: Stamp, desc: '审核与补正进度' },
-  { path: '/profile', title: '企业信息', icon: OfficeBuilding, desc: '主体资料维护' },
-  { path: '/qualifications', title: '资质与证照', icon: Medal, desc: '证照有效期管理' },
-  { path: '/contacts', title: '联系人', icon: Phone, desc: '业务联系人维护' },
-  { path: '/change-records', title: '资料变更申请', icon: EditPen, desc: '变更审核记录' },
+  { path: '/profile', title: '企业信息', icon: OfficeBuilding, desc: '主体资料、资质与联系人' },
+  { path: '/change-records', title: '申请记录', icon: EditPen, desc: '变更审核进度' },
   { divider: true, label: '信息中心' },
   { path: '/announcements', title: '公告公示', icon: Bell, desc: '公告与政策' },
   { path: '/notifications', title: '消息通知', icon: ChatDotRound, badge: true, desc: '平台消息' },

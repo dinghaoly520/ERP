@@ -73,7 +73,7 @@ export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
             </div>
             <div className="min-w-0">
               <div className="text-[0.92rem] font-semibold tracking-[-0.02em] text-[var(--foreground)] truncate">
-                供应商抽取
+                供应商邀请
               </div>
               <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
                 按采购需求 AI 语义匹配候选供应商，构建邀请名单并多渠道通知
@@ -98,7 +98,7 @@ export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
         </div>
 
         <div
-          className="flex-1 min-h-0 overflow-y-auto"
+          className="flex-1 min-h-0 overflow-y-auto px-5"
           style={{
             background: 'oklch(0.975 0.012 258 / 0.32)',
             boxShadow:
@@ -108,12 +108,13 @@ export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
           {ready ? (
             <Suspense fallback={
               <div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">
-                加载供应商抽取配置...
+                加载供应商邀请配置...
               </div>
             }>
               <SupplierSelectionPage
                 hideHeader
                 defaultProjectTitle={project?.title}
+                project={project}
               />
             </Suspense>
           ) : (
@@ -121,7 +122,7 @@ export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
               <div className="flex flex-col items-center gap-4 w-full max-w-[400px]">
                 <RefreshCw size={36} className="text-[var(--success)] animate-spin" />
                 <div className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-                  AI 正在准备供应商抽取
+                  AI 正在准备供应商邀请
                 </div>
                 <div className="text-[11px] text-[var(--muted-foreground)] text-center leading-[1.55]">
                   正在加载采购项目上下文与供应商分类，准备按需求语义匹配候选供应商，请稍候…

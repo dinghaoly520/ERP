@@ -26,6 +26,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   const [regForm, setRegForm] = useState({ name: '', creditCode: '', phone: '', pwd: '', contact: '' });
   const [regLoading, setRegLoading] = useState(false);
   const [announceTab, setAnnounceTab] = useState(0);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
   const [heroIndex, setHeroIndex] = useState(0);
 
   // 自动轮播：每 6s 切换到下一张，5 张一个循环（30s）
@@ -154,25 +155,51 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   // 从数据按类型分组（仅展示数据库中的真实数据，不使用本地兜底）
   const announceData = typeGroups.map(type => {
     const items = fetchedAnnouncements.filter(a => a.type === type);
-    const first = items[0];
-    if (!first) return null;
+    if (items.length === 0) return null;
     return {
-      color: first.color,
-      deadlineLabel: first.deadlineLabel,
-      featured: { tag: first.tag, date: first.date, urgent: first.urgent, title: first.title, desc: first.desc, content: first.content, aiSummary: first.aiSummary, code: first.code, deadline: first.deadline, id: first.id },
-      list: items.slice(1, 5).map(a => ({ date: a.date.slice(5), title: a.title, id: a.id })),
+      color: items[0].color,
+      deadlineLabel: items[0].deadlineLabel,
+      items: items.map(a => ({ tag: a.tag, date: a.date, urgent: a.urgent, title: a.title, desc: a.desc, content: a.content, aiSummary: a.aiSummary, code: a.code, deadline: a.deadline, id: a.id })),
     };
-  }).filter(Boolean) as { color: string; deadlineLabel: string; featured: { tag: string; date: string; urgent: boolean; title: string; desc: string; content: string; aiSummary?: string; code: string; deadline: string; id: string }; list: { date: string; title: string; id: string }[] }[];
+  }).filter(Boolean) as { color: string; deadlineLabel: string; items: { tag: string; date: string; urgent: boolean; title: string; desc: string; content: string; aiSummary?: string; code: string; deadline: string; id: string }[] }[];
 
   // 当前选中类型（安全访问：加载中或数据为空时为 undefined）
   const currentAnnounce = announceData.length > 0
     ? announceData[Math.min(announceTab, announceData.length - 1)]
     : undefined;
 
+  // 当前轮播项（安全兜底：数据变化导致越界时回退到第一条）
+  const featuredItem = currentAnnounce
+    ? currentAnnounce.items[Math.min(featuredIndex, currentAnnounce.items.length - 1)]
+    : undefined;
+
   // 数据变化后校正越界的 tab 索引
   useEffect(() => {
     if (announceData.length > 0 && announceTab >= announceData.length) setAnnounceTab(0);
   }, [announceData.length, announceTab]);
+
+  // 公告 featured 自动轮播：每 5s 切换到下一条
+  useEffect(() => {
+    const items = announceData[announceTab]?.items;
+    if (!items || items.length <= 1) return;
+    const timer = setInterval(() => {
+      setFeaturedIndex(prev => (prev + 1) % items.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [announceTab, announceData]);
+
+  // 切换 tab 时重置轮播位置
+  useEffect(() => {
+    setFeaturedIndex(0);
+  }, [announceTab]);
+
+  // 数据变化后若当前轮播位置越界则回退
+  useEffect(() => {
+    const items = announceData[announceTab]?.items;
+    if (items && featuredIndex >= items.length) {
+      setFeaturedIndex(0);
+    }
+  }, [announceData, announceTab, featuredIndex]);
 
   const features = [
     { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
@@ -353,11 +380,11 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                 </div>
                 <div className="announce-tabs">
                   {announceData.map((tab, i) => (
-                    <button key={tab.featured.tag} onClick={() => setAnnounceTab(i)}
+                    <button key={tab.items[0].tag} onClick={() => setAnnounceTab(i)}
                       className={`announce-tab ${i === announceTab ? 'is-active' : ''}`}
                       style={i === announceTab ? { '--tab-color': tab.color, color: '#fff', backgroundColor: tab.color } as React.CSSProperties : undefined}>
                       <span className="announce-tab-dot" style={i === announceTab ? { backgroundColor: '#fff' } : { backgroundColor: tab.color }} />
-                      {tab.featured.tag}
+                      {tab.items[0].tag}
                     </button>
                   ))}
                 </div>
@@ -369,19 +396,19 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
             </div>
 
             {/* ── 内容网格 ── */}
-            {currentAnnounce ? (
+            {currentAnnounce && featuredItem ? (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
               {/* Featured card — spans 2 cols */}
-              <a href={`/announcements/${currentAnnounce.featured.id}?from=home`}
+              <a href={`/announcements/${featuredItem.id}?from=home`}
                 className="announce-featured lg:col-span-2 group"
                 style={{ '--card-color': currentAnnounce.color } as React.CSSProperties}>
                 <div className="announce-featured-border" />
                 <div className="announce-featured-inner">
                   {/* 标签行 */}
                   <div className="flex items-center gap-2.5 mb-4">
-                    <span className="announce-tag" style={{ backgroundColor: currentAnnounce.color }}>{currentAnnounce.featured.tag}</span>
-                    <span className="text-xs text-[#999]">{currentAnnounce.featured.date}</span>
-                    {currentAnnounce.featured.urgent && (
+                    <span className="announce-tag" style={{ backgroundColor: currentAnnounce.color }}>{featuredItem.tag}</span>
+                    <span className="text-xs text-[#999]">{featuredItem.date}</span>
+                    {featuredItem.urgent && (
                       <span className="announce-tag-urgent">
                         <span className="announce-tag-urgent-dot" />
                         重要
@@ -389,21 +416,35 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                     )}
                   </div>
                   {/* 标题 */}
-                  <h3 className="announce-featured-title">{currentAnnounce.featured.title}</h3>
+                  <h3 key={featuredItem.id} className="announce-featured-title" style={{ animation: 'announceContentIn 0.4s ease' }}>{featuredItem.title}</h3>
                   {/* 正文预览 */}
-                  <p className="announce-featured-content-preview">
-                    {currentAnnounce.featured.aiSummary || currentAnnounce.featured.desc || currentAnnounce.featured.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320)}
+                  <p key={`content-${featuredItem.id}`} className="announce-featured-content-preview" style={{ animation: 'announceContentIn 0.4s ease 0.05s both' }}>
+                    {featuredItem.aiSummary || featuredItem.desc || featuredItem.content.replace(/<h2>.*?<\/h2>/g, '').replace(/<[^>]+>/g, '').trim().slice(0, 320)}
                   </p>
-                  {/* 底部元信息 */}
+                  {/* 底部：元信息 + 轮播进度 */}
                   <div className="flex items-center justify-between mt-auto">
                     <div className="flex gap-6 text-xs">
-                      <span className="announce-meta">项目编号 <span className="announce-meta-val">{currentAnnounce.featured.code}</span></span>
-                      {currentAnnounce.featured.deadline && (
-                        <span className="announce-meta">{currentAnnounce.deadlineLabel} <em className="announce-deadline">{currentAnnounce.featured.deadline}</em></span>
+                      <span className="announce-meta">项目编号 <span className="announce-meta-val">{featuredItem.code}</span></span>
+                      {featuredItem.deadline && (
+                        <span className="announce-meta">{currentAnnounce.deadlineLabel} <em className="announce-deadline">{featuredItem.deadline}</em></span>
                       )}
                     </div>
                     <span className="announce-detail-btn">查看详情</span>
                   </div>
+                  {/* 轮播进度指示器 */}
+                  {currentAnnounce.items.length > 1 && (
+                    <div className="announce-progress-dots">
+                      {currentAnnounce.items.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          aria-label={`切换到第 ${i + 1} 条公告`}
+                          className={`announce-progress-dot ${i === featuredIndex ? 'is-active' : ''}`}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFeaturedIndex(i); }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </a>
 
@@ -411,16 +452,16 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               <div className="announce-side">
                 <div className="announce-side-header">
                   <span className="announce-side-title">最新公告</span>
-                  <span className="announce-side-count">共 {currentAnnounce.list.length + 1} 项</span>
+                  <span className="announce-side-count">共 {currentAnnounce.items.length} 项</span>
                 </div>
                 <div className="announce-side-list">
-                  {currentAnnounce.list.map((item, idx) => (
+                  {currentAnnounce.items.filter((_, i) => i !== featuredIndex).map((item, idx) => (
                     <a key={item.id} href={`/announcements/${item.id}?from=home`}
                       className="announce-side-item group"
                       style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': currentAnnounce.color } as React.CSSProperties}>
                       <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
                       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                        <span className="text-[13px] text-[#aaa]">{item.date}</span>
+                        <span className="text-[13px] text-[#aaa]">{item.date.slice(5)}</span>
                         <span className="announce-side-item-title">{item.title}</span>
                       </div>
                     </a>
