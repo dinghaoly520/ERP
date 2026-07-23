@@ -494,6 +494,12 @@ importers:
       '@element-plus/icons-vue':
         specifier: ^2.3.2
         version: 2.3.2(vue@3.5.35(typescript@6.0.3))
+      '@water-erp/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@water-erp/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       axios:
         specifier: ^1.16.1
         version: 1.17.0
@@ -509,6 +515,9 @@ importers:
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@6.0.3)(vue@3.5.35(typescript@6.0.3))
+      socket.io-client:
+        specifier: ^4.8.3
+        version: 4.8.3
       vue:
         specifier: ^3.5.34
         version: 3.5.35(typescript@6.0.3)
