@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-// ── 可折叠段落 ──
+// ── 可折叠段落（cgzxui 新拟态容器）──
 
 export function CollapsibleSection({
   title,
@@ -23,24 +23,29 @@ export function CollapsibleSection({
   const summaryNode = typeof summary === 'function' ? summary(isOpen) : summary;
 
   return (
-    <div className="glass-card glass-card-lighter rounded-xl overflow-hidden">
+    <div className="neu-card-static overflow-hidden !rounded-[14px]">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/40 transition-colors"
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-[oklch(1_0_0/0.35)]"
       >
-        {accent && <span className="w-1 h-6 rounded-full shrink-0" style={{ background: accent }} />}
-        {icon && <span className="text-[var(--color-primary)] shrink-0">{icon}</span>}
-        <span className="font-semibold text-sm text-[var(--color-text)] flex-1 truncate">{title}</span>
-        <span className="text-[10px] text-[var(--color-text-tertiary)] px-2 py-0.5 rounded bg-white/50 shrink-0">
+        {accent && (
+          <span
+            className="h-6 w-1 shrink-0 rounded-full bg-[var(--cat)]"
+            style={{ '--cat': accent } as React.CSSProperties}
+          />
+        )}
+        {icon && <span className="shrink-0 text-[var(--accent-strong)]">{icon}</span>}
+        <span className="flex-1 truncate text-sm font-semibold text-[var(--foreground)]">{title}</span>
+        <span className="shrink-0 rounded-[7px] bg-[oklch(0.985_0.005_258)] px-2 py-0.5 text-[10px] text-[var(--muted-foreground)]">
           {isOpen ? '收起' : '展开'}
         </span>
         {isOpen ? (
-          <ChevronUp size={14} className="text-[var(--color-text-tertiary)] shrink-0" />
+          <ChevronUp size={14} className="shrink-0 text-[var(--muted-foreground)]" />
         ) : (
-          <ChevronDown size={14} className="text-[var(--color-text-tertiary)] shrink-0" />
+          <ChevronDown size={14} className="shrink-0 text-[var(--muted-foreground)]" />
         )}
       </button>
-      {summaryNode && <div className="px-4 pt-1 pb-4">{summaryNode}</div>}
+      {summaryNode && <div className="px-4 pb-4 pt-1">{summaryNode}</div>}
     </div>
   );
 }

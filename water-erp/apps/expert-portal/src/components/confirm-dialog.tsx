@@ -17,7 +17,7 @@ interface ConfirmDialogProps {
 }
 
 /**
- * 拟态确认弹窗（与 .impeccable.md 设计系统一致）。
+ * cgzxui 新拟态确认弹窗（.exp-dialog 浮动薄板 + 38px 齐平按钮）。
  *
  * - createPortal 到 body，z-[60] 浮于全屏手写浮层（z-50）之上
  * - Esc 关闭、点遮罩关闭、卡片内点击不关
@@ -53,33 +53,38 @@ export function ConfirmDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-[oklch(0.18_0.012_265_/_.45)] p-4 backdrop-blur-[2px]"
-      onClick={() => onCancelRef.current()}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'confirm-dialog-title' : undefined}
       aria-describedby="confirm-dialog-desc"
     >
+      {/* 蒙层 */}
       <div
-        className="w-full max-w-sm rounded-2xl border border-[oklch(0.92_0.004_265)] bg-white p-5
-                   shadow-[0_2px_0_oklch(0.92_0.004_265),0_12px_32px_-8px_oklch(0.55_0.03_258_/_.28),inset_0_1px_0_oklch(1_0_0)]"
+        className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
+        onClick={() => onCancelRef.current()}
+      />
+      <div
+        className="exp-dialog relative w-full max-w-sm p-5"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
           {danger && (
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-[#e74c3c]/10 text-[#e74c3c]">
+            <span
+              className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--danger)] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)]"
+            >
               <AlertTriangle size={16} strokeWidth={1.8} />
             </span>
           )}
           <div className="min-w-0 flex-1">
             {title && (
-              <h2 id="confirm-dialog-title" className="text-sm font-bold text-[oklch(0.18_0.012_265)]">
+              <h2 id="confirm-dialog-title" className="text-sm font-bold text-[var(--foreground)]">
                 {title}
               </h2>
             )}
             <p
               id="confirm-dialog-desc"
-              className={`text-[13px] leading-relaxed text-[oklch(0.45_0.01_264)] ${title ? 'mt-1' : ''}`}
+              className={`text-[13px] leading-relaxed text-[var(--muted-foreground)] ${title ? 'mt-1' : ''}`}
             >
               {message}
             </p>
@@ -91,23 +96,14 @@ export function ConfirmDialog({
             ref={cancelRef}
             type="button"
             onClick={() => onCancelRef.current()}
-            className="rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] px-4 py-2 text-xs font-semibold text-[oklch(0.45_0.01_265)]
-                       shadow-[0_1px_0_oklch(1_0_0),inset_0_1px_0_oklch(1_0_0)]
-                       hover:shadow-[0_2px_0_oklch(0.92_0.004_265),inset_0_1px_0_oklch(1_0_0)]
-                       active:shadow-[inset_0_1px_3px_oklch(0.55_0.03_258_/_.12)] active:translate-y-px
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#064ea2]/40
-                       transition-all duration-150"
+            className="neu-btn-soft !h-[38px]"
           >
             {cancelText}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`rounded-xl px-4 py-2 text-xs font-bold text-white transition-all duration-150
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white
-                        ${danger
-                          ? 'bg-[#e74c3c] shadow-[0_1px_0_oklch(0.5_0.2_25),inset_0_1px_0_oklch(1_0_0_/_.25)] hover:bg-[#d94234] focus-visible:ring-[#e74c3c]/40'
-                          : 'bg-[#064ea2] shadow-[0_1px_0_oklch(0.3_0.05_264),inset_0_1px_0_oklch(1_0_0_/_.25)] hover:bg-[#054280] focus-visible:ring-[#064ea2]/40'}`}
+            className={`neu-btn-primary !h-[38px] ${danger ? 'is-danger' : ''}`}
           >
             {confirmText}
           </button>

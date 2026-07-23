@@ -1,6 +1,6 @@
 'use client';
 
-// ── 字段卡片（关键信息用）──
+// ── 字段卡片（关键信息用，cgzxui kpi 瓷片）──
 
 export function FieldCard({
   icon,
@@ -14,12 +14,12 @@ export function FieldCard({
   suffix?: string;
 }) {
   return (
-    <div className="glass-card glass-card-lighter rounded-lg p-3">
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className="text-[var(--color-text-tertiary)]">{icon}</span>
-        <span className="text-[11px] text-[var(--color-text-tertiary)]">{label}</span>
+    <div className="kpi-card !rounded-[12px] p-3">
+      <div className="mb-1 flex items-center gap-1.5">
+        <span className="text-[var(--muted-foreground)]">{icon}</span>
+        <span className="text-[11px] text-[var(--muted-foreground)]">{label}</span>
       </div>
-      <div className="font-semibold text-sm text-[var(--color-text)]">
+      <div className="text-sm font-semibold text-[var(--foreground)]">
         {value != null ? String(value) + (suffix ?? '') : '—'}
       </div>
     </div>

@@ -21,52 +21,51 @@ const DIMENSION_LABEL: Record<string, string> = {
 };
 
 const DIMENSION_COLOR: Record<string, string> = {
-  qualification: '#064ea2',
-  technical: '#11a874',
-  commercial: '#f5a623',
-  price: '#e74c3c',
-  risk: '#8b5cf6',
+  qualification: 'var(--accent-strong)',
+  technical: 'var(--success)',
+  commercial: 'var(--warning)',
+  price: 'var(--danger)',
+  risk: 'oklch(0.55 0.16 300)',
 };
 
-// ── SW 卡片（正向依据/需关注事项）──
+// ── SW 卡片（正向依据/需关注事项）— cgzxui 新拟态 + 左侧语义色标 ──
 
 export function SwCard({ item, type }: { item: SwItem; type: 'strength' | 'weakness' }) {
   const isStrength = type === 'strength';
-  const color = DIMENSION_COLOR[item.dimension] ?? '#0b63ce';
+  const color = DIMENSION_COLOR[item.dimension] ?? 'var(--accent)';
 
   return (
-    <div
-      className={`glass-card glass-card-lighter rounded-lg p-3.5 border-l-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-        isStrength ? 'border-l-emerald-400' : 'border-l-amber-400'
-      }`}
-    >
-      <div className="flex items-start gap-2 mb-1.5">
+    <div className="neu-card relative !rounded-[14px] p-3.5">
+      {/* 左侧语义色标（正向绿 / 关注橙）*/}
+      <span
+        className={`absolute bottom-3 left-0 top-3 w-0.5 rounded-full ${
+          isStrength ? 'bg-[var(--success)]' : 'bg-[var(--warning)]'
+        }`}
+      />
+      <div className="mb-1.5 flex items-start gap-2">
         {isStrength ? (
-          <TrendingUp size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+          <TrendingUp size={14} className="mt-0.5 shrink-0 text-[var(--success)]" />
         ) : (
-          <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+          <AlertCircle size={14} className="mt-0.5 shrink-0 text-[var(--warning)]" />
         )}
-        <div className="flex-1 min-w-0">
-          <span
-            className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded mb-1"
-            style={{ color, background: `${color}15` }}
-          >
+        <div className="min-w-0 flex-1">
+          <span className="exp-pill mb-1" style={{ '--c': color } as React.CSSProperties}>
             {DIMENSION_LABEL[item.dimension] ?? item.dimension}
           </span>
-          <div className="font-semibold text-sm text-[var(--color-text)]">{item.title}</div>
+          <div className="text-sm font-semibold text-[var(--foreground)]">{item.title}</div>
         </div>
       </div>
-      <p className="text-xs text-[var(--color-text-secondary)] ml-6 leading-relaxed">{item.detail}</p>
+      <p className="ml-6 text-xs leading-relaxed text-[var(--muted-foreground)]">{item.detail}</p>
       {(item.evidence || item.impact) && (
-        <div className="mt-2 ml-6 space-y-1">
+        <div className="ml-6 mt-2 space-y-1">
           {item.evidence && (
-            <div className="text-[11px] text-[var(--color-text-tertiary)]">
+            <div className="text-[11px] text-[var(--muted-foreground)]">
               <span className="font-medium">证据：</span>
               {item.evidence}
             </div>
           )}
           {item.impact && (
-            <div className={`text-[11px] font-medium ${isStrength ? 'text-emerald-600' : 'text-amber-600'}`}>
+            <div className={`text-[11px] font-medium ${isStrength ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
               <span>{isStrength ? '影响：' : '风险：'}</span>
               {item.impact}
             </div>

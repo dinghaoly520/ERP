@@ -585,15 +585,14 @@ export default function ExpertEvaluatePage() {
   };
 
   if (loadError) return (
-    <div className="flex h-64 flex-col items-center justify-center gap-3 text-[oklch(0.55_0.01_264)]">
+    <div className="flex h-64 flex-col items-center justify-center gap-3 text-[var(--muted-foreground)]">
       <p>加载失败：{loadError}</p>
-      <button type="button" onClick={() => loadProject()}
-        className="rounded-lg bg-[#064ea2] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#054280] active:scale-95">
+      <button type="button" onClick={() => loadProject()} className="neu-btn-primary !h-[38px]">
         重试
       </button>
     </div>
   );
-  if (loading || !project) return <div className="flex items-center justify-center h-64 text-[oklch(0.55_0.01_264)]">加载中...</div>;
+  if (loading || !project) return <div className="flex h-64 items-center justify-center text-[var(--muted-foreground)]">加载中...</div>;
   const activeSupplierRecord = project.suppliers.find(s => s.id === activeSupplier);
   const canScoreActiveSupplier = activeSupplierRecord?.decryptStatus === 'SUCCESS' && activeSupplierRecord?.submitStatus !== '已撤回'
     // P2: also block if expert declared conflict with this supplier
@@ -656,28 +655,28 @@ export default function ExpertEvaluatePage() {
       <div className="mt-1.5">
         <button type="button"
           onClick={() => setReviewPanelOpenKey(prev => (prev === k ? null : k))}
-          className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-2 py-1 rounded-md transition">
+          className="inline-flex items-center gap-1 rounded-[8px] px-2 py-1 text-[11px] font-semibold text-[oklch(0.52_0.13_70)] transition hover:bg-[color-mix(in_oklch,var(--warning)_12%,transparent)]">
           <AlertTriangle size={11} strokeWidth={1.5} /> {open ? '收起' : '插入异议/疑问'}
         </button>
         {open && (
-          <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50/80 p-2 space-y-1.5">
+          <div className="exp-alert exp-alert--warn mt-1.5 space-y-1.5 !p-2 !font-normal">
             {notes.map((dsp, idx) => {
               const id = noteId(activeSupplier, dsp.requirementId);
               const inserted = insertedKeys.has(id);
               return (
                 <label key={`rev-${dsp.requirementId}-${idx}`}
                   onMouseDown={() => { suppressBlurRef.current = true; }}
-                  className={`flex items-start gap-2 text-xs rounded px-2 py-1 ${inserted ? 'opacity-60' : 'hover:bg-white/70'}`}>
+                  className={`flex items-start gap-2 rounded-[8px] px-2 py-1 text-xs ${inserted ? 'opacity-60' : 'hover:bg-[oklch(1_0_0/0.5)]'}`}>
                   <input type="checkbox" checked={inserted} disabled={inserted}
                     onChange={() => onToggleNote(k, activeSupplier, dsp, itemId)}
-                    className="mt-0.5 accent-amber-600" />
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mr-1 ${dsp.verdict === 'dispute' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                    className="neu-checkbox mt-0.5 !h-[18px] !w-[18px]" />
+                  <div className="min-w-0 flex-1">
+                    <span className="exp-pill mr-1" style={{ '--c': dsp.verdict === 'dispute' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}>
                       {dsp.verdict === 'dispute' ? '异议' : '疑问'}
                     </span>
-                    <span className="font-semibold text-amber-900">{dsp.content?.slice(0, 40) || '(原文缺失)'}</span>
-                    {dsp.note && <div className="text-amber-700 mt-0.5">{dsp.note}</div>}
-                    {inserted && <div className="text-[10px] text-amber-600 mt-0.5">已插入</div>}
+                    <span className="font-semibold text-[var(--foreground)]">{dsp.content?.slice(0, 40) || '(原文缺失)'}</span>
+                    {dsp.note && <div className="mt-0.5 opacity-80">{dsp.note}</div>}
+                    {inserted && <div className="mt-0.5 text-[10px] opacity-70">已插入</div>}
                   </div>
                 </label>
               );
@@ -692,21 +691,21 @@ export default function ExpertEvaluatePage() {
     <div className="flex flex-col h-full">
       {/* P3: disconnected banner */}
       {_wsConn !== 'connected' && (
-        <div className={`mb-3 px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-between flex-shrink-0 ${
-          _wsConn === 'reconnecting' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-600 border border-red-200'
-        }`}>
+        <div className={`exp-alert mb-3 flex shrink-0 items-center justify-between gap-3 !px-4 ${_wsConn === 'reconnecting' ? 'exp-alert--warn' : ''}`}>
           <span className="inline-flex items-center gap-1.5"><AlertTriangle size={13} strokeWidth={1.5} />{_wsConn === 'reconnecting' ? '实时连接中断，正在重连…' : '实时连接已断开，数据可能不是最新'}</span>
-          <button onClick={_wsReconnect} className="underline hover:no-underline">重试</button>
+          <button onClick={_wsReconnect} className={`neu-btn-xs ${_wsConn === 'reconnecting' ? 'is-warning' : 'is-danger'}`}>重试</button>
         </div>
       )}
 
       {/* 顶部导航 */}
-      <div className="flex items-center justify-between mb-4 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/projects')} className="inline-flex items-center gap-1 text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] transition"><ArrowLeft size={14} strokeWidth={1.5} /> 返回</button>
-          <div className="w-px h-6 bg-white/30" />
-          <h1 className="text-xl font-bold text-[oklch(0.18_0.012_265)]">{project.name}</h1>
-          <span className="text-sm text-[oklch(0.55_0.01_264)]">{project.projectCode}</span>
+      <div className="mb-4 flex shrink-0 items-center justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <button onClick={() => router.push('/projects')} className="neu-btn-xs">
+            <ArrowLeft size={14} strokeWidth={1.5} /> 返回
+          </button>
+          <span className="h-6 w-px shrink-0 bg-[oklch(0.6_0.04_258/0.25)]" />
+          <h1 className="truncate text-xl font-bold text-[var(--foreground)]">{project.name}</h1>
+          <span className="exp-code-chip shrink-0">{project.projectCode}</span>
         </div>
         <div className="flex items-center gap-3">
           <LiveStatusBoard
@@ -715,48 +714,50 @@ export default function ExpertEvaluatePage() {
           />
         </div>
         <button onClick={() => { setShowClarifications(!showClarifications); if (!showClarifications) loadClarifications(); }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] text-xs font-bold text-[oklch(0.55_0.01_264)] hover:text-[#064ea2] hover:border-[#064ea2] transition">
+          className="neu-btn-xs is-info">
           <MessageSquare size={13} strokeWidth={1.5} /> 澄清答疑
         </button>
       </div>
 
       {/* P2: clarifications panel (toggled from header) */}
       {showClarifications && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowClarifications(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl min-h-[50vh] max-h-[90vh] overflow-y-auto p-5 space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowClarifications(false)} />
+          <div className="exp-dialog relative flex max-h-[90vh] min-h-[50vh] w-full max-w-3xl flex-col space-y-3 p-5" role="dialog" aria-modal="true" aria-label="澄清与答疑">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-sm text-[oklch(0.18_0.012_265)]"><MessageSquare size={14} strokeWidth={1.5} className="inline mr-1" />澄清与答疑</h3>
-            <button onClick={() => setShowClarifications(false)} className="text-[oklch(0.62_0.008_264)] hover:text-[oklch(0.18_0.012_265)]"><X size={14} strokeWidth={1.5} /></button>
+            <h3 className="flex items-center gap-1.5 text-sm font-bold text-[var(--foreground)]"><MessageSquare size={14} strokeWidth={1.5} />澄清与答疑</h3>
+            <button onClick={() => setShowClarifications(false)} aria-label="关闭" className="neu-btn-xs is-square"><X size={14} strokeWidth={1.5} /></button>
           </div>
           {clarifications.length === 0 ? (
-            <p className="text-xs text-[oklch(0.62_0.008_264)] text-center py-4">暂无澄清记录</p>
+            <p className="py-4 text-center text-xs text-[var(--muted-foreground)]">暂无澄清记录</p>
           ) : (
-            <div className="space-y-2">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
               {clarifications.map((c: any) => (
-                <div key={c.id} className="border border-[oklch(0.91_0.006_264)] rounded-lg p-3 text-xs">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-[oklch(0.18_0.012_265)]">{c.issuer}</span>
-                    <span className="text-[oklch(0.62_0.008_264)]">→ {c.supplierName}</span>
-                    <span className="ml-auto text-[10px] text-[oklch(0.62_0.008_264)]">{new Date(c.createdAt).toLocaleString('zh-CN')}</span>
+                <div key={c.id} className="neu-card-static !rounded-[14px] p-3 text-xs">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="font-bold text-[var(--foreground)]">{c.issuer}</span>
+                    <span className="text-[var(--muted-foreground)]">→ {c.supplierName}</span>
+                    <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">{new Date(c.createdAt).toLocaleString('zh-CN')}</span>
                   </div>
-                  <p className="text-[oklch(0.18_0.012_265)] mb-1">Q: {c.question}</p>
+                  <p className="mb-1 text-[var(--foreground)]">Q: {c.question}</p>
                   {c.reply ? (
-                    <p className="text-[#11a874] bg-emerald-50 rounded p-1.5">A: {c.reply}</p>
+                    <p className="exp-alert exp-alert--success !p-1.5">A: {c.reply}</p>
                   ) : (
-                    <p className="text-[oklch(0.72_0.008_264)] italic">待回复</p>
+                    <p className="italic text-[var(--muted-foreground)]">待回复</p>
                   )}
                 </div>
               ))}
             </div>
           )}
           {/* Post new question */}
-          <div className="border-t border-[oklch(0.91_0.006_264)] pt-3 space-y-2">
+          <div className="space-y-2 pt-3">
+            <hr className="wb-section-rule" />
             <select value={clarSupplier} onChange={e => {
                 const sel = project.suppliers.find(s => s.supplierName === e.target.value);
                 setClarSupplier(e.target.value);
                 setClarSupplierId(sel?.supplierId || '');
               }}
-              className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2]">
+              className="neu-select w-full !h-8 !text-xs">
               <option value="">选择供应商（必选）</option>
               {project.suppliers.map(s => (
                 <option key={s.id} value={s.supplierName}>{s.supplierName}</option>
@@ -764,9 +765,9 @@ export default function ExpertEvaluatePage() {
             </select>
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <div className="flex justify-end mb-1">
+                <div className="mb-1 flex justify-end">
                   <button type="button" onClick={draftClarificationQ} disabled={clarDrafting || !clarSupplierId}
-                    className="flex items-center gap-1 text-[11px] font-semibold text-[#064ea2] hover:underline disabled:opacity-40">
+                    className="flex items-center gap-1 text-[11px] font-semibold text-[var(--accent-strong)] hover:underline disabled:opacity-40">
                     <Sparkles size={11} /> {clarDrafting ? '起草中…' : 'AI 起草'}
                   </button>
                 </div>
@@ -774,10 +775,9 @@ export default function ExpertEvaluatePage() {
                   placeholder="向所选供应商发起澄清…（Ctrl+Enter 发送）"
                   rows={4}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postClarification(); } }}
-                  className="w-full border border-[oklch(0.91_0.006_264)] rounded-lg px-3 py-1.5 text-xs bg-white/60 focus:outline-none focus:border-[#064ea2] resize-y min-h-[96px]" />
+                  className="neu-input resize-y !text-xs" />
               </div>
-              <button onClick={postClarification} disabled={clarPosting}
-                className="px-3 py-1.5 bg-[#064ea2] text-white text-xs font-bold rounded-lg hover:bg-[#054280] transition disabled:opacity-50">
+              <button onClick={postClarification} disabled={clarPosting} className="neu-btn-primary !h-[38px]">
                 {clarPosting ? '…' : '发送'}
               </button>
             </div>
@@ -786,9 +786,9 @@ export default function ExpertEvaluatePage() {
         </div>
       )}
 
-      {/* 步骤指示器 — 独立、干净，不与供应商选择混合 */}
-      <div className="flex-shrink-0 mb-3">
-        <div className="flex items-center gap-1 px-1">
+      {/* 步骤指示器 — cgzxui .exp-steps：当前品牌蓝凸起 / 完成绿 / 未到禁用 */}
+      <div className="mb-3 shrink-0">
+        <div className="exp-steps px-1">
           {STEPS.map((s, i) => {
             const accessible = stepAccessible(s.key);
             const completed = stepCompleted(s.key);
@@ -799,32 +799,18 @@ export default function ExpertEvaluatePage() {
                   onClick={() => { if (accessible) setStep(s.key); }}
                   disabled={!accessible}
                   aria-current={isCurrent ? 'step' : undefined}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all text-xs font-semibold whitespace-nowrap ${
-                    isCurrent
-                      ? 'bg-[#064ea2] text-white shadow-sm'
-                      : completed
-                        ? 'text-[#11a874]'
-                        : accessible
-                          ? 'text-[oklch(0.48_0.01_264)] hover:bg-[oklch(0.97_0.005_264)]'
-                          : 'text-[oklch(0.65_0.008_264)] cursor-not-allowed'
+                  className={`exp-step ${
+                    isCurrent ? 'is-current' : completed ? 'is-done' : accessible ? '' : 'is-locked'
                   }`}
                 >
-                  <span className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
-                    isCurrent
-                      ? 'bg-white/20 text-white'
-                      : completed
-                        ? 'bg-emerald-100 text-[#11a874]'
-                        : accessible
-                          ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.48_0.01_264)]'
-                          : 'bg-[oklch(0.96_0.004_264)] text-[oklch(0.65_0.008_264)]'
-                  }`}>
-                    {completed ? <CheckCircle size={10} strokeWidth={2} /> : i + 1}
+                  <span className="exp-step-num">
+                    {completed ? <CheckCircle size={11} strokeWidth={2.5} /> : i + 1}
                   </span>
                   <s.Icon size={13} strokeWidth={1.5} />
                   {s.label}
                 </button>
                 {i < STEPS.length - 1 && (
-                  <div className={`w-5 h-px mx-0.5 ${completed ? 'bg-[#11a874]/30' : 'bg-[oklch(0.91_0.006_264)]'}`} />
+                  <span className={`exp-step-connector ${completed ? 'is-done' : ''}`} />
                 )}
               </div>
             );
@@ -832,8 +818,8 @@ export default function ExpertEvaluatePage() {
         </div>
       </div>
 
-      {/* 主内容区：供应商侧边栏 + 内容 */}
-      <div className="flex-1 flex overflow-hidden min-h-0 rounded-xl border border-[oklch(0.91_0.006_264)] bg-white/60">
+      {/* 主内容区：供应商侧边栏 + 内容（wb-panel 渐变底板，无外侧框线） */}
+      <div className="wb-panel flex min-h-0 flex-1 overflow-hidden">
         {/* 供应商侧边栏 — 辅助评标 / 条款响应核对 / 专家打分步骤显示 */}
         {(step === 'assist' || step === 'compare' || step === 'scoring' || step === 'verify-score') && (
           <SupplierSidebar
@@ -873,43 +859,47 @@ export default function ExpertEvaluatePage() {
           <div className="h-full overflow-y-auto">
           {/* ====== 身份核验 ====== */}
           {step === 'verify' && (
-            <div className="p-6 max-w-3xl mx-auto">
-              <h2 className="text-xl font-bold text-[oklch(0.18_0.012_265)] mb-6">身份核验与承诺确认</h2>
+            <div className="mx-auto max-w-3xl p-6">
+              <h2 className="mb-6 text-xl font-bold text-[var(--foreground)]">身份核验与承诺确认</h2>
 
-              <div className="space-y-4 mb-6">
+              <div className="mb-6 space-y-4">
                 {/* ===== ① 身份核验 — 始终可用 ===== */}
                 <div>
-                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${expert?.signedIn ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-[oklch(0.91_0.006_264)]'}`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${expert?.signedIn ? 'bg-emerald-500 text-white' : 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'}`}>
+                  <div className="neu-card-static flex items-center gap-4 p-4">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold ${
+                      expert?.signedIn
+                        ? 'bg-[var(--success)] text-white'
+                        : 'bg-[oklch(0.985_0.005_258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]'
+                    }`}>
                       {expert?.signedIn ? <Check size={18} strokeWidth={2.5} /> : '1'}
                     </div>
                     <div className="flex-1">
-                      <h3 className={`font-bold ${expert?.signedIn ? 'text-emerald-600' : 'text-[oklch(0.18_0.012_265)]'}`}>身份核验</h3>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)]">确认您的专家身份信息</p>
+                      <h3 className={`font-bold ${expert?.signedIn ? 'text-[var(--success)]' : 'text-[var(--foreground)]'}`}>身份核验</h3>
+                      <p className="text-sm text-[var(--muted-foreground)]">确认您的专家身份信息</p>
                     </div>
                     {!expert?.signedIn && (
-                      <span className="text-xs text-[oklch(0.72_0.008_264)] bg-[oklch(0.96_0.004_264)] px-2 py-1 rounded font-semibold">待完成</span>
+                      <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待完成</span>
                     )}
                   </div>
                   {/* 手机验证 + 签到 — 未签到时显示 */}
                   {!expert?.signedIn && (
-                    <div className="mt-3 p-4 glass-card glass-card-lighter glass-card-blue rounded-xl">
+                    <div className="neu-card-static mt-3 p-4">
                       {!phoneMasked && !codeSent ? (
-                        <div className="text-center py-2">
-                          <p className="text-sm text-[oklch(0.55_0.01_264)] mb-2">未绑定手机号，请联系管理员完善资料</p>
+                        <div className="py-2 text-center">
+                          <p className="mb-2 text-sm text-[var(--muted-foreground)]">未绑定手机号，请联系管理员完善资料</p>
                         </div>
                       ) : phoneVerified ? (
-                        <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                          <CheckCircle size={20} strokeWidth={1.5} className="text-emerald-500" />
+                        <div className="exp-alert exp-alert--success flex items-center gap-3">
+                          <CheckCircle size={20} strokeWidth={1.5} className="shrink-0" />
                           <div>
-                            <p className="text-sm font-semibold text-emerald-600">手机验证通过</p>
-                            <p className="text-xs text-emerald-500">{phoneMasked}</p>
+                            <p className="text-sm font-semibold">手机验证通过</p>
+                            <p className="text-xs opacity-80">{phoneMasked}</p>
                           </div>
                         </div>
                       ) : (
                         <>
-                          <p className="text-sm font-semibold text-[oklch(0.18_0.012_265)] mb-1 flex items-center gap-1.5"><Phone size={14} strokeWidth={1.5} className="text-[#064ea2]" />手机验证</p>
-                          <p className="text-xs text-[oklch(0.55_0.01_264)] mb-3">
+                          <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-[var(--foreground)]"><Phone size={14} strokeWidth={1.5} className="text-[var(--accent-strong)]" />手机验证</p>
+                          <p className="mb-3 text-xs text-[var(--muted-foreground)]">
                             验证码将发送至 {phoneMasked || '注册手机号'}
                           </p>
                           <div className="flex gap-2">
@@ -927,21 +917,21 @@ export default function ExpertEvaluatePage() {
                               }}
                               placeholder="输入6位验证码"
                               disabled={verifying || !codeSent}
-                              className="flex-1 px-3 py-2 text-center text-lg tracking-[8px] border border-[oklch(0.91_0.006_264)] rounded-lg focus:border-[#064ea2] focus:ring-1 focus:ring-[#064ea2] outline-none disabled:opacity-50 font-mono"
+                              className="neu-input flex-1 text-center !text-lg tracking-[8px] disabled:opacity-50"
                             />
                             <button
                               onClick={handleSendCode}
                               disabled={sendingCode || countdown > 0 || verifying}
-                              className="px-4 py-2 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50 whitespace-nowrap"
+                              className="neu-btn-primary whitespace-nowrap !px-5"
                             >
                               {sendingCode ? '发送中…' : countdown > 0 ? `${countdown}s 后重发` : codeSent ? '重新获取' : '获取验证码'}
                             </button>
                           </div>
                           {codeError && (
-                            <p className="mt-2 text-xs text-red-500">{codeError}</p>
+                            <p className="mt-2 text-xs text-[var(--danger)]">{codeError}</p>
                           )}
                           {!codeError && codeSent && !phoneVerified && (
-                            <p className="mt-2 text-xs text-[oklch(0.55_0.01_264)]">
+                            <p className="mt-2 text-xs text-[var(--muted-foreground)]">
                               验证码6位数字，5分钟内有效
                               {attemptsLeft < 5 && ` · 剩余 ${attemptsLeft} 次尝试`}
                             </p>
@@ -953,7 +943,7 @@ export default function ExpertEvaluatePage() {
                         <button
                           onClick={handleSignIn}
                           disabled={busy}
-                          className="mt-3 w-full px-4 py-2.5 bg-[#064ea2] text-white text-sm rounded-lg hover:bg-[#054280] transition disabled:opacity-50 font-semibold"
+                          className="neu-btn-primary mt-3 w-full"
                         >
                           {busy ? '请稍候…' : '确认签到并完成身份核验'}
                         </button>
@@ -963,177 +953,171 @@ export default function ExpertEvaluatePage() {
                 </div>
 
                 {/* ===== ② 保密承诺 — 签到完成后解锁 ===== */}
-                <div className={!expert?.signedIn ? 'opacity-50 pointer-events-none select-none' : ''}>
-                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                    confidentialityAgreed ? 'bg-emerald-50 border-emerald-200'
-                    : expert?.signedIn ? 'bg-white/70 border-[oklch(0.91_0.006_264)]'
-                    : 'bg-gray-50 border-gray-200'
-                  }`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
-                      confidentialityAgreed ? 'bg-emerald-500 text-white'
-                      : expert?.signedIn ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'
-                      : 'bg-gray-200 text-gray-400'
+                <div className={!expert?.signedIn ? 'pointer-events-none select-none opacity-50' : ''}>
+                  <div className="neu-card-static flex items-center gap-4 p-4">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold ${
+                      confidentialityAgreed
+                        ? 'bg-[var(--success)] text-white'
+                        : expert?.signedIn
+                          ? 'bg-[oklch(0.985_0.005_258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]'
+                          : 'bg-[oklch(0.96_0.006_258)] text-[var(--muted-foreground)] opacity-60'
                     }`}>
                       {confidentialityAgreed ? <Check size={18} strokeWidth={2.5} /> : expert?.signedIn ? '2' : <Lock size={16} strokeWidth={1.5} />}
                     </div>
                     <div className="flex-1">
                       <h3 className={`font-bold ${
-                        confidentialityAgreed ? 'text-emerald-600'
-                        : expert?.signedIn ? 'text-[oklch(0.18_0.012_265)]'
-                        : 'text-gray-400'
+                        confidentialityAgreed ? 'text-[var(--success)]'
+                        : expert?.signedIn ? 'text-[var(--foreground)]'
+                        : 'text-[var(--muted-foreground)]'
                       }`}>保密承诺</h3>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)]">承诺不泄露评标过程中获取的信息</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">承诺不泄露评标过程中获取的信息</p>
                     </div>
                     {!expert?.signedIn && (
-                      <span className="text-xs text-[oklch(0.72_0.008_264)] bg-[oklch(0.96_0.004_264)] px-2 py-1 rounded font-semibold">需先完成身份核验</span>
+                      <span className="exp-pill" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>需先完成身份核验</span>
                     )}
                     {expert?.signedIn && !confidentialityAgreed && (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded font-semibold">待签署</span>
+                      <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待签署</span>
                     )}
                   </div>
                   {/* 保密承诺书 — 解锁后且未签署时显示 */}
                   {expert?.signedIn && !confidentialityAgreed && (
-                    <div className="mt-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                      <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
+                    <div className="exp-alert exp-alert--info mt-3 space-y-3 !p-4 !font-normal">
+                      <h3 className="flex items-center gap-2 !text-sm !font-bold text-[var(--foreground)]">
                         <Clipboard size={14} strokeWidth={1.5} /> 保密承诺书
                       </h3>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)] leading-relaxed mb-4">
+                      <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
                         本人作为本项目评审专家，郑重承诺：在评标过程中严格遵守保密规定，不向任何第三方泄露评标过程中获取的投标文件内容、评审意见及其他相关信息。如有违反，愿意承担相应法律责任。
                       </p>
-                      <label className="flex items-center gap-3 cursor-pointer">
+                      <label className="flex cursor-pointer items-center gap-3">
                         <input type="checkbox" checked={confidentialityAgreed} onChange={e => setConfidentialityAgreed(e.target.checked)}
-                          className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
-                        <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意以上保密承诺</span>
+                          className="neu-checkbox" />
+                        <span className="text-sm font-semibold text-[var(--foreground)]">本人已阅读并同意以上保密承诺</span>
                       </label>
                     </div>
                   )}
                   {/* 已签署确认条 */}
                   {expert?.signedIn && confidentialityAgreed && (
-                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
-                      <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-500" />
-                      <span className="text-sm text-emerald-600 font-semibold">已签署保密承诺书</span>
+                    <div className="exp-alert exp-alert--success mt-3 flex items-center gap-2">
+                      <CheckCircle size={14} strokeWidth={1.5} className="shrink-0" />
+                      <span className="text-sm">已签署保密承诺书</span>
                     </div>
                   )}
                 </div>
 
                 {/* ===== ③ 评标纪律 — 保密承诺签署后解锁 ===== */}
-                <div className={!confidentialityAgreed ? 'opacity-50 pointer-events-none select-none' : ''}>
-                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                    disciplineAgreed ? 'bg-emerald-50 border-emerald-200'
-                    : confidentialityAgreed ? 'bg-white/70 border-[oklch(0.91_0.006_264)]'
-                    : 'bg-gray-50 border-gray-200'
-                  }`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
-                      disciplineAgreed ? 'bg-emerald-500 text-white'
-                      : confidentialityAgreed ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'
-                      : 'bg-gray-200 text-gray-400'
+                <div className={!confidentialityAgreed ? 'pointer-events-none select-none opacity-50' : ''}>
+                  <div className="neu-card-static flex items-center gap-4 p-4">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold ${
+                      disciplineAgreed
+                        ? 'bg-[var(--success)] text-white'
+                        : confidentialityAgreed
+                          ? 'bg-[oklch(0.985_0.005_258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]'
+                          : 'bg-[oklch(0.96_0.006_258)] text-[var(--muted-foreground)] opacity-60'
                     }`}>
                       {disciplineAgreed ? <Check size={18} strokeWidth={2.5} /> : confidentialityAgreed ? '3' : <Lock size={16} strokeWidth={1.5} />}
                     </div>
                     <div className="flex-1">
                       <h3 className={`font-bold ${
-                        disciplineAgreed ? 'text-emerald-600'
-                        : confidentialityAgreed ? 'text-[oklch(0.18_0.012_265)]'
-                        : 'text-gray-400'
+                        disciplineAgreed ? 'text-[var(--success)]'
+                        : confidentialityAgreed ? 'text-[var(--foreground)]'
+                        : 'text-[var(--muted-foreground)]'
                       }`}>评标纪律</h3>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)]">遵守独立评审原则</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">遵守独立评审原则</p>
                     </div>
                     {!confidentialityAgreed && (
-                      <span className="text-xs text-[oklch(0.72_0.008_264)] bg-[oklch(0.96_0.004_264)] px-2 py-1 rounded font-semibold">需先签署保密承诺</span>
+                      <span className="exp-pill" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>需先签署保密承诺</span>
                     )}
                     {confidentialityAgreed && !disciplineAgreed && (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded font-semibold">待确认</span>
+                      <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待确认</span>
                     )}
                   </div>
                   {/* 评标纪律 — 解锁后且未确认时显示 */}
                   {confidentialityAgreed && !disciplineAgreed && (
-                    <div className="mt-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                      <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
+                    <div className="exp-alert exp-alert--info mt-3 space-y-3 !p-4 !font-normal">
+                      <h3 className="flex items-center gap-2 !text-sm !font-bold text-[var(--foreground)]">
                         <Gavel size={14} strokeWidth={1.5} /> 评标纪律承诺
                       </h3>
-                      <ul className="space-y-2 text-sm text-[oklch(0.55_0.01_264)] mb-4">
-                        <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
-                        <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
-                        <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>客观公正，不带任何偏见和个人倾向</li>
-                        <li className="flex items-start gap-2"><span className="text-[#064ea2]">•</span>对评审过程和结果保密，不向任何人透露</li>
+                      <ul className="mb-1 space-y-2 text-sm text-[var(--muted-foreground)]">
+                        <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>严格按照招标文件规定的评审标准和方法进行评审</li>
+                        <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>独立评审，不与其他专家串通或私下交流评审意见</li>
+                        <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>客观公正，不带任何偏见和个人倾向</li>
+                        <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>对评审过程和结果保密，不向任何人透露</li>
                       </ul>
-                      <label className="flex items-center gap-3 cursor-pointer">
+                      <label className="flex cursor-pointer items-center gap-3">
                         <input type="checkbox" checked={disciplineAgreed} onChange={e => setDisciplineAgreed(e.target.checked)}
-                          className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
-                        <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并同意遵守以上评标纪律</span>
+                          className="neu-checkbox" />
+                        <span className="text-sm font-semibold text-[var(--foreground)]">本人已阅读并同意遵守以上评标纪律</span>
                       </label>
                     </div>
                   )}
                   {/* 已确认条 */}
                   {confidentialityAgreed && disciplineAgreed && (
-                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
-                      <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-500" />
-                      <span className="text-sm text-emerald-600 font-semibold">已确认评标纪律</span>
+                    <div className="exp-alert exp-alert--success mt-3 flex items-center gap-2">
+                      <CheckCircle size={14} strokeWidth={1.5} className="shrink-0" />
+                      <span className="text-sm">已确认评标纪律</span>
                     </div>
                   )}
                 </div>
 
                 {/* ===== ④ AI 辅助评标声明 — 评标纪律确认后解锁 ===== */}
-                <div className={!disciplineAgreed ? 'opacity-50 pointer-events-none select-none' : ''}>
-                  <div className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                    expert?.aiConsentConfirmed ? 'bg-emerald-50 border-emerald-200'
-                    : disciplineAgreed ? 'bg-white/70 border-[oklch(0.91_0.006_264)]'
-                    : 'bg-gray-50 border-gray-200'
-                  }`}>
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
-                      expert?.aiConsentConfirmed ? 'bg-emerald-500 text-white'
-                      : disciplineAgreed ? 'bg-[oklch(0.94_0.004_264)] text-[oklch(0.55_0.01_264)]'
-                      : 'bg-gray-200 text-gray-400'
+                <div className={!disciplineAgreed ? 'pointer-events-none select-none opacity-50' : ''}>
+                  <div className="neu-card-static flex items-center gap-4 p-4">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-[11px] text-lg font-bold ${
+                      expert?.aiConsentConfirmed
+                        ? 'bg-[var(--success)] text-white'
+                        : disciplineAgreed
+                          ? 'bg-[oklch(0.985_0.005_258)] text-[var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]'
+                          : 'bg-[oklch(0.96_0.006_258)] text-[var(--muted-foreground)] opacity-60'
                     }`}>
                       {expert?.aiConsentConfirmed ? <Check size={18} strokeWidth={2.5} /> : disciplineAgreed ? '4' : <Lock size={16} strokeWidth={1.5} />}
                     </div>
                     <div className="flex-1">
                       <h3 className={`font-bold ${
-                        expert?.aiConsentConfirmed ? 'text-emerald-600'
-                        : disciplineAgreed ? 'text-[oklch(0.18_0.012_265)]'
-                        : 'text-gray-400'
+                        expert?.aiConsentConfirmed ? 'text-[var(--success)]'
+                        : disciplineAgreed ? 'text-[var(--foreground)]'
+                        : 'text-[var(--muted-foreground)]'
                       }`}>AI 辅助评标声明</h3>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)]">确认 AI 辅助结果仅供参考</p>
+                      <p className="text-sm text-[var(--muted-foreground)]">确认 AI 辅助结果仅供参考</p>
                     </div>
                     {!disciplineAgreed && (
-                      <span className="text-xs text-[oklch(0.72_0.008_264)] bg-[oklch(0.96_0.004_264)] px-2 py-1 rounded font-semibold">需先确认评标纪律</span>
+                      <span className="exp-pill" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>需先确认评标纪律</span>
                     )}
                     {disciplineAgreed && !expert?.aiConsentConfirmed && (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded font-semibold">待签署</span>
+                      <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待签署</span>
                     )}
                   </div>
                   {/* AI 声明书 — 解锁后且未确认时显示 */}
                   {disciplineAgreed && !expert?.aiConsentConfirmed && (
-                    <div className="mt-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                      <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
+                    <div className="exp-alert exp-alert--info mt-3 space-y-3 !p-4 !font-normal">
+                      <h3 className="flex items-center gap-2 !text-sm !font-bold text-[var(--foreground)]">
                         <Sparkles size={14} strokeWidth={1.5} /> AI 辅助评标使用声明
                       </h3>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)] leading-relaxed mb-3">
+                      <p className="text-sm leading-relaxed text-[var(--muted-foreground)]">
                         本项目评审引入人工智能（大语言模型与文档识别）辅助工具，可对投标文件进行合规性检查、风险提示与评分参考分析。本人郑重声明并知悉：
                       </p>
-                      <div className="space-y-2 text-sm text-[oklch(0.55_0.01_264)] mb-4">
-                        <p>一、AI 辅助工具生成的合规判断、风险提示、评分建议等内容，性质均为<strong className="text-[oklch(0.18_0.012_265)]">辅助参考</strong>，不构成评审结论；</p>
-                        <p>二、上述 AI 意见仅供本人在评标过程中参考，<strong className="text-[oklch(0.18_0.012_265)]">不得干预或干扰本人的独立职业判断</strong>；</p>
-                        <p>三、任何 AI 输出均<strong className="text-[oklch(0.18_0.012_265)]">不得作为本人打分的直接依据或唯一理由</strong>，本人对每一项评分及其理由独立负责；</p>
+                      <div className="space-y-2 text-sm text-[var(--muted-foreground)]">
+                        <p>一、AI 辅助工具生成的合规判断、风险提示、评分建议等内容，性质均为<strong className="text-[var(--foreground)]">辅助参考</strong>，不构成评审结论；</p>
+                        <p>二、上述 AI 意见仅供本人在评标过程中参考，<strong className="text-[var(--foreground)]">不得干预或干扰本人的独立职业判断</strong>；</p>
+                        <p>三、任何 AI 输出均<strong className="text-[var(--foreground)]">不得作为本人打分的直接依据或唯一理由</strong>，本人对每一项评分及其理由独立负责；</p>
                         <p>四、最终评审意见与评分结果，由本人依据招标文件规定的标准和方法、结合专业判断独立作出，不由 AI 决定，亦不因 AI 意见而免除本人的评审责任。</p>
                       </div>
-                      <p className="text-sm text-[oklch(0.55_0.01_264)] mb-4 font-medium">本人确认已阅读并充分理解上述声明。</p>
-                      <label className="flex items-center gap-3 cursor-pointer mb-3">
+                      <p className="text-sm font-medium text-[var(--muted-foreground)]">本人确认已阅读并充分理解上述声明。</p>
+                      <label className="flex cursor-pointer items-center gap-3">
                         <input type="checkbox" checked={aiConsentChecked} onChange={e => setAiConsentChecked(e.target.checked)}
-                          className="w-4 h-4 rounded border-blue-200 text-[#064ea2] focus:ring-[#064ea2]" />
-                        <span className="text-sm text-[oklch(0.18_0.012_265)] font-semibold">本人已阅读并知悉以上声明</span>
+                          className="neu-checkbox" />
+                        <span className="text-sm font-semibold text-[var(--foreground)]">本人已阅读并知悉以上声明</span>
                       </label>
                       <button onClick={handleConfirmAiConsent} disabled={!aiConsentChecked || busy}
-                        className="px-5 py-2 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#054280] transition disabled:opacity-50">
+                        className="neu-btn-primary !h-[38px]">
                         {busy ? '确认中…' : '确认同意'}
                       </button>
                     </div>
                   )}
                   {/* 已确认条 */}
                   {disciplineAgreed && expert?.aiConsentConfirmed && (
-                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
-                      <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-500" />
-                      <span className="text-sm text-emerald-600 font-semibold">已确认 AI 辅助评标声明</span>
+                    <div className="exp-alert exp-alert--success mt-3 flex items-center gap-2">
+                      <CheckCircle size={14} strokeWidth={1.5} className="shrink-0" />
+                      <span className="text-sm">已确认 AI 辅助评标声明</span>
                     </div>
                   )}
                 </div>
@@ -1141,21 +1125,21 @@ export default function ExpertEvaluatePage() {
 
               {/* P2: per-supplier avoidance declaration */}
               {!expert?.avoidanceConfirmed && (
-                <div className="mt-6 bg-amber-50 rounded-xl border border-amber-200 p-5">
-                  <h3 className="font-bold text-[oklch(0.18_0.012_265)] mb-2 flex items-center gap-2">
-                    <Lock size={14} strokeWidth={1.5} className="text-amber-600" /> 利益冲突回避
+                <div className="exp-alert exp-alert--warn mt-6 !p-5 !font-normal">
+                  <h3 className="mb-2 flex items-center gap-2 !text-sm font-bold text-[var(--foreground)]">
+                    <Lock size={14} strokeWidth={1.5} className="shrink-0" /> 利益冲突回避
                   </h3>
-                  <p className="text-sm text-[oklch(0.55_0.01_264)] mb-4">
+                  <p className="mb-4 text-sm text-[var(--muted-foreground)]">
                     请逐项核对：若您与以下任一投标单位存在利益关系（如曾受雇、近亲属供职、持有股份等），请勾选声明回避。
                     被回避的供应商将不会出现在您的评分列表中。
                   </p>
-                  <div className="space-y-1.5 mb-4">
+                  <div className="mb-4 space-y-1.5">
                     {project.suppliers.map(sup => {
                       const isConflict = conflictedSupplierIds.has(sup.id);
                       return (
                         <label key={sup.id}
-                          className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition ${
-                            isConflict ? 'bg-red-50 border border-red-200' : 'hover:bg-white border border-transparent'
+                          className={`flex cursor-pointer items-center gap-3 rounded-[10px] p-2.5 transition ${
+                            isConflict ? 'bg-[color-mix(in_oklch,var(--danger)_8%,transparent)]' : 'hover:bg-[oklch(1_0_0/0.5)]'
                           }`}>
                           <input type="checkbox" checked={isConflict}
                             onChange={e => {
@@ -1165,29 +1149,29 @@ export default function ExpertEvaluatePage() {
                                 return n;
                               });
                             }}
-                            className="w-4 h-4 rounded border-amber-300 text-[#e74c3c] focus:ring-[#e74c3c]" />
-                          <span className="flex-1 text-sm font-semibold text-[oklch(0.18_0.012_265)]">{sup.supplierName}</span>
-                          {isConflict && <span className="text-xs font-bold text-red-500">已声明回避</span>}
+                            className="neu-checkbox" />
+                          <span className="flex-1 text-sm font-semibold text-[var(--foreground)]">{sup.supplierName}</span>
+                          {isConflict && (
+                            <span className="exp-pill" style={{ '--c': 'var(--danger)' } as React.CSSProperties}>已声明回避</span>
+                          )}
                         </label>
                       );
                     })}
                   </div>
-                  <button onClick={handleAvoidance} disabled={avoiding}
-                    className="px-5 py-2.5 bg-[#f5a623] text-white rounded-lg font-bold text-sm hover:bg-amber-600 transition disabled:opacity-50">
+                  <button onClick={handleAvoidance} disabled={avoiding} className="neu-btn-primary">
                     {avoiding ? '提交中…' : `确认回避声明（${conflictedSupplierIds.size} 家冲突 / ${project.suppliers.length - conflictedSupplierIds.size} 家无冲突）`}
                   </button>
                 </div>
               )}
 
               {confidentialityAgreed && disciplineAgreed && expert?.signedIn && expert?.avoidanceConfirmed && expert?.aiConsentConfirmed && (
-                <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center gap-3">
-                  <CheckCircle size={20} strokeWidth={1.5} className="text-emerald-500" />
+                <div className="exp-alert exp-alert--success mt-4 flex items-center gap-3 !p-4">
+                  <CheckCircle size={20} strokeWidth={1.5} className="shrink-0" />
                   <div>
-                    <h3 className="font-bold text-emerald-600">核验完成</h3>
-                    <p className="text-sm text-[oklch(0.55_0.01_264)]">您已完成身份核验，可以开始评审工作</p>
+                    <h3 className="!text-sm !font-bold">核验完成</h3>
+                    <p className="!text-sm opacity-80">您已完成身份核验，可以开始评审工作</p>
                   </div>
-                  <button onClick={() => setStep('documents')}
-                    className="ml-auto px-5 py-2 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-600 transition text-sm">
+                  <button onClick={() => setStep('documents')} className="neu-btn-primary is-success ml-auto !h-[38px]">
                     进入标书获取 →
                   </button>
                 </div>
@@ -1237,14 +1221,14 @@ export default function ExpertEvaluatePage() {
             <div className="p-6">
               <div className="mb-6 flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-bold text-[oklch(0.18_0.012_265)]">专家独立打分</h2>
-                  <p className="text-sm text-[oklch(0.55_0.01_264)] mt-0.5">请根据您的专业判断进行客观评分</p>
+                  <h2 className="text-lg font-bold text-[var(--foreground)]">专家独立打分</h2>
+                  <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">请根据您的专业判断进行客观评分</p>
                 </div>
                 {/* P5 Task 7: 桌面端备忘入口（键盘输入 + 查看平板墨迹） */}
                 <button
                   type="button"
                   onClick={() => setMemoOpen(true)}
-                  className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-[oklch(0.91_0.006_264)] bg-white px-3 py-2 text-xs font-bold text-[oklch(0.4_0.012_265)] transition hover:bg-[oklch(0.97_0.005_264)]"
+                  className="neu-btn-xs shrink-0"
                   aria-label="打开备忘面板"
                 >
                   <StickyNote size={14} strokeWidth={1.7} /> 备忘
@@ -1253,16 +1237,16 @@ export default function ExpertEvaluatePage() {
 
               {/* P0-3: draft recovery banner */}
               {draftAvailable && !draftDismissed && (
-                <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 flex items-center gap-3">
-                  <ClipboardList size={20} strokeWidth={1.5} className="text-amber-500" />
+                <div className="exp-alert exp-alert--warn mb-6 flex items-center gap-3 !p-4">
+                  <ClipboardList size={20} strokeWidth={1.5} className="shrink-0" />
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-amber-700">检测到未提交的评分草稿</p>
-                    <p className="text-xs text-amber-600 mt-0.5">
+                    <p className="!text-sm !font-bold">检测到未提交的评分草稿</p>
+                    <p className="mt-0.5 !text-xs opacity-80">
                       {draftAvailable.count} 项评分 · 保存于 {new Date(draftAvailable.savedAt).toLocaleString('zh-CN')}
                     </p>
                   </div>
-                  <button onClick={discardDraft} className="px-3 py-1.5 text-xs font-semibold text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-100 transition">丢弃</button>
-                  <button onClick={restoreDraft} className="px-4 py-1.5 text-xs font-bold text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition">恢复草稿</button>
+                  <button onClick={discardDraft} className="neu-btn-xs">丢弃</button>
+                  <button onClick={restoreDraft} className="neu-btn-primary !h-[30px] !px-4">恢复草稿</button>
                 </div>
               )}
 
@@ -1282,40 +1266,46 @@ export default function ExpertEvaluatePage() {
                       // Fix 1: 按当前 activeSupplier 过滤异议类别。
                       const activeDisputes = new Set(disputeCategoriesBySupplier[activeSupplier] ?? []);
                       const disputed = activeDisputes.has(category);
+                      const catColor = CATEGORY_COLOR[category] || 'var(--accent-strong)';
                       return (
-                        <div key={category} className={`bg-blue-50 rounded-xl border overflow-hidden ${disputed ? 'border-amber-300 ring-1 ring-amber-200' : 'border-blue-100'}`}>
-                          <div className="flex items-center justify-between p-4 border-b border-blue-100" style={{ borderLeft: `2px solid ${CATEGORY_COLOR[category] || '#064ea2'}` }}>
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm font-bold px-3 py-1 rounded-lg" style={{ color: CATEGORY_COLOR[category] || '#064ea2', backgroundColor: (CATEGORY_COLOR[category] || '#064ea2') + '18' }}>
+                        <div key={category} className={`exp-category-group ${disputed ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.8),2px_2px_5px_oklch(0.55_0.03_258/0.1),-1.5px_-1.5px_4px_oklch(1_0_0/0.85),inset_0_0_0_1.5px_color-mix(in_oklch,var(--warning)_55%,transparent)]' : ''}`}>
+                          <div className="mb-4 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
+                              <span className="exp-category-chip" style={{ '--cat': catColor } as React.CSSProperties} />
+                              <span className="text-sm font-bold text-[var(--foreground)]">
                                 {CATEGORY_LABEL[category] || category}
                               </span>
-                              <span className="text-sm text-[oklch(0.55_0.01_264)]">{items.length} 项</span>
-                              {disputed && <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">⚠ 有异议条款待核对</span>}
+                              <span className="text-xs text-[var(--muted-foreground)]">{items.length} 项</span>
+                              {disputed && (
+                                <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>
+                                  <AlertTriangle size={9} strokeWidth={2} /> 有异议条款待核对
+                                </span>
+                              )}
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
                               {isPassFailCategory(category) ? (
-                                <span className="text-sm font-bold text-[oklch(0.55_0.01_264)]">通过性审查</span>
+                                <span className="text-sm font-bold text-[var(--muted-foreground)]">通过性审查</span>
                               ) : (
                                 <>
-                                  <span className="text-sm text-[oklch(0.55_0.01_264)]">得分</span>
-                                  <span className="text-lg font-bold" style={{ color: CATEGORY_COLOR[category] || '#064ea2' }}>{catScored}</span>
-                                  <span className="text-sm text-[oklch(0.55_0.01_264)]">/ {catTotal}</span>
+                                  <span className="text-xs text-[var(--muted-foreground)]">得分</span>
+                                  <span className="text-lg font-bold text-[var(--accent-strong)]">{catScored}</span>
+                                  <span className="text-xs text-[var(--muted-foreground)]">/ {catTotal}</span>
                                 </>
                               )}
                             </div>
                           </div>
-                          <div className="p-4 space-y-4">
+                          <div className="space-y-4">
                             {/* Task 4: 异议备注区 — disputed category 顶部列出异议条款摘要 + note，供专家打分参考 */}
                             {disputed && (disputesBySupplier[activeSupplier]?.[category]?.filter((d) => d.verdict === 'dispute').length ?? 0) > 0 && (
-                              <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 space-y-2">
-                                <div className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                              <div className="exp-alert exp-alert--warn space-y-2 !p-3">
+                                <div className="flex items-center gap-1.5 !text-xs font-bold">
                                   <AlertTriangle size={12} strokeWidth={1.5} /> 异议备注（{disputesBySupplier[activeSupplier][category].filter((d) => d.verdict === 'dispute').length} 条 · 聚焦下方理由框可勾选复选框引用）
                                 </div>
                                 <ul className="space-y-1.5">
                                   {disputesBySupplier[activeSupplier][category].filter((d) => d.verdict === 'dispute').map((dsp, idx) => (
-                                    <li key={`${dsp.requirementId}-${idx}`} className="text-xs text-amber-900 bg-white/70 rounded px-2 py-1.5 border border-amber-100">
-                                      <div className="font-semibold truncate" title={dsp.content}>条款：{dsp.content}</div>
-                                      {dsp.note && <div className="text-amber-700 mt-0.5">异议：{dsp.note}</div>}
+                                    <li key={`${dsp.requirementId}-${idx}`} className="rounded-[8px] bg-[oklch(1_0_0/0.6)] px-2.5 py-1.5 text-xs text-[var(--foreground)]">
+                                      <div className="truncate font-semibold" title={dsp.content}>条款：{dsp.content}</div>
+                                      {dsp.note && <div className="mt-0.5 opacity-80">异议：{dsp.note}</div>}
                                     </li>
                                   ))}
                                 </ul>
@@ -1330,19 +1320,19 @@ export default function ExpertEvaluatePage() {
                               if (passFail) {
                                 const verdict = val?.passed;
                                 return (
-                                  <div key={item.id} data-score-item={item.id} className={`glass-card glass-card-lighter rounded-lg p-4 ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
-                                    <h4 className="font-semibold text-[oklch(0.18_0.012_265)] mb-3">{item.name}</h4>
-                                    <div className="flex items-center gap-3 mb-3">
-                                      {[
-                                        { v: true, label: '通过', cls: verdict === true ? 'bg-[#11a874] text-white border-[#11a874]' : 'bg-white text-[#11a874] border-[#11a874]/40 hover:bg-[#ecfdf5]' },
-                                        { v: false, label: '不通过', cls: verdict === false ? 'bg-[#e74c3c] text-white border-[#e74c3c]' : 'bg-white text-[#e74c3c] border-[#e74c3c]/40 hover:bg-[#fef2f2]' },
-                                      ].map(opt => (
-                                        <button key={String(opt.v)} type="button"
-                                          onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: opt.v } }))}
-                                          className={`px-5 py-2 rounded-lg text-sm font-bold border transition ${opt.cls}`}>
-                                          {opt.label}
-                                        </button>
-                                      ))}
+                                  <div key={item.id} data-score-item={item.id} className={`neu-card-static !rounded-[14px] p-4 ${reasonMissing ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.7),2px_2px_6px_oklch(0.55_0.03_258/0.1),-2px_-2px_6px_oklch(1_0_0/0.8),inset_0_0_0_1.5px_color-mix(in_oklch,var(--danger)_55%,transparent)]' : ''}`}>
+                                    <h4 className="mb-3 font-semibold text-[var(--foreground)]">{item.name}</h4>
+                                    <div className="mb-3 flex items-center gap-3">
+                                      <button type="button"
+                                        onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: true } }))}
+                                        className={`neu-btn-soft is-success ${verdict === true ? '!bg-[oklch(0.96_0.05_164/0.5)]' : ''}`}>
+                                        {verdict === true && <Check size={14} strokeWidth={2.5} />}通过
+                                      </button>
+                                      <button type="button"
+                                        onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: false } }))}
+                                        className={`neu-btn-soft is-danger ${verdict === false ? '!bg-[oklch(0.96_0.05_27/0.5)]' : ''}`}>
+                                        {verdict === false && <X size={14} strokeWidth={2.5} />}不通过
+                                      </button>
                                     </div>
                                     {verdict === false && (
                                       <textarea placeholder="不通过理由（必填）" value={val?.reason || ''}
@@ -1353,12 +1343,13 @@ export default function ExpertEvaluatePage() {
                                           setScores(prev => ({ ...prev, [k]: { score: 0, reason: v, passed: false } }));
                                           if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                         }}
-                                        className={`w-full rounded-lg px-3 py-2 text-sm text-[oklch(0.18_0.012_265)] resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
+                                        className="neu-input !min-h-[64px] !text-sm"
+                                        aria-invalid={reasonMissing ? 'true' : undefined}
                                         aria-label={`${item.name} 不通过理由`} />
                                     )}
                                     {/* Task 5: pass-fail 「不通过」理由框聚焦（或点📎按钮）→ 展开复选框面板 */}
                                     {verdict === false && renderReviewPanel(k, category, item.id)}
-                                    {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />请选择「通过 / 不通过」，不通过需填理由</p>}
+                                    {reasonMissing && <p className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-[var(--danger)]"><AlertTriangle size={12} strokeWidth={1.5} />请选择「通过 / 不通过」，不通过需填理由</p>}
                                   </div>
                                 );
                               }
@@ -1369,10 +1360,10 @@ export default function ExpertEvaluatePage() {
                               const itemPoints = (item.points ?? []).map(p => ({ id: p.id, name: p.name, fullScore: p.fullScore, objective: p.objective, evidenceHint: p.evidenceHint, seq: p.seq }));
                               if (itemPoints.length > 0) {
                                 return (
-                                  <div key={item.id} data-score-item={item.id} className={`glass-card glass-card-lighter rounded-lg p-4 ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
-                                    <div className="flex items-center justify-between mb-3">
-                                      <h4 className="font-semibold text-[oklch(0.18_0.012_265)]">{item.name}</h4>
-                                      <span className="text-sm text-[oklch(0.55_0.01_264)]">满分 {max}</span>
+                                  <div key={item.id} data-score-item={item.id} className={`neu-card-static !rounded-[14px] p-4 ${reasonMissing ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.7),2px_2px_6px_oklch(0.55_0.03_258/0.1),-2px_-2px_6px_oklch(1_0_0/0.8),inset_0_0_0_1.5px_color-mix(in_oklch,var(--danger)_55%,transparent)]' : ''}`}>
+                                    <div className="mb-3 flex items-center justify-between">
+                                      <h4 className="font-semibold text-[var(--foreground)]">{item.name}</h4>
+                                      <span className="text-sm text-[var(--muted-foreground)]">满分 {max}</span>
                                     </div>
                                     <PointChecklistScoring
                                       points={itemPoints}
@@ -1396,31 +1387,32 @@ export default function ExpertEvaluatePage() {
                                         if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                       }}
                                       onKeyDown={e => handleScoringKeyDown(e, isLastItem)}
-                                      className={`w-full rounded-lg px-3 py-2 text-sm resize-none h-16 mt-3 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
+                                      className="neu-input mt-3 !min-h-[64px] !text-sm"
+                                      aria-invalid={reasonMissing ? 'true' : undefined}
                                       aria-label={`${item.name} 评分理由`} tabIndex={0} />
                                     {/* Task 5: 数值项理由框聚焦（或点📎按钮）→ 展开复选框面板 */}
                                     {renderReviewPanel(k, category, item.id)}
-                                    {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />该项得分低于满分，请填写评分理由</p>}
+                                    {reasonMissing && <p className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-[var(--danger)]"><AlertTriangle size={12} strokeWidth={1.5} />该项得分低于满分，请填写评分理由</p>}
                                   </div>
                                 );
                               }
-                              // 无 points → 旧滑块（保留现有渲染不变）
+                              // 无 points → 旧滑块（轨道填充经 CSS 变量传递，无字面内联色值）
                               return (
-                                <div key={item.id} data-score-item={item.id} className={`glass-card glass-card-lighter rounded-lg p-4 ${reasonMissing ? 'border-red-300 ring-1 ring-red-200' : 'border-blue-100'}`}>
-                                  <div className="flex items-center justify-between mb-3">
-                                    <h4 className="font-semibold text-[oklch(0.18_0.012_265)]">{item.name}</h4>
-                                    <span className="text-sm text-[oklch(0.55_0.01_264)]">满分 {max}</span>
+                                <div key={item.id} data-score-item={item.id} className={`neu-card-static !rounded-[14px] p-4 ${reasonMissing ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.7),2px_2px_6px_oklch(0.55_0.03_258/0.1),-2px_-2px_6px_oklch(1_0_0/0.8),inset_0_0_0_1.5px_color-mix(in_oklch,var(--danger)_55%,transparent)]' : ''}`}>
+                                  <div className="mb-3 flex items-center justify-between">
+                                    <h4 className="font-semibold text-[var(--foreground)]">{item.name}</h4>
+                                    <span className="text-sm text-[var(--muted-foreground)]">满分 {max}</span>
                                   </div>
-                                  <div className="flex items-center gap-4 mb-3">
+                                  <div className="mb-3 flex items-center gap-4">
                                     <input type="range" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '' } }))}
-                                      className="flex-1 h-2 bg-[oklch(0.94_0.004_264)] rounded-full appearance-none cursor-pointer accent-[#064ea2] focus:outline-none focus:ring-2 focus:ring-[#064ea2] focus:ring-offset-2"
-                                      style={{ background: `linear-gradient(to right, ${CATEGORY_COLOR[category] || '#064ea2'} ${pct}%, #f0f4f8 ${pct}%)` }}
+                                      className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-[linear-gradient(to_right,var(--fill)_var(--pct),oklch(0.96_0.01_258)_var(--pct))] accent-[var(--accent-strong)] focus:outline-none"
+                                      style={{ '--fill': catColor, '--pct': `${pct}%` } as React.CSSProperties}
                                       aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`} tabIndex={0} />
                                     <input type="number" min={0} max={max} step={0.5} value={currentScore}
                                       onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), reason: prev[k]?.reason || '' } }))}
                                       onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, isLastItem); }}
-                                      className="w-20 text-center border border-blue-100 rounded-lg px-2 py-1.5 text-sm font-bold text-[#064ea2] focus:border-[#064ea2] focus:ring-2 focus:ring-[#064ea2] outline-none"
+                                      className="exp-score-input"
                                       aria-label={`${item.name} 数值输入`} tabIndex={0} />
                                   </div>
                                   <textarea placeholder="评分理由（低于满分必填）" value={val?.reason || ''}
@@ -1432,20 +1424,21 @@ export default function ExpertEvaluatePage() {
                                       if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                     }}
                                     onKeyDown={e => handleScoringKeyDown(e, isLastItem)}
-                                    className={`w-full rounded-lg px-3 py-2 text-sm resize-none h-16 focus:outline-none focus:ring-2 ${reasonMissing ? 'border-red-300 bg-red-50 focus:ring-red-300' : 'border-blue-100 focus:ring-[#064ea2]'}`}
+                                    className="neu-input !min-h-[64px] !text-sm"
+                                    aria-invalid={reasonMissing ? 'true' : undefined}
                                     aria-label={`${item.name} 评分理由`} tabIndex={0} />
                                   {/* Task 5: 数值项理由框聚焦（或点📎按钮）→ 展开复选框面板 */}
                                   {renderReviewPanel(k, category, item.id)}
-                                  {reasonMissing && <p className="text-xs text-red-500 mt-1.5 font-semibold flex items-center gap-1"><AlertTriangle size={12} strokeWidth={1.5} />该项得分低于满分，请填写评分理由</p>}
+                                  {reasonMissing && <p className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-[var(--danger)]"><AlertTriangle size={12} strokeWidth={1.5} />该项得分低于满分，请填写评分理由</p>}
                                 </div>
                               );
                             })}
                           </div>
                           {disputed && (
-                            <label className="flex items-center gap-2 px-4 py-2 bg-amber-50/60 border-t border-amber-200 text-xs text-amber-800 cursor-pointer">
+                            <label className="mt-4 flex cursor-pointer items-center gap-2.5 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-2.5 text-xs font-semibold text-[oklch(0.52_0.13_70)]">
                               <input
                                 type="checkbox"
-                                className="accent-amber-600"
+                                className="neu-checkbox !h-[18px] !w-[18px]"
                                 checked={!!confirmedDispute[category]}
                                 onChange={(e) => setConfirmedDispute({ ...confirmedDispute, [category]: e.target.checked })}
                               />
@@ -1457,37 +1450,36 @@ export default function ExpertEvaluatePage() {
                     })}
 
                     {/* 汇总 */}
-                    <div className="glass-card glass-card-blue rounded-xl p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-bold text-lg text-[oklch(0.18_0.012_265)]">评分汇总 — {scoringSupplierName}</h3>
+                    <div className="neu-card-static p-6">
+                      <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-[var(--foreground)]">评分汇总 — {scoringSupplierName}</h3>
                         <div className="text-right">
-                          <div className="text-3xl font-bold text-[#064ea2]">
+                          <div className="text-3xl font-bold text-[var(--accent-strong)]">
                             {project.scoreItems.reduce((s, si) => s + (scores[scoreKey(activeSupplier, si.id)]?.score ?? 0), 0)}
                           </div>
-                          <div className="text-sm text-[oklch(0.55_0.01_264)]">
+                          <div className="text-sm text-[var(--muted-foreground)]">
                             满分 {project.scoreItems.reduce((s, si) => s + Number(si.maxScore), 0)}
                           </div>
                         </div>
                       </div>
                       {scoreLocked && (
-                        <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-700">
+                        <div className="exp-alert exp-alert--warn mb-4">
                           评审报告已确认，评分已锁定，不可再修改。
                         </div>
                       )}
                       {!canScoreActiveSupplier && !scoreLocked && (
-                        <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-700">
+                        <div className="exp-alert exp-alert--warn mb-4">
                           当前投标单位未解密成功或已撤回，不能提交评分。
                         </div>
                       )}
                       <div className="flex items-center gap-3">
                         {!scoreLocked && (
-                          <button onClick={saveDraftNow} disabled={busy}
-                            className="px-4 py-3 border border-[oklch(0.91_0.006_264)] text-[oklch(0.55_0.01_264)] rounded-lg font-bold text-sm hover:bg-[oklch(0.992_0.003_264)] transition disabled:opacity-50">
+                          <button onClick={saveDraftNow} disabled={busy} className="neu-btn-soft">
                             保存草稿
                           </button>
                         )}
                         <button onClick={handleSubmitScores} disabled={busy || !canScoreActiveSupplier || scoreLocked}
-                          className="flex-1 py-3 bg-[#064ea2] text-white rounded-lg font-bold text-sm hover:bg-[#054280] transition disabled:opacity-50">
+                          className="neu-btn-primary flex-1">
                           {busy ? '提交中...' : scoreLocked ? '评分已锁定' : `提交 ${scoringSupplierName} 的评分`}
                         </button>
                       </div>
@@ -1530,18 +1522,18 @@ export default function ExpertEvaluatePage() {
         {memoOpen && (step === 'scoring' || step === 'verify-score') && (
           <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="专家备忘面板">
             {/* 点击遮罩关闭 */}
-            <button
-              type="button"
-              aria-label="关闭备忘面板"
-              className="absolute inset-0 bg-black/20"
+            <div
+              className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
               onClick={() => setMemoOpen(false)}
+              aria-label="关闭备忘面板"
+              role="button"
             />
-            <aside className="relative z-10 flex h-full w-[400px] max-w-[90vw] flex-col bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-[oklch(0.91_0.006_264)] px-4 py-3">
-                <h2 className="flex items-center gap-1.5 text-sm font-bold text-[oklch(0.18_0.012_265)]">
+            <aside className="wb-panel relative z-10 flex h-full w-[400px] max-w-[90vw] flex-col !rounded-r-none">
+              <div className="flex shrink-0 items-center justify-between px-4 py-3">
+                <h2 className="flex items-center gap-1.5 text-sm font-bold text-[var(--foreground)]">
                   <StickyNote size={14} strokeWidth={1.7} /> 专家备忘
                   {activeSupplier && (
-                    <span className="ml-1 rounded-full bg-[oklch(0.95_0.005_264)] px-2 py-0.5 text-[10px] font-semibold text-[oklch(0.55_0.01_264)]">
+                    <span className="exp-pill ml-1" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>
                       {project?.suppliers.find(s => s.id === activeSupplier)?.supplierName || '当前供应商'}
                     </span>
                   )}
@@ -1550,11 +1542,12 @@ export default function ExpertEvaluatePage() {
                   type="button"
                   onClick={() => setMemoOpen(false)}
                   aria-label="关闭"
-                  className="rounded p-1 text-[oklch(0.55_0.01_264)] transition hover:bg-[oklch(0.96_0.004_264)]"
+                  className="neu-btn-xs is-square"
                 >
                   <X size={16} strokeWidth={1.7} />
                 </button>
               </div>
+              <hr className="wb-section-rule shrink-0" />
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 {activeSupplier ? (
                   <MemoPanel
@@ -1563,7 +1556,7 @@ export default function ExpertEvaluatePage() {
                     sourceDevice="desktop"
                   />
                 ) : (
-                  <p className="py-6 text-center text-xs text-[oklch(0.62_0.008_264)]">请先在左侧选择供应商</p>
+                  <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">请先在左侧选择供应商</p>
                 )}
               </div>
             </aside>

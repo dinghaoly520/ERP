@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import type { AiScoreItem } from '@water-erp/shared';
 import { CATEGORY_LABEL, CATEGORY_COLOR } from '@water-erp/shared';
 
 // 向后兼容：重新导出，使仍从该文件导入的消费者继续工作
 export { CATEGORY_LABEL, CATEGORY_COLOR };
 
-// ── 单条评分进度条 ──
+// ── 单条评分进度条（cgzxui .exp-bar）──
 
 interface ScoreBarProps {
   label: string;
@@ -30,52 +31,52 @@ interface ScoreBarProps {
   weaknesses?: string[];
 }
 
-function ScoreBar({ label, score, maxScore, comment, evidence, color = '#0b63ce', reasonLines = 2, expanded = false, confidence, unstable, strengths, weaknesses }: ScoreBarProps) {
+function ScoreBar({ label, score, maxScore, comment, evidence, color = 'var(--accent-strong)', reasonLines = 2, expanded = false, confidence, unstable, strengths, weaknesses }: ScoreBarProps) {
   const pct = maxScore > 0 ? Math.min((score / maxScore) * 100, 100) : 0;
   const clampClass = expanded ? '' : reasonLines === 2 ? 'line-clamp-2' : 'line-clamp-1';
   return (
     <div>
-      <div className="flex items-center justify-between text-xs mb-0.5">
-        <span className="text-[var(--color-text-secondary)] truncate mr-2">{label}</span>
-        <span className="font-medium tabular-nums text-[var(--color-text)]">
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="mr-2 truncate text-[var(--muted-foreground)]">{label}</span>
+        <span className="font-medium tabular-nums text-[var(--foreground)]">
           {score.toFixed(1)}/{maxScore}
         </span>
       </div>
-      <div className="h-2 rounded-full overflow-hidden" style={{ background: 'oklch(0.94 0.004 264)' }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+      <div className="exp-bar">
+        <i style={{ width: `${pct}%`, '--bar': color } as React.CSSProperties} />
       </div>
       {comment && (
-        <p className={`text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-1 ${clampClass}`}>{comment}</p>
+        <p className={`ml-1 mt-1 text-[10px] text-[var(--muted-foreground)] ${clampClass}`}>{comment}</p>
       )}
       {evidence && (
-        <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5 ml-1">证据：{evidence}</p>
+        <p className="ml-1 mt-1 text-[10px] text-[var(--muted-foreground)]">证据：{evidence}</p>
       )}
       {(confidence != null || unstable) && (
-        <div className="flex items-center gap-1.5 mt-1 ml-1">
+        <div className="ml-1 mt-1 flex items-center gap-1.5">
           {confidence != null && confidence < 0.6 && (
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> 置信度 {Math.round(confidence * 100)}%
+            <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>
+              <span className="exp-pill-dot" /> 置信度 {Math.round(confidence * 100)}%
             </span>
           )}
           {unstable && (
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">
-              ⚙ 不稳定
+            <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>
+              <RefreshCw size={9} strokeWidth={2} /> 不稳定
             </span>
           )}
         </div>
       )}
       {/* per-item 正向依据 / 需关注事项（仅展开态显示，避免折叠态膨胀） */}
       {expanded && (strengths?.length || weaknesses?.length) ? (
-        <div className="mt-1.5 ml-1 space-y-0.5">
+        <div className="ml-1 mt-1.5 space-y-0.5">
           {strengths?.map((s, i) => (
-            <div key={`s${i}`} className="text-[10px] text-emerald-700 flex items-start gap-1 leading-snug">
-              <span className="text-emerald-500 shrink-0 font-bold">+</span>
+            <div key={`s${i}`} className="flex items-start gap-1 text-[10px] leading-snug text-[var(--success)]">
+              <span className="shrink-0 font-bold">+</span>
               <span>{s}</span>
             </div>
           ))}
           {weaknesses?.map((w, i) => (
-            <div key={`w${i}`} className="text-[10px] text-amber-700 flex items-start gap-1 leading-snug">
-              <span className="text-amber-500 shrink-0 font-bold">−</span>
+            <div key={`w${i}`} className="flex items-start gap-1 text-[10px] leading-snug text-[var(--warning)]">
+              <span className="shrink-0 font-bold">−</span>
               <span>{w}</span>
             </div>
           ))}
@@ -105,7 +106,7 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
 
   const effExpanded = expandable ? expandedAll : expanded;
   const toggleBtn = expandable && scoreItems.some((i) => i.reason) ? (
-    <button onClick={() => setExpandedAll(v => !v)} className="mt-2 text-[11px] text-[var(--color-primary)] hover:underline">
+    <button onClick={() => setExpandedAll(v => !v)} className="mt-2 text-[11px] text-[var(--accent-strong)] hover:underline">
       {effExpanded ? '收起理由' : '展开全部理由'}
     </button>
   ) : null;
@@ -123,7 +124,7 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
               maxScore={item.maxScore}
               comment={item.reason}
               evidence={item.evidence}
-              color={CATEGORY_COLOR[item.category] ?? '#0b63ce'}
+              color={CATEGORY_COLOR[item.category] ?? 'var(--accent-strong)'}
               reasonLines={reasonLines}
               expanded={effExpanded}
               confidence={item.confidence}
@@ -150,17 +151,20 @@ export function ScoreBreakdownBars({ scoreItems, reasonLines = 2, expanded = fal
       {Object.entries(grouped).map(([category, items]) => {
         const catTotal = items.reduce((a, b) => a + b.score, 0);
         const catMax = items.reduce((a, b) => a + b.maxScore, 0);
-        const color = CATEGORY_COLOR[category] ?? '#0b63ce';
+        const color = CATEGORY_COLOR[category] ?? 'var(--accent-strong)';
         return (
           <div key={category}>
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-1.5 h-5 rounded-full" style={{ background: color }} />
-                <span className="text-sm font-semibold text-[var(--color-text)]">
+                <span
+                  className="h-5 w-1.5 rounded-full bg-[var(--cat)]"
+                  style={{ '--cat': color } as React.CSSProperties}
+                />
+                <span className="text-sm font-semibold text-[var(--foreground)]">
                   {CATEGORY_LABEL[category] ?? category}
                 </span>
               </div>
-              <span className="text-sm font-medium tabular-nums text-[var(--color-text-secondary)]">
+              <span className="text-sm font-medium tabular-nums text-[var(--muted-foreground)]">
                 {catTotal.toFixed(1)} / {catMax}
               </span>
             </div>
