@@ -5,9 +5,10 @@ import { SignatureService } from '../common/crypto/signature.service';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AnnouncementModule } from '../announcement/announcement.module';
+import { BidBackupModule } from '../bid-backup/bid-backup.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, AnnouncementModule],
+  imports: [AuthModule, PrismaModule, AnnouncementModule, BidBackupModule],
   controllers: [SupplierPortalController],
   providers: [SupplierPortalService, SignatureService],
   exports: [SupplierPortalService],

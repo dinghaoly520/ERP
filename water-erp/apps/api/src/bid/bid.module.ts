@@ -11,6 +11,7 @@ import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { AiBidAnalysisModule } from '../ai-bid-analysis/ai-bid-analysis.module';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { ScoreStandardValidator } from './score-standard-validator.service';
+import { BidBackupModule } from '../bid-backup/bid-backup.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ScoreStandardValidator } from './score-standard-validator.service';
     NotificationModule,
     BullModule.registerQueue({ name: QUEUE_NAMES.TENDER_PROCESSING }),
     AiBidAnalysisModule, // ← 为了注入 PlaintextFetcherService（Task 1: AI 提取得分点）
+    BidBackupModule,
   ],
   controllers: [BidController],
   providers: [BidService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator],

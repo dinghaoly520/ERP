@@ -11,6 +11,7 @@ import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
 import * as crypto from 'crypto';
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
@@ -56,6 +57,7 @@ export class SupplierPortalService {
     private prisma: PrismaService,
     private bidDocumentService: BidDocumentService,
     private signatureService: SignatureService,
+    private bidBackup: BidBackupService,
   ) {}
 
   /**
@@ -561,6 +563,11 @@ export class SupplierPortalService {
     const sealedKeys: Record<string, string> = {};
     const sealedPaths: Record<string, string> = {};
     const newlySealedPaths: string[] = []; // for cleanup on failure
+    const assetRoles: Record<string, BackupFileRole> = {};
+    if (data.technicalFileAssetId) assetRoles[data.technicalFileAssetId] = 'technical';
+    if (data.businessFileAssetId) assetRoles[data.businessFileAssetId] = 'business';
+    if (data.coverLetterAssetId) assetRoles[data.coverLetterAssetId] = 'coverLetter';
+    const stagedBackups: StagedBackup[] = []; // 提交时即备份（未解密态），best-effort
 
     try {
       for (const assetId of assetIds) {
@@ -580,6 +587,17 @@ export class SupplierPortalService {
         });
         sealedPaths[assetId] = sealedPath;
         newlySealedPaths.push(sealedPath);
+
+        // ── 未解密备份：复用内存密文 best-effort 备份到独立前缀；失败不阻断提交（交后台补备）──
+        const staged = await this.bidBackup.stageBackup({
+          projectId, supplierId, fileRole: assetRoles[assetId],
+          fileAssetId: assetId, sealedPath, ciphertext,
+          wrappedDek: sealedKeys[assetId], plaintextSha256: asset.sha256 ?? null,
+        });
+        if (staged) {
+          stagedBackups.push(staged);
+          newlySealedPaths.push(staged.backupKey); // 失败回滚时一并清理备份对象
+        }
       }
     } catch (err) {
       // Clean up any newly written sealed files on failure
@@ -638,13 +656,14 @@ export class SupplierPortalService {
         const existingBidSupplier = await tx.bidSupplier.findFirst({
           where: { projectId, supplierName: supplier.name },
         });
+        let receiptNo: string | null = existingBidSupplier?.receiptNo ?? null;
         if (existingBidSupplier) {
           await tx.bidSupplier.update({
             where: { id: existingBidSupplier.id },
             data: { supplierId, submitStatus: '已提交', encryptStatus: '密文已校验' },
           });
         } else {
-          const receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
+          receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
           await tx.bidSupplier.create({
             data: {
               projectId,
@@ -656,6 +675,11 @@ export class SupplierPortalService {
               receiptNo,
             },
           });
+        }
+
+        // ── 固化未解密备份：把封标时 staged 的密文备份写入 BidFileBackup（事务内，幂等 upsert）──
+        for (const staged of stagedBackups) {
+          await this.bidBackup.persistBackup(tx, staged, { projectId, supplierId, receiptNo, submittedAt: now, backupSource: 'submission' });
         }
 
         return submission;
