@@ -17,6 +17,7 @@ import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
+import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 
 const decryptColors: Record<string, { color: string; bg: string }> = {
   PENDING: { color: SEMANTIC.warning, bg: '#fef6e8' },
@@ -357,6 +358,12 @@ export default function BidOpenPage() {
         api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
       }
     },
+    onOpeningConfirmed: (d) => {
+      toast.success(`${d.supplierName} 已确认开标记录`);
+    },
+    onOpeningDisputed: (d) => {
+      toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);
+    },
   });
 
   useReportRealtime(connection, lastEventAt, reconnectNow);
@@ -463,6 +470,7 @@ export default function BidOpenPage() {
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
               </button>
             )}
+            {projectId && <ExchangeDrawer projectId={projectId} />}
           </div>
         </div>
 
