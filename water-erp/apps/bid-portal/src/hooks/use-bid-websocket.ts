@@ -15,6 +15,13 @@ import {
   type ClarificationRepliedPayload,
   type SupervisionLogPayload,
   type AnomalyDetectedPayload,
+  type HallMessagePayload,
+  type HallPresenceUpdatePayload,
+  type HallCheckinPayload,
+  type HallExchangeControlPayload,
+  type OpeningConfirmedPayload,
+  type OpeningDisputedPayload,
+  type OpeningDisputeResolvedPayload,
 } from '@water-erp/shared';
 
 function wsUrl(): string {
@@ -32,6 +39,13 @@ export interface BidWsHandlers {
   onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
   onSupervisionLog?: (d: SupervisionLogPayload) => void;
   onAnomalyDetected?: (d: AnomalyDetectedPayload) => void;
+  onHallMessage?: (d: HallMessagePayload) => void;
+  onHallPresence?: (d: HallPresenceUpdatePayload) => void;
+  onHallCheckin?: (d: HallCheckinPayload) => void;
+  onHallExchangeControl?: (d: HallExchangeControlPayload) => void;
+  onOpeningConfirmed?: (d: OpeningConfirmedPayload) => void;
+  onOpeningDisputed?: (d: OpeningDisputedPayload) => void;
+  onOpeningDisputeResolved?: (d: OpeningDisputeResolvedPayload) => void;
 }
 
 export interface UseBidWebSocketResult {
@@ -130,6 +144,13 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.CLARIFICATION_REPLIED, h.current.onClarificationReplied);
     on(BID_EVENT.SUPERVISION_LOG, h.current.onSupervisionLog);
     on(BID_EVENT.ANOMALY_DETECTED, h.current.onAnomalyDetected);
+    on(BID_EVENT.HALL_MESSAGE_NEW, h.current.onHallMessage);
+    on(BID_EVENT.HALL_PRESENCE_UPDATE, h.current.onHallPresence);
+    on(BID_EVENT.HALL_CHECKIN, h.current.onHallCheckin);
+    on(BID_EVENT.HALL_EXCHANGE_CONTROL, h.current.onHallExchangeControl);
+    on(BID_EVENT.OPENING_CONFIRMED, h.current.onOpeningConfirmed);
+    on(BID_EVENT.OPENING_DISPUTED, h.current.onOpeningDisputed);
+    on(BID_EVENT.OPENING_DISPUTE_RESOLVED, h.current.onOpeningDisputeResolved);
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {
