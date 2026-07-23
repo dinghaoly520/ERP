@@ -20,6 +20,7 @@ import { ExpertService } from './expert.service';
 import { ExpertMemoService } from './expert-memo.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
+import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { DraftClarificationDto } from './dto/draft-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
@@ -46,6 +47,16 @@ export class ExpertController {
   @Patch('profile')
   updateProfile(@CurrentUser('sub') userId: string, @Body() dto: UpdateExpertProfileDto) {
     return this.expertService.updateProfile(userId, dto);
+  }
+
+  @Get('profile/contact-check')
+  getContactCheck(@CurrentUser('sub') userId: string) {
+    return this.expertService.getContactCheck(userId);
+  }
+
+  @Post('profile/confirm-contact')
+  confirmContact(@CurrentUser('sub') userId: string, @Body() dto: ConfirmContactDto) {
+    return this.expertService.confirmContact(userId, dto);
   }
 
   /* ── 统计概览 ── */

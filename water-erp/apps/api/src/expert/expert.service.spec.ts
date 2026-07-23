@@ -35,6 +35,7 @@ describe('ExpertService', () => {
   beforeEach(async () => {
     prisma = {
       user: { findUnique: jest.fn(), update: jest.fn() },
+      expertProfile: { findUnique: jest.fn(), upsert: jest.fn() },
       bidExpert: {
         findMany: jest.fn(),
         findFirst: jest.fn(),
@@ -63,7 +64,7 @@ describe('ExpertService', () => {
       bidClarification: { create: jest.fn() },
       aiBidderResult: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
-      $transaction: jest.fn(async (fn: any) => fn(prisma)),
+      $transaction: jest.fn(async (arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
     };
 
     ai = { analyzeBid: jest.fn() };
@@ -86,6 +87,39 @@ describe('ExpertService', () => {
     }).compile();
 
     service = module.get<ExpertService>(ExpertService);
+  });
+
+  describe('getContactCheck / confirmContact', () => {
+    it('未确认联系方式时 contactConfirmedAt 为 null', async () => {
+      prisma.user.findUnique.mockResolvedValue({ displayName: '刘苡池', phone: null, email: null });
+      prisma.expertProfile.findUnique.mockResolvedValue(null);
+
+      const result = await service.getContactCheck('user-1');
+
+      expect(result).toEqual({ displayName: '刘苡池', phone: '', email: '', contactConfirmedAt: null });
+    });
+
+    it('confirmContact 应同步写入 User/ExpertProfile 并打上确认时间戳', async () => {
+      prisma.user.update.mockResolvedValue({});
+      prisma.expertProfile.upsert.mockResolvedValue({});
+      // confirmContact 末尾会调用 getContactCheck 重新读取
+      prisma.user.findUnique.mockResolvedValue({ displayName: '刘苡池', phone: '13800138000', email: 'liu@example.com' });
+      prisma.expertProfile.findUnique.mockResolvedValue({ phone: '13800138000', contactConfirmedAt: new Date('2026-07-23T10:00:00Z') });
+
+      const result = await service.confirmContact('user-1', { phone: '13800138000', email: 'liu@example.com' });
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'user-1' }, data: expect.objectContaining({ phone: '13800138000', email: 'liu@example.com' }) }),
+      );
+      expect(prisma.expertProfile.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1' },
+          update: expect.objectContaining({ phone: '13800138000', contactConfirmedAt: expect.any(Date) }),
+        }),
+      );
+      expect(result.contactConfirmedAt).not.toBeNull();
+      expect(result.phone).toBe('13800138000');
+    });
   });
 
   describe('getStatistics', () => {

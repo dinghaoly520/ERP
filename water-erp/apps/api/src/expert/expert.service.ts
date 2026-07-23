@@ -12,6 +12,7 @@ import { ClarificationAiService } from '../bid/clarification-ai.service';
 import { PlaintextFetcherService, BidderFileType } from '../ai-bid-analysis/services/plaintext-fetcher.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
+import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
@@ -37,7 +38,24 @@ export class ExpertService {
   /* ── 个人资料 ── */
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        expertProfile: {
+          select: {
+            specialty: true,
+            title: true,
+            employer: true,
+            phone: true,
+            idNumber: true,
+            ethnicity: true,
+            education: true,
+            licenseNo: true,
+            contactConfirmedAt: true,
+          },
+        },
+      },
+    });
     if (!user) throw new NotFoundException({ error: '用户不存在', code: 'USER_NOT_FOUND' });
     const expertRecords = await this.prisma.bidExpert.findMany({
       where: {
@@ -77,6 +95,42 @@ export class ExpertService {
     // 剥离密码哈希，避免敏感字段外泄（对齐 getProfile）
     const { passwordHash, ...safeUser } = updated;
     return safeUser;
+  }
+
+  /* ── 联系方式确认（首次登录弹窗）── */
+
+  async getContactCheck(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, phone: true, email: true },
+    });
+    if (!user) throw new NotFoundException({ error: '用户不存在', code: 'USER_NOT_FOUND' });
+    const ep = await this.prisma.expertProfile.findUnique({
+      where: { userId },
+      select: { phone: true, contactConfirmedAt: true },
+    });
+    return {
+      displayName: user.displayName,
+      phone: ep?.phone || user.phone || '',
+      email: user.email || '',
+      contactConfirmedAt: ep?.contactConfirmedAt || null,
+    };
+  }
+
+  async confirmContact(userId: string, dto: ConfirmContactDto) {
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { phone: dto.phone, ...(dto.email && { email: dto.email }) },
+      }),
+      this.prisma.expertProfile.upsert({
+        where: { userId },
+        update: { phone: dto.phone, contactConfirmedAt: now },
+        create: { userId, specialty: '综合', phone: dto.phone, contactConfirmedAt: now },
+      }),
+    ]);
+    return this.getContactCheck(userId);
   }
 
   /* ── 统计概览 ── */
