@@ -76,7 +76,7 @@ async function disputeRecord() {
 
 useBidWebSocket(projectId, {
   onStageChange: () => refresh(),
-  onDecryptStatus: d => { decryptStatus.value = d.decryptStatus },
+  onDecryptStatus: d => { if (d.supplierId === supplierId.value) decryptStatus.value = d.decryptStatus },
   onHallPresence: d => { onlineCount.value = d.onlineCount },
   onOpeningDisputeResolved: d => {
     ElMessage.info(d.confirm ? `异议已处理（确认）：${d.result}` : `异议已处理（退回）：${d.result}`)
