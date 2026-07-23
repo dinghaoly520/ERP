@@ -7,6 +7,8 @@ import {
   LayoutDashboard, ClipboardList, UserCircle,
   PanelLeftClose, PanelLeft, AlertTriangle, RefreshCw,
 } from 'lucide-react';
+import ContactConfirmModal from './contact-confirm-modal';
+import { api } from '../lib/api';
 
 const LOGIN_URL = '/login';
 
@@ -23,6 +25,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [authRetrying, setAuthRetrying] = useState(false);
+  const [contactInfo, setContactInfo] = useState<{ phone: string; email: string; displayName: string; contactConfirmedAt: string | null } | null>(null);
 
   const checkAuth = () => {
     setAuthRetrying(true);
@@ -48,6 +51,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => { checkAuth(); }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get<{ phone: string; email: string; displayName: string; contactConfirmedAt: string | null }>('/expert/profile/contact-check')
+      .then(setContactInfo)
+      .catch(() => { /* 检查失败时不阻断使用（fail-open） */ });
+  }, [user]);
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
@@ -158,6 +168,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      {contactInfo && !contactInfo.contactConfirmedAt && (
+        <ContactConfirmModal
+          initialPhone={contactInfo.phone}
+          initialEmail={contactInfo.email}
+          displayName={contactInfo.displayName}
+          onConfirmed={() => setContactInfo(prev => (prev ? { ...prev, contactConfirmedAt: new Date().toISOString() } : prev))}
+        />
+      )}
     </div>
   );
 }
