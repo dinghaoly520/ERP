@@ -1,0 +1,38 @@
+[
+  {
+    "id": "cmqhero-hall-m01",
+    "projectId": "cmqhero-bid-proj01",
+    "roomType": "PUBLIC",
+    "supplierId": null,
+    "senderId": "cmrai35fr0002koddvbs7wm1b",
+    "senderRole": "HOST",
+    "senderName": "陈源远",
+    "type": "TEXT",
+    "content": "各位投标人，本项目开标会现在开始，请各家确认在线并签到。",
+    "createdAt": "2026-07-22T09:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-hall-m02",
+    "projectId": "cmqhero-bid-proj01",
+    "roomType": "PUBLIC",
+    "supplierId": null,
+    "senderId": "cmqc8r69z0118koeklajoa05a",
+    "senderRole": "SUPPLIER",
+    "senderName": "四川水发建设有限公司",
+    "type": "TEXT",
+    "content": "收到，我方已在线。",
+    "createdAt": "2026-07-22T09:01:00.000Z"
+  },
+  {
+    "id": "cmqhero-hall-m03",
+    "projectId": "cmqhero-bid-proj01",
+    "roomType": "PRIVATE",
+    "supplierId": "cmqc8r69z0118koeklajoa05a",
+    "senderId": "cmrai35fr0002koddvbs7wm1b",
+    "senderRole": "HOST",
+    "senderName": "陈源远",
+    "type": "TEXT",
+    "content": "你方解密已完成，请核对唱标记录后确认。",
+    "createdAt": "2026-07-22T09:05:00.000Z"
+  }
+]
