@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")  // 运行时：经 pgbouncer transaction 池（:6432，?pgbouncer=true）
+  directUrl = env("DIRECT_URL")    // Prisma CLI（migrate/db execute/studio）：绕过 pgbouncer 直连 :5432
 }
 
 // ── 基础 ──

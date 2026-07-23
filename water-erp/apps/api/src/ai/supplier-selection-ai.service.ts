@@ -1,13 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { LlmService } from '../local-ai/llm.service';
 
 /* =================================================================
    供应商智能选取 — DeepSeek LLM 排序引擎
-   与 AnnouncementAiService 同构：fetch chat/completions，无 key 或失败时
-   返回 undefined，由调用方降级到规则评分引擎。
+   2026-07 生产加固收口：统一走 LlmService 网关（超时/重试/并发限流由网关负责）。
+   回退语义不变：无 key 或失败时返回 undefined，由调用方降级到规则评分引擎。
    ================================================================= */
-
-const DEEPSEEK_API_URL = process.env.DEEPSEEK_API_URL ?? 'https://api.deepseek.com';
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash';
 
 /** 送入 LLM 的候选供应商（已由规则检索阶段筛选） */
 export interface SelectionCandidate {
@@ -40,13 +39,17 @@ export interface SupplierSelectionLlmResult {
 export class SupplierSelectionAiService {
   private readonly logger = new Logger(SupplierSelectionAiService.name);
 
+  constructor(
+    private readonly llm: LlmService,
+    private readonly config: ConfigService,
+  ) {}
+
   async rankCandidates(
     requirement: string,
     candidates: SelectionCandidate[],
     maxCount: number,
   ): Promise<SupplierSelectionLlmResult | undefined> {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey || candidates.length === 0) return undefined;
+    if (!this.llm.getModel() || candidates.length === 0) return undefined;
 
     // 紧凑候选清单：用短编号 c0/c1... 节省 token，回填时映射回真实 id
     const indexToId = new Map<string, string>();
@@ -77,45 +80,21 @@ export class SupplierSelectionAiService {
       '{"summary":"对整体匹配情况的一句话分析(40-80字)","recommendations":[{"id":"c0","score":92,"reason":"..."}]}',
     ].join('\n');
 
-    // timer 须在 try 外声明，使 catch 路径也能 clearTimeout（覆盖 fetch/abort 抛错）。
-    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      // C1 超时收口：此前直连 fetch 无 AbortController，LLM 挂起会拖死请求线程。60s 上限，超时即降级规则引擎。
-      const controller = new AbortController();
-      timer = setTimeout(() => controller.abort(), 60_000);
-      const response = await fetch(`${DEEPSEEK_API_URL.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
+      // 走 chat() 而非 chatJson()：保留本服务自有的三段式防御性解析（整体 JSON → 去代码块 → 抽取首个 {...}）
+      const content = await this.llm.chat(
+        system,
+        `采购需求：${requirement}\n\n` +
+          `候选供应商清单（编号 | 名称 | 分类 | 类型 | 经营范围 | 资质）：\n${lines.join('\n')}`,
+        0.2,
+        undefined,
+        undefined,
+        {
+          model: this.config.get<string>('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
+          maxTokens: 4000, // deepseek-v4-flash 是推理模型，先输出 reasoning_content 再输出 content，需预留充足额度
+          timeoutMs: 60_000,
         },
-        body: JSON.stringify({
-          model: DEEPSEEK_MODEL,
-          messages: [
-            { role: 'system', content: system },
-            {
-              role: 'user',
-              content:
-                `采购需求：${requirement}\n\n` +
-                `候选供应商清单（编号 | 名称 | 分类 | 类型 | 经营范围 | 资质）：\n${lines.join('\n')}`,
-            },
-          ],
-          temperature: 0.2,
-          max_tokens: 4000, // deepseek-v4-flash 是推理模型，先输出 reasoning_content 再输出 content，需预留充足额度
-        }),
-      });
-      // 注意：不在此处 clearTimeout——须等 body 读完，否则服务端发完头后拖 body 会永久挂起（abort 永不触发）。
-
-      if (!response.ok) {
-        this.logger.warn(`DeepSeek supplier-selection failed: ${response.status} ${await response.text()}`);
-        return undefined;
-      }
-
-      const data = await response.json();
-      clearTimeout(timer); // body 已读完，此时清除计时器才安全
-      const content: string | undefined = data?.choices?.[0]?.message?.content;
-      if (typeof content !== 'string') return undefined;
+      );
 
       const parsed = this.parseJson(content);
       if (!parsed || !Array.isArray(parsed.recommendations)) return undefined;
@@ -136,7 +115,6 @@ export class SupplierSelectionAiService {
         recommendations,
       };
     } catch (error) {
-      clearTimeout(timer); // 覆盖 fetch 抛错/abort 路径，避免计时器泄漏
       this.logger.warn(
         `DeepSeek supplier-selection error: ${error instanceof Error ? error.message : String(error)}`,
       );

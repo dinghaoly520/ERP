@@ -23,4 +23,6 @@ fi
 # Add .venv/bin to PATH for hybrid servers
 export PATH="$(pwd)/.venv/bin:$PATH"
 
-exec .venv/bin/uvicorn main:app --host 127.0.0.1 --port 8100 --workers 1 --timeout-keep-alive 300
+# 多副本部署：每副本用不同的 OCR_PORT，且 OCR_HYBRID_PORT 段不可重叠（见 README.md）
+# API 侧 OCR_SERVICE_URL 支持逗号列表轮询多副本
+exec .venv/bin/uvicorn main:app --host "${OCR_HOST:-127.0.0.1}" --port "${OCR_PORT:-8100}" --workers 1 --timeout-keep-alive 300

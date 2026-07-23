@@ -9,6 +9,8 @@ describe('OperationLogService', () => {
   beforeEach(async () => {
     prisma = {
       operationLog: { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), deleteMany: jest.fn() },
+      $executeRawUnsafe: jest.fn(),
+      $queryRaw: jest.fn(),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [OperationLogService, { provide: PrismaService, useValue: prisma }],
@@ -71,11 +73,62 @@ describe('OperationLogService', () => {
     }));
   });
 
-  it('scheduledCleanup 按 retentionDays 删除旧记录', async () => {
-    prisma.operationLog.deleteMany.mockResolvedValue({ count: 3 });
-    await service.scheduledCleanup();
-    expect(prisma.operationLog.deleteMany).toHaveBeenCalledWith({
-      where: { createdAt: { lt: expect.any(Date) } },
-    });
+  it('默认 retentionDays=180 / monthsAhead=2（env 未设时）', () => {
+    expect((service as any).retentionDays).toBe(180);
+    expect((service as any).monthsAhead).toBe(2);
+  });
+
+  it('ensurePartitions 先搬 DEFAULT 越界行再幂等建当前+未来分区', async () => {
+    prisma.$executeRawUnsafe.mockResolvedValue(0);
+    await service.ensurePartitions();
+
+    const now = new Date();
+    const name = (offset: number) => {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1));
+      return `${d.getUTCFullYear()}_${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    };
+    const sqls: string[] = prisma.$executeRawUnsafe.mock.calls.map((c) => c[0]);
+    // monthsAhead=2 → 当前月+2 个未来月，每月 2 条（搬移 + 建分区）
+    expect(sqls).toHaveLength(6);
+    for (const k of [0, 1, 2]) {
+      expect(sqls).toContainEqual(expect.stringContaining(`CREATE TABLE IF NOT EXISTS "OperationLog_${name(k)}" PARTITION OF "OperationLog" FOR VALUES FROM`));
+    }
+    // 每月的搬移 CTE 出现在该月 CREATE 之前（循环内 move→create 成对）
+    expect(sqls[0]).toMatch(/^WITH moved AS/);
+    expect(sqls[0]).toContain('DELETE FROM "OperationLog_default"'); // 搬移目标是 DEFAULT 分区
+    expect(sqls[1]).toContain(`CREATE TABLE IF NOT EXISTS "OperationLog_${name(0)}"`);
+  });
+
+  it('dropExpiredPartitions 只 DROP 整月过期的月分区（跳过未来分区/DEFAULT/异常名）', async () => {
+    prisma.$queryRaw.mockResolvedValue([
+      { relname: 'OperationLog_2020_01' }, // 远早于保留期 → DROP
+      { relname: 'OperationLog_2999_01' }, // 未来 → 保留
+      { relname: 'OperationLog_default' }, // 兜底分区 → 跳过
+      { relname: 'junk' },                 // 异常名 → 跳过
+    ]);
+    prisma.$executeRawUnsafe.mockResolvedValue(0);
+    await service.dropExpiredPartitions();
+    const drops = prisma.$executeRawUnsafe.mock.calls.map((c) => c[0]).filter((s: string) => s.startsWith('DROP TABLE'));
+    expect(drops).toEqual(['DROP TABLE IF EXISTS "OperationLog_2020_01"']);
+  });
+
+  it('purgeDefaultStragglers 按 5000 条/批循环直到删净', async () => {
+    prisma.$executeRawUnsafe.mockResolvedValueOnce(5000).mockResolvedValueOnce(3);
+    await service.purgeDefaultStragglers();
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(2);
+    for (const [sql] of prisma.$executeRawUnsafe.mock.calls) {
+      expect(sql).toContain('DELETE FROM "OperationLog_default"');
+      expect(sql).toContain('LIMIT 5000');
+    }
+  });
+
+  it('scheduledCleanup 串联三步且异常只 warn 不抛', async () => {
+    prisma.$executeRawUnsafe.mockResolvedValue(0);
+    prisma.$queryRaw.mockResolvedValue([]);
+    await expect(service.scheduledCleanup()).resolves.toBeUndefined();
+    expect(prisma.$queryRaw).toHaveBeenCalled(); // dropExpiredPartitions 执行过
+
+    prisma.$executeRawUnsafe.mockRejectedValue(new Error('db down'));
+    await expect(service.scheduledCleanup()).resolves.toBeUndefined();
   });
 });

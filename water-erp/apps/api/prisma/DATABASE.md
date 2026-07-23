@@ -10,6 +10,12 @@
 - **迁移目录**：`apps/api/prisma/migrations/`（15 个迁移）
 - **种子快照**：`apps/api/prisma/seed-data/*.json`（31 张表）+ `seed.ts`（装载器）
 
+> ⚠️ **`OperationLog` 是按月 RANGE 分区表**（迁移 `20260723000000_partition_operation_log`）：
+> - 分区键 `createdAt`，PK 为复合主键 `("id", "createdAt")`（分区表强制要求分区键进 PK）。
+> - **禁止用 `prisma migrate diff` / `migrate dev` 生成 `OperationLog` 相关 DDL**——diff 会把复合 PK 判为 drift 并试图改回单列 PK，直接破坏分区结构。涉及该表的手写迁移必须人工核对。
+> - 分区由 API 的每日 04:00 cron 自动维护（预建未来 `OPERATION_LOG_PARTITION_MONTHS_AHEAD` 个月 + DROP 整月过期分区，见 `operation-log/operation-log.service.ts`）。`OperationLog_default` 为兜底分区，正常应为空。
+> - Prisma Client 读写不受影响（模型未改，全 src 无 `findUnique/update by id`）。
+
 ---
 
 ## 一、模型总览（共 31 张业务表）

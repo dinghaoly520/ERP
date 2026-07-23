@@ -962,8 +962,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const c = context.catalog || { total: 0, active: 0, alerts: 0 };
     const apps = context.applications || { pending: 0 };
 
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
+    if (!this.llm.getModel()) {
       return this.fallbackInsight(s, a, e, c, apps);
     }
 
@@ -1071,26 +1070,15 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     ].join('\n');
 
     try {
-      const DEEPSEEK_URL = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com';
-      const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
-      const res = await fetch(`${DEEPSEEK_URL.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: DEEPSEEK_MODEL, temperature: 0.3, max_tokens: 1600,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-        }),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) {
-        this.logger.warn(`DeepSeek dashboard-summary failed: ${res.status}`);
-        return this.fallbackInsight(s, a, e, c, apps);
-      }
-      const data = await res.json();
-      const text = (data?.choices?.[0]?.message?.content || '').trim();
+      // 统一走 LlmService 网关；retries: 0 保住 15s 预算（驾驶舱加载敏感，重试会拖到 ~45s）
+      const text = (
+        await this.llm.chat(systemPrompt, userPrompt, 0.3, undefined, undefined, {
+          model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
+          maxTokens: 1600,
+          timeoutMs: 15_000,
+          retries: 0,
+        })
+      ).trim();
       const parsed = JSON.parse(text);
       return {
         overview: parsed.overview || '运营态势正常',

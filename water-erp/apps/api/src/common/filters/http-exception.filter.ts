@@ -30,7 +30,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     // ── 补记 guard 拒绝的请求：interceptor 未运行（标志未设），filter 兜底记录 ──
-    if (this.oplogEnabled && !(request as any).__oplogRecorded && !shouldExclude(request.path, this.exclude)) {
+    if (this.oplogEnabled && !(request as any).__oplogRecorded && !shouldExclude(request.method, request.path, this.exclude)) {
       try {
         const oplogStatus =
           exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
