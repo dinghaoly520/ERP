@@ -1092,6 +1092,30 @@ model FileAsset {
   @@index([uploaderId])
 }
 
+/// 未解密投标文件备份：提交时即固化的加密态副本（自包含证据包），用于争议核验。
+/// 不设外键级联——备份需独立长存，即使提交记录撤回/删除也保留。
+model BidFileBackup {
+  id               String   @id @default(cuid())
+  projectId        String
+  supplierId       String
+  fileAssetId      String
+  fileRole         String // technical | business | coverLetter
+  backupKey        String   @unique // MinIO: sealed-backup/{pid}/{sid}/{role}/{basename}
+  sealedPath       String // 本备份所镜像的 sealed 对象键（核验时直接读取）
+  wrappedDek       String // KMS 包裹的 DEK（密文，需 KMS_SECRET 解包）
+  ciphertextSha256 String // sha256(密文) — 完整性自证锚点
+  plaintextSha256  String? // 复用 FileAsset.sha256（明文哈希）
+  size             Int
+  receiptNo        String? // 回执号 TB-yyyymmdd-NNN
+  backupSource     String   @default("submission") // submission | reconcile
+  cryptoVersion    String   @default("envelope-v1") // AES-256-GCM + wrapKey(salt water-erp-envelope-salt-v1)
+  submittedAt      DateTime
+  createdAt        DateTime @default(now())
+
+  @@unique([supplierId, projectId, fileRole])
+  @@index([projectId, supplierId])
+}
+
 // ── 即时聊天 ──
 
 model ChatMessage {
