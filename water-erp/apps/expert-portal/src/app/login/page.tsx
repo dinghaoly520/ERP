@@ -7,10 +7,13 @@ import { portalURL } from '@water-erp/config';
 import './login.css';
 
 const IconUser = (
-  <svg className="lp-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-3.5 3.6-6 8-6s8 2.5 8 6" /></svg>
+  <svg className="login-field-shell__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-3.5 3.6-6 8-6s8 2.5 8 6" /></svg>
 );
 const IconLock = (
-  <svg className="lp-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="4.5" y="10" width="15" height="10" rx="2.5" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10" /></svg>
+  <svg className="login-field-shell__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><rect x="4.5" y="10" width="15" height="10" rx="2.5" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10" /></svg>
+);
+const IconArrow = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
 );
 
 type Tab = 'expert' | 'admin';
@@ -99,62 +102,77 @@ export default function ExpertLoginPage() {
   };
 
   return (
-    <main className="lp lp--expert">
-      <div className="lp-bg" aria-hidden="true" />
-
-      <div className="lp-brand" aria-label="智慧水发 · 蜀水云采">
-        <img src="/assets/logo.png" alt="" className="lp-brand-mark" />
-        <span className="lp-brand-name">智慧水发 · 蜀水云采</span>
+    <main className="login-stage ambient-grid flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-10">
+      {/* 光束 + 雾 */}
+      <div aria-hidden className="login-stage__rays">
+        <div className="login-stage__ray login-stage__ray--far-left" />
+        <div className="login-stage__ray login-stage__ray--left" />
+        <div className="login-stage__ray login-stage__ray--center" />
+        <div className="login-stage__ray login-stage__ray--right" />
+        <div className="login-stage__ray login-stage__ray--far-right" />
       </div>
+      <div aria-hidden className="login-stage__veil" />
 
-      <section className="lp-panel" aria-label="登录表单">
-        <div className="lp-card">
-          <div className="lp-head">
-            <div className="lp-brand-word">智慧水发<span className="lp-dot">·</span>蜀水云采</div>
-            <div className="lp-divider" aria-hidden="true">◆</div>
-            <h1 className="lp-title">在线开评标系统</h1>
-          </div>
-
-          <div className="lp-tabs">
-            {(['expert', 'admin'] as Tab[]).map(t => (
-              <button key={t} type="button" className={`lp-tab${tab === t ? ' is-active' : ''}`} onClick={() => switchTab(t)}>
-                {t === 'expert' ? '专家登录' : '管理员登录'}
-              </button>
-            ))}
-          </div>
-
-          <form className="lp-form" onSubmit={handleLogin} noValidate>
-            <div className="lp-field">
-              <label htmlFor="exp-user">{tab === 'expert' ? '专家账号' : '管理员账号'}</label>
-              <div className="lp-input-wrap">
-                {IconUser}
-                <input id="exp-user" className="lp-input" type="text" autoComplete="username"
-                  value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                  placeholder={tab === 'expert' ? '请输入专家账户' : '请输入管理员账户'} />
-              </div>
-            </div>
-            <div className="lp-field">
-              <label htmlFor="exp-pass">密码</label>
-              <div className="lp-input-wrap">
-                {IconLock}
-                <input id="exp-pass" className="lp-input" type="password" autoComplete="current-password"
-                  value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  placeholder="请输入密码" />
-              </div>
-            </div>
-            <button className="lp-primary" type="submit" disabled={loading}>
-              {loading ? '登录中…' : '登 录'}
-            </button>
-            {isDev && (
-              <button type="button" onClick={fillDemo}
-                style={{ all: 'unset', cursor: 'pointer', textAlign: 'center', marginTop: 2,
-                         fontSize: 12, fontWeight: 600, color: 'oklch(0.55 0.06 var(--hue))' }}>
-                填充演示账号（仅开发环境可见）
-              </button>
-            )}
-          </form>
+      <div className="relative z-10 flex w-full max-w-[440px] flex-col items-center text-center">
+        {/* 品牌光晕标 */}
+        <div className="login-mark flex h-[72px] w-[72px] items-center justify-center">
+          <span aria-hidden className="login-mark__halo login-mark__halo--soft" />
+          <span aria-hidden className="login-mark__halo login-mark__halo--rich" />
+          <span aria-hidden className="login-mark__ring" />
+          <img src="/assets/logo.png" alt="" className="relative z-10 h-[58px] w-[58px] object-contain" />
         </div>
-      </section>
+
+        <h1 className="login-title mt-4 font-[family-name:var(--font-display)] text-[clamp(1.7rem,4.6vw,2.3rem)] font-semibold tracking-[-0.06em] text-[color:var(--foreground)]">
+          智慧水发 · <span className="whitespace-nowrap">专家门户</span>
+        </h1>
+        <p className="login-slogan mt-4 text-[0.82rem] font-semibold tracking-[0.22em]">独立评审 · 客观公正 · 全程留痕</p>
+
+        {/* 角色切换 —— 复用 cgzxui 内凹 tab */}
+        <div className="neu-tab-bar mt-7">
+          {(['expert', 'admin'] as Tab[]).map(t => (
+            <button key={t} type="button" className={`neu-tab${tab === t ? ' is-active' : ''}`} onClick={() => switchTab(t)}>
+              {t === 'expert' ? '专家登录' : '管理员登录'}
+            </button>
+          ))}
+        </div>
+
+        <form className="mt-5 flex w-full flex-col gap-[1.05rem]" onSubmit={handleLogin} noValidate>
+          <div className="login-field-shell">
+            <label htmlFor="exp-user" className="sr-only">{tab === 'expert' ? '专家账号' : '管理员账号'}</label>
+            <span aria-hidden className="login-field-shell__icon-rail">{IconUser}</span>
+            <input id="exp-user" className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[#9aa7ba]"
+              type="text" autoComplete="username"
+              value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+              placeholder={tab === 'expert' ? '请输入专家账户' : '请输入管理员账户'} />
+            <span aria-hidden className="login-field-shell__line" />
+          </div>
+
+          <div className="login-field-shell">
+            <label htmlFor="exp-pass" className="sr-only">密码</label>
+            <span aria-hidden className="login-field-shell__icon-rail">{IconLock}</span>
+            <input id="exp-pass" className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[#9aa7ba]"
+              type="password" autoComplete="current-password"
+              value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              placeholder="请输入密码" />
+            <span aria-hidden className="login-field-shell__line" />
+          </div>
+
+          <button className="login-submit-button mt-1 inline-flex w-full items-center justify-center gap-2 rounded-[20px] px-6 py-4 text-sm font-semibold text-[color:var(--foreground)]" type="submit" disabled={loading}>
+            <span className="login-submit-label">{loading ? '登录中…' : '登 录'}</span>
+            {IconArrow}
+          </button>
+
+          {isDev && (
+            <button type="button" onClick={fillDemo} className="login-demo-link">
+              填充演示账号（仅开发环境可见）
+            </button>
+          )}
+        </form>
+
+        <div className="login-credit mt-7 text-[0.72rem] tracking-[0.12em] text-[color:var(--muted-foreground)]">
+          智慧水发 · 蜀水云采 · 在线开评标
+        </div>
+      </div>
     </main>
   );
 }
