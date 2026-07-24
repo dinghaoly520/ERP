@@ -82,6 +82,8 @@ describe('SupplierPortalService', () => {
       announcement: { findFirst: jest.fn() },
       bidDocument: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     };
+    // G3 兜底默认放行（投递时校验已发布招标公告）；个别用例可覆盖为 null 验证拦截
+    prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -239,6 +241,44 @@ describe('SupplierPortalService', () => {
           }),
         }),
       );
+    });
+
+    it('放宽门控：DOWNLOAD 阶段 + 已发公告 + 未截止 → 允许投递（棘轮化）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', projectCode: 'BID-X', stage: 'DOWNLOAD',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
+      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub-2', status: 'submitted' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-2' });
+
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' })).resolves.toBeDefined();
+    });
+
+    it('放宽门控：DOWNLOAD 阶段但无公告 → 400 BID_NOTICE_REQUIRED（G3 兜底）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', projectCode: 'BID-X', stage: 'DOWNLOAD',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+      prisma.announcement.findFirst.mockResolvedValue(null);
+
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' }))
+        .rejects.toMatchObject({ response: { code: 'BID_NOTICE_REQUIRED' } });
+    });
+
+    it('放宽门控：OPENING 阶段 → 400 PROJECT_NOT_SUBMITTING', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', projectCode: 'BID-X', stage: 'OPENING',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' }))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_SUBMITTING' } });
     });
 
   });

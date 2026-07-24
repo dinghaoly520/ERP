@@ -59,7 +59,7 @@ function formatBidPrice(raw: string | number | null | undefined): string {
 }
 
 function canWithdraw(row: any) {
-  return row.status === 'submitted' && row.project?.stage === 'SUBMIT'
+  return row.status === 'submitted' && ['DOWNLOAD', 'SUBMIT'].includes(row.project?.stage)
 }
 function canConfirmOpening(row: any) {
   return row.status === 'submitted'

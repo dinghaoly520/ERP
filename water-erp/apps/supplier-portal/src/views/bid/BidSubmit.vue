@@ -143,7 +143,7 @@ async function handleCoverLetterUpload(options: any) {
 onMounted(async () => {
   try {
     await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()])
-    if (project.value && project.value.stage !== 'SUBMIT') {
+    if (project.value && !['DOWNLOAD', 'SUBMIT'].includes(project.value.stage)) {
       ElMessage.warning('该项目当前不在投标阶段')
       router.push(`/bids/${projectId.value}`)
       return
@@ -187,7 +187,7 @@ async function retryLoad() {
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
 const canSubmit = computed(() => {
   if (!project.value||!isApproved.value) return false
-  return project.value.stage==='SUBMIT' && new Date(project.value.deadline) > new Date()
+  return ['DOWNLOAD', 'SUBMIT'].includes(project.value.stage) && new Date(project.value.deadline) > new Date()
 })
 
 async function saveDraft() {

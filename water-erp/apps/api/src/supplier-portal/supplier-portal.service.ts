@@ -486,7 +486,7 @@ export class SupplierPortalService {
       this.prisma.supplier.findUnique({ where: { id: supplierId } }),
       this.prisma.bidProject.findUnique({
         where: { id: projectId },
-        select: { id: true, stage: true, deadline: true },
+        select: { id: true, projectCode: true, stage: true, deadline: true },
       }),
     ]);
 
@@ -495,11 +495,20 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '供应商未通过审核，无法投标', code: 'NOT_APPROVED' });
     }
     if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
-    if (project.stage !== 'SUBMIT') {
-      throw new BadRequestException({ error: '当前项目不在投递阶段', code: 'PROJECT_NOT_SUBMITTING' });
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
+      throw new BadRequestException({ error: '当前项目已进入开标或后续阶段，无法投递', code: 'PROJECT_NOT_SUBMITTING' });
     }
     if (project.deadline.getTime() < Date.now()) {
       throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
+    }
+    // G3 权威兜底：未发布招标公告则供应商无法获取招标文件，禁止投递
+    // （与 openSubmission 的 UX 前置拦截并存；棘轮化后 DOWNLOAD 阶段即可投递，此为唯一权威闸门）
+    const notice = await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: project.projectCode, type: 'BID_NOTICE', status: 'PUBLISHED' },
+      select: { id: true },
+    });
+    if (!notice) {
+      throw new BadRequestException({ error: '该项目尚未发布招标公告，暂无法投递', code: 'BID_NOTICE_REQUIRED' });
     }
 
     return { supplier, project };
@@ -784,7 +793,7 @@ export class SupplierPortalService {
       select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
-    if (project.stage !== 'SUBMIT') {
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
       throw new BadRequestException({ error: '项目已进入开标或后续阶段，无法撤回', code: 'PROJECT_ALREADY_OPENING' });
     }
 

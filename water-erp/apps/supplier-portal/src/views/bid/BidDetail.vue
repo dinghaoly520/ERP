@@ -33,7 +33,7 @@ const stageMap: Record<string, { label: string; color: string; guide: string }> 
 const project = computed(() => bidStore.currentProject)
 const stageIdx = computed(() => Math.max(0, STAGES.indexOf((project.value?.stage || 'DOWNLOAD') as any)))
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
-const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; return project.value.stage === 'SUBMIT' && new Date(project.value.deadline) > new Date() })
+const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; return ['DOWNLOAD', 'SUBMIT'].includes(project.value.stage) && new Date(project.value.deadline) > new Date() })
 const showSupplierCount = computed(() => ['OPENING','EVALUATING','ARCHIVED'].includes(project.value?.stage || ''))
 const supplierCount = computed(() => project.value?._count?.suppliers || 0)
 
