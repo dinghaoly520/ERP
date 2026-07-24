@@ -49,7 +49,13 @@ export default function BidTaskBoard() {
 
   const now = Date.now();
   const opening = (projects ?? []).filter(p => p.stage === 'OPENING');
-  const awaitingConfirm = (projects ?? []).filter(p => p.stage === 'SUBMIT' && new Date(p.deadline).getTime() <= now);
+  // 棘轮化后项目可一直停在 DOWNLOAD 到截标（投递闸门不再要求 SUBMIT），
+  // 故「待确定开标」需覆盖 DOWNLOAD+SUBMIT 两个截标已过的前阶段（审查发现 F2）
+  const awaitingConfirm = (projects ?? []).filter(p => {
+    if (p.stage !== 'DOWNLOAD' && p.stage !== 'SUBMIT') return false;
+    const deadline = new Date(p.deadline).getTime();
+    return !isNaN(deadline) && deadline <= now;
+  });
   const archivedCount = stageDistribution['ARCHIVED'] ?? 0;
 
   const enterHall = (id: string) => router.push(`/bid/open?id=${id}`);
