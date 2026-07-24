@@ -851,14 +851,156 @@ select.neu-select {
 /* ── 数据色块 .exp-swatch（图表图例等，颜色由 --c 驱动，禁内联 background）── */
 .exp-swatch { width: 0.875rem; height: 0.875rem; border-radius: 999px; flex-shrink: 0; background: var(--c); }
 
+/* =============================================================================
+   cgzxui 桌面外壳 —— 移植自 web :3005 的元素方法
+   flow-page 画布 + flow-glow 水彩光晕 + ambient-grid 蓝图网格 + 3D 玻璃侧栏
+   仅桌面 (app) app-shell 使用；平板 (tablet) 与备忘抽屉仍用 exp-page / exp-topbar。
+   纯追加，不覆盖既有 exp-* / workbench-* / glass-* 定义。
+   ============================================================================= */
+
+/* ── 画布 + 蓝图网格 ── */
+.flow-page {
+  position: relative; isolation: isolate; min-height: 100%;
+  background: oklch(0.975 0.012 258);
+}
+.ambient-grid { position: relative; isolation: isolate; }
+.ambient-grid::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(115, 143, 193, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(115, 143, 193, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.34), transparent 86%);
+}
+.ambient-grid::after {
+  content: ""; position: absolute; inset: 5% -12% auto; height: 420px; pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 40%, rgba(123, 168, 255, 0.08), transparent 24%),
+    radial-gradient(circle at 82% 28%, rgba(255, 203, 132, 0.05), transparent 22%),
+    radial-gradient(circle at 62% 84%, rgba(126, 216, 194, 0.04), transparent 20%);
+  filter: blur(24px);
+  animation: ambientDrift 18s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@keyframes ambientDrift {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(1.2%, -0.8%); }
+}
+
+/* ── 水彩光晕（玻璃面板背后的漂移色彩源）── */
+.flow-glow {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(circle 460px at 6% 6%, oklch(0.82 0.09 258 / 0.5), transparent 68%),
+    radial-gradient(circle 420px at 94% 16%, oklch(0.84 0.08 175 / 0.45), transparent 68%),
+    radial-gradient(circle 440px at 14% 64%, oklch(0.85 0.06 300 / 0.4), transparent 68%),
+    radial-gradient(circle 380px at 86% 78%, oklch(0.88 0.06 60 / 0.4), transparent 68%),
+    radial-gradient(circle 360px at 50% 100%, oklch(0.8 0.07 210 / 0.36), transparent 68%);
+  animation: glow-drift 26s ease-in-out infinite alternate;
+}
+@keyframes glow-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06); }
+}
+
+/* ── 侧栏玻璃卡 ── */
+.sidebar-sheen { position: relative; overflow: hidden; min-height: 0; }
+.sidebar-card {
+  background:
+    linear-gradient(175deg, oklch(0.985 0.008 258 / 0.7) 0%, oklch(0.99 0.004 258 / 0.58) 45%, oklch(0.975 0.012 258 / 0.52) 100%);
+  backdrop-filter: blur(26px) saturate(130%); -webkit-backdrop-filter: blur(26px) saturate(130%);
+  border: 1.5px solid oklch(0.50 0.10 258 / 0.30);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 3px 10px oklch(0.52 0.04 258 / 0.22),
+    -3px -3px 8px oklch(1 0 0 / 0.94),
+    0 0 30px oklch(0.58 0.14 258 / 0.16);
+  transition: box-shadow 0.4s ease;
+}
+
+/* ── 3D 折叠（铰链门式收起）── */
+.sidebar-3d {
+  transform-origin: left center; transform-style: preserve-3d;
+  will-change: transform, width, margin, opacity;
+  transition:
+    transform 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
+    margin 0.56s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
+    opacity 0.36s ease 0.08s;
+}
+.sidebar-3d[data-hidden="true"] {
+  transform: perspective(1500px) rotateY(-95deg) translateX(-6px);
+  width: 0; margin-right: 0; opacity: 0; pointer-events: none;
+}
+
+/* ── 品牌球（悬停 360° 旋转）── */
+.brand-orb-3d { transform-style: preserve-3d; transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1); }
+.brand-orb-3d:hover { transform: perspective(700px) rotateY(360deg) scale(1.08); }
+.exp-brand-orb {
+  border-radius: 14px; overflow: hidden;
+  background: linear-gradient(145deg, oklch(1 0 0 / 0.92), oklch(0.97 0.01 258 / 0.7));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.9), 2px 2px 6px oklch(0.52 0.04 258 / 0.22), -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+
+/* ── 倾斜活动指示条（呼吸脉动）── */
+.nav-active-skew {
+  background: linear-gradient(180deg, rgba(72, 120, 235, 0.95), rgba(124, 162, 244, 0.7));
+  transform: skewY(-14deg); border-radius: 999px;
+  box-shadow: 0 6px 14px rgba(72, 120, 235, 0.24);
+  animation: navIndicatorPulse 3s ease-in-out infinite;
+}
+@keyframes navIndicatorPulse {
+  0%, 100% { box-shadow: 0 6px 14px rgba(72, 120, 235, 0.24); opacity: 1; }
+  50%      { box-shadow: 0 6px 22px rgba(72, 120, 235, 0.42); opacity: 0.85; }
+}
+
+/* ── 侧栏导航项 —— 未选白凸 / 选中灰凹 / 按下缩放 ── */
+.sidebar-nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 10px; font-size: 14px; font-weight: 500; text-align: left;
+  border-radius: 10px; cursor: pointer; text-decoration: none;
+  color: var(--muted-foreground); background: #fff; border: none;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.78), 2px 2px 5px oklch(0.55 0.03 258 / 0.14), -1px -1px 3px oklch(1 0 0 / 0.92);
+  transition: all 0.3s ease;
+}
+.sidebar-nav-item:hover {
+  color: var(--foreground); background: #f5f6f8;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 6px oklch(0.55 0.03 258 / 0.18), -1px -1px 4px oklch(1 0 0 / 0.94);
+}
+.sidebar-nav-item[data-active="true"] {
+  color: var(--foreground); background: #e8ecf2;
+  box-shadow: inset 2px 2px 6px oklch(0.55 0.03 258 / 0.20), inset -2px -2px 5px oklch(1 0 0 / 0.60);
+}
+.sidebar-nav-item:active {
+  transform: scale(0.96);
+  box-shadow: inset 2px 2px 6px oklch(0.55 0.03 258 / 0.26), inset -2px -2px 5px oklch(1 0 0 / 0.68);
+}
+
+/* ── 分组展开/收起（grid-rows 平滑过渡）── */
+.sidebar-group-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.sidebar-group-panel.is-open { grid-template-rows: 1fr; }
+.sidebar-group-panel > * { overflow: hidden; min-height: 0; }
+.sidebar-nav .sidebar-group-header:hover {
+  background: var(--neu-raised-bg);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.78), 2px 2px 5px oklch(0.55 0.03 258 / 0.14), -1px -1px 3px oklch(1 0 0 / 0.92);
+}
+
+/* ── 侧栏主题滚动条 ── */
+.sidebar-scroll { scrollbar-width: thin; scrollbar-color: rgba(123, 156, 220, 0.5) transparent; scroll-behavior: smooth; overscroll-behavior: contain; }
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; margin: 8px 0; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(123, 156, 220, 0.5), rgba(99, 133, 200, 0.32)); border-radius: 999px; }
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(123, 156, 220, 0.75), rgba(99, 133, 200, 0.55)); }
+
 /* ── cgzxui 全量 reduced-motion 降级 ── */
 @media (prefers-reduced-motion: reduce) {
   .neu-btn-primary, .neu-btn-soft, .neu-btn-xs, .neu-card, .neu-table-card,
   .neu-table tbody tr, .kpi-card, .exp-bar > i, .exp-step, .exp-supplier-tile,
-  .neu-tab, .neu-checkbox, .exp-nav-item, .exp-attachment-item { transition: none !important; }
+  .neu-tab, .neu-checkbox, .exp-nav-item, .exp-attachment-item,
+  .sidebar-3d, .sidebar-nav-item, .sidebar-group-panel, .brand-orb-3d { transition: none !important; }
   .neu-btn-primary:hover, .neu-btn-soft:hover, .neu-btn-xs:hover, .neu-card:hover,
   .kpi-card:hover, .neu-table tbody tr:hover, .exp-step:hover, .exp-supplier-tile:hover,
-  .exp-nav-item:hover, .exp-attachment-item:hover { transform: none !important; }
-  .exp-live-dot::before { animation: none !important; }
+  .exp-nav-item:hover, .exp-attachment-item:hover, .sidebar-nav-item:hover { transform: none !important; }
+  .exp-live-dot::before, .nav-active-skew, .flow-glow, .ambient-grid::after, .brand-orb-3d:hover { animation: none !important; }
+  .sidebar-3d[data-hidden="true"] { transform: none; }
 }
 /* cgzxui port applied — expert-portal refactor */
