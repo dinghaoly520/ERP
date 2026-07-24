@@ -74,6 +74,37 @@
 }
 ```
 
+**箭头 SVG 源（重要 — 勿用文本字符替代）**
+
+这两个链接按钮的箭头是 **SVG chevron**（lucide 风格），不是文本字符。此处曾因未记录而导致误用 `>` / `→` 文本替代——文本符号无法 `stroke` 跟随 `currentColor`（hover 变蓝时箭头不变色），且与 18×18 圆形容器尺寸不匹配。两个按钮的 SVG 完全一致，只差 path 方向：
+
+| 按钮 | path | hover 位移 |
+|------|------|-----------|
+| `.flow-back` 返回首页 | `M15 18l-6-6 6-6`（左 chevron） | `translateX(-4px)` |
+| `.announce-view-all` 全部公告 | `M9 18l6-6-6-6`（右 chevron） | `translateX(4px)` |
+
+SVG 公共属性：`width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"`，`className` 取对应的 `-arrow` 类（容器样式由该类提供）。
+
+```jsx
+<a href="/" className="flow-back">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+       className="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
+  返回首页
+</a>
+
+<a href="/announcements" className="announce-view-all">
+  全部公告
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+       className="announce-view-all-arrow"><path d="M9 18l6-6-6-6"/></svg>
+</a>
+```
+
+> **方向配对原则**：箭头 SVG 方向必须与 hover 位移同向（左 chevron ↔ 左滑，右 chevron ↔ 右滑）。否则悬停时箭头朝一个方向、却往另一个方向滑，视觉矛盾。
+>
+> **与全站 `→` 文本字符的边界**：全站其他右箭头用的是 `→`（U+2192）**文本字符**（如"前往录入专家 →"、"下一步 →"、"前往公告页搜索 →"）——它们不在圆形容器里、不需要 stroke 联动。**只有 `.flow-back` / `.announce-view-all` 这种带 18×18 圆形箭头容器的 neumorphic 链接才用 SVG chevron。** 判断标准：箭头需不需要随按钮 hover 一起变色 + 有没有圆形容器——需要就用 SVG chevron，不需要就用 `→` 文本。
+
 `.neu-link` 是更经典的 neumorphic 链接（背景 `#e8ecf2`，更明显的凸起）：
 
 ```css

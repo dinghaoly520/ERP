@@ -180,6 +180,7 @@ export type ProjectManagementItem = {
   initiationDate?: string | null;
   projectOverview?: string | null;
   bidOpeningTime?: string | null;
+  documentAcquireTime?: string | null;
   invitedSuppliers?: string | null;
   paymentPerformance?: string | null;
   expertInfo?: string | null;

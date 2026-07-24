@@ -734,6 +734,17 @@ export class ProjectManagementService {
             data: { bidOpeningTime },
           });
         }
+
+        // 采购文件获取时间：供应商可获取采购文件的时间窗口，
+        // 作为后续发布公告中"采购文件下载时间限制"的数据来源
+        const rawAcquireTime = this.extractDocumentAcquireTimeFromText(text);
+        if (rawAcquireTime) {
+          const documentAcquireTime = await this.aiNormalizeDocumentAcquireTime(rawAcquireTime);
+          await this.prisma.projectManagementItem.update({
+            where: { id: projectId },
+            data: { documentAcquireTime },
+          });
+        }
       } catch (err) {
         this.logger.warn(`Failed to extract info from tender document: ${err}`);
       }
@@ -813,6 +824,9 @@ export class ProjectManagementService {
         awardedSupplier: true,
         contractAmount: true,
         contractNumber: true,
+        projectOverview: true,
+        bidOpeningTime: true,
+        documentAcquireTime: true,
       },
     });
 
@@ -827,6 +841,9 @@ export class ProjectManagementService {
             awardedSupplier: updatedItem.awardedSupplier,
             contractAmount: updatedItem.contractAmount ? Number(updatedItem.contractAmount) : null,
             contractNumber: updatedItem.contractNumber ?? null,
+            projectOverview: updatedItem.projectOverview ?? null,
+            bidOpeningTime: updatedItem.bidOpeningTime ?? null,
+            documentAcquireTime: updatedItem.documentAcquireTime ?? null,
           }
         : null,
     };
@@ -2710,6 +2727,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       departmentNumber?: string;
       projectOverview?: string;
       bidOpeningTime?: string;
+      documentAcquireTime?: string;
       invitedSuppliers?: string;
       paymentPerformance?: string;
       requesterName?: string;
@@ -2782,6 +2800,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (dto.bidOpeningTime !== undefined) {
       updateData.bidOpeningTime = dto.bidOpeningTime || null;
+    }
+
+    if (dto.documentAcquireTime !== undefined) {
+      updateData.documentAcquireTime = dto.documentAcquireTime || null;
     }
 
     if (dto.invitedSuppliers !== undefined) {
@@ -4163,6 +4185,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
           clearData.evaluationMethod = null;
           clearData.projectOverview = null;
           clearData.bidOpeningTime = null;
+          clearData.documentAcquireTime = null;
         } else if (stage.stageKey === 'EXPERT_SELECTION') {
           clearData.expertInfo = null;
           clearData.biddingUnits = null;
@@ -5118,6 +5141,35 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return null;
   }
 
+  /**
+   * 从采购文件正文中提取"采购文件获取时间"（供应商可获取采购文件的时间窗口）。
+   * 常见表述：采购文件获取时间 / 文件获取时间 / 领取时间 / 报名及文件获取，
+   * 取值通常是日期或日期区间（如"2026年8月1日至8月5日"）。精确匹配失败时回退到标签附近窗口。
+   */
+  private extractDocumentAcquireTimeFromText(text: string): string | null {
+    const labels = [
+      '采购文件获取时间', '文件获取时间', '文件获取期限', '文件获取',
+      '领取时间', '文件领取时间', '报名及文件获取', '获取时间',
+    ];
+    for (const label of labels) {
+      // 精确"标签：值"，值含年份才采用
+      const re = new RegExp(`${label}\\s*[：:）)]\\s*([^。\\n；;]{2,80})`);
+      const m = text.match(re);
+      if (m?.[1] && /\d{4}/.test(m[1])) {
+        return m[1].trim();
+      }
+      // 标签后窗口含日期则返回，交由 AI 规范化
+      const idx = text.indexOf(label);
+      if (idx >= 0) {
+        const win = text.slice(idx, idx + 100).replace(/\s+/g, ' ');
+        if (/\d{4}\s*[年.-/]\s*\d{1,2}/.test(win)) {
+          return win.slice(0, 80).trim();
+        }
+      }
+    }
+    return null;
+  }
+
   /** 最小限度优化：仅修正标点符号和语言不一致，不改变内容、不改编句子结构。 */
   private async aiMinimalPolish(text: string): Promise<string> {
     if (!text || text.length < 10) return text;
@@ -5156,6 +5208,30 @@ ${JSON.stringify(algorithmResult, null, 2)}
         return cleaned.replace(/\s+/g, '');
       }
       return text; // AI 输出不合格式时回退原文
+    } catch {
+      return text;
+    }
+  }
+
+  /**
+   * 规范化采购文件获取时间：统一为"YYYY年M月D日"或"YYYY年M月D日-YYYY年M月D日"。
+   * 采购文件获取时间通常是日期或日期区间（不含时分），与单点的开标时间不同；区间以半角"-"分隔。
+   */
+  private async aiNormalizeDocumentAcquireTime(text: string): Promise<string> {
+    if (!text) return text;
+    try {
+      const systemPrompt =
+        '你是采购文件获取时间规范化助手。把输入文本规范化，输出"YYYY年M月D日"（单日）或"YYYY年M月D日-YYYY年M月D日"（区间，用半角连字符"-"分隔起始与结束日期）。' +
+        '规则：① 识别文本中的日期；② 若为时间段输出"起始日期-结束日期"；③ 仅保留日期，去掉时分、星期、解释、引号与前后缀；' +
+        '④ 缺失的年份按上下文推断（若无上下文则保留原文不补）。' +
+        '示例：输入"2026年8月1日至2026年8月5日"→"2026年8月1日-2026年8月5日"；' +
+        '输入"自发布之日起至2026.8.5"→"2026年8月5日"；输入"2026-08-01 ~ 08-05"→"2026年8月1日-2026年8月5日"。';
+      const result = await this.aiService.chat(systemPrompt, text, 0.2);
+      const cleaned = result?.trim().replace(/^["'"，。.\s]+|["'"，。.\s]+$/g, '');
+      if (cleaned && /\d{4}年\d{1,2}月\d{1,2}日/.test(cleaned)) {
+        return cleaned;
+      }
+      return text;
     } catch {
       return text;
     }

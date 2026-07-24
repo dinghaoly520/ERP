@@ -391,7 +391,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               </div>
               <a href="/announcements" className="announce-view-all">
                 全部公告
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="announce-view-all-arrow"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="announce-view-all-arrow"><path d="M9 18l6-6-6-6"/></svg>
               </a>
             </div>
 

@@ -4,10 +4,10 @@
     "userId": "cmqbysdm30027koh1sndhzsbb",
     "type": "SUPPLIER_APPROVED",
     "title": "供应商审核通过",
-    "content": "您的供应商注册申请已审核通过，企业名称：成都华西物资供应有限公司",
+    "content": "您的供应商注册申请已审核通过，企业名称：重庆蜀通岩土工程有限公司。欢迎加入蜀水云采供应商库。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/cmqbysdm50029koh18g2n7p54",
+    "link": "/supplier/cmqbysdkb001lkoh1lif07y1g",
     "createdAt": "2026-06-16T08:44:35.237Z"
   },
   {
@@ -15,10 +15,10 @@
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "SUPPLIER_APPROVED",
     "title": "供应商审核通过",
-    "content": "您的供应商注册申请已审核通过，企业名称：重庆蜀通岩土工程有限公司。欢迎加入蜀水云采供应商库，您现在可以参与平台所有勘测设计与测绘类招标项目。",
+    "content": "您的供应商注册申请已审核通过，企业名称：用友网络科技股份有限公司四川分公司。欢迎加入蜀水云采供应商库。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/profile",
+    "link": "/supplier/cmqc8r5ts000jkoekgsp1rxqx",
     "createdAt": "2024-11-10T16:00:00.000Z"
   },
   {
@@ -26,10 +26,10 @@
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "BID_PUBLISHED",
     "title": "新招标公告发布",
-    "content": "您关注的「勘测设计与测绘」品类有新项目发布：水库大坝安全监测自动化改造项目，投标截止时间为 2026 年 7 月 20 日 09:00。",
+    "content": "新招标项目「岷江流域防洪治理工程勘察设计」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00001b6d7dcc74ffa",
     "createdAt": "2026-06-10T10:30:00.000Z"
   },
   {
@@ -37,43 +37,21 @@
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "BID_REMINDER",
     "title": "投标截止提醒",
-    "content": "项目「都江堰灌区现代化改造工程设备采购」投标截止时间为 2026 年 7 月 5 日 09:00，距截止还有 17 天，请合理安排时间完成标书提交。",
+    "content": "项目「智慧水务大数据平台建设」投标即将截止，请提醒相关供应商及时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege000022b9e8ab294bf",
     "createdAt": "2026-06-18T08:00:00.000Z"
-  },
-  {
-    "id": "notif-shutong-04",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "SYSTEM",
-    "title": "资质即将到期提醒",
-    "content": "您的资质证书「工程勘察专业类（水文地质勘察）乙级」将于 2026 年 8 月 31 日到期，请在 90 天内完成续期或更新。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/supplier/qualification-alerts",
-    "createdAt": "2026-06-01T09:00:00.000Z"
-  },
-  {
-    "id": "notif-shutong-05",
-    "userId": "cmqbysdk0001gkoh1gx2342d6",
-    "type": "CLARIFICATION_REPLIED",
-    "title": "澄清答疑已回复",
-    "content": "您对项目「水库大坝安全监测自动化改造项目」提出的澄清问题已收到招标人回复，请前往项目详情页查看。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects",
-    "createdAt": "2026-06-15T14:20:00.000Z"
   },
   {
     "id": "notif-shutong-06",
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "BID_OPENING",
     "title": "开标通知",
-    "content": "您参与的项目「智慧水务信息化系统建设项目」将于 2026 年 6 月 21 日 10:00 在线开标，请准时登录开标大厅参与解密确认。",
+    "content": "您参与的项目「农村供水管网改造材料」即将开标，请准时登录参与解密确认。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege0000435e17fd95cf3",
     "createdAt": "2026-06-19T09:00:00.000Z"
   },
   {
@@ -81,10 +59,10 @@
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "BID_EVALUATION_RESULT",
     "title": "评标结果公示",
-    "content": "项目「2026年度智慧水利大数据平台建设项目」评标已结束，评审结果已公示。您的综合得分 87.6 分，排名第 2 位。",
+    "content": "项目「OA系统升级改造服务」评标已结束，结果已公示，请查看。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00005f96c869096f7",
     "createdAt": "2026-06-12T16:00:00.000Z"
   },
   {
@@ -92,10 +70,10 @@
     "userId": "cmqc8r69y0116koekhly4zbd4",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「渠道清淤及生态修复工程施工」（BID-2026-0706）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「流域水质在线监测仪表」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00006e8ec59ebd358",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -103,10 +81,10 @@
     "userId": "cmqc8r69y0116koekhly4zbd4",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「水库大坝安全监测自动化改造项目」（BID-2026-0620）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「城市供水管网漏损检测系统」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege0000777200cf10d86",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -114,10 +92,10 @@
     "userId": "cmqc8r69y0116koekhly4zbd4",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「都江堰灌区现代化改造工程设备采购」（BID-2026-0605）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「智能化泵站改造工程」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00008acabe5fdb2cd",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -125,10 +103,10 @@
     "userId": "cmqc8r60200dnkoeksr6tg079",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「水利工程档案数字化加工服务」（BID-2026-0712）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「办公家具集中采购」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00009887d32dff550",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -136,10 +114,10 @@
     "userId": "cmqc8r60200dnkoeksr6tg079",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「岷江流域水质在线监测站建设项目」（BID-2026-0610）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「实验室检测设备采购」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege000106d1baa7c28aa",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -147,10 +125,10 @@
     "userId": "cmqc8r60200dnkoeksr6tg079",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「智慧水务信息化系统建设项目」（BID-2026-0522）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「岷江流域防洪治理工程勘察设计」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00001b6d7dcc74ffa",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -158,10 +136,10 @@
     "userId": "cmqc8r60500dukoekcso0n2e9",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「泵站节能改造及电气设备采购」（BID-2026-0625）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「智慧水务大数据平台建设」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege000022b9e8ab294bf",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -169,10 +147,10 @@
     "userId": "cmqc8r60500dukoekcso0n2e9",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「重点水源工程生态流量监测设备采购」（BID-2026-0718）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「大坝安全监测设备采购」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege000039a4c0dab73bb",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -180,10 +158,10 @@
     "userId": "cmqc8r60500dukoekcso0n2e9",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「2026年度防汛抗旱物资储备采购」（BID-2026-0601）的投标，请登录查看招标文件并按时提交标书。",
+    "content": "新招标项目「农村供水管网改造材料」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege0000435e17fd95cf3",
     "createdAt": "2026-06-15T08:00:00.000Z"
   },
   {
@@ -191,10 +169,10 @@
     "userId": "cmqc8r69y0116koekhly4zbd4",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「2026年度智慧水利大数据平台建设项目」的投标，请登录查看详情并下载招标文件。",
+    "content": "新招标项目「OA系统升级改造服务」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00005f96c869096f7",
     "createdAt": "2026-06-10T00:00:00.000Z"
   },
   {
@@ -202,10 +180,10 @@
     "userId": "cmqc8r60200dnkoeksr6tg079",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「2026年度智慧水利大数据平台建设项目」的投标，请登录查看详情并下载招标文件。",
+    "content": "新招标项目「流域水质在线监测仪表」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00006e8ec59ebd358",
     "createdAt": "2026-06-10T00:00:00.000Z"
   },
   {
@@ -213,10 +191,10 @@
     "userId": "cmqc8r60500dukoekcso0n2e9",
     "type": "BID_PUBLISHED",
     "title": "新招标项目邀请",
-    "content": "您已被邀请参与「2026年度智慧水利大数据平台建设项目」的投标，请登录查看详情并下载招标文件。",
+    "content": "新招标项目「城市供水管网漏损检测系统」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege0000777200cf10d86",
     "createdAt": "2026-06-10T00:00:00.000Z"
   },
   {
@@ -224,10 +202,10 @@
     "userId": "cmqc8r69y0116koekhly4zbd4",
     "type": "BID_PUBLISHED",
     "title": "标书提交成功",
-    "content": "您对「2026年度智慧水利大数据平台建设项目」的投标文件已成功提交，回执编号：TB-20260701-001。",
+    "content": "新招标项目「智能化泵站改造工程」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": null,
+    "link": "/projects?projectId=cmrbvege00008acabe5fdb2cd",
     "createdAt": "2026-06-28T06:00:00.000Z"
   },
   {
@@ -235,10 +213,10 @@
     "userId": "cmqc8r60200dnkoeksr6tg079",
     "type": "BID_PUBLISHED",
     "title": "标书提交成功",
-    "content": "您对「2026年度智慧水利大数据平台建设项目」的投标文件已成功提交，回执编号：TB-20260701-002。",
+    "content": "新招标项目「办公家具集中采购」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": null,
+    "link": "/projects?projectId=cmrbvege00009887d32dff550",
     "createdAt": "2026-06-29T02:00:00.000Z"
   },
   {
@@ -246,10 +224,10 @@
     "userId": "cmqc8r60500dukoekcso0n2e9",
     "type": "BID_PUBLISHED",
     "title": "标书提交成功",
-    "content": "您对「2026年度智慧水利大数据平台建设项目」的投标文件已成功提交，回执编号：TB-20260701-003。",
+    "content": "新招标项目「实验室检测设备采购」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": null,
+    "link": "/projects?projectId=cmrbvege000106d1baa7c28aa",
     "createdAt": "2026-06-30T01:00:00.000Z"
   },
   {
@@ -257,10 +235,10 @@
     "userId": "cmqc8r69y0116koekhly4zbd4",
     "type": "BID_PUBLISHED",
     "title": "开标解密成功",
-    "content": "您在「2026年度智慧水利大数据平台建设项目」中的投标文件解密成功，报价1080万元已确认。",
+    "content": "新招标项目「岷江流域防洪治理工程勘察设计」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": null,
-    "link": null,
+    "link": "/projects?projectId=cmrbvege00001b6d7dcc74ffa",
     "createdAt": "2026-07-01T03:00:00.000Z"
   },
   {
@@ -268,54 +246,21 @@
     "userId": "cmqc8r60500dukoekcso0n2e9",
     "type": "BID_PUBLISHED",
     "title": "开标解密异常",
-    "content": "您在「2026年度智慧水利大数据平台建设项目」中的投标文件解密失败，请登录查看详情并提交异议。",
+    "content": "新招标项目「智慧水务大数据平台建设」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": null,
+    "link": "/projects?projectId=cmrbvege000022b9e8ab294bf",
     "createdAt": "2026-07-01T03:10:00.000Z"
-  },
-  {
-    "id": "cmqhero-notif09",
-    "userId": "c1bf8a97b47aed2477b465b",
-    "type": "SYSTEM",
-    "title": "评标任务通知",
-    "content": "您被抽取为「2026年度智慧水利大数据平台建设项目」的评审专家，请登录专家门户完成签到和评分。",
-    "isRead": true,
-    "resolvedAt": null,
-    "link": null,
-    "createdAt": "2026-07-02T01:00:00.000Z"
-  },
-  {
-    "id": "cmqhero-notif10",
-    "userId": "c60c2ae52a1f898f1341b2d",
-    "type": "SYSTEM",
-    "title": "评标任务通知",
-    "content": "您被抽取为「2026年度智慧水利大数据平台建设项目」的评审专家，请登录专家门户完成签到和评分。",
-    "isRead": true,
-    "resolvedAt": null,
-    "link": null,
-    "createdAt": "2026-07-02T01:00:00.000Z"
-  },
-  {
-    "id": "z41xs81mhlj8rlvunbeos2rh",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SUPPLIER_PENDING",
-    "title": "供应商审批",
-    "content": "四川水发检测公司、成都水利监理有限公司、绵阳建材有限公司已提交注册申请，请及时完成资质审核。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/supplier?tab=pending",
-    "createdAt": "2026-07-16T03:04:08.771Z"
   },
   {
     "id": "a5oursm430g2hbr587jh2kgz",
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_OPENING",
     "title": "开标通知",
-    "content": "岷江流域防洪治理项目定于7月22日10:00在集团2号评标室开标，请提前准备签到、解密设备及监督记录表。",
+    "content": "您参与的项目「大坝安全监测设备采购」即将开标，请准时登录参与解密确认。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege000039a4c0dab73bb",
     "createdAt": "2026-07-16T03:04:08.777Z"
   },
   {
@@ -323,98 +268,21 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_PUBLISHED",
     "title": "公告发布",
-    "content": "2026年度水利工程物资集中采购招标公告已在信息门户首页公示，公示期7个工作日，截止8月3日。",
+    "content": "新招标项目「农村供水管网改造材料」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/notice",
+    "link": "/projects?projectId=cmrbvege0000435e17fd95cf3",
     "createdAt": "2026-07-16T03:04:08.780Z"
-  },
-  {
-    "id": "qurlnb7o13zxgrk5v5vw2ex6",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "预算预警",
-    "content": "OA系统升级改造项目当前报价超出预算12%（预算150万，最低报价168万），请核实是否需要调整预算。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/dashboard",
-    "createdAt": "2026-07-16T03:04:08.782Z"
-  },
-  {
-    "id": "do8f2bh68yibpt9p9qlj35vk",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "CATALOG_APPLICATION",
-    "title": "目录更新",
-    "content": "电子商城本季度新增商品类目12个、价格调整15条，请在商城管理中复核新增条目定价。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management",
-    "createdAt": "2026-07-16T03:04:08.785Z"
-  },
-  {
-    "id": "h0wudmlq79eua541yabshky8",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "CLARIFICATION_REPLIED",
-    "title": "澄清请求",
-    "content": "成都信息公司对智慧水务项目技术规格书第2.3、3.1、5.4条款提出澄清，请在48小时内回复。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects",
-    "createdAt": "2026-07-16T03:04:08.787Z"
-  },
-  {
-    "id": "c0neyw6cs13kf0ni46z85boh",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "合同提醒",
-    "content": "大坝安全监测设备采购项目已完成定标，请在5个工作日内起草合同文本并上传至合同管理模块。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/procurements",
-    "createdAt": "2026-07-16T03:04:08.790Z"
-  },
-  {
-    "id": "q8td25jbmvnhiyhfgan9i0aj",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "专家抽取",
-    "content": "农村供水管网改造项目已抽取5位评标专家（水利工程3位、经济2位），备选2位，请在专家管理中心确认名单。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/expert",
-    "createdAt": "2026-07-16T03:04:08.792Z"
-  },
-  {
-    "id": "oq01ba4augab02gfv41pjosy",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "阶段变更",
-    "content": "智慧水务大数据平台项目阶段已由专家抽取推进至评标过程，需在7月25日前完成所有专家打分。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects",
-    "createdAt": "2026-07-16T03:04:08.795Z"
-  },
-  {
-    "id": "w0jxr6x9rnw5v5dyok2ncr10",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "工作安排",
-    "content": "系统已按模板生成本周工作安排（共5项），包含2个紧急审批项，请在工作台页面查看并确认。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/work-arrangements",
-    "createdAt": "2026-07-16T03:04:08.797Z"
   },
   {
     "id": "cmrvhq1d8000cko4qq1wgakoa",
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "CATALOG_APPLICATION",
     "title": "供货申请进入议价",
-    "content": "管理员对您的申请（目录物资）提出反报价 ¥95，请在门户确认或再报价。",
+    "content": "“重庆蜀通岩土工程有限公司”的供货申请（P.O42.5 普通硅酸盐水泥）待审核，请处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=cmqcatapp01pending0000000001",
     "createdAt": "2026-07-22T02:55:52.940Z"
   },
   {
@@ -422,10 +290,10 @@
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "CATALOG_APPLICATION",
     "title": "供货申请已通过",
-    "content": "您的供货申请（目录物资）已通过审核，最终报价 ¥95。",
+    "content": "“重庆蜀通岩土工程有限公司”的供货申请（HDPE 双壁波纹管）待审核，请处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=cmqcatapp04updqte0000000004",
     "createdAt": "2026-07-22T02:55:53.001Z"
   },
   {
@@ -433,10 +301,10 @@
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "CATALOG_APPLICATION",
     "title": "供货申请已通过",
-    "content": "您的供货申请（目录物资）已通过审核，最终报价 ¥4300。",
+    "content": "“成都卓成有为科技有限公司”的供货申请（电磁流量计）待审核，请处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=c1d530f7221227cb50c3836",
     "createdAt": "2026-07-22T02:55:53.039Z"
   },
   {
@@ -444,65 +312,21 @@
     "userId": "cmqbysdk0001gkoh1gx2342d6",
     "type": "CATALOG_APPLICATION",
     "title": "供货申请已通过",
-    "content": "您的供货申请（新增品类·E2E 测试物资）已通过审核，最终报价 ¥200。",
+    "content": "“河北聚源水利机械有限公司”的供货申请（变频控制柜）待审核，请处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=c3622fc21271abfede96cfb",
     "createdAt": "2026-07-22T02:55:53.073Z"
-  },
-  {
-    "id": "cmqbysdkn0023koh10nbevzz2",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "系统升级完成",
-    "content": "ERP管理平台已完成v2.0升级，新增专家工作台、供应商门户等功能模块。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/dashboard",
-    "createdAt": "2026-06-13T06:18:29.688Z"
-  },
-  {
-    "id": "cmqbysdkn0024koh13q168rub",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "新供应商注册待审核",
-    "content": "供应商\"成都华西物资供应有限公司\"提交了入库申请，请及时审核。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/supplier",
-    "createdAt": "2026-06-13T06:18:29.688Z"
-  },
-  {
-    "id": "cmqbysdkn0025koh1wtz9p1y9",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "评标进度提醒",
-    "content": "项目\"2026年度水利工程物资集中采购\"已有3位专家提交评分，当前进度85%。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects",
-    "createdAt": "2026-06-13T06:18:29.688Z"
-  },
-  {
-    "id": "cmqbysdkn0026koh18iumkkje",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "供应商资质到期预警",
-    "content": "有2家供应商的资质证书将在30天内到期，请通知相关供应商及时更新。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/supplier",
-    "createdAt": "2026-06-13T06:18:29.688Z"
   },
   {
     "id": "cm44088723aa7c4d66823aa1",
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_PENDING",
     "title": "新供应商注册待审核",
-    "content": "供应商\"德力西电气有限公司\"提交了入库申请，注册资本5000万元，资质齐全。请尽快审核处理。",
+    "content": "供应商“四川蜀工建筑工程有限公司”提交了入库申请，资质齐全，请尽快审核处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/approval",
+    "link": "/supplier/ca7634a7eb2f8aed8d5f464",
     "createdAt": "2026-07-13T09:00:00.000Z"
   },
   {
@@ -510,10 +334,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_OPENING",
     "title": "开标通知",
-    "content": "项目“都江堰灌区现代化改造工程设备采购”将于2026年7月18日开标，请准备开标。",
+    "content": "您参与的项目「流域水质在线监测仪表」即将开标，请准时登录参与解密确认。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00006e8ec59ebd358",
     "createdAt": "2026-07-12T13:00:00.000Z"
   },
   {
@@ -521,32 +345,21 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_PENDING",
     "title": "新供应商注册待审核",
-    "content": "供应商\"正泰电器股份有限公司\"提交了入库申请，注册资本2000万元，设备类供应商。请审核。",
+    "content": "供应商“成都锦城环保科技有限公司”提交了入库申请，资质齐全，请尽快审核处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/approval",
+    "link": "/supplier/cd70c655c595af2a3d78f8d",
     "createdAt": "2026-07-13T06:00:00.000Z"
-  },
-  {
-    "id": "cm75d1a61a483d46198c40f3",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SUPPLIER_PENDING",
-    "title": "供应商变更申请待审核",
-    "content": "供应商\"四川水发建设有限公司\"提交了企业信息变更申请，变更项：经营范围、联系人信息。请审核。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/supplier/approval",
-    "createdAt": "2026-07-13T03:00:00.000Z"
   },
   {
     "id": "cm2327d86f9cb94583bf8598",
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_PENDING",
     "title": "新供应商注册待审核",
-    "content": "供应商\"上海良信电器股份有限公司\"提交了入库申请，低压电器制造商，信用评分89。请审核。",
+    "content": "供应商“四川川能电力设备有限公司”提交了入库申请，资质齐全，请尽快审核处理。",
     "isRead": true,
     "resolvedAt": "2026-07-12T11:00:00.000Z",
-    "link": "/supplier/approval",
+    "link": "/supplier/c7562bf161b1d39b7075dd2",
     "createdAt": "2026-07-12T05:00:00.000Z"
   },
   {
@@ -554,10 +367,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_PENDING",
     "title": "新供应商注册待审核",
-    "content": "供应商\"施耐德电气（中国）有限公司\"提交了入库申请，国际品牌代理商，资质齐全。请审核。",
+    "content": "供应商“绵阳晨光信息技术有限公司”提交了入库申请，资质齐全，请尽快审核处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/approval",
+    "link": "/supplier/ce3a956466cb5b10e626ce5",
     "createdAt": "2026-07-13T10:00:00.000Z"
   },
   {
@@ -565,10 +378,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "PRICE_REVIEW",
     "title": "采购目录报价调整待审批",
-    "content": "断路器CDB6i系列报价调整申请，原价¥128/件 → 新报价¥115/件，降幅10.2%，供货周期7天。请复核审批。",
+    "content": "“四川国森中新建设工程有限公司”的“预制混凝土检查井”报价调整申请待复核，请审批。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=c0ea1ccbd83bde8e243eab2",
     "createdAt": "2026-07-13T08:00:00.000Z"
   },
   {
@@ -576,10 +389,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "PRICE_REVIEW",
     "title": "新增品类报价待审批",
-    "content": "\"配电柜XL-21系列\"申请加入集中采购目录，报价¥3,280/台，MOQ 10台。请复核价格合理性。",
+    "content": "“成都卓成有为科技有限公司”的“电力电缆”报价调整申请待复核，请审批。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=c6cd7afd590fe4eb29acae3",
     "createdAt": "2026-07-13T05:00:00.000Z"
   },
   {
@@ -587,10 +400,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "PRICE_REVIEW",
     "title": "供应商报价调整待审批",
-    "content": "\"铜芯电力电缆YJV22\"价格调整，原价¥85/米 → ¥92/米，涨幅8.2%，供应商说明原材料上涨。请复核。",
+    "content": "“重庆蜀通岩土工程有限公司”的“P.O42.5 普通硅酸盐水泥”报价调整申请待复核，请审批。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=cmqcatapp01pending0000000001",
     "createdAt": "2026-07-13T07:00:00.000Z"
   },
   {
@@ -598,10 +411,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "PRICE_REVIEW",
     "title": "采购目录报价调整待审批",
-    "content": "\"智能水表DN20\"报价调整，原价¥320 → ¥305，降幅4.7%。请复核。",
+    "content": "“重庆蜀通岩土工程有限公司”的“HDPE 双壁波纹管”报价调整申请待复核，请审批。",
     "isRead": true,
     "resolvedAt": "2026-07-12T23:00:00.000Z",
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=cmqcatapp04updqte0000000004",
     "createdAt": "2026-07-12T15:00:00.000Z"
   },
   {
@@ -609,10 +422,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "PRICE_REVIEW",
     "title": "新增品类报价待审批",
-    "content": "\"不锈钢阀门DN100\"申请加入目录，报价¥1,560/台。请复核。",
+    "content": "“成都卓成有为科技有限公司”的“电磁流量计”报价调整申请待复核，请审批。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=c1d530f7221227cb50c3836",
     "createdAt": "2026-07-13T09:00:00.000Z"
   },
   {
@@ -620,10 +433,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "PRICE_REVIEW",
     "title": "供应商报价调整待审批",
-    "content": "\"PE给水管DN200\"价格调整申请，原价¥42 → ¥45/米，涨幅7.1%。请复核审批。",
+    "content": "“河北聚源水利机械有限公司”的“变频控制柜”报价调整申请待复核，请审批。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=c3622fc21271abfede96cfb",
     "createdAt": "2026-07-13T10:00:00.000Z"
   },
   {
@@ -631,10 +444,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "QUALIFICATION_EXPIRING",
     "title": "供应商资质即将到期",
-    "content": "供应商\"德力西电气有限公司\"的\"CCC产品认证证书\"将于30天后到期，请通知供应商及时更新。",
+    "content": "供应商“信永中和（成都）税务师事务所有限公司”的资质证书即将到期，请通知其及时更新以免影响投标资格。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/repository",
+    "link": "/supplier/cmqc8r5tw000qkoeknpc1wlk5",
     "createdAt": "2026-07-12T23:00:00.000Z"
   },
   {
@@ -642,10 +455,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "QUALIFICATION_EXPIRING",
     "title": "供应商资质即将到期",
-    "content": "供应商\"四川水发建设有限公司\"的\"安全生产许可证\"将于45天后到期。",
+    "content": "供应商“成都中大税务师事务所有限公司”的资质证书即将到期，请通知其及时更新以免影响投标资格。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/repository",
+    "link": "/supplier/cmqc8r5u1000zkoek8xbk55g0",
     "createdAt": "2026-07-12T17:00:00.000Z"
   },
   {
@@ -653,54 +466,21 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "QUALIFICATION_EXPIRING",
     "title": "供应商资质即将到期",
-    "content": "供应商\"正泰电器股份有限公司\"的\"ISO9001质量管理体系认证\"将于60天后到期。",
+    "content": "供应商“致同（北京）税务师事务所有限责任公司四川分所”的资质证书即将到期，请通知其及时更新以免影响投标资格。",
     "isRead": true,
     "resolvedAt": null,
-    "link": "/supplier/repository",
+    "link": "/supplier/cmqc8r5u50016koeke5hyghny",
     "createdAt": "2026-07-11T23:00:00.000Z"
-  },
-  {
-    "id": "cmdebb214411a84b4196c971",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "系统升级完成",
-    "content": "ERP管理平台已完成v2.0升级，新增专家工作台、供应商门户等功能模块。请查看更新日志了解详情。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/dashboard",
-    "createdAt": "2026-07-13T01:00:00.000Z"
-  },
-  {
-    "id": "cm7aace2e2645944b6a281b3",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "月度采购统计报告已生成",
-    "content": "2026年7月采购统计报告已自动生成，本月已审批供应商12家，价格复核28项，采购金额同比上升15%。请查看。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/dashboard",
-    "createdAt": "2026-07-12T21:00:00.000Z"
-  },
-  {
-    "id": "cm4b76bcc4c4884072a251ca",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "项目管理提醒",
-    "content": "项目\"2026年度水利工程物资集中采购\"已完成开标，请及时安排评标工作。",
-    "isRead": true,
-    "resolvedAt": "2026-07-11T11:00:00.000Z",
-    "link": "/projects",
-    "createdAt": "2026-07-11T07:00:00.000Z"
   },
   {
     "id": "cm3569a505e8584683b4c85e",
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_REMINDER",
     "title": "投标即将截止",
-    "content": "项目\"都江堰灌区现代化改造工程设备采购\"投标截止时间为2026年7月18日，请提醒相关供应商及时投标。",
+    "content": "项目「城市供水管网漏损检测系统」投标即将截止，请提醒相关供应商及时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege0000777200cf10d86",
     "createdAt": "2026-07-12T19:00:00.000Z"
   },
   {
@@ -708,10 +488,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_REMINDER",
     "title": "投标即将截止",
-    "content": "项目\"智慧水务信息化系统建设项目\"投标截止时间为2026年7月22日，请提醒入围供应商。",
+    "content": "项目「智能化泵站改造工程」投标即将截止，请提醒相关供应商及时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00008acabe5fdb2cd",
     "createdAt": "2026-07-12T15:00:00.000Z"
   },
   {
@@ -719,10 +499,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_PUBLISHED",
     "title": "新招标项目发布",
-    "content": "\"水库大坝安全监测自动化改造项目\"已发布招标公告，投标截止2026年7月25日。请通知入围供应商。",
+    "content": "新招标项目「办公家具集中采购」已发布，请关注并按时投标。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00009887d32dff550",
     "createdAt": "2026-07-12T13:00:00.000Z"
   },
   {
@@ -730,10 +510,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_PUBLISHED",
     "title": "新招标项目发布",
-    "content": "\"岷江流域水质在线监测站建设项目\"已发布招标公告，预算5000万元，投标截止2026年8月1日。",
+    "content": "新招标项目「实验室检测设备采购」已发布，请关注并按时投标。",
     "isRead": true,
     "resolvedAt": "2026-07-11T19:00:00.000Z",
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege000106d1baa7c28aa",
     "createdAt": "2026-07-11T11:00:00.000Z"
   },
   {
@@ -741,10 +521,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_PENDING",
     "title": "供应商变更申请待审核",
-    "content": "供应商“德力西电气有限公司”提交了注册资本变更申请，由5000万变更为8000万。请审核。",
+    "content": "供应商“成都华宇水利设计咨询有限公司”提交了入库申请，资质齐全，请尽快审核处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/approval",
+    "link": "/supplier/cc3801b0a615504db8a92e9",
     "createdAt": "2026-07-13T02:00:00.000Z"
   },
   {
@@ -752,10 +532,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_PENDING",
     "title": "供应商重新入库申请",
-    "content": "供应商“成都华西物资供应有限公司”重新提交了入库申请，资质已更新。请审核。",
+    "content": "供应商“四川蜀工建筑工程有限公司”提交了入库申请，资质齐全，请尽快审核处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/approval",
+    "link": "/supplier/ca7634a7eb2f8aed8d5f464",
     "createdAt": "2026-07-13T00:00:00.000Z"
   },
   {
@@ -763,10 +543,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_APPROVED",
     "title": "供应商审核通过",
-    "content": "供应商“施耐德电气（中国）有限公司”已通过审核，正式入库。",
+    "content": "您的供应商注册申请已审核通过，企业名称：中汇智谷（四川）税务师事务所有限公司。欢迎加入蜀水云采供应商库。",
     "isRead": true,
     "resolvedAt": "2026-07-10T11:00:00.000Z",
-    "link": "/supplier/repository",
+    "link": "/supplier/cmqc8r5u9001dkoeksdwcywv1",
     "createdAt": "2026-07-10T08:00:00.000Z"
   },
   {
@@ -774,10 +554,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_APPROVED",
     "title": "供应商审核通过",
-    "content": "供应商“正泰电器股份有限公司”已通过审核，资质评分92分，分类为设备类供应商。",
+    "content": "您的供应商注册申请已审核通过，企业名称：四川德维致远税务师事务所有限公司。欢迎加入蜀水云采供应商库。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/repository",
+    "link": "/supplier/cmqc8r5uc001kkoekcqb5vp9z",
     "createdAt": "2026-07-12T11:00:00.000Z"
   },
   {
@@ -785,10 +565,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_REJECTED",
     "title": "供应商审核不通过",
-    "content": "供应商“某电气设备公司”资质不齐全，审核不通过。请通知供应商补正后重新提交。",
+    "content": "供应商“四川中拓路桥工程有限公司”资质不齐全，审核不通过，请通知其补正后重新提交。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/approval",
+    "link": "/supplier/cmqq17h0ichrfgvt0jj5",
     "createdAt": "2026-07-12T07:00:00.000Z"
   },
   {
@@ -796,10 +576,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "SUPPLIER_RETURNED",
     "title": "供应商申请退回补正",
-    "content": "供应商“重庆蜀通岩土工程有限公司”的入库申请已被退回，需补充安全生产许可证扫描件。",
+    "content": "供应商“四川宏源水利工程有限公司”的入库申请已退回补正，请通知其补充材料后重新提交。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/supplier/approval",
+    "link": "/supplier/cmqq17h0aq7m71kxb7jj",
     "createdAt": "2026-07-12T17:00:00.000Z"
   },
   {
@@ -807,10 +587,10 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_OPENING",
     "title": "开标通知",
-    "content": "项目“智慧水务信息化系统建设项目”将于2026年7月22日开标，请确认开标流程。",
+    "content": "您参与的项目「岷江流域防洪治理工程勘察设计」即将开标，请准时登录参与解密确认。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege00001b6d7dcc74ffa",
     "createdAt": "2026-07-12T09:00:00.000Z"
   },
   {
@@ -818,87 +598,21 @@
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "BID_EVALUATION_RESULT",
     "title": "评标结果公示",
-    "content": "项目“2026年度智慧水利大数据平台建设项目”评标已结束，中科院成都信息技术股份有限公司综合排名第一。请确认。",
+    "content": "项目「智慧水务大数据平台建设」评标已结束，结果已公示，请查看。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/projects",
+    "link": "/projects?projectId=cmrbvege000022b9e8ab294bf",
     "createdAt": "2026-07-12T01:00:00.000Z"
-  },
-  {
-    "id": "cm0ab99bafc2d04dbdb61693",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "CLARIFICATION_REPLIED",
-    "title": "澄清答疑已回复",
-    "content": "供应商对项目“水库大坝安全监测自动化改造项目”提出的3条澄清问题已回复，请查看。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects",
-    "createdAt": "2026-07-12T21:00:00.000Z"
-  },
-  {
-    "id": "cm8fd5cbf5ecf145e0afff8a",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "CLARIFICATION_REPLIED",
-    "title": "澄清答疑已回复",
-    "content": "供应商对项目“岷江流域水质在线监测站建设项目”的技术参数疑问已解答，请确认。",
-    "isRead": true,
-    "resolvedAt": "2026-07-10T23:00:00.000Z",
-    "link": "/projects",
-    "createdAt": "2026-07-10T18:00:00.000Z"
-  },
-  {
-    "id": "cm87bc60e1e5c8441cb0c30b",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "CATALOG_APPLICATION",
-    "title": "目录加入申请",
-    "content": "供应商“德力西电气有限公司”申请加入“低压配电”目录，提交了5个品类的报价。请审核。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog",
-    "createdAt": "2026-07-12T23:00:00.000Z"
-  },
-  {
-    "id": "cmbbebab60493b49f28e0cee",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "CATALOG_APPLICATION",
-    "title": "目录加入申请",
-    "content": "供应商“上海良信电器股份有限公司”申请加入“智能控制”目录，提交了3个品类的报价。请审核。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/mall-management/catalog",
-    "createdAt": "2026-07-12T22:00:00.000Z"
-  },
-  {
-    "id": "cm296e0cc8b52a4fcd934c6e",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "周度工作简报",
-    "content": "本周共审核通过供应商3家，驳回1家，退回补正2家。价格复核完成8项。请查看详细周报。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/dashboard",
-    "createdAt": "2026-07-13T03:00:00.000Z"
-  },
-  {
-    "id": "cm22740cc270514dfe930af0",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "SYSTEM",
-    "title": "待办提醒",
-    "content": "您有3项待办事项已超过24小时未处理，请及时处理以免影响后续采购流程。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/notifications",
-    "createdAt": "2026-07-13T05:00:00.000Z"
   },
   {
     "id": "cmrvhq1dy000hko4q8204n2ny",
     "userId": "cmrmvzupb0000kozb2ijyav4o",
     "type": "CATALOG_APPLICATION",
     "title": "供应商已接受议价",
-    "content": "供应商已接受反报价 ¥95，请进行最终审核。",
+    "content": "“四川国森中新建设工程有限公司”的供货申请（预制混凝土检查井）待审核，请处理。",
     "isRead": false,
     "resolvedAt": null,
-    "link": "/mall-management/catalog?tab=approval",
+    "link": "/mall-management/catalog?tab=approval&appId=c0ea1ccbd83bde8e243eab2",
     "createdAt": "2026-07-22T02:55:52.967Z"
   }
 ]
