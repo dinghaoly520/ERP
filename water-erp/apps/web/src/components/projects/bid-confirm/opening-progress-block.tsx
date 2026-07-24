@@ -66,7 +66,15 @@ export function OpeningProgressBlock({ bidProjectId, detail }: Props) {
   const recorded = openingRecords.length;
   const confirmed = suppliers.filter(s => s.confirmStatus === 'CONFIRMED').length;
   const disputed = suppliers.filter(s => s.confirmStatus === 'DISPUTED').length;
-  const openingDone = total > 0 && decrypted === total && recorded >= total && disputed === 0 && confirmed === total;
+  // 开标完成判定（口径对齐后端可评供应商过滤集）：已撤回排除；解密已处理 = SUCCESS/DANGER；
+  // 唱标覆盖全部解密成功供应商；确认闭环仅对 SUCCESS 供应商要求 CONFIRMED/EXCEPTION；无 DISPUTED 悬置
+  const activeSuppliers = suppliers.filter(s => s.submitStatus !== '已撤回');
+  const successSuppliers = activeSuppliers.filter(s => s.decryptStatus === 'SUCCESS');
+  const openingDone = activeSuppliers.length > 0
+    && activeSuppliers.every(s => s.decryptStatus === 'SUCCESS' || s.decryptStatus === 'DANGER')
+    && recorded >= successSuppliers.length
+    && successSuppliers.every(s => s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION')
+    && disputed === 0;
 
   const gotoHall = () => window.open(portalURL('bid', '/bid'), '_blank');
 

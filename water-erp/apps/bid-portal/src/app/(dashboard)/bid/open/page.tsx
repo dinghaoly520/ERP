@@ -199,16 +199,22 @@ export default function BidOpenPage() {
     });
   }, [project]);
 
-  /** 开标完成判定：全解密 + 全唱标 + 全确认 + 无待处理异议 → 交棒回 :3005 */
+  /** 开标完成判定（口径对齐后端可评供应商过滤集 bid.service.ts）：
+   *  - 已撤回供应商排除出全集；
+   *  - 解密"已处理" = SUCCESS 或 DANGER（DANGER 为解密异常但已处理，不参与评标）；
+   *  - 唱标覆盖全部解密成功供应商；
+   *  - 确认闭环仅对 SUCCESS 供应商要求 CONFIRMED（已确认）或 EXCEPTION（异议已退回处理）；
+   *  - 无 DISPUTED 悬置异议。 */
   const openingDone = useMemo(() => {
     if (!project) return false;
-    const total = project.suppliers.length;
-    if (total === 0) return false;
-    const allDecrypted = project.suppliers.every(s => s.decryptStatus === 'SUCCESS');
-    const allConfirmed = project.suppliers.every(s => s.confirmStatus === 'CONFIRMED');
-    const allRecorded = project.openingRecords.length >= total;
-    const noPendingDispute = !project.openingRecords.some(r => r.confirmStatus === '供应商提出异议');
-    return allDecrypted && allConfirmed && allRecorded && noPendingDispute;
+    const active = project.suppliers.filter(s => s.submitStatus !== '已撤回');
+    if (active.length === 0) return false;
+    const successSuppliers = active.filter(s => s.decryptStatus === 'SUCCESS');
+    const allDecryptResolved = active.every(s => s.decryptStatus === 'SUCCESS' || s.decryptStatus === 'DANGER');
+    const allRecorded = project.openingRecords.length >= successSuppliers.length;
+    const allConfirmResolved = successSuppliers.every(s => s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION');
+    const noPendingDispute = active.every(s => s.confirmStatus !== 'DISPUTED');
+    return allDecryptResolved && allRecorded && allConfirmResolved && noPendingDispute;
   }, [project]);
 
   const stageStep = useMemo(() => {
