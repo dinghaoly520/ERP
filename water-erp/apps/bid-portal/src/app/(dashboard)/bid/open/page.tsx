@@ -436,6 +436,34 @@ export default function BidOpenPage() {
         </div>
       )}
 
+      {/* ═══ 前阶段引导（F7）：流转权在 :3005，大厅只做开标执行 ═══ */}
+      {(project.stage === 'DOWNLOAD' || project.stage === 'SUBMIT') && (
+        <div className="flex items-center gap-4 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-5">
+          <Clock size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#064ea2]" />
+          <div className="flex-1">
+            <h2 className="mb-0.5 text-sm font-bold text-[#1e40af]">该项目尚未确定开标</h2>
+            <p className="text-xs text-[#5a6d8a]">确定开标（阶段流转）由采购管理工作台（:3005）统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
+          </div>
+          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#054280]">
+            前往采购管理工作台 <ExternalLink size={13} />
+          </a>
+        </div>
+      )}
+      {(project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') && (
+        <div className="flex items-center gap-4 rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] p-5">
+          <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#11a874]" />
+          <div className="flex-1">
+            <h2 className="mb-0.5 text-sm font-bold text-[#14532d]">开标已结束</h2>
+            <p className="text-xs text-[#5a6d8a]">本项目已进入{project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，后续评标管理与归档请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。</p>
+          </div>
+          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#11a874] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0e8c5f]">
+            前往采购管理工作台 <ExternalLink size={13} />
+          </a>
+        </div>
+      )}
+
       {/* ═══ 待组建会话横幅（:3005 已确定开标，主持人在此组建会话）═══ */}
       {!session && project.stage === 'OPENING' && (
         <div className="flex items-center gap-4 rounded-2xl border border-[#fcd34d] bg-[#fffbeb] p-5">
