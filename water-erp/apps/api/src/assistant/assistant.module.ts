@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { BidModule } from '../bid/bid.module';
 import { AssistantController } from './assistant.controller';
 import { AssistantService } from './assistant.service';
 import { DeepSeekProvider } from './model/deepseek.provider';
@@ -16,7 +17,7 @@ import { ActionPlannerService } from './actions/action-planner.service';
 import { ActionExecutorService } from './actions/action-executor.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, BidModule],
   controllers: [AssistantController],
   providers: [
     AssistantService,

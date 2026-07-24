@@ -524,7 +524,7 @@ export class BidService {
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, deadline: true },
+      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
@@ -596,6 +596,11 @@ export class BidService {
       });
       if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
 
+      // 阶段联动：关联的 :3005 项目管理项「开标评标」阶段 → IN_PROGRESS（仅首次流转）
+      if (isTransitioning) {
+        await this.syncPmStage(tx, { projectManagementItemId: project.projectManagementItemId, round: project.round }, 'IN_PROGRESS');
+      }
+
       this.gateway?.notifyStageChange(id, project.stage, 'OPENING', 'host');
       // 仅在真正 upsert 了会话时通知开标启动；裸推阶段（:3005 确定开标）不触发，
       // 否则 :3007 会收到 {host:'系统'} 事件误判会话已建
@@ -606,6 +611,46 @@ export class BidService {
 
       return updated;
     });
+  }
+
+  /**
+   * 阶段联动：BidProject 流转时同步关联 ProjectManagementItem 的「开标评标」(BID_EVALUATION) 阶段。
+   * - IN_PROGRESS 仅从 NOT_STARTED 升级（幂等，不覆盖人工确认过的 COMPLETED）
+   * - COMPLETED 带 completedAt；仅当 PM 指针正停在 BID_EVALUATION 时推进到下一阶段
+   * - 不复用 ProjectManagementService.updateStage（其 currentStage 守卫与级联 AI 分析副作用不适用于程序化联动）
+   * - 无关联（公告/手工创建的项目）→ no-op；置于流转事务末尾，与阶段变更同生共死
+   */
+  private async syncPmStage(
+    tx: any,
+    link: { projectManagementItemId: string | null; round: number },
+    status: 'IN_PROGRESS' | 'COMPLETED',
+  ) {
+    if (!link.projectManagementItemId) return;
+    await tx.projectManagementStage.updateMany({
+      where: {
+        projectManagementItemId: link.projectManagementItemId,
+        stageKey: 'BID_EVALUATION',
+        round: link.round,
+        ...(status === 'IN_PROGRESS' ? { status: 'NOT_STARTED' } : {}),
+      },
+      data: status === 'COMPLETED' ? { status, completedAt: new Date() } : { status },
+    });
+    const item = await tx.projectManagementItem.findUnique({
+      where: { id: link.projectManagementItemId },
+      select: {
+        currentStage: true,
+        stages: { where: { round: link.round }, orderBy: { stageOrder: 'asc' }, select: { stageKey: true } },
+      },
+    });
+    if (!item) return;
+    const bidEvalIdx = item.stages.findIndex((s: { stageKey: string }) => s.stageKey === 'BID_EVALUATION');
+    const currentIdx = item.stages.findIndex((s: { stageKey: string }) => s.stageKey === item.currentStage);
+    if (status === 'IN_PROGRESS' && bidEvalIdx >= 0 && (currentIdx < 0 || currentIdx < bidEvalIdx)) {
+      await tx.projectManagementItem.update({ where: { id: link.projectManagementItemId }, data: { currentStage: 'BID_EVALUATION' } });
+    } else if (status === 'COMPLETED' && bidEvalIdx >= 0 && currentIdx === bidEvalIdx) {
+      const next = item.stages[bidEvalIdx + 1];
+      if (next) await tx.projectManagementItem.update({ where: { id: link.projectManagementItemId }, data: { currentStage: next.stageKey } });
+    }
   }
 
   async startEvaluation(id: string, actorId?: string) {
@@ -1710,7 +1755,7 @@ export class BidService {
   async archiveAll(id: string, actorId?: string, scope: 'opening' | 'full' = 'full') {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, projectCode: true, stage: true, name: true },
+      select: { id: true, projectCode: true, stage: true, name: true, projectManagementItemId: true, round: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'ARCHIVED');
@@ -1801,6 +1846,9 @@ export class BidService {
           data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length, scope } },
         });
       }
+
+      // 阶段联动：关联的 :3005 项目管理项「开标评标」阶段 → COMPLETED
+      await this.syncPmStage(tx, { projectManagementItemId: project.projectManagementItemId, round: project.round }, 'COMPLETED');
 
       return tx.bidProject.findUnique({
         where: { id },

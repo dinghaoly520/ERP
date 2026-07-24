@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BidService } from '../../bid/bid.service';
 
 @Injectable()
 export class ActionExecutorService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bidService: BidService,
+  ) {}
 
   async execute(
     actionLogId: string,
@@ -77,11 +81,11 @@ export class ActionExecutorService {
         });
       }
       // Bid project operations
+      // 收编：不再裸写 stage，走 archiveAll 正规归档路径（守卫 + 归档材料 + 哈希链 + 阶段联动）。
+      // 注意失败语义变化：存在已确认供应商但无评标结果的项目会 409 失败（设计意图），
+      // 失败原因经下方 catch 落 assistantActionLog.resultJson，由助理对话呈现可读信息。
       else if (targetType === 'bid' && actionType === 'archive') {
-        await this.prisma.bidProject.update({
-          where: { id: log.targetId! },
-          data: { stage: 'ARCHIVED' },
-        });
+        await this.bidService.archiveAll(log.targetId!, undefined, 'full');
       } else {
         return { status: 'failed', message: `不支持的操作: ${targetType}.${actionType}` };
       }
