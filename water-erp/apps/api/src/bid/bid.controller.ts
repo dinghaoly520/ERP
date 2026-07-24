@@ -420,7 +420,9 @@ export class BidController {
   async exportArchivePackage(
     @Param('id') id: string,
     @Query('format') format?: string,
-    @Res() res?: any,
+    // passthrough：JSON 分支依赖 Nest 自动发送返回值；非 passthrough 的 @Res
+    // 会使返回值被丢弃、请求永久挂起（预存 bug，验收 Phase 2 时发现）
+    @Res({ passthrough: true }) res?: any,
   ) {
     const data = await this.bidService.exportArchivePackage(id, (format === 'csv' ? 'csv' : 'json'));
     if (format === 'csv') {
