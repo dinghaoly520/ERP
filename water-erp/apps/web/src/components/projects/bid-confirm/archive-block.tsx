@@ -231,6 +231,24 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
                 <>完整归档将封存全部开评标材料（含专家评分明细与评标结果汇总）并生成防篡改哈希链，归档后项目进入 ARCHIVED 终态。</>
               )}
             </p>
+            {/* F15：开标归档确认框动态展示当前开标进度，避免开标进行中误终局 */}
+            {confirmScope === 'opening' && (() => {
+              const active = (detail?.suppliers ?? []).filter(s => s.submitStatus !== '已撤回');
+              const total = active.length;
+              const decrypted = active.filter(s => s.decryptStatus === 'SUCCESS').length;
+              const danger = active.filter(s => s.decryptStatus === 'DANGER').length;
+              const confirmed = active.filter(s => s.confirmStatus === 'CONFIRMED').length;
+              if (total === 0) return null;
+              return (
+                <div className="mb-4 rounded-[12px] px-3.5 py-2.5 text-xs leading-5" style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)' }}>
+                  <span className="font-bold text-[var(--foreground)]">当前开标进度：</span>
+                  <span className="tabular-nums text-[var(--muted-foreground)]">
+                    解密 {decrypted}/{total}{danger > 0 && `（含 ${danger} 家解密异常）`} · 确认 {confirmed}/{total}
+                  </span>
+                  {confirmed < total && <span className="ml-1 font-semibold text-[var(--warning)]">—— 仍有供应商未确认，确认要终止流程？</span>}
+                </div>
+              );
+            })()}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setConfirmScope(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button type="button" onClick={() => void doArchive(confirmScope)} className="neu-btn-primary !h-[36px] !text-xs">
