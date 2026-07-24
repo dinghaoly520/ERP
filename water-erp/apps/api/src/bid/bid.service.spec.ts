@@ -735,7 +735,7 @@ describe('BidService — stage transitions', () => {
     });
 
     it('scope 分支：full 触发 EVALUATION_RESULTS_REQUIRED；opening 跳过该守卫（开标归档路径）', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目' });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目' });
       prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs1', supplierName: '甲' }]);
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
 
@@ -743,10 +743,44 @@ describe('BidService — stage transitions', () => {
       await expect(service.archiveAll('p1'))
         .rejects.toMatchObject({ response: { code: 'EVALUATION_RESULTS_REQUIRED' } });
 
-      // opening → 跳过评标守卫，落到开标记录守卫（证明已过评标守卫）
+      // opening → 阶段下限通过（EVALUATING ≥ OPENING）、跳过评标守卫，落到开标记录守卫
       prisma.bidOpeningRecord.findMany.mockResolvedValue([]);
       await expect(service.archiveAll('p1', undefined, 'opening'))
         .rejects.toMatchObject({ response: { code: 'OPENING_RECORDS_MISSING' } });
+    });
+
+    it('F3 阶段下限：DOWNLOAD + scope=opening → 409 ARCHIVE_NOT_OPENED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'DOWNLOAD', name: '测试项目' });
+
+      await expect(service.archiveAll('p1', undefined, 'opening'))
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_NOT_OPENED' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('F3 阶段下限：SUBMIT + scope=full → 409 ARCHIVE_NOT_EVALUATING', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'SUBMIT', name: '测试项目' });
+
+      await expect(service.archiveAll('p1', undefined, 'full'))
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_NOT_EVALUATING' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('F3 阶段下限：OPENING + scope=opening → 放行进入归档流程', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目' });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidArchiveItem.findMany
+        .mockResolvedValueOnce([]) // ensureArchiveItems
+        .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]); // non-archived
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await expect(service.archiveAll('p1', undefined, 'opening')).resolves.toBeDefined();
+      expect(prisma.bidProject.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED' } }),
+      );
     });
 
     it('blocks archive when confirmable suppliers exist but no evaluation results (防跳过评标)', async () => {

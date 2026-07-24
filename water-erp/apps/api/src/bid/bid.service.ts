@@ -16,7 +16,7 @@ import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
-import { assertBidStageTransition, type BidStage } from './bid-state';
+import { assertBidStageTransition, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
@@ -1765,6 +1765,21 @@ export class BidService {
       return this.prisma.bidProject.findUnique({
         where: { id },
         include: { archiveItems: true },
+      });
+    }
+
+    // F3: 阶段下限守卫——棘轮只拒回退，下限由各端点业务前置负责。
+    // 防止对截标未到、供应商仍可投递的前阶段项目误归档（不可逆终局）。
+    if (scope === 'opening' && !stageAtLeast(project.stage, 'OPENING')) {
+      throw new ConflictException({
+        error: '开标归档要求项目已进入开标阶段',
+        code: 'ARCHIVE_NOT_OPENED',
+      });
+    }
+    if (scope === 'full' && !stageAtLeast(project.stage, 'EVALUATING')) {
+      throw new ConflictException({
+        error: '完整归档要求项目已进入评标阶段；开标后不评标请改用开标归档（scope=opening）',
+        code: 'ARCHIVE_NOT_EVALUATING',
       });
     }
 
