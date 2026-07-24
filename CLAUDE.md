@@ -365,7 +365,7 @@ The API uses `@nestjs/websockets` + Socket.IO for real-time bid opening (开标�
 DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ```
 
-**单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。阶段推进统一由 :3005「开标确认」面板驱动（按时开标/启动评标/归档），:3007 仅在 OPENING 阶段内写开标会话。例外：删除公告会把关联项目 stage 裸重置回 DOWNLOAD（`announcement.service.ts`，管理员刻意回滚，不经状态机）。
+**单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转统一由 :3005「开标确认」面板驱动（按时开标/启动评标/归档），:3007 仅在 OPENING 阶段内写开标会话、不持有任何阶段流转。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会把关联项目 stage 裸重置回 DOWNLOAD（`announcement.service.ts`，管理员刻意回滚，不经状态机）。
 
 ### File Uploads (MinIO)
 
