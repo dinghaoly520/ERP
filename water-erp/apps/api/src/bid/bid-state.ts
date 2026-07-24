@@ -2,28 +2,28 @@ import { ConflictException } from '@nestjs/common';
 
 export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED';
 
-const ALLOWED_TRANSITIONS: Record<BidStage, BidStage[]> = {
-  DOWNLOAD:    ['SUBMIT'],
-  SUBMIT:      ['OPENING'],
-  OPENING:     ['EVALUATING'],
-  EVALUATING:  ['ARCHIVED'],
-  ARCHIVED:    [],
+const STAGE_ORDER: Record<BidStage, number> = {
+  DOWNLOAD: 0,
+  SUBMIT: 1,
+  OPENING: 2,
+  EVALUATING: 3,
+  ARCHIVED: 4,
 };
 
 /**
- * 校验招标阶段流转是否合法。
- * - 同阶段 (from === to) 幂等放行，不抛异常
- * - 非法流转抛 409 ConflictException
+ * 校验招标阶段流转是否合法（单向棘轮语义）。
+ *
+ * 2026-07 重构：原相邻白名单状态机弱化为**单向进度标记**——
+ * - 同阶段 (from === to) 幂等放行
+ * - 只许前进，允许跳步（DOWNLOAD→OPENING、OPENING→ARCHIVED 均合法）
+ * - 回退或离开 ARCHIVED 抛 409 ConflictException（ARCHIVED 作 from 时天然终态）
+ *
+ * 阶段推进由 :3005 采购管理工作台统一驱动；实质准入闸门下沉到各端点
+ * 业务前置（投递=OPENING 前+截止前+公告已发布；解密=OPENING+解密窗口内）。
  */
 export function assertBidStageTransition(from: BidStage, to: BidStage): void {
   if (from === to) return;
-  const allowed = ALLOWED_TRANSITIONS[from] ?? [];
-  if (!allowed.includes(to)) {
-    throw new ConflictException(`非法招标阶段流转：${from} -> ${to}`);
+  if (STAGE_ORDER[to] < STAGE_ORDER[from]) {
+    throw new ConflictException(`非法招标阶段流转：${from} -> ${to}（只允许前进，ARCHIVED 为终态）`);
   }
-}
-
-/** 获取当前阶段允许的下一阶段列表（前端可用来展示允许动作） */
-export function getNextStages(current: BidStage): BidStage[] {
-  return ALLOWED_TRANSITIONS[current] ?? [];
 }

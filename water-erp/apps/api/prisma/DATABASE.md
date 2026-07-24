@@ -47,11 +47,11 @@
 | `BidSupervisionLog` | 监督日志 | `projectId→BidProject`、`action`、`operator` |
 | `BidArchiveItem` | 归档资料 | `projectId→BidProject`、`name`、`fileUrl`、`status: ArchiveStatus` |
 
-招标阶段状态机（`apps/api/src/bid/bid-state.ts` 为唯一来源）：
+招标阶段（**单向进度标记**，非逐级许可；`apps/api/src/bid/bid-state.ts` 为唯一来源）：
 ```
 DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ```
-非法跃迁返回 **409 Conflict**（非 400）。同态跃迁幂等。
+**单向棘轮**：只许前进、允许跳步（DOWNLOAD→OPENING、OPENING→ARCHIVED 均合法），同态跃迁幂等；回退或离开 ARCHIVED 返回 **409 Conflict**。实质准入闸门下沉到各端点业务前置（投递 = OPENING 前 + 截止前 + 公告已发布；解密 = OPENING + 解密窗口内）。阶段推进由 :3005 采购管理工作台统一驱动，:3007 只执行开标不推阶段。例外：删除公告重置 stage→DOWNLOAD（`announcement.service.ts` 裸写，不经状态机，系管理员刻意回滚）。
 
 ### 3. 供应商域（Supplier）
 

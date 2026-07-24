@@ -80,7 +80,7 @@ describe('SupplierPortalService', () => {
       notification: { count: jest.fn() },
       user: { findUnique: jest.fn() },
       announcement: { findFirst: jest.fn() },
-      bidDocument: { findUnique: jest.fn() },
+      bidDocument: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     };
 
     const module: TestingModule = await Test.createTestingModule({

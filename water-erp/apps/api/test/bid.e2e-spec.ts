@@ -110,12 +110,17 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(201);
   });
 
-  it('跳级推进 DOWNLOAD → EVALUATING 返回 409', () => {
-    return request(app.getHttpServer())
-      .post(`/api/bid/projects/${createdProjectId}/start-evaluation`)
+  it('棘轮：回退阶段返回 409（OPENING 项目经 open-submission 回退 SUBMIT）', async () => {
+    const proj = await prisma.bidProject.create({
+      data: { projectCode: `BID-RATCHET-${Date.now()}`, name: '棘轮回退测试', stage: 'OPENING', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
+    });
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${proj.id}/open-submission`)
       .set('Cookie', adminCookie)
       .set('X-Portal', 'web')
       .expect(409);
+    await prisma.bidSupervisionLog.deleteMany({ where: { projectId: proj.id } }).catch(() => {});
+    await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
   });
 
   it('供应商通过供应商门户提交投标（SUBMIT 阶段，真实路径）', async () => {

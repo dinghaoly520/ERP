@@ -45,8 +45,10 @@ describe('assertBidStageTransition (bid-state)', () => {
     expect(() => assertBidStageTransition('ARCHIVED', 'ARCHIVED')).not.toThrow();
   });
 
-  it('跳级抛 ConflictException', () => {
-    expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).toThrow(ConflictException);
+  it('允许向前跳步（棘轮：DOWNLOAD → OPENING / ARCHIVED 合法）', () => {
+    expect(() => assertBidStageTransition('DOWNLOAD', 'OPENING')).not.toThrow();
+    expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).not.toThrow();
+    expect(() => assertBidStageTransition('SUBMIT', 'EVALUATING')).not.toThrow();
   });
 
   it('回退抛 ConflictException', () => {
@@ -60,11 +62,11 @@ describe('assertBidStageTransition (bid-state)', () => {
 
   it('异常消息包含流转方向', () => {
     try {
-      assertBidStageTransition('DOWNLOAD', 'ARCHIVED');
+      assertBidStageTransition('EVALUATING', 'SUBMIT');
       fail('应抛出 ConflictException');
     } catch (e) {
-      expect(e.message).toContain('DOWNLOAD');
-      expect(e.message).toContain('ARCHIVED');
+      expect(e.message).toContain('EVALUATING');
+      expect(e.message).toContain('SUBMIT');
     }
   });
 });
@@ -141,8 +143,8 @@ describe('BidService — stage transitions', () => {
       expect(() => assertBidStageTransition('SUBMIT', 'OPENING')).not.toThrow();
     });
 
-    it('rejects DOWNLOAD → ARCHIVED (skip stages) with ConflictException', () => {
-      expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).toThrow(ConflictException);
+    it('allows DOWNLOAD → ARCHIVED (forward skip under ratchet)', () => {
+      expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).not.toThrow();
     });
 
     it('rejects ARCHIVED → DOWNLOAD (backward) with ConflictException', () => {
@@ -215,8 +217,8 @@ describe('BidService — stage transitions', () => {
       prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
     });
 
-    it('rejects if stage is DOWNLOAD (not SUBMIT)', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', name: '测试项目' });
+    it('rejects if stage is past OPENING (backward)', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' });
       await expect(service.startOpening('p1')).rejects.toThrow(ConflictException);
     });
 
@@ -699,10 +701,13 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
     });
 
-    it('rejects if not in EVALUATING', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+    it('已归档项目幂等返回（ARCHIVED 终态，不重复归档）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'ARCHIVED', name: '测试项目' });
 
-      await expect(service.archiveAll('p1')).rejects.toThrow(ConflictException);
+      const result = await service.archiveAll('p1');
+
+      expect(result).toBeDefined();
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
     });
 
     it('blocks archive when confirmable suppliers exist but no evaluation results (防跳过评标)', async () => {

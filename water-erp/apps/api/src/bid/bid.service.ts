@@ -461,9 +461,9 @@ export class BidService {
       });
 
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '开放投递 (DOWNLOAD→SUBMIT)', result: '阶段变更成功', riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: `开放投递 (${project.stage}→SUBMIT)`, result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'DOWNLOAD', to: 'SUBMIT', stage: 'SUBMIT' } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'SUBMIT', stage: 'SUBMIT' } } });
 
       return result;
     });
@@ -471,7 +471,7 @@ export class BidService {
     // Defer WebSocket notifications until after transaction commits
     this.gateway?.notifyStageChange(id, 'DOWNLOAD', 'SUBMIT', 'host');
     this.gateway?.notifySubmissionOpened(id);
-    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '开放投递 (DOWNLOAD→SUBMIT)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: `开放投递 (${project.stage}→SUBMIT)`, target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
     return updated;
   }
@@ -538,13 +538,13 @@ export class BidService {
       });
 
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: `启动开标 (${project.stage}→OPENING)`, result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'SUBMIT', to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
 
-      this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
+      this.gateway?.notifyStageChange(id, project.stage, 'OPENING', 'host');
       this.gateway?.notifyOpeningStarted(id, { host: dto?.host || '系统', supervisor: dto?.supervisor || '系统' });
-      this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action: '启动开标 (SUBMIT→OPENING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+      this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action: `启动开标 (${project.stage}→OPENING)`, target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
       return updated;
     });
@@ -586,9 +586,9 @@ export class BidService {
       });
 
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: `启动评标 (${project.stage}→EVALUATING)`, result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'EVALUATING', stage: 'EVALUATING' } } });
 
       // 4.3: 创建 AI 分析 task（1:1，upsert 幂等）+ 为解密成功供应商创建 bidderResult（数据准备）
       const aiTask = await tx.aiBidAnalysisTask.upsert({
@@ -616,9 +616,9 @@ export class BidService {
     });
 
     // Defer WebSocket notifications until after transaction commits
-    this.gateway?.notifyStageChange(id, 'OPENING', 'EVALUATING', 'host');
+    this.gateway?.notifyStageChange(id, project.stage, 'EVALUATING', 'host');
     this.gateway?.notifyEvaluationStarted(id);
-    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动评标 (OPENING→EVALUATING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: `启动评标 (${project.stage}→EVALUATING)`, target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
     // 15.10: AI 分析启动监督日志
     await this.prisma.bidSupervisionLog.create({
@@ -1727,7 +1727,7 @@ export class BidService {
       });
       if (actorId) {
         await tx.auditLog.create({
-          data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'EVALUATING', to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } },
+          data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } },
         });
       }
 
@@ -1737,7 +1737,7 @@ export class BidService {
       });
     });
 
-    this.gateway?.notifyStageChange(id, 'EVALUATING', 'ARCHIVED', 'host');
+    this.gateway?.notifyStageChange(id, project.stage, 'ARCHIVED', 'host');
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项`, riskFlag: '无' });
 
     // G1: 归档成功后自动生成中标公示草稿（事务外；幂等；不阻塞归档主流程）
