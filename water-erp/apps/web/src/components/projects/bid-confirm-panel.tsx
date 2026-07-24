@@ -167,6 +167,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
     onOpeningConfirmed: scheduleRefresh,
     onOpeningDisputed: scheduleRefresh,
     onOpeningDisputeResolved: scheduleRefresh,
+    // F6：唱标录入只 emit supervision:log（无开标记录类事件），订阅它使「唱标录入」计数实时回流
+    onSupervisionLog: scheduleRefresh,
     onClarificationCreated: scheduleRefresh,
     onClarificationReplied: scheduleRefresh,
     onExpertPresence: scheduleRefresh,
