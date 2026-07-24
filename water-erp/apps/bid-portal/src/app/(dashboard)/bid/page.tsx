@@ -47,7 +47,13 @@ export default function BidTaskBoard() {
 
   useEffect(() => { load(); }, [load]);
 
-  const now = Date.now();
+  // F9：低频 tick（30s），停留期间到点截标的项目自动移入「待确定开标」
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
   const opening = (projects ?? []).filter(p => p.stage === 'OPENING');
   // 棘轮化后项目可一直停在 DOWNLOAD 到截标（投递闸门不再要求 SUBMIT），
   // 故「待确定开标」需覆盖 DOWNLOAD+SUBMIT 两个截标已过的前阶段（审查发现 F2）
