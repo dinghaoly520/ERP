@@ -37,10 +37,11 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
     }
   };
 
+  /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
     if (open) reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleApply = async (t: ScoreTemplateRef) => {
     setApplyingId(t.id);

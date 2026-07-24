@@ -60,6 +60,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const [showSaveTpl, setShowSaveTpl] = useState(false);
   const [showLib, setShowLib] = useState(false);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -85,6 +86,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 按项目/轮次重载；bidProject 仅作首屏捷径
   }, [project.id, round, bidProject?.id]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const locked = !!publishedAt || stage === 'EVALUATING' || stage === 'ARCHIVED';
   const totalMax = useMemo(() => items.reduce((s, i) => s + Number(i.maxScore), 0), [items]);

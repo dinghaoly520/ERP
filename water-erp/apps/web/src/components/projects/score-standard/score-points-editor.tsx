@@ -51,6 +51,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
           setExtractError('AI 未从招标文件提取到得分点建议。');
         }
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.name 判 AbortError + e?.message 回退
     } catch (e: any) {
       if (e?.name === 'AbortError') {
         setExtractError('AI 提取超时（120s），招标文件可能较大，请稍后重试');
@@ -70,6 +71,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
       await batchCreateScorePoints(projectId, item.id, picked);
       setSuggestions(null);
       onChanged();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.message 回退提示
     } catch (e: any) {
       toast.error(e?.message ?? '导入失败，请重试');
     }
