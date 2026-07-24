@@ -734,6 +734,21 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidProject.update).not.toHaveBeenCalled();
     });
 
+    it('scope 分支：full 触发 EVALUATION_RESULTS_REQUIRED；opening 跳过该守卫（开标归档路径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目' });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs1', supplierName: '甲' }]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+
+      // full（默认）→ 存在已确认供应商但无评标结果，守卫拦截
+      await expect(service.archiveAll('p1'))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_RESULTS_REQUIRED' } });
+
+      // opening → 跳过评标守卫，落到开标记录守卫（证明已过评标守卫）
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([]);
+      await expect(service.archiveAll('p1', undefined, 'opening'))
+        .rejects.toMatchObject({ response: { code: 'OPENING_RECORDS_MISSING' } });
+    });
+
     it('blocks archive when confirmable suppliers exist but no evaluation results (防跳过评标)', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'EVALUATING', name: '测试项目' });
       // R1: confirmableCount 现在由 findMany.length 推导，故 mock 两元素数组替代 count(2)

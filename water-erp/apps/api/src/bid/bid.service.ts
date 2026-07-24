@@ -1547,15 +1547,18 @@ export class BidService {
    * Ensure standard archive items exist for a project.
    * When called with a transaction client, uses it; otherwise uses this.prisma.
    */
-  private async ensureArchiveItems(projectId: string, tx?: any) {
+  private async ensureArchiveItems(projectId: string, tx?: any, opts?: { skipEvaluation?: boolean }) {
     const db = tx ?? this.prisma;
     const standards = [
       { name: '招标项目基础信息', ownerRole: '系统' },
       { name: '投标供应商名单', ownerRole: '开标主持人' },
       { name: '开标记录表', ownerRole: '开标主持人' },
       { name: '供应商确认/异议记录', ownerRole: '供应商' },
-      { name: '专家评分明细', ownerRole: '评审专家' },
-      { name: '评标结果汇总', ownerRole: '评审委员会' },
+      // 开标归档（scope=opening）不生成评分/评标两项材料
+      ...(opts?.skipEvaluation ? [] : [
+        { name: '专家评分明细', ownerRole: '评审专家' },
+        { name: '评标结果汇总', ownerRole: '评审委员会' },
+      ]),
       { name: '监督日志', ownerRole: '监督人' },
     ];
     // Use a single findMany + createMany to avoid N+1
@@ -1653,7 +1656,13 @@ export class BidService {
     });
   }
 
-  async archiveAll(id: string, actorId?: string) {
+  /**
+   * 一键归档。
+   * @param scope 'full'（默认）完整归档，要求评标结果；'opening' 开标归档——
+   *   仅归档开标文件（5 项材料，跳过评分明细/评标汇总与评标结果守卫），
+   *   用于流标/废标等开标后不进入评标的场景。**终局操作**：归档后 ARCHIVED 不可逆。
+   */
+  async archiveAll(id: string, actorId?: string, scope: 'opening' | 'full' = 'full') {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { id: true, projectCode: true, stage: true, name: true },
@@ -1684,7 +1693,8 @@ export class BidService {
         tx.bidEvaluationResult.count({ where: { projectId: id } }),
       ]);
       const confirmableCount = confirmableSuppliers.length;
-      if (confirmableCount > 0 && resultCount === 0) {
+      // scope=opening（开标归档）不进入评标，跳过评标结果守卫
+      if (scope === 'full' && confirmableCount > 0 && resultCount === 0) {
         throw new ConflictException({
           error: '存在已确认的可评供应商，请先生成评标结果再归档',
           code: 'EVALUATION_RESULTS_REQUIRED',
@@ -1708,7 +1718,7 @@ export class BidService {
       }
 
       // 自动补齐标准归档材料，避免”无可归档项”阻塞
-      await this.ensureArchiveItems(id, tx);
+      await this.ensureArchiveItems(id, tx, { skipEvaluation: scope === 'opening' });
 
       const archiveItems = await tx.bidArchiveItem.findMany({
         where: { projectId: id, status: { not: 'ARCHIVED' } },
@@ -1719,9 +1729,11 @@ export class BidService {
       }
 
       // P0-4: 逐项 SHA-256 哈希链 — 每个归档项拥有独立哈希，链式防篡改。
+      // 归一化：算链时把各项 status 视作 ARCHIVED，与 exportArchivePackage 重算口径一致
+      // （修预存 bug：此前按 PENDING_CONFIRM 算链，导出按 ARCHIVED 重算，两者永不匹配）
       const chain = computeArchiveChain(
         { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
-        archiveItems,
+        archiveItems.map(i => ({ ...i, status: 'ARCHIVED' as const })),
       );
 
       // 逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志
@@ -1735,12 +1747,13 @@ export class BidService {
         where: { id },
         data: { stage: 'ARCHIVED' },
       });
+      const scopeLabel = scope === 'opening' ? '（开标归档）' : '';
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '一键归档', result: `归档 ${archiveItems.length} 项`, riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '一键归档', result: `归档 ${archiveItems.length} 项${scopeLabel}`, riskFlag: '无' },
       });
       if (actorId) {
         await tx.auditLog.create({
-          data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } },
+          data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length, scope } },
         });
       }
 
@@ -1751,7 +1764,7 @@ export class BidService {
     });
 
     this.gateway?.notifyStageChange(id, project.stage, 'ARCHIVED', 'host');
-    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项`, riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项${scope === 'opening' ? '（开标归档）' : ''}`, riskFlag: '无' });
 
     // G1: 归档成功后自动生成中标公示草稿（事务外；幂等；不阻塞归档主流程）
     try {

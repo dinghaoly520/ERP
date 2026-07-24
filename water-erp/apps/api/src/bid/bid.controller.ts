@@ -12,6 +12,7 @@ import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
+import { ArchiveAllDto } from './dto/archive-all.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
@@ -377,8 +378,10 @@ export class BidController {
   listArchives(@Param('id') id: string) { return this.bidService.listArchives(id); }
 
   @Post('projects/:id/archive-all')
-  @ApiOperation({ summary: '一键归档' })
-  archiveAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.archiveAll(id, userId); }
+  @ApiOperation({ summary: '一键归档（scope=opening 仅归档开标文件，不要求评标结果；full 完整归档）' })
+  archiveAll(@Param('id') id: string, @Body() dto: ArchiveAllDto, @CurrentUser('sub') userId: string) {
+    return this.bidService.archiveAll(id, userId, dto.scope ?? 'full');
+  }
 
   @Get('projects/:id/winner-notice')
   @ApiOperation({ summary: '查询项目关联的中标公示（G1，草稿或已发布）' })
