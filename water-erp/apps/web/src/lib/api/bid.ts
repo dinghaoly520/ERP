@@ -52,6 +52,8 @@ export interface BidWorkspaceSupplier {
   downloadStatus: string;
   submitStatus: string;
   decryptStatus: string;
+  /** CONFIRMED / PENDING / EXCEPTION / DISPUTED（C5 起随 workspace 返回） */
+  confirmStatus: string;
   submission: {
     supplierId: string;
     status: string;
@@ -90,6 +92,11 @@ export interface BidWorkspace {
     withdrawn: number;
     expertCount: number;
     expertSignedIn: number;
+    /** 开标就绪度信号（C5）：解密成功 / 供应商已确认 / 待处理异议 / 已唱标记录数 */
+    decryptedCount: number;
+    confirmedCount: number;
+    pendingDisputeCount: number;
+    openingRecordedCount: number;
   };
 }
 

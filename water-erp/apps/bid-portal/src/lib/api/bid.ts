@@ -57,6 +57,11 @@ export interface DashboardProject {
   supplierSubmitted: number;
   expertCount: number;
   expertSignedIn: number;
+  /** 开标就绪度信号（C5）：解密成功 / 供应商已确认 / 待处理异议 / 已唱标记录数 */
+  decryptedCount: number;
+  confirmedCount: number;
+  pendingDisputeCount: number;
+  openingRecordedCount: number;
   readiness: 'ready' | 'partial' | 'not-ready' | 'archived';
 }
 

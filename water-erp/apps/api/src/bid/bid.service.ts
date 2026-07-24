@@ -133,26 +133,59 @@ export class BidService {
 
     const projectIds = projects.map(p => p.id);
 
-    // 批量获取各项目的供应商提交数与专家签到数（单次 groupBy，避免 N+1）
-    const [submissionCounts, expertSignInCounts] = await Promise.all([
+    // 批量获取各项目的供应商提交数/专家签到数/开标就绪度计数（单次 groupBy，避免 N+1）
+    type CountRow = { projectId: string; _count: { projectId: number } };
+    const [submissionCounts, expertSignInCounts, decryptedCounts, confirmedCounts, disputedCounts, openingRecordCounts] = await Promise.all([
       projectIds.length > 0
         ? this.prisma.supplierBidSubmission.groupBy({
             by: ['projectId'],
             where: { projectId: { in: projectIds }, status: 'submitted' },
             _count: { projectId: true },
           })
-        : ([] as { projectId: string; _count: { projectId: number } }[]),
+        : ([] as CountRow[]),
       projectIds.length > 0
         ? this.prisma.bidExpert.groupBy({
             by: ['projectId'],
             where: { projectId: { in: projectIds }, signedIn: true },
             _count: { projectId: true },
           })
-        : ([] as { projectId: string; _count: { projectId: number } }[]),
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidSupplier.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, decryptStatus: 'SUCCESS' },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidSupplier.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, confirmStatus: 'CONFIRMED' },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidSupplier.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, confirmStatus: 'DISPUTED' },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidOpeningRecord.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds } },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
     ]);
 
     const submittedMap = new Map(submissionCounts.map(s => [s.projectId, s._count.projectId] as [string, number]));
     const signedInMap = new Map(expertSignInCounts.map(e => [e.projectId, e._count.projectId] as [string, number]));
+    const decryptedMap = new Map(decryptedCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
+    const confirmedMap = new Map(confirmedCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
+    const disputedMap = new Map(disputedCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
+    const openingRecordMap = new Map(openingRecordCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
 
     const projectRows = projects.map(p => {
       const supplierCount = p._count.suppliers;
@@ -195,6 +228,11 @@ export class BidService {
         supplierSubmitted,
         expertCount,
         expertSignedIn,
+        // 开标就绪度信号：驱动 :3007 开标任务板与「开标完成」判定
+        decryptedCount: decryptedMap.get(p.id) ?? 0,
+        confirmedCount: confirmedMap.get(p.id) ?? 0,
+        pendingDisputeCount: disputedMap.get(p.id) ?? 0,
+        openingRecordedCount: openingRecordMap.get(p.id) ?? 0,
         readiness,
       };
     });
@@ -245,7 +283,7 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    const [suppliers, experts, submissions] = await Promise.all([
+    const [suppliers, experts, submissions, openingRecordCount] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: id },
         include: { supplier: { select: { id: true, name: true, classification: { select: { name: true } } } } },
@@ -259,6 +297,7 @@ export class BidService {
         where: { projectId: id },
         select: { supplierId: true, status: true, submittedAt: true, bidPrice: true, deliveryPeriod: true },
       }),
+      this.prisma.bidOpeningRecord.count({ where: { projectId: id } }),
     ]);
     const subMap = new Map(submissions.map(s => [s.supplierId, s]));
 
@@ -275,6 +314,7 @@ export class BidService {
         downloadStatus: s.downloadStatus,
         submitStatus: s.submitStatus,
         decryptStatus: s.decryptStatus,
+        confirmStatus: s.confirmStatus,
         submission,
         submitted,
         withdrawn,
@@ -291,6 +331,11 @@ export class BidService {
         withdrawn: supplierRows.filter(s => s.withdrawn).length,
         expertCount: experts.length,
         expertSignedIn: experts.filter(e => e.signedIn).length,
+        // 开标就绪度信号：驱动 :3005 开标进度区块与 :3007「开标完成」判定
+        decryptedCount: supplierRows.filter(s => s.decryptStatus === 'SUCCESS').length,
+        confirmedCount: supplierRows.filter(s => s.confirmStatus === 'CONFIRMED').length,
+        pendingDisputeCount: supplierRows.filter(s => s.confirmStatus === 'DISPUTED').length,
+        openingRecordedCount: openingRecordCount,
       },
     };
   }
