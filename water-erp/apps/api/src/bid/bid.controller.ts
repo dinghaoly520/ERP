@@ -428,7 +428,11 @@ export class BidController {
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="archive-${id.slice(-12)}.csv"`);
-      return res.send(data);
+      // F4：passthrough 模式下必须 return undefined——返回 res.send() 的返回值（Response 对象）
+      // 会使 Nest 二次 apply → res.json(res) → 循环引用 TypeError（每次导出打全栈日志）。
+      // 返回 undefined 时 Nest 的兜底是无参 res.send()，Express 5 中为无害 no-op。
+      res.send(data);
+      return;
     }
     return data;
   }
