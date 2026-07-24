@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ListChecks } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta, statusTone } from '@water-erp/shared';
+import { portalURL } from '@water-erp/config';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import { Modal } from '@/components/workbench';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
@@ -45,9 +46,9 @@ const TYPE_LINKS: Record<string, string> = {
   QUALIFICATION_EXPIRING: '/supplier/repository',
   BID_PUBLISHED:          '/projects',
   BID_REMINDER:           '/projects',
-  BID_OPENING:            '/bid',
-  BID_EVALUATION_RESULT:  '/bid',
-  CLARIFICATION_REPLIED:  '/bid/clarifications',
+  BID_OPENING:            portalURL('bid', '/bid'), // 开标大厅在 :3007（跨端外链）
+  BID_EVALUATION_RESULT:  '/projects',              // 评标管理已归 :3005 开评标指挥中心
+  CLARIFICATION_REPLIED:  '/projects',              // 澄清答疑已归 :3005 开评标指挥中心
   CATALOG_APPLICATION:    '/mall-management/catalog?tab=approval',
   SYSTEM:                 '/notifications',
 };
@@ -56,6 +57,12 @@ const ACTIONABLE_ORDER = [
   'SUPPLIER_PENDING', 'PRICE_REVIEW', 'QUALIFICATION_EXPIRING',
   'BID_REMINDER', 'SUPPLIER_RETURNED',
 ];
+
+/** 通知跳转：本端路由走 router.push；跨端外链（http，如 :3007 开标大厅）新标签打开 */
+function navigateToLink(link: string, push: (href: string) => void) {
+  if (link.startsWith('http')) window.open(link, '_blank', 'noopener');
+  else push(link);
+}
 
 // 特定标题的系统通知——赋予场景化图标
 const TITLE_ICONS: Record<string, string> = {
@@ -228,7 +235,7 @@ export function TaskNotificationCenter({
               <NotificationRow
                 key={item.id}
                 item={item}
-                onClick={() => router.push(item.link)}
+                onClick={() => navigateToLink(item.link, router.push)}
               />
             ))}
 
@@ -278,7 +285,7 @@ export function TaskNotificationCenter({
                 key={item.id}
                 item={item}
                 onClick={() => {
-                  router.push(item.link);
+                  navigateToLink(item.link, router.push);
                   setShowAll(false);
                 }}
               />
