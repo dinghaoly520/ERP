@@ -134,7 +134,9 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
     listEvaluationResults(bidProjectId).then(setResults).catch(() => setResults([]));
   }, [bidProjectId]);
 
-  useEffect(() => { loadResults(); }, [loadResults, detail]);
+  // F12：仅按项目挂载拉取（detail 每次 socket 刷新都换引用，放入依赖会导致
+  // 任何无关事件（解密等）都重拉评标结果）；本区块动作已各自刷新
+  useEffect(() => { loadResults(); }, [loadResults]);
 
   /* ── 派生数据 ── */
   const matrix = useMemo(() => (detail ? buildExpertSupplierMatrix(detail) : new Map()), [detail]);

@@ -158,6 +158,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(() => refreshDetail(), 600);
   }, [refreshDetail]);
+  // F12：澄清事件低频，单独计数驱动澄清区块定向重拉（不经 detail 全量刷新）
+  const [clarTick, setClarTick] = useState(0);
 
   /* ── Phase 2：实时事件 → 阶段流转整体重载，过程事件增量刷新详情 ── */
   useBidWebSocket(isOpen ? bidProject?.id : undefined, {
@@ -169,9 +171,11 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
     onOpeningDisputeResolved: scheduleRefresh,
     // F6：唱标录入只 emit supervision:log（无开标记录类事件），订阅它使「唱标录入」计数实时回流
     onSupervisionLog: scheduleRefresh,
-    onClarificationCreated: scheduleRefresh,
-    onClarificationReplied: scheduleRefresh,
+    onClarificationCreated: () => { scheduleRefresh(); setClarTick(t => t + 1); },
+    onClarificationReplied: () => { scheduleRefresh(); setClarTick(t => t + 1); },
     onExpertPresence: scheduleRefresh,
+    // F13：断线重连后全量补偿刷新（断线窗口内错过的事件无法补推）
+    onReconnected: () => { if (bidProject?.id) void load(); },
   });
 
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
@@ -181,6 +185,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
 
   useEffect(() => {
     if (!isOpen) {
+      // F14：清理挂起的防抖刷新，避免关闭后对旧项目发一次无效请求
+      if (refreshTimer.current) { clearTimeout(refreshTimer.current); refreshTimer.current = null; }
       setBidProject(null);
       setWorkspace(null);
       setScoreItems([]);
@@ -894,7 +900,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
                 <>
                   <OpeningProgressBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   <EvaluationBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
-                  <ClarificationsBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
+                  <ClarificationsBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} refreshTick={clarTick} />
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                 </>
               )}

@@ -52,6 +52,8 @@ export interface BidWsHandlers {
   onOpeningConfirmed?: (d: OpeningConfirmedPayload) => void;
   onOpeningDisputed?: (d: OpeningDisputedPayload) => void;
   onOpeningDisputeResolved?: (d: OpeningDisputeResolvedPayload) => void;
+  /** F13：断线重连成功后触发（首连不触发）——供调用方做全量补偿刷新 */
+  onReconnected?: () => void;
 }
 
 export interface UseBidWebSocketResult {
@@ -71,6 +73,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
   const heartbeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
+  const hasConnectedOnce = useRef(false);
   const manualClose = useRef(false);
 
   handlersRef.current = handlers;
@@ -97,6 +100,10 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
       attemptRef.current = 0;
       setConnection('connected');
       socket.emit('join:project', projectId);
+
+      // F13：重连（非首连）成功 → 通知调用方全量补偿刷新（断线窗口内的事件无法补推）
+      if (hasConnectedOnce.current) handlersRef.current.onReconnected?.();
+      hasConnectedOnce.current = true;
 
       heartbeatTimer.current = setInterval(() => {
         const now = Date.now();
@@ -168,6 +175,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
 
   useEffect(() => {
     if (!projectId) return;
+    hasConnectedOnce.current = false;
     connect();
     return () => {
       manualClose.current = true;

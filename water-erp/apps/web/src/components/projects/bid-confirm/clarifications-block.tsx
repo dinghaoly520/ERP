@@ -23,6 +23,8 @@ type Props = {
   bidProjectId: string;
   detail: BidProjectDetail | null;
   onChanged: () => void;
+  /** 澄清类 socket 事件计数（F12：定向触发重拉，不随 detail 全量刷新） */
+  refreshTick?: number;
 };
 
 function formatTime(iso: string | null): string {
@@ -32,7 +34,7 @@ function formatTime(iso: string | null): string {
   return d.toLocaleString('zh-CN');
 }
 
-export function ClarificationsBlock({ bidProjectId, detail, onChanged }: Props) {
+export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshTick }: Props) {
   const [items, setItems] = useState<BidClarificationInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -65,8 +67,9 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged }: Props) 
       .finally(() => setLoading(false));
   }, [bidProjectId]);
 
-  // 首次 + 父组件刷新（socket 事件驱动 detail 变化）时重拉
-  useEffect(() => { load(); }, [load, detail]);
+  // F12：按项目挂载 + refreshTick（仅澄清类 socket 事件递增）拉取，
+  // 不随 detail 全量刷新（避免解密等无关事件触发重拉与加载闪烁）
+  useEffect(() => { load(); }, [load, refreshTick]);
 
   if (!detail) return null;
   const stage = detail.stage;
