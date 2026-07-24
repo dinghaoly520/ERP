@@ -18,7 +18,8 @@ export default function RecentProjects() {
   if (items.length === 0) return null;
 
   const handleClick = (p: RecentProject) => {
-    router.push(`/bid/project/${p.id}`);
+    // Phase 3：project 工作区已退役，最近项目直达开标大厅
+    router.push(`/bid/open?id=${p.id}`);
   };
 
   const handleRemove = (e: React.MouseEvent, id: string) => {
@@ -28,8 +29,8 @@ export default function RecentProjects() {
     setItems(getRecentProjects());
   };
 
-  const currentId = pathname.startsWith('/bid/project/')
-    ? pathname.split('/')[3]
+  const currentId = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('id')
     : null;
 
   return (

@@ -17,7 +17,9 @@ function toLocalInput(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** 启动开标弹窗 —— 收集主持人/监督人/解密时间窗口后提交 StartOpeningDto。 */
+/** 组建开标会话弹窗 —— 收集主持人/监督人/解密时间窗口后提交 StartOpeningDto。
+ * Phase 3 起：:3005「按时开标」只推阶段（不建会话），会话在 :3007 开标大厅
+ * 由主持人组建——同阶段（OPENING→OPENING）幂等调用 /open 写入会话。 */
 export default function StartOpeningDialog({ open, projectId, onClose, onStarted }: Props) {
   const [host, setHost] = useState('');
   const [supervisor, setSupervisor] = useState('');
@@ -55,7 +57,7 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
       });
       onStarted();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '启动开标失败');
+      setError(e instanceof Error ? e.message : '组建开标会话失败');
     } finally {
       setSubmitting(false);
     }
@@ -70,7 +72,7 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
       <div className="glass-card glass-card-deeper glass-card-blue w-full max-w-md mx-4 rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-[oklch(0.91_0.006_264)] flex items-center justify-between">
           <h3 className="text-[15px] font-semibold tracking-tight text-[oklch(0.18_0.012_265)]">
-            启动开标
+            组建开标会话
           </h3>
           <button onClick={onClose} className="text-[12px] text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.18_0.012_265)] tracking-tight">取消</button>
         </div>
@@ -98,11 +100,11 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
         </div>
 
         <div className="px-6 py-4 border-t border-[oklch(0.91_0.006_264)] flex items-center justify-between">
-          <span className="text-[11px] text-[oklch(0.62_0.008_264)] tracking-tight">启动后项目进入开标阶段</span>
+          <span className="text-[11px] text-[oklch(0.62_0.008_264)] tracking-tight">组建后即可解密 / 唱标（阶段已由 :3005 确定开标）</span>
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 text-[12px] text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.18_0.012_265)] tracking-tight">取消</button>
             <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50">
-              {submitting ? '启动中…' : '确认启动'}
+              {submitting ? '组建中…' : '确认组建'}
             </button>
           </div>
         </div>

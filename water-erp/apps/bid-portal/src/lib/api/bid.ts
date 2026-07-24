@@ -1,42 +1,17 @@
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
-import type { ScorePointSuggestion } from '@water-erp/shared';
 
-export function listProjects() {
-  return api.get<{ id: string }[]>('/bid/projects');
-}
+/* ── :3007 开标执行终端 API 封装（Phase 3 瘦身版）──
+   项目管理 / 评分标准 / 评标 / 澄清 / 归档触发等封装已随对应页面迁往 :3005。
+   此处仅保留：项目读取、任务板、开标会话组建、解密、唱标、异议、监督批注。 */
 
-export function listProjectsFull() {
-  return api.get<import('@/lib/types').BidProject[]>('/bid/projects');
-}
+/* ── 项目详情 ── */
 
 export function getProject<T = BidProjectDetail>(id: string) {
   return api.get<T>(`/bid/projects/${id}`);
 }
 
-export function createProject(data: {
-  name: string;
-  procurementMethod: string;
-  openTime: string;
-  deadline: string;
-  riskNote?: string;
-}) {
-  return api.post<BidProjectDetail>('/bid/projects', data);
-}
-
-export function updateProject(id: string, data: { stage?: string; riskNote?: string }) {
-  return api.patch<BidProjectDetail>(`/bid/projects/${id}`, data);
-}
-
-export function getDashboardStats() {
-  return api.get<{
-    totalProjects: number; activeProjects: number;
-    totalSuppliers: number; approvedSuppliers: number;
-    totalExperts: number; totalAnnouncements: number;
-    stageDistribution: Record<string, number>;
-    recentLogs: import('@/lib/types').BidSupervisionLog[];
-  }>('/bid/dashboard-stats');
-}
+/* ── 开标任务板 ── */
 
 export interface DashboardProject {
   id: string;
@@ -76,9 +51,7 @@ export function getProjectsDashboard() {
   return api.get<DashboardResponse>('/bid/projects/dashboard');
 }
 
-export function openSubmission(projectId: string) {
-  return api.post<BidProjectDetail>(`/bid/projects/${projectId}/open-submission`, {});
-}
+/* ── 开标会话组建（:3005 已确定开标后，主持人在大厅同阶段幂等写入会话）── */
 
 export function startOpening(projectId: string, body: {
   host: string; supervisor: string;
@@ -87,38 +60,13 @@ export function startOpening(projectId: string, body: {
   return api.post<BidProjectDetail>(`/bid/projects/${projectId}/open`, body);
 }
 
-export function startEvaluation(projectId: string) {
-  return api.post<BidProjectDetail>(`/bid/projects/${projectId}/start-evaluation`, {});
+/* ── 解密 ── */
+
+export function decryptBid(projectId: string, supplierId: string) {
+  return api.post(`/bid/projects/${projectId}/decrypt/${supplierId}`, {});
 }
 
-/** 催促供应商投标（站内信+Email 多通道）。onlyUnpublished 默认 true：仅催未提交者。返回 { reached }。 */
-export function nudgeSuppliers(projectId: string, onlyUnsubmitted = true) {
-  return api.post<{ reached: number }>(`/bid/projects/${projectId}/nudge-suppliers`, { onlyUnsubmitted });
-}
-
-/** 催促专家签到/评分。reason: 'signin' | 'score'。返回 { reached }。 */
-export function nudgeExperts(projectId: string, reason: 'signin' | 'score') {
-  return api.post<{ reached: number }>(`/bid/projects/${projectId}/nudge-experts`, { reason });
-}
-
-/** 项目当前供应商名册（邀请弹窗用于标灰已邀请项）。 */
-export function listProjectSuppliers(projectId: string) {
-  return api.get<{ id: string; supplierId: string | null; supplierName: string; submitStatus: string }[]>(
-    `/bid/projects/${projectId}/suppliers`,
-  );
-}
-
-/** 邀请供应商加入名册（仅发标/投标期）。返回 { added, skipped }。 */
-export function inviteSuppliers(projectId: string, supplierIds: string[]) {
-  return api.post<{ added: number; skipped: number }>(`/bid/projects/${projectId}/suppliers`, { supplierIds });
-}
-
-export function decryptSupplier(projectId: string, supplierId: string, body?: {
-  amount?: string; period?: string; qualityTarget?: string;
-  bondStatus?: string; simulateDanger?: boolean;
-}) {
-  return api.post(`/bid/projects/${projectId}/decrypt/${supplierId}`, body || {});
-}
+/* ── 唱标与异议 ── */
 
 export function resolveOpeningDispute(projectId: string, recordId: string, body: {
   result: string; confirm: boolean;
@@ -146,160 +94,14 @@ export type OpeningDraftResult = {
 export const getOpeningDraft = (projectId: string, supplierId: string) =>
   api.get<OpeningDraftResult>(`/bid/projects/${projectId}/suppliers/${supplierId}/opening-draft`);
 
-export function submitScore(projectId: string, body: {
-  expertId: string; scoreItemId: string; supplierId: string;
-  score: number; reason?: string;
-}) {
-  return api.post(`/bid/projects/${projectId}/scores`, body);
-}
+/* ── 开标会话授时（倒计时以服务端时间为准）── */
 
-export function listScores(projectId: string) {
-  return api.get(`/bid/projects/${projectId}/scores`);
-}
-
-export interface ScorePoint {
-  id: string;
-  scoreItemId: string;
-  name: string;
-  fullScore: number | string;
-  seq: number;
-  evidenceHint: string | null;
-  objective: boolean;
-  createdAt: string;
-}
-
-export interface ScoreItem {
-  id: string;
-  category: string;
-  name: string;
-  maxScore: number | string;
-  scoringCriteria?: string | null;
-  evidenceHint?: string | null;
-  criteriaSource?: string | null;
-  points?: ScorePoint[];
-}
-
-export function listScoreItems(projectId: string) {
-  return api.get<ScoreItem[]>(`/bid/projects/${projectId}/score-items`);
-}
-
-export function createScoreItem(projectId: string, body: { category: string; name: string; maxScore: number }) {
-  return api.post<ScoreItem>(`/bid/projects/${projectId}/score-items`, body);
-}
-
-export function applyScoreItemTemplate(projectId: string) {
-  return api.post<ScoreItem[]>(`/bid/projects/${projectId}/score-items/template`, {});
-}
-
-export function publishScoreStandard(projectId: string) {
-  return api.post<{ scoreStandardPublishedAt: string }>(`/bid/projects/${projectId}/score-items/publish`, {});
-}
-
-export function updateScoreItem(projectId: string, itemId: string, body: { category?: string; name?: string; maxScore?: number }) {
-  return api.patch<ScoreItem>(`/bid/projects/${projectId}/score-items/${itemId}`, body);
-}
-
-export function deleteScoreItem(projectId: string, itemId: string) {
-  return api.delete<void>(`/bid/projects/${projectId}/score-items/${itemId}`);
-}
-
-export function listScorePoints(projectId: string, itemId: string) {
-  return api.get<ScorePoint[]>(`/bid/projects/${projectId}/score-items/${itemId}/points`);
-}
-export function createScorePoint(
-  projectId: string,
-  itemId: string,
-  body: { name: string; fullScore: number; seq?: number; evidenceHint?: string; objective?: boolean },
-) {
-  return api.post<ScorePoint>(`/bid/projects/${projectId}/score-items/${itemId}/points`, body);
-}
-export function updateScorePoint(
-  projectId: string,
-  itemId: string,
-  pointId: string,
-  body: Partial<{ name: string; fullScore: number; seq: number; evidenceHint: string; objective: boolean }>,
-) {
-  return api.patch<ScorePoint>(`/bid/projects/${projectId}/score-items/${itemId}/points/${pointId}`, body);
-}
-export function deleteScorePoint(projectId: string, itemId: string, pointId: string) {
-  return api.delete<void>(`/bid/projects/${projectId}/score-items/${itemId}/points/${pointId}`);
-}
-
-// ScorePointSuggestion 已移至 @water-erp/shared
-
-export function extractScorePoints(projectId: string, itemId: string, options?: RequestInit) {
-  return api.post<ScorePointSuggestion[]>(`/bid/projects/${projectId}/score-items/${itemId}/points/extract`, {}, options);
-}
-export function batchCreateScorePoints(
-  projectId: string,
-  itemId: string,
-  points: Array<{ name: string; fullScore: number; evidenceHint?: string; objective?: boolean }>,
-) {
-  return api.post<{ count: number }>(`/bid/projects/${projectId}/score-items/${itemId}/points/batch`, { points });
-}
-
-// ── 评分模板（用户保存的可复用整套评分标准）──
-
-export interface ScoreTemplateSummary {
-  id: string;
-  name: string;
-  createdById: string | null;
-  createdByName: string | null;
-  createdAt: string;
-}
-
-export function listScoreTemplates() {
-  return api.get<ScoreTemplateSummary[]>('/bid/score-templates');
-}
-
-export function saveScoreTemplate(projectId: string, name: string) {
-  return api.post<ScoreTemplateSummary>('/bid/score-templates', { projectId, name });
-}
-
-export function deleteScoreTemplate(templateId: string) {
-  return api.delete<void>(`/bid/score-templates/${templateId}`);
-}
-
-export function applyScoreTemplateById(projectId: string, templateId: string) {
-  return api.post<ScoreItem[]>(`/bid/projects/${projectId}/apply-score-template/${templateId}`, {});
-}
-
-export function listEvaluationResults(projectId: string) {
-  return api.get(`/bid/projects/${projectId}/evaluation-results`);
-}
-
-export function generateEvaluationResults(projectId: string) {
-  return api.post(`/bid/projects/${projectId}/evaluation-results/generate`, {});
-}
-
-export function listClarifications(projectId: string) {
-  return api.get(`/bid/projects/${projectId}/clarifications`);
-}
-
-export function createClarification(projectId: string, body: {
-  question: string; issuer: string; supplierName: string;
-}) {
-  return api.post(`/bid/projects/${projectId}/clarifications`, body);
-}
-
-export function archiveAll(projectId: string) {
-  return api.post<BidProjectDetail>(`/bid/projects/${projectId}/archive-all`, {});
-}
-
-export function getWorkspace(projectId: string) {
-  return api.get(`/bid/projects/${projectId}/workspace`);
-}
-
-// ── Opening hall ──
 export function getOpeningSessionTime(projectId: string) {
   return api.get<{ serverTime: number; remainingSeconds: number }>(`/bid/projects/${projectId}/opening-session/time`);
 }
 
-export function decryptBid(projectId: string, supplierId: string) {
-  return api.post(`/bid/projects/${projectId}/decrypt/${supplierId}`, {});
-}
+/* ── 监督批注（监督视图：关注/上报/批注持久化）── */
 
-// ── Supervision ──
 export interface SupervisionAnnotation {
   id: string; projectId: string; supplierId: string;
   status: string; notes?: string; createdBy?: string;
@@ -318,31 +120,4 @@ export function upsertSupervisionAnnotation(projectId: string, body: {
 
 export function deleteSupervisionAnnotation(projectId: string, supplierId: string) {
   return api.delete(`/bid/projects/${projectId}/supervision-annotations/${supplierId}`);
-}
-
-// ── Archive ──
-export function exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json') {
-  return api.get(`/bid/projects/${projectId}/archive-package/export?format=${format}`);
-}
-
-// ── Clarifications ──
-export function replyClarification(projectId: string, clarificationId: string, body: {
-  reply: string;
-}) {
-  return api.patch(`/bid/projects/${projectId}/clarifications/${clarificationId}/reply`, body);
-}
-
-// P1-F：AI 辅助（起草候选问题 + 提炼回复要点）
-export function draftClarification(projectId: string, supplierId: string) {
-  return api.post<{ drafts: string[]; basis: string[] }>(
-    `/bid/projects/${projectId}/clarifications/draft`,
-    { supplierId },
-  );
-}
-
-export function summarizeClarification(projectId: string, clarificationId: string) {
-  return api.post<{ summary: string; keyPoints: string[]; aiSummary: string }>(
-    `/bid/projects/${projectId}/clarifications/${clarificationId}/summarize`,
-    {},
-  );
 }

@@ -8,11 +8,6 @@ import {
   type ConnectionState,
   type DecryptStatusPayload,
   type StageChangePayload,
-  type EvaluationStartedPayload,
-  type ExpertPresencePayload,
-  type ExpertPresenceAggregatePayload,
-  type ClarificationCreatedPayload,
-  type ClarificationRepliedPayload,
   type SupervisionLogPayload,
   type AnomalyDetectedPayload,
   type HallMessagePayload,
@@ -29,14 +24,12 @@ function wsUrl(): string {
   return portalURL('api', '/bid');
 }
 
+/** Phase 3 裁剪：:3007 仅保留开标执行相关事件组
+ * （decrypt / stage / supervision / anomaly / hall / opening）。
+ * 评标在场、澄清事件随评标管理/澄清答疑迁往 :3005。 */
 export interface BidWsHandlers {
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
   onStageChange?: (d: StageChangePayload) => void;
-  onEvaluationStarted?: (d: EvaluationStartedPayload) => void;
-  onExpertPresence?: (d: ExpertPresencePayload) => void;
-  onExpertPresenceAggregate?: (d: ExpertPresenceAggregatePayload) => void;
-  onClarificationCreated?: (d: ClarificationCreatedPayload) => void;
-  onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
   onSupervisionLog?: (d: SupervisionLogPayload) => void;
   onAnomalyDetected?: (d: AnomalyDetectedPayload) => void;
   onHallMessage?: (d: HallMessagePayload) => void;
@@ -137,11 +130,6 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     const h = handlersRef;
     on(BID_EVENT.DECRYPT_STATUS, h.current.onDecryptStatus);
     on(BID_EVENT.STAGE_CHANGE, h.current.onStageChange);
-    on(BID_EVENT.EVALUATION_STARTED, h.current.onEvaluationStarted);
-    on(BID_EVENT.EXPERT_PRESENCE, h.current.onExpertPresence);
-    on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, h.current.onExpertPresenceAggregate);
-    on(BID_EVENT.CLARIFICATION_CREATED, h.current.onClarificationCreated);
-    on(BID_EVENT.CLARIFICATION_REPLIED, h.current.onClarificationReplied);
     on(BID_EVENT.SUPERVISION_LOG, h.current.onSupervisionLog);
     on(BID_EVENT.ANOMALY_DETECTED, h.current.onAnomalyDetected);
     on(BID_EVENT.HALL_MESSAGE_NEW, h.current.onHallMessage);
