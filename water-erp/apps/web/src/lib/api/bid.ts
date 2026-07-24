@@ -1,4 +1,7 @@
 import { api } from '../api';
+import type { ScorePointSuggestion } from '@water-erp/shared';
+
+export type { ScorePointSuggestion };
 
 /* ── 开评标项目（:3005 项目管理 · BID_EVALUATION 开标确认面板用）──
    后端 /bid/projects/:id/... 已提供全部能力；此处仅做类型化封装。
@@ -115,6 +118,7 @@ export interface BidScoreItem {
   scoringCriteria: string | null;
   evidenceHint: string | null;
   criteriaSource: string | null;
+  points?: BidScorePoint[]; // listScoreItems 已 include points（seq 升序）
   createdAt: string;
 }
 
@@ -184,11 +188,46 @@ export function deleteScorePoint(bidProjectId: string, itemId: string, pointId: 
   return api.delete<{ deleted?: boolean }>(`/bid/projects/${bidProjectId}/score-items/${itemId}/points/${pointId}`);
 }
 
+/** 发布评分标准（锁定：置 scoreStandardPublishedAt）。后端校验打分类 Σ=100 且每项 ≥1 得分点，不满足 → 409。*/
+export function publishScoreStandard(bidProjectId: string) {
+  return api.post<BidProjectDetail>(`/bid/projects/${bidProjectId}/score-items/publish`, {});
+}
+
+/** AI 从招标文件提取得分点建议（同步、不落库；120s 超时可经 options.signal 中断）。限流 3 次/分。*/
+export function extractScorePoints(bidProjectId: string, itemId: string, options?: RequestInit) {
+  return api.post<ScorePointSuggestion[]>(
+    `/bid/projects/${bidProjectId}/score-items/${itemId}/points/extract`,
+    {},
+    options,
+  );
+}
+
+/** 批量导入得分点（AI 建议审核通过后）。多余的 selected/duplicate 等字段被后端 whitelist 剥掉。*/
+export function batchCreateScorePoints(
+  bidProjectId: string,
+  itemId: string,
+  points: Array<{
+    name: string;
+    fullScore: number;
+    seq?: number;
+    evidenceHint?: string;
+    objective?: boolean;
+    evidenceSection?: string;
+    confidence?: number;
+  }>,
+) {
+  return api.post<{ count: number }>(
+    `/bid/projects/${bidProjectId}/score-items/${itemId}/points/batch`,
+    { points },
+  );
+}
+
 /* ── 评分模板（整套评分标准 + 得分点的保存 / 复用）── */
 
 export interface ScoreTemplateRef {
   id: string;
   name: string;
+  createdById?: string | null; // null/缺省 = 公共模板；有值 = 创建者本人（后端按当前用户过滤，非空即「我的」）
   createdByName: string | null;
   createdAt: string;
 }
