@@ -124,4 +124,58 @@ describe('OpeningHallService', () => {
     expect(prismaMock.bidOpeningSession.update).toHaveBeenCalledWith({ where: { projectId: 'p1' }, data: { exchangeControl: 'MUTED' } });
     expect(gatewayMock.notifyExchangeControl).toHaveBeenCalled();
   });
+
+  describe('markRead 归属门（S7）', () => {
+    it('supplier 写 public 与自身 roomKey → upsert 落库', async () => {
+      await svc.markRead(sup, 'p1', 'public');
+      expect(prismaMock.openingHallReadCursor.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { projectId_userId_roomKey: { projectId: 'p1', userId: 'u-sup', roomKey: 'public' } },
+      }));
+      await svc.markRead(sup, 'p1', 'supplier:sup-1');
+      expect(prismaMock.openingHallReadCursor.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { projectId_userId_roomKey: { projectId: 'p1', userId: 'u-sup', roomKey: 'supplier:sup-1' } },
+      }));
+    });
+
+    it('supplier 写他人 roomKey → 403 ROOM_KEY_FORBIDDEN（不落库）', async () => {
+      await expect(svc.markRead(sup, 'p1', 'supplier:sup-2')).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.markRead(sup, 'p1', 'supplier:sup-2')).rejects.toMatchObject({
+        response: { code: 'ROOM_KEY_FORBIDDEN' },
+      });
+      expect(prismaMock.openingHallReadCursor.upsert).not.toHaveBeenCalled();
+    });
+
+    it('host 写 public 与参投成员 roomKey → upsert 落库', async () => {
+      await svc.markRead(host, 'p1', 'public');
+      await svc.markRead(host, 'p1', 'supplier:sup-1'); // setup() 中 findFirst 返回参投成员
+      expect(prismaMock.openingHallReadCursor.upsert).toHaveBeenCalledTimes(2);
+      expect(prismaMock.bidSupplier.findFirst).toHaveBeenCalledWith({ where: { projectId: 'p1', supplierId: 'sup-1' } });
+    });
+
+    it('host 写非参投成员 roomKey → 400 NOT_PROJECT_MEMBER（不落库）', async () => {
+      prismaMock.bidSupplier.findFirst.mockResolvedValue(null);
+      await expect(svc.markRead(host, 'p1', 'supplier:sup-9')).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.markRead(host, 'p1', 'supplier:sup-9')).rejects.toMatchObject({
+        response: { code: 'NOT_PROJECT_MEMBER' },
+      });
+      expect(prismaMock.openingHallReadCursor.upsert).not.toHaveBeenCalled();
+    });
+
+    it('其他角色（bid_expert）写游标 → 403 HOST_ONLY', async () => {
+      await expect(svc.markRead(outsider, 'p1', 'public')).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.markRead(outsider, 'p1', 'public')).rejects.toMatchObject({
+        response: { code: 'HOST_ONLY' },
+      });
+      expect(prismaMock.openingHallReadCursor.upsert).not.toHaveBeenCalled();
+    });
+
+    it('项目不存在 → 400 NOT_FOUND（不落库）', async () => {
+      prismaMock.bidProject.findUnique.mockResolvedValue(null);
+      await expect(svc.markRead(sup, 'p-ghost', 'public')).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.markRead(sup, 'p-ghost', 'public')).rejects.toMatchObject({
+        response: { code: 'NOT_FOUND' },
+      });
+      expect(prismaMock.openingHallReadCursor.upsert).not.toHaveBeenCalled();
+    });
+  });
 });

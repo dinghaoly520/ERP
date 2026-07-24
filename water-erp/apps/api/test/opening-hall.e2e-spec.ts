@@ -37,6 +37,9 @@ function onceEvent(socket: Socket, event: string, ms = 4000): Promise<any> {
   });
 }
 
+/** 种子 hero 项目（评标专家库 186 人中仅 5 人被指派到它，必然存在大量未指派专家）。 */
+const HERO_PROJECT_ID = 'cmqhero-bid-proj01';
+
 describe('Opening Hall (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -47,6 +50,8 @@ describe('Opening Hall (e2e)', () => {
   const extraProjectIds: string[] = []; // 用例内临时创建、需在 afterAll 兜底清理的项目
   let nonMemberCookie: string;
   let nonMemberSupplierId: string, nonMemberUserId: string; // 临时「非参投供应商」，afterAll 清理
+  let strayExpertCookie: string; // 未指派到 hero 项目的专家（S1 负用例）
+  let strayExpertUserId: string | undefined; // 仅在兜底创建时有值，afterAll 清理
 
   beforeAll(async () => {
     const mod: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -67,6 +72,34 @@ describe('Opening Hall (e2e)', () => {
     expect(sup1Cookie).toContain('token_supplier=');
     expect(sup2Cookie).toContain('token_supplier=');
     expect(expertCookie).toContain('token_expert=');
+
+    // S1 负用例：找一个未指派到 hero 项目的 bid_expert 用户（186 人专家库中几乎必然存在）
+    const heroAssignedIds = (
+      await prisma.bidExpert.findMany({ where: { projectId: HERO_PROJECT_ID }, select: { userId: true } })
+    ).map(r => r.userId);
+    const stray = await prisma.user.findFirst({
+      where: {
+        role: 'bid_expert', isActive: true,
+        ...(heroAssignedIds.length ? { id: { notIn: heroAssignedIds } } : {}),
+      },
+      select: { id: true, username: true },
+    });
+    if (stray) {
+      strayExpertCookie = await loginAs(app, stray.username, 'expert@2026', 'expert');
+    } else {
+      // 兜底：临时创建 bid_expert 用户（密码 bcrypt hash 复用现有种子行，即 expert@2026 的 hash）
+      const donor = await prisma.user.findFirst({ where: { role: 'bid_expert' }, select: { passwordHash: true } });
+      const tsE = Date.now();
+      const created = await prisma.user.create({
+        data: {
+          username: `e2e-stray-expert-${tsE}`, displayName: `E2E未指派专家-${tsE}`,
+          role: 'bid_expert', isActive: true, passwordHash: donor!.passwordHash,
+        },
+      });
+      strayExpertUserId = created.id;
+      strayExpertCookie = await loginAs(app, created.username, 'expert@2026', 'expert');
+    }
+    expect(strayExpertCookie).toContain('token_expert=');
 
     // 临时「非参投供应商」：裸 User + Supplier 对（无 BidSupplier 行），用于成员门 E2E
     const ts0 = Date.now();
@@ -137,6 +170,7 @@ describe('Opening Hall (e2e)', () => {
     }
     if (nonMemberSupplierId) await prisma.supplier.deleteMany({ where: { id: nonMemberSupplierId } }).catch(() => {});
     if (nonMemberUserId) await prisma.user.deleteMany({ where: { id: nonMemberUserId } }).catch(() => {});
+    if (strayExpertUserId) await prisma.user.deleteMany({ where: { id: strayExpertUserId } }).catch(() => {});
     await app.close();
   });
 
@@ -298,5 +332,47 @@ describe('Opening Hall (e2e)', () => {
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
       .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: 'x' }).expect(403);
     await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'OPENING' } });
+  });
+
+  it('C1 负用例：无 cookie 匿名 socket join → UNAUTHORIZED，收不到公聊广播', async () => {
+    // 变体一：显式空 Cookie 头
+    const anon1 = track(connectBid(base, '')); await connected(anon1);
+    const ack1 = await joinAck(anon1, projectId);
+    expect(ack1).toEqual({ error: 'UNAUTHORIZED' });
+    // 变体二：完全不带 Cookie 头
+    const anon2 = track(io(`${base}/bid`, { withCredentials: true, reconnection: false, timeout: 8000 }));
+    await connected(anon2);
+    const ack2 = await joinAck(anon2, projectId);
+    expect(ack2).toEqual({ error: 'UNAUTHORIZED' });
+
+    // 沉降窗口：主持端发公聊，两个匿名 socket 均不得收到 hall:message:new
+    let leaked = 0;
+    anon1.on('hall:message:new', () => leaked++);
+    anon2.on('hall:message:new', () => leaked++);
+    const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: 'C1 匿名探针消息' }).expect(201);
+    await new Promise(r => setTimeout(r, 600)); // 沉降窗口：确认匿名 socket 确实未收到
+    expect(leaked).toBe(0);
+  });
+
+  it('S1 负用例：未指派专家跨项目 join hero → NOT_ASSIGNED_EXPERT', async () => {
+    const s = track(connectBid(base, strayExpertCookie)); await connected(s);
+    const ack = await joinAck(s, HERO_PROJECT_ID);
+    expect(ack).toEqual({ error: 'NOT_ASSIGNED_EXPERT' });
+  });
+
+  it('S7 负用例：markRead 归属门 — supplier 写他人 roomKey 403；不存在项目 400', async () => {
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: `supplier:${sup2Id}` })
+      .expect(403)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'ROOM_KEY_FORBIDDEN' }));
+    await request(app.getHttpServer()).post(`/api/opening-hall/nonexistent-project-id/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: 'public' })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'NOT_FOUND' }));
+    // 合法路径仍可用：supplier 写自身 roomKey
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: `supplier:${sup1Id}` }).expect(201);
   });
 });

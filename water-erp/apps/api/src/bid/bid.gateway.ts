@@ -140,10 +140,12 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleJoinProject(client: Socket, projectId: string) {
     const role: string | undefined = (client.data as any).role;
     const userId: string | undefined = (client.data as any).userId;
+    // 认证兜底（C1）：handleConnection 保持软鉴权，但 join 层强制认证——
+    // 无 token / 校验失败的 socket（role 或 userId 缺失）一律拒绝，不得进任何项目房。
+    if (!userId || !role) return { error: 'UNAUTHORIZED' };
 
     if (role === 'supplier') {
       // 双层门控（设计 §4.2）：角色门（supplier 永不进 host 房）+ 成员门（须参投本项目）
-      if (!userId) return { error: 'UNAUTHORIZED' };
       const supplier = await this.prisma.supplier.findFirst({ where: { userId } });
       if (!supplier) return { error: 'SUPPLIER_PROFILE_NOT_FOUND' };
       const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId: supplier.id } });
@@ -165,16 +167,23 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     if (role === 'bid_expert') {
-      // 专家保留项目房访问（历来如此）+ 专家聚合进度房（§4.3 供应商不可见，无需成员门控，
-      // 专家指派校验由专家门户自身负责）；断连时 socket.io 自动移出其加入的房间。
+      // 指派门控（S1）：仅本项目指派的专家（BidExpert projectId×userId）可进
+      // project 房 + 专家聚合进度房（§4.3 供应商不可见）；断连时 socket.io 自动移出其加入的房间。
+      const assigned = await this.prisma.bidExpert.findFirst({ where: { projectId, userId } });
+      if (!assigned) return { error: 'NOT_ASSIGNED_EXPERT' };
       client.join(`project:${projectId}`);
       client.join(`experts:${projectId}`);
       return { ok: true };
     }
 
-    client.join(`project:${projectId}`);
-    if (canJoinHostRoom(role)) client.join(`host:${projectId}`);
-    return { ok: true };
+    // 显式角色白名单（C1）：仅 host 角色进 project + host 房；
+    // mall / procurement_staff 等其他角色不进开标实时流。
+    if (canJoinHostRoom(role)) {
+      client.join(`project:${projectId}`);
+      client.join(`host:${projectId}`);
+      return { ok: true };
+    }
+    return { error: 'FORBIDDEN' };
   }
 
   @SubscribeMessage('leave:project')

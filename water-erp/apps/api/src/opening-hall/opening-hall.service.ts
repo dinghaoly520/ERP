@@ -158,10 +158,26 @@ export class OpeningHallService {
     return { public: publicUnread, private: sessions.reduce((s, x) => s + x.unread, 0), sessions };
   }
 
-  async markRead(projectId: string, userId: string, roomKey: string) {
+  async markRead(actor: HallActor, projectId: string, roomKey: string) {
+    // S7 归属门：项目必须存在；roomKey 只能落在自己的会话上（防游标表无界增长/写 dangling 项目）
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (actor.role === 'supplier') {
+      if (roomKey !== 'public' && roomKey !== `supplier:${actor.supplierId}`) {
+        throw new ForbiddenException({ error: '无权操作该会话', code: 'ROOM_KEY_FORBIDDEN' });
+      }
+    } else if (HOST_ROLES_SET.has(actor.role)) {
+      if (roomKey !== 'public') {
+        const target = roomKey.slice('supplier:'.length);
+        const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId: target } });
+        if (!member) throw new BadRequestException({ error: '会话对象未参与该项目', code: 'NOT_PROJECT_MEMBER' });
+      }
+    } else {
+      this.assertHost(actor); // → 403 HOST_ONLY
+    }
     return this.prisma.openingHallReadCursor.upsert({
-      where: { projectId_userId_roomKey: { projectId, userId, roomKey } },
-      create: { projectId, userId, roomKey, lastReadAt: new Date() },
+      where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },
+      create: { projectId, userId: actor.userId, roomKey, lastReadAt: new Date() },
       update: { lastReadAt: new Date() },
     });
   }
