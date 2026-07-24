@@ -4,11 +4,11 @@
  * 监督视图（嵌入开标大厅）——移植自已删除的 supervise/page.tsx。
  * 开标过程的只读留痕：权限边界、过程时间线、异常事件（解密 DANGER + AI 实时事件，
  * 支持关注/上报/批注持久化）、监督日志表（含 CSV 导出）、大厅交流只读。
- * 实时事件（supervision:log / anomaly:detected）由本组件自行订阅。
+ * F8：实时事件（supervision:log / anomaly:detected）改由开标大厅页面级 socket
+ * 统一订阅后经 props 下传，避免同一 project room 双连接。
  */
 
-import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { useEffect, useMemo, useState } from 'react';
 import { openingHallApi } from '@/lib/opening-hall';
 import type { BidProjectDetail } from '@/lib/types';
 import type { AnomalyDetectedPayload } from '@water-erp/shared';
@@ -16,7 +16,6 @@ import { getSupervisionAnnotations, upsertSupervisionAnnotation, deleteSupervisi
 import { Shield, AlertTriangle, Eye, Download, Zap } from 'lucide-react';
 import { SectionCard } from '@water-erp/ui';
 import { toast } from 'sonner';
-import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 
 function exportSupervisionCSV(logs: Array<{ id?: string; time: string; role: string; target: string; action: string; result: string; riskFlag: string }>) {
   const BOM = '﻿';
@@ -42,19 +41,28 @@ function exportSupervisionCSV(logs: Array<{ id?: string; time: string; role: str
   toast.success('导出成功');
 }
 
-type SupervisionLog = { id: string; time: string; role: string; target: string; action: string; result: string; riskFlag: string };
+export type SupervisionLog = { id: string; time: string; role: string; target: string; action: string; result: string; riskFlag: string };
 
-export function SupervisionView({ projectId, project }: { projectId: string; project: BidProjectDetail }) {
-  const [logs, setLogs] = useState<SupervisionLog[]>([]);
-  const [anomalyEvents, setAnomalyEvents] = useState<AnomalyDetectedPayload[]>([]);
+export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }: {
+  projectId: string;
+  project: BidProjectDetail;
+  /** 页面级 socket 实时推送的监督日志（F8：避免双连接） */
+  liveLogs: SupervisionLog[];
+  /** 页面级 socket 实时推送的异常事件 */
+  anomalyEvents: AnomalyDetectedPayload[];
+}) {
   const [anomalyFlags, setAnomalyFlags] = useState<Map<string, 'flagged' | 'escalated' | null>>(new Map());
   const [anomalyNotes, setAnomalyNotes] = useState<Map<string, string>>(new Map());
   const [annotatingId, setAnnotatingId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
 
-  useEffect(() => {
-    setLogs((project.supervisionLogs ?? []) as SupervisionLog[]);
-  }, [project.supervisionLogs]);
+  // 合并日志：实时日志按 id 对持久化集合去重后前置（全量重载后不重复）
+  const logs = useMemo(() => {
+    const persisted = (project.supervisionLogs ?? []) as SupervisionLog[];
+    if (liveLogs.length === 0) return persisted;
+    const seen = new Set(persisted.map(l => l.id).filter(Boolean));
+    return [...liveLogs.filter(l => !l.id || !seen.has(l.id)), ...persisted];
+  }, [project.supervisionLogs, liveLogs]);
 
   // 持久化批注（关注/上报/notes）
   useEffect(() => {
@@ -71,17 +79,6 @@ export function SupervisionView({ projectId, project }: { projectId: string; pro
       })
       .catch(() => {});
   }, [projectId]);
-
-  useBidWebSocket(projectId, {
-    onSupervisionLog: (data) => {
-      setLogs(prev => [data as unknown as SupervisionLog, ...prev]);
-    },
-    onAnomalyDetected: (data) => {
-      if (data.severity === 'danger') toast.error(data.detail ?? '检测到异常');
-      else toast.warning(data.detail ?? '检测到异常');
-      setAnomalyEvents(prev => [data, ...prev].slice(0, 50));
-    },
-  });
 
   const dangerSuppliers = project.suppliers.filter(s => s.decryptStatus === 'DANGER');
 

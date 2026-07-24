@@ -18,7 +18,8 @@ import NoProjectGuide from '@/components/no-project-guide';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
-import { SupervisionView } from '@/components/bid/supervision-view';
+import { SupervisionView, type SupervisionLog } from '@/components/bid/supervision-view';
+import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 
 const decryptColors: Record<string, { color: string; bg: string }> = {
@@ -118,6 +119,9 @@ export default function BidOpenPage() {
   const [startOpen, setStartOpen] = useState(false);
   /** 视图切换：开标大厅 / 监督视图（Phase 3：监督端折叠进大厅） */
   const [view, setView] = useState<'hall' | 'supervise'>('hall');
+  /** F8：监督/异常事件由页面级 socket 统一订阅，下传给监督视图（避免双连接） */
+  const [liveLogs, setLiveLogs] = useState<SupervisionLog[]>([]);
+  const [anomalyEvents, setAnomalyEvents] = useState<AnomalyDetectedPayload[]>([]);
 
   // ═── Audio context with proper lifecycle (no module-level leak) ──
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -328,6 +332,8 @@ export default function BidOpenPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    setLiveLogs([]);
+    setAnomalyEvents([]);
     loadProject();
   }, [projectId, loadProject]);
 
@@ -371,6 +377,15 @@ export default function BidOpenPage() {
     },
     onOpeningDisputed: (d) => {
       toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);
+    },
+    // F8：监督日志与异常事件统一在页面级订阅，下传给监督视图
+    onSupervisionLog: (data) => {
+      setLiveLogs(prev => [data as unknown as SupervisionLog, ...prev].slice(0, 100));
+    },
+    onAnomalyDetected: (data) => {
+      if (data.severity === 'danger') toast.error(data.detail ?? '检测到异常');
+      else toast.warning(data.detail ?? '检测到异常');
+      setAnomalyEvents(prev => [data, ...prev].slice(0, 50));
     },
   });
 
@@ -422,7 +437,7 @@ export default function BidOpenPage() {
       </div>
 
       {view === 'supervise' ? (
-        <SupervisionView projectId={projectId} project={project} />
+        <SupervisionView projectId={projectId} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />
       ) : (<>
       {/* ═══ Time warning banners ═══ */}
       {timeWarning === '5min' && (
