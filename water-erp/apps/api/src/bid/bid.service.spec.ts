@@ -222,11 +222,35 @@ describe('BidService — stage transitions', () => {
       await expect(service.startOpening('p1')).rejects.toThrow(ConflictException);
     });
 
-    it('rejects SUBMIT→OPENING without session data', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目' });
-      await expect(service.startOpening('p1')).rejects.toThrow(BadRequestException);
-      await expect(service.startOpening('p1')).rejects.toMatchObject({
-        response: { code: 'OPENING_SESSION_REQUIRED' },
+    it('裸调不带会话字段仅推阶段、不建会话（SUBMIT→OPENING，:3005 确定开标路径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目', deadline: new Date(Date.now() - 3600_000) });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startOpening('p1');
+
+      expect(result.stage).toBe('OPENING');
+      expect(prisma.bidOpeningSession.create).not.toHaveBeenCalled();
+      expect(prisma.bidOpeningSession.update).not.toHaveBeenCalled();
+    });
+
+    it('OPENING 同阶段调用带完整四字段 → 组建会话（幂等 upsert）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+      prisma.bidOpeningSession.create.mockResolvedValue({ id: 'sess-2' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startOpening('p1', sessionDto);
+
+      expect(result.stage).toBe('OPENING');
+      expect(prisma.bidOpeningSession.create).toHaveBeenCalled();
+    });
+
+    it('会话字段只给部分 → 400 INCOMPLETE_SESSION_FIELDS', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      await expect(service.startOpening('p1', { host: '主持张三' } as any)).rejects.toMatchObject({
+        response: { code: 'INCOMPLETE_SESSION_FIELDS' },
       });
     });
 

@@ -123,6 +123,31 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
   });
 
+  it('棘轮：向前跳步放行（DOWNLOAD → OPENING 裸推，:3005 确定开标路径）', async () => {
+    const past = new Date(Date.now() - 3600_000).toISOString();
+    const res = await request(app.getHttpServer())
+      .post('/api/bid/projects')
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .send({ name: `棘轮跳步测试-${Date.now()}`, procurementMethod: '公开招标', openTime: past, deadline: past })
+      .expect(201);
+    const tmpId = res.body.id;
+    expect(res.body.stage).toBe('DOWNLOAD');
+
+    // 不带会话字段裸调 /open → 仅推阶段不建会话（开标会话由 :3007 组建）
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${tmpId}/open`)
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .send({})
+      .expect(201)
+      .expect(r => expect(r.body.stage).toBe('OPENING'));
+
+    await prisma.bidOpeningSession.deleteMany({ where: { projectId: tmpId } }).catch(() => {});
+    await prisma.bidSupervisionLog.deleteMany({ where: { projectId: tmpId } }).catch(() => {});
+    await prisma.bidProject.delete({ where: { id: tmpId } }).catch(() => {});
+  });
+
   it('供应商通过供应商门户提交投标（SUBMIT 阶段，真实路径）', async () => {
     // 真实投标统一走供应商门户（管理员代投路径已移除）
     await request(app.getHttpServer())
@@ -228,8 +253,7 @@ describe('Bid Lifecycle (e2e)', () => {
   });
 
   it('已开标项目空 body 重复开标幂等成功（201）', async () => {
-    // 当前规则：首次 SUBMIT→OPENING 必须提供完整会话字段（OPENING_SESSION_REQUIRED），
-    // 原「空 body 首次开标」前提已不成立。这里验证「已 OPENING 后空 body 重复开标」幂等 201。
+    // 棘轮语义：OPENING 后空 body 重复调用 /open 为同阶段幂等（不建会话），仍 201。
     const past = new Date(Date.now() - 3600_000).toISOString();
     const res = await request(app.getHttpServer())
       .post('/api/bid/projects')

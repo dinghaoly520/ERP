@@ -484,22 +484,27 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
 
-    // P1: 截标时间校验——投标截止时间未到，不允许启动开标
-    if (new Date() < new Date(project.deadline)) {
+    // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
+    const isTransitioning = project.stage !== 'OPENING';
+
+    // P1: 截标时间校验——仅阶段推进（确定开标）时要求投标截止已过；
+    // 同阶段调用（:3007 组建/更新开标会话）不受 deadline 约束——
+    // 否则 :3005 延期开标（updateProject 无阶段门控）后会话将永远建不出来
+    if (isTransitioning && new Date() < new Date(project.deadline)) {
       throw new BadRequestException({
         error: '投标截止时间未到，无法启动开标',
         code: 'DEADLINE_NOT_PASSED',
       });
     }
 
-    // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
-    const isTransitioning = project.stage !== 'OPENING';
-
-    // 首次进入 OPENING 必须提供完整的开标会话信息
-    if (isTransitioning && (!dto?.host || !dto?.supervisor || !dto?.decryptWindowStart || !dto?.decryptWindowEnd)) {
+    // 会话四字段要么全给（组建/更新开标会话），要么全不给（仅推进阶段）。
+    // 部分字段视为客户端错误，避免静默跳过建会话导致开标流程卡死
+    const providedCount = [dto?.host, dto?.supervisor, dto?.decryptWindowStart, dto?.decryptWindowEnd]
+      .filter(Boolean).length;
+    if (providedCount > 0 && providedCount < 4) {
       throw new BadRequestException({
-        error: '启动开标需填写主持人、监督人及解密窗口起止时间',
-        code: 'OPENING_SESSION_REQUIRED',
+        error: '组建开标会话需同时提供主持人、监督人及解密窗口起止时间',
+        code: 'INCOMPLETE_SESSION_FIELDS',
       });
     }
 
@@ -513,14 +518,15 @@ export class BidService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      if (dto?.host && dto?.supervisor && dto?.decryptWindowStart && dto?.decryptWindowEnd) {
+      let sessionUpserted = false;
+      if (providedCount === 4) {
         const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
-        const decryptWindowEnd = new Date(dto.decryptWindowEnd);
+        const decryptWindowEnd = new Date(dto!.decryptWindowEnd!);
         const remainingSeconds = Math.max(0, Math.floor((decryptWindowEnd.getTime() - Date.now()) / 1000));
         const sessionData = {
-          host: dto.host,
-          supervisor: dto.supervisor,
-          decryptWindowStart: new Date(dto.decryptWindowStart),
+          host: dto!.host!,
+          supervisor: dto!.supervisor!,
+          decryptWindowStart: new Date(dto!.decryptWindowStart!),
           decryptWindowEnd,
           remainingSeconds,
           status: '待开标' as const,
@@ -530,6 +536,7 @@ export class BidService {
         } else {
           await tx.bidOpeningSession.create({ data: { projectId: id, ...sessionData } });
         }
+        sessionUpserted = true;
       }
 
       const updated = await tx.bidProject.update({
@@ -537,14 +544,20 @@ export class BidService {
         data: { stage: 'OPENING' },
       });
 
+      const action = isTransitioning ? `确定开标 (${project.stage}→OPENING)` : '组建开标会话';
+      const result = isTransitioning ? '阶段变更成功' : '开标会话已组建/更新';
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: `启动开标 (${project.stage}→OPENING)`, result: '阶段变更成功', riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action, result, riskFlag: '无' },
       });
       if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
 
       this.gateway?.notifyStageChange(id, project.stage, 'OPENING', 'host');
-      this.gateway?.notifyOpeningStarted(id, { host: dto?.host || '系统', supervisor: dto?.supervisor || '系统' });
-      this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action: `启动开标 (${project.stage}→OPENING)`, target: project.name, result: '阶段变更成功', riskFlag: '无' });
+      // 仅在真正 upsert 了会话时通知开标启动；裸推阶段（:3005 确定开标）不触发，
+      // 否则 :3007 会收到 {host:'系统'} 事件误判会话已建
+      if (sessionUpserted && dto?.host && dto?.supervisor) {
+        this.gateway?.notifyOpeningStarted(id, { host: dto.host, supervisor: dto.supervisor });
+      }
+      this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action, target: project.name, result, riskFlag: '无' });
 
       return updated;
     });
