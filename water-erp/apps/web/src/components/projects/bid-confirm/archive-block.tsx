@@ -13,6 +13,7 @@ import { Archive, AlertTriangle, CheckCircle2, Copy, FileDown, Fingerprint } fro
 import {
   archiveAll,
   archivePackageExportUrl,
+  exportArchivePackageJson,
   type BidProjectDetail,
 } from '@/lib/api/bid';
 
@@ -69,6 +70,23 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
     }
   }
 
+  // F11：JSON 导出走 fetch + Blob 下载（裸 <a> 会在当前标签渲染原始 JSON 离开工作台；
+  // CSV 有 Content-Disposition: attachment 无此问题，保留直链）
+  async function handleExportJson() {
+    try {
+      const data = await exportArchivePackageJson(bidProjectId);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `archive-${bidProjectId.slice(-12)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'JSON 导出失败', 'err');
+    }
+  }
+
   // 档案根指纹：归档项按 id 排序后最后一项的 hashDigest（与归档端展示口径一致）
   const archivedItems = [...archiveItems].filter(i => i.status === 'ARCHIVED' && i.hashDigest);
   archivedItems.sort((a, b) => a.id.localeCompare(b.id));
@@ -102,9 +120,9 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
               <a href={archivePackageExportUrl(bidProjectId, 'csv')} className="neu-btn-soft !h-[32px] !text-xs inline-flex items-center gap-1">
                 <FileDown size={13} /> CSV
               </a>
-              <a href={archivePackageExportUrl(bidProjectId, 'json')} className="neu-btn-soft !h-[32px] !text-xs inline-flex items-center gap-1">
+              <button type="button" onClick={() => void handleExportJson()} className="neu-btn-soft !h-[32px] !text-xs inline-flex items-center gap-1">
                 <FileDown size={13} /> JSON
-              </a>
+              </button>
             </>
           )}
         </div>
