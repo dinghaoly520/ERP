@@ -108,6 +108,8 @@ describe('BidService — stage transitions', () => {
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
+      projectManagementStage: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
       $queryRaw: jest.fn().mockResolvedValue([]),
       // Support both callback-based and batch-based $transaction patterns
       $transaction: jest.fn(async (callbackOrOps: any) => {
@@ -766,7 +768,7 @@ describe('BidService — stage transitions', () => {
     });
 
     it('F3 阶段下限：OPENING + scope=opening → 放行进入归档流程', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目' });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目', projectManagementItemId: 'pm1', round: 1 });
       prisma.bidSupplier.findMany.mockResolvedValue([]);
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
       prisma.bidArchiveItem.findMany
@@ -780,6 +782,28 @@ describe('BidService — stage transitions', () => {
       await expect(service.archiveAll('p1', undefined, 'opening')).resolves.toBeDefined();
       expect(prisma.bidProject.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED' } }),
+      );
+      // F5：开标归档（流标/废标）不推进 PM「开标评标」阶段
+      expect(prisma.projectManagementStage.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('F5 阶段联动：scope=full 归档推进 PM「开标评标」→ COMPLETED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目', projectManagementItemId: 'pm1', round: 1 });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(1); // 已有评标结果
+      prisma.bidArchiveItem.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]);
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await expect(service.archiveAll('p1')).resolves.toBeDefined();
+      expect(prisma.projectManagementStage.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ projectManagementItemId: 'pm1', stageKey: 'BID_EVALUATION', round: 1 }),
+        }),
       );
     });
 

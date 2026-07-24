@@ -1862,8 +1862,12 @@ export class BidService {
         });
       }
 
-      // 阶段联动：关联的 :3005 项目管理项「开标评标」阶段 → COMPLETED
-      await this.syncPmStage(tx, { projectManagementItemId: project.projectManagementItemId, round: project.round }, 'COMPLETED');
+      // 阶段联动：关联的 :3005 项目管理项「开标评标」阶段 → COMPLETED。
+      // F5：仅完整归档推进 PM 指针；开标归档（scope=opening，流标/废标场景并未完成评标）
+      // 不自动标 COMPLETED，PM 阶段留给人工处理（如流标后再采购 reproc）
+      if (scope === 'full') {
+        await this.syncPmStage(tx, { projectManagementItemId: project.projectManagementItemId, round: project.round }, 'COMPLETED');
+      }
 
       return tx.bidProject.findUnique({
         where: { id },
