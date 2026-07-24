@@ -332,6 +332,7 @@ export default function BidOpenPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    setView('hall');
     setLiveLogs([]);
     setAnomalyEvents([]);
     loadProject();

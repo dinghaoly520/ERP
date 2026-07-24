@@ -1,19 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { getRecentProjects, removeRecentProject, type RecentProject } from '@/lib/storage';
 import { Clock, X } from 'lucide-react';
 
 export default function RecentProjects() {
+  // useSearchParams 需 Suspense 边界（与 bid-project-context 同款手法）
+  return (
+    <Suspense fallback={null}>
+      <RecentProjectsInner />
+    </Suspense>
+  );
+}
+
+function RecentProjectsInner() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<RecentProject[]>([]);
 
-  // 每次 pathname 变化时刷新列表（进入新项目时会更新 localStorage）
+  // pathname 或 ?id= 变化时刷新列表（进入新项目会更新 localStorage）
   useEffect(() => {
     setItems(getRecentProjects());
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   if (items.length === 0) return null;
 
@@ -29,9 +39,8 @@ export default function RecentProjects() {
     setItems(getRecentProjects());
   };
 
-  const currentId = typeof window !== 'undefined'
-    ? new URLSearchParams(window.location.search).get('id')
-    : null;
+  // F10：改从 useSearchParams 响应式读取（同 pathname 切 ?id= 时高亮随之更新）
+  const currentId = searchParams.get('id');
 
   return (
     <div className="px-2 pt-1 pb-2">
