@@ -9,6 +9,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { PORTS } from '@water-erp/config';
 import {
   BID_EVENT,
   type DecryptStatusPayload,
@@ -46,7 +47,13 @@ export const SUPPLIER_BLOCKED_EVENTS = new Set<string>([
   BID_EVENT.EXPERT_PRESENCE,
 ]);
 
-/** Parse the auth token from the raw handshake cookie header. */
+/**
+ * Parse the auth token from the raw handshake cookie header.
+ *
+ * 同源多门户 cookie 可能共存（localhost 各门户跨端口共享 cookie；同域部署同理）：
+ * 优先按 X-Portal 头、其次 Origin 端口判定门户归属（与 HTTP 侧 portal-cookie.ts 的
+ * 解析链一致），避免 token_web 永远压过 token_supplier 导致供应商 socket 被误判为主持人。
+ */
 export function tokenFromHandshake(socket: Socket): string | undefined {
   const raw = socket.handshake.headers.cookie;
   if (!raw) return undefined;
@@ -54,6 +61,14 @@ export function tokenFromHandshake(socket: Socket): string | undefined {
   for (const part of raw.split(';')) {
     const idx = part.indexOf('=');
     if (idx > 0) map.set(part.slice(0, idx).trim(), part.slice(idx + 1).trim());
+  }
+  const xPortal = (socket.handshake.headers['x-portal'] as string | undefined)?.toLowerCase();
+  const originPort = (socket.handshake.headers.origin ?? '').split(':')[2]?.split('/')[0];
+  if (xPortal === 'supplier' || originPort === String(PORTS.supplier)) {
+    return map.get('token_supplier') || map.get('token_web') || map.get('token');
+  }
+  if (xPortal === 'expert' || originPort === String(PORTS.expert)) {
+    return map.get('token_expert') || map.get('token_web') || map.get('token');
   }
   return (
     map.get('token_web') ||
