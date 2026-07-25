@@ -11,7 +11,9 @@
 
 - **Wave 1（安全波）✅ 已完成并通过聚焦评审**（commits `52168dc2` + `8b9afda9` + declined 专家收口）：C1 全分支闭合、S1 指派门 + declined 过滤、S7 三段门控无绕过、S10 四组负用例；**S8 用户决策已落地**：procurement_staff 放行 project 房（公开流，可见面 ⊆ 供应商可见面），不进 host 房，REST 敏感操作维持 HOST_ONLY
 - **Wave 1 评审新 Minor**（不阻塞，并入后续波次）：M1 连接级信任无驱逐机制（JWT 过期/撤权后不踢）· M2 supplier 可为未参投项目 markRead('public')（仅自身游标，无泄漏）· M3 setExchangeControl 缺服务层 assertHost（仅控制器 @Roles）· M4 staff 零接收 host-only 事件的 E2E 探针 · M5 projectId 无形态校验 · M6 markRead 项目不存在语义应 404
-- **Wave 2-5 未开始**
+- **Wave 2（存证波）✅ 已完成并通过聚焦评审**（commits `527027b5` + CSV 注入中和）：S2 sectionDigests+sectionsRoot 同源同时机、E2E 篡改失配负对照背书 · S3 CSV 大厅消息段 · S4 纯文本存储（全部渲染路径转义核实）· S5 空白消息 400 + 码点安全截断 · S6 复合游标（排序严格配对、旧格式兼容）+ 非法输入 400 · 评审残留 CSV 公式注入（既有跨截面弱点）已随波收口（esc 前置单引号，一处覆盖所有用户输入段）
+- **Wave 2 评审新 Minor**：摘要 include 缺 orderBy tiebreaker（重导出复算场景）· hashChain 十六进制前缀不一致（archiveItems 带 `sha256:`、sectionDigests 裸 hex）· 语义非法 ISO 游标被 V8 翻滚接受 · CSV 转义路径测试补强 · sectionsRoot 可扩展覆盖全部 sections
+- **Wave 3-5 未开始**
 
 ## 验证状态图例
 
