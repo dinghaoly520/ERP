@@ -438,6 +438,23 @@ describe('BidService — stage transitions', () => {
       await expect(service.decryptSupplier('p1', 'bs-1', {} as any))
         .rejects.toMatchObject({ response: { code: 'OPENING_NOT_STARTED' } });
     });
+
+    it('H1: 部分文件缺失（首份完整、次份资产缺失）判 DANGER，不误判 SUCCESS', async () => {
+      prisma.supplierBidSubmission.findUnique = jest.fn().mockResolvedValue({
+        technicalFileAssetId: 'fa1', businessFileAssetId: 'fa2', coverLetterAssetId: null,
+        technicalSealedKey: null, businessSealedKey: null, coverLetterSealedKey: null,
+      });
+      prisma.fileAsset.findUnique = jest.fn()
+        .mockResolvedValueOnce({ id: 'fa1', key: 'uploads/tech.pdf', sha256: 'abc' }) // 首份存在
+        .mockResolvedValueOnce(null);                                                  // 次份资产缺失
+      // verifyIntegrity 全局 mock 返回 true → 首份完整性通过（制造"部分成功"假象）
+
+      await service.decryptSupplier('p1', 'bs-1', {} as any);
+
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ decryptStatus: 'DANGER' }) }),
+      );
+    });
   });
 
   describe('resolveOpeningDispute', () => {

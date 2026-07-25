@@ -939,6 +939,7 @@ export class BidService {
       let decryptOk: boolean | null = null;
       let integrityOk: boolean | null = null;
       let errorMsg = '';
+      let allFilesOk = true; // H1: 任一文件缺失/解密失败/完整性失败 → 整体失败，杜绝部分缺失误判 SUCCESS
 
       const fileRefs: Array<{ assetId?: string | null; sealedKey?: string | null }> = submission
         ? [
@@ -968,7 +969,7 @@ export class BidService {
         if (!ref.assetId) continue;
         // P0: Use tx (transaction client) for consistency inside $transaction
         const asset = await tx.fileAsset.findUnique({ where: { id: ref.assetId } });
-        if (!asset) { errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
+        if (!asset) { allFilesOk = false; errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
         try {
           const readKey = asset.sealedPath || asset.key; // 兼容存量：无 sealedPath 时回退到原路径
           const objStream = await minioClient.getObject(MINIO_BUCKET, readKey);
@@ -983,9 +984,10 @@ export class BidService {
           }
           // Layer A：完整性校验（解密后的明文 vs 存储 sha256）
           const integrity = verifyIntegrity(buffer, asset.sha256);
-          if (integrity === false) { integrityOk = false; errorMsg = '标书文件完整性校验失败：SHA-256 不匹配（疑似篡改或损坏）'; break; }
+          if (integrity === false) { allFilesOk = false; integrityOk = false; errorMsg = '标书文件完整性校验失败：SHA-256 不匹配（疑似篡改或损坏）'; break; }
           if (integrity === true) integrityOk = true;
         } catch (e) {
+          allFilesOk = false;
           decryptOk = ref.sealedKey ? false : null;
           errorMsg = `标书文件解密失败：${(e as Error).message}`;
           break;
@@ -1001,8 +1003,8 @@ export class BidService {
       }
       const outcome = simulateOk
         ? 'DANGER' as const  // 仅非生产环境可用：显式模拟开关用于演练（覆盖真实结果）
-        : (errorMsg && integrityOk !== true && decryptOk !== true
-            ? 'DANGER' as const
+        : (!allFilesOk
+            ? 'DANGER' as const  // H1: 任一文件缺失/解密失败/完整性失败 → 整体 DANGER
             : classifyDecryptOutcome({ hasSealedKey, decryptOk, integrityOk }));
 
       if (outcome === 'DANGER') {
