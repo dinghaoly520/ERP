@@ -13,7 +13,10 @@
 - **Wave 1 评审新 Minor**（不阻塞，并入后续波次）：M1 连接级信任无驱逐机制（JWT 过期/撤权后不踢）· M2 supplier 可为未参投项目 markRead('public')（仅自身游标，无泄漏）· M3 setExchangeControl 缺服务层 assertHost（仅控制器 @Roles）· M4 staff 零接收 host-only 事件的 E2E 探针 · M5 projectId 无形态校验 · M6 markRead 项目不存在语义应 404
 - **Wave 2（存证波）✅ 已完成并通过聚焦评审**（commits `527027b5` + CSV 注入中和）：S2 sectionDigests+sectionsRoot 同源同时机、E2E 篡改失配负对照背书 · S3 CSV 大厅消息段 · S4 纯文本存储（全部渲染路径转义核实）· S5 空白消息 400 + 码点安全截断 · S6 复合游标（排序严格配对、旧格式兼容）+ 非法输入 400 · 评审残留 CSV 公式注入（既有跨截面弱点）已随波收口（esc 前置单引号，一处覆盖所有用户输入段）
 - **Wave 2 评审新 Minor**：摘要 include 缺 orderBy tiebreaker（重导出复算场景）· hashChain 十六进制前缀不一致（archiveItems 带 `sha256:`、sectionDigests 裸 hex）· 语义非法 ISO 游标被 V8 翻滚接受 · CSV 转义路径测试补强 · sectionsRoot 可扩展覆盖全部 sections
-- **Wave 3-5 未开始**
+- **Wave 3（UI 明显故障波）✅ 已完成（两轮：`1f01acd8` + 评审收口）**：C2 抽屉 portal 化（评审发现被 sticky 页头遮挡 → top-[68px] 收口）· C3 更新器纯化 + tabRef · R1 确认/异议后 refetch · R2 hydrate 按 id 合并（评审发现快速切换陈旧响应污染 → activeSupplierRef 守卫收口）· U1 双端 IME 守卫（评审发现 Vue keyup 守卫在 Chromium 无效 → 改 keydown 收口）· U7 大厅失败态+重试
+- **Wave 3 待手工复验**（代码层已闭合，浏览器效果需人工确认）：① 任意滚动位置开抽屉控制行完整可点、与 z-50 模态层级正确 ② 中文输入法 Enter 选词不误发（双端）③ 私聊停留收公聊角标不再 ×2 ④ 快速连点 3 家私聊最终只含最后一家 ⑤ 停 API 刷新大厅→错误态+重试 ⑥ 供应商确认/异议后主持端表即时变化
+- **Wave 3 评审新 Minor**（并入 Wave 4/5）：N4 公聊超 100 条重开尾部乱序（与"无加载更多"同源）· N5 抽屉开着切项目跨项目消息混并（随 U8 projectId reset 消解）· N6 tabRef 亚帧 ±1 未读偏差（切 tab 自纠正）
+- **Wave 4-5 未开始**
 
 ## 验证状态图例
 
