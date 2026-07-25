@@ -36,9 +36,19 @@ describe('BidGateway 专家聚合进度房（§4.3 回归防护）', () => {
     const client = { id: 'sock-expert', data: { role: 'bid_expert', userId: 'u-exp' }, join: (r: string) => joined.push(r) } as any;
     const ack = await gw.handleJoinProject(client, 'p1');
     expect(ack).toEqual({ ok: true });
-    expect(prismaMock.bidExpert.findFirst).toHaveBeenCalledWith({ where: { projectId: 'p1', userId: 'u-exp' } });
-    expect(joined).toEqual(expect.arrayContaining(['project:p1', 'experts:p1']));
-    expect(joined).not.toContain('host:p1');
+    expect(prismaMock.bidExpert.findFirst).toHaveBeenCalledWith({
+      where: { projectId: 'p1', userId: 'u-exp', invitationStatus: { not: 'declined' } },
+    });
+    expect(joined).toEqual(['project:p1', 'experts:p1']);
+  });
+
+  it('已拒邀专家（invitationStatus=declined 被查询条件过滤）→ NOT_ASSIGNED_EXPERT', async () => {
+    const gw = makeGateway();
+    prismaMock.bidExpert.findFirst.mockResolvedValue(null); // declined 行被 { not: 'declined' } 条件排除
+    const joined: string[] = [];
+    const client = { id: 'sock-declined', data: { role: 'bid_expert', userId: 'u-declined' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ error: 'NOT_ASSIGNED_EXPERT' });
+    expect(joined).toEqual([]);
   });
 
   it('broadcastAggregatePresence 同时发射 host 房与 experts 房（供应商不可见）', async () => {
@@ -144,7 +154,9 @@ describe('BidGateway join:project 认证兜底 + 角色白名单（C1/S1 回归�
     const { client, joined } = makeClient({ role: 'bid_expert', userId: 'u-exp' });
     expect(await gw.handleJoinProject(client, 'p1')).toEqual({ error: 'NOT_ASSIGNED_EXPERT' });
     expect(joined).toEqual([]);
-    expect(prismaMock.bidExpert.findFirst).toHaveBeenCalledWith({ where: { projectId: 'p1', userId: 'u-exp' } });
+    expect(prismaMock.bidExpert.findFirst).toHaveBeenCalledWith({
+      where: { projectId: 'p1', userId: 'u-exp', invitationStatus: { not: 'declined' } },
+    });
   });
 
   it('供应商分支双层门控保持：无档案 → SUPPLIER_PROFILE_NOT_FOUND；非成员 → NOT_PROJECT_MEMBER', async () => {

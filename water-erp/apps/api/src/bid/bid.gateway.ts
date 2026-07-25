@@ -169,7 +169,10 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (role === 'bid_expert') {
       // 指派门控（S1）：仅本项目指派的专家（BidExpert projectId×userId）可进
       // project 房 + 专家聚合进度房（§4.3 供应商不可见）；断连时 socket.io 自动移出其加入的房间。
-      const assigned = await this.prisma.bidExpert.findFirst({ where: { projectId, userId } });
+      // 已拒邀（declined）专家不得旁观项目评标进度；候补/pending 放行（候补可递补、pending 待响应）。
+      const assigned = await this.prisma.bidExpert.findFirst({
+        where: { projectId, userId, invitationStatus: { not: 'declined' } },
+      });
       if (!assigned) return { error: 'NOT_ASSIGNED_EXPERT' };
       client.join(`project:${projectId}`);
       client.join(`experts:${projectId}`);
