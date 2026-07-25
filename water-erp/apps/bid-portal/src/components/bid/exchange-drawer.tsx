@@ -16,7 +16,7 @@ import type {
 type Msg = { id: string; senderRole: string; senderName: string; content: string; createdAt: string };
 type Session = { supplierId: string; supplierName: string; checkInAt: string | null; unread: number };
 
-export function ExchangeDrawer({ projectId }: { projectId: string }) {
+export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: string; initialStageClosed?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [activeSupplier, setActiveSupplier] = useState<Session | null>(null);
@@ -29,7 +29,9 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [checkins, setCheckins] = useState<Record<string, string>>({});
-  const [stageClosed, setStageClosed] = useState(false); // R4：stage:change 离开 OPENING 后关闭输入
+  // R4：stage:change 离开 OPENING 后关闭输入；Wave 5-6：初值由页面当前项目阶段同步
+  // （纯事件驱动时，阶段已离 OPENING 后才开的抽屉初始仍可输入，首次发送撞 403）
+  const [stageClosed, setStageClosed] = useState(initialStageClosed ?? false);
   const hydratedRef = useRef(false); // R3：本轮打开是否已首载（决定重连后是否补齐）
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -81,9 +83,13 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
     if (pub.status === 'fulfilled') {
       lastPublicId = pub.value.items[pub.value.items.length - 1]?.id;
       setPublicMsgs(prev => {
-        // 按 id 合并，避免覆盖 hydrate 请求在途期间到达的 socket 增量
-        const fresh = prev.filter(m => !pub.value.items.some((i: any) => i.id === m.id));
-        return [...pub.value.items.map(toMsg), ...fresh];
+        // 按 id 合并，避免覆盖 hydrate 请求在途期间到达的 socket 增量。
+        // Wave 5-5：fresh 只保留比服务端窗口最新一条还新的本地消息（真在途增量）——消息超 100
+        // 条重开抽屉时，窗口外的旧残留若追加尾部会造成尾部乱序且永不消除，故丢弃
+        const items = pub.value.items;
+        const maxIso = items[items.length - 1]?.createdAt;
+        const fresh = prev.filter(m => !items.some((i: any) => i.id === m.id) && (!maxIso || m.createdAt > maxIso));
+        return [...items.map(toMsg), ...fresh];
       });
     }
     if (unread.status === 'fulfilled') {
@@ -105,7 +111,9 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
         lastPrivateId = r.items[r.items.length - 1]?.id;
         setPrivateMsgs(prev => {
           if (activeSupplierRef.current !== sid || projectIdRef.current !== projectId) return prev;
-          const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id));
+          // Wave 5-5：同公聊——只保留比服务端窗口最新一条还新的本地在途增量，丢弃窗口外旧残留
+          const maxIso = r.items[r.items.length - 1]?.createdAt;
+          const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id) && (!maxIso || m.createdAt > maxIso));
           return [...r.items.map(toMsg), ...fresh];
         });
       }
@@ -137,10 +145,18 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
     setTab('PUBLIC');
     setCheckins({});
     setRoster([]);
-    setStageClosed(false);
+    setStageClosed(initialStageClosed ?? false);
     setControl('OPEN'); // M1：避免 A 项目的 CLOSED 串到 B 项目（control 无 REST 来源，仅事件驱动）
     setInput('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在切项目时以新项目阶段初值复位；initialStageClosed 的后续变化由下方只升不降的 effect 接管
   }, [projectId]);
+
+  // Wave 5-6：prop 初值同步——stageClosed 原纯事件驱动，阶段已离 OPENING 后才开的抽屉初始仍可输入。
+  // 声明在切项目复位 effect 之后：同一 commit 内复位先跑、同步后跑，最终值正确。
+  // 只升不降：事件已置 true 后不被 prop 回退（阶段不会倒流，防御 prop 闪变）
+  useEffect(() => {
+    setStageClosed(prev => prev || (initialStageClosed ?? false));
+  }, [initialStageClosed]);
 
   async function openPrivate(s: Session) {
     // 同步写 ref：消除点击到重渲染之间 activeSupplierRef 的旧值窗口
@@ -155,7 +171,9 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
       if (!r) return prev;
       // 陈旧响应守卫：快速切换 A→B→C 且 B 请求晚归时，丢弃 B 的响应，不污染 C 的会话
       if (activeSupplierRef.current !== s.supplierId) return prev;
-      const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id));
+      // Wave 5-5：同公聊——只保留比服务端窗口最新一条还新的本地在途增量，丢弃窗口外旧残留
+      const maxIso = r.items[r.items.length - 1]?.createdAt;
+      const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id) && (!maxIso || m.createdAt > maxIso));
       return [...r.items.map(toMsg), ...fresh];
     });
     await openingHallApi.markRead(projectId, `supplier:${s.supplierId}`, r?.items?.[r.items.length - 1]?.id).catch(() => {});

@@ -50,9 +50,12 @@ async function loadHistory(room: 'PUBLIC' | 'PRIVATE'): Promise<string | undefin
   // supplier-portal 的 axios 拦截器已解包 response.data（src/api/index.ts），返回值即响应体
   const res = await openingHallApi.messages(props.projectId, { roomType: room, supplierId: room === 'PRIVATE' ? props.supplierId : undefined, limit: 100 })
   const items: Msg[] = (res.items || []).map((m: any) => ({ id: m.id, senderId: m.senderId, senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt, roomType: m.roomType }))
-  // 与在途 socket 增量合并（按 id 去重），避免整体赋值覆盖先到的实时消息
+  // 与在途 socket 增量合并（按 id 去重），避免整体赋值覆盖先到的实时消息。
+  // Wave 5-5：fresh 只保留比服务端窗口最新一条还新的本地消息（真在途增量）——消息超 100 条
+  // 重开面板时，窗口外的旧残留若一律追加尾部会造成尾部乱序且永不消除，故丢弃
   const target = room === 'PUBLIC' ? publicMsgs : privateMsgs
-  const fresh = target.value.filter(m => !items.some(i => i.id === m.id))
+  const maxIso = items[items.length - 1]?.createdAt
+  const fresh = target.value.filter(m => !items.some(i => i.id === m.id) && (!maxIso || m.createdAt > maxIso))
   target.value = [...items, ...fresh]
   void nextTick(() => { if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight })
   return items[items.length - 1]?.id

@@ -1485,8 +1485,15 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
     prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r1', confirmStatus });
 
+    // Wave 5-2：409 文案须指向"异议处理结果闭环"（resolve 两结局均终态，旧文案"先处理异议再操作"
+    // 误导主持人以为 resolve 后可重录，实际重录永久锁定）
     await expect(service.enterOpeningRecord('p1', dto as any))
-      .rejects.toMatchObject({ response: { code: 'RECORD_LOCKED' } });
+      .rejects.toMatchObject({
+        response: {
+          code: 'RECORD_LOCKED',
+          error: expect.stringContaining('请通过异议处理结果（维持/退回）完成闭环'),
+        },
+      });
     expect(prisma.bidOpeningRecord.update).not.toHaveBeenCalled();
     expect(prisma.bidOpeningRecord.create).not.toHaveBeenCalled();
   });

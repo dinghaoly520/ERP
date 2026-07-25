@@ -285,6 +285,48 @@ describe('Opening Hall (e2e)', () => {
     expect(r2.body.public).toBe(0);
   });
 
+  it('Wave5-4 真库：markRead lastMessageId 游标定位 + 单调不回退（M3）+ @updatedAt 不覆盖显式值', async () => {
+    const u1 = await prisma.user.findFirst({ where: { username: 'supplier1', role: 'supplier' } });
+    // 复位 sup1 公聊游标（前序用例可能已写过）
+    await prisma.openingHallReadCursor.deleteMany({ where: { projectId, userId: u1!.id, roomKey: 'public' } });
+
+    // host 发 3 条公聊（间隔 15ms 避同毫秒落库——未读计数是 createdAt 严格 gt 比较）
+    const send = async (c: string) => (
+      await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+        .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: c }).expect(201)
+    ).body;
+    const m1 = await send('游标探针-1');
+    await new Promise(r => setTimeout(r, 15));
+    const m2 = await send('游标探针-2');
+    await new Promise(r => setTimeout(r, 15));
+    const m3 = await send('游标探针-3');
+
+    // 游标定在第二条（R5：客户端上报已读末条）→ 仅第三条未读
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: 'public', lastMessageId: m2.id }).expect(201);
+    const r1 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/unread`).set('Cookie', sup1Cookie).set('X-Portal', 'supplier').expect(200);
+    expect(r1.body.public).toBe(1); // 仅 m3
+
+    // M3 单调：再上报更旧的第一条 → 游标不得回退，未读仍 1
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: 'public', lastMessageId: m1.id }).expect(201);
+    const r2 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/unread`).set('Cookie', sup1Cookie).set('X-Portal', 'supplier').expect(200);
+    expect(r2.body.public).toBe(1);
+
+    // 承重点：游标 lastReadAt 精确等于 m2.createdAt —— lastReadAt 带 @updatedAt，
+    // upsert update 分支必须显式传值，否则被 now() 覆盖（届时 m3 会被误判已读、未读变 0）
+    const cursor = await prisma.openingHallReadCursor.findUnique({
+      where: { projectId_userId_roomKey: { projectId, userId: u1!.id, roomKey: 'public' } },
+    });
+    const msg2 = await prisma.openingHallMessage.findUnique({ where: { id: m2.id } });
+    expect(cursor!.lastReadAt.getTime()).toBe(msg2!.createdAt.getTime());
+
+    // Wave5-3：lastMessageId @MaxLength(64) — cuid 长度内的合法 id 放行，超大串 400
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: 'public', lastMessageId: 'x'.repeat(65) })
+      .expect(400);
+  });
+
   it('历史分页：items 升序、复合 nextCursor（ISO|id）翻页不重不漏', async () => {
     // 连发 5 条公聊（可能同毫秒落库）确保可翻页
     for (const c of ['P1', 'P2', 'P3', 'P4', 'P5']) {
@@ -397,6 +439,13 @@ describe('Opening Hall (e2e)', () => {
   });
 
   it('供应商提异议 → 主持端收到 opening:disputed；主持处理 → 供应商收到 dispute:resolved', async () => {
+    // Wave 5-1 状态门：前例已把 sup1 记录置「供应商已确认」，已确认记录不可再异议（UI 仅待确认态
+    // 给按钮，API 同门控）——先复位为待确认态构造真实异议路径
+    const bs1x = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup1Id } });
+    await prisma.bidOpeningRecord.updateMany({
+      where: { projectId, bidSupplierId: bs1x!.id },
+      data: { confirmStatus: '待确认', objectionReason: null, confirmedAt: null },
+    });
     const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
     const sup = track(connectBid(base, sup1Cookie)); await connected(sup); await joinAck(sup, projectId);
     const pDisputed = onceEvent(host, 'opening:disputed');

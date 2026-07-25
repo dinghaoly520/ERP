@@ -1130,7 +1130,7 @@ export class BidService {
       const LOCKED = ['供应商已确认', '供应商提出异议', '异议已处理-确认', '异议已处理-退回'];
       if (existing && LOCKED.includes(existing.confirmStatus)) {
         throw new ConflictException({
-          error: `开标记录处于「${existing.confirmStatus}」状态，不得重录唱标；如唱标数据确有错误，先处理异议再操作`,
+          error: `开标记录处于「${existing.confirmStatus}」状态，不得重录唱标；请通过异议处理结果（维持/退回）完成闭环`,
           code: 'RECORD_LOCKED',
         });
       }

@@ -569,7 +569,8 @@ export default function BidOpenPage() {
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
               </button>
             )}
-            {projectId && <ExchangeDrawer projectId={projectId} />}
+            {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403） */}
+            {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} />}
           </div>
         </div>
 

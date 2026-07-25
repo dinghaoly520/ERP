@@ -847,6 +847,17 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '标书尚未解密成功', code: 'NOT_DECRYPTED' });
     }
 
+    // Wave 5-1：状态门——仅待确认态的记录可确认（与 host 侧 R7 状态机对称；UI 已门控，此为 API 防线）。
+    // 否则直调 API 可把「异议已处理-退回」（bidSupplier=EXCEPTION）翻回 CONFIRMED/供应商已确认，
+    // 让被例外标记的供应商逃脱；DISPUTED 态也可被 confirm 覆盖。
+    // 「待确认」为旧值（种子/历史数据），与「待供应商确认」同为待确认态（供应商端 UI 两者都接受，
+    // host 侧 I1 重录门同样两者放行），一并视为可操作。
+    const PENDING_CONFIRM = ['待供应商确认', '待确认'];
+    const record = await this.prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bidSupplier.id } });
+    if (!record || !PENDING_CONFIRM.includes(record.confirmStatus)) {
+      throw new BadRequestException({ error: '当前开标记录不可确认（仅待供应商确认状态可操作）', code: 'RECORD_NOT_CONFIRMABLE' });
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.bidOpeningRecord.updateMany({
         where: { projectId, bidSupplierId: bidSupplier.id },
@@ -879,6 +890,15 @@ export class SupplierPortalService {
 
     const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
     if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
+
+    // Wave 5-1：状态门——仅待确认态的记录可异议（与 host 侧 R7 状态机对称；UI 已门控，此为 API 防线）。
+    // 异议处理退回后记录态为「异议已处理-退回」——供应商不可再异议（R7 闭环；如需再异议走线下/
+    // 书面渠道），已确认/已处理态同样不可翻回异议态。「待确认」为旧值，与「待供应商确认」同义。
+    const PENDING_CONFIRM = ['待供应商确认', '待确认'];
+    const record = await this.prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bidSupplier.id } });
+    if (!record || !PENDING_CONFIRM.includes(record.confirmStatus)) {
+      throw new BadRequestException({ error: '当前开标记录不可异议（仅待供应商确认状态可操作）', code: 'RECORD_NOT_DISPUTABLE' });
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.bidOpeningRecord.updateMany({
