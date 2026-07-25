@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { openingHallApi } from '@/lib/opening-hall';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import type {
@@ -33,12 +34,15 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
   });
   const activeSupplierRef = useRef<string | null>(null);
   activeSupplierRef.current = activeSupplier?.supplierId ?? null;
+  // tabRef：事件回调内读当前 tab（避免在 setTab 更新器里做副作用——StrictMode/并发双调会重复计数）
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
 
   useBidWebSocket(projectId, {
     onHallMessage: useCallback((d: HallMessagePayload) => {
       if (d.roomType === 'PUBLIC') {
-        setPublicMsgs(prev => [...prev, toMsg(d)]);
-        setTab(cur => { if (cur !== 'PUBLIC') setPublicUnread(n => n + 1); return cur; });
+        setPublicMsgs(prev => { const exists = prev.some(m => m.id === d.id); return exists ? prev : [...prev, toMsg(d)]; });
+        if (tabRef.current !== 'PUBLIC') setPublicUnread(n => n + 1);
       } else {
         setPrivateMsgs(prev => (d.supplierId === activeSupplierRef.current ? [...prev, toMsg(d)] : prev));
         setSessions(prev => prev.map(s =>
@@ -56,7 +60,11 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!open) return;
     openingHallApi.messages(projectId, { roomType: 'PUBLIC', limit: 100 })
-      .then(r => setPublicMsgs(r.items.map(toMsg))).catch(() => {});
+      .then(r => setPublicMsgs(prev => {
+        // 按 id 合并，避免覆盖 hydrate 请求在途期间到达的 socket 增量
+        const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id));
+        return [...r.items.map(toMsg), ...fresh];
+      })).catch(() => {});
     openingHallApi.unread(projectId).then(r => {
       setPublicUnread(r.public ?? 0);
       setSessions(r.sessions ?? []);
@@ -69,10 +77,19 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
   }, [open, projectId]);
 
   async function openPrivate(s: Session) {
+    // 同步写 ref：消除点击到重渲染之间 activeSupplierRef 的旧值窗口
+    activeSupplierRef.current = s.supplierId;
     setActiveSupplier(s); setTab('PRIVATE');
+    // 切换供应商：先同步清空上一家的消息（同 tick 内无 socket 事件可插入），
+    // hydrate 返回后再按 id 合并，保留请求在途期间到达的 socket 增量
+    setPrivateMsgs([]);
     setSessions(prev => prev.map(x => (x.supplierId === s.supplierId ? { ...x, unread: 0 } : x)));
     const r = await openingHallApi.messages(projectId, { roomType: 'PRIVATE', supplierId: s.supplierId, limit: 100 }).catch(() => null);
-    setPrivateMsgs(r ? r.items.map(toMsg) : []);
+    setPrivateMsgs(prev => {
+      if (!r) return prev;
+      const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id));
+      return [...r.items.map(toMsg), ...fresh];
+    });
     await openingHallApi.markRead(projectId, `supplier:${s.supplierId}`).catch(() => {});
   }
 
@@ -120,7 +137,11 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
         )}
       </button>
 
-      {open && (
+      {/* C2：抽屉经 portal 渲染到 body——SectionCard（glass-card）的 backdrop-filter 会为 fixed 后代
+          建立包含块并被 overflow-hidden 裁剪；portal 化后 fixed 相对视口定位。
+          抽屉仅在 open（客户端 state）为 true 时渲染，SSR 不触碰 document。
+          层级：抽屉 z-40 低于唱标录入模态 z-50 ✓ */}
+      {open && createPortal(
         <aside className="fixed right-0 top-0 z-40 flex h-full w-[420px] flex-col border-l border-slate-200 bg-white shadow-xl">
           <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <h3 className="text-sm font-semibold">会场交流</h3>
@@ -184,7 +205,7 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') send(); }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }}
               placeholder={tab === 'PRIVATE' && !activeSupplier ? '请先选择供应商' : '输入消息（Enter 发送）'}
               disabled={tab === 'PRIVATE' && !activeSupplier}
               className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
@@ -192,7 +213,8 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
             <button onClick={send} disabled={sending || !input.trim()}
               className="rounded-xl bg-slate-900 px-4 text-sm text-white disabled:opacity-40">发送</button>
           </div>
-        </aside>
+        </aside>,
+        document.body,
       )}
     </>
   );

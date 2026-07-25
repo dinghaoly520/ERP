@@ -375,9 +375,16 @@ export default function BidOpenPage() {
     },
     onOpeningConfirmed: (d) => {
       toast.success(`${d.supplierName} 已确认开标记录`);
+      // R1：refetch 项目数据（同 onStageChange），让解密表"确认"列与开标记录确认状态同步刷新
+      if (projectId) {
+        api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
+      }
     },
     onOpeningDisputed: (d) => {
       toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);
+      if (projectId) {
+        api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
+      }
     },
     // F8：监督日志与异常事件统一在页面级订阅，下传给监督视图
     onSupervisionLog: (data) => {

@@ -82,6 +82,12 @@ async function send() {
   }
 }
 
+// 中文输入法组合期（isComposing / keyCode 229）的 Enter 是选词确认，不发送
+function onEnter(e: KeyboardEvent) {
+  if (e.isComposing || e.keyCode === 229) return
+  send()
+}
+
 onMounted(async () => {
   await Promise.all([loadHistory('PUBLIC'), loadHistory('PRIVATE'), loadUnread()])
 })
@@ -110,7 +116,7 @@ onMounted(async () => {
 
     <div v-if="!canSend" class="muted-hint">{{ controlHint }}</div>
     <div class="input-row">
-      <el-input v-model="input" :disabled="!canSend" maxlength="2000" placeholder="输入消息（Enter 发送）" @keyup.enter="send" />
+      <el-input v-model="input" :disabled="!canSend" maxlength="2000" placeholder="输入消息（Enter 发送）" @keyup.enter="onEnter" />
       <el-button type="primary" :disabled="!canSend || !input.trim()" :loading="sending" @click="send">发送</el-button>
     </div>
   </el-card>
