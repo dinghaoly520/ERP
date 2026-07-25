@@ -87,6 +87,8 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
     const r = await openingHallApi.messages(projectId, { roomType: 'PRIVATE', supplierId: s.supplierId, limit: 100 }).catch(() => null);
     setPrivateMsgs(prev => {
       if (!r) return prev;
+      // 陈旧响应守卫：快速切换 A→B→C 且 B 请求晚归时，丢弃 B 的响应，不污染 C 的会话
+      if (activeSupplierRef.current !== s.supplierId) return prev;
       const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id));
       return [...r.items.map(toMsg), ...fresh];
     });
@@ -141,8 +143,9 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
           建立包含块并被 overflow-hidden 裁剪；portal 化后 fixed 相对视口定位。
           抽屉仅在 open（客户端 state）为 true 时渲染，SSR 不触碰 document。
           层级：抽屉 z-40 低于唱标录入模态 z-50 ✓ */}
+      {/* 抽屉 top-[68px] 避开 app-shell sticky 页头（z-50 h-[68px]），否则头部控制行被遮挡不可点 */}
       {open && createPortal(
-        <aside className="fixed right-0 top-0 z-40 flex h-full w-[420px] flex-col border-l border-slate-200 bg-white shadow-xl">
+        <aside className="fixed right-0 top-[68px] z-40 flex h-[calc(100%-68px)] w-[420px] flex-col border-l border-slate-200 bg-white shadow-xl">
           <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <h3 className="text-sm font-semibold">会场交流</h3>
             <div className="flex items-center gap-1 text-xs">
@@ -205,7 +208,7 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }}
+              onKeyDown={e => { if (e.key === 'Enter' && !(e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229)) send(); }}
               placeholder={tab === 'PRIVATE' && !activeSupplier ? '请先选择供应商' : '输入消息（Enter 发送）'}
               disabled={tab === 'PRIVATE' && !activeSupplier}
               className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"

@@ -116,7 +116,8 @@ onMounted(async () => {
 
     <div v-if="!canSend" class="muted-hint">{{ controlHint }}</div>
     <div class="input-row">
-      <el-input v-model="input" :disabled="!canSend" maxlength="2000" placeholder="输入消息（Enter 发送）" @keyup.enter="onEnter" />
+      <!-- keydown 而非 keyup：Chromium 中 compositionend 先于 keyup 触发，keyup 时 isComposing 已为 false，守卫失效 -->
+      <el-input v-model="input" :disabled="!canSend" maxlength="2000" placeholder="输入消息（Enter 发送）" @keydown.enter="onEnter" />
       <el-button type="primary" :disabled="!canSend || !input.trim()" :loading="sending" @click="send">发送</el-button>
     </div>
   </el-card>
