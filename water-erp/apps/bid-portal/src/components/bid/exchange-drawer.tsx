@@ -41,6 +41,9 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
   // tabRef：事件回调内读当前 tab（避免在 setTab 更新器里做副作用——StrictMode/并发双调会重复计数）
   const tabRef = useRef(tab);
   tabRef.current = tab;
+  // projectIdRef：hydrate 陈旧响应守卫（切项目后旧请求晚归时不再写回新项目的 state）
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
 
   const { connection, reconnectNow } = useBidWebSocket(projectId, {
     // R4：阶段离开 OPENING → 关闭 host 输入（大厅互动仅在开标阶段开放；MUTED 不影响 host 发言）
@@ -72,6 +75,8 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
       openingHallApi.unread(projectId),
       openingHallApi.presence(projectId),
     ]);
+    // 陈旧响应守卫（I2）：切项目后本 hydrate（闭包旧 projectId）晚归时丢弃，不写回新项目 state
+    if (projectIdRef.current !== projectId) return;
     let lastPublicId: string | undefined;
     if (pub.status === 'fulfilled') {
       lastPublicId = pub.value.items[pub.value.items.length - 1]?.id;
@@ -96,15 +101,16 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
     let lastPrivateId: string | undefined;
     if (sid) {
       const r = await openingHallApi.messages(projectId, { roomType: 'PRIVATE', supplierId: sid, limit: 100 }).catch(() => null);
-      if (r) {
+      if (r && projectIdRef.current === projectId) {
         lastPrivateId = r.items[r.items.length - 1]?.id;
         setPrivateMsgs(prev => {
-          if (activeSupplierRef.current !== sid) return prev;
+          if (activeSupplierRef.current !== sid || projectIdRef.current !== projectId) return prev;
           const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id));
           return [...r.items.map(toMsg), ...fresh];
         });
       }
     }
+    if (projectIdRef.current !== projectId) return;
     // U2：hydrate 后对当前 tab 即时 markRead，游标定在已加载末条（在途消息不被 now() 误判已读）
     if (tabRef.current === 'PUBLIC') {
       openingHallApi.markRead(projectId, 'public', lastPublicId).catch(() => {});
@@ -132,6 +138,7 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
     setCheckins({});
     setRoster([]);
     setStageClosed(false);
+    setControl('OPEN'); // M1：避免 A 项目的 CLOSED 串到 B 项目（control 无 REST 来源，仅事件驱动）
     setInput('');
   }, [projectId]);
 

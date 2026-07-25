@@ -73,6 +73,12 @@ function overdueUnconfirmed(row: any) {
   const idx = stageIdx(row.project?.stage ?? '')
   return idx > stageIdx('OPENING') && row.confirmStatus !== 'CONFIRMED'
 }
+// M3：按异议处理态分文案——EXCEPTION（异议被退回，host 已处理终态）/DISPUTED（异议待 host 处理）不应显示"逾期未确认"
+function overdueLabel(row: any) {
+  if (row.confirmStatus === 'EXCEPTION') return '异议已处理'
+  if (row.confirmStatus === 'DISPUTED') return '异议待处理'
+  return '逾期未确认'
+}
 
 // ── Per-card stage progress (for submitted with known stage) ──
 function cardProgress(row: any): number {
@@ -254,7 +260,7 @@ async function handleWithdraw(id: string) {
               class="neu-btn-xs is-success"
               @click="router.push(`/my-bids/${row.projectId}/opening-confirm`)"
             >开标确认</button>
-            <span v-else-if="overdueUnconfirmed(row)" class="mb-overdue">逾期未确认</span>
+            <span v-else-if="overdueUnconfirmed(row)" class="mb-overdue">{{ overdueLabel(row) }}</span>
             <button
               class="neu-btn-xs is-warning"
               :style="{ visibility: canWithdraw(row) ? 'visible' : 'hidden' }"

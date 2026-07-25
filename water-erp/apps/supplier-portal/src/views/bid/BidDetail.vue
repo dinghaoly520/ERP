@@ -68,7 +68,8 @@ async function handleAttachUpload(opt: any) {
     attachAssetId.value = asset.id
   } catch (e: any) {
     attachAssetId.value = ''
-    ElMessage.error(e?.response?.data?.error || '附件上传失败，请重试')
+    // 带 response 的错误已由 axios 拦截器统一弹出；仅补无 response（断网/超时）这一空洞，避免双弹窗（M2）
+    if (!e?.response) ElMessage.error('附件上传失败，请检查网络后重试')
     throw e
   } finally {
     attachUploading.value = false
