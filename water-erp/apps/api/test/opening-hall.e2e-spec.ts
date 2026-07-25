@@ -375,4 +375,47 @@ describe('Opening Hall (e2e)', () => {
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
       .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: `supplier:${sup1Id}` }).expect(201);
   });
+
+  it('角色分级：procurement_staff 放行公开流（project 房）但 REST 敏感操作拒绝；mall 完全拒绝', async () => {
+    // 临时 procurement_staff 用户（单一角色 → 任意门户登录都解析为 procurement_staff）
+    const ts = Date.now();
+    let staffUserId = '';
+    try {
+      const staffUser = await prisma.user.create({
+        data: {
+          username: `e2e-staff-${ts}`, displayName: `E2E采购员-${ts}`,
+          role: 'procurement_staff', isActive: true, passwordHash: hashSync('e2e@2026', 10),
+        },
+      });
+      staffUserId = staffUser.id;
+      const staffCookie = await loginAs(app, staffUser.username, 'e2e@2026', 'web');
+
+      // 1) join 放行（进 project 房；host 房不在该分支加入——结构性隔离，见 bid.gateway.ts 分支代码）
+      const s = track(connectBid(base, staffCookie)); await connected(s);
+      const ack = await joinAck(s, projectId);
+      expect(ack).toEqual(expect.objectContaining({ ok: true }));
+
+      // 2) 收到公开流（主持公聊广播）
+      const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
+      const got = onceEvent(s, 'hall:message:new');
+      await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+        .set('Cookie', hostCookie).set('X-Portal', 'web')
+        .send({ roomType: 'PUBLIC', content: 'procurement_staff 公开流测试' }).expect(201);
+      expect((await got).content).toBe('procurement_staff 公开流测试');
+
+      // 3) REST 敏感操作仍被 assertHost 拒绝（S8：公开流放行、私聊转录收紧）
+      await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/messages?roomType=PRIVATE&supplierId=${sup1Id}`)
+        .set('Cookie', staffCookie).set('X-Portal', 'web')
+        .expect(403)
+        .expect((res) => expect(res.body).toMatchObject({ code: 'HOST_ONLY' }));
+
+      // 4) mall 门户完全拒绝：token_mall 不在网关解析集（mall 无开标业务）→ 未认证 UNAUTHORIZED；
+      //    FORBIDDEN 分支兜底"已认证但非白名单角色"（防御纵深，cookie 路径下 mall 实际落 UNAUTHORIZED）。
+      const mallCookie = await loginAs(app, '陈源远', '陈源远@2026', 'mall');
+      const m = track(connectBid(base, mallCookie)); await connected(m);
+      expect(await joinAck(m, HERO_PROJECT_ID)).toEqual({ error: 'UNAUTHORIZED' });
+    } finally {
+      if (staffUserId) await prisma.user.delete({ where: { id: staffUserId } }).catch(() => {});
+    }
+  });
 });

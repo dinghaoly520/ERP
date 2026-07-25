@@ -115,13 +115,20 @@ describe('BidGateway join:project 认证兜底 + 角色白名单（C1/S1 回归�
     expect(j2).toEqual([]);
   });
 
-  it('C1：mall / procurement_staff 等非白名单角色 join → FORBIDDEN，不进 project 房', async () => {
+  it('C1：mall 等非白名单角色 join → FORBIDDEN，不进 project 房', async () => {
     const gw = makeGateway();
-    for (const role of ['mall', 'procurement_staff']) {
+    for (const role of ['mall', 'internal_user']) {
       const { client, joined } = makeClient({ role, userId: `u-${role}` });
       expect(await gw.handleJoinProject(client, 'p1')).toEqual({ error: 'FORBIDDEN' });
       expect(joined).toEqual([]);
     }
+  });
+
+  it('S8 决策：procurement_staff 放行公开流（仅 project 房，不进 host 房）', async () => {
+    const gw = makeGateway();
+    const { client, joined } = makeClient({ role: 'procurement_staff', userId: 'u-staff' });
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
+    expect(joined).toEqual(['project:p1']); // host:p1 不在其中——监督日志/异常/专家进度对其屏蔽
   });
 
   it('host 角色 join → project + host 房', async () => {

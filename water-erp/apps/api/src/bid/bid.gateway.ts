@@ -176,8 +176,16 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { ok: true };
     }
 
-    // 显式角色白名单（C1）：仅 host 角色进 project + host 房；
-    // mall / procurement_staff 等其他角色不进开标实时流。
+    if (role === 'procurement_staff') {
+      // 内部采购员工：放行公开流（project 房——解密进度/阶段/公聊等开标公开信息），
+      // 不进 host 房（监督日志/异常/专家个体进度仍屏蔽）；REST 敏感操作（私聊/交流控制）
+      // 由 opening-hall.service 的 assertHost 另行拒绝（S8 决策：公开流放行、敏感操作收紧）。
+      client.join(`project:${projectId}`);
+      return { ok: true };
+    }
+
+    // 显式角色白名单（C1）：host 角色进 project + host 房；
+    // mall 等其余角色不进开标实时流。
     if (canJoinHostRoom(role)) {
       client.join(`project:${projectId}`);
       client.join(`host:${projectId}`);
