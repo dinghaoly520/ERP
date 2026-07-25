@@ -16,6 +16,7 @@ import { CreateScorePointDto } from './dto/create-score-point.dto';
 import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
+import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertBidStageTransition, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
@@ -1169,9 +1170,14 @@ export class BidService {
     return record;
   }
 
-  async resolveOpeningDispute(projectId: string, recordId: string, dto: { result: string; confirm: boolean }) {
+  async resolveOpeningDispute(projectId: string, recordId: string, dto: ResolveOpeningDisputeDto, actorId?: string) {
     const record = await this.prisma.bidOpeningRecord.findFirst({ where: { id: recordId, projectId } });
     if (!record) throw new BadRequestException({ error: '开标记录不存在', code: 'NOT_FOUND' });
+
+    // H6: 状态前置——仅可处理处于「供应商提出异议」状态的记录，杜绝绕过供应商确认环节直接改判
+    if (record.confirmStatus !== '供应商提出异议') {
+      throw new ConflictException({ error: '仅可处理处于「供应商提出异议」状态的开标记录', code: 'NOT_IN_DISPUTE' });
+    }
 
     // P0: 阶段门控 — 仅在开标阶段可处理异议
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
@@ -1186,7 +1192,7 @@ export class BidService {
     await this.prisma.$transaction(async (tx) => {
       await tx.bidOpeningRecord.update({
         where: { id: recordId },
-        data: { confirmStatus, handleResult: dto.result, handledAt: now },
+        data: { confirmStatus, handleResult: dto.result, handledAt: now, handledBy: actorId ?? null },
       });
       if (record.bidSupplierId) {
         await tx.bidSupplier.update({
@@ -1200,6 +1206,12 @@ export class BidService {
           action: '处理开标异议', result: dto.result, riskFlag: '中风险',
         },
       });
+      // H6: 操作者留痕（开标异议处理是法定留痕环节）
+      if (actorId) {
+        await tx.auditLog.create({
+          data: { userId: actorId, action: 'BID_DISPUTE_RESOLVE', resourceType: `BidOpeningRecord:${recordId}`, details: { projectId, confirm: dto.confirm, result: dto.result } },
+        });
+      }
     });
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: dto.result, riskFlag: '中风险' });
