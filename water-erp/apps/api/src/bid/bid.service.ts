@@ -699,6 +699,24 @@ export class BidService {
       });
     }
 
+    // H4: 开标完成度守卫——未撤回供应商须全部到终局态，否则启动评标（不可逆，EVALUATING→OPENING 回退 409）
+    // 会永久切断仍未解密/未确认的供应商（OPENING-only 的解密/唱标/确认通道随阶段离开而关闭）。
+    const activeSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { projectId: id, submitStatus: { not: '已撤回' } },
+      select: { supplierName: true, decryptStatus: true, confirmStatus: true },
+    });
+    const notReady = activeSuppliers.filter(s => {
+      if (s.decryptStatus === 'DANGER') return false;                              // 解密异常已定性
+      if (s.decryptStatus !== 'SUCCESS') return true;                              // PENDING/RUNNING 未解密
+      return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';   // 解密成功但确认未闭环（PENDING/DISPUTED）
+    });
+    if (notReady.length > 0) {
+      throw new ConflictException({
+        error: `开标尚未完成，以下供应商未到终局态（解密/确认/异议未结）：${notReady.map(s => s.supplierName).join('、')}`,
+        code: 'OPENING_NOT_DONE',
+      });
+    }
+
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
 

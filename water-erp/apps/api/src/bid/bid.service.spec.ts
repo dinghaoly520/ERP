@@ -1198,6 +1198,37 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('H4 — startEvaluation 开标完成度守卫', () => {
+    it('存在未解密（PENDING）供应商时抛 OPENING_NOT_DONE，不写 EVALUATING', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidExpert.count.mockResolvedValue(1);
+      prisma.bidSupplier.count.mockResolvedValue(1);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { supplierName: 'A', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+        { supplierName: 'B', decryptStatus: 'PENDING', confirmStatus: 'PENDING' },
+      ]);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({ response: { code: 'OPENING_NOT_DONE' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('所有供应商到终局态（SUCCESS+CONFIRMED / DANGER）时放行', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidExpert.count.mockResolvedValue(1);
+      prisma.bidSupplier.count.mockResolvedValue(2);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { supplierName: 'A', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+        { supplierName: 'B', decryptStatus: 'DANGER', confirmStatus: 'PENDING' },
+      ]);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+
+      await expect(service.startEvaluation('p1', 'u1')).resolves.toMatchObject({ stage: 'EVALUATING' });
+    });
+  });
+
   describe('decryptSupplier', () => {
     it('writes supervision log on successful decrypt', async () => {
       // Setup this.prisma mocks (used outside tx callback for submission lookup)
