@@ -1493,6 +1493,14 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
     prisma.bidSupplier.findFirst.mockResolvedValue(null);
     await expect(service.enterOpeningRecord('p1', dto as any)).rejects.toThrow(BadRequestException);
   });
+
+  it('H11: 供应商已确认（confirmStatus=CONFIRMED）时禁止覆盖唱标信息', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' });
+    await expect(service.enterOpeningRecord('p1', dto as any)).rejects.toThrow(ConflictException);
+    expect(prisma.bidOpeningRecord.update).not.toHaveBeenCalled();
+    expect(prisma.bidOpeningRecord.create).not.toHaveBeenCalled();
+  });
 });
 
 /* ── 催办（nudge）：站内信 + Email 多通道，按门控过滤参与者 ── */

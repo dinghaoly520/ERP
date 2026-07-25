@@ -1124,11 +1124,16 @@ export class BidService {
 
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
       where: { id: dto.bidSupplierId, projectId },
-      select: { id: true, supplierName: true, decryptStatus: true },
+      select: { id: true, supplierName: true, decryptStatus: true, confirmStatus: true },
     });
     if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
     if (bidSupplier.decryptStatus !== 'SUCCESS') {
       throw new BadRequestException({ error: '标书尚未解密成功，无法录入唱标信息', code: 'NOT_DECRYPTED' });
+    }
+    // H11: 供应商已确认的记录禁止覆盖——否则记录回「待供应商确认」而供应商侧仍 CONFIRMED，
+    // generateEvaluationResults 只看 bidSupplier.confirmStatus，主持人单方改报价会默认生效。
+    if (bidSupplier.confirmStatus === 'CONFIRMED') {
+      throw new ConflictException({ error: '该供应商已确认开标记录，禁止覆盖唱标信息', code: 'RECORD_ALREADY_CONFIRMED' });
     }
 
     const payload = {
