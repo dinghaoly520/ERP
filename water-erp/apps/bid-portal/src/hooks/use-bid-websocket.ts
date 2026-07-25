@@ -121,24 +121,25 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
       scheduleReconnect();
     });
 
-    // Bind event handlers via ref for stale-closure safety
-    const on = <T,>(ev: string, fn: ((d: T) => void) | undefined) => {
+    // R9：listener 内按 key 延迟解引用 handlersRef.current——事件到达时取最新 handler。
+    // （旧实现在连接建立时快照 h.current.onX 的值，后续渲染换上的 handler 永不生效）
+    const on = <T,>(ev: string, key: keyof BidWsHandlers) => {
       socket.on(ev, (d: T) => {
+        const fn = handlersRef.current[key] as ((d: T) => void) | undefined;
         if (fn) { setLastEventAt(Date.now()); fn(d); }
       });
     };
-    const h = handlersRef;
-    on(BID_EVENT.DECRYPT_STATUS, h.current.onDecryptStatus);
-    on(BID_EVENT.STAGE_CHANGE, h.current.onStageChange);
-    on(BID_EVENT.SUPERVISION_LOG, h.current.onSupervisionLog);
-    on(BID_EVENT.ANOMALY_DETECTED, h.current.onAnomalyDetected);
-    on(BID_EVENT.HALL_MESSAGE_NEW, h.current.onHallMessage);
-    on(BID_EVENT.HALL_PRESENCE_UPDATE, h.current.onHallPresence);
-    on(BID_EVENT.HALL_CHECKIN, h.current.onHallCheckin);
-    on(BID_EVENT.HALL_EXCHANGE_CONTROL, h.current.onHallExchangeControl);
-    on(BID_EVENT.OPENING_CONFIRMED, h.current.onOpeningConfirmed);
-    on(BID_EVENT.OPENING_DISPUTED, h.current.onOpeningDisputed);
-    on(BID_EVENT.OPENING_DISPUTE_RESOLVED, h.current.onOpeningDisputeResolved);
+    on(BID_EVENT.DECRYPT_STATUS, 'onDecryptStatus');
+    on(BID_EVENT.STAGE_CHANGE, 'onStageChange');
+    on(BID_EVENT.SUPERVISION_LOG, 'onSupervisionLog');
+    on(BID_EVENT.ANOMALY_DETECTED, 'onAnomalyDetected');
+    on(BID_EVENT.HALL_MESSAGE_NEW, 'onHallMessage');
+    on(BID_EVENT.HALL_PRESENCE_UPDATE, 'onHallPresence');
+    on(BID_EVENT.HALL_CHECKIN, 'onHallCheckin');
+    on(BID_EVENT.HALL_EXCHANGE_CONTROL, 'onHallExchangeControl');
+    on(BID_EVENT.OPENING_CONFIRMED, 'onOpeningConfirmed');
+    on(BID_EVENT.OPENING_DISPUTED, 'onOpeningDisputed');
+    on(BID_EVENT.OPENING_DISPUTE_RESOLVED, 'onOpeningDisputeResolved');
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {

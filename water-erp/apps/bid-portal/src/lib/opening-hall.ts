@@ -27,8 +27,8 @@ export const openingHallApi = {
   unread: (projectId: string) =>
     api.get<any>(`/opening-hall/${projectId}/unread`),
 
-  markRead: (projectId: string, roomKey: string) =>
-    api.post<any>(`/opening-hall/${projectId}/read`, { roomKey }),
+  markRead: (projectId: string, roomKey: string, lastMessageId?: string) =>
+    api.post<any>(`/opening-hall/${projectId}/read`, { roomKey, ...(lastMessageId ? { lastMessageId } : {}) }),
 
   setControl: (projectId: string, control: 'OPEN' | 'MUTED' | 'CLOSED') =>
     api.patch<any>(`/opening-hall/${projectId}/exchange-control`, { control }),

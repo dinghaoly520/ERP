@@ -61,10 +61,17 @@ function formatBidPrice(raw: string | number | null | undefined): string {
 function canWithdraw(row: any) {
   return row.status === 'submitted' && ['DOWNLOAD', 'SUBMIT'].includes(row.project?.stage)
 }
+// U4：开标确认入口仅开标阶段开放——EVALUATING/ARCHIVED 再进大厅只有灰字（死胡同）
 function canConfirmOpening(row: any) {
   return row.status === 'submitted'
-    && ['OPENING','EVALUATING','ARCHIVED'].includes(row.project?.stage)
+    && row.project?.stage === 'OPENING'
     && row.confirmStatus !== 'CONFIRMED'
+}
+// U4：stage 已过 OPENING 且仍未确认（confirmStatus 为 BidSupplier 枚举 PENDING/DISPUTED/EXCEPTION 之一）→ 只读提示
+function overdueUnconfirmed(row: any) {
+  if (row.status !== 'submitted' || !row.confirmStatus) return false
+  const idx = stageIdx(row.project?.stage ?? '')
+  return idx > stageIdx('OPENING') && row.confirmStatus !== 'CONFIRMED'
 }
 
 // ── Per-card stage progress (for submitted with known stage) ──
@@ -243,11 +250,11 @@ async function handleWithdraw(id: string) {
               disabled
             >已确认</button>
             <button
-              v-else
+              v-else-if="canConfirmOpening(row)"
               class="neu-btn-xs is-success"
-              :style="{ visibility: canConfirmOpening(row) ? 'visible' : 'hidden' }"
               @click="router.push(`/my-bids/${row.projectId}/opening-confirm`)"
             >开标确认</button>
+            <span v-else-if="overdueUnconfirmed(row)" class="mb-overdue">逾期未确认</span>
             <button
               class="neu-btn-xs is-warning"
               :style="{ visibility: canWithdraw(row) ? 'visible' : 'hidden' }"
@@ -496,6 +503,7 @@ async function handleWithdraw(id: string) {
   align-items: stretch;
 }
 .mb-card-actions :deep(.neu-btn-xs) { width: 100%; padding: 0; }
+.mb-overdue { font-size: 11px; color: var(--muted-foreground); text-align: center; line-height: 1.4; }
 
 /* ── Empty ── */
 .mb-empty {

@@ -53,12 +53,27 @@ async function doDownload() { if (!bidDoc.value?.announcementId) return; downloa
 
 // ── 书面交流（来函 + 可选附件；澄清模块保持单向，无实时推送）──
 const questionText = ref(''); const questionPosting = ref(false)
-const attachAssetId = ref(''); const attachUploadRef = ref<any>(null)
+const attachAssetId = ref(''); const attachUploadRef = ref<any>(null); const attachUploading = ref(false)
 const replyOpen = ref<string | null>(null); const replyText = ref(''); const replyPosting = ref(false)
-async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入函件内容'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim(), attachAssetId.value || undefined); ElMessage.success('来函已提交'); questionText.value = ''; attachAssetId.value = ''; attachUploadRef.value?.clearFiles(); await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } questionPosting.value = false }
+// U5：catch 仅保留状态复位——业务错误消息已由 axios 拦截器统一弹出（data.error），不再重复 toast
+async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入函件内容'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim(), attachAssetId.value || undefined); ElMessage.success('来函已提交'); questionText.value = ''; attachAssetId.value = ''; attachUploadRef.value?.clearFiles(); await bidStore.fetchProject(projectId.value) } catch { /* 拦截器已提示 */ } questionPosting.value = false }
 function openReply(id: string) { replyOpen.value = id; replyText.value = '' }
 function closeReply() { replyOpen.value = null; replyText.value = '' }
-async function postReply(id: string) { if (!replyText.value.trim()) { ElMessage.warning('请输入回复'); return }; replyPosting.value = true; try { await bidApi.createQuestion(projectId.value, replyText.value.trim()); ElMessage.success('回复已提交'); closeReply(); await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } replyPosting.value = false }
+async function postReply(id: string) { if (!replyText.value.trim()) { ElMessage.warning('请输入回复'); return }; replyPosting.value = true; try { await bidApi.createQuestion(projectId.value, replyText.value.trim()); ElMessage.success('回复已提交'); closeReply(); await bidStore.fetchProject(projectId.value) } catch { /* 拦截器已提示 */ } replyPosting.value = false }
+// U6：附件上传失败 → toast + 清 assetId；re-throw 让 el-upload 将文件标红
+async function handleAttachUpload(opt: any) {
+  attachUploading.value = true
+  try {
+    const asset = await uploadFile(opt.file as File, 'clarification')
+    attachAssetId.value = asset.id
+  } catch (e: any) {
+    attachAssetId.value = ''
+    ElMessage.error(e?.response?.data?.error || '附件上传失败，请重试')
+    throw e
+  } finally {
+    attachUploading.value = false
+  }
+}
 
 // 将纯文本公告格式化为 HTML（处理中文招标公告结构）
 function formatContent(raw: string): string {
@@ -192,17 +207,16 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           <p class="cq-desc">如需获取信息，可提交书面函件（支持附件），或致电项目联系人</p>
           <div class="cq-ask">
             <el-input v-model="questionText" placeholder="填写书面函件内容…" :rows="2" type="textarea" size="small" />
-            <button class="neu-btn-xs cq-submit-btn" :disabled="questionPosting" @click="postQuestion">提交</button>
+            <!-- U6：附件上传进行中禁用提交，防裸提交丢附件 -->
+            <button class="neu-btn-xs cq-submit-btn" :disabled="questionPosting || attachUploading" @click="postQuestion">提交</button>
           </div>
           <div class="cq-attach">
             <el-upload
               ref="attachUploadRef"
               :auto-upload="true"
               :limit="1"
-              :http-request="async (opt: any) => {
-                const asset = await uploadFile(opt.file as File, 'clarification')
-                attachAssetId.value = asset.id
-              }"
+              :http-request="handleAttachUpload"
+              :on-exceed="() => ElMessage.warning('仅支持 1 个附件')"
               :on-remove="() => (attachAssetId.value = '')"
             >
               <el-button size="small">添加附件</el-button>

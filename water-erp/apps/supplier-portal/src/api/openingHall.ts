@@ -16,7 +16,7 @@ export const openingHallApi = {
   unread(projectId: string) {
     return api.get(`/opening-hall/${projectId}/unread`)
   },
-  markRead(projectId: string, roomKey: string) {
-    return api.post(`/opening-hall/${projectId}/read`, { roomKey })
+  markRead(projectId: string, roomKey: string, lastMessageId?: string) {
+    return api.post(`/opening-hall/${projectId}/read`, { roomKey, ...(lastMessageId ? { lastMessageId } : {}) })
   },
 }
