@@ -108,6 +108,7 @@ describe('BidService — stage transitions', () => {
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
+      bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
       projectManagementStage: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
       $queryRaw: jest.fn().mockResolvedValue([]),
@@ -690,6 +691,39 @@ describe('BidService — stage transitions', () => {
       const created = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data[0];
       expect(created.disqualified).toBe(true);
       expect(created.recommended).toBe(false);
+    });
+
+    it('H2: 已撤销的废标（BidInvalidBid.status=revoked）不计入失败票，供应商不判废', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'si_qual', category: 'QUALIFICATION' },
+      ]);
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false,
+        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
+        suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
+      });
+      // 通过性项原本 2 不通过 + 1 通过 → 过半判废；但该 (s1,si_qual) 废标已被管理员撤销
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { supplierId: 's1', expertId: 'e1', score: 0, passed: false, scoreItemId: 'si_qual' },
+        { supplierId: 's1', expertId: 'e2', score: 0, passed: false, scoreItemId: 'si_qual' },
+        { supplierId: 's1', expertId: 'e3', score: 0, passed: true, scoreItemId: 'si_qual' },
+        { supplierId: 's1', expertId: 'e1', score: 10 },
+        { supplierId: 's1', expertId: 'e2', score: 10 },
+        { supplierId: 's1', expertId: 'e3', score: 10 },
+      ]);
+      prisma.bidInvalidBid.findMany.mockResolvedValue([{ supplierId: 's1', scoreItemId: 'si_qual' }]); // 已撤销
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({});
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([
+        { supplierId: 's1', supplierName: '甲', totalScore: 30, averageScore: 10, rank: 1, recommended: true, disqualified: false },
+      ]);
+
+      await service.generateEvaluationResults('p1');
+
+      const created = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data[0];
+      expect(created.disqualified).toBe(false); // 撤销生效：不再判废
+      expect(created.recommended).toBe(true);
     });
 
     it('generateEvaluationResults：不通过不过半 → 不废标', async () => {
@@ -1907,6 +1941,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn() },
+      bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn(async (cb: any) => cb({
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
         bidSupervisionLog: { create: jest.fn() },

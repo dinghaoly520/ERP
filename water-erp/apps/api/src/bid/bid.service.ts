@@ -1289,6 +1289,13 @@ export class BidService {
       for (const it of passFailItems) passFailItemIds.add(it.id);
       const categoryById = new Map(passFailItems.map(it => [it.id, it.category as string]));
 
+      // H2: 已撤销的废标（管理员复核 revokeInvalidBid）不计入失败票——否则撤销被本重算静默推翻
+      const revokedInvalidBids = await this.prisma.bidInvalidBid.findMany({
+        where: { projectId, status: 'revoked' },
+        select: { supplierId: true, scoreItemId: true },
+      });
+      const revokedKeys = new Set(revokedInvalidBids.map(r => `${r.supplierId}:${r.scoreItemId}`));
+
       for (const supplier of activeSuppliers) {
         const records = recordsBySupplier.get(supplier.id) ?? [];
         let disqualified = false;
@@ -1296,6 +1303,7 @@ export class BidService {
         const byItem = new Map<string, { fail: number; total: number }>();
         for (const r of records) {
           if (!passFailItemIds.has(r.scoreItemId) || r.passed === null || r.passed === undefined) continue;
+          if (revokedKeys.has(`${supplier.id}:${r.scoreItemId}`)) continue; // H2: 已撤销废标不计入失败票
           const agg = byItem.get(r.scoreItemId) ?? { fail: 0, total: 0 };
           agg.total += 1;
           if (r.passed === false) agg.fail += 1;
