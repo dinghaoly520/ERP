@@ -1124,6 +1124,16 @@ export class BidService {
       const existing = await tx.bidOpeningRecord.findFirst({
         where: { projectId, bidSupplierId: bidSupplier.id },
       });
+      // 状态门（Wave4a-I1）：已确认/异议/已处理的记录不得被唱标重录覆写——否则异议态记录被
+      // 覆写回「待供应商确认」（objectionReason 残留）后 resolve 撞 R7 状态门 400，bidSupplier
+      // 永久停留 DISPUTED 并被 generateEvaluationResults 静默排除（R7 引入的交互回归楔子）。
+      const LOCKED = ['供应商已确认', '供应商提出异议', '异议已处理-确认', '异议已处理-退回'];
+      if (existing && LOCKED.includes(existing.confirmStatus)) {
+        throw new ConflictException({
+          error: `开标记录处于「${existing.confirmStatus}」状态，不得重录唱标；如唱标数据确有错误，先处理异议再操作`,
+          code: 'RECORD_LOCKED',
+        });
+      }
       const rec = existing
         ? await tx.bidOpeningRecord.update({ where: { id: existing.id }, data: payload })
         : await tx.bidOpeningRecord.create({
@@ -1161,13 +1171,20 @@ export class BidService {
 
     const now = new Date();
     const confirmStatus = dto.confirm ? '异议已处理-确认' : '异议已处理-退回';
+    // Wave4a-M5：监督日志记态迁移（前态 → 后态：处理结果），便于监督端回放异议闭环
+    const supervisionResult = `供应商提出异议 → ${confirmStatus}：${dto.result}`;
 
     // P0: Wrap record update + supplier update + supervision log in transaction
     await this.prisma.$transaction(async (tx) => {
-      await tx.bidOpeningRecord.update({
-        where: { id: recordId },
+      // Wave4a-M4：事务内条件更新是并发防线——事务外的状态门基于 stale read，并发双处理都过门时
+      // 仅首笔命中异议待处理行（count=1），第二笔 count=0 → 400，杜绝双落（与 R6 原子抢占同构）。
+      const res = await tx.bidOpeningRecord.updateMany({
+        where: { id: recordId, confirmStatus: '供应商提出异议' },
         data: { confirmStatus, handleResult: dto.result, handledAt: now },
       });
+      if (res.count === 0) {
+        throw new BadRequestException({ error: '该异议已被处理', code: 'DISPUTE_NOT_PENDING' });
+      }
       if (record.bidSupplierId) {
         await tx.bidSupplier.update({
           where: { id: record.bidSupplierId },
@@ -1177,12 +1194,12 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: now, role: '开标主持人', target: record.supplierName,
-          action: '处理开标异议', result: dto.result, riskFlag: '中风险',
+          action: '处理开标异议', result: supervisionResult, riskFlag: '中风险',
         },
       });
     });
 
-    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: dto.result, riskFlag: '中风险' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: supervisionResult, riskFlag: '中风险' });
     if (record.bidSupplierId) {
       const bs = await this.prisma.bidSupplier.findUnique({
         where: { id: record.bidSupplierId },

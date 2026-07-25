@@ -200,12 +200,14 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('leave:project')
   handleLeaveProject(client: Socket, projectId: string) {
     // R8：退房同时回收连接表——旧实现只退房不清 supplierSockets/socketProjects，
-    // 导致离场后仍计在线、仍收私聊定向推送。仅清理本次 join 登记的供应商身份；
-    // 非供应商 socket 无 supplierId，仅清 socketProjects + 退房。
+    // 导致离场后仍计在线、仍收私聊定向推送。
+    // Wave4a-M6：连接表清理一律以 socketProjects 登记项目为准（而非 leave 载荷）——
+    // 恶意/异常端 emit leave('p1') 不得误清/漏清登记于 p2 的 socket（自伤型）。
+    // 退房：载荷房 + 登记房去重后都退；presence 按涉及项目刷新。
     const supplierId: string | undefined = (client.data as any).supplierId;
-    // 房间以 leave 载荷为准；供应商 socket 回退 join 时登记的 projectId（client.data.projectId）。
-    const pid: string | undefined = projectId || (client.data as any).projectId;
-    if (supplierId) {
+    const registered: string | undefined = this.socketProjects.get(client.id);
+    const requested: string | undefined = projectId || (client.data as any).projectId;
+    if (supplierId && registered) {
       const set = this.supplierSockets.get(supplierId);
       if (set) {
         set.delete(client.id);
@@ -213,7 +215,10 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
     }
     this.socketProjects.delete(client.id);
-    if (pid) {
+    const pids = new Set<string>();
+    if (requested) pids.add(requested);
+    if (registered) pids.add(registered);
+    for (const pid of pids) {
       client.leave(`project:${pid}`);
       client.leave(`host:${pid}`);
       client.leave(`experts:${pid}`);
@@ -350,12 +355,15 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** 在场名单：合并内存连接表与 DB 签到状态，广播 project 房。 */
   async broadcastHallPresence(projectId: string) {
+    // Wave4a-M2：在线口径与 getOnlineSupplierIds 一致（按项目过滤 socketProjects）——
+    // 旧实现按 supplierSockets 全局 size>0 判定，供应商仅连 p2 时 p1 的在场名单仍列其在线。
+    const online = this.getOnlineSupplierIds(projectId);
     const rows = await this.prisma.bidSupplier.findMany({
       where: { projectId },
       select: { supplierId: true, supplierName: true, checkInAt: true },
     });
     const onlineSuppliers = rows
-      .filter(r => r.supplierId && (this.supplierSockets.get(r.supplierId)?.size ?? 0) > 0)
+      .filter(r => r.supplierId && online.has(r.supplierId))
       .map(r => ({ supplierId: r.supplierId as string, supplierName: r.supplierName, checkInAt: r.checkInAt?.toISOString() ?? null }));
     const payload: HallPresenceUpdatePayload = {
       projectId, onlineSuppliers, onlineCount: onlineSuppliers.length, timestamp: Date.now(),

@@ -342,6 +342,15 @@ describe('OpeningHallService', () => {
       const call = prismaMock.openingHallReadCursor.upsert.mock.calls[0][0];
       expect(call.update.lastReadAt.getTime()).toBeGreaterThan(t3.getTime());
     });
+
+    it('M3 游标单调：游标已在 M3，上报更旧的 M1 → 游标保持 M3（不倒退、unread 0）', async () => {
+      await svc.markRead(sup, 'p1', 'public', 'M3'); // 游标 → t3
+      await svc.markRead(sup, 'p1', 'public', 'M1'); // 客户端乱序上报更旧消息
+      const calls = prismaMock.openingHallReadCursor.upsert.mock.calls;
+      expect(calls[0][0].update.lastReadAt.getTime()).toBe(t3.getTime());
+      expect(calls[1][0].update.lastReadAt.getTime()).toBe(t3.getTime()); // 不倒退到 t1
+      expect((await svc.unreadCounts(sup, 'p1')).public).toBe(0); // 无假未读
+    });
   });
 
   describe('checkIn 原子抢占（R6：并发双签到不重复留痕、签到与监督日志同事务）', () => {

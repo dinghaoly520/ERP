@@ -217,6 +217,11 @@ export class OpeningHallService {
       });
       if (msg) lastReadAt = msg.createdAt;
     }
+    // Wave4a-M3：游标单调——上报更旧的"已读末条"不得使游标倒退（防假未读/角标虚高）
+    const existing = await this.prisma.openingHallReadCursor.findUnique({
+      where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },
+    });
+    if (existing && existing.lastReadAt > lastReadAt) lastReadAt = existing.lastReadAt;
     return this.prisma.openingHallReadCursor.upsert({
       where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },
       create: { projectId, userId: actor.userId, roomKey, lastReadAt },

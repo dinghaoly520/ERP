@@ -170,6 +170,46 @@ describe('BidGateway leave:project 清连接表 + 定向推送项目过滤（R8�
     expect((gw as any).socketProjects.has(client.id)).toBe(false);
     expect(presenceSpy).toHaveBeenCalledWith('p1');
   });
+
+  it('M2：presence 在线列表按项目口径过滤——供应商仅连 p2 时不列入 p1 在场名单', async () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    // sup-1 仅登记于 p2（跨项目 tab）；sup-2 登记于 p1
+    (gw as any).supplierSockets.set('sup-1', new Set(['sock-p2']));
+    (gw as any).socketProjects.set('sock-p2', 'p2');
+    (gw as any).supplierSockets.set('sup-2', new Set(['sock-p1']));
+    (gw as any).socketProjects.set('sock-p1', 'p1');
+    prismaMock.bidSupplier.findMany.mockResolvedValue([
+      { supplierId: 'sup-1', supplierName: '仅连 p2 的供应商', checkInAt: null },
+      { supplierId: 'sup-2', supplierName: 'p1 在线供应商', checkInAt: null },
+    ]);
+
+    await gw.broadcastHallPresence('p1');
+    const payload = emitted.find(e => e.event === BID_EVENT.HALL_PRESENCE_UPDATE)?.payload;
+    const ids = payload.onlineSuppliers.map((s: any) => s.supplierId);
+    expect(ids).toContain('sup-2');
+    expect(ids).not.toContain('sup-1'); // 旧全局口径 bug：size>0 即误列在线
+    expect(payload.onlineCount).toBe(1);
+    expect(gw.getOnlineSupplierIds('p1').has('sup-1')).toBe(false); // 与 getOnlineSupplierIds 口径一致
+  });
+
+  it('M6：leave 载荷与登记项目不一致 → 连接表按登记（p2）清、两房都退、presence 广播登记项目', async () => {
+    const gw = makeGateway();
+    captureServer(gw);
+    const presenceSpy = jest.spyOn(gw, 'broadcastHallPresence').mockResolvedValue(undefined);
+    const { client, left } = makeClient({ role: 'supplier', userId: 'u-sup' });
+    await gw.handleJoinProject(client, 'p2'); // 唯一登记项目 p2
+    expect(gw.getOnlineSupplierIds('p2').has('sup-1')).toBe(true);
+
+    gw.handleLeaveProject(client, 'p1'); // 恶意/异常载荷：声称离开 p1
+    // 连接表清理以 socketProjects 登记为准：socket 登记于 p2 → 被清（不因载荷 p1 而漏清/误清）
+    expect(gw.getOnlineSupplierIds('p2').size).toBe(0);
+    expect((gw as any).socketProjects.has(client.id)).toBe(false);
+    // 载荷房 + 登记房都退（去重）
+    expect(left).toEqual(expect.arrayContaining(['project:p1', 'project:p2']));
+    // presence 广播登记项目 p2（旧实现只刷载荷 p1 → p2 在场名单残留幽灵在线）
+    expect(presenceSpy).toHaveBeenCalledWith('p2');
+  });
 });
 
 describe('tokenFromHandshake 门户判定（多 cookie 共存）', () => {
