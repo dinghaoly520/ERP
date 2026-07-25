@@ -7,6 +7,12 @@
 
 > **范围说明**：本地分支另有并行工作线的 9 个未推送提交（C1-C6 阶段棘轮 + Phase 2/3 开评标指挥中心重构）。本清单仅计迭代一范围内问题；与并行工作线的交互项单列于 §5。
 
+## 修复进度
+
+- **Wave 1（安全波）✅ 已完成并通过聚焦评审**（commits `52168dc2` + `8b9afda9` + declined 专家收口）：C1 全分支闭合、S1 指派门 + declined 过滤、S7 三段门控无绕过、S10 四组负用例；**S8 用户决策已落地**：procurement_staff 放行 project 房（公开流，可见面 ⊆ 供应商可见面），不进 host 房，REST 敏感操作维持 HOST_ONLY
+- **Wave 1 评审新 Minor**（不阻塞，并入后续波次）：M1 连接级信任无驱逐机制（JWT 过期/撤权后不踢）· M2 supplier 可为未参投项目 markRead('public')（仅自身游标，无泄漏）· M3 setExchangeControl 缺服务层 assertHost（仅控制器 @Roles）· M4 staff 零接收 host-only 事件的 E2E 探针 · M5 projectId 无形态校验 · M6 markRead 项目不存在语义应 404
+- **Wave 2-5 未开始**
+
 ## 验证状态图例
 
 - 【实证】= 真实环境复现验证（探针/DB 直查/验收观察）
