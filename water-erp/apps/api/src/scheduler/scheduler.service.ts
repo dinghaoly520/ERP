@@ -132,7 +132,7 @@ export class SchedulerService {
     const now = new Date();
     const windowEnd = new Date(now.getTime() + 60 * 60 * 1000);
     const projects = await this.prisma.bidProject.findMany({
-      where: { stage: 'SUBMIT' },
+      where: { stage: { in: ['DOWNLOAD', 'SUBMIT'] } },
       select: { id: true, name: true, openTime: true },
     });
     for (const p of projects) {

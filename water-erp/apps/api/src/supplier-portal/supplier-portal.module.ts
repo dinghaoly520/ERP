@@ -6,9 +6,10 @@ import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AnnouncementModule } from '../announcement/announcement.module';
 import { BidBackupModule } from '../bid-backup/bid-backup.module';
+import { BidModule } from '../bid/bid.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, AnnouncementModule, BidBackupModule],
+  imports: [AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule],
   controllers: [SupplierPortalController],
   providers: [SupplierPortalService, SignatureService],
   exports: [SupplierPortalService],

@@ -71,6 +71,8 @@ const ALL_TABLES = [
   'assistant_alerts', 'assistant_conversations', 'assistant_messages',
   'bid_requirement_reviews', 'bid_score_deltas',
   'ScoreTemplate',
+  'OpeningHallMessage',
+  'OpeningHallReadCursor',
 ] as const;
 
 // 按外键依赖分层写入（父表在前）。空快照 createMany 等价于空操作。
@@ -118,6 +120,8 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['BidScoreRecord', 'bidScoreRecord'],
   ['BidScoreDelta', 'bidScoreDelta'],
   ['BidOpeningRecord', 'bidOpeningRecord'],
+  ['OpeningHallMessage', 'openingHallMessage'],
+  ['OpeningHallReadCursor', 'openingHallReadCursor'],
   ['BidClarification', 'bidClarification'],
   ['BidSupervisionLog', 'bidSupervisionLog'],
   ['BidSupervisionAnnotation', 'bidSupervisionAnnotation'],

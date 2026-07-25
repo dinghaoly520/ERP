@@ -9,6 +9,11 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
+  // @water-erp/{shared,config} 的 dist 是 CJS；dev 模式直出 ESM 无法命名导入，
+  // 需强制预打包（esbuild 转 ESM）。生产构建经 rollup interop 无此问题。
+  optimizeDeps: {
+    include: ['@water-erp/shared', '@water-erp/config'],
+  },
   build: {
     chunkSizeWarningLimit: 1200,
     rollupOptions: {

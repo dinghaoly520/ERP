@@ -10,6 +10,7 @@ module.exports = {
   testEnvironment: "node",
   moduleNameMapper: {
     "^@water-erp/config$": "<rootDir>/../../../packages/config/src/index.ts",
+    "^@water-erp/shared$": "<rootDir>/../../../packages/shared/src/index.ts",
   },
   // 转译 ESM 依赖：jest 默认忽略整个 node_modules，ESM-only 包(如 htmlparser2 全家)经
   // sanitize-html 引入时以原始 ESM 加载会报 "Cannot use import statement outside a module"。

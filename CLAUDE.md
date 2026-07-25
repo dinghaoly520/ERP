@@ -24,7 +24,7 @@ Run workspace commands from `water-erp/`.
 | **供应商门户** | `apps/supplier-portal` | Vue 3 + Vite | 3004 | Supplier self-service — registration, bidding, qualifications, profile |
 | **采购管理工作台** | `apps/web` | Next.js 16 App Router | 3005 | Admin/internal staff — announcements, supplier management, expert admin, mall management |
 | **专家门户** | `apps/expert-portal` | Next.js 16 App Router | 3006 | Bid expert workstation — project review, identity verification, scoring, reports |
-| **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | Bid opening/evaluation admin — 开标大厅, 监督端, 评标管理, 归档, 澄清答疑 |
+| **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | **在线开标执行终端（纯开标）**：开标任务板 + 开标大厅（组建会话/解密/唱标/异议/监督视图）。项目管理与全部阶段流转归 :3005 |
 | **水叮当助手** | `apps/assistant` | Next.js 16 App Router | 3008 | AI assistant chatbot — public, no login required |
 | **大屏** | `apps/bigscreen` | Next.js 16 | 3010 | Data-viz big-screen dashboard. Standalone — **not** started by `pnpm dev`; run `pnpm dev:bigscreen`. Port is hardcoded (not in `packages/config/ports.ts`). |
 
@@ -102,16 +102,12 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 
 ### 开评标管理端 (`bid-portal`, :3007)
 
-The bid lifecycle management backend for `admin` and `bid_host` roles. Modules:
+**纯开标执行终端**（2026-07 重构）。总则：**所有流程流转归 :3005 采购管理工作台，:3007 只执行在线开标并把数据流转回 :3005**。:3007 不持有任何阶段流转调用（确定开标/启动评标/生成结果/归档触发均在 :3005 项目详情「开标确认」面板）。页面仅两个：
 
-- **开评标总览** (`/bid`) — dashboard with project stats, stage distribution, workspace inspection
-- **开标大厅** (`/bid/open`) — real-time bid opening: supplier decryption, opening records, dispute resolution, countdown timer
-- **监督端** (`/bid/supervise`) — supervision panel: timeline, anomaly events, CS audit log (read-only, non-intervention)
-- **评标管理端** (`/bid/evaluate`) — expert status overview, scoring progress monitoring, start evaluation workflow
-- **归档端** (`/bid/archive`) — archive items checklist, one-click archiving, export archive package with hash chain
-- **澄清答疑** (`/bid/clarifications`) — clarification/QA workflow between bid committee and suppliers
-- **评分标准管理** (`/bid/standard`) — define/reuse `ScoreItem`s across the 5 scoring categories (qualification/responsive/business/technical/price); locked once the project stage advances past the standard phase
-- **项目工作区** (`/bid/project/[id]`) — per-project detail page (header + tabbed sub-views) unifying the above workflows around a single selected project
+- **开标任务板** (`/bid`) — 只读：「开标中」项目（解密/唱标/确认/异议四计数）+ 截标已过的 SUBMIT 项目（「等待 :3005 确定开标」）+ 已归档计数；唯一行操作「进入开标大厅」
+- **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人/监督人/解密窗口，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、「开标完成」交棒横幅（跳回 :3005）
+
+已迁回 :3005 的原 :3007 功能：评标管理端、评分标准管理、澄清答疑、归档触发与查看、项目创建/编辑/邀请/催办。项目工作区 `/bid/project/[id]` tab 机制已退役（`?id=` 查询参数直达大厅）。
 
 **Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → cookie `token_web` is set → post-login redirect to bid portal (:3007). The bid portal shares the `token_web` cookie namespace (no separate `token_bid`), sending `X-Portal: web` for API calls.
 
@@ -369,7 +365,7 @@ The API uses `@nestjs/websockets` + Socket.IO for real-time bid opening (开标�
 DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ```
 
-Same-stage transitions are idempotent; invalid transitions throw `ConflictException` (409).
+**单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转统一由 :3005「开标确认」面板驱动（按时开标/启动评标/归档），:3007 仅在 OPENING 阶段内写开标会话、不持有任何阶段流转。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会把关联项目 stage 裸重置回 DOWNLOAD（`announcement.service.ts`，管理员刻意回滚，不经状态机）。
 
 ### File Uploads (MinIO)
 

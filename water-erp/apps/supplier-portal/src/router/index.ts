@@ -88,6 +88,12 @@ const router = createRouter({
           meta: { title: '开标确认' },
         },
         {
+          path: 'my-bids/:projectId/opening-hall',
+          name: 'OpeningHall',
+          component: () => import('@/views/bid/OpeningHall.vue'),
+          meta: { title: '在线开标大厅' },
+        },
+        {
           path: 'announcements',
           name: 'Announcements',
           component: () => import('@/views/announcement/AnnouncementList.vue'),

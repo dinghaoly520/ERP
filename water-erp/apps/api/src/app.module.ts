@@ -44,6 +44,7 @@ import { TenderWriteModule } from './tender-write/tender-write.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SearchModule } from './search/search.module';
 import { ChatModule } from './chat/chat.module';
+import { OpeningHallModule } from './opening-hall/opening-hall.module';
 import { AppController } from './app.controller';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -95,6 +96,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     DashboardModule,
     SearchModule,
     ChatModule,
+    OpeningHallModule,
   ],
   controllers: [AppController],
   providers: [

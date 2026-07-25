@@ -263,16 +263,10 @@ export class ProjectManagementService {
       },
     });
     if (existing) {
-      // :3005 进入开标确认意味着公告已发布、投递已开放；历史停在 DOWNLOAD 的项目自动推进到 SUBMIT
-      let stage = existing.stage;
-      if (stage === 'DOWNLOAD') {
-        await this.prisma.bidProject.update({ where: { id: existing.id }, data: { stage: 'SUBMIT' } });
-        stage = 'SUBMIT';
-        this.logger.log(`开标确认：项目 ${existing.projectCode} 自动推进 DOWNLOAD → SUBMIT`);
-      }
+      // 2026-07 重构：棘轮状态机 + 投递放宽后，DOWNLOAD 阶段即可投递（以公告发布为权威闸门），
+      // 不再自动裸推 DOWNLOAD→SUBMIT；阶段推进统一由 :3005 人工确认驱动，返回真实 stage
       return {
         ...existing,
-        stage,
         round: targetRound,
         openTime: existing.openTime.toISOString(),
         deadline: existing.deadline.toISOString(),

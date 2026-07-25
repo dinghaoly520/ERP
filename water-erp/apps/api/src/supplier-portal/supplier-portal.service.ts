@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, ConflictException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
@@ -12,6 +12,7 @@ import { wrapKey } from '../common/crypto/envelope-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
+import { BidGateway } from '../bid/bid.gateway';
 import * as crypto from 'crypto';
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
@@ -58,6 +59,7 @@ export class SupplierPortalService {
     private bidDocumentService: BidDocumentService,
     private signatureService: SignatureService,
     private bidBackup: BidBackupService,
+    @Optional() private readonly gateway?: BidGateway,
   ) {}
 
   /**
@@ -440,6 +442,7 @@ export class SupplierPortalService {
         supplierName: supplier.name,
         supplierId: supplier.id,
         status: '待回复',
+        fileAssetId: dto.fileAssetId ?? null,
       },
     });
   }
@@ -483,7 +486,7 @@ export class SupplierPortalService {
       this.prisma.supplier.findUnique({ where: { id: supplierId } }),
       this.prisma.bidProject.findUnique({
         where: { id: projectId },
-        select: { id: true, stage: true, deadline: true },
+        select: { id: true, projectCode: true, stage: true, deadline: true },
       }),
     ]);
 
@@ -492,11 +495,20 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '供应商未通过审核，无法投标', code: 'NOT_APPROVED' });
     }
     if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
-    if (project.stage !== 'SUBMIT') {
-      throw new BadRequestException({ error: '当前项目不在投递阶段', code: 'PROJECT_NOT_SUBMITTING' });
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
+      throw new BadRequestException({ error: '当前项目已进入开标或后续阶段，无法投递', code: 'PROJECT_NOT_SUBMITTING' });
     }
     if (project.deadline.getTime() < Date.now()) {
       throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
+    }
+    // G3 权威兜底：未发布招标公告则供应商无法获取招标文件，禁止投递
+    // （与 openSubmission 的 UX 前置拦截并存；棘轮化后 DOWNLOAD 阶段即可投递，此为唯一权威闸门）
+    const notice = await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: project.projectCode, type: 'BID_NOTICE', status: 'PUBLISHED' },
+      select: { id: true },
+    });
+    if (!notice) {
+      throw new BadRequestException({ error: '该项目尚未发布招标公告，暂无法投递', code: 'BID_NOTICE_REQUIRED' });
     }
 
     return { supplier, project };
@@ -781,7 +793,7 @@ export class SupplierPortalService {
       select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
-    if (project.stage !== 'SUBMIT') {
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
       throw new BadRequestException({ error: '项目已进入开标或后续阶段，无法撤回', code: 'PROJECT_ALREADY_OPENING' });
     }
 
@@ -848,6 +860,9 @@ export class SupplierPortalService {
         },
       });
     });
+    this.gateway?.notifyOpeningConfirmed(projectId, supplierId, {
+      projectId, supplierId, supplierName: bidSupplier.supplierName, timestamp: Date.now(),
+    });
     return { success: true };
   }
 
@@ -877,6 +892,9 @@ export class SupplierPortalService {
           action: '提出开标异议', result: reason, riskFlag: '中风险',
         },
       });
+    });
+    this.gateway?.notifyOpeningDisputed(projectId, supplierId, {
+      projectId, supplierId, supplierName: bidSupplier.supplierName, reason, timestamp: Date.now(),
     });
     return { success: true };
   }

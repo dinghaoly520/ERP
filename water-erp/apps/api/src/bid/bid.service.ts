@@ -16,7 +16,7 @@ import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
-import { assertBidStageTransition, type BidStage } from './bid-state';
+import { assertBidStageTransition, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
@@ -133,26 +133,59 @@ export class BidService {
 
     const projectIds = projects.map(p => p.id);
 
-    // 批量获取各项目的供应商提交数与专家签到数（单次 groupBy，避免 N+1）
-    const [submissionCounts, expertSignInCounts] = await Promise.all([
+    // 批量获取各项目的供应商提交数/专家签到数/开标就绪度计数（单次 groupBy，避免 N+1）
+    type CountRow = { projectId: string; _count: { projectId: number } };
+    const [submissionCounts, expertSignInCounts, decryptedCounts, confirmedCounts, disputedCounts, openingRecordCounts] = await Promise.all([
       projectIds.length > 0
         ? this.prisma.supplierBidSubmission.groupBy({
             by: ['projectId'],
             where: { projectId: { in: projectIds }, status: 'submitted' },
             _count: { projectId: true },
           })
-        : ([] as { projectId: string; _count: { projectId: number } }[]),
+        : ([] as CountRow[]),
       projectIds.length > 0
         ? this.prisma.bidExpert.groupBy({
             by: ['projectId'],
             where: { projectId: { in: projectIds }, signedIn: true },
             _count: { projectId: true },
           })
-        : ([] as { projectId: string; _count: { projectId: number } }[]),
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidSupplier.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, decryptStatus: 'SUCCESS' },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidSupplier.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, confirmStatus: 'CONFIRMED' },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidSupplier.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds }, confirmStatus: 'DISPUTED' },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
+      projectIds.length > 0
+        ? this.prisma.bidOpeningRecord.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: projectIds } },
+            _count: { projectId: true },
+          })
+        : ([] as CountRow[]),
     ]);
 
     const submittedMap = new Map(submissionCounts.map(s => [s.projectId, s._count.projectId] as [string, number]));
     const signedInMap = new Map(expertSignInCounts.map(e => [e.projectId, e._count.projectId] as [string, number]));
+    const decryptedMap = new Map(decryptedCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
+    const confirmedMap = new Map(confirmedCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
+    const disputedMap = new Map(disputedCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
+    const openingRecordMap = new Map(openingRecordCounts.map(r => [r.projectId, r._count.projectId] as [string, number]));
 
     const projectRows = projects.map(p => {
       const supplierCount = p._count.suppliers;
@@ -195,6 +228,11 @@ export class BidService {
         supplierSubmitted,
         expertCount,
         expertSignedIn,
+        // 开标就绪度信号：驱动 :3007 开标任务板与「开标完成」判定
+        decryptedCount: decryptedMap.get(p.id) ?? 0,
+        confirmedCount: confirmedMap.get(p.id) ?? 0,
+        pendingDisputeCount: disputedMap.get(p.id) ?? 0,
+        openingRecordedCount: openingRecordMap.get(p.id) ?? 0,
         readiness,
       };
     });
@@ -245,7 +283,7 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    const [suppliers, experts, submissions] = await Promise.all([
+    const [suppliers, experts, submissions, openingRecordCount] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: id },
         include: { supplier: { select: { id: true, name: true, classification: { select: { name: true } } } } },
@@ -259,6 +297,7 @@ export class BidService {
         where: { projectId: id },
         select: { supplierId: true, status: true, submittedAt: true, bidPrice: true, deliveryPeriod: true },
       }),
+      this.prisma.bidOpeningRecord.count({ where: { projectId: id } }),
     ]);
     const subMap = new Map(submissions.map(s => [s.supplierId, s]));
 
@@ -275,6 +314,7 @@ export class BidService {
         downloadStatus: s.downloadStatus,
         submitStatus: s.submitStatus,
         decryptStatus: s.decryptStatus,
+        confirmStatus: s.confirmStatus,
         submission,
         submitted,
         withdrawn,
@@ -291,6 +331,11 @@ export class BidService {
         withdrawn: supplierRows.filter(s => s.withdrawn).length,
         expertCount: experts.length,
         expertSignedIn: experts.filter(e => e.signedIn).length,
+        // 开标就绪度信号：驱动 :3005 开标进度区块与 :3007「开标完成」判定
+        decryptedCount: supplierRows.filter(s => s.decryptStatus === 'SUCCESS').length,
+        confirmedCount: supplierRows.filter(s => s.confirmStatus === 'CONFIRMED').length,
+        pendingDisputeCount: supplierRows.filter(s => s.confirmStatus === 'DISPUTED').length,
+        openingRecordedCount: openingRecordCount,
       },
     };
   }
@@ -461,9 +506,9 @@ export class BidService {
       });
 
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '开放投递 (DOWNLOAD→SUBMIT)', result: '阶段变更成功', riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: `开放投递 (${project.stage}→SUBMIT)`, result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'DOWNLOAD', to: 'SUBMIT', stage: 'SUBMIT' } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'SUBMIT', stage: 'SUBMIT' } } });
 
       return result;
     });
@@ -471,7 +516,7 @@ export class BidService {
     // Defer WebSocket notifications until after transaction commits
     this.gateway?.notifyStageChange(id, 'DOWNLOAD', 'SUBMIT', 'host');
     this.gateway?.notifySubmissionOpened(id);
-    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '开放投递 (DOWNLOAD→SUBMIT)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: `开放投递 (${project.stage}→SUBMIT)`, target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
     return updated;
   }
@@ -479,27 +524,32 @@ export class BidService {
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, deadline: true },
+      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
 
-    // P1: 截标时间校验——投标截止时间未到，不允许启动开标
-    if (new Date() < new Date(project.deadline)) {
+    // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
+    const isTransitioning = project.stage !== 'OPENING';
+
+    // P1: 截标时间校验——仅阶段推进（确定开标）时要求投标截止已过；
+    // 同阶段调用（:3007 组建/更新开标会话）不受 deadline 约束——
+    // 否则 :3005 延期开标（updateProject 无阶段门控）后会话将永远建不出来
+    if (isTransitioning && new Date() < new Date(project.deadline)) {
       throw new BadRequestException({
         error: '投标截止时间未到，无法启动开标',
         code: 'DEADLINE_NOT_PASSED',
       });
     }
 
-    // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
-    const isTransitioning = project.stage !== 'OPENING';
-
-    // 首次进入 OPENING 必须提供完整的开标会话信息
-    if (isTransitioning && (!dto?.host || !dto?.supervisor || !dto?.decryptWindowStart || !dto?.decryptWindowEnd)) {
+    // 会话四字段要么全给（组建/更新开标会话），要么全不给（仅推进阶段）。
+    // 部分字段视为客户端错误，避免静默跳过建会话导致开标流程卡死
+    const providedCount = [dto?.host, dto?.supervisor, dto?.decryptWindowStart, dto?.decryptWindowEnd]
+      .filter(Boolean).length;
+    if (providedCount > 0 && providedCount < 4) {
       throw new BadRequestException({
-        error: '启动开标需填写主持人、监督人及解密窗口起止时间',
-        code: 'OPENING_SESSION_REQUIRED',
+        error: '组建开标会话需同时提供主持人、监督人及解密窗口起止时间',
+        code: 'INCOMPLETE_SESSION_FIELDS',
       });
     }
 
@@ -513,14 +563,15 @@ export class BidService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      if (dto?.host && dto?.supervisor && dto?.decryptWindowStart && dto?.decryptWindowEnd) {
+      let sessionUpserted = false;
+      if (providedCount === 4) {
         const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
-        const decryptWindowEnd = new Date(dto.decryptWindowEnd);
+        const decryptWindowEnd = new Date(dto!.decryptWindowEnd!);
         const remainingSeconds = Math.max(0, Math.floor((decryptWindowEnd.getTime() - Date.now()) / 1000));
         const sessionData = {
-          host: dto.host,
-          supervisor: dto.supervisor,
-          decryptWindowStart: new Date(dto.decryptWindowStart),
+          host: dto!.host!,
+          supervisor: dto!.supervisor!,
+          decryptWindowStart: new Date(dto!.decryptWindowStart!),
           decryptWindowEnd,
           remainingSeconds,
           status: '待开标' as const,
@@ -530,6 +581,7 @@ export class BidService {
         } else {
           await tx.bidOpeningSession.create({ data: { projectId: id, ...sessionData } });
         }
+        sessionUpserted = true;
       }
 
       const updated = await tx.bidProject.update({
@@ -537,17 +589,68 @@ export class BidService {
         data: { stage: 'OPENING' },
       });
 
+      const action = isTransitioning ? `确定开标 (${project.stage}→OPENING)` : '组建开标会话';
+      const result = isTransitioning ? '阶段变更成功' : '开标会话已组建/更新';
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action: '启动开标 (SUBMIT→OPENING)', result: '阶段变更成功', riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: dto?.host || '系统', target: project.name, action, result, riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'SUBMIT', to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'OPENING', stage: 'OPENING', host: dto?.host, supervisor: dto?.supervisor, deadline: project.deadline } } });
 
-      this.gateway?.notifyStageChange(id, 'SUBMIT', 'OPENING', 'host');
-      this.gateway?.notifyOpeningStarted(id, { host: dto?.host || '系统', supervisor: dto?.supervisor || '系统' });
-      this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action: '启动开标 (SUBMIT→OPENING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+      // 阶段联动：关联的 :3005 项目管理项「开标评标」阶段 → IN_PROGRESS（仅首次流转）
+      if (isTransitioning) {
+        await this.syncPmStage(tx, { projectManagementItemId: project.projectManagementItemId, round: project.round }, 'IN_PROGRESS');
+      }
+
+      this.gateway?.notifyStageChange(id, project.stage, 'OPENING', 'host');
+      // 仅在真正 upsert 了会话时通知开标启动；裸推阶段（:3005 确定开标）不触发，
+      // 否则 :3007 会收到 {host:'系统'} 事件误判会话已建
+      if (sessionUpserted && dto?.host && dto?.supervisor) {
+        this.gateway?.notifyOpeningStarted(id, { host: dto.host, supervisor: dto.supervisor });
+      }
+      this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action, target: project.name, result, riskFlag: '无' });
 
       return updated;
     });
+  }
+
+  /**
+   * 阶段联动：BidProject 流转时同步关联 ProjectManagementItem 的「开标评标」(BID_EVALUATION) 阶段。
+   * - IN_PROGRESS 仅从 NOT_STARTED 升级（幂等，不覆盖人工确认过的 COMPLETED）
+   * - COMPLETED 带 completedAt；仅当 PM 指针正停在 BID_EVALUATION 时推进到下一阶段
+   * - 不复用 ProjectManagementService.updateStage（其 currentStage 守卫与级联 AI 分析副作用不适用于程序化联动）
+   * - 无关联（公告/手工创建的项目）→ no-op；置于流转事务末尾，与阶段变更同生共死
+   */
+  private async syncPmStage(
+    tx: any,
+    link: { projectManagementItemId: string | null; round: number },
+    status: 'IN_PROGRESS' | 'COMPLETED',
+  ) {
+    if (!link.projectManagementItemId) return;
+    await tx.projectManagementStage.updateMany({
+      where: {
+        projectManagementItemId: link.projectManagementItemId,
+        stageKey: 'BID_EVALUATION',
+        round: link.round,
+        ...(status === 'IN_PROGRESS' ? { status: 'NOT_STARTED' } : {}),
+      },
+      data: status === 'COMPLETED' ? { status, completedAt: new Date() } : { status },
+    });
+    const item = await tx.projectManagementItem.findUnique({
+      where: { id: link.projectManagementItemId },
+      select: {
+        currentStage: true,
+        stages: { where: { round: link.round }, orderBy: { stageOrder: 'asc' }, select: { stageKey: true } },
+      },
+    });
+    if (!item) return;
+    const bidEvalIdx = item.stages.findIndex((s: { stageKey: string }) => s.stageKey === 'BID_EVALUATION');
+    const currentIdx = item.stages.findIndex((s: { stageKey: string }) => s.stageKey === item.currentStage);
+    if (status === 'IN_PROGRESS' && bidEvalIdx >= 0 && (currentIdx < 0 || currentIdx < bidEvalIdx)) {
+      await tx.projectManagementItem.update({ where: { id: link.projectManagementItemId }, data: { currentStage: 'BID_EVALUATION' } });
+    } else if (status === 'COMPLETED' && bidEvalIdx >= 0 && currentIdx === bidEvalIdx) {
+      const next = item.stages[bidEvalIdx + 1];
+      if (next) await tx.projectManagementItem.update({ where: { id: link.projectManagementItemId }, data: { currentStage: next.stageKey } });
+    }
   }
 
   async startEvaluation(id: string, actorId?: string) {
@@ -586,9 +689,9 @@ export class BidService {
       });
 
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '启动评标 (OPENING→EVALUATING)', result: '阶段变更成功', riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: `启动评标 (${project.stage}→EVALUATING)`, result: '阶段变更成功', riskFlag: '无' },
       });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'OPENING', to: 'EVALUATING', stage: 'EVALUATING' } } });
+      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'EVALUATING', stage: 'EVALUATING' } } });
 
       // 4.3: 创建 AI 分析 task（1:1，upsert 幂等）+ 为解密成功供应商创建 bidderResult（数据准备）
       const aiTask = await tx.aiBidAnalysisTask.upsert({
@@ -616,9 +719,9 @@ export class BidService {
     });
 
     // Defer WebSocket notifications until after transaction commits
-    this.gateway?.notifyStageChange(id, 'OPENING', 'EVALUATING', 'host');
+    this.gateway?.notifyStageChange(id, project.stage, 'EVALUATING', 'host');
     this.gateway?.notifyEvaluationStarted(id);
-    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '启动评标 (OPENING→EVALUATING)', target: project.name, result: '阶段变更成功', riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: `启动评标 (${project.stage}→EVALUATING)`, target: project.name, result: '阶段变更成功', riskFlag: '无' });
 
     // 15.10: AI 分析启动监督日志
     await this.prisma.bidSupervisionLog.create({
@@ -1073,6 +1176,18 @@ export class BidService {
     });
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: dto.result, riskFlag: '中风险' });
+    if (record.bidSupplierId) {
+      const bs = await this.prisma.bidSupplier.findUnique({
+        where: { id: record.bidSupplierId },
+        select: { supplierId: true },
+      });
+      if (bs?.supplierId) {
+        this.gateway?.notifyOpeningDisputeResolved(projectId, bs.supplierId, {
+          projectId, supplierId: bs.supplierId, supplierName: record.supplierName,
+          recordId, confirm: dto.confirm, result: dto.result, timestamp: Date.now(),
+        });
+      }
+    }
     return this.prisma.bidOpeningRecord.findUnique({ where: { id: recordId } });
   }
 
@@ -1522,15 +1637,18 @@ export class BidService {
    * Ensure standard archive items exist for a project.
    * When called with a transaction client, uses it; otherwise uses this.prisma.
    */
-  private async ensureArchiveItems(projectId: string, tx?: any) {
+  private async ensureArchiveItems(projectId: string, tx?: any, opts?: { skipEvaluation?: boolean }) {
     const db = tx ?? this.prisma;
     const standards = [
       { name: '招标项目基础信息', ownerRole: '系统' },
       { name: '投标供应商名单', ownerRole: '开标主持人' },
       { name: '开标记录表', ownerRole: '开标主持人' },
       { name: '供应商确认/异议记录', ownerRole: '供应商' },
-      { name: '专家评分明细', ownerRole: '评审专家' },
-      { name: '评标结果汇总', ownerRole: '评审委员会' },
+      // 开标归档（scope=opening）不生成评分/评标两项材料
+      ...(opts?.skipEvaluation ? [] : [
+        { name: '专家评分明细', ownerRole: '评审专家' },
+        { name: '评标结果汇总', ownerRole: '评审委员会' },
+      ]),
       { name: '监督日志', ownerRole: '监督人' },
     ];
     // Use a single findMany + createMany to avoid N+1
@@ -1628,10 +1746,16 @@ export class BidService {
     });
   }
 
-  async archiveAll(id: string, actorId?: string) {
+  /**
+   * 一键归档。
+   * @param scope 'full'（默认）完整归档，要求评标结果；'opening' 开标归档——
+   *   仅归档开标文件（5 项材料，跳过评分明细/评标汇总与评标结果守卫），
+   *   用于流标/废标等开标后不进入评标的场景。**终局操作**：归档后 ARCHIVED 不可逆。
+   */
+  async archiveAll(id: string, actorId?: string, scope: 'opening' | 'full' = 'full') {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, projectCode: true, stage: true, name: true },
+      select: { id: true, projectCode: true, stage: true, name: true, projectManagementItemId: true, round: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'ARCHIVED');
@@ -1641,6 +1765,21 @@ export class BidService {
       return this.prisma.bidProject.findUnique({
         where: { id },
         include: { archiveItems: true },
+      });
+    }
+
+    // F3: 阶段下限守卫——棘轮只拒回退，下限由各端点业务前置负责。
+    // 防止对截标未到、供应商仍可投递的前阶段项目误归档（不可逆终局）。
+    if (scope === 'opening' && !stageAtLeast(project.stage, 'OPENING')) {
+      throw new ConflictException({
+        error: '开标归档要求项目已进入开标阶段',
+        code: 'ARCHIVE_NOT_OPENED',
+      });
+    }
+    if (scope === 'full' && !stageAtLeast(project.stage, 'EVALUATING')) {
+      throw new ConflictException({
+        error: '完整归档要求项目已进入评标阶段；开标后不评标请改用开标归档（scope=opening）',
+        code: 'ARCHIVE_NOT_EVALUATING',
       });
     }
 
@@ -1659,7 +1798,8 @@ export class BidService {
         tx.bidEvaluationResult.count({ where: { projectId: id } }),
       ]);
       const confirmableCount = confirmableSuppliers.length;
-      if (confirmableCount > 0 && resultCount === 0) {
+      // scope=opening（开标归档）不进入评标，跳过评标结果守卫
+      if (scope === 'full' && confirmableCount > 0 && resultCount === 0) {
         throw new ConflictException({
           error: '存在已确认的可评供应商，请先生成评标结果再归档',
           code: 'EVALUATION_RESULTS_REQUIRED',
@@ -1683,7 +1823,7 @@ export class BidService {
       }
 
       // 自动补齐标准归档材料，避免”无可归档项”阻塞
-      await this.ensureArchiveItems(id, tx);
+      await this.ensureArchiveItems(id, tx, { skipEvaluation: scope === 'opening' });
 
       const archiveItems = await tx.bidArchiveItem.findMany({
         where: { projectId: id, status: { not: 'ARCHIVED' } },
@@ -1694,9 +1834,11 @@ export class BidService {
       }
 
       // P0-4: 逐项 SHA-256 哈希链 — 每个归档项拥有独立哈希，链式防篡改。
+      // 归一化：算链时把各项 status 视作 ARCHIVED，与 exportArchivePackage 重算口径一致
+      // （修预存 bug：此前按 PENDING_CONFIRM 算链，导出按 ARCHIVED 重算，两者永不匹配）
       const chain = computeArchiveChain(
         { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
-        archiveItems,
+        archiveItems.map(i => ({ ...i, status: 'ARCHIVED' as const })),
       );
 
       // 逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志
@@ -1710,13 +1852,21 @@ export class BidService {
         where: { id },
         data: { stage: 'ARCHIVED' },
       });
+      const scopeLabel = scope === 'opening' ? '（开标归档）' : '';
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '一键归档', result: `归档 ${archiveItems.length} 项`, riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: '一键归档', result: `归档 ${archiveItems.length} 项${scopeLabel}`, riskFlag: '无' },
       });
       if (actorId) {
         await tx.auditLog.create({
-          data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: 'EVALUATING', to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length } },
+          data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'ARCHIVED', stage: 'ARCHIVED', archiveItems: archiveItems.length, scope } },
         });
+      }
+
+      // 阶段联动：关联的 :3005 项目管理项「开标评标」阶段 → COMPLETED。
+      // F5：仅完整归档推进 PM 指针；开标归档（scope=opening，流标/废标场景并未完成评标）
+      // 不自动标 COMPLETED，PM 阶段留给人工处理（如流标后再采购 reproc）
+      if (scope === 'full') {
+        await this.syncPmStage(tx, { projectManagementItemId: project.projectManagementItemId, round: project.round }, 'COMPLETED');
       }
 
       return tx.bidProject.findUnique({
@@ -1725,8 +1875,8 @@ export class BidService {
       });
     });
 
-    this.gateway?.notifyStageChange(id, 'EVALUATING', 'ARCHIVED', 'host');
-    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项`, riskFlag: '无' });
+    this.gateway?.notifyStageChange(id, project.stage, 'ARCHIVED', 'host');
+    this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项${scope === 'opening' ? '（开标归档）' : ''}`, riskFlag: '无' });
 
     // G1: 归档成功后自动生成中标公示草稿（事务外；幂等；不阻塞归档主流程）
     try {
@@ -1809,6 +1959,17 @@ export class BidService {
       },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const hallMessages = await this.prisma.openingHallMessage.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+    });
+    // OpeningHallMessage 不存 supplierName（schema 仅 supplierId）；私聊归属经 BidSupplier 反查
+    const hallSupplierNames = new Map(
+      (await this.prisma.bidSupplier.findMany({ where: { projectId }, select: { supplierId: true, supplierName: true } }))
+        .filter(s => s.supplierId)
+        .map(s => [s.supplierId as string, s.supplierName] as const),
+    );
 
     const chain = computeArchiveChain(
       { id: project.id, projectCode: project.projectCode, name: project.name, stage: project.stage },
@@ -1913,6 +2074,11 @@ export class BidService {
         evaluationResults: project.evaluationResults,
         supervisionLogs: project.supervisionLogs,
         clarifications: project.clarifications,
+        hallMessages: hallMessages.map(m => ({
+          id: m.id, roomType: m.roomType,
+          supplierName: m.supplierId ? (hallSupplierNames.get(m.supplierId) ?? null) : null,
+          senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt,
+        })),
         confirmationRecords: project.suppliers.filter(s => s.confirmStatus !== 'PENDING').map(s => ({ supplierName: s.supplierName, status: s.confirmStatus, error: s.decryptError })),
       },
       hashChain: {

@@ -8,7 +8,7 @@ import { TableSkeleton } from '@/components/skeleton';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import {
-  Unlock, Clock, Shield, Play, CheckCircle, AlertTriangle, ChevronRight,
+  Unlock, Clock, Shield, CheckCircle, AlertTriangle, Eye, ExternalLink,
   Volume2, Zap, Loader, FileText,
 } from 'lucide-react';
 import { SectionCard } from '@water-erp/ui';
@@ -17,6 +17,10 @@ import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
 import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
 import { toast } from 'sonner';
+import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
+import { SupervisionView, type SupervisionLog } from '@/components/bid/supervision-view';
+import type { AnomalyDetectedPayload } from '@water-erp/shared';
+import { portalURL } from '@water-erp/config';
 
 const decryptColors: Record<string, { color: string; bg: string }> = {
   PENDING: { color: SEMANTIC.warning, bg: '#fef6e8' },
@@ -113,7 +117,11 @@ export default function BidOpenPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [startOpen, setStartOpen] = useState(false);
-  const [openingSubmission, setOpeningSubmission] = useState(false);
+  /** 视图切换：开标大厅 / 监督视图（Phase 3：监督端折叠进大厅） */
+  const [view, setView] = useState<'hall' | 'supervise'>('hall');
+  /** F8：监督/异常事件由页面级 socket 统一订阅，下传给监督视图（避免双连接） */
+  const [liveLogs, setLiveLogs] = useState<SupervisionLog[]>([]);
+  const [anomalyEvents, setAnomalyEvents] = useState<AnomalyDetectedPayload[]>([]);
 
   // ═── Audio context with proper lifecycle (no module-level leak) ──
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -195,6 +203,24 @@ export default function BidOpenPage() {
     });
   }, [project]);
 
+  /** 开标完成判定（口径对齐后端可评供应商过滤集 bid.service.ts）：
+   *  - 已撤回供应商排除出全集；
+   *  - 解密"已处理" = SUCCESS 或 DANGER（DANGER 为解密异常但已处理，不参与评标）；
+   *  - 唱标覆盖全部解密成功供应商；
+   *  - 确认闭环仅对 SUCCESS 供应商要求 CONFIRMED（已确认）或 EXCEPTION（异议已退回处理）；
+   *  - 无 DISPUTED 悬置异议。 */
+  const openingDone = useMemo(() => {
+    if (!project) return false;
+    const active = project.suppliers.filter(s => s.submitStatus !== '已撤回');
+    if (active.length === 0) return false;
+    const successSuppliers = active.filter(s => s.decryptStatus === 'SUCCESS');
+    const allDecryptResolved = active.every(s => s.decryptStatus === 'SUCCESS' || s.decryptStatus === 'DANGER');
+    const allRecorded = project.openingRecords.length >= successSuppliers.length;
+    const allConfirmResolved = successSuppliers.every(s => s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION');
+    const noPendingDispute = active.every(s => s.confirmStatus !== 'DISPUTED');
+    return allDecryptResolved && allRecorded && allConfirmResolved && noPendingDispute;
+  }, [project]);
+
   const stageStep = useMemo(() => {
     if (!project) return 0;
     if (project.stage === 'ARCHIVED') return 3;
@@ -252,19 +278,6 @@ export default function BidOpenPage() {
     setDecryptTarget(pending.map(s => ({ id: s.id, name: s.supplierName })));
   };
 
-  const handleOpenSubmission = async () => {
-    setOpeningSubmission(true);
-    try {
-      await api.post(`/bid/projects/${projectId}/open-submission`, {});
-      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-      setProject(updated);
-    } catch (e: any) {
-      toast.error(e.message || '操作失败');
-    } finally {
-      setOpeningSubmission(false);
-    }
-  };
-
   const openRecordEntry = async (s: { id: string; supplierName: string }) => {
     if (!projectId) return;
     setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName });
@@ -319,6 +332,9 @@ export default function BidOpenPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    setView('hall');
+    setLiveLogs([]);
+    setAnomalyEvents([]);
     loadProject();
   }, [projectId, loadProject]);
 
@@ -357,6 +373,21 @@ export default function BidOpenPage() {
         api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
       }
     },
+    onOpeningConfirmed: (d) => {
+      toast.success(`${d.supplierName} 已确认开标记录`);
+    },
+    onOpeningDisputed: (d) => {
+      toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);
+    },
+    // F8：监督日志与异常事件统一在页面级订阅，下传给监督视图
+    onSupervisionLog: (data) => {
+      setLiveLogs(prev => [data as unknown as SupervisionLog, ...prev].slice(0, 100));
+    },
+    onAnomalyDetected: (data) => {
+      if (data.severity === 'danger') toast.error(data.detail ?? '检测到异常');
+      else toast.warning(data.detail ?? '检测到异常');
+      setAnomalyEvents(prev => [data, ...prev].slice(0, 50));
+    },
   });
 
   useReportRealtime(connection, lastEventAt, reconnectNow);
@@ -394,6 +425,21 @@ export default function BidOpenPage() {
 
   return (
     <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>
+      {/* ═══ 视图切换：开标大厅 / 监督视图（监督端折叠进大厅）═══ */}
+      <div className="flex w-fit items-center gap-1 rounded-xl border border-[#e5ecf4] bg-white p-1">
+        <button onClick={() => setView('hall')}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[12px] font-bold transition ${view === 'hall' ? 'bg-[#064ea2] text-white shadow-[0_4px_12px_rgba(6,78,162,0.3)]' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}>
+          <Unlock size={13} /> 开标大厅
+        </button>
+        <button onClick={() => setView('supervise')}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[12px] font-bold transition ${view === 'supervise' ? 'bg-[#064ea2] text-white shadow-[0_4px_12px_rgba(6,78,162,0.3)]' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}>
+          <Shield size={13} /> 监督视图
+        </button>
+      </div>
+
+      {view === 'supervise' ? (
+        <SupervisionView projectId={projectId} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />
+      ) : (<>
       {/* ═══ Time warning banners ═══ */}
       {timeWarning === '5min' && (
         <div className="rounded-xl border border-[#fcd34d] bg-[#fffbeb] px-4 py-2.5 text-sm font-bold text-[#92400e] flex items-center gap-2 animate-pulse">
@@ -403,6 +449,64 @@ export default function BidOpenPage() {
       {timeWarning === '1min' && (
         <div className="rounded-xl border border-[#e74c3c] bg-[#fef2f2] px-4 py-2.5 text-sm font-bold text-[#e74c3c] flex items-center gap-2">
           <AlertTriangle size={16} className="animate-pulse" /> 解密窗口仅剩 1 分钟！
+        </div>
+      )}
+
+      {/* ═══ 前阶段引导（F7）：流转权在 :3005，大厅只做开标执行 ═══ */}
+      {(project.stage === 'DOWNLOAD' || project.stage === 'SUBMIT') && (
+        <div className="flex items-center gap-4 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-5">
+          <Clock size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#064ea2]" />
+          <div className="flex-1">
+            <h2 className="mb-0.5 text-sm font-bold text-[#1e40af]">该项目尚未确定开标</h2>
+            <p className="text-xs text-[#5a6d8a]">确定开标（阶段流转）由采购管理工作台（:3005）统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
+          </div>
+          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#054280]">
+            前往采购管理工作台 <ExternalLink size={13} />
+          </a>
+        </div>
+      )}
+      {(project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') && (
+        <div className="flex items-center gap-4 rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] p-5">
+          <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#11a874]" />
+          <div className="flex-1">
+            <h2 className="mb-0.5 text-sm font-bold text-[#14532d]">开标已结束</h2>
+            <p className="text-xs text-[#5a6d8a]">本项目已进入{project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，后续评标管理与归档请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。</p>
+          </div>
+          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#11a874] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0e8c5f]">
+            前往采购管理工作台 <ExternalLink size={13} />
+          </a>
+        </div>
+      )}
+
+      {/* ═══ 待组建会话横幅（:3005 已确定开标，主持人在此组建会话）═══ */}
+      {!session && project.stage === 'OPENING' && (
+        <div className="flex items-center gap-4 rounded-2xl border border-[#fcd34d] bg-[#fffbeb] p-5">
+          <AlertTriangle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#92400e]" />
+          <div className="flex-1">
+            <h2 className="mb-0.5 text-sm font-bold text-[#92400e]">已确定开标，等待组建开标会话</h2>
+            <p className="text-xs text-[#a16207]">请主持人与监督人填写主持人、监督人与解密窗口，随后即可开始解密 / 唱标 / 异议处理。阶段推进由 :3005 采购管理工作台管理，开标会话仅在此组建。</p>
+          </div>
+          <button onClick={() => setStartOpen(true)}
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#054280]">
+            <Shield size={13} /> 组建开标会话
+          </button>
+        </div>
+      )}
+
+      {/* ═══ 开标完成：交棒回 :3005（评标 / 开标归档）═══ */}
+      {openingDone && project.stage === 'OPENING' && (
+        <div className="flex items-center gap-4 rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] p-5">
+          <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#11a874]" />
+          <div className="flex-1">
+            <h2 className="mb-0.5 text-sm font-bold text-[#14532d]">开标完成</h2>
+            <p className="text-xs text-[#5a6d8a]">全部解密、唱标与供应商确认已完成，无待处理异议。请返回采购管理工作台启动评标，或执行开标归档（流标 / 废标场景）。</p>
+          </div>
+          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#11a874] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0e8c5f]">
+            前往采购管理工作台 <ExternalLink size={13} />
+          </a>
         </div>
       )}
 
@@ -437,32 +541,14 @@ export default function BidOpenPage() {
             投标人在线解密状态
           </h2>
           <div className="flex items-center gap-2">
-            {project.stage === 'DOWNLOAD' && (
-              <button onClick={handleOpenSubmission} disabled={openingSubmission}
-                className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-4 py-2 text-xs font-bold text-white hover:bg-[#0e8c5f] transition disabled:opacity-50">
-                <ChevronRight size={13} strokeWidth={2} /> {openingSubmission ? '处理中…' : '开放投递'}
-              </button>
-            )}
-            {project.stage === 'SUBMIT' && (() => {
-              const deadlinePassed = new Date() >= new Date(project.deadline);
-              return (
-              <button onClick={() => setStartOpen(true)}
-                disabled={!deadlinePassed}
-                title={deadlinePassed ? '启动开标' : '尚未截标——投标截止时间未到，无法启动开标'}
-                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition ${
-                  deadlinePassed
-                    ? 'bg-[#064ea2] hover:bg-[#054280]'
-                    : 'bg-[#94a3b8] cursor-not-allowed'
-                }`}>
-                <Play size={13} strokeWidth={2} /> {deadlinePassed ? '启动开标' : '尚未截标'}
-              </button>
-            )})()}
+            {/* 阶段流转（开放投递/确定开标）已归 :3005 采购管理工作台，本页仅执行开标 */}
             {!!session && project.stage === 'OPENING' && decryptProgress.total > 0 && decryptProgress.pending > 0 && (
               <button onClick={handleBulkDecrypt} disabled={bulkDecrypting}
                 className="flex items-center gap-1.5 rounded-xl border border-[#f5a623] bg-[#fef6e8] px-4 py-2 text-xs font-bold text-[#92400e] hover:bg-[#fef0c0] transition disabled:opacity-50">
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
               </button>
             )}
+            {projectId && <ExchangeDrawer projectId={projectId} />}
           </div>
         </div>
 
@@ -658,6 +744,7 @@ export default function BidOpenPage() {
           </tbody>
         </table>
       </SectionCard>
+      </>)}
 
       <StartOpeningDialog
         open={startOpen}

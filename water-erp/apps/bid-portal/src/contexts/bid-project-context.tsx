@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, Suspense } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import { addRecentProject, removeRecentProject } from '@/lib/storage';
@@ -27,8 +27,19 @@ export function useBidProjectContext() {
 }
 
 export function BidProjectProvider({ children }: { children: React.ReactNode }) {
+  // useSearchParams 需要 Suspense 边界（否则预渲染报错、且客户端导航不触发重算）
+  return (
+    <Suspense fallback={null}>
+      <BidProjectProviderInner>{children}</BidProjectProviderInner>
+    </Suspense>
+  );
+}
+
+function BidProjectProviderInner({ children }: { children: React.ReactNode }) {
   const params = useParams();
-  const id = params?.id as string | undefined;
+  const searchParams = useSearchParams();
+  // Phase 3：project/[id] 工作区已退役，开标大厅经 ?id= 指定项目（useSearchParams 全响应式）
+  const id = (params?.id as string | undefined) ?? (searchParams.get('id') ?? undefined);
 
   const [project, setProject] = useState<BidProjectDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);

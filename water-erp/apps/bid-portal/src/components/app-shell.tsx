@@ -6,7 +6,7 @@ import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
 import RecentProjects from './recent-projects';
 import {
-  LayoutDashboard, Archive,
+  Gavel,
   LogOut, PanelLeftClose, PanelLeft,
 } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
@@ -22,9 +22,10 @@ interface NavItem {
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
 }
 
+// Phase 3：:3007 为纯开标执行终端，仅余开标大厅一个业务入口（任务板 + 大厅）。
+// 项目管理 / 评标 / 澄清 / 归档全部归 :3005 采购管理工作台。
 const navItems: NavItem[] = [
-  { label: '开评标总览', caption: '项目总览', path: '/bid', icon: LayoutDashboard },
-  { label: '归档端', caption: '项目归档', path: '/bid/archive', icon: Archive },
+  { label: '开标大厅', caption: '开标任务 · 在线开标', path: '/bid', icon: Gavel },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -45,9 +46,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.location.href = LOGIN_URL;
   };
 
-  // /bid 是总览首页，需精确匹配；其余按前缀匹配
-  const isActive = (path: string) =>
-    path === '/bid' ? pathname === '/bid' : pathname === path || pathname.startsWith(path + '/');
+  // 单一入口：任务板(/bid) 与开标大厅(/bid/open) 均高亮
+  const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
 
   const registeredName = user?.displayName?.trim() || user?.username || '用户';
   const userInitial = registeredName.slice(0, 1);

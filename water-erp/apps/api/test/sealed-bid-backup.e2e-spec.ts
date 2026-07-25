@@ -58,6 +58,11 @@ describe('Sealed Bid Backup (e2e)', () => {
     projectId = pres.body.id;
     await prisma.bidProject.update({ where: { id: projectId }, data: { stage: 'SUBMIT', deadline: new Date('2099-12-30T17:00:00Z') } });
 
+    // G3 权威兜底（C3 起投递时校验已发布招标公告）：补一条关联公告，否则 submit 被拒
+    await prisma.announcement.create({
+      data: { title: `E2E备份公告-${Date.now()}`, content: '<p>x</p>', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: pres.body.projectCode, aiSummary: 'x' },
+    });
+
     // 造一个 supplier1 名下的 bid_document FileAsset，并把明文写入 MinIO（供 submit 读取加密）
     const asset = await prisma.fileAsset.create({
       data: { key: assetKey, originalName: 'bid.txt', mimeType: 'text/plain', size: plaintext.length, sha256: plainSha, category: 'bid_document', uploaderId: user!.id, encrypted: false },
@@ -68,6 +73,8 @@ describe('Sealed Bid Backup (e2e)', () => {
 
   afterAll(async () => {
     if (projectId) {
+      const proj = await prisma.bidProject.findUnique({ where: { id: projectId }, select: { projectCode: true } }).catch(() => null);
+      if (proj?.projectCode) await prisma.announcement.deleteMany({ where: { relatedProjectCode: proj.projectCode } }).catch(() => {});
       await prisma.bidFileBackup.deleteMany({ where: { projectId } }).catch(() => {});
       await prisma.supplierBidSubmission.deleteMany({ where: { projectId } }).catch(() => {});
       await prisma.bidSupervisionLog.deleteMany({ where: { projectId } }).catch(() => {});

@@ -162,6 +162,7 @@ export const NOTIFICATION_META: Record<string, NotificationMeta> = {
   BID_OPENING:             { icon: 'Gavel',             tone: 'blue',   actionable: false },
   BID_EVALUATION_RESULT:   { icon: 'Award',             tone: 'green',  actionable: false },
   CLARIFICATION_REPLIED:   { icon: 'MessageCircle',     tone: 'purple', actionable: false },
+  HALL_MESSAGE:            { icon: 'MessagesSquare',   tone: 'blue',   actionable: true  },
   PRICE_REVIEW:            { icon: 'Tag',               tone: 'purple', actionable: true  },
   CATALOG_APPLICATION:     { icon: 'ShoppingBag',       tone: 'gray',   actionable: false },
   SYSTEM:                  { icon: 'Bell',              tone: 'gray',   actionable: false },

@@ -50,9 +50,9 @@ const TYPE_LINKS: Record<string, string> = {
   QUALIFICATION_EXPIRING: '/supplier/qualification-alerts',
   BID_PUBLISHED:          '/projects',
   BID_REMINDER:           '/projects',
-  BID_OPENING:            '/projects',
-  BID_EVALUATION_RESULT:  '/projects',
-  CLARIFICATION_REPLIED:  '/projects', // 兜底；enrich 会覆盖为 :3007 外链
+  BID_OPENING:            portalURL('bid', '/bid'), // 开标大厅在 :3007（纯开标执行终端）
+  BID_EVALUATION_RESULT:  '/projects',              // 评标管理已归 :3005 开评标指挥中心
+  CLARIFICATION_REPLIED:  '/projects',              // 澄清答疑已归 :3005 开评标指挥中心
   CATALOG_APPLICATION:    '/mall-management/catalog?tab=approval',
   SYSTEM:                 '/notifications',
 };
@@ -92,12 +92,13 @@ type EnrichedItem = NotificationItem & {
 function enrich(item: NotificationItem): EnrichedItem {
   const meta = getNotificationMeta(item.type);
   const tone = statusTone[meta.tone] ?? statusTone.gray;
-  // 澄清答疑在 :3005 无处理 UI，统一跳开评标端 :3007 外链（portalURL 已 SSR 安全）。
-  // 放在 item.link 之后强制覆盖，使种子/历史里写死的死链 /bid/clarifications 也失效。
-  const link =
-    item.type === 'CLARIFICATION_REPLIED'
-      ? portalURL('bid', '/bid/clarifications')
-      : item.link || TYPE_LINKS[item.type] || '/notifications';
+  // 2026-07 重构：:3007 瘦身为纯开标执行终端（澄清页已删），澄清答疑归 :3005 指挥中心。
+  // 强制覆盖这两类链接（种子/历史写死的死链也失效）：BID_OPENING → :3007 任务板；CLARIFICATION_REPLIED → :3005。
+  const forced =
+    item.type === 'BID_OPENING' ? portalURL('bid', '/bid')
+    : item.type === 'CLARIFICATION_REPLIED' ? '/projects'
+    : null;
+  const link = forced ?? item.link ?? TYPE_LINKS[item.type] || '/notifications';
   return {
     ...item,
     typeLabel: TYPE_LABELS[item.type] ?? item.type,

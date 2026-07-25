@@ -12,6 +12,7 @@ import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
+import { ArchiveAllDto } from './dto/archive-all.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
@@ -377,8 +378,10 @@ export class BidController {
   listArchives(@Param('id') id: string) { return this.bidService.listArchives(id); }
 
   @Post('projects/:id/archive-all')
-  @ApiOperation({ summary: '一键归档' })
-  archiveAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.archiveAll(id, userId); }
+  @ApiOperation({ summary: '一键归档（scope=opening 仅归档开标文件，不要求评标结果；full 完整归档）' })
+  archiveAll(@Param('id') id: string, @Body() dto: ArchiveAllDto, @CurrentUser('sub') userId: string) {
+    return this.bidService.archiveAll(id, userId, dto.scope ?? 'full');
+  }
 
   @Get('projects/:id/winner-notice')
   @ApiOperation({ summary: '查询项目关联的中标公示（G1，草稿或已发布）' })
@@ -417,13 +420,19 @@ export class BidController {
   async exportArchivePackage(
     @Param('id') id: string,
     @Query('format') format?: string,
-    @Res() res?: any,
+    // passthrough：JSON 分支依赖 Nest 自动发送返回值；非 passthrough 的 @Res
+    // 会使返回值被丢弃、请求永久挂起（预存 bug，验收 Phase 2 时发现）
+    @Res({ passthrough: true }) res?: any,
   ) {
     const data = await this.bidService.exportArchivePackage(id, (format === 'csv' ? 'csv' : 'json'));
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="archive-${id.slice(-12)}.csv"`);
-      return res.send(data);
+      // F4：passthrough 模式下必须 return undefined——返回 res.send() 的返回值（Response 对象）
+      // 会使 Nest 二次 apply → res.json(res) → 循环引用 TypeError（每次导出打全栈日志）。
+      // 返回 undefined 时 Nest 的兜底是无参 res.send()，Express 5 中为无害 no-op。
+      res.send(data);
+      return;
     }
     return data;
   }

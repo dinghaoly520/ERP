@@ -52,6 +52,8 @@ export interface BidWorkspaceSupplier {
   downloadStatus: string;
   submitStatus: string;
   decryptStatus: string;
+  /** CONFIRMED / PENDING / EXCEPTION / DISPUTED（C5 起随 workspace 返回） */
+  confirmStatus: string;
   submission: {
     supplierId: string;
     status: string;
@@ -90,6 +92,11 @@ export interface BidWorkspace {
     withdrawn: number;
     expertCount: number;
     expertSignedIn: number;
+    /** 开标就绪度信号（C5）：解密成功 / 供应商已确认 / 待处理异议 / 已唱标记录数 */
+    decryptedCount: number;
+    confirmedCount: number;
+    pendingDisputeCount: number;
+    openingRecordedCount: number;
   };
 }
 
@@ -249,4 +256,200 @@ export function getOpeningSessionTime(bidProjectId: string) {
   return api.get<{ openTime: string; decryptWindowStart?: string; decryptWindowEnd?: string } | null>(
     `/bid/projects/${bidProjectId}/opening-session/time`,
   );
+}
+
+/* ── Phase 2：:3005 开评标指挥中心（项目详情 / 评标管理 / 澄清答疑 / 归档）── */
+
+export interface BidOpeningSessionInfo {
+  id: string;
+  host: string;
+  supervisor: string;
+  decryptWindowStart: string;
+  decryptWindowEnd: string;
+  remainingSeconds: number;
+  status: string;
+  exchangeControl?: string;
+}
+
+export interface BidProjectExpertInfo {
+  id: string;
+  userId: string;
+  expertName: string;
+  major: string | null;
+  expertRole: string; // 正选 / 候补
+  invitationStatus: string; // pending / confirmed / declined
+  signedIn: boolean;
+  avoidanceConfirmed: boolean;
+  progress: string;
+  reportConfirmed: boolean;
+  totalScore: number | null;
+  scoreRecords: Array<{
+    id: string;
+    scoreItemId: string;
+    supplierId: string;
+    score: number;
+    /** 通过性审查（资格/响应性）：是否通过 */
+    passed?: boolean | null;
+    reason?: string | null;
+  }>;
+}
+
+export interface BidProjectSupplierInfo {
+  id: string;
+  supplierId: string | null;
+  supplierName: string;
+  submitStatus: string;
+  decryptStatus: string;
+  confirmStatus: string;
+  bidValidity?: string | null;
+}
+
+export interface BidArchiveItemInfo {
+  id: string;
+  name: string;
+  ownerRole: string;
+  status: string; // PENDING_CONFIRM / ARCHIVED
+  hashDigest: string | null;
+  archivedAt: string | null;
+}
+
+/** GET /bid/projects/:id 全量子表详情（开评标指挥中心各区块共用数据源） */
+export interface BidProjectDetail {
+  id: string;
+  projectCode: string;
+  name: string;
+  stage: BidStage;
+  procurementMethod: string;
+  openTime: string;
+  deadline: string;
+  riskNote?: string | null;
+  qualityRequirement?: string | null;
+  scoreStandardPublishedAt?: string | null;
+  suppliers: BidProjectSupplierInfo[];
+  openingSession: BidOpeningSessionInfo | null;
+  openingRecords: Array<{
+    id: string;
+    bidSupplierId: string;
+    bidPrice?: string | null;
+    deliveryPeriod?: string | null;
+    status: string;
+    objectionReason?: string | null;
+  }>;
+  experts: BidProjectExpertInfo[];
+  scoreItems: Array<{
+    id: string;
+    name: string;
+    category: ScoreCategory;
+    maxScore: number;
+    weight?: number | null;
+  }>;
+  archiveItems: BidArchiveItemInfo[];
+}
+
+export function getBidProjectDetail(bidProjectId: string) {
+  return api.get<BidProjectDetail>(`/bid/projects/${bidProjectId}`);
+}
+
+/* ── 评标管理 ── */
+
+/** 启动评标（OPENING → EVALUATING；前置：有专家 + 有可评供应商 + 评分标准完整） */
+export function startEvaluation(bidProjectId: string) {
+  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/start-evaluation`, {});
+}
+
+export interface BidEvaluationResultInfo {
+  id: string;
+  supplierId: string;
+  supplierName: string;
+  totalScore: string; // Decimal 序列化为字符串
+  averageScore: string;
+  rank: number;
+  recommended: boolean;
+  disqualified: boolean;
+  generatedAt: string;
+}
+
+export function listEvaluationResults(bidProjectId: string) {
+  return api.get<BidEvaluationResultInfo[]>(`/bid/projects/${bidProjectId}/evaluation-results`);
+}
+
+/** 生成评标结果（须全部专家 reportConfirmed） */
+export function generateEvaluationResults(bidProjectId: string) {
+  return api.post<BidEvaluationResultInfo[]>(`/bid/projects/${bidProjectId}/evaluation-results/generate`, {});
+}
+
+/* ── 澄清答疑 ── */
+
+export interface BidClarificationInfo {
+  id: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  type: string; // clarification / question
+  question: string;
+  reply: string | null;
+  issuer: string | null;
+  status?: string | null;
+  aiSummary?: string | null;
+  fileAssetId?: string | null;
+  createdAt: string;
+  answeredAt: string | null;
+}
+
+export function listClarifications(bidProjectId: string) {
+  return api.get<BidClarificationInfo[]>(`/bid/projects/${bidProjectId}/clarifications`);
+}
+
+export function createClarification(
+  bidProjectId: string,
+  body: {
+    question: string;
+    issuer: string;
+    supplierName: string;
+    type?: string; // clarification（默认）/ question
+    supplierId?: string;
+  },
+) {
+  return api.post<BidClarificationInfo>(`/bid/projects/${bidProjectId}/clarifications`, body);
+}
+
+export function replyClarification(bidProjectId: string, clarificationId: string, body: { reply: string }) {
+  return api.patch<BidClarificationInfo>(
+    `/bid/projects/${bidProjectId}/clarifications/${clarificationId}/reply`,
+    body,
+  );
+}
+
+/** AI 起草候选问题（不落库） */
+export function draftClarification(bidProjectId: string, supplierId: string) {
+  return api.post<{ drafts: string[]; basis: string[] }>(
+    `/bid/projects/${bidProjectId}/clarifications/draft`,
+    { supplierId },
+  );
+}
+
+/** AI 提炼回复要点（不落库） */
+export function summarizeClarification(bidProjectId: string, clarificationId: string) {
+  return api.post<{ summary: string; keyPoints: string[]; aiSummary: string }>(
+    `/bid/projects/${bidProjectId}/clarifications/${clarificationId}/summarize`,
+    {},
+  );
+}
+
+/* ── 归档 ── */
+
+/**
+ * 一键归档。scope='opening'：开标归档（仅开标文件，流标/废标场景，终局）；
+ * 'full'（默认）：完整归档（须已生成评标结果）。
+ */
+export function archiveAll(bidProjectId: string, scope: 'opening' | 'full' = 'full') {
+  return api.post<BidProjectDetail>(`/bid/projects/${bidProjectId}/archive-all`, { scope });
+}
+
+/** 归档包导出直链（同源 rewrite，cookie 自动携带；CSV 走浏览器下载，JSON 可 fetch） */
+export function archivePackageExportUrl(bidProjectId: string, format: 'json' | 'csv' = 'json') {
+  return `/api/bid/projects/${bidProjectId}/archive-package/export?format=${format}`;
+}
+
+export function exportArchivePackageJson(bidProjectId: string) {
+  return api.get<Record<string, unknown>>(archivePackageExportUrl(bidProjectId, 'json'));
 }

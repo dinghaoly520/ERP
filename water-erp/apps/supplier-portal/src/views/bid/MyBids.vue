@@ -59,7 +59,7 @@ function formatBidPrice(raw: string | number | null | undefined): string {
 }
 
 function canWithdraw(row: any) {
-  return row.status === 'submitted' && row.project?.stage === 'SUBMIT'
+  return row.status === 'submitted' && ['DOWNLOAD', 'SUBMIT'].includes(row.project?.stage)
 }
 function canConfirmOpening(row: any) {
   return row.status === 'submitted'
@@ -231,6 +231,12 @@ async function handleWithdraw(id: string) {
 
           <!-- Right actions — cgzxui 原生按钮，统一居中 -->
           <div class="mb-card-actions">
+            <el-button
+              v-if="row.project?.stage === 'OPENING'"
+              link
+              type="primary"
+              @click="router.push(`/my-bids/${row.projectId}/opening-hall`)"
+            >进入开标大厅</el-button>
             <button
               v-if="row.confirmStatus === 'CONFIRMED'"
               class="neu-btn-xs is-success"

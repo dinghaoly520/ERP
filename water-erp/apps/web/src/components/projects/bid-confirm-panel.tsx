@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Bell,
@@ -35,6 +35,7 @@ import {
   deleteScorePoint,
   deleteScoreTemplate,
   ensureBidProject,
+  getBidProjectDetail,
   getBidWorkspace,
   listScoreItems,
   listScorePoints,
@@ -47,6 +48,7 @@ import {
   updateBidProjectSchedule,
   updateScoreItem,
   updateScorePoint,
+  type BidProjectDetail,
   type BidProjectRef,
   type BidScoreItem,
   type BidScorePoint,
@@ -54,6 +56,11 @@ import {
   type ScoreCategory,
   type ScoreTemplateRef,
 } from '@/lib/api/bid';
+import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { ArchiveBlock } from './bid-confirm/archive-block';
+import { ClarificationsBlock } from './bid-confirm/clarifications-block';
+import { EvaluationBlock } from './bid-confirm/evaluation-block';
+import { OpeningProgressBlock } from './bid-confirm/opening-progress-block';
 
 type Props = {
   isOpen: boolean;
@@ -83,6 +90,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
   const [bidProject, setBidProject] = useState<BidProjectRef | null>(null);
   const [workspace, setWorkspace] = useState<BidWorkspace | null>(null);
   const [scoreItems, setScoreItems] = useState<BidScoreItem[]>([]);
+  /** Phase 2：项目全量详情（开标进度/评标管理/澄清答疑/归档四区块共用数据源） */
+  const [detail, setDetail] = useState<BidProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,9 +132,14 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
       listScoreTemplates().then(setTemplates).catch(() => { /* 模板加载失败不阻塞主流程 */ });
       const bp = await ensureBidProject(project.id, round);
       setBidProject(bp);
-      const [ws, items] = await Promise.all([getBidWorkspace(bp.id), listScoreItems(bp.id)]);
+      const [ws, items, dt] = await Promise.all([
+        getBidWorkspace(bp.id),
+        listScoreItems(bp.id),
+        getBidProjectDetail(bp.id).catch(() => null),
+      ]);
       setWorkspace(ws);
       setScoreItems(items);
+      setDetail(dt);
       setDelayTime(toLocalInput(bp.openTime));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
@@ -134,6 +148,36 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
     }
   }, [project]);
 
+  /* ── Phase 2：详情增量刷新（socket 事件驱动，防抖合并高频事件）── */
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshDetail = useCallback(() => {
+    if (!bidProject?.id) return;
+    getBidProjectDetail(bidProject.id).then(setDetail).catch(() => {});
+  }, [bidProject?.id]);
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => refreshDetail(), 600);
+  }, [refreshDetail]);
+  // F12：澄清事件低频，单独计数驱动澄清区块定向重拉（不经 detail 全量刷新）
+  const [clarTick, setClarTick] = useState(0);
+
+  /* ── Phase 2：实时事件 → 阶段流转整体重载，过程事件增量刷新详情 ── */
+  useBidWebSocket(isOpen ? bidProject?.id : undefined, {
+    onStageChange: () => { if (isOpen) void load(); },
+    onEvaluationStarted: () => { if (isOpen) void load(); },
+    onDecryptStatus: scheduleRefresh,
+    onOpeningConfirmed: scheduleRefresh,
+    onOpeningDisputed: scheduleRefresh,
+    onOpeningDisputeResolved: scheduleRefresh,
+    // F6：唱标录入只 emit supervision:log（无开标记录类事件），订阅它使「唱标录入」计数实时回流
+    onSupervisionLog: scheduleRefresh,
+    onClarificationCreated: () => { scheduleRefresh(); setClarTick(t => t + 1); },
+    onClarificationReplied: () => { scheduleRefresh(); setClarTick(t => t + 1); },
+    onExpertPresence: scheduleRefresh,
+    // F13：断线重连后全量补偿刷新（断线窗口内错过的事件无法补推）
+    onReconnected: () => { if (bidProject?.id) void load(); },
+  });
+
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
     if (isOpen) void load();
@@ -141,9 +185,12 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
 
   useEffect(() => {
     if (!isOpen) {
+      // F14：清理挂起的防抖刷新，避免关闭后对旧项目发一次无效请求
+      if (refreshTimer.current) { clearTimeout(refreshTimer.current); refreshTimer.current = null; }
       setBidProject(null);
       setWorkspace(null);
       setScoreItems([]);
+      setDetail(null);
       setError(null);
       setToast(null);
       setDelayOpen(false);
@@ -216,7 +263,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
     if (!bpId) return;
     await withBusy(async () => {
       await startOpening(bpId);
-      showToast('已启动开标');
+      showToast('已确定开标，请主持人在「开标进度」区块进入开标大厅组建会话');
       await load();
     }, '开标失败');
   }
@@ -846,11 +893,22 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
                   </table>
                 </div>
               </SectionCard>
+
+              {/* ▸ 区块5-8（Phase 2 指挥中心）：开标进度 / 评标管理 / 澄清答疑 / 归档
+                  —— :3007 开标执行数据经同一 API 回流，各区块按 stage 自行决定渲染 */}
+              {bpId && detail && (
+                <>
+                  <OpeningProgressBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
+                  <EvaluationBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
+                  <ClarificationsBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} refreshTick={clarTick} />
+                  <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
+                </>
+              )}
             </div>
           ) : null}
         </div>
 
-        {/* ▸ 区块5：开标决策（底部栏）── 仅在数据就绪且未归档时显示 */}
+        {/* ▸ 区块9：开标决策（底部栏）── 仅在数据就绪且未归档时显示 */}
         {workspace && bidProject && !loading && stage && stage !== 'ARCHIVED' && (
           <div
             className="shrink-0 px-6 py-3.5"
@@ -886,7 +944,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
                   <span>{BID_STAGE_LABELS[stage]}</span>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                  {stage === 'SUBMIT' && (
+                  {(stage === 'DOWNLOAD' || stage === 'SUBMIT') && (
                     <>
                       <button type="button" onClick={() => setDelayOpen(true)} disabled={busy} className="neu-btn-soft !h-[36px]">
                         <CalendarClock size={14} /> 延时开标
@@ -896,9 +954,14 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
                       </button>
                     </>
                   )}
-                  {(stage === 'OPENING' || stage === 'EVALUATING') && (
+                  {stage === 'OPENING' && (
                     <div className="flex items-center gap-2 rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-3 py-1.5 text-xs font-semibold text-[var(--success)]">
-                      <CheckCircle2 size={14} /> 已开标，评标进行中
+                      <CheckCircle2 size={14} /> 已确定开标 · 开标执行中
+                    </div>
+                  )}
+                  {stage === 'EVALUATING' && (
+                    <div className="flex items-center gap-2 rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-3 py-1.5 text-xs font-semibold text-[var(--success)]">
+                      <CheckCircle2 size={14} /> 评标进行中
                     </div>
                   )}
                 </div>

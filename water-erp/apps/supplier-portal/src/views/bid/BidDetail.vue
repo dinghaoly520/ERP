@@ -6,6 +6,7 @@ import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage } from 'element-plus'
 import { announcementApi } from '@/api/announcement'
 import { bidApi } from '@/api/bid'
+import { uploadFile } from '@/api/upload'
 import SpPageHero from '@/components/SpPageHero.vue'
 import { FileText, AlertTriangle, Lock, Upload, Download } from 'lucide-vue-next'
 import dayjs from 'dayjs'
@@ -32,7 +33,7 @@ const stageMap: Record<string, { label: string; color: string; guide: string }> 
 const project = computed(() => bidStore.currentProject)
 const stageIdx = computed(() => Math.max(0, STAGES.indexOf((project.value?.stage || 'DOWNLOAD') as any)))
 const isApproved = computed(() => supplierStore.profile?.status === 'APPROVED')
-const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; return project.value.stage === 'SUBMIT' && new Date(project.value.deadline) > new Date() })
+const canSubmit = computed(() => { if (!project.value || !isApproved.value) return false; return ['DOWNLOAD', 'SUBMIT'].includes(project.value.stage) && new Date(project.value.deadline) > new Date() })
 const showSupplierCount = computed(() => ['OPENING','EVALUATING','ARCHIVED'].includes(project.value?.stage || ''))
 const supplierCount = computed(() => project.value?._count?.suppliers || 0)
 
@@ -78,10 +79,11 @@ async function loadBidDoc() { bidDocLoading.value = true; try { bidDoc.value = a
 async function doPay() { if (!bidDoc.value?.announcementId) return; paying.value = true; try { await announcementApi.payBidDocument(bidDoc.value.announcementId, paymentRef.value || undefined); ElMessage.success('付款凭证已提交'); payDialog.value = false; paymentRef.value = ''; await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '提交失败') } paying.value = false }
 async function doDownload() { if (!bidDoc.value?.announcementId) return; downloading.value = true; try { const { blob, fileName } = await announcementApi.downloadBidDocument(bidDoc.value.announcementId); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url); await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '下载失败') } downloading.value = false }
 
-// ── 澄清答疑 ──
+// ── 书面交流（来函 + 可选附件；澄清模块保持单向，无实时推送）──
 const questionText = ref(''); const questionPosting = ref(false)
+const attachAssetId = ref(''); const attachUploadRef = ref<any>(null)
 const replyOpen = ref<string | null>(null); const replyText = ref(''); const replyPosting = ref(false)
-async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入问题'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim()); ElMessage.success('问题已提交'); questionText.value = ''; await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } questionPosting.value = false }
+async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入函件内容'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim(), attachAssetId.value || undefined); ElMessage.success('来函已提交'); questionText.value = ''; attachAssetId.value = ''; attachUploadRef.value?.clearFiles(); await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } questionPosting.value = false }
 function openReply(id: string) { replyOpen.value = id; replyText.value = '' }
 function closeReply() { replyOpen.value = null; replyText.value = '' }
 async function postReply(id: string) { if (!replyText.value.trim()) { ElMessage.warning('请输入回复'); return }; replyPosting.value = true; try { await bidApi.createQuestion(projectId.value, replyText.value.trim()); ElMessage.success('回复已提交'); closeReply(); await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } replyPosting.value = false }
@@ -196,7 +198,7 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
         </div>
       </div>
 
-      <!-- ═══ 招标文件 + 澄清答疑（非列表模式）═══ -->
+      <!-- ═══ 招标文件 + 书面交流（非列表模式）═══ -->
       <div v-if="!isListMode" class="bottom-grid">
         <!-- 招标文件 -->
         <div class="neu-card bottom-card" v-loading="bidDocLoading">
@@ -219,12 +221,27 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           <div v-else-if="!bidDocLoading" class="bc-empty">暂无招标文件</div>
         </div>
 
-        <!-- 澄清答疑 -->
+        <!-- 书面交流 -->
         <div class="neu-card bottom-card">
-          <div class="bc-hd">澄清答疑</div>
+          <div class="bc-hd">书面交流</div>
+          <p class="cq-desc">如需获取信息，可提交书面函件（支持附件），或致电项目联系人</p>
           <div class="cq-ask">
-            <el-input v-model="questionText" placeholder="对招标有疑问？在此提问…" :rows="2" type="textarea" size="small" />
+            <el-input v-model="questionText" placeholder="填写书面函件内容…" :rows="2" type="textarea" size="small" />
             <button class="neu-btn-xs cq-submit-btn" :disabled="questionPosting" @click="postQuestion">提交</button>
+          </div>
+          <div class="cq-attach">
+            <el-upload
+              ref="attachUploadRef"
+              :auto-upload="true"
+              :limit="1"
+              :http-request="async (opt: any) => {
+                const asset = await uploadFile(opt.file as File, 'clarification')
+                attachAssetId.value = asset.id
+              }"
+              :on-remove="() => (attachAssetId.value = '')"
+            >
+              <el-button size="small">添加附件</el-button>
+            </el-upload>
           </div>
           <div v-if="project.clarifications?.length" class="cq-list">
             <div v-for="c in project.clarifications" :key="c.id" class="cq-item">
@@ -376,9 +393,11 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 .bdoc-acts  { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .bdoc-acts .neu-btn-soft, .bdoc-acts .neu-btn-primary { justify-content: center; }
 
-/* 澄清答疑 */
+/* 书面交流 */
+.cq-desc   { margin: 2px 0 10px; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
 .cq-ask   { display: flex; gap: 8px; margin-bottom: 12px; }
 .cq-submit-btn { min-width: 64px; flex-shrink: 0; align-self: center; }
+.cq-attach { margin: -4px 0 12px; }
 .cq-list  { display: flex; flex-direction: column; }
 .cq-item  { padding: 9px 0; border-bottom: 1px solid var(--hairline); }
 .cq-item:last-child { border-bottom: none; }

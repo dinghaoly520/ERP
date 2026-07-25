@@ -118,6 +118,21 @@ enum ArchiveStatus {
   NOT_STARTED
 }
 
+enum OpeningHallRoomType {
+  PUBLIC
+  PRIVATE
+}
+
+enum OpeningHallSenderRole {
+  HOST
+  SUPPLIER
+  SYSTEM
+}
+
+enum OpeningHallMessageType {
+  TEXT
+}
+
 // ── AI 辅助评标（per-item 版，方案第三章；修正 1.5a 的 procurement 固定 breakdown 版）──
 enum AiAnalysisTaskStatus {
   PENDING
@@ -321,6 +336,9 @@ model BidSupplier {
   expertMemos            ExpertMemo[]
   decryptError           String? // 解密失败原因
   bidValidity            String? // 废标标记：'valid' | 'invalid'
+  checkInAt            DateTime? // 开标大厅签到时间
+  checkInMeta          String?   // 签到环境 JSON 快照：IP / User-Agent（存证）
+  lastSeenAt           DateTime? // 大厅在场心跳（节流写入）
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -356,6 +374,7 @@ model BidOpeningSession {
   decryptWindowStart DateTime
   decryptWindowEnd   DateTime
   remainingSeconds   Int        @default(0)
+  exchangeControl  String     @default("OPEN") // OPEN 允许群聊 | MUTED 仅主持人可发言 | CLOSED 关闭互动
   project            BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
@@ -567,6 +586,7 @@ model BidClarification {
   supplierId   String?
   status       String     @default("待回复")
   reply        String?
+  fileAssetId  String? // 书面交流来函附件（迭代一：书面渠道改造）
   aiSummary    String? // P1-F：LLM 提炼的回复要点（供全体评委速读，不覆盖 reply 原文）
   project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   supplier     Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
@@ -1116,6 +1136,35 @@ model BidFileBackup {
 
   @@unique([supplierId, projectId, fileRole])
   @@index([projectId, supplierId])
+}
+
+// ── 开标大厅（迭代一：实时文字地基）──
+
+model OpeningHallMessage {
+  id          String                 @id @default(cuid())
+  projectId   String
+  roomType    OpeningHallRoomType
+  supplierId  String? // PRIVATE 时为 Supplier.id；PUBLIC 为 null
+  senderId    String
+  senderRole  OpeningHallSenderRole
+  senderName  String // 发送时姓名快照（存证不依赖日后改名）
+  type        OpeningHallMessageType @default(TEXT)
+  content     String
+  fileAssetId String? // 预留：迭代二短语音
+  createdAt   DateTime               @default(now())
+
+  @@index([projectId, roomType, supplierId, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model OpeningHallReadCursor {
+  id         String   @id @default(cuid())
+  projectId  String
+  userId     String
+  roomKey    String // "public"（公聊）| "supplier:<supplierId>"（私聊）
+  lastReadAt DateTime @default(now()) @updatedAt
+
+  @@unique([projectId, userId, roomKey])
 }
 
 // ── 即时聊天 ──

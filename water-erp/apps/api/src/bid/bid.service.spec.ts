@@ -45,8 +45,10 @@ describe('assertBidStageTransition (bid-state)', () => {
     expect(() => assertBidStageTransition('ARCHIVED', 'ARCHIVED')).not.toThrow();
   });
 
-  it('跳级抛 ConflictException', () => {
-    expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).toThrow(ConflictException);
+  it('允许向前跳步（棘轮：DOWNLOAD → OPENING / ARCHIVED 合法）', () => {
+    expect(() => assertBidStageTransition('DOWNLOAD', 'OPENING')).not.toThrow();
+    expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).not.toThrow();
+    expect(() => assertBidStageTransition('SUBMIT', 'EVALUATING')).not.toThrow();
   });
 
   it('回退抛 ConflictException', () => {
@@ -60,11 +62,11 @@ describe('assertBidStageTransition (bid-state)', () => {
 
   it('异常消息包含流转方向', () => {
     try {
-      assertBidStageTransition('DOWNLOAD', 'ARCHIVED');
+      assertBidStageTransition('EVALUATING', 'SUBMIT');
       fail('应抛出 ConflictException');
     } catch (e) {
-      expect(e.message).toContain('DOWNLOAD');
-      expect(e.message).toContain('ARCHIVED');
+      expect(e.message).toContain('EVALUATING');
+      expect(e.message).toContain('SUBMIT');
     }
   });
 });
@@ -106,6 +108,8 @@ describe('BidService — stage transitions', () => {
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
+      projectManagementStage: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
       $queryRaw: jest.fn().mockResolvedValue([]),
       // Support both callback-based and batch-based $transaction patterns
       $transaction: jest.fn(async (callbackOrOps: any) => {
@@ -141,8 +145,8 @@ describe('BidService — stage transitions', () => {
       expect(() => assertBidStageTransition('SUBMIT', 'OPENING')).not.toThrow();
     });
 
-    it('rejects DOWNLOAD → ARCHIVED (skip stages) with ConflictException', () => {
-      expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).toThrow(ConflictException);
+    it('allows DOWNLOAD → ARCHIVED (forward skip under ratchet)', () => {
+      expect(() => assertBidStageTransition('DOWNLOAD', 'ARCHIVED')).not.toThrow();
     });
 
     it('rejects ARCHIVED → DOWNLOAD (backward) with ConflictException', () => {
@@ -215,16 +219,40 @@ describe('BidService — stage transitions', () => {
       prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
     });
 
-    it('rejects if stage is DOWNLOAD (not SUBMIT)', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD', name: '测试项目' });
+    it('rejects if stage is past OPENING (backward)', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' });
       await expect(service.startOpening('p1')).rejects.toThrow(ConflictException);
     });
 
-    it('rejects SUBMIT→OPENING without session data', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目' });
-      await expect(service.startOpening('p1')).rejects.toThrow(BadRequestException);
-      await expect(service.startOpening('p1')).rejects.toMatchObject({
-        response: { code: 'OPENING_SESSION_REQUIRED' },
+    it('裸调不带会话字段仅推阶段、不建会话（SUBMIT→OPENING，:3005 确定开标路径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目', deadline: new Date(Date.now() - 3600_000) });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startOpening('p1');
+
+      expect(result.stage).toBe('OPENING');
+      expect(prisma.bidOpeningSession.create).not.toHaveBeenCalled();
+      expect(prisma.bidOpeningSession.update).not.toHaveBeenCalled();
+    });
+
+    it('OPENING 同阶段调用带完整四字段 → 组建会话（幂等 upsert）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+      prisma.bidOpeningSession.create.mockResolvedValue({ id: 'sess-2' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startOpening('p1', sessionDto);
+
+      expect(result.stage).toBe('OPENING');
+      expect(prisma.bidOpeningSession.create).toHaveBeenCalled();
+    });
+
+    it('会话字段只给部分 → 400 INCOMPLETE_SESSION_FIELDS', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      await expect(service.startOpening('p1', { host: '主持张三' } as any)).rejects.toMatchObject({
+        response: { code: 'INCOMPLETE_SESSION_FIELDS' },
       });
     });
 
@@ -699,10 +727,84 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
     });
 
-    it('rejects if not in EVALUATING', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+    it('已归档项目幂等返回（ARCHIVED 终态，不重复归档）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'ARCHIVED', name: '测试项目' });
 
-      await expect(service.archiveAll('p1')).rejects.toThrow(ConflictException);
+      const result = await service.archiveAll('p1');
+
+      expect(result).toBeDefined();
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('scope 分支：full 触发 EVALUATION_RESULTS_REQUIRED；opening 跳过该守卫（开标归档路径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目' });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs1', supplierName: '甲' }]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+
+      // full（默认）→ 存在已确认供应商但无评标结果，守卫拦截
+      await expect(service.archiveAll('p1'))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_RESULTS_REQUIRED' } });
+
+      // opening → 阶段下限通过（EVALUATING ≥ OPENING）、跳过评标守卫，落到开标记录守卫
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([]);
+      await expect(service.archiveAll('p1', undefined, 'opening'))
+        .rejects.toMatchObject({ response: { code: 'OPENING_RECORDS_MISSING' } });
+    });
+
+    it('F3 阶段下限：DOWNLOAD + scope=opening → 409 ARCHIVE_NOT_OPENED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'DOWNLOAD', name: '测试项目' });
+
+      await expect(service.archiveAll('p1', undefined, 'opening'))
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_NOT_OPENED' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('F3 阶段下限：SUBMIT + scope=full → 409 ARCHIVE_NOT_EVALUATING', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'SUBMIT', name: '测试项目' });
+
+      await expect(service.archiveAll('p1', undefined, 'full'))
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_NOT_EVALUATING' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('F3 阶段下限：OPENING + scope=opening → 放行进入归档流程', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目', projectManagementItemId: 'pm1', round: 1 });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidArchiveItem.findMany
+        .mockResolvedValueOnce([]) // ensureArchiveItems
+        .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]); // non-archived
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await expect(service.archiveAll('p1', undefined, 'opening')).resolves.toBeDefined();
+      expect(prisma.bidProject.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED' } }),
+      );
+      // F5：开标归档（流标/废标）不推进 PM「开标评标」阶段
+      expect(prisma.projectManagementStage.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('F5 阶段联动：scope=full 归档推进 PM「开标评标」→ COMPLETED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目', projectManagementItemId: 'pm1', round: 1 });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(1); // 已有评标结果
+      prisma.bidArchiveItem.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]);
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await expect(service.archiveAll('p1')).resolves.toBeDefined();
+      expect(prisma.projectManagementStage.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ projectManagementItemId: 'pm1', stageKey: 'BID_EVALUATION', round: 1 }),
+        }),
+      );
     });
 
     it('blocks archive when confirmable suppliers exist but no evaluation results (防跳过评标)', async () => {
