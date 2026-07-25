@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
@@ -1992,6 +1993,24 @@ export class BidService {
     });
     const aiUsage = aiTask ? buildArchiveAiUsage(aiTask.aiProvenance as any, aiTask.bidderResults as any) : null;
 
+    // S2：存证 sections（大厅消息 / 监督日志 / 澄清答疑）纳入归档包防篡改覆盖。
+    // 信任模型与 archiveItems 哈希链一致：均为"导出包内防局部篡改"——整体包的真伪由
+    // 导出时的捕获/签章环节保证（既有设计边界，不在本次扩展）。算法与 bid-archive.digest.ts
+    // 同款：crypto.createHash('sha256').update(JSON.stringify(...), 'utf8')，同输入恒等。
+    // 摘要取自与 sections 完全相同的数组引用/映射，保证复算口径一致。
+    const sha256Json = (v: unknown) => crypto.createHash('sha256').update(JSON.stringify(v), 'utf8').digest('hex');
+    const hallSection = hallMessages.map(m => ({
+      id: m.id, roomType: m.roomType,
+      supplierName: m.supplierId ? (hallSupplierNames.get(m.supplierId) ?? null) : null,
+      senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt,
+    }));
+    const sectionDigests = {
+      hallMessages: sha256Json(hallSection),
+      supervisionLogs: sha256Json(project.supervisionLogs),
+      clarifications: sha256Json(project.clarifications),
+    };
+    const sectionsRoot = sha256Json(sectionDigests);
+
     if (format === 'csv') {
       const BOM = '﻿';
       const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -2029,6 +2048,19 @@ export class BidService {
       lines.push(['类型', '发起人', '供应商', '问题', '状态', '回复'].map(esc).join(','));
       project.clarifications.forEach(c => lines.push([c.type, c.issuer, c.supplierName, c.question, c.status, c.reply || ''].map(esc).join(',')));
       lines.push('');
+      // S3：开标大厅消息段（与 JSON 导出 sections.hallMessages 对齐）。
+      // esc 统一双引号包裹 + 内部双引号加倍，内容含逗号/换行/引号亦为合法 CSV 字段。
+      lines.push('=== 开标大厅消息 ===');
+      lines.push(['时间', '类型', '供应商', '发送者角色', '发送者', '内容'].map(esc).join(','));
+      hallSection.forEach(m => lines.push([
+        m.createdAt.toISOString(),
+        m.roomType === 'PUBLIC' ? '公聊' : '私聊',
+        m.supplierName ?? '',
+        m.senderRole === 'HOST' ? '主持人' : m.senderRole === 'SUPPLIER' ? '供应商' : '系统',
+        m.senderName,
+        m.content,
+      ].map(esc).join(',')));
+      lines.push('');
       lines.push('=== 档案哈希链验证摘要 ===');
       lines.push(['算法', 'SHA-256'].join(','));
       lines.push(['创世哈希', genesis].join(','));
@@ -2037,6 +2069,11 @@ export class BidService {
         const item = project.archiveItems.find(a => a.id === itemId);
         lines.push([`#${i + 1} ${item?.name || itemId}`, hash].map(esc).join(','));
       });
+      // S2：存证 sections 摘要（与 JSON 导出 hashChain.sectionDigests/sectionsRoot 同源）
+      lines.push(['存证摘要-开标大厅消息', sectionDigests.hallMessages].join(','));
+      lines.push(['存证摘要-监督日志', sectionDigests.supervisionLogs].join(','));
+      lines.push(['存证摘要-澄清答疑', sectionDigests.clarifications].join(','));
+      lines.push(['存证摘要根（sectionsRoot）', sectionsRoot].join(','));
       if (aiUsage) {
         lines.push('');
         lines.push('=== AI 辅助说明 ===');
@@ -2074,11 +2111,7 @@ export class BidService {
         evaluationResults: project.evaluationResults,
         supervisionLogs: project.supervisionLogs,
         clarifications: project.clarifications,
-        hallMessages: hallMessages.map(m => ({
-          id: m.id, roomType: m.roomType,
-          supplierName: m.supplierId ? (hallSupplierNames.get(m.supplierId) ?? null) : null,
-          senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt,
-        })),
+        hallMessages: hallSection, // S2：与 sectionDigests.hallMessages 同引用，保证摘要可复算
         confirmationRecords: project.suppliers.filter(s => s.confirmStatus !== 'PENDING').map(s => ({ supplierName: s.supplierName, status: s.confirmStatus, error: s.decryptError })),
       },
       hashChain: {
@@ -2088,6 +2121,9 @@ export class BidService {
           const item = project.archiveItems.find(a => a.id === itemId);
           return { itemId, name: item?.name, hash };
         }),
+        // S2：存证 sections 逐段摘要 + 根摘要（信任模型见上方注释：导出包内防局部篡改）
+        sectionDigests,
+        sectionsRoot,
       },
       ...(aiUsage ? { aiUsage } : {}),
     };

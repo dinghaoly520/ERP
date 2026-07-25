@@ -79,10 +79,90 @@ describe('OpeningHallService', () => {
     await expect(svc.sendMessage(host, 'p1', { roomType: 'PRIVATE', supplierId: 'sup-9', content: 'x' })).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('内容写时消毒（HTML 标签剥离）', async () => {
-    const msg = await svc.sendMessage(host, 'p1', { roomType: 'PUBLIC', content: '<script>alert(1)</script>你好' });
-    expect(msg.content).not.toContain('<script>');
-    expect(msg.content).toContain('你好');
+  it('S4：纯文本频道原文落库——& < > 不转义、<script> 作字面文本保留（渲染侧转义是前端职责）', async () => {
+    const msg = await svc.sendMessage(host, 'p1', { roomType: 'PUBLIC', content: '报价 <100> 万元 & 工期' });
+    expect(msg.content).toBe('报价 <100> 万元 & 工期'); // 不再是 报价 &lt;100&gt; 万元 &amp; 工期
+    const script = await svc.sendMessage(host, 'p1', { roomType: 'PUBLIC', content: '<script>x</script>' });
+    expect(script.content).toBe('<script>x</script>'); // 不再被富文本消毒器剥成空串
+  });
+
+  it('S5：纯空白消息 → 400 MESSAGE_EMPTY（不落库不广播）', async () => {
+    await expect(svc.sendMessage(host, 'p1', { roomType: 'PUBLIC', content: '   ' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.sendMessage(host, 'p1', { roomType: 'PUBLIC', content: '   ' })).rejects.toMatchObject({
+      response: { code: 'MESSAGE_EMPTY' },
+    });
+    expect(prismaMock.openingHallMessage.create).not.toHaveBeenCalled();
+    expect(gatewayMock.notifyHallMessage).not.toHaveBeenCalled();
+  });
+
+  it('S4：2000 边界码点安全截断——emoji 代理对不被切断', async () => {
+    const content = '字'.repeat(1999) + '💥'; // UTF-16 码元 2001 个；旧 .slice(0,2000) 会切断 💥 代理对
+    const msg = await svc.sendMessage(host, 'p1', { roomType: 'PUBLIC', content });
+    expect([...msg.content].length).toBeLessThanOrEqual(2000); // 按码点计长
+    expect(/\p{Surrogate}/u.test(msg.content)).toBe(false);    // 无孤立代理字符
+    expect(msg.content.endsWith('💥')).toBe(true);              // emoji 完整保留
+  });
+
+  describe('listMessages 分页健壮化（S6）', () => {
+    it('非法 cursor → 400 INVALID_CURSOR（不进 Prisma，不再 500）', async () => {
+      await expect(svc.listMessages(host, 'p1', { roomType: 'PUBLIC', cursor: 'abc' })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.listMessages(host, 'p1', { roomType: 'PUBLIC', cursor: 'abc' })).rejects.toMatchObject({
+        response: { code: 'INVALID_CURSOR' },
+      });
+      expect(prismaMock.openingHallMessage.findMany).not.toHaveBeenCalled();
+    });
+
+    it('limit=NaN → 回落默认 50（findMany take=51）', async () => {
+      prismaMock.openingHallMessage.findMany.mockResolvedValue([]);
+      await svc.listMessages(host, 'p1', { roomType: 'PUBLIC', limit: NaN });
+      expect(prismaMock.openingHallMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 51 }));
+    });
+
+    it('复合游标 createdAt|id → where 带 OR 翻页条件、orderBy 双键降序', async () => {
+      prismaMock.openingHallMessage.findMany.mockResolvedValue([]);
+      const t = new Date('2026-07-23T00:00:00.000Z');
+      await svc.listMessages(host, 'p1', { roomType: 'PUBLIC', cursor: `${t.toISOString()}|m-9` });
+      expect(prismaMock.openingHallMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { createdAt: { lt: t } },
+            { createdAt: { equals: t }, id: { lt: 'm-9' } },
+          ],
+        }),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }));
+    });
+
+    it('旧格式游标（无 |）向后兼容：按纯时间翻页（id 分支恒不命中）', async () => {
+      prismaMock.openingHallMessage.findMany.mockResolvedValue([]);
+      const t = new Date('2026-07-23T00:00:00.000Z');
+      await svc.listMessages(host, 'p1', { roomType: 'PUBLIC', cursor: t.toISOString() });
+      expect(prismaMock.openingHallMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { createdAt: { lt: t } },
+            { createdAt: { equals: t }, id: { lt: '' } },
+          ],
+        }),
+      }));
+    });
+
+    it('同毫秒翻页不丢消息：nextCursor=ISO|id，第二页续取同毫秒后续行', async () => {
+      const t = new Date('2026-07-23T00:00:00.000Z');
+      prismaMock.openingHallMessage.findMany
+        .mockResolvedValueOnce([
+          { id: 'm3', createdAt: t, content: '3' },
+          { id: 'm2', createdAt: t, content: '2' },
+          { id: 'm1', createdAt: t, content: '1' }, // take=3 命中 → hasMore
+        ])
+        .mockResolvedValueOnce([{ id: 'm1', createdAt: t, content: '1' }]);
+      const r1 = await svc.listMessages(host, 'p1', { roomType: 'PUBLIC', limit: 2 });
+      expect(r1.nextCursor).toBe(`${t.toISOString()}|m2`);
+      const r2 = await svc.listMessages(host, 'p1', { roomType: 'PUBLIC', limit: 2, cursor: r1.nextCursor! });
+      // 旧纯时间游标在此场景会丢 m1（createdAt < t 恒假）；复合游标续取无丢失
+      expect([...r1.items, ...r2.items].map((m: any) => m.id)).toEqual(['m2', 'm3', 'm1']);
+      expect(r2.nextCursor).toBeNull();
+    });
   });
 
   it('签到幂等：已签到直接返回原时间', async () => {

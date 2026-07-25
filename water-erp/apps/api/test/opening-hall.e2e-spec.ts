@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { createHash } from 'crypto';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { hashSync } from 'bcryptjs';
@@ -269,12 +270,96 @@ describe('Opening Hall (e2e)', () => {
     expect(r2.body.public).toBe(0);
   });
 
-  it('历史分页：items 升序、nextCursor 可翻页', async () => {
-    const r = await request(app.getHttpServer())
-      .get(`/api/opening-hall/${projectId}/messages?roomType=PUBLIC&limit=2`).set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
-    expect(r.body.items.length).toBeLessThanOrEqual(2);
-    const times = r.body.items.map((m: any) => new Date(m.createdAt).getTime());
-    expect(times).toEqual([...times].sort((a, b) => a - b));
+  it('历史分页：items 升序、复合 nextCursor（ISO|id）翻页不重不漏', async () => {
+    // 连发 5 条公聊（可能同毫秒落库）确保可翻页
+    for (const c of ['P1', 'P2', 'P3', 'P4', 'P5']) {
+      await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+        .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: `分页探针-${c}` }).expect(201);
+    }
+    const seen = new Set<string>();
+    let prevPageMinT = Infinity; // 页间连续性：后一页消息不晚于前一页最旧消息
+    let cursor: string | undefined;
+    let guard = 0;
+    do {
+      const url = `/api/opening-hall/${projectId}/messages?roomType=PUBLIC&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const r = await request(app.getHttpServer()).get(url).set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      expect(r.body.items.length).toBeLessThanOrEqual(2);
+      // 页内升序
+      const times = r.body.items.map((m: any) => new Date(m.createdAt).getTime());
+      expect(times).toEqual([...times].sort((a, b) => a - b));
+      for (const m of r.body.items) {
+        expect(seen.has(m.id)).toBe(false); // 跨页不重复（同毫秒不再被跳过或重复）
+        seen.add(m.id);
+        expect(new Date(m.createdAt).getTime()).toBeLessThanOrEqual(prevPageMinT);
+      }
+      if (times.length > 0) prevPageMinT = Math.min(...times);
+      cursor = r.body.nextCursor ?? undefined;
+      if (cursor) expect(cursor).toContain('|'); // 新格式：ISO|id
+      expect(++guard).toBeLessThan(100); // 防游标死循环
+    } while (cursor);
+    // 与 DB 全量比对：不丢失
+    const all = await prisma.openingHallMessage.findMany({ where: { projectId, roomType: 'PUBLIC' } });
+    expect(seen.size).toBe(all.length);
+  });
+
+  it('S6：非法 cursor → 400 INVALID_CURSOR（不再 500）；limit 非法 → 回落默认 200', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/opening-hall/${projectId}/messages?roomType=PUBLIC&cursor=abc`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'INVALID_CURSOR' }));
+    await request(app.getHttpServer())
+      .get(`/api/opening-hall/${projectId}/messages?roomType=PUBLIC&limit=abc`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+  });
+
+  it('S4/S5：纯空白消息 400 MESSAGE_EMPTY；含 & < > 的消息原文落库（不再被富文本消毒）', async () => {
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: '   ' })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'MESSAGE_EMPTY' }));
+    const raw = '报价 <100> 万元 & 工期';
+    const r = await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: raw }).expect(201);
+    expect(r.body.content).toBe(raw);
+    const stored = await prisma.openingHallMessage.findUnique({ where: { id: r.body.id } });
+    expect(stored!.content).toBe(raw); // DB 不再是 报价 &lt;100&gt; 万元 &amp; 工期
+  });
+
+  it('归档存证（S2/S3）：大厅消息进 sections（公聊+私聊）、哈希链摘要可复算、CSV 含大厅消息段', async () => {
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: '存证探针-公聊' }).expect(201);
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PRIVATE', supplierId: sup1Id, content: '存证探针-私聊' }).expect(201);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/bid/projects/${projectId}/archive-package/export?format=json`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    const { sections, hashChain } = res.body;
+    expect(sections.hallMessages.find((m: any) => m.content === '存证探针-公聊'))
+      .toMatchObject({ roomType: 'PUBLIC', senderRole: 'HOST' });
+    expect(sections.hallMessages.find((m: any) => m.content === '存证探针-私聊'))
+      .toMatchObject({ roomType: 'PRIVATE', senderRole: 'HOST' });
+
+    // sectionDigests / sectionsRoot 复算——与导出同算法：sha256(JSON.stringify(...))，utf8
+    const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v), 'utf8').digest('hex');
+    expect(hashChain.sectionDigests).toEqual({
+      hallMessages: sha(sections.hallMessages),
+      supervisionLogs: sha(sections.supervisionLogs),
+      clarifications: sha(sections.clarifications),
+    });
+    expect(hashChain.sectionsRoot).toBe(sha(hashChain.sectionDigests));
+    // 篡改探测：改动消息内容即与摘要失配
+    const tampered = sections.hallMessages.map((m: any) => ({ ...m, content: '篡改' }));
+    expect(hashChain.sectionDigests.hallMessages).not.toBe(sha(tampered));
+
+    // S3：CSV 归档含"开标大厅消息"段（与 JSON 对齐）
+    const csv = await request(app.getHttpServer())
+      .get(`/api/bid/projects/${projectId}/archive-package/export?format=csv`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    expect(csv.text).toContain('=== 开标大厅消息 ===');
+    expect(csv.text).toContain('存证探针-公聊');
+    expect(csv.text).toContain('存证探针-私聊');
   });
 
   it('供应商确认开标记录 → 主持端收到 opening:confirmed', async () => {
