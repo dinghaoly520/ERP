@@ -102,7 +102,9 @@ export function Modal({
   const width = SIZE_PX[size];
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+      {/* z-[600]：必须盖过业务全屏 overlay（bid-confirm / score-standard 面板的 z-[500]），
+          Modal 经 createPortal 挂到 body，与 overlay 同级层叠 */}
       <div
         className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
         onClick={closeOnBackdrop ? onClose : undefined}

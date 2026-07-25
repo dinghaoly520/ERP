@@ -33,6 +33,7 @@ import { ExpertExtractModal } from './expert-extract-modal';
 import { SupplierExtractModal } from './supplier-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
+import { ScoreStandardPanel } from './score-standard/score-standard-panel';
 import { AwardFileMaker } from './award-file-maker';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
@@ -305,6 +306,8 @@ export function ProjectDetailPanel({
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
   const [selectedRound, setSelectedRound] = useState(item.currentRound ?? 1);
   const [bidConfirmRound, setBidConfirmRound] = useState(1);
+  const [scoreStandardOpen, setScoreStandardOpen] = useState(false);
+  const [scoreStandardRound, setScoreStandardRound] = useState(1);
 
   // 本地 item 镜像 —— 上传后立即注入附件，不等父组件 onUpdated 回流
   const [localItem, setLocalItem] = useState(item);
@@ -911,6 +914,10 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               tenderDocxAttachments={tenderDocxFiles}
               onEditTenderFile={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: 'TENDER_DOCUMENT' })}
+              onScoreStandard={() => {
+                setScoreStandardRound(selectedRound);
+                setScoreStandardOpen(true);
+              }}
             />
 
             {showArchiveStep ? (
@@ -1649,6 +1656,14 @@ export function ProjectDetailPanel({
         onClose={() => setBidConfirmOpen(false)}
         project={item}
         round={bidConfirmRound}
+      />
+
+      {/* 评分标准编制面板（2026-07-24 从开评标管理端 :3007 前置到采购文件阶段）*/}
+      <ScoreStandardPanel
+        isOpen={scoreStandardOpen}
+        onClose={() => setScoreStandardOpen(false)}
+        project={item}
+        round={scoreStandardRound}
       />
 
       {/* 定标 · 文件制作（中标公告 / 中标通知书 / 流标公告）*/}
