@@ -360,6 +360,16 @@ describe('Opening Hall (e2e)', () => {
     expect(csv.text).toContain('=== 开标大厅消息 ===');
     expect(csv.text).toContain('存证探针-公聊');
     expect(csv.text).toContain('存证探针-私聊');
+
+    // CSV 公式注入中和：以 = 开头的消息导出后前置单引号，Excel 不按公式求值
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier')
+      .send({ roomType: 'PUBLIC', content: '=1+1 公式注入探针' }).expect(201);
+    const csv2 = await request(app.getHttpServer())
+      .get(`/api/bid/projects/${projectId}/archive-package/export?format=csv`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    expect(csv2.text).toContain(`"'=1+1 公式注入探针"`);
+    expect(csv2.text).not.toContain(`"=1+1 公式注入探针"`);
   });
 
   it('供应商确认开标记录 → 主持端收到 opening:confirmed', async () => {

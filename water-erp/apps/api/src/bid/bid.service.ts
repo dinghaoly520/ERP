@@ -2013,7 +2013,12 @@ export class BidService {
 
     if (format === 'csv') {
       const BOM = '﻿';
-      const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      // RFC4180 转义 + CSV 公式注入中和：以 = + - @ \t \r 开头的值前置单引号，
+      // 防 Excel/WPS 把用户输入（大厅消息/异议原因/澄清等）当公式求值（=HYPERLINK 钓鱼/外部引用）。
+      const esc = (v: unknown) => {
+        const s = String(v ?? '').replace(/"/g, '""');
+        return `"${/^[=+\-@\t\r]/.test(s) ? `'${s}` : s}"`;
+      };
       const lines: string[] = [];
       lines.push('=== 招标项目基础信息 ===');
       lines.push(['项目编号', '项目名称', '采购方式', '预算', '招标范围', '资质要求', '联系人', '阶段'].map(esc).join(','));
