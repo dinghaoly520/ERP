@@ -304,6 +304,15 @@ async function main() {
   }
   console.log(`    陈源远 ${staffUsers.length} 个账号口令已重置`);
 
+  // ═══ 内部管理账号口令规整（与 ACCOUNTS.md「<用户名>@2026」约定一致，使 :3005 有可登录的 leader/staff）═══
+  console.log('▶ 规整内部管理账号口令（Swhi-CGZX-01 leader / Swhi-CGZX-05 staff）');
+  for (const uname of ['Swhi-CGZX-01', 'Swhi-CGZX-05']) {
+    await prisma.user.updateMany({
+      where: { username: uname },
+      data: { passwordHash: hashSync(`${uname}@2026`, 10) },
+    });
+  }
+
   // ═══ 投标文件持久化（让端到端 AI 分析可重现）═══
   await ensureBidFiles();
 

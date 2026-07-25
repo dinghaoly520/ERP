@@ -30,6 +30,10 @@
 | 用户名 | 密码 | 角色(role) | 姓名 |
 |--------|------|------------|------|
 | `陈源远` | `陈源远@2026` | `procurement_staff` · 采购管理员 | 陈源远 |
+| `Swhi-CGZX-01` | `Swhi-CGZX-01@2026` | `leader` · 采购中心领导 | 陈源远 |
+| `Swhi-CGZX-05` | `Swhi-CGZX-05@2026` | `staff` · 采购中心员工 | 彭强 |
+
+> 注：`陈源远` 从 :3005 登录时按 `PORTAL_ROLE_PRIORITY.web` 实际解析为 `bid_host` 账号，`/project-management` 403——:3005 项目管理请用 `Swhi-CGZX-*` leader/staff 账号。
 
 ## 专家门户 — http://localhost:3006
 

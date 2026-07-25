@@ -78,6 +78,7 @@ export function ProjectStageTimeline({
   archiveStepState,
   tenderDocxAttachments,
   onEditTenderFile,
+  onScoreStandard,
 }: {
   stages: ProjectManagementStage[];
   activeStageKey: ProjectWorkflowStageKey;
@@ -88,6 +89,8 @@ export function ProjectStageTimeline({
   archiveStepState: ArchiveStepState;
   tenderDocxAttachments?: Array<{ id: string; fileName: string }>;
   onEditTenderFile?: (attachmentId: string, fileName: string) => void;
+  /** 采购文件阶段的第二动作：打开评分标准编制面板（2026-07-24 从 :3007 前置）*/
+  onScoreStandard?: () => void;
 }) {
   const entries: TimelineEntry[] = stages.map((stage): SelectableTimelineEntry => {
     const isCompleted = stage.status === 'COMPLETED';
@@ -278,6 +281,26 @@ export function ProjectStageTimeline({
                               title={(!tenderDocxAttachments || tenderDocxAttachments.length === 0) ? '请先在详情区上传 .docx 文件' : undefined}
                             >
                               {entry.title === '招标文件' ? '招标文件修改' : '采购文件修改'}
+                            </span>
+                          )}
+                          {onScoreStandard && stageKey === 'TENDER_DOCUMENT' && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onScoreStandard();
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.stopPropagation();
+                                  onScoreStandard();
+                                }
+                              }}
+                              className="pm-stage-action-btn shrink-0"
+                              title="编制本项目评分标准（评分项 / 得分点 / AI 提取 / 发布锁定）"
+                            >
+                              评分标准编制
                             </span>
                           )}
                         </div>
