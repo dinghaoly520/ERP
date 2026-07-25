@@ -158,6 +158,31 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('C1 — 流转端点事务内复查阶段（防并发复活/回退）', () => {
+    it('startEvaluation：事务内复查发现已 ARCHIVED 时抛 409，绝不写 EVALUATING', async () => {
+      prisma.bidProject.findUnique
+        .mockResolvedValueOnce({ stage: 'OPENING', name: 'P' })   // pre-tx 读到 OPENING
+        .mockResolvedValueOnce({ stage: 'ARCHIVED', name: 'P' }); // 锁后复查：并发对手已归档
+      prisma.bidExpert.count = jest.fn().mockResolvedValue(1);
+      prisma.bidSupplier.count = jest.fn().mockResolvedValue(1);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toThrow(ConflictException);
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('openSubmission：事务内复查发现已 ARCHIVED 时抛 409，绝不写 SUBMIT', async () => {
+      prisma.bidProject.findUnique
+        .mockResolvedValueOnce({ stage: 'DOWNLOAD', name: 'P', projectCode: 'BID-1' })
+        .mockResolvedValueOnce({ stage: 'ARCHIVED', name: 'P', projectCode: 'BID-1' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'a1' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'SUBMIT' });
+
+      await expect(service.openSubmission('p1', 'u1')).rejects.toThrow(ConflictException);
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('updateProject — stage 不再可经 PATCH 流转（防状态机旁路）', () => {
     it('不向 prisma.update 转发 stage 字段', async () => {
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD' });
@@ -824,6 +849,7 @@ describe('BidService — stage transitions', () => {
     it('allows archive when results already generated', async () => {
       prisma.bidProject.findUnique
         .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-TEST', stage: 'EVALUATING', name: '测试项目' })
+        .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-TEST', stage: 'EVALUATING', name: '测试项目' }) // C1: 事务内行锁后复查读到同阶段
         .mockResolvedValueOnce({ id: 'p1', stage: 'ARCHIVED', archiveItems: [] });
       prisma.bidEvaluationResult.count.mockResolvedValue(2); // 已生成结果
       // G5: 可评供应商均有对应开标记录
@@ -1690,6 +1716,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (callbackOrOps: any) => {
         if (typeof callbackOrOps === 'function') return callbackOrOps(prisma);
         return Promise.all(callbackOrOps);

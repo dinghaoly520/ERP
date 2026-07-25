@@ -501,6 +501,7 @@ export class BidService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockAndReassertStage(tx, id, 'SUBMIT'); // C1: 事务内行锁后复查阶段
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'SUBMIT' },
@@ -564,6 +565,7 @@ export class BidService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await this.lockAndReassertStage(tx, id, 'OPENING'); // C1: 事务内行锁后复查阶段（同阶段 OPENING→OPENING 幂等放行）
       let sessionUpserted = false;
       if (providedCount === 4) {
         const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
@@ -654,6 +656,23 @@ export class BidService {
     }
   }
 
+  /**
+   * C1 修复：事务内行锁后复查阶段，杜绝「事务外 assert + 事务内无条件写」的 TOCTOU。
+   * 拿行锁后重读 stage 并重跑状态机断言；并发下后提交的一方在此抛 409，
+   * 而非裸覆写已被其他事务推进/归档的阶段（防止 ARCHIVED 复活、防止回退）。
+   */
+  private async lockAndReassertStage(
+    tx: Prisma.TransactionClient,
+    id: string,
+    target: BidStage,
+  ): Promise<{ stage: BidStage; name: string }> {
+    await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${id} FOR UPDATE`;
+    const fresh = await tx.bidProject.findUnique({ where: { id }, select: { stage: true, name: true } });
+    if (!fresh) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    assertBidStageTransition(fresh.stage, target);
+    return fresh;
+  }
+
   async startEvaluation(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
@@ -683,7 +702,7 @@ export class BidService {
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${id} FOR UPDATE`; // P1-17：与评分标准编辑互斥
+      await this.lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 P1-17 与评分标准编辑互斥的 FOR UPDATE）
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'EVALUATING' },
@@ -1788,6 +1807,7 @@ export class BidService {
     // The ensureArchiveItems, counts check, item fetch, and all updates happen atomically.
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
+      await this.lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
       // 防止”跳过评标”归档：存在已确认的可评供应商但未生成评标结果时阻断
       // G5: 已确认可评供应商必须有对应开标记录（主持人已补录唱标信息），保证归档材料完整
       // 合并 confirmableCount 与 confirmableSuppliers 为一次 findMany 查询（R1 去冗余）
