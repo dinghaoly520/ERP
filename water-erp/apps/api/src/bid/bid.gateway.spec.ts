@@ -69,6 +69,109 @@ describe('BidGateway 专家聚合进度房（§4.3 回归防护）', () => {
   });
 });
 
+describe('BidGateway leave:project 清连接表 + 定向推送项目过滤（R8）', () => {
+  const prismaMock = {
+    supplier: { findFirst: jest.fn() },
+    bidSupplier: { findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
+    bidExpert: { findFirst: jest.fn() },
+  } as any;
+
+  function makeGateway() {
+    return new BidGateway({} as any, prismaMock);
+  }
+  function makeClient(data: Record<string, unknown>) {
+    const joined: string[] = [];
+    const left: string[] = [];
+    const client = {
+      id: `sock-${Math.random().toString(36).slice(2, 8)}`,
+      data,
+      join: (r: string) => joined.push(r),
+      leave: (r: string) => left.push(r),
+    } as any;
+    return { client, joined, left };
+  }
+  /** 捕获 server.to(room).emit 调用（按 room 收集）。 */
+  function captureServer(gw: BidGateway) {
+    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    gw.server = { to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }) } as any;
+    return emitted;
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prismaMock.supplier.findFirst.mockResolvedValue({ id: 'sup-1' });
+    prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '测试供应商' });
+    prismaMock.bidSupplier.update.mockResolvedValue({});
+    prismaMock.bidSupplier.findMany.mockResolvedValue([]);
+  });
+
+  it('供应商 join 后 leave → 连接表清空、退三个房、刷新 presence', async () => {
+    const gw = makeGateway();
+    captureServer(gw);
+    const presenceSpy = jest.spyOn(gw, 'broadcastHallPresence').mockResolvedValue(undefined);
+    const { client, joined, left } = makeClient({ role: 'supplier', userId: 'u-sup' });
+
+    const ack = await gw.handleJoinProject(client, 'p1');
+    expect(ack).toEqual(expect.objectContaining({ ok: true }));
+    expect(joined).toContain('project:p1');
+    expect(gw.getOnlineSupplierIds('p1').has('sup-1')).toBe(true); // 在线基线
+
+    gw.handleLeaveProject(client, 'p1');
+    expect(left).toEqual(expect.arrayContaining(['project:p1', 'host:p1', 'experts:p1']));
+    expect(gw.getOnlineSupplierIds('p1').size).toBe(0); // supplierSockets 已清空
+    expect((gw as any).socketProjects.has(client.id)).toBe(false); // socketProjects 已删除
+    expect(presenceSpy).toHaveBeenCalledWith('p1'); // 离场后广播在场名单
+  });
+
+  it('leave 后定向事件不再投递该 socket（私聊/确认/异议/处理四路）', async () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    jest.spyOn(gw, 'broadcastHallPresence').mockResolvedValue(undefined);
+    const { client } = makeClient({ role: 'supplier', userId: 'u-sup' });
+    await gw.handleJoinProject(client, 'p1');
+    gw.handleLeaveProject(client, 'p1');
+
+    gw.notifyHallMessage('p1', { id: 'm1', projectId: 'p1', roomType: 'PRIVATE', supplierId: 'sup-1', supplierName: '测试供应商', senderId: 'h', senderRole: 'HOST', senderName: '主持', content: 'x', createdAt: new Date().toISOString(), timestamp: Date.now() } as any);
+    gw.notifyOpeningConfirmed('p1', 'sup-1', { projectId: 'p1', supplierId: 'sup-1', supplierName: '测试供应商', timestamp: Date.now() });
+    gw.notifyOpeningDisputed('p1', 'sup-1', { projectId: 'p1', supplierId: 'sup-1', supplierName: '测试供应商', reason: 'x', timestamp: Date.now() });
+    gw.notifyOpeningDisputeResolved('p1', 'sup-1', { projectId: 'p1', supplierId: 'sup-1', supplierName: '测试供应商', recordId: 'r1', confirm: true, result: 'x', timestamp: Date.now() });
+
+    expect(emitted.filter(e => e.room === client.id)).toEqual([]); // 该 socket 零接收
+  });
+
+  it('同一供应商跨项目双 tab：定向推送仅送达本项目的 socket', () => {
+    const gw = makeGateway();
+    const emitted = captureServer(gw);
+    // 直接构造连接表（等价于两个 tab 分别 join p1/p2）
+    (gw as any).supplierSockets.set('sup-1', new Set(['sock-p1', 'sock-p2']));
+    (gw as any).socketProjects.set('sock-p1', 'p1');
+    (gw as any).socketProjects.set('sock-p2', 'p2');
+
+    gw.notifyHallMessage('p1', { id: 'm1', projectId: 'p1', roomType: 'PRIVATE', supplierId: 'sup-1', supplierName: '测试供应商', senderId: 'h', senderRole: 'HOST', senderName: '主持', content: '仅 p1', createdAt: new Date().toISOString(), timestamp: Date.now() } as any);
+    const privateTargets = emitted.filter(e => e.event === BID_EVENT.HALL_MESSAGE_NEW).map(e => e.room);
+    expect(privateTargets).toContain('sock-p1');
+    expect(privateTargets).not.toContain('sock-p2'); // 跨项目 tab 不互收
+    expect(privateTargets).toContain('host:p1'); // 主持房不受影响
+
+    gw.notifyOpeningConfirmed('p1', 'sup-1', { projectId: 'p1', supplierId: 'sup-1', supplierName: '测试供应商', timestamp: Date.now() });
+    const confirmedTargets = emitted.filter(e => e.event === BID_EVENT.OPENING_CONFIRMED).map(e => e.room);
+    expect(confirmedTargets).toContain('sock-p1');
+    expect(confirmedTargets).not.toContain('sock-p2');
+  });
+
+  it('非供应商 socket leave → 仅退房与清 socketProjects，不触发供应商连接表操作', async () => {
+    const gw = makeGateway();
+    captureServer(gw);
+    const presenceSpy = jest.spyOn(gw, 'broadcastHallPresence').mockResolvedValue(undefined);
+    const { client, left } = makeClient({ role: 'bid_host', userId: 'u-host' });
+    await gw.handleJoinProject(client, 'p1');
+    gw.handleLeaveProject(client, 'p1');
+    expect(left).toEqual(expect.arrayContaining(['project:p1', 'host:p1']));
+    expect((gw as any).socketProjects.has(client.id)).toBe(false);
+    expect(presenceSpy).toHaveBeenCalledWith('p1');
+  });
+});
+
 describe('tokenFromHandshake 门户判定（多 cookie 共存）', () => {
   const WEB = 'token_web=web-jwt';
   const SUP = 'token_supplier=sup-jwt';

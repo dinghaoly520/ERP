@@ -1153,6 +1153,12 @@ export class BidService {
       throw new BadRequestException({ error: '项目不在开标阶段，无法处理异议', code: 'PROJECT_NOT_OPENING' });
     }
 
+    // R7：状态机门 — 仅「供应商提出异议」态记录可处理。旧实现不校验记录态：主持人可"处理"
+    // 从未被异议的记录（翻转确认态）、对已处理记录反复覆盖。阶段门控之后、事务之前拦截。
+    if (record.confirmStatus !== '供应商提出异议') {
+      throw new BadRequestException({ error: '该记录不处于异议待处理状态', code: 'DISPUTE_NOT_PENDING' });
+    }
+
     const now = new Date();
     const confirmStatus = dto.confirm ? '异议已处理-确认' : '异议已处理-退回';
 

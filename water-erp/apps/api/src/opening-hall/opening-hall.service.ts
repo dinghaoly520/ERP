@@ -185,7 +185,7 @@ export class OpeningHallService {
     return { public: publicUnread, private: sessions.reduce((s, x) => s + x.unread, 0), sessions };
   }
 
-  async markRead(actor: HallActor, projectId: string, roomKey: string) {
+  async markRead(actor: HallActor, projectId: string, roomKey: string, lastMessageId?: string) {
     // S7 归属门：项目必须存在；roomKey 只能落在自己的会话上（防游标表无界增长/写 dangling 项目）
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
@@ -202,10 +202,25 @@ export class OpeningHallService {
     } else {
       this.assertHost(actor); // → 403 HOST_ONLY
     }
+    // R5：游标定在客户端上报的"已读末条"消息上——"拉历史→markRead"窗口内到达的消息不再被
+    // 服务端 now() 误判已读。id 必须命中本项目本会话（防跨项目/跨会话乱报他人消息的 createdAt）；
+    // 未上报（旧前端兼容）或未命中 → 回退 now()。
+    let lastReadAt = new Date();
+    if (lastMessageId) {
+      const isPrivate = roomKey.startsWith('supplier:');
+      const msg = await this.prisma.openingHallMessage.findFirst({
+        where: {
+          id: lastMessageId, projectId,
+          roomType: isPrivate ? 'PRIVATE' : 'PUBLIC',
+          ...(isPrivate ? { supplierId: roomKey.slice('supplier:'.length) } : {}),
+        },
+      });
+      if (msg) lastReadAt = msg.createdAt;
+    }
     return this.prisma.openingHallReadCursor.upsert({
       where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },
-      create: { projectId, userId: actor.userId, roomKey, lastReadAt: new Date() },
-      update: { lastReadAt: new Date() },
+      create: { projectId, userId: actor.userId, roomKey, lastReadAt },
+      update: { lastReadAt },
     });
   }
 
@@ -217,17 +232,30 @@ export class OpeningHallService {
     if (!member) throw new BadRequestException({ error: '您未参与该项目投标', code: 'NOT_PROJECT_MEMBER' });
     if (member.checkInAt) return { checkInAt: member.checkInAt, already: true };
 
+    // R6：原子抢占——updateMany({ where: { id, checkInAt: null } }) 仅首签命中一行；
+    // 签到写入与监督日志同一事务，杜绝旧实现事务外两步的两个缺口：
+    // ① 并发双签到都读到 checkInAt=null → 重复监督日志；
+    // ② update 成功而 log.create 失败 → 重试命中 already → 监督日志永久丢失（存证缺口）。
     const now = new Date();
-    await this.prisma.bidSupplier.update({
-      where: { id: member.id },
-      data: { checkInAt: now, checkInMeta: JSON.stringify(meta) },
+    const affected = await this.prisma.$transaction(async (tx) => {
+      const res = await tx.bidSupplier.updateMany({
+        where: { id: member.id, checkInAt: null },
+        data: { checkInAt: now, checkInMeta: JSON.stringify(meta) },
+      });
+      if (res.count === 0) return 0;
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: now, role: '供应商', target: member.supplierName,
+          action: '在线签到', result: '供应商进入开标大厅并签到', riskFlag: '无',
+        },
+      });
+      return res.count;
     });
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: now, role: '供应商', target: member.supplierName,
-        action: '在线签到', result: '供应商进入开标大厅并签到', riskFlag: '无',
-      },
-    });
+    if (affected === 0) {
+      // 并发第二签到：回读首签时间，幂等返回（不再写日志/广播）
+      const fresh = await this.prisma.bidSupplier.findUnique({ where: { id: member.id }, select: { checkInAt: true } });
+      return { checkInAt: fresh?.checkInAt ?? now, already: true };
+    }
     this.gateway?.notifyHallCheckin(projectId, {
       projectId, supplierId: actor.supplierId, supplierName: member.supplierName,
       checkInAt: now.toISOString(), timestamp: Date.now(),

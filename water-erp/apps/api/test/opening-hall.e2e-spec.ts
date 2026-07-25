@@ -213,6 +213,21 @@ describe('Opening Hall (e2e)', () => {
     expect(ds.supplierId).toBe(sup1Id);
   });
 
+  it('R6：并发双签到原子抢占——仅一条监督日志、仅一次 already:false', async () => {
+    // 重置 sup2 签到态构造「首签」前置（sup2 前例未签到，防御性重置）
+    await prisma.bidSupplier.updateMany({ where: { projectId, supplierId: sup2Id }, data: { checkInAt: null, checkInMeta: null } });
+    const before = await prisma.bidSupervisionLog.count({ where: { projectId, action: '在线签到' } });
+    const [r1, r2] = await Promise.all([
+      request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/check-in`).set('Cookie', sup2Cookie).set('X-Portal', 'supplier'),
+      request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/check-in`).set('Cookie', sup2Cookie).set('X-Portal', 'supplier'),
+    ]);
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+    expect([r1.body.already, r2.body.already].sort()).toEqual([false, true]); // 恰好一次首签
+    const after = await prisma.bidSupervisionLog.count({ where: { projectId, action: '在线签到' } });
+    expect(after - before).toBe(1); // 并发第二签到不产生重复监督日志（旧实现事务外两步会写 2 行）
+  });
+
   it('公聊：主持发 → 两家供应商都收到', async () => {
     const s1 = track(connectBid(base, sup1Cookie)); await connected(s1); await joinAck(s1, projectId);
     const s2 = track(connectBid(base, sup2Cookie)); await connected(s2); await joinAck(s2, projectId);
@@ -399,6 +414,31 @@ describe('Opening Hall (e2e)', () => {
     expect(rd.confirm).toBe(true);
   });
 
+  it('R7 状态机：非异议态记录不可 resolve → 400 DISPUTE_NOT_PENDING（含二次处理）', async () => {
+    // 1) 从未异议的记录（sup2 记录仍为「待确认」态）
+    const bs2 = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup2Id } });
+    const pending = await prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bs2!.id } });
+    expect(pending!.confirmStatus).toBe('待确认');
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectId}/opening-records/${pending!.id}/resolve-dispute`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: 'x', confirm: true })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'DISPUTE_NOT_PENDING' }));
+    // 记录态未被翻转、供应商态未被动
+    const unchanged = await prisma.bidOpeningRecord.findUnique({ where: { id: pending!.id } });
+    expect(unchanged!.confirmStatus).toBe('待确认');
+
+    // 2) 已处理记录二次处理（前例 sup1 已 resolve 为「异议已处理-确认」）→ 400
+    const resolved = await prisma.bidOpeningRecord.findFirst({ where: { projectId, confirmStatus: '异议已处理-确认' } });
+    expect(resolved).toBeTruthy();
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectId}/opening-records/${resolved!.id}/resolve-dispute`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: 'y', confirm: false })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'DISPUTE_NOT_PENDING' }));
+    expect((await prisma.bidOpeningRecord.findUnique({ where: { id: resolved!.id } }))!.confirmStatus).toBe('异议已处理-确认');
+  });
+
   it('授权收口：专家读私聊转录 → 403 HOST_ONLY（非主持非供应商角色）', async () => {
     await request(app.getHttpServer())
       .get(`/api/opening-hall/${projectId}/messages?roomType=PRIVATE&supplierId=${sup1Id}`)
@@ -512,5 +552,37 @@ describe('Opening Hall (e2e)', () => {
     } finally {
       if (staffUserId) await prisma.user.delete({ where: { id: staffUserId } }).catch(() => {});
     }
+  });
+
+  it('R8：leave:project 清连接表——离场后公聊零接收、presence 不再计在线', async () => {
+    // 清理前例遗留 socket，确保 sup2 仅存一条活连接（presence 口径精确）
+    for (const s of sockets) s.disconnect();
+    sockets.length = 0;
+    await new Promise(r => setTimeout(r, 300)); // 等服务端 handleDisconnect 回收连接表
+
+    const sup = track(connectBid(base, sup2Cookie)); await connected(sup);
+    expect(await joinAck(sup, projectId)).toEqual(expect.objectContaining({ ok: true }));
+    const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
+
+    // 在线基线：sup2 计在线
+    const pr0 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/presence`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    expect(pr0.body.suppliers.find((s: any) => s.supplierId === sup2Id)?.online).toBe(true);
+
+    // leave:project → 退房 + 清连接表
+    sup.emit('leave:project', projectId);
+    await new Promise(r => setTimeout(r, 300)); // 等服务端 leave 处理
+
+    let leaked = 0;
+    sup.on('hall:message:new', () => leaked++);
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: 'R8 leave 后探针' }).expect(201);
+    await new Promise(r => setTimeout(r, 600)); // 沉降窗口：离场 socket 零接收
+    expect(leaked).toBe(0);
+
+    // presence 不再计在线（旧实现 leave 不清表 → 仍计在线）
+    const pr1 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/presence`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    expect(pr1.body.suppliers.find((s: any) => s.supplierId === sup2Id)?.online).toBe(false);
   });
 });

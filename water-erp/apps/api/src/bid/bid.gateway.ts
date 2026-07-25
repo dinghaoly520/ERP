@@ -199,9 +199,26 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('leave:project')
   handleLeaveProject(client: Socket, projectId: string) {
-    client.leave(`project:${projectId}`);
-    client.leave(`host:${projectId}`);
-    client.leave(`experts:${projectId}`);
+    // R8：退房同时回收连接表——旧实现只退房不清 supplierSockets/socketProjects，
+    // 导致离场后仍计在线、仍收私聊定向推送。仅清理本次 join 登记的供应商身份；
+    // 非供应商 socket 无 supplierId，仅清 socketProjects + 退房。
+    const supplierId: string | undefined = (client.data as any).supplierId;
+    // 房间以 leave 载荷为准；供应商 socket 回退 join 时登记的 projectId（client.data.projectId）。
+    const pid: string | undefined = projectId || (client.data as any).projectId;
+    if (supplierId) {
+      const set = this.supplierSockets.get(supplierId);
+      if (set) {
+        set.delete(client.id);
+        if (set.size === 0) this.supplierSockets.delete(supplierId);
+      }
+    }
+    this.socketProjects.delete(client.id);
+    if (pid) {
+      client.leave(`project:${pid}`);
+      client.leave(`host:${pid}`);
+      client.leave(`experts:${pid}`);
+      this.broadcastHallPresence(pid).catch(() => {});
+    }
   }
 
   // ── Heartbeat ──
@@ -299,6 +316,16 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // ── 开标大厅（迭代一）：供应商可见事件走 project 房；私聊/定向事件按连接表投递 ──
 
+  /**
+   * R8：该供应商在指定项目内的 socket 列表（按 socketProjects 过滤项目）。
+   * 旧实现遍历该供应商**全部** socket → 同一供应商跨项目 tab 互收私聊/确认/异议定向事件。
+   */
+  private supplierSocketsIn(supplierId: string, projectId: string): string[] {
+    const ids = this.supplierSockets.get(supplierId);
+    if (!ids) return [];
+    return [...ids].filter(sid => this.socketProjects.get(sid) === projectId);
+  }
+
   /** 大厅消息：PUBLIC → project 房全员；PRIVATE → host 房 + 该供应商自己的连接。 */
   notifyHallMessage(projectId: string, payload: HallMessagePayload) {
     if (payload.roomType === 'PUBLIC') {
@@ -307,8 +334,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     this.server.to(`host:${projectId}`).emit(BID_EVENT.HALL_MESSAGE_NEW, payload);
     if (payload.supplierId) {
-      const ids = this.supplierSockets.get(payload.supplierId);
-      if (ids) for (const sid of ids) this.server.to(sid).emit(BID_EVENT.HALL_MESSAGE_NEW, payload);
+      for (const sid of this.supplierSocketsIn(payload.supplierId, projectId)) {
+        this.server.to(sid).emit(BID_EVENT.HALL_MESSAGE_NEW, payload);
+      }
     }
   }
 
@@ -347,19 +375,22 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   notifyOpeningConfirmed(projectId: string, supplierId: string, payload: OpeningConfirmedPayload) {
     this.server.to(`host:${projectId}`).emit(BID_EVENT.OPENING_CONFIRMED, payload);
-    const ids = this.supplierSockets.get(supplierId);
-    if (ids) for (const sid of ids) this.server.to(sid).emit(BID_EVENT.OPENING_CONFIRMED, payload);
+    for (const sid of this.supplierSocketsIn(supplierId, projectId)) {
+      this.server.to(sid).emit(BID_EVENT.OPENING_CONFIRMED, payload);
+    }
   }
 
   notifyOpeningDisputed(projectId: string, supplierId: string, payload: OpeningDisputedPayload) {
     this.server.to(`host:${projectId}`).emit(BID_EVENT.OPENING_DISPUTED, payload);
-    const ids = this.supplierSockets.get(supplierId);
-    if (ids) for (const sid of ids) this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTED, payload);
+    for (const sid of this.supplierSocketsIn(supplierId, projectId)) {
+      this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTED, payload);
+    }
   }
 
   notifyOpeningDisputeResolved(projectId: string, supplierId: string, payload: OpeningDisputeResolvedPayload) {
     this.server.to(`host:${projectId}`).emit(BID_EVENT.OPENING_DISPUTE_RESOLVED, payload);
-    const ids = this.supplierSockets.get(supplierId);
-    if (ids) for (const sid of ids) this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTE_RESOLVED, payload);
+    for (const sid of this.supplierSocketsIn(supplierId, projectId)) {
+      this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTE_RESOLVED, payload);
+    }
   }
 }
