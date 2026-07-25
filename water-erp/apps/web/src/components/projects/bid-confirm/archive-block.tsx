@@ -34,12 +34,21 @@ function formatDateTime(iso: string | null): string {
 export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [confirmScope, setConfirmScope] = useState<'opening' | 'full' | null>(null);
+  const [ackTerminate, setAckTerminate] = useState(false); // H5: 开标未完成时归档需勾选「已知晓终止」
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
   const [copied, setCopied] = useState(false);
 
   if (!detail) return null;
   const { stage, archiveItems } = detail;
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
+
+  // H5: 开标完成度——开标未完成时归档确认需勾选「已知晓终止」（增强摩擦，流标/废标仍可归档）
+  const archActive = (detail.suppliers ?? []).filter(s => s.submitStatus !== '已撤回');
+  const archTotal = archActive.length;
+  const archDecrypted = archActive.filter(s => s.decryptStatus === 'SUCCESS').length;
+  const archDanger = archActive.filter(s => s.decryptStatus === 'DANGER').length;
+  const archConfirmed = archActive.filter(s => s.confirmStatus === 'CONFIRMED').length;
+  const openingIncomplete = archTotal > 0 && (archConfirmed < archTotal || archDanger > 0);
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
@@ -106,12 +115,12 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
         </div>
         <div className="flex items-center gap-2">
           {stage === 'OPENING' && (
-            <button type="button" disabled={busy} onClick={() => setConfirmScope('opening')} className="neu-btn-soft !h-[32px] !text-xs">
+            <button type="button" disabled={busy} onClick={() => { setAckTerminate(false); setConfirmScope('opening'); }} className="neu-btn-soft !h-[32px] !text-xs">
               <Archive size={13} /> 开标归档（流标/废标）
             </button>
           )}
           {stage === 'EVALUATING' && (
-            <button type="button" disabled={busy} onClick={() => setConfirmScope('full')} className="neu-btn-primary !h-[32px] !text-xs">
+            <button type="button" disabled={busy} onClick={() => { setAckTerminate(false); setConfirmScope('full'); }} className="neu-btn-primary !h-[32px] !text-xs">
               <Archive size={13} /> 完整归档
             </button>
           )}
@@ -249,9 +258,20 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
                 </div>
               );
             })()}
+            {confirmScope === 'opening' && openingIncomplete && (
+              <label className="mb-4 flex cursor-pointer items-start gap-2 rounded-[12px] px-3.5 py-2.5 text-xs leading-5" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
+                <input type="checkbox" checked={ackTerminate} onChange={e => setAckTerminate(e.target.checked)} className="mt-0.5" />
+                <span className="text-[var(--foreground)]">我已知晓开标尚未完成（解密 {archDecrypted}/{archTotal}{archDanger > 0 && `，含 ${archDanger} 家异常`}、确认 {archConfirmed}/{archTotal}），确认终止本项目流程。</span>
+              </label>
+            )}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setConfirmScope(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
-              <button type="button" onClick={() => void doArchive(confirmScope)} className="neu-btn-primary !h-[36px] !text-xs">
+              <button
+                type="button"
+                onClick={() => void doArchive(confirmScope)}
+                disabled={confirmScope === 'opening' && openingIncomplete && !ackTerminate}
+                className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40"
+              >
                 <Archive size={13} /> 确认归档
               </button>
             </div>
