@@ -6,7 +6,6 @@ export interface RiskFactorInput {
   expiredQualifications: number;
   bidPrice: number | null;
   budget: number | null;
-  perfAvg: number | null;
   perfCount: number;
 }
 export interface RiskFactor {
@@ -42,12 +41,12 @@ export function computeRiskFactors(i: RiskFactorInput): RiskFactor[] {
     priceDetail = `偏离预算 ${(dev * 100).toFixed(1)}%`;
   }
 
-  // 历史履约
+  // 历史履约（有评价次数即为有数据，中等默认分值）
   let perfScore = 50;
   let perfDetail = '无履约数据';
-  if (i.perfCount > 0 && i.perfAvg != null) {
-    perfScore = clamp01(i.perfAvg);
-    perfDetail = `历史均分 ${i.perfAvg.toFixed(1)}（${i.perfCount} 次）`;
+  if (i.perfCount > 0) {
+    perfScore = clamp01(60); // 有评价记录即给基础分 60
+    perfDetail = `已评价 ${i.perfCount} 次`;
   }
 
   return [
@@ -64,12 +63,12 @@ export function riskLevel(overall: number): '低风险' | '中风险' | '高风�
 }
 
 /* ── C8 履约违约风险预测（规则 + 诚实置信度，非 LLM）──────────────────
-   用于准入→淘汰衔接：对评价时序呈现 D 级 / 连续低分 / 下滑趋势的供应商，
+   用于准入→淘汰衔接：对评价时序呈现 D/E 级 / 连续低等级 / 下滑趋势的供应商，
    预测其下阶段违约/失约风险，触发主动预警（把被动淘汰变主动风控）。
    置信度 = 数据覆盖率：评价次数越多置信越高，无数据时明确低置信，绝不编造。 */
 export interface DefaultRiskInput {
-  /** 评价时间序列，按时间升序，元素为总分(0-100)与等级 */
-  evalSeries: { score: number; level: string }[];
+  /** 评价时间序列，按时间升序，元素为最终等级(A|B|C|D|E) */
+  evalSeries: { finalGrade: string }[];
   expiredQualifications: number;
 }
 export interface DefaultRiskPrediction {
@@ -80,6 +79,9 @@ export interface DefaultRiskPrediction {
   narrative: string;        // 一句话风险叙事
 }
 
+/** 等级 → 数值映射，用于趋势计算 */
+const GRADE_NUMERIC: Record<string, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+
 export function predictDefaultRisk(i: DefaultRiskInput): DefaultRiskPrediction {
   const n = i.evalSeries.length;
   // 置信度（P1-26 下压）：无评价=5，1 次=20，2 次=35，≥3 次才过 50，封顶 90——单点评价不足以建立信心。
@@ -89,20 +91,21 @@ export function predictDefaultRisk(i: DefaultRiskInput): DefaultRiskPrediction {
   let risk = 20; // 基线：无信号时偏低风险
 
   const recent = i.evalSeries.slice(-3);
-  const hasD = recent.some((e) => e.level === 'D');
-  const lowStreak = recent.length >= 2 && recent.every((e) => e.score < 60);
-  // 趋势：比较近半与远半均分，下滑 > 8 分视为恶化。
+  const hasDE = recent.some((e) => e.finalGrade === 'D' || e.finalGrade === 'E');
+  const lowStreak = recent.length >= 2 && recent.every((e) => e.finalGrade === 'D' || e.finalGrade === 'E');
+  // 趋势：比较近半与远半等级数值，下滑 > 1 视为恶化。
   let declining = false;
   if (n >= 4) {
     const half = Math.floor(n / 2);
-    const earlyAvg = i.evalSeries.slice(0, half).reduce((s, e) => s + e.score, 0) / half;
-    const lateAvg = i.evalSeries.slice(half).reduce((s, e) => s + e.score, 0) / (n - half);
-    declining = earlyAvg - lateAvg > 8;
+    const toNum = (g: string) => GRADE_NUMERIC[g] ?? 0;
+    const earlyAvg = i.evalSeries.slice(0, half).reduce((s, e) => s + toNum(e.finalGrade), 0) / half;
+    const lateAvg = i.evalSeries.slice(half).reduce((s, e) => s + toNum(e.finalGrade), 0) / (n - half);
+    declining = earlyAvg - lateAvg > 1;
   }
 
-  if (hasD) { risk += 35; drivers.push('近期出现 D 级（不合格）评价'); }
-  if (lowStreak) { risk += 25; drivers.push('连续评价低于 60 分'); }
-  if (declining) { risk += 20; drivers.push('评分呈下滑趋势'); }
+  if (hasDE) { risk += 35; drivers.push('近期出现 D/E 级（不合格）评价'); }
+  if (lowStreak) { risk += 25; drivers.push('连续评价为 D/E 级'); }
+  if (declining) { risk += 20; drivers.push('评价等级呈下滑趋势'); }
   if (i.expiredQualifications > 0) { risk += 15; drivers.push(`存在 ${i.expiredQualifications} 项过期资质，投标/履约资格受限`); }
   if (n === 0) drivers.push('暂无评价记录，履约表现未知（低置信）');
 

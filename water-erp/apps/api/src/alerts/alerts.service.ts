@@ -56,7 +56,7 @@ export class AlertsService {
       orderBy: { createdAt: 'desc' },
       take: 2,
     });
-    const consecutiveD = recentEvals.length === 2 && recentEvals.every((e) => e.level === 'D');
-    return { activeProjectCount, overloaded: activeProjectCount > 3, consecutiveD };
+    const consecutiveE = recentEvals.length === 2 && recentEvals.every((e) => e.overallGrade === 'E');
+    return { activeProjectCount, overloaded: activeProjectCount > 3, consecutiveE };
   }
 }

@@ -6,8 +6,7 @@ import { StatusBadge } from '@/components/workbench';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { BarChart3, Clock, UsersRound } from 'lucide-react';
-
-const levelLabel: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
+import { LEVEL_LABEL } from '@water-erp/shared';
 
 export default function ExpertStatisticsPage() {
   const router = useRouter();
@@ -92,16 +91,16 @@ export default function ExpertStatisticsPage() {
         {/* 评价等级分布 */}
         <div className="neu-table-card p-5">
           <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">评价等级分布</h3>
-          <div className="grid grid-cols-4 gap-2">
-            {(['A','B','C','D'] as const).map(lv => {
+          <div className="grid grid-cols-5 gap-2">
+            {(['A','B','C','D','E'] as const).map(lv => {
               const count = data.evaluationStats.levelCounts[lv];
               const total = data.evaluationStats.total || 1;
               const pct = Math.round((count / total) * 100);
-              const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: 'var(--danger)' };
+              const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
               return (
                 <div key={lv} className="flex flex-col items-center gap-1 p-2">
                   <span className="text-2xl font-black tabular-nums" style={{ color: colors[lv] }}>{lv}</span>
-                  <span className="text-[10px] text-[var(--muted-foreground)]">{levelLabel[lv]}</span>
+                  <span className="text-[10px] text-[var(--muted-foreground)]">{LEVEL_LABEL[lv]}</span>
                   <span className="text-xs font-bold tabular-nums text-[var(--foreground)]">{count}</span>
                   <div className="w-full h-1.5 rounded-full bg-[var(--muted)]/30 overflow-hidden">
                     <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: colors[lv] }} />
@@ -112,7 +111,7 @@ export default function ExpertStatisticsPage() {
           </div>
           <div className="mt-4 flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
             <span>累计评价 <strong className="tabular-nums text-[var(--foreground)]">{data.evaluationStats.total}</strong> 次</span>
-            <span>平均得分 <strong className="tabular-nums text-[var(--accent)]">{data.evaluationStats.avgScore}</strong></span>
+            <span>优良率 <strong className="tabular-nums text-[var(--accent)]">{data.evaluationStats.excellentRatio}%</strong></span>
           </div>
         </div>
 
@@ -155,8 +154,8 @@ export default function ExpertStatisticsPage() {
                 <div key={i} className="flex items-center justify-between text-xs py-1" style={{ borderBottom: i < 5 ? '1px solid oklch(0.6 0.04 258 / 0.08)' : 'none' }}>
                   <span className="font-medium text-[var(--foreground)] truncate">{e.expert}</span>
                   <div className="flex items-center gap-2 shrink-0">
-                    <StatusBadge tone={e.level === 'A' ? 'green' : e.level === 'B' ? 'blue' : e.level === 'D' ? 'red' : 'orange'}>{levelLabel[e.level]}</StatusBadge>
-                    <span className="tabular-nums font-bold text-[var(--foreground)]">{e.score}分</span>
+                    <StatusBadge tone={e.level === 'A' ? 'green' : e.level === 'B' ? 'blue' : e.level === 'C' ? 'orange' : e.level === 'D' ? 'orange' : 'red'}>{LEVEL_LABEL[e.level]}</StatusBadge>
+                    <span className="tabular-nums font-bold text-[var(--muted-foreground)]">{new Date(e.time).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}</span>
                   </div>
                 </div>
               ))}

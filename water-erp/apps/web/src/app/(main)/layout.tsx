@@ -34,9 +34,9 @@ const routeToKey: Record<string, string> = {
   "/expert/extract": "expert-extract",
   "/expert/evaluation": "expert-eval",
   "/expert": "expert-entry",
-  // 集中目录管理：9 个页签收敛在 /mall-management/catalog?tab=…；
-  // 旧子路由（central-catalog/approval/price-entry/logs 等）为 redirect 兼容壳，
-  // startsWith 匹配统一落到存活的 mall-catalog 侧边键
+  // 集中目录管理：catalog=管理主页(9页签)、central-catalog=只读健康度概览，各自独立侧边键。
+  // central-catalog 前缀更长，必须放在 /mall-management 之前，否则被通配吃到 mall-catalog（高亮跑偏到「目录管理」）。
+  "/mall-management/central-catalog": "mall-central-catalog",
   "/mall-management": "mall-catalog",
 };
 

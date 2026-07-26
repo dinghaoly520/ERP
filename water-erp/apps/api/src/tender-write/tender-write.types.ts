@@ -31,7 +31,6 @@ export type CompetitiveNegotiationAnswers = {
   contractSubcontractingType: string;
   siteSurvey: string;
   siteSurveyType: string;
-  contractText: string;
   businessRequirements: string;
   technicalRequirements: string;
   quotationLetterType: 'text' | 'table';
@@ -68,7 +67,6 @@ export type SingleSourceAnswers = {
   serviceContent: string;
   procurementContent: string;
   procurementRequirements: string;
-  contractText: string;
   quotationLetterType: 'text' | 'table';
   quotationLetter: string; // 文本模式时使用
   quotationLetterTable?: TableData; // 表格模式时使用

@@ -752,7 +752,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       this.prisma.supplierBidSubmission.findMany({ where: { projectId } }),
       this.prisma.supplierEvaluation.groupBy({
         by: ['supplierId'],
-        _avg: { overallScore: true },
         _count: { _all: true },
       }),
       this.prisma.supplierQualification.groupBy({ by: ['supplierId'], _count: { _all: true } }),
@@ -766,7 +765,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
     // 仅对"已关联 supplierId"的投标方做资质/绩效查表
     const linkedSupplierIds = suppliers.map(s => s.supplierId).filter((x): x is string => !!x);
-    const perfMap = new Map(perfAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, { avg: a._avg.overallScore ? Number(a._avg.overallScore) : null, count: a._count._all }]));
+    const perfMap = new Map(perfAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, { count: a._count._all }]));
     const qualMap = new Map(qualAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, a._count._all]));
     const expiredMap = new Map(expiredAgg.filter(a => linkedSupplierIds.includes(a.supplierId)).map(a => [a.supplierId, a._count._all]));
     const budget = budgetRow?.budget ? Number(budgetRow.budget) : null;
@@ -788,7 +787,6 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         expiredQualifications: expiredQual,
         bidPrice: sub?.bidPrice ? Number(sub.bidPrice) : null,
         budget,
-        perfAvg: perf?.avg ?? null,
         perfCount: perf?.count ?? 0,
       });
       const overall = Math.round(factors.reduce((sum, f) => sum + f.score, 0) / factors.length);
@@ -832,7 +830,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         classification: true,
         contacts: { where: { isPrimary: true }, take: 2 },
         qualifications: { select: { name: true }, take: 3 },
-        evaluations: { select: { level: true, score: true } },
+        evaluations: { select: { finalGrade: true } },
         bidSuppliers: { where: { project: { stage: { notIn: ['ARCHIVED'] } } }, select: { id: true } },
       },
     });
@@ -851,15 +849,13 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     const pool = scored.slice(0, POOL);
     const supplierMap = new Map(pool.map(({ supplier: s }) => [s.id, s]));
     // 评价 + 忙闲状态汇总
-    const evalMap = new Map<string, { level: string; avgScore: number; count: number }>();
+    const evalMap = new Map<string, { finalGrade: string; count: number }>();
     const activeMap = new Map<string, number>();
     for (const { supplier: s } of pool) {
-      const evals: { level: string; score: number }[] = (s as any).evaluations || [];
+      const evals: { finalGrade: string }[] = (s as any).evaluations || [];
       if (evals.length > 0) {
-        const avgScore = evals.reduce((sum, e) => sum + Number(e.score), 0) / evals.length;
-        const levels = { A: 5, B: 4, C: 3, D: 1 } as Record<string, number>;
-        const best = evals.reduce((a, b) => (levels[a.level] || 0) >= (levels[b.level] || 0) ? a : b);
-        evalMap.set(s.id, { level: best.level, avgScore: Math.round(avgScore * 10) / 10, count: evals.length });
+        // 取最新一条评价的最终等级
+        evalMap.set(s.id, { finalGrade: evals[0].finalGrade || '', count: evals.length });
       }
       activeMap.set(s.id, ((s as any).bidSuppliers || []).length);
     }
@@ -873,8 +869,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       enterpriseType: s.enterpriseType,
       legalPerson: s.legalPerson,
       // C3：把规则阶段已算出的履约/评价数据喂给 LLM，使排序真正体现「择优」而非仅语义匹配。
-      evalLevel: evalMap.get(s.id)?.level,
-      evalAvgScore: evalMap.get(s.id)?.avgScore,
+      evalGrade: evalMap.get(s.id)?.finalGrade,
       evalCount: evalMap.get(s.id)?.count,
       activeProjects: activeMap.get(s.id) ?? 0,
     }));
@@ -2415,7 +2410,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       select: {
         id: true,
         name: true,
-        evaluations: { orderBy: { createdAt: 'asc' }, select: { score: true, level: true } },
+        evaluations: { orderBy: { createdAt: 'asc' }, select: { finalGrade: true } },
         qualifications: { select: { validTo: true } },
       },
     });
@@ -2423,7 +2418,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     const now = new Date();
     const expiredQualifications = supplier.qualifications.filter((q) => q.validTo && new Date(q.validTo) < now).length;
     const prediction = predictDefaultRisk({
-      evalSeries: supplier.evaluations.map((e) => ({ score: Number(e.score), level: e.level })),
+      evalSeries: supplier.evaluations.map((e) => ({ finalGrade: e.finalGrade })),
       expiredQualifications,
     });
     return { supplierId, supplierName: supplier.name, ...prediction };

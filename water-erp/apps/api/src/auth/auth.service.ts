@@ -137,7 +137,7 @@ export class AuthService {
     return updated;
   }
 
-  private issueToken(sub: string, username: string, role: string) {
+  issueToken(sub: string, username: string, role: string) {
     const access_token = this.jwt.sign({ sub, username, role });
     return { access_token, role, username, userId: sub };
   }

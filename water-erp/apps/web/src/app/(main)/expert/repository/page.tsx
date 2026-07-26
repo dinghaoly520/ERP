@@ -315,7 +315,7 @@ export default function ExpertRepositoryPage() {
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.employer || '—'}</td>
                     <td className="text-center"><span className="text-sm font-semibold text-[var(--foreground)] tabular-nums">{activeProjects.length}</span><span className="text-xs text-[var(--muted-foreground)] ml-1">/{e.bidExperts.length}</span></td>
                     <td className="text-center text-sm font-semibold text-[var(--foreground)] tabular-nums">{e._count.expertEvaluations}</td>
-                    <td className="text-center">{e.latestEval ? <StatusBadge tone={e.latestEval.level === 'A' ? 'green' : e.latestEval.level === 'B' ? 'blue' : e.latestEval.level === 'D' ? 'red' : 'orange'}>{e.latestEval.level}级 · {e.latestEval.overallScore}分</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
+                    <td className="text-center">{e.latestEval ? <StatusBadge tone={e.latestEval.level === 'A' ? 'green' : e.latestEval.level === 'B' ? 'blue' : e.latestEval.level === 'C' ? 'orange' : e.latestEval.level === 'D' ? 'orange' : 'red'}>{e.latestEval.level}级</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
                     <td className="text-center"><StatusBadge tone={e.isActive ? 'green' : 'gray'}>{e.isActive ? '可用' : '已停用'}</StatusBadge></td>
                     <td onClick={e => e.stopPropagation()} className="text-center">
                       <button onClick={() => setConfirmToggle(e)} className={e.isActive ? 'neu-btn-xs is-warning' : 'neu-btn-xs is-success'}>{e.isActive ? '停用' : '启用'}</button>

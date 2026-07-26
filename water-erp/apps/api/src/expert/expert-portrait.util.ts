@@ -1,3 +1,5 @@
+import { ExpertLevel } from '@prisma/client';
+
 /**
  * 专家画像聚合（纯函数）。Track D §3.4。
  *
@@ -16,7 +18,7 @@ export interface ExpertDeviationInput {
 
 export interface ExpertEvalInput {
   level: string;
-  overallScore: number;
+  overallGrade: ExpertLevel;
   createdAt: Date;
 }
 
@@ -36,10 +38,9 @@ export interface ExpertPortrait {
   participationCount: number;
   completedCount: number;
   completionRate: number; // 0~1
-  averageScore: number | null;
+  gradeCounts: Record<string, number> | null;
   meanDeviation: number | null;
   deviationSamples: number;
-  evalAvg: number | null;
   evalCount: number;
   recentLevels: string[];
   isStandingExpert: boolean;
@@ -53,15 +54,10 @@ export function buildExpertPortrait(input: ExpertPortraitInput): ExpertPortrait 
   const completedCount = assignments.filter(a => a.progress >= 100).length;
   const completionRate = participationCount > 0 ? completedCount / participationCount : 0;
 
-  const scores = assignments.map(a => Number(a.totalScore));
-  const averageScore = scores.length > 0
-    ? Math.round((scores.reduce((s, x) => s + x, 0) / scores.length) * 10) / 10
-    : null;
-
-  const evalOverall = recentEvals.map(e => Number(e.overallScore));
-  const evalAvg = evalOverall.length > 0
-    ? Math.round((evalOverall.reduce((s, x) => s + x, 0) / evalOverall.length) * 10) / 10
-    : null;
+  const gradeCounts: Record<string, number> = {};
+  for (const e of recentEvals) {
+    gradeCounts[e.overallGrade] = (gradeCounts[e.overallGrade] || 0) + 1;
+  }
 
   return {
     userId: input.userId,
@@ -69,10 +65,9 @@ export function buildExpertPortrait(input: ExpertPortraitInput): ExpertPortrait 
     participationCount,
     completedCount,
     completionRate: Math.round(completionRate * 1000) / 1000,
-    averageScore,
+    gradeCounts: Object.keys(gradeCounts).length > 0 ? gradeCounts : null,
     meanDeviation: deviation ? deviation.meanDeviation : null,
     deviationSamples: deviation ? deviation.sampleCount : 0,
-    evalAvg,
     evalCount: recentEvals.length,
     recentLevels: recentEvals.map(e => e.level),
     isStandingExpert: participationCount >= threshold,

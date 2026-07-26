@@ -27,6 +27,7 @@ import { NotificationHubDialog } from "@/components/tender-write/notification-hu
 import type { ImportAutofillFieldResult } from "@/lib/types/tender-write-import";
 import { createTenderHistory } from "@/lib/api/tender-history";
 import { exportTenderDocument } from "@/lib/api/tender-write";
+import { findContactByName } from "@/lib/api/contacts";
 import {
   COMPETITIVE_NEGOTIATION_SECTIONS,
   createEmptyCompetitiveNegotiationDraft,
@@ -416,10 +417,32 @@ export default function TenderWritePage() {
     }
   };
 
-  const handleImportConfirm = (selectedFields: ImportAutofillFieldResult[]) => {
+  const handleImportConfirm = async (selectedFields: ImportAutofillFieldResult[]) => {
+    // Track if contact name was filled, to look up existing contacts
+    let contactNameValue = '';
     for (const field of selectedFields) {
       if (field.value) {
         updateDraft(field.key as Parameters<typeof updateDraft>[0], field.value);
+        if (field.key === 'contactName') contactNameValue = field.value;
+      }
+    }
+    // If contact name was filled by AI, check existing contacts for phone/email
+    if (contactNameValue) {
+      try {
+        const contact = await findContactByName(contactNameValue);
+        if (contact) {
+          // Only auto-fill phone/email from existing contact if the target field is currently empty
+          const contactPhoneField = selectedFields.find(f => f.key === 'contactPhone');
+          const contactEmailField = selectedFields.find(f => f.key === 'contactEmail');
+          if (contact.phone && (!contactPhoneField || !contactPhoneField.value)) {
+            updateDraft('contactPhone', contact.phone);
+          }
+          if (contact.email && (!contactEmailField || !contactEmailField.value)) {
+            updateDraft('contactEmail', contact.email);
+          }
+        }
+      } catch {
+        // Silently ignore - contact lookup is best-effort
       }
     }
     setShowImportDialog(false);

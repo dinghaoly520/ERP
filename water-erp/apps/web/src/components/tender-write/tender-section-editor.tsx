@@ -197,6 +197,35 @@ function formatTextareaDisplay(text: string): string {
   return result.trim();
 }
 
+// Convert Chinese datetime format to ISO for datetime-local input display
+// "2026年7月1日14:00" → "2026-07-01T14:00"
+// Also handles legacy ISO date: "2026-12-31" → "2026-12-31T00:00"
+function chineseDatetimeToISO(chinese: string): string {
+  if (!chinese) return '';
+  const m = chinese.match(/(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2})/);
+  if (m) {
+    const [, y, mo, d, h, min] = m;
+    return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}T${h.padStart(2, '0')}:${min}`;
+  }
+  // Fallback: legacy ISO date from old type="date" input
+  const isoDate = chinese.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoDate) {
+    const [, y, mo, d] = isoDate;
+    return `${y}-${mo}-${d}T00:00`;
+  }
+  return '';
+}
+
+// Convert ISO datetime-local value to Chinese format for storage
+// "2026-07-01T14:00" → "2026年7月1日14:00"
+function isoDatetimeToChinese(iso: string): string {
+  if (!iso) return '';
+  const m = iso.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return iso; // Already Chinese format or plain text, pass through
+  const [, y, mo, d, h, min] = m;
+  return `${parseInt(y, 10)}年${parseInt(mo, 10)}月${parseInt(d, 10)}日${h}:${min}`;
+}
+
 export function TenderSectionEditor({
   section,
   draft,
@@ -578,7 +607,14 @@ export function TenderSectionEditor({
             // Handle composite field (like projectDuration with type selector)
             if (field.composite) {
               const typeValue = draft[field.composite.typeKey as keyof ReadyTenderDraft] as string;
-              const isDateType = typeValue === 'date' || typeValue === 'month';
+              // "datetime" = explicit datetime-type field (datetime-local input)
+              // "date" = legacy date-only composite (plain date input)
+              // "month" = month-only composite (month input)
+              const isDateType = typeValue === 'date' || typeValue === 'month' || typeValue === 'datetime';
+              const isDatetimeType = typeValue === 'datetime';
+              // Compute HTML input type and display value for datetime-local
+              const inputType = isDatetimeType ? 'datetime-local' : (isDateType ? typeValue : 'text');
+              const displayValue = isDatetimeType ? chineseDatetimeToISO(value) : value;
               // For contractSubcontracting: hide input when type is "none" (不允许)
               // For consortiumForm: hide input when type is "reject" (不接受)
               // For submissionRequirements: hide input when type is "none" (无)
@@ -639,11 +675,11 @@ export function TenderSectionEditor({
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <div className={`flex items-center ${field.multiline && typeValue && !shouldHideInput ? '' : ''}`}>
+                    <div className="flex items-center">
                       <select
                         value={typeValue || ""}
                         onChange={(event) => onChange(field.composite!.typeKey, event.target.value)}
-                        className={`w-32 shrink-0 rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] hover:border-[oklch(0.6_0.04_258_/_0.35)] ${field.multiline && typeValue === 'have' && !shouldHideInput ? 'min-h-[168px]' : ''}`}
+                        className="w-32 shrink-0 rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
                       >
                         <option value="" disabled>
                           请选择
@@ -697,11 +733,13 @@ export function TenderSectionEditor({
                               dateInputRefs.current[field.key] = el;
                             }
                           }}
-                          type={isDateType ? typeValue : 'text'}
-                          value={value}
+                          type={inputType}
+                          value={displayValue}
                           onChange={(event) => {
                             if (isDateType) {
-                              handleDateChange(field.key, event.target.value);
+                              const raw = event.target.value;
+                              const stored = isDatetimeType ? isoDatetimeToChinese(raw) : raw;
+                              handleDateChange(field.key, stored);
                             } else {
                               onChange(field.key, event.target.value);
                               markFieldEdited(field.key);
@@ -720,7 +758,7 @@ export function TenderSectionEditor({
                             setActiveFieldKey(field.key);
                           }}
                           onBlur={() => setActiveFieldKey((current) => (current === field.key ? null : current))}
-                          placeholder={isDateType ? '选择日期' : field.placeholder}
+                          placeholder={isDatetimeType ? '选择日期时间' : isDateType ? '选择日期' : field.placeholder}
                           className={`${commonClassName} h-full w-full`}
                         />
                       </div>

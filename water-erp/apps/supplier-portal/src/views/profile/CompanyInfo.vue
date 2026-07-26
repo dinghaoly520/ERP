@@ -293,7 +293,7 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
             <div v-else class="qc-e"><el-icon :size="28"><Phone /></el-icon><p>暂无联系人</p></div>
           </div>
         </div>
-        <div class="crp-ft"><span class="crp-ft-h" v-if="!crHasChanges">修改内容后即可提交</span><span class="crp-ft-h ok" v-else-if="crMode==='basic' && !crReason.trim()">请填写变更原因</span><span class="crp-ft-h ok" v-else-if="crMode==='basic'">已修改 {{ crFieldChanged.length }} 项</span><span class="crp-ft-h ok" v-else>检测到变更</span><div class="neu-btn-group"><button class="neu-btn-soft" @click="crDlg=false">取消</button><button class="neu-btn-primary" :disabled="!crHasChanges || (crMode==='basic' && !crReason.trim()) || crSub" @click="crSubmit">{{ crSub?'提交中…':'申请变更' }}</button></div></div>
+        <div class="crp-ft"><span class="crp-ft-h" v-if="!crHasChanges">修改内容后即可提交</span><span class="crp-ft-h ok" v-else-if="crMode==='basic' && !crReason.trim()">请填写变更原因</span><span class="crp-ft-h ok" v-else-if="crMode==='basic'">已修改 {{ crFieldChanged.length }} 项</span><span class="crp-ft-h ok" v-else>检测到变更</span><span v-if="crMode!=='basic'" style="font-size:11px;color:var(--warning);font-weight:600;margin-left:auto">⚠ 资质与联系人修改保存后立即生效（不走审核）</span><div class="neu-btn-group"><button class="neu-btn-soft" @click="crDlg=false">取消</button><button class="neu-btn-primary" :disabled="!crHasChanges || (crMode==='basic' && !crReason.trim()) || crSub" @click="crSubmit">{{ crSub?'提交中…':'申请变更' }}</button></div></div>
       </div></div></Transition>
     </Teleport>
   </div>

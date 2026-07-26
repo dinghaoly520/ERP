@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Patch, Body, Res, Req, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Query, Res, Req, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
@@ -20,6 +21,7 @@ const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: IS_PRODUCTION,
+  domain: IS_PRODUCTION ? undefined : 'localhost',
   path: '/',
   maxAge: 7 * 24 * 3600 * 1000,
 };
@@ -30,6 +32,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
   ) {}
 
   @Post('register')
@@ -157,6 +160,49 @@ export class AuthController {
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
+  }
+
+  @Get('sso/mall')
+  @Public()
+  @ApiOperation({ summary: '从管理端 SSO 免登录进入采购商城（新标签页）' })
+  async ssoToMall(
+    @Req() req: Request,
+    @Query('redirect_uri') redirectUri: string,
+    @Res() res: Response,
+  ) {
+    // 手动解析 token_web cookie（不依赖 AuthGuard，新标签页跨端口时 cookie domain=localhost 携带但 AuthGuard 不适用）
+    let currentUserId: string | undefined;
+    const tokenWeb = req.cookies?.token_web;
+    if (tokenWeb) {
+      try {
+        const payload = this.jwt.verify(tokenWeb) as { sub: string };
+        if (payload?.sub) currentUserId = payload.sub;
+      } catch { /* token 无效则降级，直接跳转不做 SSO */ }
+    }
+
+    const mallRedirect = redirectUri || 'http://localhost:3003';
+
+    if (currentUserId) {
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id: currentUserId },
+        select: { username: true },
+      });
+      if (currentUser) {
+        const mallUser = await this.prisma.user.findFirst({
+          where: { username: currentUser.username, role: 'mall', isActive: true },
+          select: { id: true, username: true },
+        });
+        if (mallUser) {
+          const token = this.authService.issueToken(mallUser.id, mallUser.username, 'mall');
+          const mallCookieName = cookieNameForPortal('mall') || 'token_mall';
+          res.cookie(mallCookieName, token.access_token, COOKIE_OPTS);
+          return res.redirect(mallRedirect);
+        }
+      }
+    }
+
+    // 降级：无 token / 无 mall 账户 → 直接跳转商城首页，用户在商城自行登录
+    return res.redirect(mallRedirect);
   }
 
   @Get('departments')

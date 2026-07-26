@@ -167,8 +167,7 @@ const convertForm = ref({
   contacts: [{ name: '', phone: '', email: '', isPrimary: true }] as { name: string; phone: string; email: string; isPrimary: boolean }[],
   qualifications: [] as { type: string; name: string; fileUrl: string; validFrom: string; validTo: string }[],
 })
-const enterpriseTypes = ['有限责任公司','股份有限公司','国有企业','集体企业','合伙企业','个人独资企业','外商投资企业','其他']
-const qualTypeOptions = ['营业执照','资质证书','安全生产许可证','质量管理体系认证','环境管理体系认证','职业健康安全管理体系认证','信用评级','其他']
+import { ENTERPRISE_TYPES as enterpriseTypes, QUAL_TYPE_OPTIONS as qualTypeOptions } from '@/constants/supplier'
 
 function addContact() { convertForm.value.contacts.push({ name: '', phone: '', email: '', isPrimary: false }) }
 function removeContact(i: number) { if (convertForm.value.contacts.length > 1) convertForm.value.contacts.splice(i, 1) }

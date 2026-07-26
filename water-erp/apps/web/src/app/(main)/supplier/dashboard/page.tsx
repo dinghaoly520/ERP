@@ -5,7 +5,7 @@ import {
   Building2, TrendingUp, Clock3, AlertTriangle, Activity, Star,
   Target, Layers, Lightbulb, ChevronDown, RefreshCw,
 } from 'lucide-react';
-import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getSupplierList } from '@/lib/api/supplier';
+import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import type { SupplierStats, QualificationAlerts, ActivityItem, SupplierFavoriteRecord, DimensionStats } from '@/lib/api/supplier';
 import type { SupplierClassification } from '@/lib/types';
@@ -22,7 +22,7 @@ interface PortfolioInsight {
 function deriveInsights(
   classifications: SupplierClassification[],
   stats: SupplierStats | null,
-  evalStats: { levelCounts: { A: number; B: number; C: number; D: number }; avgScore: number; total: number } | null,
+  evalStats: { levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number } | null,
   alerts: QualificationAlerts | null,
 ): PortfolioInsight[] {
   const list: PortfolioInsight[] = [];
@@ -65,8 +65,8 @@ function deriveInsights(
   if (evalStats && evalStats.total > 0) {
     const coveragePct = approved > 0 ? Math.min(100, (evalStats.total / approved) * 100) : 0;
     const aRate = ((evalStats.levelCounts.A / evalStats.total) * 100).toFixed(0);
-    const dRate = ((evalStats.levelCounts.D / evalStats.total) * 100).toFixed(0);
-    const dCount = evalStats.levelCounts.D;
+    const abRate = (((evalStats.levelCounts.A + evalStats.levelCounts.B) / evalStats.total) * 100).toFixed(0);
+    const deCount = (evalStats.levelCounts.D || 0) + (evalStats.levelCounts.E || 0);
 
     if (coveragePct < 25) {
       list.push({
@@ -75,19 +75,19 @@ function deriveInsights(
         body: `已入库供应商中仅 ${coveragePct.toFixed(0)}% 被评估过，剩余 ${approved - evalStats.total} 家（${(100 - coveragePct).toFixed(0)}%）的履约表现完全未知。选取供应商时无法基于历史数据筛选。`,
         suggestion: `对已入库但未评估的供应商启动首轮评价——优先覆盖已参与过项目的供应商，目标覆盖至少 60%。`,
       });
-    } else if (evalStats.avgScore < 70) {
+    } else if (evalStats.excellentRatio < 40) {
       list.push({
         type: 'warning',
-        title: `评估均分偏低 ${evalStats.avgScore.toFixed(1)}，A 级 ${aRate}% / D 级 ${dRate}%`,
-        body: `超过 ${((evalStats.levelCounts.C + dCount) / evalStats.total * 100).toFixed(0)}% 评价集中在 C/D 区间（${evalStats.levelCounts.C + dCount} 次），供应商整体履约质量有待提升。覆盖率 ${coveragePct.toFixed(0)}%。`,
-        suggestion: `对新项目选取提高资质与履约权重；对 C/D 级供应商进行专项辅导或启动淘汰评估。`,
+        title: `优良率偏低 ${evalStats.excellentRatio.toFixed(1)}%，A 级 ${aRate}% / D+E 级 ${((deCount / evalStats.total) * 100).toFixed(0)}%`,
+        body: `超过 ${((deCount) / evalStats.total * 100).toFixed(0)}% 评价集中在 D/E 区间（${deCount} 次），供应商整体履约质量有待提升。覆盖率 ${coveragePct.toFixed(0)}%。`,
+        suggestion: `对新项目选取提高资质与履约权重；对 D/E 级供应商进行专项辅导或启动淘汰评估。`,
       });
     } else {
       list.push({
         type: 'success',
-        title: `覆盖率 ${coveragePct.toFixed(0)}%，均分 ${evalStats.avgScore.toFixed(1)}，A 级占 ${aRate}%`,
-        body: `${evalStats.total} 次评价中 A/B 级合计 ${evalStats.levelCounts.A + evalStats.levelCounts.B} 次（${((evalStats.levelCounts.A + evalStats.levelCounts.B) / evalStats.total * 100).toFixed(0)}%），整体履约质量较高。${dCount > 0 ? `${dCount} 次 D 级需单独关注。` : ''}`,
-        suggestion: `继续保持评价频次与覆盖面，重点关注 D 级供应商的改进进展。`,
+        title: `覆盖率 ${coveragePct.toFixed(0)}%，优良率 ${evalStats.excellentRatio.toFixed(1)}%，A 级占 ${aRate}%`,
+        body: `${evalStats.total} 次评价中 A/B 级合计 ${evalStats.levelCounts.A + evalStats.levelCounts.B} 次（${abRate}%），整体履约质量较高。${deCount > 0 ? `${deCount} 次 D/E 级需单独关注。` : ''}`,
+        suggestion: `继续保持评价频次与覆盖面，重点关注 D/E 级供应商的改进进展。`,
       });
     }
   } else {
@@ -186,28 +186,30 @@ const toneMap: Record<PortfolioInsight['type'], { color: string; bar: string }> 
   success: { color: 'var(--success)', bar: 'var(--success)' },
 };
 
-/* ─────────────── 评价等级 + 五维条 + 企业类型 ─────────────── */
-const DIM_META: [keyof Omit<DimensionStats, 'total'>, string, number][] = [
-  ['completenessAvg', '资料完整性', 20],
-  ['responsivenessAvg', '响应及时性', 30],
-  ['cooperationAvg', '配合协作度', 20],
-  ['complianceAvg', '合规守信度', 20],
-  ['overallAvg', '综合满意度', 10],
+/* ─────────────── 评价等级 + 五维等级分布 + 企业类型 ─────────────── */
+const DIM_META: [keyof Omit<DimensionStats, 'total'>, string][] = [
+  ['completenessGrades', '资料完整性'],
+  ['responsivenessGrades', '响应及时性'],
+  ['cooperationGrades', '配合协作'],
+  ['complianceGrades', '合规守信'],
+  ['comprehensiveGrades', '综合评价'],
 ];
+const GRADES = ['A', 'B', 'C', 'D', 'E'] as const;
+const GRADE_COLORS: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
 
 function EvalColumn({
   evalStats,
   dimStats,
   enterpriseTypeCounts,
 }: {
-  evalStats: { levelCounts: { A: number; B: number; C: number; D: number }; avgScore: number; total: number };
+  evalStats: { levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number };
   dimStats: DimensionStats | null;
   enterpriseTypeCounts: Record<string, number>;
 }) {
-  const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: 'var(--danger)' };
-  const total = evalStats.levelCounts.A + evalStats.levelCounts.B + evalStats.levelCounts.C + evalStats.levelCounts.D || 1;
+  const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
+  const total = evalStats.levelCounts.A + evalStats.levelCounts.B + evalStats.levelCounts.C + evalStats.levelCounts.D + (evalStats.levelCounts.E || 0) || 1;
   let acc = 0;
-  const stops = (['A', 'B', 'C', 'D'] as const)
+  const stops = (['A', 'B', 'C', 'D', 'E'] as const)
     .map(l => { const c = evalStats.levelCounts[l]; if (!c) return null; const s = (acc / total) * 360; acc += c; return `${colors[l]} ${s.toFixed(1)}deg ${(acc / total * 360).toFixed(1)}deg`; })
     .filter(Boolean).join(', ');
 
@@ -223,13 +225,13 @@ function EvalColumn({
           <div className="w-full h-full rounded-full" style={{ background: `conic-gradient(${stops || 'var(--muted)'})` }} />
           <div className="absolute inset-[14px] rounded-full bg-[var(--background)] flex items-center justify-center shadow-[inset_0_1px_3px_oklch(0.55_0.03_258/0.1)]">
             <div className="text-center">
-              <div className="text-sm font-black tabular-nums text-[var(--foreground)] leading-none">{evalStats.avgScore.toFixed(0)}</div>
-              <div className="text-[8px] text-[var(--muted-foreground)] mt-0.5">均分</div>
+              <div className="text-sm font-black tabular-nums text-[var(--foreground)] leading-none">{evalStats.excellentRatio.toFixed(0)}%</div>
+              <div className="text-[8px] text-[var(--muted-foreground)] mt-0.5">优良率</div>
             </div>
           </div>
         </div>
         <div className="flex flex-col gap-1 text-[10px]">
-          {(['A', 'B', 'C', 'D'] as const).map(l => (
+          {(['A', 'B', 'C', 'D', 'E'] as const).map(l => (
             <div key={l} className="flex items-center gap-1.5">
               <span className="inline-flex h-3 w-3 items-center justify-center rounded-sm text-[7px] font-extrabold text-white flex-shrink-0" style={{ backgroundColor: colors[l] }}>{l}</span>
               <span className="w-7 tabular-nums font-semibold text-[var(--foreground)]">{evalStats.levelCounts[l]}</span>
@@ -240,23 +242,28 @@ function EvalColumn({
       </div>
 
       <p className="text-[10px] text-[var(--muted-foreground)] flex-shrink-0 leading-snug">
-        {evalStats.avgScore >= 80 ? '整体优秀，供应质量可靠' : evalStats.avgScore >= 70 ? '整体良好，个别供应商需关注' : evalStats.avgScore >= 60 ? '评分偏低，建议加强评价频次' : '典型偏低，须启动重点治理'} · {evalStats.total} 次评价
+        {evalStats.excellentRatio >= 60 ? '整体优秀，供应质量可靠' : evalStats.excellentRatio >= 40 ? '整体良好，个别供应商需关注' : evalStats.excellentRatio >= 20 ? '等级偏低，建议加强评价频次' : '优良率偏低，须启动重点治理'} · {evalStats.total} 次评价
       </p>
 
-      {/* Five-dimension bars */}
+      {/* Five-dimension grade distribution mini bars */}
       {dimStats && dimStats.total > 0 && (
         <div className="flex flex-col gap-1">
-          {DIM_META.map(([key, label, max]) => {
-            const score = dimStats[key];
-            const pct = (score / max) * 100;
-            const barColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--accent)' : pct >= 40 ? 'var(--warning)' : 'var(--danger)';
+          {DIM_META.map(([key, label]) => {
+            const grades = dimStats[key] as Record<string, number>;
+            const dimTotal = Object.values(grades).reduce((a, b) => a + b, 0) || 1;
             return (
               <div key={key} className="flex items-center gap-2">
                 <span className="text-[10px] font-semibold text-[var(--muted-foreground)] w-[68px] flex-shrink-0 truncate">{label}</span>
-                <div className="flex-1 h-3 rounded-full bg-[var(--muted)]/25 overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: barColor, opacity: 0.55 }} />
+                <div className="flex-1 h-3 rounded-full bg-[var(--muted)]/25 overflow-hidden flex gap-px">
+                  {(['A', 'B', 'C', 'D', 'E'] as const).map(g => {
+                    const count = grades[g] || 0;
+                    const pct = (count / dimTotal) * 100;
+                    return pct > 0 ? (
+                      <div key={g} className="h-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: GRADE_COLORS[g], opacity: 0.55 }} title={`${g}级: ${count}`} />
+                    ) : null;
+                  })}
                 </div>
-                <span className="text-[10px] tabular-nums font-semibold text-[var(--muted-foreground)] w-10 text-right flex-shrink-0">{score}/{max}</span>
+                <span className="text-[9px] tabular-nums font-semibold text-[var(--muted-foreground)] w-8 text-right flex-shrink-0">{dimTotal}次</span>
               </div>
             );
           })}
@@ -286,7 +293,7 @@ function EvalColumn({
 export default function SupplierDashboardPage() {
   const [stats, setStats] = useState<SupplierStats | null>(null);
   const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
-  const [evalStats, setEvalStats] = useState<{ levelCounts: { A: number; B: number; C: number; D: number }; avgScore: number; total: number } | null>(null);
+  const [evalStats, setEvalStats] = useState<{ levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number } | null>(null);
   const [dimStats, setDimStats] = useState<DimensionStats | null>(null);
   const [enterpriseTypeCounts, setEnterpriseTypeCounts] = useState<Record<string, number>>({});
   const [alerts, setAlerts] = useState<QualificationAlerts | null>(null);
@@ -305,11 +312,12 @@ export default function SupplierDashboardPage() {
     getQualificationAlerts().then(setAlerts).catch(fail);
     getRecentActivities().then(setActivities).catch(fail);
     getFavorites().then(setFavorites).catch(fail);
-    getSupplierList({ status: 'APPROVED', pageSize: 1000 }) // 取足已入库供应商以正确统计企业类型分布（>200 家时此前会偏少）
-      .then(res => {
-        const counts: Record<string, number> = {};
-        res.items.forEach((s: any) => { const t = normalizeEnterpriseType(s.enterpriseType); counts[t] = (counts[t] || 0) + 1; });
-        setEnterpriseTypeCounts(counts);
+    // P0-14：改后端 groupBy 聚合，不再拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。
+    getEnterpriseTypeDistribution()
+      .then(({ counts }) => {
+        const norm: Record<string, number> = {};
+        for (const [k, v] of Object.entries(counts)) { const t = normalizeEnterpriseType(k); norm[t] = (norm[t] || 0) + v; }
+        setEnterpriseTypeCounts(norm);
       })
       .catch(fail);
   }, []);

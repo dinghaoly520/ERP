@@ -61,7 +61,9 @@ ${fieldList}
 5. source 必须尽量具体：写明来源文件名、章节/表格/标题位置、原文件中对应的字段名、简短原文摘录。
 6. 原文摘录应短而具体，足以让用户核对，不超过 200 字。
 7. 每个字段都必须出现在结果中，即使未找到。
-8. 只输出 JSON，不要包含任何其他文字。`;
+8. 对于联系电话（contactPhone），只输出纯号码（如 028-81753276 或 13812345678），不要添加"联系电话"、"电话"等前缀或任何说明文字。
+9. 对于联系邮箱（contactEmail），只输出纯邮箱地址（如 example@company.com），不要添加"联系邮箱"、"邮箱"等前缀或任何说明文字。
+10. 只输出 JSON，不要包含任何其他文字。`;
 }
 
 export function buildImportAutofillUserPrompt(
@@ -202,7 +204,6 @@ const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionDef[] = [
     fields: [
       { key: 'contractSubcontracting', label: '合同分包' },
       { key: 'siteSurvey', label: '是否组织现场踏勘' },
-      { key: 'contractText', label: '合同文本' },
     ],
   },
   {
@@ -252,11 +253,6 @@ const SINGLE_SOURCE_SECTIONS: TenderSectionDef[] = [
       { key: 'procurementContent', label: '采购内容' },
       { key: 'procurementRequirements', label: '采购要求' },
     ],
-  },
-  {
-    key: 'contract',
-    title: '合同',
-    fields: [{ key: 'contractText', label: '合同文本' }],
   },
   {
     key: 'response',

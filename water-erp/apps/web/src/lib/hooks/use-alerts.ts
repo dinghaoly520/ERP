@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 export interface OverviewAlerts { expiringQualifications: number; overloadedExperts: number; }
 export interface SupplierAlertQual { id: string; name: string; type: string; validTo: Date; daysLeft: number; }
 export interface SupplierAlerts { expiringQualifications: SupplierAlertQual[]; }
-export interface ExpertAlerts { activeProjectCount: number; overloaded: boolean; consecutiveD: boolean; }
+export interface ExpertAlerts { activeProjectCount: number; overloaded: boolean; consecutiveE: boolean; }
 
 export function useAlertsOverview() {
   const [data, setData] = useState<OverviewAlerts>({ expiringQualifications: 0, overloadedExperts: 0 });
@@ -34,7 +34,7 @@ export function useSupplierAlerts(supplierId: string | undefined) {
 }
 
 export function useExpertAlerts(expertUserId: string | undefined) {
-  const [data, setData] = useState<ExpertAlerts>({ activeProjectCount: 0, overloaded: false, consecutiveD: false });
+  const [data, setData] = useState<ExpertAlerts>({ activeProjectCount: 0, overloaded: false, consecutiveE: false });
   useEffect(() => {
     if (!expertUserId) return;
     let active = true;

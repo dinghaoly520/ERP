@@ -555,16 +555,6 @@ export function buildCompetitiveNegotiationReplacementPlan(
       targetText: '是否组织现场踏勘',
       ...buildReplacement('是否组织现场踏勘', answers.siteSurvey),
     },
-    // 合同文本: 选择"不添加"时导出为空字符串并删除该行
-    {
-      targetText: '合同文本',
-      ...buildReplacement(
-        '合同文本',
-        answers.contractText === '' ? '' : answers.contractText,
-        true,
-      ),
-      shouldDeleteLine: answers.contractText === '',
-    },
     businessRequirementsReplacement,
     technicalRequirementsReplacement,
     quotationReplacement,
@@ -671,10 +661,6 @@ export function buildSingleSourceReplacementPlan(
       isHierarchicalText: true,
     },
     procurementRequirementsReplacement,
-    {
-      targetText: '合同文本',
-      ...buildReplacement('合同文本', answers.contractText),
-    },
     quotationReplacement,
   ];
 }

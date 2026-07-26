@@ -63,9 +63,7 @@ function acceptRecovery() {
 }
 function discardRecovery() { draft.clearDraft(); showRecovery.value = false }
 
-const enterpriseTypes = [
-  '国有企业', '民营企业', '合资企业', '外资企业', '股份有限公司', '个体工商户', '其他',
-]
+import { ENTERPRISE_TYPES as enterpriseTypes } from '@/constants/supplier'
 
 const accountRules = {
   username: [
@@ -148,6 +146,13 @@ async function nextStep() {
   if (currentStep.value === 1) {
     const valid = await companyFormRef.value?.validate().catch(() => false)
     if (!valid) return
+  }
+  if (currentStep.value === 2) {
+    // P0：第 3 步（联系人/资质）此前零校验，可一路空白进入提交——补：至少 1 个含手机号的联系人 + 至少 1 份含 fileUrl 的资质。
+    const validContact = contacts.value.some(c => c.name?.trim() && /^1\d{10}$/.test(c.phone?.trim() || ''))
+    if (!validContact) { ElMessage.warning('请至少完整填写 1 个联系人（姓名 + 11 位手机号）'); return }
+    const validQual = qualifications.value.some(q => q.type && q.name && q.fileUrl)
+    if (!validQual) { ElMessage.warning('请至少上传 1 份资质材料（如营业执照）'); return }
   }
   currentStep.value++
 }

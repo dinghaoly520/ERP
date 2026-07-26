@@ -20,7 +20,7 @@ export interface SupplierRecommendation {
   legalPerson?: string;
   enterpriseType?: string;
   contacts?: { name: string; phone: string; isPrimary: boolean }[];
-  evaluation?: { level: string; avgScore: number; count: number };
+  evaluation?: { level: string; count: number };
   activeProjects: number;
 }
 
@@ -211,11 +211,11 @@ export function getSupplierEvaluations(id: string) {
 // 发起评价
 export function createEvaluation(id: string, data: {
   projectId?: string;
-  completenessScore: number;
-  responsivenessScore: number;
-  cooperationScore: number;
-  complianceScore: number;
-  overallScore: number;
+  completenessGrade: string;
+  responsivenessGrade: string;
+  cooperationGrade: string;
+  complianceGrade: string;
+  comprehensiveGrade: string;
   comment?: string;
   evidence?: Record<string, string>;
 }) {
@@ -224,7 +224,7 @@ export function createEvaluation(id: string, data: {
 
 // 评价统计
 export function getEvaluationStats() {
-  return api.get<{ levelCounts: { A: number; B: number; C: number; D: number }; avgScore: number; total: number }>('/supplier/evaluations/stats');
+  return api.get<{ levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number }>('/supplier/evaluations/stats');
 }
 
 // 分类列表
@@ -251,9 +251,9 @@ export function deleteClassification(id: string) {
 export interface SupplierPortrait {
   supplierId: string; name: string;
   participationCount: number; winCount: number; winRate: number;
-  avgEvalScore: number | null; evalCount: number;
+  gradeCounts: Record<string, number>; evalCount: number;
   performanceTrend: 'improving' | 'stable' | 'declining';
-  levelCounts: { A: number; B: number; C: number; D: number };
+  levelCounts: { A: number; B: number; C: number; D: number; E: number };
   priceDeviation: number | null;
 }
 export function getSupplierPortrait(id: string) {
@@ -334,21 +334,26 @@ export function getSupplierPortraitAnalysis(supplierId: string) {
 
 // ── AI 评价维度分析 ──
 export interface DimensionAnalysis {
-  dimension: string; suggestedScore: number; maxScore: number;
+  dimension: string; suggestedGrade: string;
   rationale: string; evidencePoints: string[];
 }
 export interface EvaluationAnalysisResult {
   supplierId: string; supplierName: string; analyzedAt: string;
-  dimensions: DimensionAnalysis[]; overallSuggestion: number; summary: string;
+  dimensions: DimensionAnalysis[]; overallGrade: string; summary: string;
 }
 export function getSupplierEvaluationAnalysis(supplierId: string) {
   return api.post<EvaluationAnalysisResult>('/ai/supplier-evaluation-analysis', { supplierId });
 }
 
-// ── 评价维度统计 ──
-export interface DimensionStats { completenessAvg: number; responsivenessAvg: number; cooperationAvg: number; complianceAvg: number; overallAvg: number; total: number; }
+// ── 评价维度统计（等级分布）──
+export interface DimensionStats { completeness: Record<string, number>; responsiveness: Record<string, number>; cooperation: Record<string, number>; compliance: Record<string, number>; comprehensive: Record<string, number>; total: number; }
 export function getEvaluationDimensionStats() {
   return api.get<DimensionStats>('/supplier/evaluations/dimension-stats');
+}
+
+// ── 企业类型分布（看板后端聚合，P0-14）──
+export function getEnterpriseTypeDistribution() {
+  return api.get<{ counts: Record<string, number> }>('/supplier/enterprise-type-distribution');
 }
 
 // ── 沟通记录 ──

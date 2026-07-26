@@ -1,4 +1,5 @@
 import { buildSupplierPortrait } from './supplier-portrait.util';
+import { ExpertLevel } from '@prisma/client';
 
 describe('buildSupplierPortrait', () => {
   it('无参与时返回零值', () => {
@@ -6,9 +7,10 @@ describe('buildSupplierPortrait', () => {
     expect(p.participationCount).toBe(0);
     expect(p.winCount).toBe(0);
     expect(p.winRate).toBe(0);
-    expect(p.avgEvalScore).toBeNull();
+    expect(p.avgGradeScore).toBeNull();
     expect(p.performanceTrend).toBe('stable');
     expect(p.priceDeviation).toBeNull();
+    expect(p.levelCounts.E).toBe(0);
   });
 
   it('统计参与次数、中标次数与中标率', () => {
@@ -28,20 +30,20 @@ describe('buildSupplierPortrait', () => {
     expect(p.winRate).toBeCloseTo(0.5, 2);
   });
 
-  it('汇总绩效均分与等级分布', () => {
+  it('汇总绩效等级分布与趋势', () => {
     const now = new Date('2026-06-14');
     const p = buildSupplierPortrait({
       supplierId: 's1',
       name: '甲公司',
       participations: [],
       evaluations: [
-        { overallScore: 80, level: 'B', createdAt: now },
-        { overallScore: 90, level: 'A', createdAt: now },
+        { finalGrade: 'B' as ExpertLevel, createdAt: now },
+        { finalGrade: 'A' as ExpertLevel, createdAt: now },
       ],
     });
-    expect(p.avgEvalScore).toBe(85);
+    expect(p.avgGradeScore).toBe(4.5);
     expect(p.evalCount).toBe(2);
-    expect(p.levelCounts).toEqual({ A: 1, B: 1, C: 0, D: 0 });
+    expect(p.levelCounts).toEqual({ A: 1, B: 1, C: 0, D: 0, E: 0 });
     expect(p.performanceTrend).toBe('improving');
   });
 

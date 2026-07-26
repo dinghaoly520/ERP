@@ -826,6 +826,13 @@ export function SupplierSelectionPage({
                   <div className="flex items-center gap-2 mb-3">
                     <FileSearch size={15} className="text-[var(--accent)]" />
                     <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">智能分析摘要</h2>
+                    {result.engine && (
+                      <span className="ml-auto rounded-[4px] px-1.5 py-0.5 text-[9px] font-bold"
+                        style={{ color: result.engine === 'deepseek' ? 'var(--accent)' : 'var(--warning)', background: `color-mix(in oklch, ${result.engine === 'deepseek' ? 'var(--accent)' : 'var(--warning)'} 14%, transparent)` }}
+                        title={result.engine === 'deepseek' ? '由 DeepSeek 大模型语义匹配' : 'AI 服务不可用，已降级为规则关键词匹配（精度较低）'}>
+                        {result.engine === 'deepseek' ? 'AI 匹配' : '规则匹配（AI 不可用）'}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{result.summary}</p>
                   <div className="flex gap-5 mt-3 text-xs">
@@ -862,7 +869,7 @@ export function SupplierSelectionPage({
                             {r.enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType(r.enterpriseType)}</span>}
                             {r.evaluation && (
                               <span className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10px] font-extrabold text-white tabular-nums"
-                                style={{ background: r.evaluation.level === 'A' ? 'var(--success)' : r.evaluation.level === 'B' ? 'var(--accent)' : r.evaluation.level === 'C' ? 'var(--warning)' : 'var(--danger)' }}>
+                                style={{ background: r.evaluation.level === 'A' ? 'var(--success)' : r.evaluation.level === 'B' ? 'var(--accent)' : r.evaluation.level === 'C' ? 'var(--warning)' : r.evaluation.level === 'D' ? '#ca8a04' : 'var(--danger)' }}>
                                 {r.evaluation.level}
                               </span>
                             )}

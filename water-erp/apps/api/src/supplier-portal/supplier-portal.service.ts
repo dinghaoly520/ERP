@@ -268,21 +268,22 @@ export class SupplierPortalService {
   async getEvaluationStats(supplierId: string) {
     const evaluations = await this.prisma.supplierEvaluation.findMany({
       where: { supplierId },
-      select: { level: true, score: true, overallScore: true },
+      select: { finalGrade: true },
     });
 
     const total = evaluations.length;
-    const avgScore = total > 0
-      ? evaluations.reduce((sum, e) => sum + Number(e.overallScore), 0) / total
-      : 0;
     const levelCounts = {
-      A: evaluations.filter(e => e.level === 'A').length,
-      B: evaluations.filter(e => e.level === 'B').length,
-      C: evaluations.filter(e => e.level === 'C').length,
-      D: evaluations.filter(e => e.level === 'D').length,
+      A: evaluations.filter(e => e.finalGrade === 'A').length,
+      B: evaluations.filter(e => e.finalGrade === 'B').length,
+      C: evaluations.filter(e => e.finalGrade === 'C').length,
+      D: evaluations.filter(e => e.finalGrade === 'D').length,
+      E: evaluations.filter(e => e.finalGrade === 'E').length,
     };
+    const excellentRatio = total > 0
+      ? Math.round(((levelCounts['A'] + levelCounts['B']) / total) * 1000) / 10
+      : 0;
 
-    return { total, avgScore: Math.round(avgScore * 10) / 10, levelCounts };
+    return { total, excellentRatio, levelCounts };
   }
 
   // ─── Bid Projects (投标机会 — supplier-facing) ───

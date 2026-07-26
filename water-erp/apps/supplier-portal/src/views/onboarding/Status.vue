@@ -16,7 +16,7 @@ const statusConfig: Record<string,{step:number;label:string;desc:string;icon:str
   APPROVED:{step:3,label:'已入库',desc:'供应商资质已通过，可参与平台招标项目。',icon:'CircleCheckFilled',color:'#059669'},
   REJECTED:{step:2,label:'审核不通过',desc:'申请未通过审核，请查看原因。',icon:'CircleCloseFilled',color:'#dc2626'},
   DISABLED:{step:3,label:'已停用',desc:'账号已停用，请联系平台管理员。',icon:'WarningFilled',color:'#64748b'},
-  BLACKLIST:{step:3,label:'黑名单',desc:'账号已列入黑名单。',icon:'WarningFilled',color:'#dc2626'},
+  BLACKLIST:{step:3,label:'不良供应商',desc:'账号已列入不良供应商名单，如有异议请联系采购中心申诉。',icon:'WarningFilled',color:'#dc2626'},
 }
 const currentConfig = computed(() => { const s = status.value?.status; return s ? statusConfig[s]||statusConfig.PENDING : statusConfig.PENDING })
 function elapsedLabel(ms: number): string { if (ms < 60000) return ''; const mins = Math.floor(ms / 60000); if (mins < 60) return `${mins} 分钟`; const hours = Math.floor(mins / 60); if (hours < 24) return `${hours} 小时 ${mins % 60} 分`; const days = Math.floor(hours / 24); return `${days} 天 ${hours % 24} 小时` }

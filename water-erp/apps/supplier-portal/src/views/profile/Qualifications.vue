@@ -94,6 +94,9 @@ function formatSize(bytes: number): string {
 async function handleAdd() {
   if (!form.value.type || !form.value.name) { ElMessage.warning('请填写资质类型和名称'); return }
   if (!uploadedMeta.value || !form.value.fileUrl) { ElMessage.warning('请先上传资质文件'); return }
+  if (form.value.validFrom && form.value.validTo && new Date(form.value.validTo) <= new Date(form.value.validFrom)) {
+    ElMessage.warning('有效期止必须晚于有效期起'); return
+  }
   dialogLoading.value = true
   try {
     await supplierStore.addQualification(form.value)

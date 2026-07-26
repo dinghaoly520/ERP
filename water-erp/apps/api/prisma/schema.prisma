@@ -697,22 +697,22 @@ enum ExpertLevel {
   A // 优秀
   B // 良好
   C // 合格
-  D // 不合格
+  D // 待改进
+  E // 不合格
 }
 
 model ExpertEvaluation {
-  id              String      @id @default(cuid())
-  expertUserId    String
-  projectId       String?
-  evaluatorId     String
-  attendanceScore Int // 出勤纪律 0-100
-  qualityScore    Int // 评审质量 0-100
-  disciplineScore Int // 廉洁纪律 0-100
-  overallScore    Int // 综合 0-100
-  level           ExpertLevel @default(B)
-  comment         String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id               String      @id @default(cuid())
+  expertUserId     String
+  projectId        String?
+  evaluatorId      String
+  attendanceGrade  ExpertLevel // 出勤纪律等级
+  qualityGrade     ExpertLevel // 评审质量等级（权重 50%）
+  disciplineGrade  ExpertLevel // 廉洁纪律等级（权重 30%）
+  overallGrade     ExpertLevel // 综合等级 = weighted(质量×0.5 + 纪律×0.3 + 出勤×0.2)
+  comment          String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   expertUser User @relation("ExpertEvaluationsReceived", fields: [expertUserId], references: [id], onDelete: Cascade)
   evaluator  User @relation("ExpertEvaluationsGiven", fields: [evaluatorId], references: [id], onDelete: Cascade)
@@ -907,21 +907,20 @@ model SupplierClassificationLink {
 }
 
 model SupplierEvaluation {
-  id                  String   @id @default(cuid())
+  id                  String      @id @default(cuid())
   supplierId          String
   projectId           String?
   evaluatorId         String
-  score               Decimal  @db.Decimal(5, 1)
-  level               String
-  completenessScore   Decimal  @db.Decimal(5, 1)
-  responsivenessScore Decimal  @db.Decimal(5, 1)
-  cooperationScore    Decimal  @db.Decimal(5, 1)
-  complianceScore     Decimal  @db.Decimal(5, 1)
-  overallScore        Decimal  @db.Decimal(5, 1)
+  completenessGrade   ExpertLevel // 资料完整性等级（权重 20%）
+  responsivenessGrade ExpertLevel // 文件响应等级（权重 30%）
+  cooperationGrade    ExpertLevel // 配合协作等级（权重 20%）
+  complianceGrade     ExpertLevel // 合规守信等级（权重 20%）
+  comprehensiveGrade  ExpertLevel // 综合评价等级（权重 10%）
+  finalGrade          ExpertLevel // 综合等级 = weighted average
   comment             String?
   evidence            Json?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
   supplier  Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   evaluator User     @relation(fields: [evaluatorId], references: [id], onDelete: Cascade)

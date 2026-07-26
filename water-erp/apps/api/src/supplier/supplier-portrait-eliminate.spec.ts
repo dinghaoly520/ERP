@@ -11,11 +11,12 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
 
   beforeEach(async () => {
     prisma = {
-      supplier: { findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+      supplier: { findUnique: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
       bidSupplier: { findMany: jest.fn() },
       supplierEvaluation: { findMany: jest.fn() },
       supplierBidSubmission: { findMany: jest.fn() },
       bidEvaluationResult: { findMany: jest.fn(), findFirst: jest.fn() },
+      user: { update: jest.fn() },
     };
     notification = { create: jest.fn(), sendToRole: jest.fn() };
 
@@ -30,7 +31,7 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
   });
 
   describe('getSupplierPortrait', () => {
-    it('聚合参与、中标率、绩效均分', async () => {
+    it('聚合参与、中标率、绩效等级', async () => {
       prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司' });
       prisma.bidSupplier.findMany.mockResolvedValue([
         { id: 'bs1', projectId: 'p1' },
@@ -40,14 +41,15 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
         .mockResolvedValueOnce({ supplierId: 's1', recommended: true })  // p1 中标
         .mockResolvedValueOnce({ supplierId: 's1', recommended: false }); // p2 未中标
       prisma.supplierEvaluation.findMany.mockResolvedValue([
-        { score: 80, level: 'B', createdAt: new Date('2026-06-14') },
+        { finalGrade: 'B', createdAt: new Date('2026-06-14') },
       ]);
 
       const p = await service.getSupplierPortrait('s1');
       expect(p.participationCount).toBe(2);
       expect(p.winCount).toBe(1);
       expect(p.winRate).toBeCloseTo(0.5, 2);
-      expect(p.avgEvalScore).toBe(80);
+      expect(p.avgGradeScore).toBe(4); // B = 4
+      expect(p.evalCount).toBe(1);
     });
 
     it('供应商不存在时抛 NotFoundException', async () => {
@@ -57,23 +59,23 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
   });
 
   describe('reviewEliminationCandidates', () => {
-    it('标记连续低分供应商为候选，但不改 status', async () => {
+    it('连续3次E级供应商为候选，但不改 status', async () => {
       prisma.supplier.findMany.mockResolvedValue([{ id: 's1', name: '差供应商' }]);
       prisma.supplierEvaluation.findMany.mockResolvedValue([
-        { score: 50 }, { score: 48 }, { score: 45 },
+        { finalGrade: 'E' }, { finalGrade: 'E' }, { finalGrade: 'E' },
       ]);
 
       const candidates = await service.reviewEliminationCandidates();
       expect(candidates).toHaveLength(1);
       expect(candidates[0].supplierId).toBe('s1');
-      expect(prisma.supplier.update).not.toHaveBeenCalled();
+      expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
       expect(notification.sendToRole).toHaveBeenCalled();
     });
 
     it('绩效正常的供应商不进候选', async () => {
       prisma.supplier.findMany.mockResolvedValue([{ id: 's2', name: '好供应商' }]);
       prisma.supplierEvaluation.findMany.mockResolvedValue([
-        { score: 90 }, { score: 88 }, { score: 92 },
+        { finalGrade: 'A' }, { finalGrade: 'B' }, { finalGrade: 'A' },
       ]);
       const candidates = await service.reviewEliminationCandidates();
       expect(candidates).toHaveLength(0);
@@ -82,12 +84,16 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
 
   describe('confirmEliminate', () => {
     it('置 status=DISABLED', async () => {
-      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', status: 'APPROVED' });
-      prisma.supplier.update.mockResolvedValue({ id: 's1' });
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', status: 'APPROVED', name: '差供应商', userId: 'u1' });
+      prisma.supplier.updateMany.mockResolvedValue({ count: 1 });
+      prisma.user.update.mockResolvedValue({ id: 'u1' });
       const res = await service.confirmEliminate('s1', '连续差评');
       expect(res.success).toBe(true);
-      expect(prisma.supplier.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 's1' }, data: expect.objectContaining({ status: 'DISABLED' }) }),
+      expect(prisma.supplier.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 's1', status: 'APPROVED' },
+          data: expect.objectContaining({ status: 'DISABLED' }),
+        }),
       );
     });
 

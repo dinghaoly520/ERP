@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { ExpertLevel } from '@prisma/client';
 
 export class CreateExpertEvaluationDto {
   @IsString() @IsNotEmpty()
@@ -7,14 +8,14 @@ export class CreateExpertEvaluationDto {
   @IsString() @IsNotEmpty({ message: '评价必须关联一个评审项目' })
   projectId!: string;
 
-  @IsInt() @Min(0) @Max(100)
-  attendanceScore!: number;
+  @IsEnum(ExpertLevel)
+  attendanceGrade!: ExpertLevel;
 
-  @IsInt() @Min(0) @Max(100)
-  qualityScore!: number;
+  @IsEnum(ExpertLevel)
+  qualityGrade!: ExpertLevel;
 
-  @IsInt() @Min(0) @Max(100)
-  disciplineScore!: number;
+  @IsEnum(ExpertLevel)
+  disciplineGrade!: ExpertLevel;
 
   @IsOptional() @IsString()
   comment?: string;

@@ -209,7 +209,7 @@ describe('AiService', () => {
         { supplierId: 'sup-1', bidPrice: '950000', technicalFileAssetId: 'a1', businessFileAssetId: 'a2', coverLetterAssetId: 'a3' },
       ]);
       prisma.supplierEvaluation.groupBy = jest.fn().mockResolvedValue([
-        { supplierId: 'sup-1', _avg: { overallScore: 88 }, _count: { _all: 5 } },
+        { supplierId: 'sup-1', _count: { _all: 5 } },
       ]);
       prisma.supplierQualification.groupBy = jest.fn().mockResolvedValue([
         { supplierId: 'sup-1', _count: { _all: 4 } },

@@ -101,8 +101,6 @@ export type CompetitiveNegotiationFieldKey =
   | "contractSubcontractingType"
   | "siteSurvey"
   | "siteSurveyType"
-  | "contractText"
-  | "contractTextType"
   | "businessRequirements"
   | "technicalRequirements"
   | "quotationLetter"
@@ -126,7 +124,6 @@ export type SingleSourceFieldKey =
   | "serviceContentType"
   | "procurementContent"
   | "procurementRequirements"
-  | "contractText"
   | "quotationLetter"
   | "quotationLetterType";
 

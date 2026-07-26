@@ -103,11 +103,11 @@ export function getSupplierEvaluations(id: string) {
 // 发起评价
 export function createEvaluation(id: string, data: {
   projectId?: string;
-  completenessScore: number;
-  responsivenessScore: number;
-  cooperationScore: number;
-  complianceScore: number;
-  overallScore: number;
+  completenessGrade: string;
+  responsivenessGrade: string;
+  cooperationGrade: string;
+  complianceGrade: string;
+  comprehensiveGrade: string;
   comment?: string;
 }) {
   return api.post<SupplierEvaluation>(`/supplier/${id}/evaluations`, data);
@@ -115,7 +115,7 @@ export function createEvaluation(id: string, data: {
 
 // 评价统计
 export function getEvaluationStats() {
-  return api.get<{ levelCounts: { A: number; B: number; C: number; D: number }; avgScore: number; total: number }>('/supplier/evaluations/stats');
+  return api.get<{ levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number }>('/supplier/evaluations/stats');
 }
 
 // 分类列表

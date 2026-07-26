@@ -54,7 +54,6 @@ const expectedSingleSourceFields = [
   'serviceContent',
   'procurementContent',
   'procurementRequirements',
-  'contractText',
   'quotationLetter',
 ] as const;
 

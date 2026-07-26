@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ExpertLevel } from '@prisma/client';
 import { LlmService } from '../local-ai/llm.service';
 
 /* =================================================================
@@ -16,15 +17,14 @@ export interface ExtractionCandidate {
   title?: string;
   employer?: string;
   pastProjects: number;
-  pastAvgScore: number;
-  /** 最新履职评价等级 A/B/C/D */
+  /** 最新履职评价等级 A/B/C/D/E */
   evaluationLevel?: string;
-  /** 出勤纪律 0-100 */
-  attendanceScore?: number;
-  /** 评审质量 0-100 */
-  qualityScore?: number;
-  /** 廉洁纪律 0-100 */
-  disciplineScore?: number;
+  /** 出勤纪律等级 A/B/C/D/E */
+  attendanceGrade?: ExpertLevel;
+  /** 评审质量等级 A/B/C/D/E */
+  qualityGrade?: ExpertLevel;
+  /** 廉洁纪律等级 A/B/C/D/E */
+  disciplineGrade?: ExpertLevel;
   /** 评分偏离度（正=偏高，负=偏低） */
   scoreDeviation?: number;
   /** 近12月参与项目数 */
@@ -142,7 +142,7 @@ export class ExpertExtractionAiService {
     const MAX_AI_CANDIDATES = 30;
     const ranked = [...candidates].sort((a, b) => {
       const levelRank = (l?: string) => (l === 'A' ? 4 : l === 'B' ? 3 : l === 'C' ? 2 : l === 'D' ? 1 : 0);
-      return (levelRank(b.evaluationLevel) + b.pastAvgScore * 0.01) - (levelRank(a.evaluationLevel) + a.pastAvgScore * 0.01);
+      return levelRank(b.evaluationLevel) - levelRank(a.evaluationLevel);
     });
     const aiCandidates = ranked.slice(0, MAX_AI_CANDIDATES);
 
@@ -157,11 +157,11 @@ export class ExpertExtractionAiService {
         c.title ? `职称:${c.title}` : '',
         c.employer ? `单位:${c.employer}` : '',
         `历史项目${c.pastProjects}个`,
-        c.pastAvgScore > 0 ? `历评${c.pastAvgScore}` : '',
+        c.evaluationLevel ? `评价${c.evaluationLevel}级` : '',
         c.evaluationLevel ? `履职等级:${c.evaluationLevel}` : '',
-        c.attendanceScore != null ? `出勤${c.attendanceScore}` : '',
-        c.qualityScore != null ? `质量${c.qualityScore}` : '',
-        c.disciplineScore != null ? `廉洁${c.disciplineScore}` : '',
+        c.attendanceGrade != null ? `出勤${c.attendanceGrade}级` : '',
+        c.qualityGrade != null ? `质量${c.qualityGrade}级` : '',
+        c.disciplineGrade != null ? `廉洁${c.disciplineGrade}级` : '',
         c.scoreDeviation != null ? `偏离度${c.scoreDeviation > 0 ? '+' : ''}${c.scoreDeviation}` : '',
         c.recentProjects12m != null ? `近期${c.recentProjects12m}次` : '',
         c.currentLoadStatus ? `负荷:${c.currentLoadStatus}` : '',

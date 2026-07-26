@@ -161,7 +161,10 @@ onMounted(async () => {
           bidBondAssetId: sub.bidBondAssetId || '',
         }
       }
-    } catch {}
+    } catch (e: any) {
+      // P1：草稿/已提交记录读取失败须提示，否则用户以为没填过、重填后被 ALREADY_SUBMITTED 拦截。
+      ElMessage.warning('无法读取已保存的草稿/已提交记录；若您已提交过，请勿重复提交');
+    }
     if (draft.restoreDraft() && draft.storedAt.value && (!existingSubmission.value || draft.storedAt.value > new Date(existingSubmission.value.updatedAt).getTime())) {
       showRecovery.value = true
     }
@@ -394,7 +397,7 @@ async function confirmSubmit() {
         <div v-if="canSubmit && existingSubmission?.status!=='submitted'" class="submit-actions">
           <span v-if="draft.lastSavedAt" class="auto-save-hint">已自动保存 {{ draft.lastSavedAt ? dayjs(draft.lastSavedAt).format('HH:mm') : '' }}</span>
           <el-button size="large" :loading="saving" @click="saveDraft"><el-icon><FolderAdd /></el-icon>保存草稿</el-button>
-          <el-button type="primary" size="large" :loading="submitting" @click="openSubmitDialog"><el-icon><CircleCheck /></el-icon>{{ submitting?'提交中...':'正式提交标书（内置加密）' }}</el-button>
+          <el-button type="primary" size="large" :loading="submitting" @click="openSubmitDialog" title="标书文件由系统加密存储，开标时由主持人解密"><el-icon><CircleCheck /></el-icon>{{ submitting?'提交中...':'正式提交标书' }}</el-button>
         </div>
       </div>
     </template>

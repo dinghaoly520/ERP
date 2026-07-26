@@ -153,6 +153,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   // 直接采购：自动匹配公告中拟定供应商的待匹配名称（匹配完清空）
   const [autoMatchName, setAutoMatchName] = useState('');
 
+  // #20 公告类型配置：控制各类型公告的发布配置区块可见性；新增类型仅需加一行
+  const categoryConfig = useMemo(() => {
+    const on: { showTiming: boolean; showKeyTime: boolean; showFullToggles: boolean } = { showTiming: true, showKeyTime: true, showFullToggles: true };
+    const map: Record<string, typeof on> = {
+      procurement_document: on,
+      winning_bid: on,
+      failed_bid: { showTiming: false, showKeyTime: false, showFullToggles: false },
+    };
+    return map[category ?? 'procurement_document'] ?? on;
+  }, [category]);
+
   const tenderFiles = useMemo<ProjectManagementAttachment[]>(
     () => project?.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT')?.attachments ?? [],
     [project],
@@ -578,6 +589,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               <h2 className="text-sm font-bold text-[var(--foreground)] flex items-center gap-2">
                 <Send size={14} className="text-[var(--accent)]" /> 发布配置
               </h2>
+              <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">以下配置已根据项目采购方式智能填入，可直接点击底部「立即发布」；如需调整，修改后发布。</p>
 
               {/* Visibility */}
               <div className="rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
@@ -650,7 +662,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 )}
               </div>
 
-              {category !== 'failed_bid' && (
+              {categoryConfig.showTiming && (
               <div className="rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">发布时间</div>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -684,7 +696,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               </div>
               )}
 
-              {category !== 'failed_bid' && (
+              {categoryConfig.showKeyTime && (
               <div className="rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">关键时间</div>
                 <div className="grid grid-cols-2 gap-3">
@@ -715,7 +727,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               )}
 
               {/* Toggles */}
-              {category !== 'failed_bid' ? (
+              {categoryConfig.showFullToggles ? (
                 <>
                   <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
                     <div className="flex flex-wrap items-center gap-6">

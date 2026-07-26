@@ -8,6 +8,7 @@ import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualif
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
 import { AlertBanner, type AlertSeverity, Breadcrumb, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
+import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
 import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2 } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
@@ -23,12 +24,7 @@ const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> 
   APPROVED: 'green', PENDING: 'blue', RETURNED: 'orange', REJECTED: 'red', DISABLED: 'gray', BLACKLIST: 'red',
 };
 const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
-const LEVEL: Record<string, { label: string; color: string }> = {
-  A: { label: '优秀', color: 'var(--success)' },
-  B: { label: '良好', color: 'var(--accent)' },
-  C: { label: '合格', color: 'var(--warning)' },
-  D: { label: '不合格', color: 'var(--danger)' },
-};
+const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
 
 export default function SupplierDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -218,9 +214,15 @@ export default function SupplierDetailPage() {
     return { label: '有效', color: 'var(--success)' };
   };
 
-  const avgScore = evaluations.length > 0
-    ? (evaluations.reduce((s, e) => s + Number(e.overallScore), 0) / evaluations.length).toFixed(1)
-    : null;
+  const evalLevelCounts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+  evaluations.forEach(e => {
+    const fg = e.finalGrade || (e as any).level;
+    if (fg && evalLevelCounts.hasOwnProperty(fg)) evalLevelCounts[fg]++;
+  });
+  // 最常见等级
+  let mostCommonGrade = '';
+  let maxCount = 0;
+  for (const [g, c] of Object.entries(evalLevelCounts)) { if (c > maxCount) { maxCount = c; mostCommonGrade = g; } }
 
   const qualStats = {
     total: qualifications.length,
@@ -228,9 +230,6 @@ export default function SupplierDetailPage() {
     expiring: qualifications.filter(q => getQualStatus(q).label === '即将到期').length,
     expired: qualifications.filter(q => getQualStatus(q).label === '已过期').length,
   };
-
-  const evalLevelCounts = { A: 0, B: 0, C: 0, D: 0 };
-  evaluations.forEach(e => { if (e.level in evalLevelCounts) evalLevelCounts[e.level as keyof typeof evalLevelCounts]++; });
 
   const primaryContact = supplier.contacts?.find(c => c.isPrimary);
   const pendingHint = supplier.status === 'RETURNED' ? '补正中' : '待审核';
@@ -257,7 +256,7 @@ export default function SupplierDetailPage() {
             <p className="mt-1.5 text-sm text-[var(--muted-foreground)] flex flex-wrap items-center gap-x-3 gap-y-0.5">
               <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
               {classLinks.length > 0 && <><span className="opacity-40">·</span><span className="flex items-center gap-1">{classLinks.map(l => <span key={l.classificationId} className="rounded-md bg-[var(--accent)]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{l.classification.name}</span>)}</span></>}
-              {avgScore && <><span className="opacity-40">·</span><span>综合评分 {avgScore}</span></>}
+              {mostCommonGrade && <><span className="opacity-40">·</span><span className="inline-flex items-center gap-1">评价等级 <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[mostCommonGrade] }}>{mostCommonGrade}</span></span></>}
               <span className="opacity-40">·</span><span>注册 {daysSinceReg} 天</span>
             </p>
 
@@ -271,6 +270,12 @@ export default function SupplierDetailPage() {
               <div className="mt-2 flex items-start gap-1.5 text-xs">
                 <XCircle size={13} className="mt-0.5 flex-shrink-0 text-[var(--danger)]" />
                 <span className="text-[var(--muted-foreground)]"><strong className="text-[var(--danger)]">不通过原因：</strong>{supplier.rejectReason}</span>
+              </div>
+            )}
+            {(supplier as any).disableReason && (supplier.status === 'DISABLED' || supplier.status === 'BLACKLIST') && (
+              <div className="mt-2 flex items-start gap-1.5 text-xs">
+                <XCircle size={13} className="mt-0.5 flex-shrink-0 text-[var(--danger)]" />
+                <span className="text-[var(--muted-foreground)]"><strong className="text-[var(--danger)]">{supplier.status === 'BLACKLIST' ? '不良名单原因：' : '停用原因：'}</strong>{(supplier as any).disableReason}</span>
               </div>
             )}
           </div>
@@ -460,14 +465,15 @@ export default function SupplierDetailPage() {
                   <h3 className="text-[11px] font-extrabold text-[var(--muted-foreground)] uppercase tracking-wider mb-3 flex items-center gap-2">
                     <Award size={13} />评价概览
                   </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
                     {[
                       { label: '评价次数', value: evaluations.length, color: 'var(--accent)' },
-                      { label: '综合评价', value: avgScore || '—', color: 'var(--success)' },
+                      { label: '主要等级', value: mostCommonGrade || '—', color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' },
                       { label: 'A 级', value: evalLevelCounts.A, color: 'var(--success)' },
                       { label: 'B 级', value: evalLevelCounts.B, color: 'var(--accent)' },
                       { label: 'C 级', value: evalLevelCounts.C, color: 'var(--warning)' },
-                      { label: 'D 级', value: evalLevelCounts.D, color: 'var(--danger)' },
+                      { label: 'D 级', value: evalLevelCounts.D, color: '#ca8a04' },
+                      { label: 'E 级', value: evalLevelCounts.E, color: 'var(--danger)' },
                     ].map(s => (
                       <div key={s.label} className="neu-card-static !rounded-xl p-3 text-center">
                         <p className="text-[10px] text-[var(--muted-foreground)] mb-1">{s.label}</p>
@@ -614,14 +620,15 @@ export default function SupplierDetailPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-5">
                   {[
                     { label: '评价次数', value: evaluations.length, color: 'var(--accent)' },
-                    { label: '综合评价', value: avgScore || '—', color: 'var(--success)' },
+                    { label: '主要等级', value: mostCommonGrade || '—', color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' },
                     { label: 'A 级', value: evalLevelCounts.A, color: 'var(--success)' },
                     { label: 'B 级', value: evalLevelCounts.B, color: 'var(--accent)' },
                     { label: 'C 级', value: evalLevelCounts.C, color: 'var(--warning)' },
-                    { label: 'D 级', value: evalLevelCounts.D, color: 'var(--danger)' },
+                    { label: 'D 级', value: evalLevelCounts.D, color: '#ca8a04' },
+                    { label: 'E 级', value: evalLevelCounts.E, color: 'var(--danger)' },
                   ].map(s => (
                     <div key={s.label} className="neu-card-static !rounded-xl p-3 text-center">
                       <p className="text-[10px] text-[var(--muted-foreground)] mb-1">{s.label}</p>
@@ -631,31 +638,33 @@ export default function SupplierDetailPage() {
                 </div>
                 <div className="neu-table-card overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="workbench-table w-full min-w-[750px]">
+                    <table className="workbench-table w-full min-w-[850px]">
                       <thead>
                         <tr>
-                          <th>评分</th><th>等级</th>
-                          <th>完整性</th><th>响应性</th>
-                          <th>合作度</th><th>合规性</th>
+                          <th>综合等级</th>
+                          <th>资料完整性</th><th>响应及时性</th>
+                          <th>配合协作</th><th>合规守信</th>
+                          <th>综合评价</th>
                           <th>评价人</th><th>时间</th>
                         </tr>
                       </thead>
                       <tbody>
                         {evaluations.map(e => {
-                          const lv = LEVEL[e.level] || LEVEL.D;
+                          const fg = e.finalGrade || (e as any).level;
+                          const gradeColor = LEVEL_COLOR[fg] || 'var(--muted-foreground)';
                           return (
                             <tr key={e.id}>
-                              <td className="font-bold text-[var(--foreground)]">{Number(e.overallScore).toFixed(1)}</td>
                               <td>
                                 <span className="inline-flex items-center gap-1.5">
-                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: lv.color }}>{e.level}</span>
-                                  <span className="text-xs text-[var(--muted-foreground)]">{lv.label}</span>
+                                  <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[11px] font-extrabold text-white" style={{ backgroundColor: gradeColor }}>{fg}</span>
+                                  <span className="text-xs font-semibold" style={{ color: gradeColor }}>{LEVEL_LABEL[fg]}</span>
                                 </span>
                               </td>
-                              <td className="text-[var(--muted-foreground)]">{Number(e.completenessScore).toFixed(1)}</td>
-                              <td className="text-[var(--muted-foreground)]">{Number(e.responsivenessScore).toFixed(1)}</td>
-                              <td className="text-[var(--muted-foreground)]">{Number(e.cooperationScore).toFixed(1)}</td>
-                              <td className="text-[var(--muted-foreground)]">{Number(e.complianceScore).toFixed(1)}</td>
+                              <td>{e.completenessGrade ? <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.completenessGrade] }}>{e.completenessGrade}</span> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
+                              <td>{e.responsivenessGrade ? <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.responsivenessGrade] }}>{e.responsivenessGrade}</span> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
+                              <td>{e.cooperationGrade ? <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.cooperationGrade] }}>{e.cooperationGrade}</span> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
+                              <td>{e.complianceGrade ? <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.complianceGrade] }}>{e.complianceGrade}</span> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
+                              <td>{e.comprehensiveGrade ? <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.comprehensiveGrade] }}>{e.comprehensiveGrade}</span> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
                               <td className="text-[var(--muted-foreground)]">{e.evaluator?.displayName || '—'}</td>
                               <td className="text-[var(--muted-foreground)]">{new Date(e.createdAt).toLocaleDateString('zh-CN')}</td>
                             </tr>

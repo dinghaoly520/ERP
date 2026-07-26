@@ -3,7 +3,7 @@ import {
   type ProjectManagementStage,
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 
 type ArchiveStepState = 'PENDING' | 'READY' | 'DONE';
 
@@ -177,18 +177,42 @@ export function ProjectStageTimeline({
   const archiveEntry = entries.find((e) => !e.selectable);
   if (archiveEntry) groups.push({ items: [archiveEntry] });
 
+  // #11 多轮分组折叠：旧轮默认收起，当前轮展开；round>1 显示"流标重采"
+  const maxRound = sortedRounds.length > 0 ? sortedRounds[sortedRounds.length - 1] : 1;
+  const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
+    new Set(sortedRounds.filter((r) => r < maxRound)),
+  );
+
   return (
     <div className="pm-stage-rail px-1 py-1 sm:px-2">
       {groups.map((group, gi) => (
         <Fragment key={gi}>
-          {group.label && (
-            <div className="flex items-center justify-center py-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-              <span className="rounded-full border px-3 py-0.5" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.18)' }}>
-                {group.label}
-              </span>
-            </div>
-          )}
-          <div className="pm-stage-track">
+          {group.label && (() => {
+            const round = (group.items[0] as any).round as number;
+            const collapsed = collapsedRounds.has(round);
+            return (
+              <button
+                type="button"
+                onClick={() => setCollapsedRounds(prev => {
+                  const next = new Set(prev);
+                  collapsed ? next.delete(round) : next.add(round);
+                  return next;
+                })}
+                className="flex items-center justify-center gap-2 py-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--muted-foreground)] w-full cursor-pointer hover:text-[var(--foreground)] transition-colors"
+              >
+                <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.18)' }}>
+                  {group.label}
+                  {round > 1 && (
+                    <span className="inline-flex items-center rounded-full px-1.5 py-0 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
+                      流标重采
+                    </span>
+                  )}
+                </span>
+                <span className="text-[9px]">{collapsed ? '▶' : '▼'}</span>
+              </button>
+            );
+          })()}
+          <div className="pm-stage-track" hidden={group.label && ((group.items as any)[0] as any)?.round > 0 ? collapsedRounds.has(((group.items as any)[0] as any)?.round) : undefined}>
             {group.items.map((entry, index) => {
               const isLastEntry = index === group.items.length - 1;
               const segmentClassName = [

@@ -8,7 +8,7 @@ import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, g
 import { AlertBanner, Breadcrumb, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X } from 'lucide-react';
-import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
+import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
 interface Assignment {
@@ -27,8 +27,7 @@ interface ExpertDetail {
 }
 
 const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
-const levelLabel: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '不合格' };
-const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'red' };
+const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'orange', E: 'red' };
 
 type Tab = 'overview' | 'timeline' | 'portrait' | 'evaluations' | 'ai-adoption' | 'risk' | 'violations' | 'notify';
 const TABS: { key: Tab; label: string; icon: any }[] = [
@@ -108,7 +107,7 @@ export default function ExpertDetailPage() {
 
   const expertAlerts = useExpertAlerts(expertId);
   const alertItems = [
-    ...(expertAlerts.consecutiveD ? [{ severity: 'red' as const, title: '连续 2 次 D 级评价', detail: '该专家近期履职评价连续不合格，建议关注' }] : []),
+    ...(expertAlerts.consecutiveE ? [{ severity: 'red' as const, title: '连续 2 次 E 级评价', detail: '该专家近期履职评价连续不合格，建议关注' }] : []),
     ...(expertAlerts.overloaded ? [{ severity: 'orange' as const, title: '评审负荷过载', detail: `同时参与 ${expertAlerts.activeProjectCount} 个未归档项目，超过 3 个上限` }] : []),
   ];
 
@@ -367,9 +366,9 @@ export default function ExpertDetailPage() {
           timelineEvents.push({
             time: ev.createdAt,
             type: '履职评价',
-            title: `${levelLabel[ev.level] || ev.level}级 · 综合${ev.overallScore}分`,
-            detail: `出勤${ev.attendanceScore}/质量${ev.qualityScore}/廉洁${ev.disciplineScore} · 评价人:${ev.evaluator?.displayName || '—'}${ev.comment ? ' · ' + ev.comment : ''}`,
-            tone: ev.level === 'A' ? 'green' : ev.level === 'B' ? 'accent' : ev.level === 'D' ? 'red' : 'orange',
+            title: `${LEVEL_LABEL[ev.level] || ev.level}级`,
+            detail: `出勤${ev.attendanceGrade || '—'}/质量${ev.qualityGrade || '—'}/廉洁${ev.disciplineGrade || '—'} · 评价人:${ev.evaluator?.displayName || '—'}${ev.comment ? ' · ' + ev.comment : ''}`,
+            tone: ev.level === 'A' ? 'green' : ev.level === 'B' ? 'accent' : ev.level === 'E' ? 'red' : ev.level === 'D' ? 'orange' : 'orange',
           });
         }
 
@@ -419,7 +418,7 @@ export default function ExpertDetailPage() {
             {[
               ['参与项目', `${portrait.participationCount} 个`],
               ['完成率', `${Math.round(portrait.completionRate * 100)}%`],
-              ['平均得分', portrait.averageScore != null ? `${portrait.averageScore} 分` : '—'],
+              ['A 级次数', portrait.gradeCounts?.A != null ? `${portrait.gradeCounts.A} 次` : '—'],
               ['常委资格', portrait.isStandingExpert ? '是' : '否'],
               ['评分偏离度', portrait.meanDeviation != null ? `${portrait.meanDeviation > 0 ? '+' : ''}${portrait.meanDeviation}` : '—'],
               ['偏离样本', `${portrait.deviationSamples} 条`],
@@ -437,7 +436,7 @@ export default function ExpertDetailPage() {
               <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">近期评价等级趋势</span>
               <div className="flex items-center gap-1.5 mt-3">
                 {portrait.recentLevels.map((lv, i) => (
-                  <StatusBadge key={i} tone={levelTone[lv] || 'gray'}>{levelLabel[lv] || lv}</StatusBadge>
+                  <StatusBadge key={i} tone={levelTone[lv] || 'gray'}>{LEVEL_LABEL[lv] || lv}</StatusBadge>
                 ))}
               </div>
             </div>
@@ -516,11 +515,11 @@ export default function ExpertDetailPage() {
                   {evaluations.map((ev: any) => (
                     <tr key={ev.id}>
                       <td className="text-xs tabular-nums text-[var(--muted-foreground)]">{new Date(ev.createdAt).toLocaleDateString('zh-CN')}</td>
-                      <td className="text-center text-xs font-bold tabular-nums">{ev.attendanceScore}</td>
-                      <td className="text-center text-xs font-bold tabular-nums">{ev.qualityScore}</td>
-                      <td className="text-center text-xs font-bold tabular-nums">{ev.disciplineScore}</td>
-                      <td className="text-center text-xs font-bold tabular-nums text-[var(--accent)]">{ev.overallScore}</td>
-                      <td className="text-center"><StatusBadge tone={levelTone[ev.level] || 'gray'}>{levelLabel[ev.level]}</StatusBadge></td>
+                      <td className="text-center"><StatusBadge tone={levelTone[ev.attendanceGrade] || 'gray'}>{ev.attendanceGrade || '—'}</StatusBadge></td>
+                      <td className="text-center"><StatusBadge tone={levelTone[ev.qualityGrade] || 'gray'}>{ev.qualityGrade || '—'}</StatusBadge></td>
+                      <td className="text-center"><StatusBadge tone={levelTone[ev.disciplineGrade] || 'gray'}>{ev.disciplineGrade || '—'}</StatusBadge></td>
+                      <td className="text-center"><StatusBadge tone={levelTone[ev.overallGrade] || 'gray'}>{ev.overallGrade || '—'}</StatusBadge></td>
+                      <td className="text-center"><StatusBadge tone={levelTone[ev.level] || 'gray'}>{LEVEL_LABEL[ev.level]}</StatusBadge></td>
                       <td className="text-xs text-[var(--muted-foreground)]">{ev.evaluator?.displayName || '—'}</td>
                       <td className="text-xs text-[var(--muted-foreground)] max-w-[160px] truncate">{ev.comment || '—'}</td>
                     </tr>

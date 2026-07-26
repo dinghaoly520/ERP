@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { hashSync } from 'bcryptjs';
-import { Prisma } from '@prisma/client';
+import { Prisma, ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
@@ -13,6 +13,29 @@ import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-c
 import { isSupplierChangeAllowedField } from './supplier-change-fields';
 import { shouldAutoDisable, aggregatePerformance } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
+
+// 等级→数值映射（与 expert-admin.service.ts 共享语义，ExpertLevel: A=5 B=4 C=3 D=2 E=1）
+const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+const SCORE_GRADE: Record<number, ExpertLevel> = { 5: 'A', 4: 'B', 3: 'C', 2: 'D', 1: 'E' };
+
+/** 加权计算综合等级：
+ *  completeness(20%) + responsiveness(30%) + cooperation(20%) + compliance(20%) + comprehensive(10%)
+ */
+function computeFinalGrade(
+  completeness: ExpertLevel,
+  responsiveness: ExpertLevel,
+  cooperation: ExpertLevel,
+  compliance: ExpertLevel,
+  comprehensive: ExpertLevel,
+): ExpertLevel {
+  const w =
+    GRADE_SCORE[completeness] * 0.2 +
+    GRADE_SCORE[responsiveness] * 0.3 +
+    GRADE_SCORE[cooperation] * 0.2 +
+    GRADE_SCORE[compliance] * 0.2 +
+    GRADE_SCORE[comprehensive] * 0.1;
+  return SCORE_GRADE[Math.round(w)];
+}
 
 @Injectable()
 export class SupplierService {
@@ -345,7 +368,7 @@ export class SupplierService {
           contacts: { where: { isPrimary: true } },
           _count: { select: { evaluations: true } },
           evaluations: {
-            select: { score: true, level: true, overallScore: true, evidence: true },
+            select: { finalGrade: true, comprehensiveGrade: true, evidence: true },
             orderBy: { createdAt: 'desc' },
             take: 1,
           },
@@ -401,7 +424,7 @@ export class SupplierService {
       if (where.createdAt.lte) conditions.push(Prisma.sql`s."createdAt" <= ${where.createdAt.lte}`);
     }
     if (where.evaluations?.some?.level) {
-      conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierEvaluation" e WHERE e."supplierId" = s.id AND e."level" = ${where.evaluations.some.level})`);
+      conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierEvaluation" e WHERE e."supplierId" = s.id AND e."finalGrade" = ${where.evaluations.some.level}::"ExpertLevel")`);
     }
     if (where.qualifications?.some?.status) {
       conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierQualification" q WHERE q."supplierId" = s.id AND q."status" = ${where.qualifications.some.status})`);
@@ -437,7 +460,7 @@ export class SupplierService {
         contacts: { where: { isPrimary: true } },
         _count: { select: { evaluations: true } },
         evaluations: {
-          select: { score: true, level: true, overallScore: true, evidence: true },
+          select: { finalGrade: true, comprehensiveGrade: true, evidence: true },
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
@@ -452,18 +475,32 @@ export class SupplierService {
     return { total, page, pageSize, items };
   }
 
-  /** 批量附平均评分到每个 supplier item */
+  /** 批量附综合评价概览到每个 supplier item */
   private async attachAvgScores(items: any[]) {
     if (items.length === 0) return;
     const ids = items.map(i => i.id);
-    const aggs = await this.prisma.supplierEvaluation.groupBy({
-      by: ['supplierId'],
+    const evals = await this.prisma.supplierEvaluation.groupBy({
+      by: ['supplierId', 'finalGrade'],
       where: { supplierId: { in: ids } },
-      _avg: { score: true },
+      _count: { finalGrade: true },
     });
-    const avgMap = new Map(aggs.map(a => [a.supplierId, a._avg.score]));
+    // 对每个 supplier 取出现最多的 finalGrade 作为概览等级
+    const gradeMap = new Map<string, ExpertLevel>();
+    const countMap = new Map<string, Map<string, number>>();
+    for (const e of evals) {
+      if (!countMap.has(e.supplierId)) countMap.set(e.supplierId, new Map());
+      countMap.get(e.supplierId)!.set(e.finalGrade, e._count.finalGrade);
+    }
+    for (const [sid, grades] of countMap) {
+      let best = 'C';
+      let bestCount = 0;
+      for (const [g, c] of grades) {
+        if (c > bestCount) { best = g; bestCount = c; }
+      }
+      gradeMap.set(sid, best as ExpertLevel);
+    }
     for (const item of items) {
-      item._avgScore = avgMap.get(item.id) ?? null;
+      item._avgScore = gradeMap.get(item.id) ?? null;
     }
   }
 
@@ -1112,40 +1149,33 @@ export class SupplierService {
       throw new BadRequestException({ error: '您已对该供应商提交过评价，不可重复评价', code: 'ALREADY_EVALUATED' });
     }
 
-    // 计算总分
-    const totalScore = dto.completenessScore + dto.responsivenessScore + dto.cooperationScore + dto.complianceScore + dto.overallScore;
-
-    // 确定等级
-    let level: string;
-    if (totalScore >= 90) {
-      level = 'A';
-    } else if (totalScore >= 80) {
-      level = 'B';
-    } else if (totalScore >= 60) {
-      level = 'C';
-    } else {
-      level = 'D';
-    }
+    // 加权计算综合等级
+    const finalGrade = computeFinalGrade(
+      dto.completenessGrade,
+      dto.responsivenessGrade,
+      dto.cooperationGrade,
+      dto.complianceGrade,
+      dto.comprehensiveGrade,
+    );
 
     const created = await this.prisma.supplierEvaluation.create({
       data: {
         supplierId,
         projectId: dto.projectId,
         evaluatorId,
-        score: totalScore,
-        level,
-        completenessScore: dto.completenessScore,
-        responsivenessScore: dto.responsivenessScore,
-        cooperationScore: dto.cooperationScore,
-        complianceScore: dto.complianceScore,
-        overallScore: dto.overallScore,
+        finalGrade,
+        completenessGrade: dto.completenessGrade,
+        responsivenessGrade: dto.responsivenessGrade,
+        cooperationGrade: dto.cooperationGrade,
+        complianceGrade: dto.complianceGrade,
+        comprehensiveGrade: dto.comprehensiveGrade,
         comment: dto.comment,
         evidence: dto.evidence ?? undefined,
       },
     });
 
     // P1-20：评价影响画像/淘汰，补审计。
-    await this.audit(evaluatorId, 'SUPPLIER_EVALUATION_CREATED', supplierId, { level, score: totalScore, projectId: dto.projectId ?? null });
+    await this.audit(evaluatorId, 'SUPPLIER_EVALUATION_CREATED', supplierId, { finalGrade, projectId: dto.projectId ?? null });
 
     // 决策 #3：不自动停用。连续低分由 reviewEliminationCandidates()（cron + 人工）产出预警，
     // 实际淘汰须经 admin 调 confirmEliminate() 确认。此处仅返回评价结果。
@@ -1171,7 +1201,7 @@ export class SupplierService {
         where: { supplierId },
         orderBy: { createdAt: 'desc' },
         take: 10,
-        select: { score: true, level: true, createdAt: true },
+        select: { finalGrade: true, createdAt: true },
       }),
     ]);
 
@@ -1190,13 +1220,13 @@ export class SupplierService {
       supplierId,
       name: supplier.name,
       participations,
-      evaluations: evaluations.map(e => ({ overallScore: Number(e.score), level: e.level, createdAt: e.createdAt })),
+      evaluations: evaluations.map(e => ({ finalGrade: e.finalGrade, createdAt: e.createdAt })),
     });
   }
 
   /* ── 淘汰预警 + 人工确认（决策 #3：只预警，不自动改状态） ── */
 
-  /** 扫描淘汰候选（最近 3 次绩效均 ≤60），通知管理员；不修改 status。 */
+  /** 扫描淘汰候选（最近 3 次绩效均为 E），通知管理员；不修改 status。 */
   async reviewEliminationCandidates() {
     const suppliers = await this.prisma.supplier.findMany({
       where: { status: 'APPROVED' },
@@ -1209,10 +1239,10 @@ export class SupplierService {
         where: { supplierId: s.id },
         orderBy: { createdAt: 'desc' },
         take: 3,
-        select: { score: true },
+        select: { finalGrade: true },
       });
-      if (shouldAutoDisable(recent.map(r => ({ overallScore: Number(r.score) })), 60)) {
-        candidates.push({ supplierId: s.id, name: s.name, reason: '最近 3 次绩效综合得分均 ≤ 60' });
+      if (shouldAutoDisable(recent.map(r => ({ finalGrade: r.finalGrade })))) {
+        candidates.push({ supplierId: s.id, name: s.name, reason: '最近 3 次绩效综合评价均为 E 级（不合格）' });
       }
     }
 
@@ -1320,7 +1350,7 @@ export class SupplierService {
       this.prisma.supplierEvaluation.findMany({
         where: { supplierId },
         orderBy: { createdAt: 'asc' },
-        select: { score: true, level: true, createdAt: true, evaluator: { select: { displayName: true } } },
+        select: { finalGrade: true, createdAt: true, evaluator: { select: { displayName: true } } },
       }),
       this.prisma.bidSupplier.findMany({
         where: { supplierId },
@@ -1344,7 +1374,7 @@ export class SupplierService {
     }
 
     for (const e of evaluations) {
-      events.push({ type: 'evaluation', label: '绩效评价', detail: `${Number(e.score)}分 · ${e.level}级 · 评价人：${e.evaluator?.displayName || '—'}`, at: e.createdAt.toISOString() });
+      events.push({ type: 'evaluation', label: '绩效评价', detail: `${e.finalGrade} 级 · 评价人：${e.evaluator?.displayName || '—'}`, at: e.createdAt.toISOString() });
     }
 
     for (const bs of bidSuppliers) {
@@ -1355,35 +1385,36 @@ export class SupplierService {
     return { supplierId, supplierName: supplier.name, events };
   }
 
-  /** 供应商绩效画像：历史均分、趋势、等级分布。 */
+  /** 供应商绩效画像：等级分布、趋势。 */
   async getSupplierPerformanceProfile(supplierId: string) {
     const evals = await this.prisma.supplierEvaluation.findMany({
       where: { supplierId },
       orderBy: { createdAt: 'asc' },
-      select: { overallScore: true, level: true, createdAt: true },
+      select: { finalGrade: true, createdAt: true },
     });
     return aggregatePerformance(
-      evals.map(e => ({ overallScore: Number(e.overallScore), level: e.level, createdAt: e.createdAt })),
+      evals.map(e => ({ finalGrade: e.finalGrade, createdAt: e.createdAt })),
     );
   }
 
   async getEvaluationStats() {
     const evaluations = await this.prisma.supplierEvaluation.findMany({
-      select: { level: true, score: true },
+      select: { finalGrade: true },
     });
 
     const levelCounts = {
-      A: evaluations.filter(e => e.level === 'A').length,
-      B: evaluations.filter(e => e.level === 'B').length,
-      C: evaluations.filter(e => e.level === 'C').length,
-      D: evaluations.filter(e => e.level === 'D').length,
+      A: evaluations.filter(e => e.finalGrade === 'A').length,
+      B: evaluations.filter(e => e.finalGrade === 'B').length,
+      C: evaluations.filter(e => e.finalGrade === 'C').length,
+      D: evaluations.filter(e => e.finalGrade === 'D').length,
+      E: evaluations.filter(e => e.finalGrade === 'E').length,
     };
 
-    const avgScore = evaluations.length > 0
-      ? evaluations.reduce((sum, e) => sum + Number(e.score), 0) / evaluations.length
+    const excellentRatio = evaluations.length > 0
+      ? (levelCounts.A + levelCounts.B) / evaluations.length
       : 0;
 
-    return { levelCounts, avgScore, total: evaluations.length };
+    return { levelCounts, excellentRatio, total: evaluations.length };
   }
 
   async getStats() {
@@ -1399,6 +1430,18 @@ export class SupplierService {
     return { total, pending, approved, disabled, blacklist, returned };
   }
 
+  /** P0-14：企业类型分布后端聚合——替代看板拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。 */
+  async getEnterpriseTypeDistribution() {
+    const rows = await this.prisma.supplier.groupBy({
+      by: ['enterpriseType'],
+      where: { status: 'APPROVED' },
+      _count: { _all: true },
+    });
+    const counts: Record<string, number> = {};
+    for (const r of rows) counts[r.enterpriseType || '未分类'] = r._count._all;
+    return { counts };
+  }
+
   /** 公开大屏：仅返回非敏感计数（总数/已入库/待审核）。评价等级分布、分类计数、绩效趋势等
    *  经营敏感数据须鉴权访问（见 getBigscreenDetail），杜绝未登录爬取竞争性情报。 */
   async getBigscreenStats() {
@@ -1410,7 +1453,7 @@ export class SupplierService {
     const [stats, evals, classifications] = await Promise.all([
       this.getStats(),
       this.prisma.supplierEvaluation.findMany({
-        select: { level: true, overallScore: true, createdAt: true },
+        select: { finalGrade: true, createdAt: true },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.supplierClassification.findMany({
@@ -1423,26 +1466,28 @@ export class SupplierService {
       }),
     ]);
 
-    const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
-    let scoreSum = 0;
+    const levelCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 };
     for (const e of evals) {
-      const key = e.level as 'A'|'B'|'C'|'D';
+      const key = e.finalGrade as 'A'|'B'|'C'|'D'|'E';
       if (key in levelCounts) levelCounts[key]++;
-      scoreSum += Number(e.overallScore);
     }
     const total = evals.length;
-    const avgScore = total > 0 ? Math.round((scoreSum / total) * 10) / 10 : 0;
+    const gradeScores = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+    const avgGradeScore = total > 0
+      ? evals.reduce((s, e) => s + (gradeScores[e.finalGrade as keyof typeof gradeScores] ?? 3), 0) / total
+      : 0;
 
-    // 趋势：近半 vs 前半
+    // 趋势：近半 vs 前半（基于等级数值）
     let trend: 'improving' | 'stable' | 'declining' = 'stable';
     if (total >= 2) {
       const half = Math.ceil(total / 2);
       const firstHalf = evals.slice(0, half);
       const secondHalf = evals.slice(-half);
-      const firstAvg = firstHalf.reduce((s, e) => s + Number(e.overallScore), 0) / firstHalf.length;
-      const secondAvg = secondHalf.reduce((s, e) => s + Number(e.overallScore), 0) / secondHalf.length;
-      if (secondAvg > firstAvg + 3) trend = 'improving';
-      else if (secondAvg < firstAvg - 3) trend = 'declining';
+      const avgGrade = (arr: typeof evals) => arr.reduce((s, e) => s + (gradeScores[e.finalGrade as keyof typeof gradeScores] ?? 3), 0) / arr.length;
+      const firstAvg = avgGrade(firstHalf);
+      const secondAvg = avgGrade(secondHalf);
+      if (secondAvg > firstAvg + 0.5) trend = 'improving';
+      else if (secondAvg < firstAvg - 0.5) trend = 'declining';
     }
 
     const cats = classifications.map(c => ({
@@ -1451,7 +1496,7 @@ export class SupplierService {
       count: c._count.suppliers,
     }));
 
-    return { ...stats, levelCounts, avgScore, evalTotal: total, trend, cats };
+    return { ...stats, levelCounts, avgGradeScore, evalTotal: total, trend, cats };
   }
 
   async listClassifications() {
@@ -1612,13 +1657,37 @@ export class SupplierService {
 
   async getEvaluationDimensionStats() {
     const evals = await this.prisma.supplierEvaluation.findMany({
-      select: { completenessScore: true, responsivenessScore: true, cooperationScore: true, complianceScore: true, overallScore: true },
+      select: { completenessGrade: true, responsivenessGrade: true, cooperationGrade: true, complianceGrade: true, comprehensiveGrade: true },
     });
-    const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 10) / 10 : 0;
-    const scores = { completeness: evals.map(e => Number(e.completenessScore)), responsiveness: evals.map(e => Number(e.responsivenessScore)), cooperation: evals.map(e => Number(e.cooperationScore)), compliance: evals.map(e => Number(e.complianceScore)), overall: evals.map(e => Number(e.overallScore)) };
+    const gradeKeys: ExpertLevel[] = ['A', 'B', 'C', 'D', 'E'];
+    const initCounts = (): Record<ExpertLevel, number> => ({ A: 0, B: 0, C: 0, D: 0, E: 0 });
+    const counters = {
+      completeness: initCounts(),
+      responsiveness: initCounts(),
+      cooperation: initCounts(),
+      compliance: initCounts(),
+      comprehensive: initCounts(),
+    };
+    for (const e of evals) {
+      for (const dim of ['completeness', 'responsiveness', 'cooperation', 'compliance', 'comprehensive'] as const) {
+        const gradeField = `${dim}Grade` as keyof typeof e;
+        const grade = e[gradeField] as ExpertLevel;
+        if (grade && (counters as any)[dim][grade] !== undefined) {
+          (counters as any)[dim][grade]++;
+        }
+      }
+    }
+    const toNumberKey = (r: Record<ExpertLevel, number>): Record<string, number> => {
+      const out: Record<string, number> = {};
+      for (const k of gradeKeys) out[k] = r[k];
+      return out;
+    };
     return {
-      completenessAvg: avg(scores.completeness), responsivenessAvg: avg(scores.responsiveness),
-      cooperationAvg: avg(scores.cooperation), complianceAvg: avg(scores.compliance), overallAvg: avg(scores.overall),
+      completeness: toNumberKey(counters.completeness),
+      responsiveness: toNumberKey(counters.responsiveness),
+      cooperation: toNumberKey(counters.cooperation),
+      compliance: toNumberKey(counters.compliance),
+      comprehensive: toNumberKey(counters.comprehensive),
       total: evals.length,
     };
   }

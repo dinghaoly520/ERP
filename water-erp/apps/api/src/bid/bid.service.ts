@@ -766,6 +766,18 @@ export class BidService {
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
 
+    // R-2：启动评标前扫描投标供应商中的临时过期标记（不阻塞，写入监管日志供主持人确认）
+    const expiredTemps = await this.prisma.bidSupplier.findMany({
+      where: { projectId: id, submitStatus: { not: '已撤回' }, supplier: { isTemporary: true, temporaryExpiresAt: { lt: new Date() } } },
+      select: { supplierName: true },
+    });
+    if (expiredTemps.length > 0) {
+      console.warn(`[R-2] 启动评标 ${project.name} 时 ${expiredTemps.length} 个临时供应商已过期：${expiredTemps.map(s => s.supplierName).join('、')}`);
+      await this.prisma.bidSupervisionLog.create({
+        data: { projectId: id, time: new Date(), role: '系统', target: `临时过期供应商投标（${expiredTemps.map(s => s.supplierName).join('、')}）`, action: '评标启动时发现投标供应商临时权限已过期，请主持人确认是否排除', result: '待确认', riskFlag: '有' },
+      }).catch(() => {});
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 P1-17 与评分标准编辑互斥的 FOR UPDATE）
       const result = await tx.bidProject.update({

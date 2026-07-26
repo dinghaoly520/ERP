@@ -19,6 +19,22 @@ import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from 
 import { buildExpertPortrait } from './expert-portrait.util';
 import { NotificationService } from '../notification/notification.service';
 
+/** 等级→分值（用于加权计算综合等级） */
+const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+const SCORE_GRADE: Record<number, ExpertLevel> = { 5: 'A', 4: 'B', 3: 'C', 2: 'D', 1: 'E' };
+
+function computeOverallGrade(
+  qualityGrade: ExpertLevel,
+  disciplineGrade: ExpertLevel,
+  attendanceGrade: ExpertLevel,
+): ExpertLevel {
+  const w =
+    GRADE_SCORE[qualityGrade] * 0.5 +
+    GRADE_SCORE[disciplineGrade] * 0.3 +
+    GRADE_SCORE[attendanceGrade] * 0.2;
+  return SCORE_GRADE[Math.round(w)];
+}
+
 @Injectable()
 export class ExpertAdminService {
   constructor(
@@ -63,25 +79,12 @@ export class ExpertAdminService {
       orderBy: { displayName: 'asc' },
     });
 
-    // 补平均评价分
+    // 补最新一次评价（A-E 等级制）
     const userIds = users.map(u => u.id);
-    if (userIds.length > 0) {
-      const evalAggs = await this.prisma.expertEvaluation.groupBy({
-        by: ['expertUserId'],
-        where: { expertUserId: { in: userIds } },
-        _avg: { overallScore: true },
-      });
-      const avgMap = new Map(evalAggs.map(a => [a.expertUserId, Math.round((a._avg.overallScore ?? 0) * 10) / 10]));
-      for (const u of users as any[]) {
-        u.avgEvalScore = avgMap.get(u.id) ?? null;
-      }
-    }
-
-    // 补最新一次评价
     const latestEvals = await this.prisma.expertEvaluation.findMany({
       where: { expertUserId: { in: userIds } },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, expertUserId: true, overallScore: true, level: true, createdAt: true },
+      select: { id: true, expertUserId: true, overallGrade: true, createdAt: true },
     });
     const latestMap = new Map<string, any>();
     for (const e of latestEvals) {
@@ -89,7 +92,29 @@ export class ExpertAdminService {
     }
     for (const u of users as any[]) {
       const le = latestMap.get(u.id);
-      u.latestEval = le ? { level: le.level, overallScore: le.overallScore, createdAt: le.createdAt } : null;
+      u.latestEval = le ? { level: le.overallGrade, createdAt: le.createdAt } : null;
+    }
+
+    // 补平均等级（最常见等级，众数）
+    const allEvals = await this.prisma.expertEvaluation.findMany({
+      where: { expertUserId: { in: userIds } },
+      select: { expertUserId: true, overallGrade: true },
+    });
+    const gradeCountsByUser = new Map<string, Record<string, number>>();
+    for (const e of allEvals) {
+      if (!gradeCountsByUser.has(e.expertUserId)) gradeCountsByUser.set(e.expertUserId, { A: 0, B: 0, C: 0, D: 0, E: 0 });
+      const cnt = gradeCountsByUser.get(e.expertUserId)!;
+      cnt[e.overallGrade] = (cnt[e.overallGrade] ?? 0) + 1;
+    }
+    for (const u of users as any[]) {
+      const cnt = gradeCountsByUser.get(u.id);
+      if (cnt) {
+        let best = 'C', bestN = 0;
+        for (const [g, n] of Object.entries(cnt)) { if (n > bestN) { best = g; bestN = n; } }
+        u.avgGrade = best;
+      } else {
+        u.avgGrade = null;
+      }
     }
 
     return users;
@@ -130,9 +155,10 @@ export class ExpertAdminService {
     const totalProjects = assignments.length;
     const completedProjects = assignments.filter(a => a.progress >= 100).length;
     const signedInProjects = assignments.filter(a => a.signedIn).length;
-    const evalAvg = evaluations.length > 0 ? evaluations.reduce((s, e) => s + e.overallScore, 0) / evaluations.length : 0;
+    const gradeCounts = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+    for (const e of evaluations) gradeCounts[e.overallGrade] = (gradeCounts[e.overallGrade] ?? 0) + 1;
 
-    return { ...user, assignments, evaluations, statistics: { totalProjects, completedProjects, signedInProjects, evalAvg: Math.round(evalAvg * 10) / 10, evalCount: evaluations.length } };
+    return { ...user, assignments, evaluations, statistics: { totalProjects, completedProjects, signedInProjects, evalCount: evaluations.length, gradeCounts } };
   }
 
   /** 专家参与的评审项目列表 */
@@ -360,18 +386,12 @@ export class ExpertAdminService {
     const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 3600 * 1000);
 
     // 批量拉取多维度数据
-    const [evalAgg, allEvals, allActiveAssigns, allRecentAssigns, scoreRecords] = await Promise.all([
-      // 历史履职均分
-      this.prisma.expertEvaluation.groupBy({
-        by: ['expertUserId'],
-        where: { expertUserId: { in: eligibleIds } },
-        _avg: { overallScore: true },
-      }),
+    const [allEvals, allActiveAssigns, allRecentAssigns, scoreRecords] = await Promise.all([
       // 每位专家的最新履职评价（用于等级/出勤/质量/廉洁）
       this.prisma.expertEvaluation.findMany({
         where: { expertUserId: { in: eligibleIds } },
         orderBy: { createdAt: 'desc' },
-        select: { expertUserId: true, level: true, attendanceScore: true, qualityScore: true, disciplineScore: true, overallScore: true, createdAt: true },
+        select: { expertUserId: true, attendanceGrade: true, qualityGrade: true, disciplineGrade: true, overallGrade: true, createdAt: true },
       }),
       // 当前活跃负荷（progress < 100 的项目）
       this.prisma.bidExpert.findMany({
@@ -390,13 +410,11 @@ export class ExpertAdminService {
       }),
     ]);
 
-    const evalAvgMap = new Map(evalAgg.map(a => [a.expertUserId, a._avg.overallScore ?? 0]));
-
     // 最新评价 Map（按时间降序，取第一条）
-    const latestEvalMap = new Map<string, { level: string; attendanceScore: number; qualityScore: number; disciplineScore: number; overallScore: number }>();
+    const latestEvalMap = new Map<string, { level: string; attendanceGrade: ExpertLevel; qualityGrade: ExpertLevel; disciplineGrade: ExpertLevel; overallGrade: ExpertLevel }>();
     for (const ev of allEvals) {
       if (!latestEvalMap.has(ev.expertUserId)) {
-        latestEvalMap.set(ev.expertUserId, { level: ev.level, attendanceScore: ev.attendanceScore, qualityScore: ev.qualityScore, disciplineScore: ev.disciplineScore, overallScore: ev.overallScore });
+        latestEvalMap.set(ev.expertUserId, { level: ev.overallGrade, attendanceGrade: ev.attendanceGrade, qualityGrade: ev.qualityGrade, disciplineGrade: ev.disciplineGrade, overallGrade: ev.overallGrade });
       }
     }
 
@@ -428,11 +446,10 @@ export class ExpertAdminService {
         title: u.expertProfile?.title ?? undefined,
         employer: u.expertProfile?.employer ?? undefined,
         pastProjects: u._count.bidExperts,
-        pastAvgScore: Math.round((evalAvgMap.get(u.id) ?? 0) * 10) / 10,
         evaluationLevel: latest?.level,
-        attendanceScore: latest?.attendanceScore,
-        qualityScore: latest?.qualityScore,
-        disciplineScore: latest?.disciplineScore,
+        attendanceGrade: latest?.attendanceGrade,
+        qualityGrade: latest?.qualityGrade,
+        disciplineGrade: latest?.disciplineGrade,
         scoreDeviation: deviationMap.get(u.id),
         recentProjects12m: recentMap.get(u.id) ?? 0,
         currentLoad: load,
@@ -703,22 +720,16 @@ export class ExpertAdminService {
 
     // 与抽取同口径补齐偏离度与历史均分（原实现缺这两维，择优比抽取时更粗糙）
     const userIds = eligible.map(c => c.userId);
-    const [scoreRecords, evalAgg] = await Promise.all([
+    const [scoreRecords] = await Promise.all([
       this.prisma.bidScoreRecord.findMany({
         where: { expert: { userId: { in: userIds } } },
         select: { score: true, scoreItemId: true, supplierId: true, expert: { select: { userId: true } } },
-      }),
-      this.prisma.expertEvaluation.groupBy({
-        by: ['expertUserId'],
-        where: { expertUserId: { in: userIds } },
-        _avg: { overallScore: true },
       }),
     ]);
     const deviations = computeExpertMeanDeviations(
       scoreRecords.map(r => ({ expertId: r.expert.userId, scoreItemId: r.scoreItemId, supplierId: r.supplierId, score: Number(r.score) })),
     );
     const devMap = new Map(deviations.map(d => [d.expertId, Math.round(d.meanDeviation * 10) / 10]));
-    const avgMap = new Map(evalAgg.map(a => [a.expertUserId, a._avg.overallScore ?? 0]));
 
     const scored = eligible.map(c => {
       const latest = c.user.expertEvaluations[0];
@@ -729,11 +740,10 @@ export class ExpertAdminService {
           specialty: c.user.expertProfile?.specialty || '综合',
           title: c.user.expertProfile?.title ?? undefined,
           pastProjects: c.user._count.bidExperts,
-          pastAvgScore: Math.round((avgMap.get(c.userId) ?? latest?.overallScore ?? 0) * 10) / 10,
-          evaluationLevel: latest?.level,
-          attendanceScore: latest?.attendanceScore,
-          qualityScore: latest?.qualityScore,
-          disciplineScore: latest?.disciplineScore,
+          evaluationLevel: latest?.overallGrade,
+          attendanceGrade: latest?.attendanceGrade,
+          qualityGrade: latest?.qualityGrade,
+          disciplineGrade: latest?.disciplineGrade,
           scoreDeviation: devMap.get(c.userId),
           currentLoad: load,
           currentLoadStatus: load === 0 ? '空闲' : load <= 2 ? '正常' : '繁忙',
@@ -875,7 +885,7 @@ export class ExpertAdminService {
         orderBy: { _count: { title: 'desc' } },
       }),
       this.prisma.expertEvaluation.findMany({
-        select: { level: true, overallScore: true, expertUserId: true, createdAt: true },
+        select: { overallGrade: true, expertUserId: true, createdAt: true },
       }),
       this.prisma.bidScoreRecord.findMany({
         select: {
@@ -901,11 +911,11 @@ export class ExpertAdminService {
     }));
 
     // 履职评价等级分布
-    const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
-    for (const e of evals) levelCounts[e.level] = (levelCounts[e.level] ?? 0) + 1;
+    const levelCounts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+    for (const e of evals) levelCounts[e.overallGrade] = (levelCounts[e.overallGrade] ?? 0) + 1;
     const evalTotal = evals.length;
-    const avgScore = evalTotal > 0
-      ? Math.round(evals.reduce((s, e) => s + e.overallScore, 0) / evalTotal * 10) / 10
+    const excellentRatio = evalTotal > 0
+      ? Math.round(((levelCounts['A'] + levelCounts['B']) / evalTotal) * 1000) / 10
       : 0;
 
     // 评分偏离度
@@ -946,7 +956,7 @@ export class ExpertAdminService {
         availableRate: total > 0 ? Math.round((avail / total) * 1000) / 10 : 0,
       },
       specialties,
-      evaluation: { levelCounts, avgScore, total: evalTotal, avgScoreDeviation: avgDeviation },
+      evaluation: { levelCounts, excellentRatio, total: evalTotal, avgScoreDeviation: avgDeviation },
       titles,
     };
   }
@@ -967,7 +977,7 @@ export class ExpertAdminService {
         where: { expertUserId },
         orderBy: { createdAt: 'desc' },
         take: 10,
-        select: { attendanceScore: true, qualityScore: true, disciplineScore: true, overallScore: true, level: true },
+        select: { attendanceGrade: true, qualityGrade: true, disciplineGrade: true, overallGrade: true },
       }),
       this.prisma.bidScoreRecord.findMany({
         where: { expert: { userId: expertUserId } },
@@ -988,18 +998,29 @@ export class ExpertAdminService {
     );
     const meanDeviation = deviations.length > 0 ? Math.round(deviations[0].meanDeviation * 10) / 10 : null;
 
-    // 规则兜底：历史均分 ± 偏离度/违规罚分（LLM 不可用时使用）
+    // 规则兜底：历史最常见等级 ± 违规影响（LLM 不可用时使用）
+    const mostCommonGrade = (grades: ExpertLevel[]): ExpertLevel => {
+      const cnt: Record<string, number> = {};
+      for (const g of grades) cnt[g] = (cnt[g] ?? 0) + 1;
+      let best = 'C', bestN = 0;
+      for (const [g, n] of Object.entries(cnt)) { if (n > bestN) { best = g; bestN = n; } }
+      return best as ExpertLevel;
+    };
+    const penalty = violations.length > 0 ? 1 : 0; // 有违规最多降一级
+    const downgrade = (g: ExpertLevel): ExpertLevel => {
+      if (penalty === 0) return g;
+      const downgraded = GRADE_SCORE[g] - penalty;
+      return SCORE_GRADE[Math.max(1, downgraded)]!;
+    };
     const ruleFallback = () => {
-      const attAvg = evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.attendanceScore, 0) / evals.length) : 85;
-      const qualAvg = evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.qualityScore, 0) / evals.length) : 85;
-      const discAvg = evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.disciplineScore, 0) / evals.length) : 90;
-      const penalty = (meanDeviation != null && Math.abs(meanDeviation) > 10 ? 4 : 0) + (violations.length > 0 ? 6 : 0);
-      const clamp = (n: number) => Math.max(50, Math.min(100, n));
+      const attGrade = downgrade(mostCommonGrade(evals.map(e => e.attendanceGrade)));
+      const qualGrade = downgrade(mostCommonGrade(evals.map(e => e.qualityGrade)));
+      const discGrade = downgrade(mostCommonGrade(evals.map(e => e.disciplineGrade)));
       return {
-        attendanceScore: clamp(attAvg - penalty),
-        qualityScore: clamp(qualAvg - penalty),
-        disciplineScore: clamp(discAvg - penalty),
-        analysis: `规则兜底建议：基于近 ${evals.length} 次评价均分（出勤 ${attAvg}/质量 ${qualAvg}/廉洁 ${discAvg}）${
+        attendanceGrade: attGrade,
+        qualityGrade: qualGrade,
+        disciplineGrade: discGrade,
+        analysis: `规则兜底建议：基于近 ${evals.length} 次评价最高频等级${
           meanDeviation != null ? `、评分偏离度 ${meanDeviation}` : ''
         }${violations.length > 0 ? `、${violations.length} 条违规记录` : ''}综合得出。AI 暂不可用，建议人工复核后调整。`,
         engine: 'rules' as const,
@@ -1007,27 +1028,30 @@ export class ExpertAdminService {
     };
 
     try {
-      const recentLevels = evals.slice(0, 5).map(e => e.level).join('、') || '无';
-      const recentAvg = evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.overallScore, 0) / evals.length) : null;
-      const suggestion = await this.llm.chatJson<{
-        attendanceScore: number; qualityScore: number; disciplineScore: number; analysis: string;
-      }>(
-        '你是评审专家履职评价助手。根据专家历史履职数据，给出本次评价的三维建议分数（0-100 整数）与简明分析（150字内，说明依据与关注点）。客观中立，分数须与历史表现匹配，不得无依据拔高或打压。',
+      const recentLevels = evals.slice(0, 5).map(e => e.overallGrade).join('、') || '无';
+      const raw = await this.llm.chat(
+        '你是评审专家履职评价助手。根据专家历史履职数据，给出本次评价的三维建议等级（A=优秀/B=良好/C=合格/D=待改进/E=不合格）与简明分析（150字内，说明依据与关注点）。客观中立，等级须与历史表现匹配，不得无依据拔高或打压。',
         `专家：${user.displayName}（${user.expertProfile?.specialty ?? '专业未填写'} / ${user.expertProfile?.title ?? '职称未填写'}）。
-近 ${evals.length} 次履职评价：等级序列 ${recentLevels}；综合均分 ${recentAvg ?? '无数据'}。
+近 ${evals.length} 次履职评价：综合等级序列 ${recentLevels}。
 评分偏离度（与评审共识的偏差）：${meanDeviation ?? '无数据'}。
 违规记录：${violations.length} 条。
 当前负荷：${activeAssigns.length} 个未归档项目。
-请综合以上数据给出建议分数与分析，以 JSON 返回：{"attendanceScore":number,"qualityScore":number,"disciplineScore":number,"analysis":"string"}`,
+
+请严格以 JSON 格式返回（不要markdown包裹，直接输出纯JSON对象）：
+{"attendanceGrade":"A|B|C|D|E","qualityGrade":"A|B|C|D|E","disciplineGrade":"A|B|C|D|E","analysis":"分析文字"}`,
         0.3,
       );
-      if (!suggestion) return ruleFallback();
-      const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return ruleFallback();
+      const parsed = JSON.parse(jsonMatch[0]);
+      const validGrades = new Set(['A', 'B', 'C', 'D', 'E']);
+      const valid = (g: string): ExpertLevel =>
+        validGrades.has(g) ? (g as ExpertLevel) : 'C';
       return {
-        attendanceScore: clamp(suggestion.attendanceScore),
-        qualityScore: clamp(suggestion.qualityScore),
-        disciplineScore: clamp(suggestion.disciplineScore),
-        analysis: (suggestion.analysis ?? '').slice(0, 300),
+        attendanceGrade: valid(parsed.attendanceGrade),
+        qualityGrade: valid(parsed.qualityGrade),
+        disciplineGrade: valid(parsed.disciplineGrade),
+        analysis: (parsed.analysis ?? '').slice(0, 300),
         engine: 'ai' as const,
       };
     } catch (err) {
@@ -1049,15 +1073,17 @@ export class ExpertAdminService {
       if (!assignment) throw new BadRequestException({ error: '该专家未参与此项目，不能对其发起项目履职评价', code: 'EXPERT_NOT_ON_PROJECT' });
     }
 
-    const overall = Math.round((dto.attendanceScore + dto.qualityScore + dto.disciplineScore) / 3);
-    const level: ExpertLevel = overall >= 90 ? 'A' : overall >= 80 ? 'B' : overall >= 60 ? 'C' : 'D';
+    const overallGrade = computeOverallGrade(
+      dto.qualityGrade,
+      dto.disciplineGrade,
+      dto.attendanceGrade,
+    );
 
     const data = {
-      attendanceScore: dto.attendanceScore,
-      qualityScore: dto.qualityScore,
-      disciplineScore: dto.disciplineScore,
-      overallScore: overall,
-      level,
+      attendanceGrade: dto.attendanceGrade,
+      qualityGrade: dto.qualityGrade,
+      disciplineGrade: dto.disciplineGrade,
+      overallGrade,
       comment: dto.comment,
     };
 
@@ -1088,7 +1114,7 @@ export class ExpertAdminService {
   async getEvaluationStats() {
     const [evaluations, deviations] = await Promise.all([
       this.prisma.expertEvaluation.findMany({
-        select: { level: true, overallScore: true, expertUserId: true, createdAt: true },
+        select: { overallGrade: true, expertUserId: true, createdAt: true },
       }),
       // P2：偏离度计算下推到 Postgres 窗口函数，仅返回按专家聚合的结果，避免全表 BidScoreRecord 加载入内存
       // 语义等价 computeExpertMeanDeviations：按 (scoreItemId,supplierId) 分组、组内 ≥2 人、每位专家平均绝对偏离
@@ -1109,11 +1135,11 @@ export class ExpertAdminService {
       `,
     ]);
 
-    // 既有：等级分布 + 综合均分
-    const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
-    for (const e of evaluations) levelCounts[e.level]++;
-    const avgScore = evaluations.length > 0
-      ? evaluations.reduce((s, e) => s + e.overallScore, 0) / evaluations.length
+    // 既有：等级分布 + 优良率
+    const levelCounts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+    for (const e of evaluations) levelCounts[e.overallGrade] = (levelCounts[e.overallGrade] ?? 0) + 1;
+    const excellentRatio = evaluations.length > 0
+      ? Math.round(((levelCounts['A'] + levelCounts['B']) / evaluations.length) * 1000) / 10
       : 0;
 
     // 评分偏离度（已由 DB 窗口函数计算，仅取回按专家聚合的结果）
@@ -1125,17 +1151,17 @@ export class ExpertAdminService {
     // 关联分析：每位专家最新履职等级 → 按等级汇总其偏离度均分
     const latestLevel = new Map<string, string>();
     for (const e of [...evaluations].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) {
-      latestLevel.set(e.expertUserId, e.level); // 时间升序遍历，最终保留最新
+      latestLevel.set(e.expertUserId, e.overallGrade); // 时间升序遍历，最终保留最新
     }
-    const byLevel: Record<'A' | 'B' | 'C' | 'D', number[]> = { A: [], B: [], C: [], D: [] };
+    const byLevel: Record<string, number[]> = { A: [], B: [], C: [], D: [], E: [] };
     for (const [expertId, level] of latestLevel) {
       const dev = devMap.get(expertId);
-      if (dev != null && level in byLevel) byLevel[level as 'A' | 'B' | 'C' | 'D'].push(dev);
+      if (dev != null && level in byLevel) byLevel[level].push(dev);
     }
 
     return {
       levelCounts,
-      avgScore: Math.round(avgScore * 10) / 10,
+      excellentRatio,
       total: evaluations.length,
       avgScoreDeviation,
       deviationByLevel: {
@@ -1143,28 +1169,25 @@ export class ExpertAdminService {
         B: meanOrNull(byLevel.B),
         C: meanOrNull(byLevel.C),
         D: meanOrNull(byLevel.D),
+        E: meanOrNull(byLevel.E),
       },
       expertsWithDeviation: deviations.length,
     };
   }
 
-  /** 三维评分分布（全局均分） */
+  /** 三维等级分布 */
   async getEvaluationDimensionStats() {
     const evals = await this.prisma.expertEvaluation.findMany({
-      select: { attendanceScore: true, qualityScore: true, disciplineScore: true },
+      select: { attendanceGrade: true, qualityGrade: true, disciplineGrade: true },
     });
-    if (evals.length === 0) {
-      return { attendanceAvg: 0, qualityAvg: 0, disciplineAvg: 0, total: 0 };
+    const zero = (): Record<string, number> => ({ A: 0, B: 0, C: 0, D: 0, E: 0 });
+    const attendance = zero(), quality = zero(), discipline = zero();
+    for (const e of evals) {
+      attendance[e.attendanceGrade] = (attendance[e.attendanceGrade] ?? 0) + 1;
+      quality[e.qualityGrade] = (quality[e.qualityGrade] ?? 0) + 1;
+      discipline[e.disciplineGrade] = (discipline[e.disciplineGrade] ?? 0) + 1;
     }
-    let attSum = 0, qualSum = 0, discSum = 0;
-    for (const e of evals) { attSum += e.attendanceScore; qualSum += e.qualityScore; discSum += e.disciplineScore; }
-    const n = evals.length;
-    return {
-      attendanceAvg: Math.round((attSum / n) * 10) / 10,
-      qualityAvg: Math.round((qualSum / n) * 10) / 10,
-      disciplineAvg: Math.round((discSum / n) * 10) / 10,
-      total: n,
-    };
+    return { attendance, quality, discipline, total: evals.length };
   }
 
   /* ── 专家画像（Track D §3.4） ── */
@@ -1190,7 +1213,7 @@ export class ExpertAdminService {
         where: { expertUserId: userId },
         orderBy: { createdAt: 'desc' },
         take: 10,
-        select: { level: true, overallScore: true, createdAt: true },
+        select: { overallGrade: true, createdAt: true },
       }),
     ]);
 
@@ -1209,7 +1232,7 @@ export class ExpertAdminService {
       displayName: user.displayName,
       assignments: assignments.map(a => ({ progress: a.progress, totalScore: Number(a.totalScore) })),
       deviation: myDeviation,
-      recentEvals: evals,
+      recentEvals: evals.map(e => ({ level: e.overallGrade, overallGrade: e.overallGrade, createdAt: e.createdAt })),
     });
   }
 
@@ -1231,7 +1254,7 @@ export class ExpertAdminService {
       this.prisma.expertEvaluation.findMany({
         where: { expertUserId: { in: expertIds } },
         orderBy: { createdAt: 'desc' },
-        select: { expertUserId: true, level: true, createdAt: true },
+        select: { expertUserId: true, overallGrade: true, createdAt: true },
       }),
       // All recent assignments in last 12 months
       this.prisma.bidExpert.findMany({
@@ -1245,7 +1268,7 @@ export class ExpertAdminService {
     for (const ev of allEvals) {
       if (!evalsByExpert.has(ev.expertUserId)) evalsByExpert.set(ev.expertUserId, []);
       const arr = evalsByExpert.get(ev.expertUserId)!;
-      if (arr.length < 2) arr.push({ level: ev.level });
+      if (arr.length < 2) arr.push({ level: ev.overallGrade });
     }
     // Index: userId → true if has recent assignment
     const hasRecentAssign = new Set(allRecentAssigns.map(a => a.userId));
@@ -1319,7 +1342,7 @@ export class ExpertAdminService {
         _count: true, orderBy: { _count: { title: 'desc' } },
       }),
       this.prisma.expertEvaluation.findMany({
-        select: { level: true, overallScore: true, createdAt: true, expertUser: { select: { displayName: true } } },
+        select: { overallGrade: true, createdAt: true, expertUser: { select: { displayName: true } } },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.bidExpert.count({ where: { createdAt: { gte: cutoff7d } } }),
@@ -1329,10 +1352,12 @@ export class ExpertAdminService {
     const amap: Record<string, number> = {};
     for (const g of availGroups) amap[g.availability] = g._count;
 
-    const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
-    for (const e of evals) levelCounts[e.level] = (levelCounts[e.level] ?? 0) + 1;
+    const levelCounts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+    for (const e of evals) levelCounts[e.overallGrade] = (levelCounts[e.overallGrade] ?? 0) + 1;
     const evalTotal = evals.length;
-    const avgScore = evalTotal > 0 ? Math.round(evals.reduce((s, e) => s + e.overallScore, 0) / evalTotal * 10) / 10 : 0;
+    const excellentRatio = evalTotal > 0
+      ? Math.round(((levelCounts['A'] + levelCounts['B']) / evalTotal) * 1000) / 10
+      : 0;
 
     // 月度评价趋势（近 12 月）
     const now = new Date();
@@ -1355,11 +1380,10 @@ export class ExpertAdminService {
       disabled: amap['停用'] ?? 0,
       specialtyDistribution: specGroups.map(g => ({ name: g.specialty, count: g._count })),
       titleDistribution: titleGroups.map(g => ({ name: g.title || '未填写', count: g._count })),
-      evaluationStats: { levelCounts, avgScore, total: evalTotal },
+      evaluationStats: { levelCounts, excellentRatio, total: evalTotal },
       recentEvals: evals.slice(0, 8).map(e => ({
         expert: e.expertUser?.displayName ?? '—',
-        level: e.level,
-        score: e.overallScore,
+        level: e.overallGrade,
         time: e.createdAt.toISOString(),
       })),
       recentAssigns7d,
@@ -1368,7 +1392,7 @@ export class ExpertAdminService {
     };
   }
 
-  /** 专家排名（按履职评价均分） */
+  /** 专家排名（按 A 级评价次数降序） */
   async getRanking(period: 'month' | 'quarter' | 'all' = 'month') {
     const cutoff = period === 'month'
       ? new Date(Date.now() - 30 * 24 * 3600 * 1000)
@@ -1379,38 +1403,38 @@ export class ExpertAdminService {
     const evals = await this.prisma.expertEvaluation.findMany({
       where: { createdAt: { gte: cutoff } },
       select: {
-        expertUserId: true, overallScore: true, level: true,
+        expertUserId: true, overallGrade: true,
         expertUser: { select: { displayName: true, expertProfile: { select: { specialty: true } } } },
       },
     });
 
-    const byExpert = new Map<string, { displayName: string; specialty: string; scores: number[]; evalCount: number; aCount: number }>();
+    const byExpert = new Map<string, { displayName: string; specialty: string; evalCount: number; aCount: number; gradeCounts: Record<string, number> }>();
     for (const e of evals) {
       let rec = byExpert.get(e.expertUserId);
       if (!rec) {
-        rec = { displayName: e.expertUser?.displayName ?? '—', specialty: e.expertUser?.expertProfile?.specialty ?? '', scores: [], evalCount: 0, aCount: 0 };
+        rec = { displayName: e.expertUser?.displayName ?? '—', specialty: e.expertUser?.expertProfile?.specialty ?? '', evalCount: 0, aCount: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0, E: 0 } };
         byExpert.set(e.expertUserId, rec);
       }
-      rec.scores.push(e.overallScore);
       rec.evalCount++;
-      if (e.level === 'A') rec.aCount++;
+      rec.gradeCounts[e.overallGrade] = (rec.gradeCounts[e.overallGrade] ?? 0) + 1;
+      if (e.overallGrade === 'A') rec.aCount++;
     }
 
     const rows = [...byExpert.entries()].map(([expertUserId, r]) => ({
       expertUserId,
       displayName: r.displayName,
       specialty: r.specialty,
-      avgScore: r.scores.length > 0 ? Math.round(r.scores.reduce((s, x) => s + x, 0) / r.scores.length) : 0,
       evalCount: r.evalCount,
       aCount: r.aCount,
+      gradeCounts: r.gradeCounts,
     }));
-    rows.sort((a, b) => b.avgScore - a.avgScore || b.aCount - a.aCount || b.evalCount - a.evalCount);
+    rows.sort((a, b) => b.aCount - a.aCount || b.evalCount - a.evalCount);
 
-    // 竞赛排名：完全并列（均分/A级数/评价数相同）共享同一名次（1,2,2,4），避免并列项名次随机
+    // 竞赛排名：A 级数/评价数相同共享同一名次
     let lastRank = 0;
     let lastKey = '';
     return rows.map((r, i) => {
-      const key = `${r.avgScore}|${r.aCount}|${r.evalCount}`;
+      const key = `${r.aCount}|${r.evalCount}`;
       if (key !== lastKey) { lastRank = i + 1; lastKey = key; }
       return { ...r, rank: lastRank };
     });
@@ -1657,7 +1681,7 @@ export class ExpertAdminService {
 
     const [scoreRecords, evals, violations] = await Promise.all([
       this.prisma.bidScoreRecord.findMany({ where: { expert: { userId } }, select: { score: true, scoreItemId: true, supplierId: true } }),
-      this.prisma.expertEvaluation.findMany({ where: { expertUserId: userId }, orderBy: { createdAt: 'desc' }, take: 10, select: { level: true, overallScore: true } }),
+      this.prisma.expertEvaluation.findMany({ where: { expertUserId: userId }, orderBy: { createdAt: 'desc' }, take: 10, select: { overallGrade: true } }),
       this.prisma.auditLog.findMany({ where: { action: 'EXPERT_VIOLATION_RECORDED', resourceId: userId }, select: { id: true } }),
     ]);
 
@@ -1665,13 +1689,15 @@ export class ExpertAdminService {
       scoreRecords.map(r => ({ expertId: userId, scoreItemId: r.scoreItemId, supplierId: r.supplierId, score: Number(r.score) })),
     );
     const meanDeviation = deviations.length > 0 ? Math.round(deviations[0].meanDeviation * 10) / 10 : null;
-    const recentDCount = evals.filter(e => e.level === 'D').length;
+    const recentECount = evals.filter(e => e.overallGrade === 'E').length;
+    const gradeDistribution = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+    for (const e of evals) gradeDistribution[e.overallGrade] = (gradeDistribution[e.overallGrade] ?? 0) + 1;
     const signals = {
       meanDeviation,
       deviationRisk: meanDeviation != null && Math.abs(meanDeviation) > 10 ? 'high' : meanDeviation != null && Math.abs(meanDeviation) > 6 ? 'medium' : 'low',
-      recentDCount,
+      recentECount,
       violationCount: violations.length,
-      recentEvalAvg: evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.overallScore, 0) / evals.length) : null,
+      gradeDistribution,
     };
     const ruleBrief = this.buildRuleRiskBrief(signals, user.displayName);
 
@@ -1679,7 +1705,7 @@ export class ExpertAdminService {
     try {
       aiBrief = await this.llm.chat(
         '你是评标监督风险分析助手。根据专家履职数据给出简明中文风险简报（150字内），点明风险与处置建议，客观中立，不加格式符号。',
-        `专家：${user.displayName}。评分偏离度 ${signals.meanDeviation ?? '无数据'}（风险等级 ${signals.deviationRisk}）；近 ${evals.length} 次履职评价中 D 级 ${recentDCount} 次；违规记录 ${signals.violationCount} 条；近期评价均分 ${signals.recentEvalAvg ?? '无数据'}。`,
+        `专家：${user.displayName}。评分偏离度 ${signals.meanDeviation ?? '无数据'}（风险等级 ${signals.deviationRisk}）；近 ${evals.length} 次履职评价中 E 级 ${recentECount} 次、D 级 ${gradeDistribution.D} 次；违规记录 ${signals.violationCount} 条。`,
         0.3,
       );
     } catch (err) {
@@ -1690,14 +1716,13 @@ export class ExpertAdminService {
     return { expertId: userId, displayName: user.displayName, signals, ruleBrief, aiBrief };
   }
 
-  private buildRuleRiskBrief(s: { meanDeviation: number | null; deviationRisk: string; recentDCount: number; violationCount: number; recentEvalAvg: number | null }, name: string): string {
+  private buildRuleRiskBrief(s: { meanDeviation: number | null; deviationRisk: string; recentECount: number; violationCount: number; gradeDistribution?: Record<string, number> }, name: string): string {
     const parts: string[] = [];
     if (s.deviationRisk === 'high') parts.push(`评分偏离较大（${s.meanDeviation}），与评审共识存在偏差，建议重点关注或调整`);
     else if (s.deviationRisk === 'medium') parts.push(`评分偏离略大（${s.meanDeviation}），建议关注`);
     else parts.push(`评分偏离正常（${s.meanDeviation ?? '暂无数据'}）`);
-    if (s.recentDCount > 0) parts.push(`近期出现 ${s.recentDCount} 次 D 级履职评价，建议按退库规则研判`);
+    if (s.recentECount > 0) parts.push(`近期出现 ${s.recentECount} 次 E 级（不合格）履职评价，建议按退库规则研判`);
     if (s.violationCount > 0) parts.push(`累计 ${s.violationCount} 条违规记录`);
-    if (s.recentEvalAvg != null) parts.push(`近期评价均分 ${s.recentEvalAvg}`);
     return `${name}：${parts.join('；')}。`;
   }
 
@@ -1709,7 +1734,7 @@ export class ExpertAdminService {
       where: { projectId },
       select: {
         expertName: true, expertRole: true, isLead: true, major: true, progress: true, invitationStatus: true,
-        user: { select: { expertEvaluations: { orderBy: { createdAt: 'desc' }, take: 1, select: { level: true, overallScore: true } } } },
+        user: { select: { expertEvaluations: { orderBy: { createdAt: 'desc' }, take: 1, select: { overallGrade: true } } } },
       },
     });
     const summary = {
@@ -1722,7 +1747,7 @@ export class ExpertAdminService {
     };
     const rows = experts.map(e => ({
       name: e.expertName, role: e.expertRole, isLead: e.isLead, major: e.major,
-      progress: e.progress ?? 0, status: e.invitationStatus, latestEvalLevel: e.user?.expertEvaluations[0]?.level ?? null,
+      progress: e.progress ?? 0, status: e.invitationStatus, latestEvalLevel: e.user?.expertEvaluations[0]?.overallGrade ?? null,
     }));
 
     let aiSummary: string | null = null;
@@ -1844,20 +1869,22 @@ export class ExpertAdminService {
     return quotas;
   }
 
-  private ruleScore(c: { specialty: string; title?: string; pastProjects: number; pastAvgScore: number }): number {
+  private ruleScore(c: { specialty: string; title?: string; pastProjects: number; evaluationLevel?: string }): number {
     let s = 60;
     if (c.title?.includes('教授') || c.title?.includes('正高')) s += 12;
     else if (c.title?.includes('高工') || c.title?.includes('高级')) s += 8;
     s += Math.min(15, c.pastProjects * 3);
-    s += Math.min(15, c.pastAvgScore * 0.15);
+    // 等级加分: A=15, B=10, C=5, D=0, E=-5
+    const gradeBonus = { A: 15, B: 10, C: 5, D: 0, E: -5 }[c.evaluationLevel ?? 'C'] ?? 0;
+    s += gradeBonus;
     return Math.max(0, Math.min(100, Math.round(s)));
   }
 
   /** 综合择优规则评分（AI 降级时使用）：纳入履职评价/偏离度/负荷等多维度数据 */
   private extendedRuleScore(c: {
-    specialty: string; title?: string; pastProjects: number; pastAvgScore: number;
-    evaluationLevel?: string; attendanceScore?: number; qualityScore?: number;
-    disciplineScore?: number; scoreDeviation?: number; currentLoad?: number; currentLoadStatus?: string;
+    specialty: string; title?: string; pastProjects: number;
+    evaluationLevel?: string; attendanceGrade?: ExpertLevel; qualityGrade?: ExpertLevel;
+    disciplineGrade?: ExpertLevel; scoreDeviation?: number; currentLoad?: number; currentLoadStatus?: string;
   }): number {
     let s = 50;
     // 职称（15分）
@@ -1882,7 +1909,8 @@ export class ExpertAdminService {
 
     // 历史经验（15分）
     s += Math.min(15, c.pastProjects * 3);
-    s += Math.min(10, c.pastAvgScore * 0.1);
+    // 等级打分: E 级减分
+    if (c.evaluationLevel === 'E') s -= 10;
 
     // 负荷均衡（10分）—— 空闲者加分
     if (c.currentLoadStatus === '空闲') s += 10;

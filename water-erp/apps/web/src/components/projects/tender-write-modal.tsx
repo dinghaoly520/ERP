@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileDown, FileText, Loader2, Search, X } from 'lucide-react';
+import { FileDown, FileText, Loader2, Search, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { TenderWriteWorkspace } from '@/components/tender-write/tender-write-workspace';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
@@ -91,6 +91,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
+  // 审查完成后：等待用户选择是否上传到项目阶段
+  const [showReviewUploadDialog, setShowReviewUploadDialog] = useState(false);
+  const reviewPendingFileRef = useRef<{ blob: Blob; fileName: string } | null>(null);
+  const [reviewUploading, setReviewUploading] = useState(false);
 
   const tenderType = mapProcurementMethodToTenderType(procurementMethod);
   const selectedType: TenderDocumentType | null = tenderType;
@@ -408,24 +412,46 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     }
   }, [selectedType, currentDraft]);
 
-  /** 审查完成 → 重新导出当前草稿，上传至项目采购文件阶段。 */
+  /** 审查完成 → 重新导出当前草稿，由用户决定是否上传至项目采购文件阶段。 */
   const handleReviewComplete = useCallback(async (_task: ReviewTask) => {
-    if (!selectedType || !project) return;
+    if (!selectedType) return;
     try {
       const result = await exportTenderDocument({ documentType: selectedType, answers: currentDraft });
-      const file = new File([result.blob], result.fileName, {
+      reviewPendingFileRef.current = { blob: result.blob, fileName: result.fileName };
+      setShowReviewUploadDialog(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '导出失败');
+    }
+  }, [selectedType, currentDraft]);
+
+  /** 审查完成后用户确认上传 */
+  const handleConfirmReviewUpload = useCallback(async () => {
+    const pending = reviewPendingFileRef.current;
+    if (!pending || !project) return;
+    setReviewUploading(true);
+    try {
+      const file = new File([pending.blob], pending.fileName, {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       });
       const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
       onAttachmentUploaded?.(uploaded);
       toast.success('采购文件已提交至项目采购文件阶段');
+      setShowReviewUploadDialog(false);
       setShowReview(false);
-      setSuccessMessage('已提交至项目阶段');
-      setTimeout(() => setSuccessMessage(null), 2000);
+      reviewPendingFileRef.current = null;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '提交失败');
+    } finally {
+      setReviewUploading(false);
     }
-  }, [selectedType, currentDraft, project, onAttachmentUploaded]);
+  }, [project, onAttachmentUploaded]);
+
+  /** 审查完成后用户选择不上传 */
+  const handleSkipReviewUpload = useCallback(() => {
+    setShowReviewUploadDialog(false);
+    setShowReview(false);
+    reviewPendingFileRef.current = null;
+  }, []);
 
   // ----------
 
@@ -644,9 +670,12 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
             }}
           >
-            <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-              导出采购文件
-            </h2>
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                导出采购文件
+              </h2>
+              <button type="button" onClick={() => setShowExportDialog(false)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
             <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
               文件已生成，是否直接进行合规审查？
             </p>
@@ -655,7 +684,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 type="button"
                 onClick={handleDirectExport}
                 disabled={exporting}
-                className="neu-btn-soft flex-1 gap-2 h-10 text-sm"
+                className="neu-btn-soft flex-1 gap-2 !h-10 text-sm"
               >
                 {exporting ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -668,7 +697,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 type="button"
                 onClick={handleExportAndReview}
                 disabled={reviewLoading}
-                className="neu-btn-primary flex-1 gap-2 h-10 text-sm"
+                className="neu-btn-primary flex-1 gap-2 !h-10 text-sm"
               >
                 {reviewLoading ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -743,6 +772,54 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                   <TenderReviewWorkspace />
                 </div>
               </TenderReviewProvider>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 审查完成后：用户选择是否上传到项目采购文件阶段 */}
+      {showReviewUploadDialog && (
+        <div className="fixed inset-0 z-[700] flex items-center justify-center">
+          <div
+            className="absolute inset-0"
+            style={{ background: 'oklch(0.1 0.02 258 / 0.42)', backdropFilter: 'blur(4px)' }}
+            onClick={handleSkipReviewUpload}
+          />
+          <div
+            className="relative z-10 mx-4 w-full max-w-[380px] rounded-[22px] p-6"
+            style={{
+              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.95), oklch(0.985 0.005 258 / 0.65))',
+              boxShadow:
+                'inset 0 1px 0 oklch(1 0 0 / 0.9), 4px 5px 18px oklch(0.45 0.07 258 / 0.2), -2px -2px 8px oklch(1 0 0 / 0.9)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                审查已完成
+              </h2>
+              <button type="button" onClick={handleSkipReviewUpload} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
+              是否将审查后的采购文件提交至项目采购文件阶段？
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={handleSkipReviewUpload}
+                disabled={reviewUploading}
+                className="neu-btn-soft flex-1 gap-2 !h-10 text-sm"
+              >
+                暂不上传
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmReviewUpload()}
+                disabled={reviewUploading}
+                className="neu-btn-primary flex-1 gap-2 !h-10 text-sm"
+              >
+                {reviewUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                提交至项目阶段
+              </button>
             </div>
           </div>
         </div>

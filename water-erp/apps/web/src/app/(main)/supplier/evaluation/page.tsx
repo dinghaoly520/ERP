@@ -3,35 +3,63 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplierList, getEvaluationStats, getSupplierEvaluations, createEvaluation, getEvaluationDimensionStats, getSupplierEvaluationAnalysis } from '@/lib/api/supplier';
-import type { DimensionStats, DimensionAnalysis, EvaluationAnalysisResult } from '@/lib/api/supplier';
+import { getSupplierList, getEvaluationStats, getSupplierEvaluations, createEvaluation, getSupplierEvaluationAnalysis } from '@/lib/api/supplier';
+import type { DimensionAnalysis, EvaluationAnalysisResult } from '@/lib/api/supplier';
 import type { Supplier, SupplierEvaluation, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
 import { CheckCircle2, Search, X, RefreshCw, ChevronUp, Sparkles, Loader2, Brain } from 'lucide-react';
 
-const DIMENSIONS: { key: keyof EvalScores; label: string; hint: string; max: number }[] = [
-  { key: 'completenessScore', label: '资料完整性', hint: '资质材料、投标文件的完整与规范程度', max: 20 },
-  { key: 'responsivenessScore', label: '响应及时性', hint: '沟通回复与问题响应速度', max: 30 },
-  { key: 'cooperationScore', label: '配合协作度', hint: '履约过程中的配合与协作意愿', max: 20 },
-  { key: 'complianceScore', label: '合规守信度', hint: '合同履约、合规与诚信情况', max: 20 },
-  { key: 'overallScore', label: '综合满意度', hint: '对供应商的总体评价', max: 10 },
-];
-type EvalScores = { completenessScore: number; responsivenessScore: number; cooperationScore: number; complianceScore: number; overallScore: number };
+const GRADE_WEIGHT = { completenessGrade: 0.20, responsivenessGrade: 0.30, cooperationGrade: 0.20, complianceGrade: 0.20, comprehensiveGrade: 0.10 };
+const GRADE_SORT: Record<string, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+const GRADES = ['A', 'B', 'C', 'D', 'E'] as const;
 
-// 从 0 起评，而非预填≈80 分：避免评审者未逐维打分即误提交一份"默认好评"，污染均分与淘汰预警。
-const DEFAULTS: EvalScores = { completenessScore: 0, responsivenessScore: 0, cooperationScore: 0, complianceScore: 0, overallScore: 0 };
+const DIMENSIONS: { key: keyof EvalGrades; label: string; hint: string; weight: number }[] = [
+  { key: 'completenessGrade', label: '资料完整性(20%)', hint: '资质材料、投标文件的完整与规范程度', weight: 0.20 },
+  { key: 'responsivenessGrade', label: '响应及时性(30%)', hint: '沟通回复与问题响应速度', weight: 0.30 },
+  { key: 'cooperationGrade', label: '配合协作(20%)', hint: '履约过程中的配合与协作意愿', weight: 0.20 },
+  { key: 'complianceGrade', label: '合规守信(20%)', hint: '合同履约、合规与诚信情况', weight: 0.20 },
+  { key: 'comprehensiveGrade', label: '综合评价(10%)', hint: '对供应商的总体评价', weight: 0.10 },
+];
+type EvalGrades = { completenessGrade: string; responsivenessGrade: string; cooperationGrade: string; complianceGrade: string; comprehensiveGrade: string };
+
+// 默认空字符串，避免未评分时误提交
+const DEFAULTS: EvalGrades = { completenessGrade: '', responsivenessGrade: '', cooperationGrade: '', complianceGrade: '', comprehensiveGrade: '' };
+
+const GRADE_COLOR: Record<string, string> = { A: '#059669', B: '#0a5eb8', C: '#d97706', D: '#ca8a04', E: '#dc2626' };
+const GRADE_BG: Record<string, string> = { A: 'oklch(0.96 0.05 164 / 0.45)', B: 'oklch(0.96 0.04 251 / 0.45)', C: 'oklch(0.96 0.06 80 / 0.4)', D: 'oklch(0.96 0.06 80 / 0.25)', E: 'oklch(0.96 0.05 27 / 0.35)' };
+const gradeTone = (g: string) => (g === 'A' ? 'green' : g === 'B' ? 'blue' : g === 'E' ? 'red' : 'orange') as 'green' | 'blue' | 'orange' | 'red';
+
+/** Weighted average → final grade */
+function computeFinalGrade(grades: EvalGrades): string {
+  let totalWeight = 0, scoreSum = 0;
+  for (const d of DIMENSIONS) {
+    const g = grades[d.key];
+    if (g && GRADE_SORT[g] != null) {
+      scoreSum += GRADE_SORT[g] * d.weight;
+      totalWeight += d.weight;
+    }
+  }
+  if (totalWeight === 0) return '';
+  const avg = scoreSum / totalWeight;
+  if (avg >= 4.5) return 'A';
+  if (avg >= 3.5) return 'B';
+  if (avg >= 2.5) return 'C';
+  if (avg >= 1.5) return 'D';
+  return 'E';
+}
 
 export default function SupplierEvaluationPage() {
   const router = useRouter();
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
-  const [evalStats, setEvalStats] = useState({ levelCounts: { A: 0, B: 0, C: 0, D: 0 }, avgScore: 0, total: 0 });
+  const [evalStats, setEvalStats] = useState({ levelCounts: { A: 0, B: 0, C: 0, D: 0, E: 0 }, excellentRatio: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
   const [evalModal, setEvalModal] = useState<Supplier | null>(null);
   const [history, setHistory] = useState<SupplierEvaluation[]>([]);
-  const [scores, setScores] = useState<EvalScores>(DEFAULTS);
+  const [grades, setGrades] = useState<EvalGrades>(DEFAULTS);
   const [evidence, setEvidence] = useState<Record<string, string>>({});
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
@@ -48,13 +76,12 @@ export default function SupplierEvaluationPage() {
     setLoading(false);
   }, [search, page]);
 
-  const [dimStats, setDimStats] = useState<DimensionStats | null>(null);
   useEffect(() => { loadData(); }, [loadData]);
-  useEffect(() => { getEvaluationStats().then(setEvalStats).catch(() => {}); getEvaluationDimensionStats().then(setDimStats).catch(() => {}); }, [data.total]);
+  useEffect(() => { getEvaluationStats().then(setEvalStats).catch(() => {}); }, [data.total]);
 
   const openEval = async (s: Supplier) => {
     setEvalModal(s);
-    setScores(DEFAULTS);
+    setGrades(DEFAULTS);
     setEvidence({});
     setComment('');
     setAiResult(null);
@@ -69,21 +96,24 @@ export default function SupplierEvaluationPage() {
     try {
       const res = await getSupplierEvaluationAnalysis(evalModal.id);
       setAiResult(res);
-      // 自动填入分数和依据
-      const autoScores = { ...scores };
+      // AI 自动选择等级 + 写入每项评价依据
+      const autoGrades = { ...grades };
       const autoEvidence = { ...evidence };
       res.dimensions.forEach(d => {
         const dim = DIMENSIONS.find(dm => dm.label === d.dimension);
-        if (dim) {
-          autoScores[dim.key] = d.suggestedScore;
-          autoEvidence[dim.key] = d.evidencePoints?.length
-            ? `${d.rationale}。参考数据：${d.evidencePoints.join('；')}`
-            : `${d.rationale}`;
+        if (dim && d.suggestedGrade) {
+          autoGrades[dim.key] = d.suggestedGrade;
+          autoEvidence[dim.key] = d.rationale;
         }
       });
-      setScores(autoScores);
+      setGrades(autoGrades);
       setEvidence(autoEvidence);
-      toast.success(`AI 分析完成，已自动填入各维度分数与依据（综合建议 ${res.overallSuggestion} 分）`);
+      // 汇总 AI 分析写入评价说明
+      const aiSummary = res.dimensions
+        .map(d => `【${d.dimension}】${d.suggestedGrade}级：${d.rationale}`)
+        .join('\n');
+      setComment(`${aiSummary}\n\n综合建议等级：${LEVEL_LABEL[res.overallGrade] || res.overallGrade} 级\n${res.summary}`);
+      toast.success(`AI 已自动选择等级并写入评价说明（综合建议 ${LEVEL_LABEL[res.overallGrade] || res.overallGrade} 级）`);
     } catch (e: any) {
       setAiError(e?.message || 'AI 分析失败，请手动评分');
       toast.error('AI 分析失败，可继续手动评分');
@@ -91,43 +121,26 @@ export default function SupplierEvaluationPage() {
     setAiLoading(false);
   };
 
-  const adoptAiScores = () => {
-    if (!aiResult) return;
-    const newScores = { ...scores };
-    const newEvidence = { ...evidence };
-    aiResult.dimensions.forEach(d => {
-      const dim = DIMENSIONS.find(dm => dm.label === d.dimension);
-      if (dim) {
-        newScores[dim.key] = d.suggestedScore;
-        newEvidence[dim.key] = d.evidencePoints?.length
-          ? `${d.rationale}。参考数据：${d.evidencePoints.join('；')}`
-          : `${d.rationale}`;
-      }
-    });
-    setScores(newScores);
-    setEvidence(newEvidence);
-    toast.success('已全部恢复 AI 建议分数和依据');
-  };
-
-  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-  const previewLevel = totalScore >= 90 ? 'A' : totalScore >= 80 ? 'B' : totalScore >= 60 ? 'C' : 'D';
+  const finalGrade = computeFinalGrade(grades);
+  // 检查是否有任何维度已评分
+  const hasAnyGrade = Object.values(grades).some(g => g !== '');
 
   const submit = async () => {
     if (!evalModal) return;
     // 检查每个维度是否有依据
     const missingEvidence = DIMENSIONS.filter(d => !evidence[d.key]);
     if (missingEvidence.length > 0) {
-      toast.error(`请为以下维度填写评价依据：${missingEvidence.slice(0, 2).map(d => d.label).join('、')}${missingEvidence.length > 2 ? '等' : ''}`);
+      toast.error(`请为以下维度填写评价依据：${missingEvidence.slice(0, 2).map(d => d.label.replace(/\(\d+%\)/, '')).join('、')}${missingEvidence.length > 2 ? '等' : ''}`);
       return;
     }
-    // 防全 0 误提交：默认 0 起评，若各维皆 0 视为未实际打分，阻断提交（避免污染均分/淘汰预警）。
-    if (totalScore <= 0) {
-      toast.error('请至少为各维度打分后再提交（当前总分为 0）');
+    // 防止未打分提交
+    if (!hasAnyGrade) {
+      toast.error('请至少为各维度选择等级后再提交');
       return;
     }
     setSaving(true);
     try {
-      await createEvaluation(evalModal.id, { ...scores, comment: comment || undefined, evidence });
+      await createEvaluation(evalModal.id, { ...grades, comment: comment || undefined, evidence });
       toast.success('评价已提交');
       setHistory(await getSupplierEvaluations(evalModal.id));
       setEvalModal(null);
@@ -148,7 +161,7 @@ export default function SupplierEvaluationPage() {
             <div className="page-hero__icon"><CheckCircle2 size={17} /></div>
             <div>
               <div className="page-hero__title">供应商评价</div>
-              <div className="page-hero__sub">AI 辅助五维评价 · 各维度需填写依据后方可提交</div>
+              <div className="page-hero__sub">AI 辅助五维等级制评价 · 各维度需填写依据后方可提交</div>
             </div>
           </div>
           <div className="page-hero__right">
@@ -156,11 +169,11 @@ export default function SupplierEvaluationPage() {
           </div>
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
-          {(['A','B','C','D'] as const).map(lv => (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 items-stretch">
+          {GRADES.map(lv => (
             <div key={lv} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">
-                {lv}级 · {lv === 'A' ? '优秀' : lv === 'B' ? '良好' : lv === 'C' ? '合格' : '不合格'}
+                {lv}级 · {LEVEL_LABEL[lv]}
               </span>
               <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{evalStats.levelCounts[lv]}</span>
               <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">&nbsp;</span>
@@ -174,7 +187,7 @@ export default function SupplierEvaluationPage() {
       <div className="wb-toolbar">
         <div className="flex items-center gap-4 text-sm">
           <span className="text-[var(--muted-foreground)]">累计评价 <strong className="tabular-nums text-[var(--foreground)]">{evalStats.total}</strong> 次</span>
-          <span className="text-[var(--muted-foreground)]">平均得分 <strong className="tabular-nums text-[var(--accent)]">{evalStats.avgScore.toFixed(1)}</strong></span>
+          <span className="text-[var(--muted-foreground)]">优良率 <strong className="tabular-nums text-[var(--accent)]">{evalStats.excellentRatio.toFixed(1)}%</strong></span>
         </div>
         <div className="relative min-w-[140px] xl:min-w-[200px] flex-1 ml-auto">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
@@ -182,35 +195,6 @@ export default function SupplierEvaluationPage() {
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
         </div>
       </div>
-
-      {/* ══════ 五维评分分布 ══════ */}
-      {dimStats && dimStats.total > 0 && (
-        <div className="neu-table-card p-5">
-          <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">五维评分分布（全局均分）</h3>
-          <div className="space-y-2">
-            {[
-              { label: '资料完整性', key: 'completenessAvg' as const, max: 20 },
-              { label: '响应及时性', key: 'responsivenessAvg' as const, max: 30 },
-              { label: '配合协作度', key: 'cooperationAvg' as const, max: 20 },
-              { label: '合规守信度', key: 'complianceAvg' as const, max: 20 },
-              { label: '综合满意度', key: 'overallAvg' as const, max: 10 },
-            ].map(d => {
-              const score = dimStats[d.key];
-              const pct = (score / d.max) * 100;
-              const color = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--accent)' : pct >= 40 ? 'var(--warning)' : 'var(--danger)';
-              return (
-                <div key={d.key} className="flex items-center gap-3">
-                  <span className="text-[11px] font-semibold text-[var(--foreground)] w-20">{d.label}</span>
-                  <div className="flex-1 h-5 rounded-md bg-[var(--muted)]/20 overflow-hidden">
-                    <div className="h-full rounded-md transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color, opacity: 0.6 }} />
-                  </div>
-                  <span className="text-[11px] tabular-nums font-semibold text-[var(--muted-foreground)] w-16 text-right">{score}/{d.max}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* ══════ 数据表格 ══════ */}
       <div className="neu-table-card">
@@ -220,8 +204,8 @@ export default function SupplierEvaluationPage() {
               <tr>
                 <th style={{ width: 160 }}>企业名称</th>
                 <th className="text-center" style={{ width: 100 }}>分类</th>
-                <th className="text-center" style={{ width: 80 }}>平均评分</th>
-                <th className="text-center" style={{ width: 100 }}>最新评分</th>
+                <th className="text-center" style={{ width: 80 }}>平均等级</th>
+                <th className="text-center" style={{ width: 100 }}>最近等级</th>
                 <th className="text-center" style={{ width: 72 }}>评价次数</th>
                 <th className="text-center" style={{ width: 100 }}>操作</th>
               </tr>
@@ -234,15 +218,14 @@ export default function SupplierEvaluationPage() {
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><CheckCircle2 size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无已入库供应商</p>
-                    <button onClick={() => router.push('/supplier/repository')} className="neu-btn-xs is-info">前往供应商库 →</button>
+                    <button onClick={() => router.push('/supplier/repository')} className="neu-btn-xs is-info">前往供应商库</button>
                   </div>
                 </td></tr>
               ) : data.items.map((s: Supplier) => {
                 const latest = (s as any).evaluations?.[0];
-                const latestScore = latest ? Number(latest.score).toFixed(0) : null;
-                const level = latest?.level as string | undefined;
-                const levelTone = level === 'A' ? 'green' : level === 'B' ? 'blue' : level === 'C' ? 'orange' : level === 'D' ? 'red' : undefined;
-                const avgScore = (s as any)._avgScore != null ? Number((s as any)._avgScore).toFixed(1) : null;
+                const latestGrade = (latest?.finalGrade || latest?.level) as string | undefined;
+                const levelTone = gradeTone(latestGrade || '');
+                const avgGrade = (s as any)._avgGrade as string | undefined;
                 return (
                 <tr key={s.id} className="row-clickable" onClick={() => openEval(s)}>
                   <td>
@@ -253,17 +236,19 @@ export default function SupplierEvaluationPage() {
                   </td>
                   <td className="text-center text-sm text-[var(--muted-foreground)]">{s.classification?.name || '—'}</td>
                   <td className="text-center">
-                    {avgScore ? (
-                      <span className="text-sm font-extrabold text-[var(--accent)] tabular-nums">{avgScore}</span>
+                    {avgGrade ? (
+                      <div className="flex items-center justify-center gap-1">
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[avgGrade] }}>{avgGrade}</span>
+                        <span className="text-[11px] text-[var(--muted-foreground)]">{LEVEL_LABEL[avgGrade]}</span>
+                      </div>
                     ) : (
                       <span className="text-sm text-[var(--muted-foreground)]">—</span>
                     )}
                   </td>
                   <td className="text-center">
-                    {latestScore ? (
+                    {latestGrade ? (
                       <div className="flex items-center justify-center gap-1.5">
-                        <span className="text-sm font-extrabold text-[var(--foreground)] tabular-nums">{latestScore}</span>
-                        <StatusBadge tone={levelTone as any}>{level}</StatusBadge>
+                        <StatusBadge tone={levelTone}>{latestGrade}</StatusBadge>
                       </div>
                     ) : (
                       <span className="text-sm text-[var(--muted-foreground)]">—</span>
@@ -316,12 +301,12 @@ export default function SupplierEvaluationPage() {
                 <>
                   <Brain size={14} className="text-[var(--accent)] flex-shrink-0" />
                   <span className="text-xs text-[var(--accent)] font-semibold flex-shrink-0">AI 已分析</span>
-                  <span className="text-xs text-[var(--muted-foreground)] truncate">{aiResult.summary}</span>
+                  <span className="text-xs text-[var(--muted-foreground)] leading-relaxed">{aiResult.summary}</span>
                 </>
               ) : (
                 <>
                   <Brain size={14} className="text-[var(--muted-foreground)]/40 flex-shrink-0" />
-                  <span className="text-xs text-[var(--muted-foreground)]">AI 可自动分析供应商数据，完成后将直接填入各维度分数与评价依据</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">AI 可自动分析供应商数据，完成后将直接填入各维度等级与评价依据</span>
                 </>
               )}
             </div>
@@ -332,103 +317,64 @@ export default function SupplierEvaluationPage() {
           </div>
           {aiError && <p className="text-xs font-semibold text-[var(--danger)]">{aiError}</p>}
 
-          {/* ══ 评分维度（每条嵌入 AI 建议）══ */}
+          {/* ══ 评分维度（A/B/C/D/E 按钮组） ══ */}
           {DIMENSIONS.map(d => {
-            const aiDim = aiResult?.dimensions.find(ad => ad.dimension === d.label);
-            const isAdopted = aiDim && scores[d.key] === aiDim.suggestedScore;
+            const curGrade = grades[d.key];
             return (
               <div key={d.key} className="rounded-xl p-4 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
                 {/* 标题行 */}
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor={`eval-${d.key}`} className="flex items-center gap-2 cursor-pointer">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <span className="text-sm font-bold text-[var(--foreground)]">{d.label}</span>
                     <span className="text-[11px] text-[var(--muted-foreground)] hidden sm:inline">{d.hint}</span>
                   </label>
-                  <span className="text-sm font-extrabold text-[var(--accent)] tabular-nums">{scores[d.key]}</span>
-                </div>
-
-                {/* AI 建议行 */}
-                {aiDim && (
-                  <div className="flex items-center gap-2 mb-2 -mt-0.5">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] text-[var(--accent)]/70 truncate">{aiDim.rationale}</p>
-                      {aiDim.evidencePoints?.length > 0 && (
-                        <p className="text-[10px] text-[var(--muted-foreground)]/50 mt-0.5 truncate">
-                          {aiDim.evidencePoints.join(' · ')}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => {
-                        setScores(prev => ({ ...prev, [d.key]: aiDim.suggestedScore }));
-                        setEvidence(prev => ({
-                          ...prev,
-                          [d.key]: aiDim.evidencePoints?.length
-                            ? `${aiDim.rationale}。参考数据：${aiDim.evidencePoints.join('；')}`
-                            : `${aiDim.rationale}`,
-                        }));
-                      }}
-                      className={`neu-btn-xs flex-shrink-0 ${isAdopted ? 'is-success' : ''}`}
-                      title={isAdopted ? '已为 AI 建议值' : '恢复到 AI 建议值'}
-                    >
-                      <Sparkles size={10} />
-                      {isAdopted ? `AI ${aiDim.suggestedScore}` : `恢复 ${aiDim.suggestedScore}`}
-                    </button>
-                  </div>
-                )}
-
-                {/* 滑块 */}
-                <div className="relative">
-                  <input
-                    id={`eval-${d.key}`}
-                    type="range"
-                    min={0} max={d.max} step={1}
-                    value={scores[d.key]}
-                    aria-label={`${d.label}（满分 ${d.max}）`}
-                    onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })}
-                    className="w-full accent-[var(--accent)]"
-                  />
-                  {/* 低/中/高基准标记：30% 与 70% 位置 */}
-                  <div className="absolute top-0 h-full pointer-events-none" style={{ left: '30%', width: 1 }}>
-                    <div className="h-1/2 w-px bg-[var(--muted-foreground)]/15" />
-                  </div>
-                  <div className="absolute top-0 h-full pointer-events-none" style={{ left: '70%', width: 1 }}>
-                    <div className="h-1/2 w-px bg-[var(--muted-foreground)]/15" />
-                  </div>
-                  {/* AI 建议标记线 */}
-                  {aiDim && (
-                    <div className="absolute top-0 h-full pointer-events-none"
-                      style={{ left: `${(aiDim.suggestedScore / d.max) * 100}%`, width: 1 }}>
-                      <div className="h-full w-px bg-[var(--accent)]/30" />
-                      <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-[8px] text-[var(--accent)]/40 font-bold">AI</div>
-                    </div>
+                  {curGrade && (
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[curGrade] }}>{curGrade}</span>
                   )}
                 </div>
-                <div className="flex justify-between text-[10px] text-[var(--muted-foreground)] mt-0.5">
-                  <span>0</span>
-                  {aiDim && <span className="tabular-nums text-[var(--accent)]/40">AI 建议 {aiDim.suggestedScore}</span>}
-                  <span className="tabular-nums">{d.max}</span>
+
+                {/* A/B/C/D/E 按钮组 */}
+                <div className="flex gap-1.5">
+                  {GRADES.map(g => {
+                    const selected = curGrade === g;
+                    return (
+                    <button
+                      key={g}
+                      onClick={() => setGrades(prev => ({ ...prev, [d.key]: g }))}
+                      style={selected ? { backgroundColor: GRADE_BG[g], color: GRADE_COLOR[g], fontWeight: 700 } : undefined}
+                      className="neu-btn-soft flex-1 text-xs font-semibold transition-colors"
+                    >
+                      {g} · {LEVEL_LABEL[g]}
+                    </button>
+                    );
+                  })}
                 </div>
 
                 {/* 评价依据 */}
                 <textarea
                   value={evidence[d.key] || ''}
                   onChange={e => setEvidence(prev => ({ ...prev, [d.key]: e.target.value }))}
-                  placeholder={`评价依据（必填）：基于哪些具体事实或数据得出此评分？`}
+                  placeholder={`评价依据（必填）：基于哪些具体事实或数据得出此等级？`}
                   className="neu-input w-full h-14 resize-none text-xs mt-2"
                 />
               </div>
             );
           })}
 
-          {/* ══ 总分预览 ══ */}
+          {/* ══ 综合等级预览 ══ */}
           <div className="flex items-center gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
-            <span className="text-xs font-bold text-[var(--muted-foreground)]">总分</span>
-            <strong className="text-xl font-black text-[var(--accent)] tabular-nums">{totalScore}</strong>
-            <StatusBadge tone={previewLevel === 'A' ? 'green' : previewLevel === 'B' ? 'blue' : previewLevel === 'C' ? 'orange' : 'red'}>
-              {previewLevel === 'A' ? '优秀' : previewLevel === 'B' ? '良好' : previewLevel === 'C' ? '合格' : '不合格'}（{previewLevel}级）
-            </StatusBadge>
-            <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">A≥90 · B≥80 · C≥60 · D&lt;60</span>
+            <span className="text-xs font-bold text-[var(--muted-foreground)]">综合等级</span>
+            {finalGrade ? (
+              <>
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[finalGrade] }}>{finalGrade}</span>
+                <StatusBadge tone={gradeTone(finalGrade)}>
+                  {LEVEL_LABEL[finalGrade]}（{finalGrade}级）
+                </StatusBadge>
+              </>
+            ) : (
+              <span className="text-sm text-[var(--muted-foreground)]">请选择各维度等级</span>
+            )}
+            <span className="ml-auto text-[10px] text-[var(--muted-foreground)]">权重: 资料20%+响应30%+配合20%+合规20%+综合10%</span>
           </div>
 
           <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="总体评价说明（可选）" className="neu-input w-full h-20 resize-none text-sm" />
@@ -441,8 +387,8 @@ export default function SupplierEvaluationPage() {
                 <h4 className="text-sm font-bold text-[var(--foreground)] mb-2">历史评价（{history.length}）</h4>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {history.map(ev => {
-                    const lv = ev.level || 'D';
-                    const tone = lv === 'A' ? 'green' : lv === 'B' ? 'blue' : lv === 'C' ? 'orange' : 'red';
+                    const fg = ev.finalGrade || 'E';
+                    const tone = gradeTone(fg);
                     let evidenceText = '';
                     try {
                       const evData = (ev as any).evidence as Record<string, string> | undefined;
@@ -453,10 +399,23 @@ export default function SupplierEvaluationPage() {
                     return (
                       <div key={ev.id} className="rounded-lg bg-[var(--surface)] p-2.5 text-xs shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
                         <div className="flex items-center gap-2">
-                          <StatusBadge tone={tone as any}>{lv}</StatusBadge>
-                          <strong className="text-[var(--foreground)]">{Number(ev.score)}分</strong>
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[fg] }}>{fg}</span>
+                          <StatusBadge tone={tone}>{LEVEL_LABEL[fg]}</StatusBadge>
                           <span className="text-[var(--muted-foreground)]">{ev.evaluator?.displayName || '—'}</span>
                           <span className="ml-auto text-[var(--muted-foreground)]">{new Date(ev.createdAt).toLocaleDateString('zh-CN')}</span>
+                        </div>
+                        {/* 维度等级 badges */}
+                        <div className="flex gap-1 mt-1.5 flex-wrap">
+                          {(['completenessGrade', 'responsivenessGrade', 'cooperationGrade', 'complianceGrade', 'comprehensiveGrade'] as const).map(k => {
+                            const v = (ev as any)[k] as string | undefined;
+                            if (!v) return null;
+                            const dimLabel = DIMENSIONS.find(d => d.key === k)?.label.replace(/\(\d+%\)/, '') || k;
+                            return (
+                              <span key={k} className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: LEVEL_COLOR[v] + '20', color: LEVEL_COLOR[v] }}>
+                                {dimLabel}:{v}
+                              </span>
+                            );
+                          })}
                         </div>
                         {ev.comment && <p className="mt-1 text-[var(--muted-foreground)]">{ev.comment.slice(0, 200).replace(/\n--- 评价依据 ---[\s\S]*/, '')}</p>}
                         {evidenceText && <p className="mt-0.5 text-[var(--muted-foreground)]/60 text-[10px]">{evidenceText}</p>}

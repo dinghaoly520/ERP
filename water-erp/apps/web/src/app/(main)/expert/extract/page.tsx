@@ -225,9 +225,14 @@ export function ExpertExtractPage({
           }
         }
       } catch (e: any) {
-        // 按 code 给针对性提示（后端结构化错误），避免笼统"自动抽取失败"
-        if (e?.code === 'NO_ELIGIBLE_EXPERTS') {
+        // #8: 按 code / status 给针对性提示，降低排查门槛
+        const code = e?.code;
+        if (code === 'NO_ELIGIBLE_EXPERTS') {
           toast.error('专家库暂无可用候选人，请先在专家管理维护可用专家');
+        } else if (code === 'UNSUPPORTED' || code === 'NO_PROJECT') {
+          toast.error('当前项目不支持自动抽取，请手动选择专家');
+        } else if (e?.status === 0 || (e instanceof TypeError && e.message?.includes('fetch'))) {
+          toast.error('网络连接异常，请检查网络后重试');
         } else {
           toast.error('自动抽取失败，请手动配置抽取参数');
         }

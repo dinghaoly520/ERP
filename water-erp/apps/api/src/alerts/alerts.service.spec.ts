@@ -48,22 +48,22 @@ describe('AlertsService', () => {
   });
 
   describe('expertAlerts', () => {
-    it('连续 2 次 D 级 → consecutiveD=true', async () => {
+    it('连续 2 次 E 级 → consecutiveE=true', async () => {
       prisma.bidExpert.count.mockResolvedValue(1);
       prisma.expertEvaluation.findMany.mockResolvedValue([
-        { level: 'D' }, { level: 'D' },
+        { overallGrade: 'E' }, { overallGrade: 'E' },
       ]);
       const res = await service.expertAlerts('e1');
-      expect(res.consecutiveD).toBe(true);
+      expect(res.consecutiveE).toBe(true);
       expect(res.overloaded).toBe(false);
     });
 
     it('参与 >3 未归档项目 → overloaded=true', async () => {
       prisma.bidExpert.count.mockResolvedValue(4);
-      prisma.expertEvaluation.findMany.mockResolvedValue([{ level: 'A' }]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([{ overallGrade: 'A' }]);
       const res = await service.expertAlerts('e1');
       expect(res.overloaded).toBe(true);
-      expect(res.consecutiveD).toBe(false);
+      expect(res.consecutiveE).toBe(false);
     });
   });
 });

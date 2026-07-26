@@ -86,13 +86,8 @@ export default function ExpertRankingPage() {
                 <div className="text-xs text-[var(--muted-foreground)] mt-0.5">{r.specialty}</div>
                 <div className="flex items-center justify-center gap-3 mt-3">
                   <div>
-                    <span className="text-2xl font-black text-[var(--accent)] tabular-nums">{r.avgScore}</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)] block">均分</span>
-                  </div>
-                  <div className="w-px h-8 bg-[var(--muted)]/30" />
-                  <div>
-                    <span className="text-lg font-bold text-[var(--foreground)] tabular-nums">{r.aCount}</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)] block">优秀次数</span>
+                    <span className="text-2xl font-black text-[var(--accent)] tabular-nums">{r.aCount}</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)] block">A 级次数</span>
                   </div>
                 </div>
               </div>
@@ -102,15 +97,14 @@ export default function ExpertRankingPage() {
           {/* Ranking table */}
           <div className="neu-table-card">
             <div className="overflow-x-auto">
-              <table className="neu-table w-full min-w-[600px]">
+              <table className="neu-table w-full min-w-[500px]">
                 <thead>
                   <tr>
                     <th style={{ width: 60 }}>排名</th>
                     <th>专家</th>
                     <th className="text-center">专业</th>
-                    <th className="text-center">评价均分</th>
                     <th className="text-center">评价次数</th>
-                    <th className="text-center">优秀次数</th>
+                    <th className="text-center">A 级次数</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -119,7 +113,6 @@ export default function ExpertRankingPage() {
                       <td className="text-center font-bold tabular-nums text-[var(--muted-foreground)]">{r.rank}</td>
                       <td><span className="text-sm font-bold text-[var(--foreground)]">{r.displayName}</span></td>
                       <td className="text-center">{r.specialty && <StatusBadge tone="blue">{r.specialty}</StatusBadge>}</td>
-                      <td className="text-center text-sm font-bold tabular-nums text-[var(--accent)]">{r.avgScore}</td>
                       <td className="text-center text-sm tabular-nums text-[var(--foreground)]">{r.evalCount}</td>
                       <td className="text-center text-sm font-bold tabular-nums text-[var(--success)]">{r.aCount}</td>
                     </tr>

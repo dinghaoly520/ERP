@@ -79,12 +79,6 @@ export function TenderWriteWorkspace({
   const handlePreviewValueChange = (fieldKey: TenderFieldKey, value: string) => {
     const normalizedValue = value.trim();
 
-    if (fieldKey === 'contractText') {
-      onChange('contractTextType', normalizedValue ? 'yes' : 'no');
-      onChange(fieldKey, normalizedValue ? value : '');
-      return;
-    }
-
     if (fieldKey === 'serviceContent') {
       onChange('serviceContentType', normalizedValue ? 'yes' : 'no');
       onChange(fieldKey, normalizedValue ? value : '');

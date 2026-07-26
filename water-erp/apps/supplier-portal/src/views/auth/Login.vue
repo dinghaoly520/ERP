@@ -59,7 +59,7 @@ const STATUS_TEXT: Record<string, string> = {
   RETURNED: '退回补正：申请被退回，请按原因补充材料后重新提交。',
   APPROVED: '已通过：账号已激活，请使用注册账号登录。',
   DISABLED: '已停用：账号已被停用，如有疑问请联系采购中心。',
-  BLACKLIST: '已拉黑：账号已被列入黑名单，如有疑问请联系采购中心。', // 键须与后端枚举 SupplierStatus.BLACKLIST 一致
+  BLACKLIST: '账号已列入不良供应商名单，如有异议请联系采购中心申诉。', // 键须与后端枚举 SupplierStatus.BLACKLIST 一致
 }
 function openQuery() {
   showQuery.value = true

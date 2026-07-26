@@ -23,7 +23,8 @@ export interface ExpertListItem {
   expertProfile: ExpertProfile | null;
   bidExperts: { id: string; major: string; progress: number; signedIn: boolean; project: { id: string; name: string; stage: string } }[];
   _count: { expertEvaluations: number };
-  latestEval?: { level: string; overallScore: number } | null;
+  latestEval?: { level: string } | null;
+  avgGrade?: string | null;
 }
 
 export interface ExtractionSelected {
@@ -65,8 +66,8 @@ export interface ExtractionPreview {
 }
 
 export interface ExpertEvalStats {
-  levelCounts: { A: number; B: number; C: number; D: number };
-  avgScore: number;
+  levelCounts: { A: number; B: number; C: number; D: number; E: number };
+  excellentRatio: number;
   total: number;
 }
 
@@ -153,7 +154,7 @@ export function getExtractionHistory(params?: { projectId?: string; page?: numbe
 
 export function createExpertEvaluation(data: {
   expertUserId: string; projectId?: string;
-  attendanceScore: number; qualityScore: number; disciplineScore: number; comment?: string;
+  attendanceGrade: string; qualityGrade: string; disciplineGrade: string; comment?: string;
 }) {
   return api.post<unknown>('/expert-admin/evaluations', data);
 }
@@ -163,13 +164,13 @@ export function getExpertEvalStats() {
 }
 
 export function getExpertDimensionStats() {
-  return api.get<{ attendanceAvg: number; qualityAvg: number; disciplineAvg: number; total: number }>('/expert-admin/evaluations/dimensions');
+  return api.get<{ attendance: Record<string,number>; quality: Record<string,number>; discipline: Record<string,number>; total: number }>('/expert-admin/evaluations/dimensions');
 }
 
 /** AI 辅助评价建议（LLM 综合历史评价/偏离度/违规/负荷给出建议分数） */
 export function aiSuggestEvaluation(expertUserId: string) {
   return api.post<{
-    attendanceScore: number; qualityScore: number; disciplineScore: number;
+    attendanceGrade: string; qualityGrade: string; disciplineGrade: string;
     analysis: string; engine: 'ai' | 'rules';
   }>('/expert-admin/evaluations/ai-suggest', { expertUserId });
 }
@@ -197,7 +198,7 @@ export function getBidProjectDetail(id: string) {
 /* ── 专家画像 ── */
 export interface ExpertPortrait {
   userId: string; displayName: string; participationCount: number; completedCount: number;
-  completionRate: number; averageScore: number | null; meanDeviation: number | null;
+  completionRate: number; gradeCounts: Record<string, number> | null; meanDeviation: number | null;
   deviationSamples: number; evalAvg: number | null; evalCount: number;
   recentLevels: string[]; isStandingExpert: boolean;
 }
@@ -215,7 +216,7 @@ export interface ExpertStatistics {
   totalExperts: number; available: number; occupied: number; disabled: number;
   specialtyDistribution: { name: string; count: number }[];
   titleDistribution: { name: string; count: number }[];
-  evaluationStats: { levelCounts: { A: number; B: number; C: number; D: number }; avgScore: number; total: number };
+  evaluationStats: { levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number };
   recentEvals: { level: string; score: number; expert: string; time: string }[];
   recentAssigns7d: number; recentExtractions30d: number;
   monthlyEvalTrend: { labels: string[]; counts: number[] };
@@ -304,7 +305,6 @@ export interface ExpertRiskBrief {
     deviationRisk: 'high' | 'medium' | 'low';
     recentDCount: number;
     violationCount: number;
-    recentEvalAvg: number | null;
   };
   ruleBrief: string;
   aiBrief: string | null;

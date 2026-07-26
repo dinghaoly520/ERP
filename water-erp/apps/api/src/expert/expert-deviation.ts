@@ -46,7 +46,7 @@ export function computeExpertMeanDeviations(records: ScoreRecordInput[]): Expert
 /** 最近 N 次履职评价是否触发自动停用（默认看最近 2 次）。 */
 export function shouldDeactivateExpert(recent: Array<{ level: string }>, window = 2): boolean {
   if (recent.length < window) return false;
-  return recent.slice(-window).every(e => e.level === 'D');
+  return recent.slice(-window).every(e => e.level === 'E');
 }
 
 /** 数组均分（保留 1 位小数），空数组返回 null。 */

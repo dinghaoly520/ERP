@@ -778,9 +778,9 @@ export class ProjectManagementService {
 
         const contractAmount = currentProject?.contractAmount ? null : this.extractContractAmountFromText(text);
         const contractNumber = currentProject?.contractNumber ? null : this.extractContractNumberFromText(text);
-        const awardedSupplier = fileName.includes('中标通知书') || fileName.includes('中标')
-          ? this.extractAwardedSupplierFromText(text)
-          : this.extractAwardedSupplierFromContract(text);
+        const awardedSupplier = fileName.includes('合同') || fileName.includes('购销')
+          ? this.extractAwardedSupplierFromContract(text)
+          : this.extractAwardedSupplierFromText(text);
 
         this.logger.log(
           `[CONTRACT] Extracted — contractNumber=${contractNumber ?? '(none)'}, ` +
@@ -4736,23 +4736,45 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * Extract awarded supplier from award notification document text
    * Looks for company name after "中标通知书" heading
    */
+  /**
+   * 从定标审批表 / 中标通知书 / 供方确认表 等文件中提取中标单位。
+   * 支持多种定标文件表述，不依赖文件名。
+   */
   private extractAwardedSupplierFromText(text: string): string {
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
 
-    // Find "中标通知书" line
-    const noticeIndex = lines.findIndex((l) => l.includes('中标通知书'));
-    if (noticeIndex < 0) {
-      return '';
-    }
+    const anchors = [
+      '中标通知书', '中标公告',
+      '供方确认', '确认供方', '拟定供应商', '拟成交供应商', '推荐供应商', '推荐中标人',
+      '定标意见', '定标结论', '中标单位', '中标人', '中标供应商',
+      '评审结论', '拟推荐', '同意确定', '拟确定', '确认以下', '定标结果',
+      '销售方', '卖方', '乙方', '买受人',
+    ];
 
-    // The awarded supplier is typically on the next line, ending with "："
-    for (let i = noticeIndex + 1; i < Math.min(lines.length, noticeIndex + 5); i++) {
-      const line = lines[i];
-      // Match company name ending with colon
-      const match = line.match(/^(.+(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))：?$/);
-      if (match) {
-        const name = match[1].replace(/：$/, '').trim();
+    for (const anchor of anchors) {
+      const idx = lines.findIndex((l) => l.includes(anchor));
+      if (idx < 0) continue;
+
+      // 同行锚点后紧跟公司名
+      const inline = lines[idx];
+      const inlineM = inline.match(
+        new RegExp(anchor + '\\s*(?::|：)?\\s*(.+?(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))')
+      );
+      if (inlineM) {
+        const name = inlineM[1].trim().replace(/[：:]*$/, '').trim();
         if (!isSelfCompany(name)) return name;
+      }
+
+      // 后续 1-5 行提取公司名
+      for (let i = idx + 1; i < Math.min(lines.length, idx + 6); i++) {
+        const line = lines[i];
+        const m = line.match(/^(.+(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))[：:]?$/);
+        if (m) {
+          const name = m[1].replace(/[：:]*$/, '').trim();
+          if (!isSelfCompany(name)) return name;
+        }
+        const mid = line.match(/([^\s。，,;；：:]{2,}(?:公司|企业|单位))/);
+        if (mid && !isSelfCompany(mid[1].trim())) return mid[1].trim();
       }
     }
 
@@ -4773,7 +4795,25 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * by magnitude — this prevents distant large numbers (e.g. budget
    * figures elsewhere in the document) from winning.
    */
+  /** 中文大写金额 → 数字（简版：处理万/亿段，如 肆佰贰拾万 → 4200000） */
+  private chineseAmountToNumber(text: string): number {
+    const digit: Record<string, number> = { '壹':1,'贰':2,'叁':3,'肆':4,'伍':5,'陆':6,'柒':7,'捌':8,'玖':9,'零':0 };
+    const unit: Record<string, number> = { '亿':1e8,'万':1e4,'仟':1e3,'佰':100,'拾':10 };
+    let result = 0, section = 0, current = 0;
+    for (const ch of text) {
+      if (digit[ch] !== undefined) { current = digit[ch]; continue; }
+      if (unit[ch] !== undefined) {
+        const u = unit[ch];
+        if (current === 0) current = 1;
+        if (u >= 1e4) { section = (section + current) * u; current = 0; result += section; section = 0; }
+        else { section += current * u; current = 0; }
+      }
+    }
+    return result + section + current;
+  }
+
   private extractContractAmountFromText(text: string): number | null {
+  
     const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
 
     // Strip commas and Chinese commas from a numeric string before parsing
@@ -4784,7 +4824,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // A "合同金额" label line — matches the various forms we see
     const isContractLabel = (s: string) =>
-      /^合同金额/.test(s) || s.includes('合同金额');
+      /^合同金额/.test(s) || s.includes('合同金额') || s.includes('合同总价') ||
+      s.includes('签约合同价') || s.includes('总价') ||
+      s.includes('中标金额') || s.includes('中标价') || s.includes('成交金额');
 
     // Score-and-value tuple — higher score = more likely correct
     const candidates: Array<{ value: number; score: number }> = [];
@@ -4853,6 +4895,17 @@ ${JSON.stringify(algorithmResult, null, 2)}
             }
           }
         }
+      }
+    }
+
+    // ── Fallback: Chinese uppercase amount (e.g. 肆佰贰拾万元整 → 4200000) ──
+    if (candidates.length === 0) {
+      const upperMatch = text.match(
+        /([壹贰叁肆伍陆柒捌玖拾佰仟万亿零]{2,30})\s*(?:元[整正]?|万[元整正]?)/
+      );
+      if (upperMatch) {
+        const val = this.chineseAmountToNumber(upperMatch[1]);
+        if (val > 0) candidates.push({ value: val, score: 60 });
       }
     }
 
@@ -5163,7 +5216,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const labels = [
       '采购文件获取时间', '文件获取时间', '文件获取期限', '文件获取',
       '领取时间', '文件领取时间', '报名及文件获取', '获取时间',
+      '采购文件发售时间', '文件发售时间', '获取采购文件', '文件获取截止',
+      '获取期限', '领取期限', '采购文件领取时间', '发售时间', '文件发布时间',
+      '采购文件下载时间', '下载截止', '采购文件下载', '文件下载时间',
+      '报名时间', '文件递交', '发售日期', '获取日期',
     ];
+    // Wider fallback: search for date ranges near "报名/文件/获取/下载" contexts
+    const ctxPattern = /(?:报名|文件获取|采购文件|文件下载|获取|发售).{0,30}\d{4}\s*[年.\-/]\s*\d{1,2}\s*[月.\-/]\s*\d{1,2}\s*日?/;
+    const ctxMatch = text.match(ctxPattern);
+    if (ctxMatch) return ctxMatch[0].trim().slice(0, 80);
+
     for (const label of labels) {
       // 精确"标签：值"，值含年份才采用
       const re = new RegExp(`${label}\\s*[：:）)]\\s*([^。\\n；;]{2,80})`);

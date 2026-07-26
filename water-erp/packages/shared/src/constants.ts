@@ -133,15 +133,24 @@ export const LEVEL_COLOR: Record<string, string> = {
   A: '#059669',
   B: '#0a5eb8',
   C: '#d97706',
-  D: '#dc2626',
+  D: '#ca8a04',
+  E: '#dc2626',
 };
 
 export const LEVEL_LABEL: Record<string, string> = {
   A: '优秀',
   B: '良好',
   C: '合格',
-  D: '不合格',
+  D: '待改进',
+  E: '不合格',
 };
+
+/** 综合等级权重：qualityGrade × 0.5 + disciplineGrade × 0.3 + attendanceGrade × 0.2 */
+export const LEVEL_WEIGHT = {
+  qualityGrade: 0.5,
+  disciplineGrade: 0.3,
+  attendanceGrade: 0.2,
+} as const;
 
 /* ── 通知类型元数据 ── */
 // icon = Lucide 图标名（前端按名渲染）；tone = 语义色；actionable = 是否进「待办」分段

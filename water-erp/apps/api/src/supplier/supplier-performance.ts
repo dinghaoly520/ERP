@@ -1,21 +1,32 @@
-export function aggregatePerformance(evals: Array<{ overallScore: number; level: string; createdAt: Date }>) {
+import { ExpertLevel } from '@prisma/client';
+
+/** 供应商绩效聚合（等级制）。 */
+const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+
+export function aggregatePerformance(evals: Array<{ finalGrade: ExpertLevel; createdAt: Date }>) {
   const sorted = [...evals].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  const avgScore = sorted.length ? sorted.reduce((s, e) => s + Number(e.overallScore), 0) / sorted.length : 0;
+  const avgGradeScore = sorted.length
+    ? Math.round((sorted.reduce((s, e) => s + GRADE_SCORE[e.finalGrade], 0) / sorted.length) * 10) / 10
+    : 0;
   const trend = sorted.length < 2
     ? 'stable'
-    : sorted[sorted.length - 1].overallScore > sorted[0].overallScore + 5
+    : GRADE_SCORE[sorted[sorted.length - 1].finalGrade] > GRADE_SCORE[sorted[0].finalGrade]
       ? 'improving'
-      : sorted[sorted.length - 1].overallScore < sorted[0].overallScore - 5
+      : GRADE_SCORE[sorted[sorted.length - 1].finalGrade] < GRADE_SCORE[sorted[0].finalGrade]
         ? 'declining'
         : 'stable';
-  const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
+  const levelCounts: Record<ExpertLevel, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
   for (const e of sorted) {
-    if (e.level in levelCounts) levelCounts[e.level as keyof typeof levelCounts]++;
+    if (e.finalGrade in levelCounts) levelCounts[e.finalGrade]++;
   }
-  return { avgScore: Math.round(avgScore * 10) / 10, trend, levelCounts, total: sorted.length };
+  const excellentRatio = sorted.length
+    ? Math.round(((levelCounts['A'] + levelCounts['B']) / sorted.length) * 1000) / 10
+    : 0;
+  return { avgGradeScore, excellentRatio, trend, levelCounts, total: sorted.length };
 }
 
-export function shouldAutoDisable(recent: Array<{ overallScore: number }>, threshold: number): boolean {
+/** 连续 3 次 E 级（不合格）触发淘汰预警 */
+export function shouldAutoDisable(recent: Array<{ finalGrade: ExpertLevel }>): boolean {
   if (recent.length < 3) return false;
-  return recent.slice(-3).every(e => Number(e.overallScore) <= threshold);
+  return recent.slice(0, 3).every(e => e.finalGrade === 'E');
 }

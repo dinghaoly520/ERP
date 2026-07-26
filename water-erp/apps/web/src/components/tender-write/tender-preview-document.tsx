@@ -581,15 +581,6 @@ function CompetitiveNegotiationPreview({
               <p className="ml-4">第三章 评审程序和评定成交的标准</p>
               <p className="ml-4">第四章 采购需求</p>
               <p className="ml-4">第五章 响应文件格式</p>
-              {(draft as Record<string, string>).contractTextType === 'yes' ? (
-                <p className="ml-4">{draft.contractText}</p>
-              ) : (draft as Record<string, string>).contractTextType === undefined || (draft as Record<string, string>).contractTextType === '' ? (
-                <p className="ml-4">
-                  <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)]">
-                    {"{{合同文本}}"}
-                  </span>
-                </p>
-              ) : null}
             </div>
           </div>
         </PreviewSection>
@@ -997,25 +988,6 @@ function SingleSourcePreview({
                 fieldKey="procurementRequirements"
                 onValueChange={onValueChange}
               />
-            </div>
-          </div>
-        </PreviewSection>
-
-        {/* 第四部分 合同文本 */}
-        <PreviewSection
-          sectionKey="contract"
-          chapterLabel="第四部分"
-          title="合同文本"
-          activeSectionKey={activeSectionKey}
-          onSectionClick={onSectionClick}
-        >
-          <div className="tender-preview-subsection">
-            <div className="mt-1 text-sm leading-7 text-[color:var(--foreground)]">
-              {typeof draft.contractText === 'string' && draft.contractText.trim() ? draft.contractText : (
-                <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)]">
-                  {"{{合同文本}}"}
-                </span>
-              )}
             </div>
           </div>
         </PreviewSection>

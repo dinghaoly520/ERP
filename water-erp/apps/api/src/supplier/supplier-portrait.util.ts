@@ -4,6 +4,8 @@
  * 由 SupplierService.getSupplierPortrait 收集原始数据后调用。
  * 价格偏离度仅在同时具备该供应商报价与对应项目中标价时计算。
  */
+import { ExpertLevel } from '@prisma/client';
+
 export interface SupplierParticipationInput {
   won: boolean;
   /** 该供应商在某项目的报价（可为空） */
@@ -13,8 +15,7 @@ export interface SupplierParticipationInput {
 }
 
 export interface SupplierEvalInput {
-  overallScore: number;
-  level: string;
+  finalGrade: ExpertLevel;
   createdAt: Date;
 }
 
@@ -31,13 +32,15 @@ export interface SupplierPortrait {
   participationCount: number;
   winCount: number;
   winRate: number; // 0~1
-  avgEvalScore: number | null;
+  avgGradeScore: number | null;
   evalCount: number;
   performanceTrend: 'improving' | 'stable' | 'declining';
-  levelCounts: { A: number; B: number; C: number; D: number };
+  levelCounts: { A: number; B: number; C: number; D: number; E: number };
   /** 平均相对价格偏离（%），缺数据时 null */
   priceDeviation: number | null;
 }
+
+const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
 
 export function buildSupplierPortrait(input: SupplierPortraitInput): SupplierPortrait {
   const { participations, evaluations } = input;
@@ -46,24 +49,24 @@ export function buildSupplierPortrait(input: SupplierPortraitInput): SupplierPor
   const winCount = participations.filter(p => p.won).length;
   const winRate = participationCount > 0 ? winCount / participationCount : 0;
 
-  const evalScores = evaluations.map(e => Number(e.overallScore));
-  const avgEvalScore = evalScores.length > 0
-    ? Math.round((evalScores.reduce((s, x) => s + x, 0) / evalScores.length) * 10) / 10
+  const gradeScores = evaluations.map(e => GRADE_SCORE[e.finalGrade]);
+  const avgGradeScore = gradeScores.length > 0
+    ? Math.round((gradeScores.reduce((s, x) => s + x, 0) / gradeScores.length) * 10) / 10
     : null;
 
-  // 趋势：按时间排序，比较首末
+  // 趋势：按时间排序，比较首末等级数值
   const sorted = [...evaluations].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   let trend: 'improving' | 'stable' | 'declining' = 'stable';
   if (sorted.length >= 2) {
-    const first = Number(sorted[0].overallScore);
-    const last = Number(sorted[sorted.length - 1].overallScore);
-    if (last > first + 5) trend = 'improving';
-    else if (last < first - 5) trend = 'declining';
+    const first = GRADE_SCORE[sorted[0].finalGrade];
+    const last = GRADE_SCORE[sorted[sorted.length - 1].finalGrade];
+    if (last > first) trend = 'improving';
+    else if (last < first) trend = 'declining';
   }
 
-  const levelCounts = { A: 0, B: 0, C: 0, D: 0 };
+  const levelCounts: { A: number; B: number; C: number; D: number; E: number } = { A: 0, B: 0, C: 0, D: 0, E: 0 };
   for (const e of sorted) {
-    if (e.level in levelCounts) levelCounts[e.level as keyof typeof levelCounts]++;
+    if (e.finalGrade in levelCounts) levelCounts[e.finalGrade]++;
   }
 
   // 价格偏离度：仅统计同时具备 bidPrice 与 awardPrice 的项目
@@ -85,7 +88,7 @@ export function buildSupplierPortrait(input: SupplierPortraitInput): SupplierPor
     participationCount,
     winCount,
     winRate: Math.round(winRate * 1000) / 1000,
-    avgEvalScore,
+    avgGradeScore,
     evalCount: evaluations.length,
     performanceTrend: trend,
     levelCounts,

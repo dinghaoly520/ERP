@@ -136,7 +136,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'contactEmail', label: '联系邮箱' },
         { fieldKey: 'contractSubcontracting', label: '合同分包' },
         { fieldKey: 'siteSurvey', label: '现场踏勘' },
-        { fieldKey: 'contractText', label: '合同文本' },
         { fieldKey: 'businessRequirements', label: '商务要求' },
         { fieldKey: 'technicalRequirements', label: '技术要求' },
         { fieldKey: 'quotationLetter', label: '报价表' },
@@ -154,7 +153,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'serviceContent', label: '服务内容' },
         { fieldKey: 'procurementContent', label: '采购内容' },
         { fieldKey: 'procurementRequirements', label: '采购要求' },
-        { fieldKey: 'contractText', label: '合同文本' },
         { fieldKey: 'quotationLetter', label: '报价函' },
       ]);
 

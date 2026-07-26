@@ -18,6 +18,7 @@ export interface SupplierPortraitAnalysis {
   supplierId: string;
   supplierName: string;
   analyzedAt: string;
+  engine?: 'deepseek' | 'rules'; // P1-21：标识本次分析由 LLM 还是规则兜底产生（前端据此显示透明徽章）
   overview: string;            // 1-2 段综合评价
   strengths: string[];         // 优势
   risks: string[];             // 风险点
@@ -49,7 +50,7 @@ export class SupplierPortraitAnalysisService {
         qualifications: { select: { name: true, type: true, validFrom: true, validTo: true, status: true, updatedAt: true } },
         evaluations: {
           orderBy: { createdAt: 'desc' },
-          select: { score: true, level: true, comment: true, completenessScore: true, responsivenessScore: true, cooperationScore: true, complianceScore: true, overallScore: true, createdAt: true },
+          select: { finalGrade: true, comment: true, completenessGrade: true, responsivenessGrade: true, cooperationGrade: true, complianceGrade: true, comprehensiveGrade: true, createdAt: true },
         },
         bidSuppliers: { select: { projectId: true } },
         contacts: { where: { isPrimary: true }, select: { name: true, phone: true } },
@@ -77,12 +78,11 @@ export class SupplierPortraitAnalysisService {
     } catch { /* redis 不可用 → 跳过缓存，继续实时分析 */ }
 
     const evalCount = supplier.evaluations.length;
-    const avgScore = evalCount > 0 ? (supplier.evaluations.reduce((s, e) => s + Number(e.score), 0) / evalCount).toFixed(1) : null;
+    const grades = supplier.evaluations.map(e => e.finalGrade);
     const recentEvals = supplier.evaluations.slice(0, 5).map(e => ({
-      score: Number(e.score).toFixed(0),
-      level: e.level,
+      finalGrade: e.finalGrade,
       date: new Date(e.createdAt).toLocaleDateString('zh-CN'),
-      dimensions: { completeness: Number(e.completenessScore), responsiveness: Number(e.responsivenessScore), cooperation: Number(e.cooperationScore), compliance: Number(e.complianceScore), overall: Number(e.overallScore) },
+      dimensions: { completeness: e.completenessGrade, responsiveness: e.responsivenessGrade, cooperation: e.cooperationGrade, compliance: e.complianceGrade, comprehensive: e.comprehensiveGrade },
     }));
 
     const context = {
@@ -98,7 +98,7 @@ export class SupplierPortraitAnalysisService {
       分类标签: supplier.classificationLinks.map(l => l.classification.name),
       资质统计: { 总数: supplier.qualifications.length, 有效: qualValid, 即将到期: qualExpiring, 已过期: qualExpired },
       资质列表: supplier.qualifications.map(q => ({ 名称: q.name, 类型: q.type, 状态: q.status || (!q.validTo || new Date(q.validTo) >= now ? '有效' : '过期') })),
-      评价统计: { 总次数: evalCount, 平均分: avgScore, 等级分布: supplier.evaluations.reduce((acc, e) => { acc[e.level] = (acc[e.level] || 0) + 1; return acc; }, {} as Record<string, number>) },
+      评价统计: { 总次数: evalCount, 等级分布: supplier.evaluations.reduce((acc: Record<string,number>, e: any) => { const g = e.finalGrade; acc[g] = (acc[g] || 0) + 1; return acc; }, {} as Record<string, number>) },
       近期评价: recentEvals,
       参与项目数: supplier.bidSuppliers.length,
       主要联系人: supplier.contacts[0] ? { 姓名: supplier.contacts[0].name, 电话: supplier.contacts[0].phone } : null,
@@ -113,29 +113,36 @@ export class SupplierPortraitAnalysisService {
       result.supplierId = supplierId;
       result.supplierName = supplier.name;
       result.analyzedAt = new Date().toISOString();
+      result.engine = 'deepseek';
       try { await this.redis.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL); } catch { /* ignore */ }
       return result;
     } catch (e: any) {
       this.logger.warn(`LLM portrait 分析失败，降级规则引擎: ${e.message}`);
-      return this.fallback(supplier, evalCount, avgScore, qualValid, qualExpired, qualExpiring);
+      return this.fallback(supplier, evalCount, grades, qualValid, qualExpired, qualExpiring);
     }
   }
 
   private fallback(
-    supplier: any, evalCount: number, avgScore: string | null,
+    supplier: any, evalCount: number, grades: string[],
     qualValid: number, qualExpired: number, qualExpiring: number,
   ): SupplierPortraitAnalysis {
     const strengths: string[] = [];
     const risks: string[] = [];
     const suggestions: string[] = [];
 
+    const aCount = grades.filter(g => g === 'A').length;
+    const bCount = grades.filter(g => g === 'B').length;
+    const eCount = grades.filter(g => g === 'E').length;
+    const mostRecentGrade = grades[0] || 'C';
+    const gradeSummary = grades.join(' → ');
+
     if (qualValid >= 3) strengths.push('资质材料较为齐全，覆盖多个业务领域');
-    if (evalCount > 0 && Number(avgScore) >= 80) strengths.push('历史评价整体优秀，履约质量可靠');
+    if (evalCount > 0 && (mostRecentGrade === 'A' || mostRecentGrade === 'B')) strengths.push('近期评价等级优良，履约质量可靠');
     if (supplier.bidSuppliers.length >= 3) strengths.push('项目参与经验丰富，响应积极');
     if (qualExpired > 0) { risks.push(`${qualExpired} 项资质已过期，影响投标资格`); suggestions.push('立即更新已过期资质，恢复投标资格'); }
     if (qualExpiring > 0) { risks.push(`${qualExpiring} 项资质即将到期`); suggestions.push('提前准备资质续期材料，避免到期被动'); }
     if (evalCount === 0) { risks.push('尚无评价记录，履约表现未知'); suggestions.push('尽快发起首次评价，建立履约档案'); }
-    if (evalCount > 0 && Number(avgScore) < 70) { risks.push(`评价均分偏低（${avgScore}），履约质量需关注`); suggestions.push('对供应商进行专项辅导或启动绩效改进计划'); }
+    if (eCount > 0) { risks.push(`历史评价中出现 ${eCount} 次 E 级（不合格），履约质量需关注`); suggestions.push('对供应商进行专项辅导或启动绩效改进计划'); }
     if (supplier.bidSuppliers.length === 0) { risks.push('暂无项目参与记录'); suggestions.push('在匹配度合适时邀请该供应商参与项目'); }
 
     if (strengths.length === 0) strengths.push('具备基本资质，可参与一般性项目');
@@ -144,17 +151,18 @@ export class SupplierPortraitAnalysisService {
       supplierId: supplier.id,
       supplierName: supplier.name,
       analyzedAt: new Date().toISOString(),
-      overview: `${supplier.name}（${supplier.enterpriseType}），${supplier.classificationLinks.map((l: any) => l.classification.name).join('、') || '未分类'}。注册 ${Math.floor((Date.now() - new Date(supplier.createdAt).getTime()) / 86400000)} 天，资质总数 ${supplier.qualifications.length} 项（有效 ${qualValid} 项${qualExpired > 0 ? `，过期 ${qualExpired} 项` : ''}）。${evalCount > 0 ? `累计 ${evalCount} 次评价，均分 ${avgScore}。` : '暂无评价记录。'}参与 ${supplier.bidSuppliers.length} 个项目。`,
+      engine: 'rules',
+      overview: `${supplier.name}（${supplier.enterpriseType}），${supplier.classificationLinks.map((l: any) => l.classification.name).join('、') || '未分类'}。注册 ${Math.floor((Date.now() - new Date(supplier.createdAt).getTime()) / 86400000)} 天，资质总数 ${supplier.qualifications.length} 项（有效 ${qualValid} 项${qualExpired > 0 ? `，过期 ${qualExpired} 项` : ''}）。${evalCount > 0 ? `累计 ${evalCount} 次评价，等级趋势 ${gradeSummary}。` : '暂无评价记录。'}参与 ${supplier.bidSuppliers.length} 个项目。`,
       strengths: strengths.slice(0, 4),
       risks: risks.slice(0, 4),
       suggestions: suggestions.slice(0, 4),
       metrics: [
         { label: '资质有效', value: `${qualValid}/${supplier.qualifications.length}`, interpretation: qualValid === supplier.qualifications.length ? '全部有效' : `${supplier.qualifications.length - qualValid} 项过期或即将到期`, tone: qualExpired === 0 ? 'success' : 'warning', icon: 'ShieldCheck' },
-        { label: '评价均分', value: avgScore ?? '—', interpretation: evalCount > 0 ? (Number(avgScore) >= 80 ? '整体优秀' : Number(avgScore) >= 70 ? '良好' : Number(avgScore) >= 60 ? '合格' : '偏低') : '暂无评价', tone: !avgScore ? 'accent' : Number(avgScore) >= 80 ? 'success' : Number(avgScore) >= 70 ? 'accent' : 'warning', icon: 'Award' },
+        { label: '综合评价', value: evalCount > 0 ? mostRecentGrade : '—', interpretation: evalCount > 0 ? (mostRecentGrade === 'A' || mostRecentGrade === 'B' ? '近期优良' : mostRecentGrade === 'C' ? '合格' : '需关注') : '暂无评价', tone: !evalCount ? 'accent' : (mostRecentGrade === 'A' || mostRecentGrade === 'B') ? 'success' : mostRecentGrade === 'C' ? 'accent' : 'warning', icon: 'Award' },
         { label: '项目参与', value: `${supplier.bidSuppliers.length}`, interpretation: supplier.bidSuppliers.length >= 5 ? '活跃供应商' : supplier.bidSuppliers.length > 0 ? '有项目经验' : '暂无项目', tone: supplier.bidSuppliers.length >= 3 ? 'success' : supplier.bidSuppliers.length > 0 ? 'accent' : 'warning', icon: 'FolderKanban' },
         { label: '评价次数', value: `${evalCount}`, interpretation: evalCount >= 3 ? '评价充分' : evalCount > 0 ? '有评价' : '无评价', tone: evalCount >= 3 ? 'success' : evalCount > 0 ? 'accent' : 'warning', icon: 'CheckCircle2' },
       ],
-      historySummary: evalCount > 0 ? `累计 ${evalCount} 次评价，均分 ${avgScore}，等级趋势 ${supplier.evaluations.slice(0, 5).map((e: any) => e.level).join(' → ')}` : '暂无评价记录',
+      historySummary: evalCount > 0 ? `累计 ${evalCount} 次评价，等级趋势 ${gradeSummary}` : '暂无评价记录',
       suitableFor: supplier.classificationLinks.length > 0 ? supplier.classificationLinks.slice(0, 3).map((l: any) => `${l.classification.name}类项目`) : ['通用项目'],
     };
   }

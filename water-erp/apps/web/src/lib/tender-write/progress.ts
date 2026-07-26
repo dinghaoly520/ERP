@@ -207,7 +207,7 @@ export function buildTenderSectionProgress(
         }
       }
 
-      // For toggle fields with typeKey (like contractText)
+      // For toggle fields with typeKey (like siteSurvey)
       if (field.toggle && field.typeKey) {
         const typeValue = draft[field.typeKey as keyof ReadyTenderDraft] as string;
         // If type is not selected yet (empty), field is not filled

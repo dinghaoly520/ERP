@@ -92,6 +92,5 @@ assert(
   '直接采购章节顺序不正确',
 );
 assert(singleSourceProgress.length === SINGLE_SOURCE_SECTIONS.length, '直接采购进度数量应与章节数量一致');
-assert(singleSourceDraft.contractText === '', '直接采购空草稿应初始化合同文本字段');
 
 console.log('tender-write-workspace-check:ok');

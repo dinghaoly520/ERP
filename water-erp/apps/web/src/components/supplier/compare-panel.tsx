@@ -13,8 +13,10 @@ const scoreColor = (s: number) =>
   s >= 85 ? "var(--success)" : s >= 70 ? "var(--accent)" : s >= 55 ? "var(--warning)" : "var(--danger)";
 const scoreLabel = (s: number) =>
   s >= 85 ? "强匹配" : s >= 70 ? "较匹配" : s >= 55 ? "可考虑" : "弱匹配";
-const levelColor = (l?: string) =>
-  l === "A" ? "var(--success)" : l === "B" ? "var(--accent)" : l === "C" ? "var(--warning)" : "var(--danger)";
+const levelColor = (l?: string) => {
+  const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
+  return l ? colors[l] || 'var(--muted-foreground)' : 'var(--muted-foreground)';
+};
 
 const DIMENSIONS = [
   { key: "matchScore", label: "匹配度", type: "score" as const },
@@ -45,10 +47,11 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
 
   const bestScores = useMemo(() => {
     if (compared.length < 2) return { score: -1, evalLevel: "", projects: -1 };
-    let bestScore = -1, bestEval = "", fewestProjects = Infinity;
+    const gradeOrder: Record<string, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+    let bestScore = -1, bestEval = "", bestEvalOrder = 0, fewestProjects = Infinity;
     compared.forEach((c) => {
       if (c.matchScore > bestScore) bestScore = c.matchScore;
-      if (c.evaluation?.level && (!bestEval || c.evaluation.level < bestEval)) bestEval = c.evaluation.level;
+      if (c.evaluation?.level && gradeOrder[c.evaluation.level] > bestEvalOrder) { bestEvalOrder = gradeOrder[c.evaluation.level]; bestEval = c.evaluation.level; }
       if (c.activeProjects < fewestProjects) fewestProjects = c.activeProjects;
     });
     return { score: bestScore, evalLevel: bestEval, projects: fewestProjects };
@@ -78,7 +81,7 @@ export function ComparePanel({ isOpen, candidates, onClose }: Props) {
           <div className="flex items-center gap-2">
             <span className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] text-sm font-extrabold text-white" style={{ background: levelColor(c.evaluation.level) }}>{c.evaluation.level}</span>
             <div className="text-xs">
-              <div className="font-semibold tabular-nums text-[var(--foreground)]">{c.evaluation.avgScore} 分</div>
+              <div className="font-semibold tabular-nums text-[var(--foreground)]">{c.evaluation.level} 级</div>
               <div className="text-[var(--muted-foreground)]">{c.evaluation.count} 次评价</div>
             </div>
           </div>

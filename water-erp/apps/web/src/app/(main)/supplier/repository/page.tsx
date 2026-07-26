@@ -423,7 +423,7 @@ export default function SupplierRepositoryPage() {
 
         <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
         <button onClick={() => setClassMgrOpen(true)} className="neu-btn-xs gap-1">分类管理</button>
-        <button onClick={() => exportSuppliersToExcel(data.items)} className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
+        <button onClick={() => exportSuppliersToExcel(data.items)} title="仅导出当前筛选结果（当前页数据）" className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
       </div>
 
       {showAdvanced && (
@@ -440,7 +440,7 @@ export default function SupplierRepositoryPage() {
           </div>
           <select value={advEvalLevel} onChange={e => setAdvEvalLevel(e.target.value)} className="workbench-input !w-auto !h-7 !text-[11px]">
             <option value="">评价等级</option>
-            {['A','B','C','D'].map(l => <option key={l} value={l}>{l} 级</option>)}
+            {['A','B','C','D','E'].map(l => <option key={l} value={l}>{l} 级</option>)}
           </select>
           <select value={advQualStatus} onChange={e => setAdvQualStatus(e.target.value)} className="workbench-input !w-auto !h-7 !text-[11px]">
             <option value="">资质状态</option>

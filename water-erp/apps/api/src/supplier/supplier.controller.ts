@@ -275,6 +275,14 @@ export class SupplierController {
     return this.supplierService.getEvaluationDimensionStats();
   }
 
+  @Get('enterprise-type-distribution')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '企业类型分布（后端聚合，供看板）' })
+  async getEnterpriseTypeDistribution() {
+    return this.supplierService.getEnterpriseTypeDistribution();
+  }
+
   // ─── 动态路由 ───
 
   @Get(':id')
