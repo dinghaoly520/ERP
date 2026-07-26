@@ -54,18 +54,18 @@ export default function NotificationBell() {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(!open)} className="relative p-2 text-[oklch(0.55_0.008_264)] hover:text-[oklch(0.18_0.012_265)] transition-colors">
+      <button onClick={() => setOpen(!open)} className="bid-bell" aria-label="通知">
         <Bell size={18} strokeWidth={1.5} />
         {unread > 0 && (
-          <span className="absolute top-0.5 right-0.5 bg-[oklch(0.50_0.18_22)] text-white text-[9px] font-bold min-w-[16px] h-[16px] flex items-center justify-center px-1 font-mono">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[var(--danger)] px-1 font-mono text-[9px] font-bold text-white">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-[oklch(0.91_0.006_264)] z-50">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[oklch(0.91_0.006_264)]">
+        <div className="bid-bell-panel">
+          <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-3">
             <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">
               通知 <span className="text-[oklch(0.62_0.008_264)] font-medium">({unread} 未读)</span>
             </span>

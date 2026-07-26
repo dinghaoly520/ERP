@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface Props {
@@ -63,47 +64,50 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
     }
   };
 
-  const labelCls = 'block text-[11px] uppercase tracking-wider text-[oklch(0.55_0.01_264)] mb-1.5';
-  const inputCls =
-    'w-full border border-[oklch(0.88_0.008_264)] px-3 py-2 text-[13px] text-[oklch(0.18_0.012_265)] tracking-tight focus:outline-none focus:border-[oklch(0.42_0.14_260)]';
+  const labelCls = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(15,18,28,0.45)' }}>
-      <div className="glass-card glass-card-deeper glass-card-blue w-full max-w-md mx-4 rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-[oklch(0.91_0.006_264)] flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold tracking-tight text-[oklch(0.18_0.012_265)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="bid-dialog relative mx-4 w-full max-w-[min(480px,92vw)]" role="dialog" aria-modal="true">
+        <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-5">
+          <h3 className="font-[family-name:var(--font-display)] text-[15px] font-semibold tracking-tight text-[color:var(--foreground)]">
             组建开标会话
           </h3>
-          <button onClick={onClose} className="text-[12px] text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.18_0.012_265)] tracking-tight">取消</button>
+          <button type="button" onClick={onClose} className="neu-btn-xs" aria-label="关闭"><X size={15} /></button>
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        <hr className="wb-section-rule mx-6" />
+
+        <div className="space-y-4 px-6 py-5">
           <div>
-            <label className={labelCls}>主持人 <span className="text-[oklch(0.50_0.18_22)]">*</span></label>
-            <input value={host} onChange={(e) => setHost(e.target.value)} className={inputCls} placeholder="如：采购中心-李主任" autoFocus />
+            <label className={labelCls}>主持人 <span className="text-[var(--danger)]">*</span></label>
+            <input value={host} onChange={(e) => setHost(e.target.value)} className="neu-input" placeholder="如：采购中心-李主任" autoFocus />
           </div>
           <div>
-            <label className={labelCls}>监督人 <span className="text-[oklch(0.50_0.18_22)]">*</span></label>
-            <input value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className={inputCls} placeholder="如：纪检监督-周老师" />
+            <label className={labelCls}>监督人 <span className="text-[var(--danger)]">*</span></label>
+            <input value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="neu-input" placeholder="如：纪检监督-周老师" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>解密开始</label>
-              <input type="datetime-local" value={decryptStart} onChange={(e) => setDecryptStart(e.target.value)} className={`${inputCls} font-mono`} />
+              <input type="datetime-local" value={decryptStart} onChange={(e) => setDecryptStart(e.target.value)} className="neu-input font-mono" />
             </div>
             <div>
               <label className={labelCls}>解密结束</label>
-              <input type="datetime-local" value={decryptEnd} onChange={(e) => setDecryptEnd(e.target.value)} className={`${inputCls} font-mono`} />
+              <input type="datetime-local" value={decryptEnd} onChange={(e) => setDecryptEnd(e.target.value)} className="neu-input font-mono" />
             </div>
           </div>
-          {error && <div className="text-[12px] text-[oklch(0.50_0.18_22)] tracking-tight">{error}</div>}
+          {error && <div className="bid-alert">{error}</div>}
         </div>
 
-        <div className="px-6 py-4 border-t border-[oklch(0.91_0.006_264)] flex items-center justify-between">
-          <span className="text-[11px] text-[oklch(0.62_0.008_264)] tracking-tight">组建后即可解密 / 唱标（阶段已由 :3005 确定开标）</span>
-          <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-[12px] text-[oklch(0.55_0.01_264)] hover:text-[oklch(0.18_0.012_265)] tracking-tight">取消</button>
-            <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 bg-[oklch(0.42_0.14_260)] text-white text-[12px] font-semibold tracking-tight hover:bg-[oklch(0.50_0.16_258)] transition-colors disabled:opacity-50">
+        <hr className="wb-section-rule mx-6" />
+
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+          <span className="text-[11px] text-[color:var(--muted-foreground)]">组建后即可解密 / 唱标（阶段已由 :3005 确定开标）</span>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="neu-btn-soft h-[38px]">取消</button>
+            <button type="button" onClick={handleSubmit} disabled={submitting} className="neu-btn-primary !h-[38px] disabled:opacity-50">
               {submitting ? '组建中…' : '确认组建'}
             </button>
           </div>

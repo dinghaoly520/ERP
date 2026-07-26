@@ -7,7 +7,10 @@ import NotificationBell from './notification-bell';
 import RecentProjects from './recent-projects';
 import {
   Gavel,
-  LogOut, PanelLeftClose, PanelLeft,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
 } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 
@@ -19,7 +22,7 @@ interface NavItem {
   label: string;
   caption?: string;
   path: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 }
 
 // Phase 3：:3007 为纯开标执行终端，仅余开标大厅一个业务入口（任务板 + 大厅）。
@@ -52,92 +55,150 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const registeredName = user?.displayName?.trim() || user?.username || '用户';
   const userInitial = registeredName.slice(0, 1);
 
-  return (
-    <div className="flex h-screen flex-col overflow-hidden workbench-page-bg text-[#18243a]">
-      {/* ── Header — sticky glass bar ── */}
-      <header className="sticky top-0 z-50 flex-shrink-0 border-b border-white/30 bg-white/78 backdrop-blur-xl">
-        <div className="flex h-[68px] items-center justify-between px-6">
-          <button onClick={() => router.push('/bid')} className="flex items-center gap-3 text-left">
-            <img src="/assets/logo.png" alt="智慧水发 · 蜀水云采" className="h-10 w-auto object-contain" />
-            <div>
-              <strong
-                className="block text-lg font-black tracking-[0.10em]"
-                style={{
-                  fontFamily: '"SimHei","黑体",sans-serif',
-                  background: 'linear-gradient(to right, #1a2332, #2563EB, #0891b2, #18a56c, #1a2332)',
-                  backgroundSize: '200% auto',
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  animation: 'brandShift 6s ease infinite',
-                }}
-              >
-                智慧水发 · 蜀水云采
-              </strong>
-            </div>
-          </button>
+  // 顶栏左侧上下文标签：大厅实时执行 vs 任务板
+  const inHall = pathname?.startsWith('/bid/open');
+  const CtxIcon = inHall ? Gavel : ClipboardList;
+  const ctxLabel = inHall ? '开标大厅 · 实时执行' : '开标任务板';
 
-          <div className="flex items-center gap-3">
-            <NotificationBell />
-            <div className="flex items-center gap-2 rounded-xl border border-[#e5ecf4] bg-white px-3 py-1.5 shadow-sm">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#064ea2] to-[#0b63ce] text-[11px] font-black text-white">
-                {userInitial}
-              </span>
-              <div className="hidden leading-tight sm:block">
-                <div className="text-[13px] font-black text-[#18243a]">{registeredName}</div>
+  return (
+    <div className="flow-page ambient-grid h-screen overflow-hidden px-2.5 pb-2.5 sm:px-3.5 lg:pr-4 lg:pl-0">
+      {/* cgzxui 水彩光晕 —— 五角 oklch 浅彩 bloom，作为玻璃面板背后漂移的色彩层 */}
+      <div className="flow-glow" aria-hidden />
+
+      <div className="mx-auto flex h-full w-full overflow-hidden [perspective:1500px]">
+        {/* ── 3D 玻璃侧栏 ── */}
+        <aside
+          data-hidden={collapsed ? 'true' : 'false'}
+          className="sidebar-sheen sidebar-3d sidebar-card mr-4 hidden h-full w-[268px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex"
+        >
+          <header className="flex flex-col items-center gap-2 px-3.5 pb-3.5 pt-4">
+            <button
+              type="button"
+              onClick={() => router.push('/bid')}
+              className="command-orb brand-orb-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]"
+              aria-label="返回开标任务板"
+            >
+              <img
+                src="/assets/logo.png"
+                alt="智慧水发·蜀水云采"
+                className="h-[46px] w-[46px] rounded-[12px] object-cover"
+              />
+            </button>
+            <div className="w-full text-center">
+              <div className="truncate font-[family-name:var(--font-display)] text-[1rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                智慧水发 · 蜀水云采
+              </div>
+              <div className="mt-0.5 truncate text-[11px] font-medium tracking-[0.04em] text-[color:var(--muted-foreground)]">
+                在线开评标执行终端
               </div>
             </div>
-            <button
-              onClick={logout}
-              className="rounded-xl border border-[#d5e0ef] bg-white px-3 py-1.5 text-[13px] font-semibold text-[#5a6d8a] transition hover:border-[#e74c3c] hover:text-[#e74c3c]"
-            >
-              退出登录
-            </button>
-          </div>
-        </div>
-      </header>
+          </header>
 
-      {/* ── Body: floating sidebar + content ── */}
-      <div className="flex flex-1 overflow-hidden">
-        <aside className={`${collapsed ? 'w-[68px]' : 'w-[200px]'} m-3 mr-0 flex flex-shrink-0 flex-col overflow-hidden rounded-[24px] border border-[#dbe6f3] bg-white/88 shadow-[0_18px_60px_rgba(15,47,87,0.10)] backdrop-blur transition-all duration-200`}>
-          <nav className="flex-1 overflow-y-auto px-2 py-3">
-            {navItems.map(item => (
-              <button
-                key={item.path}
-                onClick={() => router.push(item.path)}
-                className={`relative flex w-full items-center gap-3 rounded-2xl px-3 py-3 mb-1.5 text-left transition-all ${
-                  isActive(item.path)
-                    ? 'bg-gradient-to-r from-[#064ea2] to-[#0b63ce] text-white shadow-[0_12px_28px_rgba(6,78,162,0.24)]'
-                    : 'text-[#5a6d8a] hover:bg-[#eff6ff] hover:text-[#064ea2]'
-                }`}
-              >
-                {isActive(item.path) && <div className="absolute left-0 h-6 w-[3px] rounded-r bg-[#67e8f9]" />}
-                <div className="flex-shrink-0"><item.icon size={collapsed ? 20 : 18} strokeWidth={1.7} /></div>
-                {!collapsed && (
+          <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,transparent,oklch(0.7_0.04_258_/_0.5),transparent)]" />
+
+          <nav className="sidebar-scroll sidebar-nav mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-1">
+            {navItems.map(item => {
+              const active = isActive(item.path);
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => router.push(item.path)}
+                  data-active={active}
+                  className="sidebar-nav-item group relative"
+                >
+                  {active ? (
+                    <span className="nav-active-skew absolute bottom-2 left-[2px] top-2 w-[2.5px]" />
+                  ) : null}
+                  <Icon size={16} strokeWidth={1.7} className="shrink-0" />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black tracking-tight">{item.label}</span>
-                    {item.caption && <span className="mt-0.5 block truncate text-[11px] opacity-70">{item.caption}</span>}
+                    <span className="block truncate text-sm font-semibold">{item.label}</span>
+                    {item.caption ? (
+                      <span className="mt-0.5 block truncate text-[11px] text-[color:var(--muted-foreground)]">{item.caption}</span>
+                    ) : null}
                   </span>
-                )}
-              </button>
-            ))}
-            {!collapsed && <RecentProjects />}
+                </button>
+              );
+            })}
+
+            <RecentProjects />
           </nav>
 
+          {/* 右边缘折叠手柄 —— 点击向左折叠 */}
           <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="m-2 flex h-11 items-center justify-center rounded-2xl border border-[#e5ecf4] bg-[#f8fbff] text-[#5a6d8a] transition-colors hover:border-[#bfdbfe] hover:text-[#064ea2]"
+            type="button"
+            onClick={() => setCollapsed(true)}
+            aria-label="收起菜单栏"
+            className="sidebar-edge-tab right-0 top-1/2 z-20 flex h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-l-[7px]"
           >
-            {collapsed ? <PanelLeft size={16} strokeWidth={1.7} /> : <PanelLeftClose size={16} strokeWidth={1.7} />}
+            <ChevronLeft size={12} />
           </button>
         </aside>
 
-        {/* ── Content area ── */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-6">
-            {children}
+        {/* 折叠态：左缘展开手柄 */}
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            aria-label="展开菜单栏"
+            className="sidebar-edge-tab fixed left-0 top-1/2 z-30 hidden h-8 w-[13px] -translate-y-1/2 items-center justify-center rounded-r-[7px] lg:flex"
+          >
+            <ChevronRight size={12} />
+          </button>
+        ) : null}
+
+        {/* ── 内容区 ── */}
+        <section className="flex h-full min-w-0 flex-1 flex-col px-1">
+          <main className="relative z-10 flex h-full min-h-0 flex-1 flex-col p-2.5 sm:p-3">
+            {/* 统一浮动顶栏 */}
+            <div className="flow-header">
+              <div className="flex min-w-0 items-center gap-2.5">
+                {/* 移动端品牌（侧栏隐藏时显示） */}
+                <div className="flex items-center gap-2 lg:hidden">
+                  <span className="flow-brand-mark">
+                    <img src="/assets/logo.png" alt="智慧水发·蜀水云采" className="h-7 w-7 rounded-[8px] object-cover" />
+                  </span>
+                  <span className="truncate font-[family-name:var(--font-display)] text-[13px] font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">
+                    智慧水发 · 蜀水云采
+                  </span>
+                </div>
+                {/* 桌面端上下文标签 */}
+                <div className="hidden items-center gap-2 lg:flex">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[oklch(0.62_0.16_258_/_0.12)] text-[color:var(--accent-strong)]">
+                    <CtxIcon size={15} strokeWidth={1.7} />
+                  </span>
+                  <span className="truncate font-[family-name:var(--font-display)] text-[13px] font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">
+                    {ctxLabel}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+                <span className="neu-chip rounded-[11px] px-2.5 py-1.5">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[11px] font-black text-white">
+                    {userInitial}
+                  </span>
+                  <span className="hidden text-[13px] font-semibold text-[color:var(--foreground)] sm:block">{registeredName}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="neu-btn-soft h-[38px] !px-3"
+                >
+                  <LogOut size={15} strokeWidth={1.7} />
+                  <span className="hidden sm:inline">退出登录</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 页面内容滚动区 */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {children}
+            </div>
           </main>
-        </div>
+        </section>
       </div>
     </div>
   );

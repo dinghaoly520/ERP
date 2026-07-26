@@ -312,6 +312,8 @@ select.workbench-input:focus {
 }
 .neu-btn-primary.is-success { background: oklch(0.6 0.13 164); }
 .neu-btn-primary.is-success:hover { background: oklch(0.52 0.14 164); }
+.neu-btn-primary.is-danger { background: var(--danger); }
+.neu-btn-primary.is-danger:hover { background: oklch(0.58 0.19 27); }
 
 /* ── 柔和按钮 .neu-btn-soft（次要操作）── */
 .neu-btn-soft {
@@ -479,6 +481,14 @@ select.neu-select {
 .page-hero__stat--warn {
   color: var(--danger); border-color: color-mix(in oklch, var(--danger) 28%, transparent);
   background: color-mix(in oklch, var(--danger) 6%, transparent);
+}
+.page-hero__stat--warning {
+  color: var(--warning); border-color: color-mix(in oklch, var(--warning) 32%, transparent);
+  background: color-mix(in oklch, var(--warning) 8%, transparent);
+}
+.page-hero__stat--success {
+  color: var(--success); border-color: color-mix(in oklch, var(--success) 30%, transparent);
+  background: color-mix(in oklch, var(--success) 8%, transparent);
 }
 .page-hero > .wb-section-rule,
 .page-hero > .grid { position: relative; z-index: 1; }
@@ -686,4 +696,372 @@ select.neu-select {
 @media (prefers-reduced-motion: reduce) {
   .neu-checkbox, .bid-pick-row { transition: none !important; }
 }
+
+/* =============================================================================
+   cgzxui 应用外壳 —— 移植自 web :3005 的 3D 玻璃工作台外壳
+   页面骨架(flow-page + 水彩光晕) + 3D 折叠玻璃侧栏 + 新拟态导航 + 统一顶栏。
+   全部 oklch 方向性双影 + 三态完整；结构玻璃壳沿用 :3005 的细 oklch 描边，
+   内部内容表面仍遵守「禁止外侧框线」。仅新增类名，零覆盖既有定义。
+   ============================================================================= */
+
+/* ── 外壳依赖令牌 / 缓动（本文件此前未定义）── */
+:root {
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --neu-link-bg: #dce3ee;
+}
+
+/* ── 页面骨架 .flow-page — 不透明冷白底，承载 flow-glow 水彩光晕 ── */
+.flow-page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+  color: var(--foreground);
+  background: oklch(0.975 0.012 258);
+}
+
+/* ── 环境网格 .ambient-grid — 极淡栅格 + 顶部柔光，叠在玻璃面板之下 ── */
+.ambient-grid { position: relative; isolation: isolate; }
+.ambient-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, oklch(0.6 0.04 258 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.6 0.04 258 / 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, oklch(0 0 0 / 0.34), transparent 86%);
+  pointer-events: none;
+}
+.ambient-grid::after {
+  content: "";
+  position: absolute;
+  inset: 5% -12% auto;
+  height: 420px;
+  background:
+    radial-gradient(circle at 18% 40%, oklch(0.78 0.1 258 / 0.08), transparent 24%),
+    radial-gradient(circle at 82% 28%, oklch(0.82 0.08 70 / 0.05), transparent 22%),
+    radial-gradient(circle at 62% 84%, oklch(0.8 0.07 175 / 0.04), transparent 20%);
+  filter: blur(24px);
+  animation: ambientDrift 18s var(--ease-out-quint) infinite;
+  pointer-events: none;
+}
+@keyframes ambientDrift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(1.5%, -1%, 0); }
+}
+
+/* ── 水彩光晕 .flow-glow — 五角 oklch 浅彩 bloom，玻璃背后漂移的色彩源 ── */
+.flow-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 460px at 6% 6%, oklch(0.82 0.09 258 / 0.5), transparent 68%),
+    radial-gradient(circle 420px at 94% 16%, oklch(0.84 0.08 175 / 0.45), transparent 68%),
+    radial-gradient(circle 440px at 14% 64%, oklch(0.85 0.06 300 / 0.4), transparent 68%),
+    radial-gradient(circle 380px at 86% 78%, oklch(0.88 0.06 60 / 0.4), transparent 68%),
+    radial-gradient(circle 360px at 50% 100%, oklch(0.8 0.07 210 / 0.36), transparent 68%);
+  animation: glow-drift 26s ease-in-out infinite alternate;
+}
+@keyframes glow-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06); }
+}
+
+/* ── 侧栏玻璃壳 .sidebar-card — 半透明毛玻璃 + 凸起边缘 + 内高光线 + 环境光晕 ── */
+.sidebar-sheen { position: relative; overflow: hidden; min-height: 0; }
+.sidebar-sheen::after { display: none; }
+.sidebar-card {
+  background:
+    linear-gradient(
+      175deg,
+      oklch(0.985 0.008 258 / 0.7) 0%,
+      oklch(0.99 0.004 258 / 0.58) 45%,
+      oklch(0.975 0.012 258 / 0.52) 100%
+    );
+  backdrop-filter: blur(26px) saturate(130%);
+  -webkit-backdrop-filter: blur(26px) saturate(130%);
+  border: 1.5px solid oklch(0.50 0.10 258 / 0.30);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    3px 3px 10px oklch(0.52 0.04 258 / 0.22),
+    -3px -3px 8px oklch(1 0 0 / 0.94),
+    0 0 30px oklch(0.58 0.14 258 / 0.16);
+  transition: box-shadow 0.4s ease;
+}
+
+/* ── 3D 折叠 .sidebar-3d — 绕左缘像铰链门一样合上 ── */
+.sidebar-3d {
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  will-change: transform, width, margin, opacity;
+  transition:
+    transform 0.52s var(--ease-out-quint),
+    width 0.56s var(--ease-out-quint) 0.05s,
+    margin 0.56s var(--ease-out-quint) 0.05s,
+    opacity 0.36s ease 0.08s;
+}
+.sidebar-3d[data-hidden="true"] {
+  transform: perspective(1500px) rotateY(-95deg) translateX(-6px);
+  width: 0;
+  margin-right: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── 品牌球 .command-orb / .brand-orb-3d — 悬停 360° 翻转 ── */
+.command-orb { position: relative; isolation: isolate; }
+.command-orb::before {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  background:
+    radial-gradient(circle at 35% 35%, oklch(1 0 0 / 0.9), transparent 28%),
+    radial-gradient(circle at 70% 68%, oklch(0.62 0.16 258 / 0.18), transparent 42%);
+  filter: blur(16px);
+  animation: orbPulse 8s var(--ease-out-quint) infinite;
+  pointer-events: none;
+}
+@keyframes orbPulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.08); }
+}
+.brand-orb-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.75s var(--ease-out-quint);
+}
+.brand-orb-3d:hover { transform: perspective(700px) rotateY(360deg) scale(1.08); }
+
+/* ── 导航项 .sidebar-nav-item — 未选白凸 / 选中灰凹 / 按下更深 ── */
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  border-radius: 11px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--muted-foreground);
+  background: oklch(1 0 0 / 0.92);
+  border: none;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.78),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.92);
+  transition: all 0.3s ease;
+}
+.sidebar-nav-item:hover {
+  color: var(--foreground);
+  background: oklch(0.97 0.006 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.18),
+    -1px -1px 4px oklch(1 0 0 / 0.94);
+}
+.sidebar-nav-item[data-active="true"] {
+  color: var(--foreground);
+  background: oklch(0.92 0.012 258);
+  box-shadow:
+    inset 2px 2px 6px oklch(0.55 0.03 258 / 0.20),
+    inset -2px -2px 5px oklch(1 0 0 / 0.60);
+}
+.sidebar-nav-item:active {
+  transform: scale(0.97);
+  box-shadow:
+    inset 2px 2px 6px oklch(0.55 0.03 258 / 0.26),
+    inset -2px -2px 5px oklch(1 0 0 / 0.68);
+}
+
+/* ── 选中斜条 .nav-active-skew — 倾斜蓝书签 + 呼吸脉动 ── */
+.nav-active-skew {
+  background: linear-gradient(180deg, oklch(0.62 0.16 258 / 0.95), oklch(0.7 0.13 258 / 0.7));
+  transform: skewY(-14deg);
+  box-shadow: 0 6px 14px oklch(0.55 0.16 258 / 0.24);
+  border-radius: 999px;
+  animation: navIndicatorPulse 3s ease-in-out infinite;
+}
+@keyframes navIndicatorPulse {
+  0%, 100% { box-shadow: 0 6px 14px oklch(0.55 0.16 258 / 0.24); opacity: 1; }
+  50%      { box-shadow: 0 6px 22px oklch(0.55 0.16 258 / 0.42); opacity: 0.85; }
+}
+
+/* ── 侧栏滚动条 .sidebar-scroll ── */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.7 0.06 258 / 0.5) transparent;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; margin: 8px 0; }
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, oklch(0.7 0.06 258 / 0.5), oklch(0.66 0.06 258 / 0.32));
+  border-radius: 999px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, oklch(0.7 0.06 258 / 0.75), oklch(0.66 0.06 258 / 0.55));
+}
+
+/* ── 侧栏边缘折叠手柄 .sidebar-edge-tab — 新拟态凸起，无 rgba 阴影 ── */
+.sidebar-edge-tab {
+  position: absolute;
+  cursor: pointer;
+  border: none;
+  background: oklch(0.985 0.006 258 / 0.9);
+  color: var(--muted-foreground);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.16),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
+  transition: all 0.25s ease;
+}
+.sidebar-edge-tab:hover {
+  color: var(--accent-strong);
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    3px 3px 7px oklch(0.55 0.03 258 / 0.2),
+    -1px -1px 4px oklch(1 0 0 / 0.95);
+}
+.sidebar-edge-tab:active {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.18),
+    inset -2px -2px 5px oklch(1 0 0 / 0.55);
+}
+
+/* ── 统一顶栏 .flow-header — 浮动玻璃条（结构壳，细 oklch 描边）── */
+.flow-header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.875rem;
+  margin-bottom: 0.75rem;
+  border-radius: 18px;
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.88), oklch(0.985 0.006 258 / 0.74));
+  border: 1px solid oklch(0.6 0.05 258 / 0.16);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    3px 3px 10px oklch(0.55 0.04 258 / 0.12),
+    -2px -2px 6px oklch(1 0 0 / 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* ── 品牌标识块 .flow-brand-mark — 凸起圆角 logo 托 ── */
+.flow-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: linear-gradient(145deg, oklch(1 0 0 / 0.94), oklch(0.97 0.008 258 / 0.88));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    2px 2px 6px oklch(0.55 0.04 258 / 0.14),
+    -1px -1px 4px oklch(1 0 0 / 0.9);
+  flex-shrink: 0;
+}
+
+/* ── 用户/统计凸起瓷片 .neu-chip — 不可点击的凸起信息块 ── */
+.neu-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: oklch(0.985 0.006 258 / 0.9);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
+}
+
+/* ── 最近访问圆点 .bid-recent-dot — data-active 驱动，无内联 hex ── */
+.bid-recent-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: oklch(0.78 0.02 258);
+  transition: background 0.2s ease;
+}
+.bid-recent-row[data-active="true"] .bid-recent-dot { background: var(--accent-strong); }
+
+/* ── 通知铃铛按钮 .bid-bell — 新拟态圆形图标按钮，三态 ── */
+.bid-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 11px;
+  color: var(--muted-foreground);
+  background: oklch(0.985 0.006 258 / 0.9);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+.bid-bell:hover {
+  color: var(--accent-strong);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    3px 3px 7px oklch(0.55 0.03 258 / 0.16),
+    -1px -1px 4px oklch(1 0 0 / 0.95);
+}
+.bid-bell:active {
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.18),
+    inset -2px -2px 5px oklch(1 0 0 / 0.55);
+}
+
+/* ── 通知浮层 .bid-bell-panel — 浮动玻璃面板，无外侧框线 ── */
+.bid-bell-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 24rem;
+  max-width: 92vw;
+  z-index: 50;
+  border-radius: 16px;
+  background:
+    linear-gradient(175deg, oklch(0.99 0.005 258 / 0.96), oklch(0.975 0.01 258 / 0.92));
+  backdrop-filter: blur(22px) saturate(125%);
+  -webkit-backdrop-filter: blur(22px) saturate(125%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    6px 10px 30px oklch(0.45 0.06 258 / 0.18),
+    -3px -3px 10px oklch(1 0 0 / 0.7);
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-glow, .ambient-grid::after, .command-orb::before,
+  .nav-active-skew, .sidebar-3d, .brand-orb-3d { animation: none !important; }
+  .sidebar-3d { transition: width 0.2s ease, margin 0.2s ease, opacity 0.15s ease; }
+  .sidebar-3d[data-hidden="true"] { transform: none; }
+  .brand-orb-3d:hover { transform: none; }
+}
+
+/* ── 开标大厅倒计时圆环（data-urgent 驱动配色，避免内联 stroke/color）── */
+.bid-ring-track { stroke: oklch(0.9 0.012 258); }
+.bid-ring-fg { stroke: var(--accent-strong); transition: stroke 0.3s ease; }
+.bid-ring-fg[data-urgent="warn"] { stroke: var(--warning); }
+.bid-ring-fg[data-urgent="danger"] { stroke: var(--danger); }
+.bid-ring-num { color: var(--accent-strong); }
+.bid-ring-num[data-urgent="warn"] { color: var(--warning); }
+.bid-ring-num[data-urgent="danger"] { color: var(--danger); }
 

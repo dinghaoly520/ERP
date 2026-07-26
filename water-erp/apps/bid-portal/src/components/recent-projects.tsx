@@ -43,41 +43,42 @@ function RecentProjectsInner() {
   const currentId = searchParams.get('id');
 
   return (
-    <div className="px-2 pt-1 pb-2">
+    <div className="px-2 pt-2 pb-2">
       <div className="flex items-center gap-1.5 px-2 pb-1.5">
-        <Clock size={11} strokeWidth={1.5} className="text-[#94a3b8]" />
-        <span className="text-[10px] font-semibold text-[#94a3b8] uppercase tracking-wider">最近访问</span>
+        <Clock size={11} strokeWidth={1.5} className="text-[color:var(--muted-foreground)]" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">最近访问</span>
       </div>
-      {items.map(p => (
-        <div key={p.id} className="group relative mb-0.5">
-          <button
-            onClick={() => handleClick(p)}
-            className={`flex w-full items-center gap-2 rounded-xl px-2 py-1.5 pr-7 text-left transition-colors ${
-              p.id === currentId
-                ? 'bg-[#eff6ff] text-[#064ea2]'
-                : 'text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#18243a]'
-            }`}
-            title={`${p.projectCode} — ${p.name}`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: p.id === currentId ? '#064ea2' : '#cbd5e1' }}
-            />
-            <span className="text-xs font-medium truncate flex-1">
-              <span className="font-mono font-semibold text-[#064ea2]">{p.projectCode}</span>
-              <span className="text-[#8a96aa] mx-1">—</span>
-              {p.name}
-            </span>
-          </button>
-          <button
-            onClick={e => handleRemove(e, p.id)}
-            className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-[#94a3b8] opacity-0 group-hover:opacity-100 hover:text-[#e74c3c] hover:bg-[#fef2f2] transition-all"
-            title="移除此记录"
-          >
-            <X size={11} strokeWidth={1.5} />
-          </button>
-        </div>
-      ))}
-      <div className="mx-2 mt-1.5 border-t border-[#edf2f7]" />
+      {items.map(p => {
+        const active = p.id === currentId;
+        return (
+          <div key={p.id} data-active={active} className="bid-recent-row group relative mb-0.5">
+            <button
+              onClick={() => handleClick(p)}
+              className={`flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 pr-7 text-left transition-colors ${
+                active
+                  ? 'bg-[oklch(0.62_0.16_258_/_0.1)] text-[color:var(--accent-strong)]'
+                  : 'text-[color:var(--muted-foreground)] hover:bg-[oklch(0.985_0.006_258_/_0.7)] hover:text-[color:var(--foreground)]'
+              }`}
+              title={`${p.projectCode} — ${p.name}`}
+            >
+              <span className="bid-recent-dot" />
+              <span className="flex-1 truncate text-xs font-medium">
+                <span className="font-mono font-semibold text-[color:var(--accent-strong)]">{p.projectCode}</span>
+                <span className="mx-1 text-[color:var(--muted-foreground)]">—</span>
+                {p.name}
+              </span>
+            </button>
+            <button
+              onClick={e => handleRemove(e, p.id)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-[color:var(--muted-foreground)] opacity-0 transition-all hover:bg-[oklch(0.66_0.175_27_/_0.1)] hover:text-[var(--danger)] group-hover:opacity-100"
+              title="移除此记录"
+            >
+              <X size={11} strokeWidth={1.5} />
+            </button>
+          </div>
+        );
+      })}
+      <div className="mx-2 mt-1.5 border-t border-[oklch(0.6_0.04_258_/_0.14)]" />
     </div>
   );
 }

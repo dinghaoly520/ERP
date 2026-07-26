@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { openingHallApi } from '@/lib/opening-hall';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
@@ -226,113 +227,115 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   const inputDisabled = (tab === 'PRIVATE' && !activeSupplier) || stageClosed || control === 'CLOSED';
   const inputHint = stageClosed ? '开标阶段已结束，互动已关闭' : control === 'CLOSED' ? '主持人已关闭聊天大厅' : '';
   const connBadge = connection === 'connected'
-    ? { text: '实时已连', cls: 'text-emerald-600', dot: 'bg-emerald-500' }
+    ? { text: '实时已连', cls: 'text-[var(--success)]', dot: 'bg-[var(--success)]' }
     : connection === 'reconnecting'
-      ? { text: '重连中…', cls: 'text-amber-600', dot: 'bg-amber-500' }
-      : { text: '已断开', cls: 'text-red-500', dot: 'bg-red-500' };
+      ? { text: '重连中…', cls: 'text-[var(--warning)]', dot: 'bg-[var(--warning)]' }
+      : { text: '已断开', cls: 'text-[var(--danger)]', dot: 'bg-[var(--danger)]' };
+
+  // 控制 / 私聊供应商 切换钮：选中 = 内凹按压态，未选 = 凸起 neu-btn-xs
+  const segActive = 'rounded-[7px] px-2 py-1 text-xs font-semibold text-[color:var(--foreground)] bg-[oklch(0.92_0.012_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)] transition-all';
 
   return (
     <>
       <button
+        type="button"
         onClick={() => setOpen(o => !o)}
-        className="relative rounded-xl border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50"
+        className="neu-btn-soft relative"
       >
         会场交流
         {(publicUnread > 0 || sessions.some(s => s.unread > 0)) && (
-          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white">
+          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold text-white">
             {publicUnread + sessions.reduce((a, s) => a + s.unread, 0)}
           </span>
         )}
       </button>
 
-      {/* C2：抽屉经 portal 渲染到 body——SectionCard（glass-card）的 backdrop-filter 会为 fixed 后代
-          建立包含块并被 overflow-hidden 裁剪；portal 化后 fixed 相对视口定位。
+      {/* C2：抽屉经 portal 渲染到 body——避免被父级 backdrop-filter / overflow-hidden 裁剪；
           抽屉仅在 open（客户端 state）为 true 时渲染，SSR 不触碰 document。
-          层级：抽屉 z-40 低于唱标录入模态 z-50 ✓ */}
-      {/* 抽屉 top-[68px] 避开 app-shell sticky 页头（z-50 h-[68px]），否则头部控制行被遮挡不可点 */}
+          层级：抽屉 z-40 低于唱标录入模态 z-50 ✓。新外壳无 sticky 顶栏，故浮动 inset 玻璃板。 */}
       {open && createPortal(
-        <aside className="fixed right-0 top-[68px] z-40 flex h-[calc(100%-68px)] w-[420px] flex-col border-l border-slate-200 bg-white shadow-xl">
-          <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <aside className="fixed bottom-2 right-2 top-2 z-40 flex w-[420px] max-w-[92vw] flex-col overflow-hidden rounded-[20px] bg-[linear-gradient(175deg,oklch(0.985_0.008_258_/_0.94),oklch(0.975_0.012_258_/_0.9))] shadow-[-6px_0_30px_oklch(0.45_0.06_258_/_0.18),inset_1px_0_0_oklch(1_0_0_/_0.7)] backdrop-blur-2xl">
+          <header className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold">会场交流</h3>
+              <h3 className="text-sm font-semibold text-[color:var(--foreground)]">会场交流</h3>
               {/* R10：连接态徽标；断开时给手动重连入口 */}
               <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${connBadge.cls}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${connBadge.dot}`} />
                 {connBadge.text}
                 {connection === 'disconnected' && (
-                  <button onClick={reconnectNow} className="ml-0.5 font-semibold text-blue-600 hover:underline">重连</button>
+                  <button type="button" onClick={reconnectNow} className="ml-0.5 font-semibold text-[var(--accent-strong)] hover:underline">重连</button>
                 )}
               </span>
             </div>
             <div className="flex items-center gap-1 text-xs">
               {(['OPEN', 'MUTED', 'CLOSED'] as const).map(c => (
-                <button key={c} onClick={() => changeControl(c)}
-                  className={`rounded-lg px-2 py-1 ${control === c ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                <button key={c} type="button" onClick={() => changeControl(c)}
+                  className={control === c ? segActive : 'neu-btn-xs'}>
                   {c === 'OPEN' ? '开放' : c === 'MUTED' ? '禁言' : '关闭'}
                 </button>
               ))}
-              <button onClick={() => setOpen(false)} className="ml-2 text-slate-400 hover:text-slate-700">✕</button>
+              <button type="button" onClick={() => setOpen(false)} className="neu-btn-xs ml-2" aria-label="关闭"><X size={14} /></button>
             </div>
           </header>
 
-          <div className="border-b border-slate-200 px-4 py-2">
-            <div className="mb-1 text-xs font-medium text-slate-500">在场名单（{roster.length}）</div>
+          <div className="border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-2">
+            <div className="mb-1 text-xs font-medium text-[color:var(--muted-foreground)]">在场名单（{roster.length}）</div>
             <div className="flex flex-wrap gap-1.5">
               {roster.map(s => (
-                <span key={s.supplierId} className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                <span key={s.supplierId} className="rounded-md bg-[oklch(0.71_0.11_164_/_0.14)] px-2 py-0.5 text-xs font-medium text-[oklch(0.5_0.12_160)]">
                   {s.supplierName}{s.checkInAt || checkins[s.supplierId] ? ' ✓签到' : ''}
                 </span>
               ))}
-              {roster.length === 0 && <span className="text-xs text-slate-400">暂无供应商在线</span>}
+              {roster.length === 0 && <span className="text-xs text-[color:var(--muted-foreground)]">暂无供应商在线</span>}
             </div>
           </div>
 
-          <div className="flex gap-2 border-b border-slate-200 px-4 py-2 text-sm">
-            <button onClick={() => { setTab('PUBLIC'); setPublicUnread(0); openingHallApi.markRead(projectId, 'public', publicMsgs[publicMsgs.length - 1]?.id).catch(() => {}); }}
-              className={tab === 'PUBLIC' ? 'font-semibold text-slate-900' : 'text-slate-500'}>
+          <div className="flex gap-2 border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-2 text-sm">
+            <button type="button" onClick={() => { setTab('PUBLIC'); setPublicUnread(0); openingHallApi.markRead(projectId, 'public', publicMsgs[publicMsgs.length - 1]?.id).catch(() => {}); }}
+              className={tab === 'PUBLIC' ? 'font-semibold text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]'}>
               公聊{publicUnread > 0 ? ` (${publicUnread})` : ''}
             </button>
-            <button onClick={() => setTab('PRIVATE')}
-              className={tab === 'PRIVATE' ? 'font-semibold text-slate-900' : 'text-slate-500'}>
+            <button type="button" onClick={() => setTab('PRIVATE')}
+              className={tab === 'PRIVATE' ? 'font-semibold text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]'}>
               私聊
             </button>
           </div>
 
           {tab === 'PRIVATE' && (
-            <div className="flex gap-1.5 overflow-x-auto border-b border-slate-200 px-4 py-2">
+            <div className="flex gap-1.5 overflow-x-auto border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-2">
               {sessions.map(s => (
-                <button key={s.supplierId} onClick={() => openPrivate(s)}
-                  className={`whitespace-nowrap rounded-lg px-2 py-1 text-xs ${activeSupplier?.supplierId === s.supplierId ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                <button key={s.supplierId} type="button" onClick={() => openPrivate(s)}
+                  className={activeSupplier?.supplierId === s.supplierId ? `${segActive} whitespace-nowrap` : 'neu-btn-xs whitespace-nowrap'}>
                   {s.supplierName}{s.unread > 0 ? ` ●${s.unread}` : ''}
                 </button>
               ))}
-              {sessions.length === 0 && <span className="text-xs text-slate-400">暂无供应商参与</span>}
+              {sessions.length === 0 && <span className="text-xs text-[color:var(--muted-foreground)]">暂无供应商参与</span>}
             </div>
           )}
 
           <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3">
-            {tab === 'PRIVATE' && !activeSupplier && <div className="pt-10 text-center text-xs text-slate-400">选择一家供应商开始私聊</div>}
+            {tab === 'PRIVATE' && !activeSupplier && <div className="pt-10 text-center text-xs text-[color:var(--muted-foreground)]">选择一家供应商开始私聊</div>}
             {msgs.map(m => m.senderRole === 'SYSTEM' ? (
               // 系统消息：居中提示条
-              <div key={m.id} className="mx-auto my-2 w-fit max-w-[85%] rounded-full bg-slate-100 px-3 py-1 text-center text-[11px] text-slate-400">{m.content}</div>
+              <div key={m.id} className="mx-auto my-2 w-fit max-w-[85%] rounded-full bg-[oklch(0.6_0.04_258_/_0.12)] px-3 py-1 text-center text-[11px] text-[color:var(--muted-foreground)]">{m.content}</div>
             ) : (
-              // 气泡式：己方（HOST）右对齐深色气泡，供应商左对齐带头像
+              // 气泡式：己方（HOST）右对齐品牌气泡，供应商左对齐带头像 + 凸起玻璃泡
               <div key={m.id} className={`my-3 flex items-start gap-2 ${m.senderRole === 'HOST' ? 'flex-row-reverse' : ''}`}>
-                <div className={`flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-semibold text-white ${m.senderRole === 'HOST' ? 'bg-slate-900' : 'bg-[#064ea2]'}`}>
+                <div className={`flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-semibold text-white ${m.senderRole === 'HOST' ? 'bg-[oklch(0.32_0.04_258)]' : 'bg-[var(--accent-strong)]'}`}>
                   {(m.senderName || '?').slice(0, 1)}
                 </div>
                 <div className={`flex max-w-[74%] flex-col ${m.senderRole === 'HOST' ? 'items-end' : 'items-start'}`}>
-                  <div className="mb-0.5 text-[11px] text-slate-400">{m.senderName} · {fmtTime(m.createdAt)}</div>
+                  <div className="mb-0.5 text-[11px] text-[color:var(--muted-foreground)]">{m.senderName} · {fmtTime(m.createdAt)}</div>
                   <div className={`whitespace-pre-wrap break-all rounded-xl px-3 py-2 text-sm leading-relaxed ${m.senderRole === 'HOST'
-                    ? 'rounded-tr-sm bg-slate-900 text-white'
-                    : 'rounded-tl-sm border border-slate-200 bg-slate-50'}`}>{m.content}</div>
+                    ? 'rounded-tr-sm bg-[var(--accent-strong)] text-white shadow-[2px_2px_6px_oklch(0.45_0.08_258_/_0.18)]'
+                    : 'rounded-tl-sm bg-[oklch(0.985_0.006_258)] text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.7),2px_2px_5px_oklch(0.55_0.03_258_/_0.1),-1px_-1px_3px_oklch(1_0_0_/_0.85)]'}`}>{m.content}</div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-slate-200">
-            {inputHint && <div className="px-3 pt-2 text-[11px] font-medium text-amber-600">{inputHint}</div>}
+          <div className="border-t border-[oklch(0.6_0.04_258_/_0.14)]">
+            {inputHint && <div className="px-3 pt-2 text-[11px] font-medium text-[var(--warning)]">{inputHint}</div>}
             <div className="flex gap-2 p-3">
               <input
                 value={input}
@@ -340,10 +343,10 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
                 onKeyDown={e => { if (e.key === 'Enter' && !(e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229)) send(); }}
                 placeholder={inputDisabled ? (tab === 'PRIVATE' && !activeSupplier ? '请先选择供应商' : '互动已关闭') : '输入消息（Enter 发送）'}
                 disabled={inputDisabled}
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
+                className="neu-input flex-1"
               />
-              <button onClick={send} disabled={sending || !input.trim() || inputDisabled}
-                className="rounded-xl bg-slate-900 px-4 text-sm text-white disabled:opacity-40">发送</button>
+              <button type="button" onClick={send} disabled={sending || !input.trim() || inputDisabled}
+                className="neu-btn-primary !h-[40px] !px-4 text-sm disabled:opacity-40">发送</button>
             </div>
           </div>
         </aside>,

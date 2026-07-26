@@ -11,22 +11,27 @@ import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, Eye, ExternalLink,
   Volume2, Zap, Loader, FileText,
 } from 'lucide-react';
-import { SectionCard } from '@water-erp/ui';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import NoProjectGuide from '@/components/no-project-guide';
-import { DECRYPT_LABEL, SEMANTIC } from '@water-erp/shared';
+import { DECRYPT_LABEL } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { SupervisionView, type SupervisionLog } from '@/components/bid/supervision-view';
 import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 
-const decryptColors: Record<string, { color: string; bg: string }> = {
-  PENDING: { color: SEMANTIC.warning, bg: '#fef6e8' },
-  RUNNING: { color: SEMANTIC.info, bg: '#eef4fc' },
-  SUCCESS: { color: SEMANTIC.success, bg: '#f0faf6' },
-  DANGER: { color: SEMANTIC.danger, bg: '#fef2f2' },
+/** cgzxui 裸面板（取代 @water-erp/ui SectionCard 的 p-0 用法）——无边框玻璃静态卡 */
+function Card({ className = '', children }: { className?: string; children: React.ReactNode }) {
+  return <section className={`neu-card-static overflow-hidden ${className}`}>{children}</section>;
+}
+
+// 解密状态徽标：类驱动配色（无内联 hex / style）
+const decryptColors: Record<string, { cls: string }> = {
+  PENDING: { cls: 'text-[var(--warning)] bg-[oklch(0.78_0.12_83_/_0.16)]' },
+  RUNNING: { cls: 'text-[var(--accent-strong)] bg-[oklch(0.62_0.16_251_/_0.14)]' },
+  SUCCESS: { cls: 'text-[var(--success)] bg-[oklch(0.71_0.11_164_/_0.16)]' },
+  DANGER: { cls: 'text-[var(--danger)] bg-[oklch(0.66_0.175_27_/_0.16)]' },
 };
 
 const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
@@ -59,7 +64,7 @@ function createSfx(ctxRef: React.RefObject<AudioContext | null>) {
   };
 }
 
-/* ── Ring Countdown ── */
+/* ── Ring Countdown（浅色 cgzxui：data-urgent 驱动配色）── */
 function RingCountdown({ remaining, big }: { remaining: number; big?: boolean }) {
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
@@ -68,43 +73,42 @@ function RingCountdown({ remaining, big }: { remaining: number; big?: boolean })
   const cx = big ? 50 : 40;
   const circumference = 2 * Math.PI * radius;
   const dash = circumference * pct;
-  const isUrgent = remaining <= 60;
-  const ringColor = isUrgent ? '#e74c3c' : remaining <= 300 ? '#f5a623' : '#ffffff';
+  const urgent = remaining <= 60 ? 'danger' : remaining <= 300 ? 'warn' : 'ok';
   const size = big ? 100 : 80;
   const fontSize = big ? 'text-2xl' : 'text-lg';
   const labelSize = big ? 'text-[10px]' : 'text-[9px]';
   return (
-    <div className={`relative inline-flex items-center justify-center ${big ? 'scale-125' : ''}`} style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="absolute inset-0 -rotate-90" style={{ overflow: 'visible' }}>
-        <circle cx={cx} cy={cx} r={radius} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={6} />
-        <circle cx={cx} cy={cx} r={radius} fill="none" stroke={ringColor} strokeWidth={6}
+    <div className={`relative inline-flex items-center justify-center ${big ? 'h-[100px] w-[100px] scale-125' : 'h-[80px] w-[80px]'}`}>
+      <svg width={size} height={size} className="absolute inset-0 -rotate-90 overflow-visible">
+        <circle cx={cx} cy={cx} r={radius} fill="none" strokeWidth={6} className="bid-ring-track" />
+        <circle cx={cx} cy={cx} r={radius} fill="none" strokeWidth={6}
           strokeDasharray={`${dash} ${circumference}`} strokeLinecap="round"
-          className="transition-all duration-1000" />
+          data-urgent={urgent} className="bid-ring-fg transition-all duration-1000" />
       </svg>
       <div className="relative z-10 flex flex-col items-center">
-        <div className={`font-mono font-black tracking-tight ${fontSize} ${isUrgent ? 'animate-pulse' : ''}`}
-          style={{ color: ringColor }}>
+        <div data-urgent={urgent} className={`bid-ring-num font-mono font-black tracking-tight ${fontSize} ${urgent === 'danger' ? 'animate-pulse' : ''}`}>
           {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
         </div>
-        <div className={`${labelSize} text-white/50 uppercase tracking-widest`}>剩余</div>
+        <div className={`${labelSize} uppercase tracking-widest text-[color:var(--muted-foreground)]`}>剩余</div>
       </div>
     </div>
   );
 }
 
-/* ── Stage Stepper ── */
+/* ── Stage Stepper（浅色新拟态分段）── */
 function StageStepper({ step }: { step: number }) {
   return (
     <div className="flex items-center gap-1">
       {STAGES.map((label, i) => (
         <div key={label} className="flex items-center gap-1">
           <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold transition-all duration-500 ${
-            i === step ? 'bg-white/20 text-white' : i < step ? 'text-white/50' : 'text-white/25'
+            i === step ? 'bg-[oklch(0.92_0.012_258)] text-[color:var(--foreground)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)]' :
+            i < step ? 'text-[color:var(--accent-strong)]' : 'text-[color:var(--muted-foreground)] opacity-50'
           }`}>
-            {i < step ? <CheckCircle size={11} /> : i === step ? <span className={`h-2 w-2 rounded-full ${i < 3 ? 'animate-pulse bg-white' : 'bg-white'}`} /> : <span className="h-2 w-2 rounded-full bg-white/20" />}
+            {i < step ? <CheckCircle size={11} /> : i === step ? <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent-strong)]" /> : <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.02_258)]" />}
             {label}
           </div>
-          {i < STAGES.length - 1 && <span className="w-4 h-px bg-white/15" />}
+          {i < STAGES.length - 1 && <span className="h-px w-4 bg-[oklch(0.8_0.02_258)]" />}
         </div>
       ))}
     </div>
@@ -171,12 +175,12 @@ export default function BidOpenPage() {
 
   const openingStatusMeta = (status?: string | null) => {
     switch (status) {
-      case '供应商已确认': return { label: '供应商已确认', color: '#11a874', bg: '#f0faf6' };
-      case '供应商提出异议': return { label: '供应商提出异议', color: '#e74c3c', bg: '#fef2f2' };
-      case '异议已处理-确认': return { label: '异议已处理', color: '#11a874', bg: '#f0faf6' };
-      case '异议已处理-退回': return { label: '异议已退回', color: '#6b7280', bg: '#f3f4f6' };
-      case '待供应商确认': return { label: '待供应商确认', color: '#f5a623', bg: '#fef6e8' };
-      default: return { label: status || '待确认', color: '#6b7280', bg: '#f3f4f6' };
+      case '供应商已确认': return { label: '供应商已确认', cls: 'text-[var(--success)] bg-[oklch(0.71_0.11_164_/_0.16)]' };
+      case '供应商提出异议': return { label: '供应商提出异议', cls: 'text-[var(--danger)] bg-[oklch(0.66_0.175_27_/_0.16)]' };
+      case '异议已处理-确认': return { label: '异议已处理', cls: 'text-[var(--success)] bg-[oklch(0.71_0.11_164_/_0.16)]' };
+      case '异议已处理-退回': return { label: '异议已退回', cls: 'text-[color:var(--muted-foreground)] bg-[oklch(0.6_0.04_258_/_0.12)]' };
+      case '待供应商确认': return { label: '待供应商确认', cls: 'text-[var(--warning)] bg-[oklch(0.78_0.12_83_/_0.16)]' };
+      default: return { label: status || '待确认', cls: 'text-[color:var(--muted-foreground)] bg-[oklch(0.6_0.04_258_/_0.12)]' };
     }
   };
 
@@ -235,7 +239,7 @@ export default function BidOpenPage() {
   const remaining = session ? Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - now - serverTimeOffset) / 1000)) : 0;
   const timeWarning = remaining <= 0 ? 'none' : remaining <= 60 ? '1min' : remaining <= 300 ? '5min' : 'none';
 
-  // ═══ API ═══
+  // ═══ API ══
   const handleResolveDispute = async (recordId: string, result: string, confirm: boolean) => {
     if (!projectId || disputeSubmitting) return;
     setDisputeSubmitting(true);
@@ -430,30 +434,25 @@ export default function BidOpenPage() {
   if (error && !project) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertTriangle size={32} strokeWidth={1.5} className="text-[#e74c3c] mb-4" />
-        <p className="text-sm font-semibold text-[#5a6d8a] mb-4">{error}</p>
-        <button
-          onClick={loadProject}
-          className="rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#0b63ce] transition"
-        >
-          重试
-        </button>
+        <AlertTriangle size={32} strokeWidth={1.5} className="mb-4 text-[var(--danger)]" />
+        <p className="mb-4 text-sm font-semibold text-[color:var(--muted-foreground)]">{error}</p>
+        <button type="button" onClick={loadProject} className="neu-btn-primary !h-[38px] text-xs">重试</button>
       </div>
     );
   }
-  if (!project) return <div className="text-[13px] text-[oklch(0.62_0.008_264)] text-center py-20 tracking-tight">暂无项目数据</div>;
+  if (!project) return <div className="py-20 text-center text-[13px] tracking-tight text-[color:var(--muted-foreground)]">暂无项目数据</div>;
   if (!projectId) return null;
 
   return (
     <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>
-      {/* ═══ 视图切换：开标大厅 / 监督视图（监督端折叠进大厅）═══ */}
-      <div className="flex w-fit items-center gap-1 rounded-xl border border-[#e5ecf4] bg-white p-1">
-        <button onClick={() => setView('hall')}
-          className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[12px] font-bold transition ${view === 'hall' ? 'bg-[#064ea2] text-white shadow-[0_4px_12px_rgba(6,78,162,0.3)]' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}>
+      {/* ═══ 视图切换：开标大厅 / 监督视图（新拟态分段控件）═══ */}
+      <div className="inline-flex w-fit items-center gap-1 rounded-[12px] bg-[oklch(0.95_0.008_258)] p-1 shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.12),inset_-2px_-2px_5px_oklch(1_0_0_/_0.7)]">
+        <button type="button" onClick={() => setView('hall')}
+          className={`flex items-center gap-1.5 rounded-[9px] px-4 py-1.5 text-[12px] font-bold transition-all ${view === 'hall' ? 'bg-[oklch(1_0_0)] text-[color:var(--accent-strong)] shadow-[2px_2px_5px_oklch(0.55_0.03_258_/_0.14),-1px_-1px_3px_oklch(1_0_0_/_0.9)]' : 'text-[color:var(--muted-foreground)]'}`}>
           <Unlock size={13} /> 开标大厅
         </button>
-        <button onClick={() => setView('supervise')}
-          className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[12px] font-bold transition ${view === 'supervise' ? 'bg-[#064ea2] text-white shadow-[0_4px_12px_rgba(6,78,162,0.3)]' : 'text-[#5a6d8a] hover:text-[#064ea2]'}`}>
+        <button type="button" onClick={() => setView('supervise')}
+          className={`flex items-center gap-1.5 rounded-[9px] px-4 py-1.5 text-[12px] font-bold transition-all ${view === 'supervise' ? 'bg-[oklch(1_0_0)] text-[color:var(--accent-strong)] shadow-[2px_2px_5px_oklch(0.55_0.03_258_/_0.14),-1px_-1px_3px_oklch(1_0_0_/_0.9)]' : 'text-[color:var(--muted-foreground)]'}`}>
           <Shield size={13} /> 监督视图
         </button>
       </div>
@@ -461,41 +460,41 @@ export default function BidOpenPage() {
       {view === 'supervise' ? (
         <SupervisionView projectId={projectId} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />
       ) : (<>
-      {/* ═══ Time warning banners ═══ */}
+      {/* ═══ Time warning banners — 无边框色调提示 ═══ */}
       {timeWarning === '5min' && (
-        <div className="rounded-xl border border-[#fcd34d] bg-[#fffbeb] px-4 py-2.5 text-sm font-bold text-[#92400e] flex items-center gap-2 animate-pulse">
+        <div className="flex animate-pulse items-center gap-2 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] px-4 py-2.5 text-sm font-bold text-[oklch(0.46_0.11_65)]">
           <AlertTriangle size={16} /> 解密窗口将在 5 分钟内关闭，请尽快完成解密操作
         </div>
       )}
       {timeWarning === '1min' && (
-        <div className="rounded-xl border border-[#e74c3c] bg-[#fef2f2] px-4 py-2.5 text-sm font-bold text-[#e74c3c] flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-xl bg-[oklch(0.66_0.175_27_/_0.14)] px-4 py-2.5 text-sm font-bold text-[var(--danger)]">
           <AlertTriangle size={16} className="animate-pulse" /> 解密窗口仅剩 1 分钟！
         </div>
       )}
 
       {/* ═══ 前阶段引导（F7）：流转权在 :3005，大厅只做开标执行 ═══ */}
       {(project.stage === 'DOWNLOAD' || project.stage === 'SUBMIT') && (
-        <div className="flex items-center gap-4 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-5">
-          <Clock size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#064ea2]" />
+        <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.62_0.16_251_/_0.1)] p-5">
+          <Clock size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--accent-strong)]" />
           <div className="flex-1">
-            <h2 className="mb-0.5 text-sm font-bold text-[#1e40af]">该项目尚未确定开标</h2>
-            <p className="text-xs text-[#5a6d8a]">确定开标（阶段流转）由采购管理工作台（:3005）统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
+            <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.13_251)]">该项目尚未确定开标</h2>
+            <p className="text-xs text-[color:var(--muted-foreground)]">确定开标（阶段流转）由采购管理工作台（:3005）统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
           </div>
           <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#054280]">
+            className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
             前往采购管理工作台 <ExternalLink size={13} />
           </a>
         </div>
       )}
       {(project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') && (
-        <div className="flex items-center gap-4 rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] p-5">
-          <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#11a874]" />
+        <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
+          <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
           <div className="flex-1">
-            <h2 className="mb-0.5 text-sm font-bold text-[#14532d]">开标已结束</h2>
-            <p className="text-xs text-[#5a6d8a]">本项目已进入{project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，后续评标管理与归档请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。</p>
+            <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标已结束</h2>
+            <p className="text-xs text-[color:var(--muted-foreground)]">本项目已进入{project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，后续评标管理与归档请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。</p>
           </div>
           <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#11a874] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0e8c5f]">
+            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
             前往采购管理工作台 <ExternalLink size={13} />
           </a>
         </div>
@@ -503,14 +502,14 @@ export default function BidOpenPage() {
 
       {/* ═══ 待组建会话横幅（:3005 已确定开标，主持人在此组建会话）═══ */}
       {!session && project.stage === 'OPENING' && (
-        <div className="flex items-center gap-4 rounded-2xl border border-[#fcd34d] bg-[#fffbeb] p-5">
-          <AlertTriangle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#92400e]" />
+        <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.78_0.12_83_/_0.14)] p-5">
+          <AlertTriangle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--warning)]" />
           <div className="flex-1">
-            <h2 className="mb-0.5 text-sm font-bold text-[#92400e]">已确定开标，等待组建开标会话</h2>
-            <p className="text-xs text-[#a16207]">请主持人与监督人填写主持人、监督人与解密窗口，随后即可开始解密 / 唱标 / 异议处理。阶段推进由 :3005 采购管理工作台管理，开标会话仅在此组建。</p>
+            <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.46_0.11_65)]">已确定开标，等待组建开标会话</h2>
+            <p className="text-xs text-[oklch(0.5_0.1_70)]">请主持人与监督人填写主持人、监督人与解密窗口，随后即可开始解密 / 唱标 / 异议处理。阶段推进由 :3005 采购管理工作台管理，开标会话仅在此组建。</p>
           </div>
-          <button onClick={() => setStartOpen(true)}
-            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#054280]">
+          <button type="button" onClick={() => setStartOpen(true)}
+            className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
             <Shield size={13} /> 组建开标会话
           </button>
         </div>
@@ -518,36 +517,36 @@ export default function BidOpenPage() {
 
       {/* ═══ 开标完成：交棒回 :3005（评标 / 开标归档）═══ */}
       {openingDone && project.stage === 'OPENING' && (
-        <div className="flex items-center gap-4 rounded-2xl border border-[#bbf7d0] bg-[#f0fdf4] p-5">
-          <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[#11a874]" />
+        <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
+          <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
           <div className="flex-1">
-            <h2 className="mb-0.5 text-sm font-bold text-[#14532d]">开标完成</h2>
-            <p className="text-xs text-[#5a6d8a]">全部解密、唱标与供应商确认已完成，无待处理异议。请返回采购管理工作台启动评标，或执行开标归档（流标 / 废标场景）。</p>
+            <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标完成</h2>
+            <p className="text-xs text-[color:var(--muted-foreground)]">全部解密、唱标与供应商确认已完成，无待处理异议。请返回采购管理工作台启动评标，或执行开标归档（流标 / 废标场景）。</p>
           </div>
           <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-            className="flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-[#11a874] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0e8c5f]">
+            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
             前往采购管理工作台 <ExternalLink size={13} />
           </a>
         </div>
       )}
 
-      {/* ═══ Session header with ring countdown + stage stepper ═══ */}
+      {/* ═══ Session header：浅色玻璃面板 + 圆环倒计时 + 阶段步进 ═══ */}
       {session && (
-        <div className="glass-card glass-card-blue rounded-2xl text-white p-6 space-y-4" style={{ background: 'linear-gradient(135deg, rgba(6,78,162,0.92), rgba(11,99,206,0.88))' }}>
-          <div className="flex items-center gap-8 flex-wrap">
-            <div className="flex-1 min-w-0">
-              <h2 className={`font-black tracking-tight mb-2 ${bigScreen ? 'text-2xl' : 'text-lg'}`}>
+        <div className="neu-card-static space-y-4 p-6">
+          <div className="flex flex-wrap items-center gap-8">
+            <div className="min-w-0 flex-1">
+              <h2 className={`mb-2 font-black tracking-tight text-[color:var(--foreground)] ${bigScreen ? 'text-2xl' : 'text-lg'}`}>
                 {project.name}
               </h2>
-              <div className="flex items-center gap-6 text-sm text-white/60 flex-wrap">
+              <div className="flex flex-wrap items-center gap-6 text-sm text-[color:var(--muted-foreground)]">
                 <span className="flex items-center gap-1.5"><Clock size={13} strokeWidth={1.5} /> {new Date(project.openTime).toLocaleString('zh-CN')}</span>
                 <span>主持人：{session.host}</span>
                 <span>监督人：{session.supervisor}</span>
               </div>
             </div>
-            <div className="bg-white/10 rounded-xl px-6 py-3 text-center">
-              <div className="text-xs text-white/40 uppercase tracking-widest mb-1">状态</div>
-              <div className="text-lg font-black tracking-tight">{session.status}</div>
+            <div className="rounded-xl bg-[oklch(0.985_0.005_258)] px-6 py-3 text-center shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.12),inset_-2px_-2px_5px_oklch(1_0_0_/_0.7)]">
+              <div className="mb-1 text-xs uppercase tracking-widest text-[color:var(--muted-foreground)]">状态</div>
+              <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{session.status}</div>
             </div>
             {remaining > 0 && <RingCountdown remaining={remaining} big={bigScreen} />}
           </div>
@@ -556,16 +555,16 @@ export default function BidOpenPage() {
       )}
 
       {/* ═══ Decrypt status table ═══ */}
-      <SectionCard className="overflow-hidden p-0">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5ecf4] flex-wrap gap-3">
-          <h2 className="text-sm font-black text-[#18243a]">
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[oklch(0.6_0.04_258_/_0.14)] px-6 py-4">
+          <h2 className="text-sm font-bold text-[color:var(--foreground)]">
             投标人在线解密状态
           </h2>
           <div className="flex items-center gap-2">
             {/* 阶段流转（开放投递/确定开标）已归 :3005 采购管理工作台，本页仅执行开标 */}
             {!!session && project.stage === 'OPENING' && decryptProgress.total > 0 && decryptProgress.pending > 0 && (
-              <button onClick={handleBulkDecrypt} disabled={bulkDecrypting}
-                className="flex items-center gap-1.5 rounded-xl border border-[#f5a623] bg-[#fef6e8] px-4 py-2 text-xs font-bold text-[#92400e] hover:bg-[#fef0c0] transition disabled:opacity-50">
+              <button type="button" onClick={handleBulkDecrypt} disabled={bulkDecrypting}
+                className="neu-btn-soft is-warning disabled:opacity-50">
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
               </button>
             )}
@@ -576,196 +575,199 @@ export default function BidOpenPage() {
 
         {/* Decrypt progress bar */}
         {decryptProgress.total > 0 && (
-          <div className="px-6 py-3 border-b border-[#edf2f7] bg-[#fafbfc]">
+          <div className="border-b border-[oklch(0.6_0.04_258_/_0.12)] bg-[oklch(0.985_0.006_258_/_0.6)] px-6 py-3">
             <div className="flex items-center gap-3">
-              <span className="text-[11px] font-semibold text-[#5a6d8a] uppercase tracking-wider whitespace-nowrap">解密进度</span>
-              <div className="flex-1 h-2 rounded-full bg-[#edf2f7] overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-700 flex" style={{ width: `${decryptProgress.pct * 100}%` }}>
-                  <div className="h-full bg-[#11a874] transition-all" style={{ width: `${decryptProgress.total ? (decryptProgress.success / decryptProgress.total) * 100 : 0}%` }} />
-                  <div className="h-full bg-[#e74c3c]" style={{ width: `${decryptProgress.total ? (decryptProgress.danger / decryptProgress.total) * 100 : 0}%` }} />
+              <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">解密进度</span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-[oklch(0.92_0.012_258)]">
+                <div className="flex h-full transition-all duration-700" style={{ width: `${decryptProgress.pct * 100}%` }}>
+                  <div className="h-full bg-[var(--success)] transition-all" style={{ width: `${decryptProgress.total ? (decryptProgress.success / decryptProgress.total) * 100 : 0}%` }} />
+                  <div className="h-full bg-[var(--danger)]" style={{ width: `${decryptProgress.total ? (decryptProgress.danger / decryptProgress.total) * 100 : 0}%` }} />
                 </div>
               </div>
-              <span className="text-[11px] font-mono font-bold tabular-nums text-[#18243a]">
-                <span className="text-[#11a874]">{decryptProgress.success}</span>
-                {decryptProgress.danger > 0 && <span className="text-[#e74c3c]">/{decryptProgress.danger}</span>}
-                <span className="text-[#5a6d8a]">/{decryptProgress.total}</span>
-                <span className="text-[#8a99ad] ml-1">({Math.round(decryptProgress.pct * 100)}%)</span>
+              <span className="text-[11px] font-mono font-bold tabular-nums text-[color:var(--foreground)]">
+                <span className="text-[var(--success)]">{decryptProgress.success}</span>
+                {decryptProgress.danger > 0 && <span className="text-[var(--danger)]">/{decryptProgress.danger}</span>}
+                <span className="text-[color:var(--muted-foreground)]">/{decryptProgress.total}</span>
+                <span className="ml-1 text-[color:var(--muted-foreground)]">({Math.round(decryptProgress.pct * 100)}%)</span>
               </span>
             </div>
           </div>
         )}
 
-        <table className="workbench-table">
-          <thead>
-            <tr className="text-[oklch(0.55_0.01_264)]">
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">投标单位</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">回执编号</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">密文状态</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">解密状态</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">确认</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {project.suppliers.map(s => {
-              const c = decryptColors[s.decryptStatus] || decryptColors.PENDING;
-              const label = DECRYPT_LABEL[s.decryptStatus] || DECRYPT_LABEL.PENDING;
-              const isRunning = s.decryptStatus === 'RUNNING';
-              const isSuccess = s.decryptStatus === 'SUCCESS';
-              const isDanger = s.decryptStatus === 'DANGER';
-              const isDecrypting = decrypting.has(s.id);
-              return (
-                <tr key={s.id} className={`transition-all ${
-                  isSuccess ? 'animate-[flash_500ms_ease-out]' : isDanger ? 'animate-[shake_300ms_ease-out]' : ''
-                }`}>
-                  <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)] relative">
-                    {s.supplierName}
-                    {/* Scanning line overlay for RUNNING */}
-                    {isRunning && (
-                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#064ea2]/8 to-transparent animate-[scan_1.5s_linear_infinite]" />
-                    )}
-                  </td>
-                  <td className="px-5 py-3 font-mono text-[oklch(0.42_0.14_260)] tracking-tight">{s.receiptNo || '—'}</td>
-                  <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{s.encryptStatus}</td>
-                  <td className="px-5 py-3">
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 tracking-wide ${isRunning ? 'animate-pulse' : ''}`}
-                      style={{ color: c.color, backgroundColor: c.bg }}>
-                      {isRunning && <Loader size={10} className="animate-spin" />}
-                      {label}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    {s.confirmStatus === 'CONFIRMED' ? (
-                      <span className="flex items-center gap-1 text-[oklch(0.54_0.16_158)] text-[12px]"><CheckCircle size={12} strokeWidth={1.5} /> 已确认</span>
-                    ) : s.confirmStatus === 'EXCEPTION' ? (
-                      <span className="flex items-center gap-1 text-[oklch(0.50_0.18_22)] text-[12px]"><AlertTriangle size={12} strokeWidth={1.5} /> 异常</span>
-                    ) : (
-                      <span className="text-[oklch(0.62_0.008_264)] text-[12px]">待确认</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      {!!session && project.stage === 'OPENING' && s.decryptStatus !== 'SUCCESS' && (
-                        <button onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors disabled:opacity-50">
-                          {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
-                          {isDecrypting ? '解密中...' : '解密'}
-                        </button>
+        <div className="overflow-x-auto">
+          <table className="neu-table is-dense w-full">
+            <thead>
+              <tr className="text-[color:var(--muted-foreground)]">
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">投标单位</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">回执编号</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">密文状态</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">解密状态</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">确认</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {project.suppliers.map(s => {
+                const c = decryptColors[s.decryptStatus] || decryptColors.PENDING;
+                const label = DECRYPT_LABEL[s.decryptStatus] || DECRYPT_LABEL.PENDING;
+                const isRunning = s.decryptStatus === 'RUNNING';
+                const isSuccess = s.decryptStatus === 'SUCCESS';
+                const isDanger = s.decryptStatus === 'DANGER';
+                const isDecrypting = decrypting.has(s.id);
+                return (
+                  <tr key={s.id} className={`transition-all ${
+                    isSuccess ? 'animate-[flash_500ms_ease-out]' : isDanger ? 'animate-[shake_300ms_ease-out]' : ''
+                  }`}>
+                    <td className="relative px-5 py-3 font-medium text-[color:var(--foreground)]">
+                      {s.supplierName}
+                      {/* Scanning line overlay for RUNNING */}
+                      {isRunning && (
+                        <div className="absolute inset-0 animate-[scan_1.5s_linear_infinite] bg-gradient-to-b from-transparent via-[oklch(0.5_0.16_258_/_0.08)] to-transparent" />
                       )}
-                      {isSuccess && project.stage === 'OPENING' && (
-                        <button onClick={() => openRecordEntry(s)} disabled={recordEntryLoading}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] tracking-tight transition-colors">
-                          <Volume2 size={12} strokeWidth={1.5} /> 唱标
-                        </button>
+                    </td>
+                    <td className="px-5 py-3 font-mono tracking-tight text-[color:var(--accent-strong)]">{s.receiptNo || '—'}</td>
+                    <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{s.encryptStatus}</td>
+                    <td className="px-5 py-3">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide ${isRunning ? 'animate-pulse' : ''} ${c.cls}`}>
+                        {isRunning && <Loader size={10} className="animate-spin" />}
+                        {label}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      {s.confirmStatus === 'CONFIRMED' ? (
+                        <span className="flex items-center gap-1 text-[12px] text-[var(--success)]"><CheckCircle size={12} strokeWidth={1.5} /> 已确认</span>
+                      ) : s.confirmStatus === 'EXCEPTION' ? (
+                        <span className="flex items-center gap-1 text-[12px] text-[var(--danger)]"><AlertTriangle size={12} strokeWidth={1.5} /> 异常</span>
+                      ) : (
+                        <span className="text-[12px] text-[color:var(--muted-foreground)]">待确认</span>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </SectionCard>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        {!!session && project.stage === 'OPENING' && s.decryptStatus !== 'SUCCESS' && (
+                          <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting}
+                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
+                            {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
+                            {isDecrypting ? '解密中...' : '解密'}
+                          </button>
+                        )}
+                        {isSuccess && project.stage === 'OPENING' && (
+                          <button type="button" onClick={() => openRecordEntry(s)} disabled={recordEntryLoading}
+                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)]">
+                            <Volume2 size={12} strokeWidth={1.5} /> 唱标
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       {/* ═══ Opening records ═══ */}
-      <SectionCard className="overflow-hidden p-0">
-        <div className="px-6 py-4 border-b border-[#e5ecf4] flex items-center justify-between">
-          <h2 className="text-sm font-black text-[#18243a]">
+      <Card>
+        <div className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-6 py-4">
+          <h2 className="text-sm font-bold text-[color:var(--foreground)]">
             开标记录
           </h2>
-          <span className="text-[11px] text-[oklch(0.62_0.008_264)]">
+          <span className="text-[11px] text-[color:var(--muted-foreground)]">
             {sortedRecords.length} 条 · 异议先行
           </span>
         </div>
-        <table className="workbench-table">
-          <thead>
-            <tr className="text-[oklch(0.55_0.01_264)]">
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">供应商</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">报价</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">工期</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">质量</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">保证金</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">确认状态</th>
-              <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedRecords.length === 0 ? (
-              <tr><td colSpan={7} className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无开标记录</td></tr>
-            ) : sortedRecords.map((r) => {
-              const sm = openingStatusMeta(r.confirmStatus);
-              const isDisputed = r.confirmStatus === '供应商提出异议';
-              const disputeOpen = inlineDispute === r.id;
-              return (
-                <React.Fragment key={r.id}>
-                  <tr className={`align-top transition-colors ${
-                    isDisputed ? 'border-l-4 border-l-[#e74c3c] bg-[#fef9f9]' : ''
-                  }`}>
-                    <td className="px-5 py-3 font-medium text-[oklch(0.18_0.012_265)]">
-                      {r.supplierName}
-                      {r.objectionReason && <div className="text-[11px] text-[oklch(0.50_0.18_22)] mt-1 font-normal">异议：{r.objectionReason}</div>}
-                      {r.handleResult && <div className="text-[11px] text-[oklch(0.55_0.01_264)] mt-1 font-normal">处理：{r.handleResult}</div>}
-                    </td>
-                    <td className="px-5 py-3 font-mono font-bold text-[oklch(0.18_0.012_265)] tracking-tight">{r.amount}</td>
-                    <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.period}</td>
-                    <td className="px-5 py-3 text-[oklch(0.55_0.01_264)]">{r.qualityTarget}</td>
-                    <td className={`px-5 py-3 text-[13px] font-bold ${r.bondStatus === '已缴纳' || r.bondStatus === '保函有效' ? 'text-emerald-600' : r.bondStatus === '未缴纳' || r.bondStatus === '异常' ? 'text-red-600' : 'text-[oklch(0.55_0.01_264)]'}`}>
-                      {r.bondStatus || '—'}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-[11px] font-semibold px-2 py-0.5 tracking-wide" style={{ color: sm.color, backgroundColor: sm.bg }}>{sm.label}</span>
-                    </td>
-                    <td className="px-5 py-3">
-                      {isDisputed && project.stage === 'OPENING' && (
-                        <button onClick={() => { setInlineDispute(disputeOpen ? null : r.id); setDisputeHandleResult(''); setDisputeHandleConfirm(null); }}
-                          className={`flex items-center gap-1 text-[11px] font-semibold tracking-tight transition-colors ${
-                            disputeOpen ? 'text-[oklch(0.55_0.01_264)]' : 'text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)]'
-                          }`}>
-                          <Shield size={12} strokeWidth={1.5} /> {disputeOpen ? '收起处理' : '处理异议'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                  {/* Inline dispute handling panel */}
-                  {disputeOpen && (
-                    <tr key={`${r.id}-dispute`}>
-                      <td colSpan={7} className="bg-[#fafbfc] border-b border-[#fcd34d]">
-                        <div className="px-5 py-4 space-y-3">
-                          <div className="flex items-start gap-2">
-                            <Shield size={14} className="mt-0.5 text-[#92400e] flex-shrink-0" />
-                            <div className="flex-1">
-                              <p className="text-sm font-bold text-[#18243a] mb-0.5">处理 {r.supplierName} 的异议</p>
-                              {r.objectionReason && (
-                                <p className="text-xs text-[#5a6d8a] mb-2">异议原因：{r.objectionReason}</p>
-                              )}
-                              <textarea
-                                value={disputeHandleResult}
-                                onChange={e => setDisputeHandleResult(e.target.value)}
-                                placeholder="输入处理结果说明..."
-                                className="w-full rounded-xl border border-[#dce6f3] px-3 py-2 text-xs focus:outline-none focus:border-[#064ea2] h-20 resize-y"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 justify-end">
-                            <button onClick={() => setInlineDispute(null)}
-                              className="rounded-lg px-4 py-2 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] border border-[#dce6f3] transition">取消</button>
-                            <button onClick={() => handleResolveDispute(r.id, disputeHandleResult, false)}
-                              className="rounded-lg px-4 py-2 text-xs font-bold text-[#e74c3c] hover:bg-red-50 border border-[#e74c3c] transition disabled:opacity-50"
-                              disabled={!disputeHandleResult.trim() || disputeSubmitting}>{disputeSubmitting ? '处理中…' : '退回异议'}</button>
-                            <button onClick={() => handleResolveDispute(r.id, disputeHandleResult, true)}
-                              className="rounded-lg px-4 py-2 text-xs font-bold text-white bg-[#11a874] hover:bg-[#0e8c5f] transition disabled:opacity-50"
-                              disabled={!disputeHandleResult.trim() || disputeSubmitting}>{disputeSubmitting ? '处理中…' : '确认受理'}</button>
-                          </div>
-                        </div>
+        <div className="overflow-x-auto">
+          <table className="neu-table is-dense w-full">
+            <thead>
+              <tr className="text-[color:var(--muted-foreground)]">
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">供应商</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">报价</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">工期</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">质量</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">保证金</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">确认状态</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRecords.length === 0 ? (
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-[13px] text-[color:var(--muted-foreground)]">暂无开标记录</td></tr>
+              ) : sortedRecords.map((r) => {
+                const sm = openingStatusMeta(r.confirmStatus);
+                const isDisputed = r.confirmStatus === '供应商提出异议';
+                const disputeOpen = inlineDispute === r.id;
+                return (
+                  <React.Fragment key={r.id}>
+                    <tr className={`align-top transition-colors ${
+                      isDisputed ? 'border-l-4 border-l-[var(--danger)] bg-[oklch(0.66_0.175_27_/_0.08)]' : ''
+                    }`}>
+                      <td className="px-5 py-3 font-medium text-[color:var(--foreground)]">
+                        {r.supplierName}
+                        {r.objectionReason && <div className="mt-1 text-[11px] font-normal text-[var(--danger)]">异议：{r.objectionReason}</div>}
+                        {r.handleResult && <div className="mt-1 text-[11px] font-normal text-[color:var(--muted-foreground)]">处理：{r.handleResult}</div>}
+                      </td>
+                      <td className="px-5 py-3 font-mono font-bold tracking-tight text-[color:var(--foreground)]">{r.amount}</td>
+                      <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.period}</td>
+                      <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{r.qualityTarget}</td>
+                      <td className={`px-5 py-3 text-[13px] font-bold ${r.bondStatus === '已缴纳' || r.bondStatus === '保函有效' ? 'text-[var(--success)]' : r.bondStatus === '未缴纳' || r.bondStatus === '异常' ? 'text-[var(--danger)]' : 'text-[color:var(--muted-foreground)]'}`}>
+                        {r.bondStatus || '—'}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide ${sm.cls}`}>{sm.label}</span>
+                      </td>
+                      <td className="px-5 py-3">
+                        {isDisputed && project.stage === 'OPENING' && (
+                          <button type="button" onClick={() => { setInlineDispute(disputeOpen ? null : r.id); setDisputeHandleResult(''); setDisputeHandleConfirm(null); }}
+                            className={`flex items-center gap-1 text-[11px] font-semibold tracking-tight transition-colors ${
+                              disputeOpen ? 'text-[color:var(--muted-foreground)]' : 'text-[var(--accent-strong)] hover:text-[var(--accent)]'
+                            }`}>
+                            <Shield size={12} strokeWidth={1.5} /> {disputeOpen ? '收起处理' : '处理异议'}
+                          </button>
+                        )}
                       </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </SectionCard>
+                    {/* Inline dispute handling panel */}
+                    {disputeOpen && (
+                      <tr key={`${r.id}-dispute`}>
+                        <td colSpan={7} className="border-b border-[oklch(0.78_0.12_83_/_0.3)] bg-[oklch(0.985_0.006_258_/_0.7)]">
+                          <div className="space-y-3 px-5 py-4">
+                            <div className="flex items-start gap-2">
+                              <Shield size={14} className="mt-0.5 flex-shrink-0 text-[oklch(0.46_0.11_65)]" />
+                              <div className="flex-1">
+                                <p className="mb-0.5 text-sm font-bold text-[color:var(--foreground)]">处理 {r.supplierName} 的异议</p>
+                                {r.objectionReason && (
+                                  <p className="mb-2 text-xs text-[color:var(--muted-foreground)]">异议原因：{r.objectionReason}</p>
+                                )}
+                                <textarea
+                                  value={disputeHandleResult}
+                                  onChange={e => setDisputeHandleResult(e.target.value)}
+                                  placeholder="输入处理结果说明..."
+                                  className="h-20 w-full resize-y rounded-xl bg-[oklch(0.99_0.004_258)] px-3 py-2 text-xs text-[color:var(--foreground)] shadow-[inset_2px_2px_4px_oklch(0.55_0.03_258_/_0.08),inset_-2px_-2px_4px_oklch(1_0_0_/_0.6)] focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                              <button type="button" onClick={() => setInlineDispute(null)}
+                                className="neu-btn-soft h-[34px] text-xs">取消</button>
+                              <button type="button" onClick={() => handleResolveDispute(r.id, disputeHandleResult, false)}
+                                className="neu-btn-soft is-danger h-[34px] text-xs disabled:opacity-50"
+                                disabled={!disputeHandleResult.trim() || disputeSubmitting}>{disputeSubmitting ? '处理中…' : '退回异议'}</button>
+                              <button type="button" onClick={() => handleResolveDispute(r.id, disputeHandleResult, true)}
+                                className="neu-btn-primary is-success !h-[34px] text-xs disabled:opacity-50"
+                                disabled={!disputeHandleResult.trim() || disputeSubmitting}>{disputeSubmitting ? '处理中…' : '确认受理'}</button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
       </>)}
 
       <StartOpeningDialog
@@ -793,47 +795,47 @@ export default function BidOpenPage() {
 
       {/* ═══ 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金）═══ */}
       {recordEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setRecordEntry(null)}>
-          <div className="w-[480px] rounded-2xl glass-card-deeper glass-card-blue p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-black text-[#18243a]">录入唱标信息 — {recordEntry.supplierName}</h3>
-            <p className="mt-1 text-xs text-[#8a96aa]">据解密后的投标内容填写，提交后生成开标记录（待供应商确认）。</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setRecordEntry(null)}>
+          <div className="bid-dialog w-[480px] p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-black text-[color:var(--foreground)]">录入唱标信息 — {recordEntry.supplierName}</h3>
+            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">据解密后的投标内容填写，提交后生成开标记录（待供应商确认）。</p>
             <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="text-xs font-semibold text-[#5a6d8a]">
+              <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                 报价（元）
                 <input value={recordDraft.amount} onChange={e => setRecordDraft(d => ({ ...d, amount: e.target.value }))}
-                  className="workbench-input mt-1 w-full font-mono" placeholder="如 980000" />
+                  className="neu-input mt-1 w-full font-mono" placeholder="如 980000" />
               </label>
-              <label className="text-xs font-semibold text-[#5a6d8a]">
+              <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                 工期
                 <input value={recordDraft.period} onChange={e => setRecordDraft(d => ({ ...d, period: e.target.value }))}
-                  className="workbench-input mt-1 w-full" placeholder="如 180天" />
+                  className="neu-input mt-1 w-full" placeholder="如 180天" />
               </label>
-              <label className="text-xs font-semibold text-[#5a6d8a]">
+              <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                 质量目标
                 <input value={recordDraft.qualityTarget} onChange={e => setRecordDraft(d => ({ ...d, qualityTarget: e.target.value }))}
-                  className="workbench-input mt-1 w-full" placeholder="如 合格" />
+                  className="neu-input mt-1 w-full" placeholder="如 合格" />
               </label>
-              <label className="text-xs font-semibold text-[#5a6d8a]">
+              <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                 保证金
                 <select value={recordDraft.bondStatus}
                   onChange={e => setRecordDraft(d => ({ ...d, bondStatus: e.target.value }))}
-                  className="workbench-input mt-1 w-full">
+                  className="neu-select mt-1 w-full">
                   <option value="">— 请核对凭证后选择 —</option>
                   {BOND_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
                 {bidBondAssetId && (
                   <a href={`/api/upload/files/${bidBondAssetId}`} target="_blank" rel="noopener"
-                     className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-[#064ea2] hover:underline">
+                     className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-[var(--accent-strong)] hover:underline">
                     <FileText size={12} strokeWidth={1.5} /> 查看保证金凭证
                   </a>
                 )}
               </label>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setRecordEntry(null)}
-                className="rounded-xl border border-[#dce6f3] px-4 py-2 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc]">取消</button>
-              <button onClick={handleEnterRecord}
-                className="rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#054280]">提交唱标</button>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setRecordEntry(null)}
+                className="neu-btn-soft h-[38px] text-xs">取消</button>
+              <button type="button" onClick={handleEnterRecord}
+                className="neu-btn-primary !h-[38px] text-xs">提交唱标</button>
             </div>
           </div>
         </div>

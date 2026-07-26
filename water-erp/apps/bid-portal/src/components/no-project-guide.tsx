@@ -7,15 +7,12 @@ import { FolderOpen } from 'lucide-react';
 export default function NoProjectGuide() {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-[#f8fafc] border border-[#edf2f7] flex items-center justify-center mb-4">
-        <FolderOpen size={24} strokeWidth={1.5} className="text-[#94a3b8]" />
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[oklch(0.985_0.005_258)] text-[color:var(--muted-foreground)] shadow-[inset_2.5px_2.5px_5px_oklch(0.55_0.03_258_/_0.14),inset_-2px_-2px_5px_oklch(1_0_0_/_0.75)]">
+        <FolderOpen size={24} strokeWidth={1.5} />
       </div>
-      <p className="text-sm font-semibold text-[#5a6d8a] mb-1">未选择项目</p>
-      <p className="text-xs text-[#8a96aa] mb-4">请从开标任务板选择一个开标中的项目，进入开标大厅</p>
-      <Link
-        href="/bid"
-        className="inline-flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-4 py-2 text-xs font-bold text-white hover:bg-[#0b63ce] transition"
-      >
+      <p className="mb-1 text-sm font-semibold text-[color:var(--foreground)]">未选择项目</p>
+      <p className="mb-4 text-xs text-[color:var(--muted-foreground)]">请从开标任务板选择一个开标中的项目，进入开标大厅</p>
+      <Link href="/bid" className="neu-btn-primary !h-[38px] text-xs">
         返回开标任务板
       </Link>
     </div>
