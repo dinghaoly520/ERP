@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { api, enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft } from '@/lib/api';
+import { api, enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { TableSkeleton } from '@/components/skeleton';
@@ -155,6 +155,7 @@ export default function BidOpenPage() {
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
   const [disputeSubmitting, setDisputeSubmitting] = useState(false); // M9：防双击 + 失败态按钮锁
+  const [handingOver, setHandingOver] = useState(false); // T9：完成开标·移交按钮防双击
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
@@ -256,6 +257,22 @@ export default function BidOpenPage() {
       else toast.error(err?.message || '处理异议失败');
     } finally {
       setDisputeSubmitting(false);
+    }
+  };
+
+  /** T9：完成开标 · 生成开标文件包并移交回 :3005（POST /bid/projects/:id/complete-opening） */
+  const handleHandover = async () => {
+    if (!projectId || handingOver) return;
+    setHandingOver(true);
+    try {
+      await completeOpening(projectId);
+      toast.success('开标资料已移交采购管理工作台');
+      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+      setProject(updated);
+    } catch (e: any) {
+      toast.error(e?.message || '移交失败');
+    } finally {
+      setHandingOver(false);
     }
   };
 
@@ -398,6 +415,10 @@ export default function BidOpenPage() {
         api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
       }
     },
+    // T9：移交完成（含 :3005 侧或水叮当触发的 complete-opening）→ refetch，横幅切已移交态
+    onOpeningCompleted: () => {
+      if (projectId) api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
+    },
     onOpeningDisputed: (d) => {
       toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);
       if (projectId) {
@@ -486,12 +507,16 @@ export default function BidOpenPage() {
           </a>
         </div>
       )}
-      {(project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') && (
+      {(project.stage === 'EVALUATING' || project.stage === 'ARCHIVED' || project.stage === 'ABORTED') && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
           <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
           <div className="flex-1">
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标已结束</h2>
-            <p className="text-xs text-[color:var(--muted-foreground)]">本项目已进入{project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，后续评标管理与归档请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。</p>
+            <p className="text-xs text-[color:var(--muted-foreground)]">
+              {project.stage === 'ABORTED'
+                ? '本项目已流标，后续处理（流标公告）请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。'
+                : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，后续评标管理与归档请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。`}
+            </p>
           </div>
           <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
             className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
@@ -515,18 +540,31 @@ export default function BidOpenPage() {
         </div>
       )}
 
-      {/* ═══ 开标完成：交棒回 :3005（评标 / 开标归档）═══ */}
-      {openingDone && project.stage === 'OPENING' && (
+      {/* ═══ 开标完成 · 交回 :3005（三态：待移交 / 已移交 / ——未完成时不显示）═══ */}
+      {project.stage === 'OPENING' && !!session?.handoverAt && (
+        <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
+          <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
+          <div className="flex-1">
+            <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标资料已移交</h2>
+            <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台，后续启动评标 / 归档请前往 :3005 开标确认面板。</p>
+          </div>
+          <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"
+            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
+            前往采购管理工作台 <ExternalLink size={13} />
+          </a>
+        </div>
+      )}
+      {openingDone && project.stage === 'OPENING' && !session?.handoverAt && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
           <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
           <div className="flex-1">
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标完成</h2>
-            <p className="text-xs text-[color:var(--muted-foreground)]">全部解密、唱标与供应商确认已完成，无待处理异议。请返回采购管理工作台启动评标，或执行开标归档（流标 / 废标场景）。</p>
+            <p className="text-xs text-[color:var(--muted-foreground)]">全部解密、唱标与供应商确认已完成，无待处理异议。点击下方按钮生成开标文件包并移交采购管理工作台。</p>
           </div>
-          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
-            前往采购管理工作台 <ExternalLink size={13} />
-          </a>
+          <button type="button" onClick={handleHandover} disabled={handingOver}
+            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs disabled:opacity-50">
+            {handingOver ? '移交中…' : '完成开标 · 移交'}
+          </button>
         </div>
       )}
 
