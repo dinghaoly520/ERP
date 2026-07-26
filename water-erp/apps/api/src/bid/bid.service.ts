@@ -16,6 +16,7 @@ import { CreateScorePointDto } from './dto/create-score-point.dto';
 import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
+import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertBidStageTransition, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
@@ -501,6 +502,7 @@ export class BidService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockAndReassertStage(tx, id, 'SUBMIT'); // C1: 事务内行锁后复查阶段
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'SUBMIT' },
@@ -564,6 +566,7 @@ export class BidService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await this.lockAndReassertStage(tx, id, 'OPENING'); // C1: 事务内行锁后复查阶段（同阶段 OPENING→OPENING 幂等放行）
       let sessionUpserted = false;
       if (providedCount === 4) {
         const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
@@ -654,6 +657,23 @@ export class BidService {
     }
   }
 
+  /**
+   * C1 修复：事务内行锁后复查阶段，杜绝「事务外 assert + 事务内无条件写」的 TOCTOU。
+   * 拿行锁后重读 stage 并重跑状态机断言；并发下后提交的一方在此抛 409，
+   * 而非裸覆写已被其他事务推进/归档的阶段（防止 ARCHIVED 复活、防止回退）。
+   */
+  private async lockAndReassertStage(
+    tx: Prisma.TransactionClient,
+    id: string,
+    target: BidStage,
+  ): Promise<{ stage: BidStage; name: string }> {
+    await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${id} FOR UPDATE`;
+    const fresh = await tx.bidProject.findUnique({ where: { id }, select: { stage: true, name: true } });
+    if (!fresh) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    assertBidStageTransition(fresh.stage, target);
+    return fresh;
+  }
+
   async startEvaluation(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
@@ -679,11 +699,29 @@ export class BidService {
       });
     }
 
+    // H4: 开标完成度守卫——未撤回供应商须全部到终局态，否则启动评标（不可逆，EVALUATING→OPENING 回退 409）
+    // 会永久切断仍未解密/未确认的供应商（OPENING-only 的解密/唱标/确认通道随阶段离开而关闭）。
+    const activeSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { projectId: id, submitStatus: { not: '已撤回' } },
+      select: { supplierName: true, decryptStatus: true, confirmStatus: true },
+    });
+    const notReady = activeSuppliers.filter(s => {
+      if (s.decryptStatus === 'DANGER') return false;                              // 解密异常已定性
+      if (s.decryptStatus !== 'SUCCESS') return true;                              // PENDING/RUNNING 未解密
+      return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';   // 解密成功但确认未闭环（PENDING/DISPUTED）
+    });
+    if (notReady.length > 0) {
+      throw new ConflictException({
+        error: `开标尚未完成，以下供应商未到终局态（解密/确认/异议未结）：${notReady.map(s => s.supplierName).join('、')}`,
+        code: 'OPENING_NOT_DONE',
+      });
+    }
+
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${id} FOR UPDATE`; // P1-17：与评分标准编辑互斥
+      await this.lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 P1-17 与评分标准编辑互斥的 FOR UPDATE）
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'EVALUATING' },
@@ -920,6 +958,7 @@ export class BidService {
       let decryptOk: boolean | null = null;
       let integrityOk: boolean | null = null;
       let errorMsg = '';
+      let allFilesOk = true; // H1: 任一文件缺失/解密失败/完整性失败 → 整体失败，杜绝部分缺失误判 SUCCESS
 
       const fileRefs: Array<{ assetId?: string | null; sealedKey?: string | null }> = submission
         ? [
@@ -949,7 +988,7 @@ export class BidService {
         if (!ref.assetId) continue;
         // P0: Use tx (transaction client) for consistency inside $transaction
         const asset = await tx.fileAsset.findUnique({ where: { id: ref.assetId } });
-        if (!asset) { errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
+        if (!asset) { allFilesOk = false; errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
         try {
           const readKey = asset.sealedPath || asset.key; // 兼容存量：无 sealedPath 时回退到原路径
           const objStream = await minioClient.getObject(MINIO_BUCKET, readKey);
@@ -964,9 +1003,10 @@ export class BidService {
           }
           // Layer A：完整性校验（解密后的明文 vs 存储 sha256）
           const integrity = verifyIntegrity(buffer, asset.sha256);
-          if (integrity === false) { integrityOk = false; errorMsg = '标书文件完整性校验失败：SHA-256 不匹配（疑似篡改或损坏）'; break; }
+          if (integrity === false) { allFilesOk = false; integrityOk = false; errorMsg = '标书文件完整性校验失败：SHA-256 不匹配（疑似篡改或损坏）'; break; }
           if (integrity === true) integrityOk = true;
         } catch (e) {
+          allFilesOk = false;
           decryptOk = ref.sealedKey ? false : null;
           errorMsg = `标书文件解密失败：${(e as Error).message}`;
           break;
@@ -982,8 +1022,8 @@ export class BidService {
       }
       const outcome = simulateOk
         ? 'DANGER' as const  // 仅非生产环境可用：显式模拟开关用于演练（覆盖真实结果）
-        : (errorMsg && integrityOk !== true && decryptOk !== true
-            ? 'DANGER' as const
+        : (!allFilesOk
+            ? 'DANGER' as const  // H1: 任一文件缺失/解密失败/完整性失败 → 整体 DANGER
             : classifyDecryptOutcome({ hasSealedKey, decryptOk, integrityOk }));
 
       if (outcome === 'DANGER') {
@@ -1103,11 +1143,16 @@ export class BidService {
 
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
       where: { id: dto.bidSupplierId, projectId },
-      select: { id: true, supplierName: true, decryptStatus: true },
+      select: { id: true, supplierName: true, decryptStatus: true, confirmStatus: true },
     });
     if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
     if (bidSupplier.decryptStatus !== 'SUCCESS') {
       throw new BadRequestException({ error: '标书尚未解密成功，无法录入唱标信息', code: 'NOT_DECRYPTED' });
+    }
+    // H11: 供应商已确认的记录禁止覆盖——否则记录回「待供应商确认」而供应商侧仍 CONFIRMED，
+    // generateEvaluationResults 只看 bidSupplier.confirmStatus，主持人单方改报价会默认生效。
+    if (bidSupplier.confirmStatus === 'CONFIRMED') {
+      throw new ConflictException({ error: '该供应商已确认开标记录，禁止覆盖唱标信息', code: 'RECORD_ALREADY_CONFIRMED' });
     }
 
     const payload = {
@@ -1153,7 +1198,7 @@ export class BidService {
     return record;
   }
 
-  async resolveOpeningDispute(projectId: string, recordId: string, dto: { result: string; confirm: boolean }) {
+  async resolveOpeningDispute(projectId: string, recordId: string, dto: ResolveOpeningDisputeDto, actorId?: string) {
     const record = await this.prisma.bidOpeningRecord.findFirst({ where: { id: recordId, projectId } });
     if (!record) throw new BadRequestException({ error: '开标记录不存在', code: 'NOT_FOUND' });
 
@@ -1178,9 +1223,10 @@ export class BidService {
     await this.prisma.$transaction(async (tx) => {
       // Wave4a-M4：事务内条件更新是并发防线——事务外的状态门基于 stale read，并发双处理都过门时
       // 仅首笔命中异议待处理行（count=1），第二笔 count=0 → 400，杜绝双落（与 R6 原子抢占同构）。
+      // H6 并入：updateMany 同时写 handledBy 操作者留痕。
       const res = await tx.bidOpeningRecord.updateMany({
         where: { id: recordId, confirmStatus: '供应商提出异议' },
-        data: { confirmStatus, handleResult: dto.result, handledAt: now },
+        data: { confirmStatus, handleResult: dto.result, handledAt: now, handledBy: actorId ?? null },
       });
       if (res.count === 0) {
         throw new BadRequestException({ error: '该异议已被处理', code: 'DISPUTE_NOT_PENDING' });
@@ -1197,6 +1243,12 @@ export class BidService {
           action: '处理开标异议', result: supervisionResult, riskFlag: '中风险',
         },
       });
+      // H6: 操作者留痕（开标异议处理是法定留痕环节）
+      if (actorId) {
+        await tx.auditLog.create({
+          data: { userId: actorId, action: 'BID_DISPUTE_RESOLVE', resourceType: `BidOpeningRecord:${recordId}`, details: { projectId, confirm: dto.confirm, result: dto.result } },
+        });
+      }
     });
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: supervisionResult, riskFlag: '中风险' });
@@ -1291,6 +1343,13 @@ export class BidService {
       for (const it of passFailItems) passFailItemIds.add(it.id);
       const categoryById = new Map(passFailItems.map(it => [it.id, it.category as string]));
 
+      // H2: 已撤销的废标（管理员复核 revokeInvalidBid）不计入失败票——否则撤销被本重算静默推翻
+      const revokedInvalidBids = await this.prisma.bidInvalidBid.findMany({
+        where: { projectId, status: 'revoked' },
+        select: { supplierId: true, scoreItemId: true },
+      });
+      const revokedKeys = new Set(revokedInvalidBids.map(r => `${r.supplierId}:${r.scoreItemId}`));
+
       for (const supplier of activeSuppliers) {
         const records = recordsBySupplier.get(supplier.id) ?? [];
         let disqualified = false;
@@ -1298,6 +1357,7 @@ export class BidService {
         const byItem = new Map<string, { fail: number; total: number }>();
         for (const r of records) {
           if (!passFailItemIds.has(r.scoreItemId) || r.passed === null || r.passed === undefined) continue;
+          if (revokedKeys.has(`${supplier.id}:${r.scoreItemId}`)) continue; // H2: 已撤销废标不计入失败票
           const agg = byItem.get(r.scoreItemId) ?? { fail: 0, total: 0 };
           agg.total += 1;
           if (r.passed === false) agg.fail += 1;
@@ -1811,6 +1871,7 @@ export class BidService {
     // The ensureArchiveItems, counts check, item fetch, and all updates happen atomically.
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
+      await this.lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
       // 防止”跳过评标”归档：存在已确认的可评供应商但未生成评标结果时阻断
       // G5: 已确认可评供应商必须有对应开标记录（主持人已补录唱标信息），保证归档材料完整
       // 合并 confirmableCount 与 confirmableSuppliers 为一次 findMany 查询（R1 去冗余）

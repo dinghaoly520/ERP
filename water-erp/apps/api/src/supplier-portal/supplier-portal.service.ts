@@ -404,7 +404,7 @@ export class SupplierPortalService {
           relatedProjectCode: project.projectCode,
           type: 'BID_NOTICE',
         },
-        select: { title: true, content: true, summary: true, publishDate: true },
+        select: { title: true, content: true, summary: true, publishDate: true, metadata: true },
       });
       (project as any).announcement = announcement;
     }
@@ -1219,7 +1219,10 @@ export class SupplierPortalService {
   /** 通知审核管理员（议价/退回的发起人）。若无 reviewedBy 则静默跳过。 */
   private async notifyReviewer(app: any, title: string, content: string) {
     if (!app.reviewedBy) return;
-    await this.prisma.notification.create({ data: { userId: app.reviewedBy, type: 'CATALOG_APPLICATION', title, content, link: '/supplier/catalog-review' } });
+    // 深链到 :3005 目录审批 Tab 并定位到该申请（与 reviewApplication 后的 resolve link 全等，待办可清零）。
+    // 旧 link /supplier/catalog-review 在 :3005 不存在（死链）。
+    const link = `/mall-management/catalog?tab=approval&appId=${app.id}`;
+    await this.prisma.notification.create({ data: { userId: app.reviewedBy, type: 'CATALOG_APPLICATION', title, content, link } });
   }
 
   // ─── 我的已准入供货关系 ───

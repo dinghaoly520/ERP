@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException, ConflictException, OnModuleInit } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
@@ -247,6 +247,22 @@ export class UploadService implements OnModuleInit {
     const isAdmin = !!user && ['admin', 'bid_host'].includes(user.role);
     if (!isAdmin && asset.uploaderId !== user?.sub) {
       throw new ForbiddenException({ error: '无权删除该文件', code: 'FILE_FORBIDDEN' });
+    }
+
+    // H7: 已被投标文件引用的资产不可删除——防供应商截标后删件伪装技术故障 / 触发解密误判（H1 组合）
+    const submission = await this.prisma.supplierBidSubmission.findFirst({
+      where: {
+        OR: [
+          { technicalFileAssetId: asset.id },
+          { businessFileAssetId: asset.id },
+          { coverLetterAssetId: asset.id },
+          { bidBondAssetId: asset.id },
+        ],
+      },
+      select: { id: true },
+    });
+    if (submission) {
+      throw new ConflictException({ error: '该文件已被投标文件引用，不可删除', code: 'FILE_REFERENCED' });
     }
 
     // 先删对象，再删元数据；任一失败抛错以暴露问题

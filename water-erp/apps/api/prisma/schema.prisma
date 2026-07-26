@@ -2026,6 +2026,7 @@ model ProjectManagementItem {
   projectCode                 String?                  @unique
   projectOverview             String?
   bidOpeningTime              String?
+  documentAcquireTime         String?
   invitedSuppliers            String?
   paymentPerformance          String?
   attachments                 Attachment[]             @relation("ProjectManagementAttachments")

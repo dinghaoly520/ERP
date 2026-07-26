@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import {
@@ -37,10 +37,11 @@ import {
   RotateCcw,
 } from "lucide-react";
 import type { ProcurementRoundItem, ResultStatusKey, LedgerFilterState } from "@/lib/types/procurement";
-import { RESULT_STATUS_CONFIG } from "@/lib/types/procurement";
+import { RESULT_STATUS_CONFIG, type LedgerSummary } from "@/lib/types/procurement";
 import {
   fetchProcurements,
   fetchProcurementMethods,
+  fetchLedgerStats,
   analyzeProcurementLedger,
   moveProcurementToRecycleBin,
   restoreProcurementFromRecycleBin,
@@ -691,7 +692,33 @@ function AnalysisResultModal({
           <button onClick={onClose} className="neu-btn-soft">
             关闭
           </button>
-          <button className="neu-btn-primary is-success">
+          <button className="neu-btn-primary is-success" onClick={() => {
+            if (!aiResult) return;
+            const lines = [
+              `采购台账 AI 综合分析报告`,
+              `关键词：${keyword} · 匹配 ${items.length} 条`,
+              `生成时间：${new Date().toLocaleString('zh-CN')}`,
+              ``,
+              `═══ 综合概述 ═══`,
+              aiResult.overview,
+              ``,
+              `═══ 亮点 ═══`,
+              ...aiResult.highlights.map((h, i) => `${i + 1}. ${h}`),
+              ``,
+              `═══ 关注点 ═══`,
+              ...aiResult.concerns.map((c, i) => `${i + 1}. ${c}`),
+              ``,
+              `═══ 建议 ═══`,
+              ...aiResult.suggestions.map((s, i) => `${i + 1}. ${s}`),
+            ];
+            const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `采购分析报告_${keyword || '全部'}_${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}>
             <CircleDollarSign size={14} />
             导出报告
           </button>
@@ -958,6 +985,8 @@ export default function ProcurementsPage() {
   const [pagination, setPagination] = useState({ page: 1, pageSize: 12, total: 0, totalPages: 0 });
   const [methods, setMethods] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [ledgerStats, setLedgerStats] = useState<LedgerSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<LedgerFilterState>({
     startDate: null,
@@ -970,31 +999,6 @@ export default function ProcurementsPage() {
   });
 
   const [sortBy, setSortBy] = useState<'procurementDate' | 'departmentId' | 'amount'>('procurementDate');
-
-  // Client-side sort
-  const sortedData = useMemo(() => {
-    const result = [...data];
-    result.sort((a, b) => {
-      switch (sortBy) {
-        case 'procurementDate':
-          return new Date(b.procurementDate ?? 0).getTime() - new Date(a.procurementDate ?? 0).getTime();
-        case 'departmentId':
-          return (b.departmentId ?? '').localeCompare(a.departmentId ?? '', 'zh-CN');
-        case 'amount': {
-          const amountA = typeof (a.controlAmount ?? a.budgetAmount) === 'string'
-            ? parseFloat(a.controlAmount as string ?? a.budgetAmount as string ?? '0')
-            : ((a.controlAmount ?? a.budgetAmount) as number ?? 0);
-          const amountB = typeof (b.controlAmount ?? b.budgetAmount) === 'string'
-            ? parseFloat(b.controlAmount as string ?? b.budgetAmount as string ?? '0')
-            : ((b.controlAmount ?? b.budgetAmount) as number ?? 0);
-          return amountB - amountA;
-        }
-        default:
-          return 0;
-      }
-    });
-    return result;
-  }, [data, sortBy]);
 
   // Analysis states
   const [showAnalysisSelection, setShowAnalysisSelection] = useState(false);
@@ -1151,8 +1155,9 @@ export default function ProcurementsPage() {
   // Load data
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const [listRes, methodsRes] = await Promise.all([
+      const [listRes, methodsRes, statsRes] = await Promise.all([
         fetchProcurements({
           page: pagination.page,
           pageSize: pagination.pageSize,
@@ -1163,22 +1168,36 @@ export default function ProcurementsPage() {
           resultStatus: filters.resultStatus || undefined,
           searchKeyword: filters.searchKeyword || undefined,
           recycleStatus: filters.recycleStatus || "ACTIVE",
+          sortBy,
+          sortOrder: 'desc',
         }),
         fetchProcurementMethods(),
+        fetchLedgerStats().catch(() => null),
       ]);
       setData(listRes.data);
       setPagination(listRes.pagination);
       setMethods(methodsRes);
+      if (statsRes) setLedgerStats(statsRes);
     } catch (err) {
-      console.error("Failed to load:", err);
+      setLoadError(err instanceof Error ? err.message : '加载采购台账失败，请稍后重试');
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, filters]);
+  }, [pagination.page, pagination.pageSize, filters, sortBy]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleFilterChange = (key: keyof LedgerFilterState, value: string | null) => {
+    if (key === 'searchKeyword') {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = setTimeout(() => {
+        setFilters(prev => ({ ...prev, searchKeyword: value }));
+        setPagination(prev => ({ ...prev, page: 1 }));
+      }, 300);
+      return;
+    }
     setFilters(prev => ({ ...prev, [key]: value }));
     setPagination(prev => ({ ...prev, page: 1 }));
   };
@@ -1298,11 +1317,49 @@ export default function ProcurementsPage() {
             onAnalyze={handleAnalyze}
             loading={loading}
             pagination={pagination}
-            data={sortedData}
+            data={data}
             sortBy={sortBy}
             onSortChange={(v) => setSortBy(v as typeof sortBy)}
           />
         </div>
+
+        {/* KPI 指标 */}
+        {ledgerStats && (
+          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="kpi-card flex flex-col gap-1 p-3">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">总预算</span>
+              <span className="text-[1.35rem] font-black tabular-nums tracking-[-0.03em] text-[var(--foreground)]">{ledgerStats.totalBudgetLabel}</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{ledgerStats.totalCount} 条记录</span>
+            </div>
+            <div className="kpi-card flex flex-col gap-1 p-3">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">总成交</span>
+              <span className="text-[1.35rem] font-black tabular-nums tracking-[-0.03em] text-[var(--foreground)]">{ledgerStats.totalAwardLabel}</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{ledgerStats.awardedCount} 条已定标</span>
+            </div>
+            <div className="kpi-card flex flex-col gap-1 p-3">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">节资额</span>
+              <span className="text-[1.35rem] font-black tabular-nums tracking-[-0.03em] text-[var(--success)]">{ledgerStats.totalSavingsLabel}</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">预算 vs 成交差额</span>
+            </div>
+            <div className="kpi-card flex flex-col gap-1 p-3">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">待处理</span>
+              <span className="text-[1.35rem] font-black tabular-nums tracking-[-0.03em] text-[var(--accent)]">{ledgerStats.pendingCount}</span>
+              {ledgerStats.abnormalCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--danger)]">
+                  <span className="h-1 w-1 rounded-full bg-[var(--danger)]" />异常 {ledgerStats.abnormalCount}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 加载错误提示 */}
+        {loadError && (
+          <div className="mb-4 flex items-center justify-between rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm text-[color:var(--danger)]">
+            <span>{loadError}</span>
+            <button onClick={() => void loadData()} className="neu-btn-xs is-danger shrink-0 ml-3">重试</button>
+          </div>
+        )}
 
         {/* Data Grid */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="wb-panel p-4">
@@ -1310,14 +1367,14 @@ export default function ProcurementsPage() {
             <div className="flex items-center justify-center py-12">
               <RefreshCw size={24} className="animate-spin text-[rgba(96,139,239,0.6)]" />
             </div>
-          ) : sortedData.length === 0 ? (
+          ) : data.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="text-[0.9rem] font-semibold text-[rgba(96,139,239,0.4)]">暂无采购记录</div>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                {sortedData.map((item) => (
+                {data.map((item) => (
                   <LedgerRow
                     key={item.id}
                     item={item}

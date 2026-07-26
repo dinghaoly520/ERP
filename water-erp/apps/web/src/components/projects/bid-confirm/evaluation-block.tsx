@@ -175,6 +175,14 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
   const unconfirmed = experts.filter(e => !e.reportConfirmed);
   const canGenerate = experts.length > 0 && unconfirmed.length === 0;
 
+  // H4: 开标完成度（与后端 startEvaluation 守卫同口径）——未撤回供应商须全部到终局态
+  const activeSuppliers = suppliers.filter(s => s.submitStatus !== '已撤回');
+  const notReadySuppliers = activeSuppliers.filter(s =>
+    s.decryptStatus !== 'DANGER' &&
+    (s.decryptStatus !== 'SUCCESS' || (s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION'))
+  );
+  const openingDone = activeSuppliers.length > 0 && notReadySuppliers.length === 0;
+
   const itemCount = scoreItems.length;
   const totalSlots = experts.length * suppliers.length * itemCount;
   let scoredSlots = 0;
@@ -288,8 +296,17 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
             <Play size={15} className="shrink-0 text-[var(--accent)]" />
             <span className="font-bold text-[var(--accent-strong)]">当前阶段：在线开标</span>
             <span className="text-[var(--muted-foreground)]">— 开标完成后可启动专家评标（须已抽取专家、存在可评供应商且评分标准完整）</span>
+            {!openingDone && notReadySuppliers.length > 0 && (
+              <span className="text-[var(--warning)]">开标未完成：{notReadySuppliers.map(s => s.supplierName).join('、')} 待解密/确认</span>
+            )}
           </div>
-          <button type="button" onClick={() => void handleStartEvaluation()} disabled={busy} className="neu-btn-primary !h-[32px] !text-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => void handleStartEvaluation()}
+            disabled={busy || !openingDone}
+            title={openingDone ? '' : `开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 未到终局态`}
+            className="neu-btn-primary !h-[32px] !text-xs shrink-0 disabled:opacity-40"
+          >
             <Play size={13} /> {busy ? '启动中…' : '启动评标'}
           </button>
         </div>

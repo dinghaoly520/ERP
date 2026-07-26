@@ -309,34 +309,30 @@ notifStore.fetchUnreadCount()
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 5% 0%, rgba(6, 78, 162, 0.08), transparent 36%),
-    radial-gradient(ellipse at 92% 6%, rgba(11, 99, 206, 0.06), transparent 30%),
-    radial-gradient(ellipse at 50% 98%, rgba(14, 98, 208, 0.04), transparent 38%),
-    linear-gradient(180deg,
-      rgba(240, 247, 255, 0.84) 0%,
-      rgba(245, 249, 254, 0.88) 50%,
-      rgba(242, 247, 253, 0.84) 100%);
-  backdrop-filter: blur(40px) saturate(1.12);
-  -webkit-backdrop-filter: blur(40px) saturate(1.12);
+  box-sizing: border-box;
+  padding: 12px;
+  gap: 12px;
+  /* 透明：让 App.vue 根的 .flow-glow 水彩光晕直接透出（cgzxui 唯一色彩源）。
+     旧的非规范蓝色 radial-gradient + blur 会遮蔽 flow-glow，已移除。 */
+  background: transparent;
   color: #18243a;
 }
 
 /* ─── Header ─── */
 .sp-header {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 50;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 68px;
-  padding: 0 24px;
-  background: rgba(255, 255, 255, 0.70);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.40);
+  height: 64px;
+  padding: 0 20px;
+  border-radius: 16px;
+  background: oklch(0.985 0.006 258 / 0.82);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  /* 浮起圆角玻璃条（与 sp-sidebar 统一）；border / box-shadow 由 cgzxui.css SHELL OVERRIDE 统一为方向性双影 */
 }
 
 .sp-header-left,
@@ -477,9 +473,9 @@ notifStore.fetchUnreadCount()
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 24px;
-  background: rgba(255,255,255,0.6);
-  border-bottom: 1px solid var(--sp-border-light);
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: oklch(0.99 0.004 258 / 0.55);
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -501,6 +497,7 @@ notifStore.fetchUnreadCount()
 /* ─── Body ─── */
 .sp-body {
   display: flex;
+  gap: 12px;
   flex: 1;
   overflow: hidden;
 }
@@ -511,7 +508,7 @@ notifStore.fetchUnreadCount()
   flex-direction: column;
   flex-shrink: 0;
   width: 272px;
-  margin: 12px 0 12px 12px;
+  margin: 0;
   overflow: hidden;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.50);
@@ -683,13 +680,9 @@ notifStore.fetchUnreadCount()
   min-width: 0;
   overflow-y: auto;
   padding: 24px;
-  background:
-    radial-gradient(ellipse at 5% 0%, rgba(6, 78, 162, 0.06), transparent 36%),
-    radial-gradient(ellipse at 92% 6%, rgba(11, 99, 206, 0.04), transparent 30%),
-    radial-gradient(ellipse at 50% 98%, rgba(14, 98, 208, 0.03), transparent 38%);
-  background-color: rgba(245, 249, 254, 0.92);
-  backdrop-filter: blur(20px) saturate(1.1);
-  -webkit-backdrop-filter: blur(20px) saturate(1.1);
+  /* 透明：透出 App.vue 根的 .flow-glow 水彩光晕（cgzxui 唯一色彩源）。
+     内容卡片自带玻璃/渐变底，不依赖内容区背景。 */
+  background: transparent;
 }
 /* ─── Notification popover ─── */
 .sp-notif-popover {

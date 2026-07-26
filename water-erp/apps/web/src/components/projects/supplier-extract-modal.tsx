@@ -21,9 +21,7 @@ export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
       setReady(false);
       return;
     }
-    // 延迟展示界面，确保初始数据加载完成 + 让用户看到加载屏
-    timerRef.current = setTimeout(() => setReady(true), 600);
-    return () => clearTimeout(timerRef.current);
+    setReady(true);
   }, [isOpen]);
 
   useEffect(() => {

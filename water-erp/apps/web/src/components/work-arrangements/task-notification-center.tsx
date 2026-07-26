@@ -11,6 +11,7 @@ import { Modal } from '@/components/workbench';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import type { NotificationItem } from '@/lib/api/notification';
 import { listNotifications } from '@/lib/api/notification';
+import { handleNotificationClick } from '@/lib/notification-click';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 
 export interface PlannedItem {
@@ -37,16 +38,19 @@ const TYPE_LABELS: Record<string, string> = {
   SYSTEM:                 '系统通知',
 };
 
+// 兜底链接：仅在后端未下发 link 时使用。注意 /bid、/bid/clarifications、
+// /supplier/qualifications 在 :3005 不存在（属开评标端 :3007 或写错），
+// 故此处一律改指 :3005 内真实页面；澄清答疑在 enrich 中特判跳 :3007 外链。
 const TYPE_LINKS: Record<string, string> = {
   SUPPLIER_PENDING:       '/supplier/approval',
   SUPPLIER_APPROVED:      '/supplier/repository',
   SUPPLIER_REJECTED:      '/supplier/approval',
   SUPPLIER_RETURNED:      '/supplier/approval',
   PRICE_REVIEW:           '/mall-management/catalog?tab=approval',
-  QUALIFICATION_EXPIRING: '/supplier/repository',
+  QUALIFICATION_EXPIRING: '/supplier/qualification-alerts',
   BID_PUBLISHED:          '/projects',
   BID_REMINDER:           '/projects',
-  BID_OPENING:            portalURL('bid', '/bid'), // 开标大厅在 :3007（跨端外链）
+  BID_OPENING:            portalURL('bid', '/bid'), // 开标大厅在 :3007（纯开标执行终端）
   BID_EVALUATION_RESULT:  '/projects',              // 评标管理已归 :3005 开评标指挥中心
   CLARIFICATION_REPLIED:  '/projects',              // 澄清答疑已归 :3005 开评标指挥中心
   CATALOG_APPLICATION:    '/mall-management/catalog?tab=approval',
@@ -57,12 +61,6 @@ const ACTIONABLE_ORDER = [
   'SUPPLIER_PENDING', 'PRICE_REVIEW', 'QUALIFICATION_EXPIRING',
   'BID_REMINDER', 'SUPPLIER_RETURNED',
 ];
-
-/** 通知跳转：本端路由走 router.push；跨端外链（http，如 :3007 开标大厅）新标签打开 */
-function navigateToLink(link: string, push: (href: string) => void) {
-  if (link.startsWith('http')) window.open(link, '_blank', 'noopener');
-  else push(link);
-}
 
 // 特定标题的系统通知——赋予场景化图标
 const TITLE_ICONS: Record<string, string> = {
@@ -94,10 +92,17 @@ type EnrichedItem = NotificationItem & {
 function enrich(item: NotificationItem): EnrichedItem {
   const meta = getNotificationMeta(item.type);
   const tone = statusTone[meta.tone] ?? statusTone.gray;
+  // 2026-07 重构：:3007 瘦身为纯开标执行终端（澄清页已删），澄清答疑归 :3005 指挥中心。
+  // 强制覆盖这两类链接（种子/历史写死的死链也失效）：BID_OPENING → :3007 任务板；CLARIFICATION_REPLIED → :3005。
+  const forced =
+    item.type === 'BID_OPENING' ? portalURL('bid', '/bid')
+    : item.type === 'CLARIFICATION_REPLIED' ? '/projects'
+    : null;
+  const link = forced ?? item.link ?? TYPE_LINKS[item.type] || '/notifications';
   return {
     ...item,
     typeLabel: TYPE_LABELS[item.type] ?? item.type,
-    link: item.link || TYPE_LINKS[item.type] || '/notifications',
+    link,
     icon: resolveIcon(item.type, item.title),
     toneColor: tone.color,
     toneBg: tone.bg,
@@ -235,7 +240,7 @@ export function TaskNotificationCenter({
               <NotificationRow
                 key={item.id}
                 item={item}
-                onClick={() => navigateToLink(item.link, router.push)}
+                onClick={() => handleNotificationClick(item, router)}
               />
             ))}
 
@@ -285,7 +290,7 @@ export function TaskNotificationCenter({
                 key={item.id}
                 item={item}
                 onClick={() => {
-                  navigateToLink(item.link, router.push);
+                  handleNotificationClick(item, router);
                   setShowAll(false);
                 }}
               />

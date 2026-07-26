@@ -129,4 +129,29 @@ describe('UploadService — download permission', () => {
     await expect(service.streamFile('missing', { sub: 'u', role: 'admin' }, res))
       .rejects.toThrow(NotFoundException);
   });
+
+  describe('H7 — delete 引用检查', () => {
+    it('文件已被 SupplierBidSubmission 引用时拒绝删除', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(asset);
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue({ id: 'sub1' }); // 被引用
+      jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
+
+      await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_REFERENCED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.delete).not.toHaveBeenCalled();
+    });
+
+    it('未被引用时正常删除（MinIO 对象 + 元数据）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(asset);
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue(null); // 未引用
+      prisma.fileAsset.delete.mockResolvedValue({});
+      jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
+
+      await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
+        .resolves.toMatchObject({ deleted: true });
+      expect(minioClient.removeObject).toHaveBeenCalled();
+      expect(prisma.fileAsset.delete).toHaveBeenCalledWith({ where: { key: 'uploads/x.pdf' } });
+    });
+  });
 });

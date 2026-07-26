@@ -103,7 +103,7 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
         key: "documentAcquireTime",
         label: "文件获取时间",
         placeholder: "请输入文件获取时间",
-        aiPrompt: "生成文件获取时间。规则：生成一个日期范围，起始日期为今天起往后推3-5个工作日（跳过周六日），结束日期为起始日期往后推3-5个工作日。格式为'XXXX年XX月XX日至XXXX年XX月XX日'，只输出日期范围，不要其他说明。",
+        aiPrompt: "生成文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午9:00，结束为起始日期往后推3-5个工作日的下午17:00。格式为'XXXX年XX月XX日XX时XX分至XXXX年XX月XX日XX时XX分'（须具体到时分），只输出该时间范围，不要其他说明。",
       },
       {
         key: "responseDeadline",
@@ -273,7 +273,7 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
           ],
         },
       },
-      { key: "documentAcquireTime", label: "采购文件获取时间", placeholder: "请输入采购文件获取时间", aiPrompt: "生成采购文件获取时间。规则：生成一个日期范围，起始日期为今天起往后推3-5个工作日（跳过周六日），结束日期为起始日期往后推3-5个工作日。格式为'XXXX年XX月XX日至XXXX年XX月XX日'，只输出日期范围，不要其他说明。" },
+      { key: "documentAcquireTime", label: "采购文件获取时间", placeholder: "请输入采购文件获取时间", aiPrompt: "生成采购文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午9:00，结束为起始日期往后推3-5个工作日的下午17:00。格式为'XXXX年XX月XX日XX时XX分至XXXX年XX月XX日XX时XX分'（须具体到时分），只输出该时间范围，不要其他说明。" },
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元" },
       {
         key: "submissionAndNegotiationTime",
@@ -561,7 +561,7 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         key: "documentAcquireTime",
         label: "文件获取时间",
         placeholder: "请输入文件获取时间",
-        aiPrompt: "生成文件获取时间。规则：生成一个日期范围，起始日期为今天起往后推3-5个工作日（跳过周六日），结束日期为起始日期往后推3-5个工作日。格式为'XXXX年XX月XX日至XXXX年XX月XX日'，只输出日期范围，不要其他说明。",
+        aiPrompt: "生成文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午9:00，结束为起始日期往后推3-5个工作日的下午17:00。格式为'XXXX年XX月XX日XX时XX分至XXXX年XX月XX日XX时XX分'（须具体到时分），只输出该时间范围，不要其他说明。",
       },
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元" },
       {
@@ -728,7 +728,7 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         key: "copyCount",
         label: "副本份数",
         placeholder: "例如 3 份",
-        aiPrompt: "生成响应文件副本份数要求，通常为2-5份。",
+        aiPrompt: "生成响应文件副本份数要求。规则：在2-5之间选一个整数（如3），只输出该数字本身，不要范围、不要文字说明。",
       },
       {
         key: "evaluationCommitteeCount",

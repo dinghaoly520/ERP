@@ -133,8 +133,10 @@ box-shadow:
 
 | 类名 | 用途 | 背景 | 备注 |
 |------|------|------|------|
-| `.flow-back` | "返回首页"链接 | `#f4f7fc` | 箭头左滑 4px |
-| `.announce-view-all` | "全部公告"链接 | `#f4f7fc` | 箭头右滑 4px |
+| `.flow-back` | "返回首页"链接 | `#f4f7fc` | 左 chevron SVG，hover 左滑 4px |
+| `.announce-view-all` | "全部公告"链接 | `#f4f7fc` | 右 chevron SVG，hover 右滑 4px |
+
+> 这两个链接的箭头是 **SVG chevron**（`M15 18l-6-6 6-6` 左 / `M9 18l6-6-6-6` 右），不是文本字符——见 `references/component-specs.md` 的「箭头 SVG 源」。
 | `.neu-btn-primary` | 主要操作按钮 | `var(--brand)` | 44px 实心 |
 | `.neu-btn-soft` | 次要操作按钮 | `var(--surface)` | 38px 凸起，hover 抬升，active 内凹 |
 | `.neu-btn-xs` | 紧凑按钮 | `var(--surface)` | 30px，含 `.is-danger`/`.is-success`/`.is-warning` 颜色变体 |

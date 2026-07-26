@@ -2141,6 +2141,17 @@ a.group:hover::after {
     -2px -2px 5px oklch(1 0 0 / 0.9);
 }
 
+/* ── 标题内嵌链接 — 继承标题样式，提供真实 <a> 用于 SEO/右键 ── */
+.announce-featured-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.announce-featured-title-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ── 轮播进度指示器 ── */
 .announce-progress-dots {
   display: flex;
@@ -2835,12 +2846,7 @@ a.group:hover::after {
   100% { background-position: 0% 50%; }
 }
 
-/* 顶部栏底边光影漂移 */
-@keyframes header-edge-flow {
-  0%   { background-position: 200% 50%; opacity: 0.6; }
-  50%  { background-position: 0% 50%; opacity: 1; }
-  100% { background-position: -200% 50%; opacity: 0.6; }
-}
+/* (header-edge-flow 动画已移除 — 扫光横条改为静态光泽边) */
 
 /* ── 顶部栏背景：水彩晕染流动 ──
    #e2f5f6 主色为底，::before/::after 各承两枚低透明青/薄荷/湖蓝径向色斑，
@@ -2850,91 +2856,31 @@ a.group:hover::after {
 .flow-header-bg {
   background-color: #dfe9f7;  /* ice-blue aurora base — was #e2f5f6 (cyan) */
   isolation: isolate;
+  box-shadow: 0 2px 16px -4px oklch(0.40 0.06 258 / 0.10), 0 1px 4px oklch(0.40 0.06 258 / 0.05);
 }
-.flow-header-bg::before,
-.flow-header-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-repeat: no-repeat;
-}
-.flow-header-bg::before {
-  background-image:
-    radial-gradient(ellipse, rgba(129,174,230,0.20) 0%, transparent 55%),
-    radial-gradient(ellipse, rgba(86,137,210,0.14) 0%, transparent 55%),
-    radial-gradient(ellipse, rgba(154,194,240,0.12) 0%, transparent 55%);
-  background-size: 80% 45%, 70% 38%, 60% 30%;
-  background-position: 5% 30%, 85% 55%, 30% 25%;
-  animation: aurora-drift-a 18s ease-in-out infinite;
-}
-.flow-header-bg::after {
-  background-image:
-    radial-gradient(ellipse, rgba(180,208,245,0.16) 0%, transparent 50%),
-    radial-gradient(ellipse, rgba(170,180,230,0.10) 0%, transparent 50%);
-  background-size: 85% 30%, 65% 28%;
-  background-position: 80% 45%, 15% 30%;
-  animation: aurora-drift-b 24s ease-in-out infinite;
-}
-@keyframes aurora-drift-a {
-  0%   { background-position: 5% 30%, 85% 55%, 30% 25%; }
-  50%  { background-position: 75% 40%, 20% 65%, 70% 35%; }
-  100% { background-position: 5% 30%, 85% 55%, 30% 25%; }
-}
-@keyframes aurora-drift-b {
-  0%   { background-position: 80% 45%, 15% 30%; }
-  50%  { background-position: 15% 55%, 70% 40%; }
-  100% { background-position: 80% 45%, 15% 30%; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .flow-header-bg::before,
-  .flow-header-bg::after,
-  .footer-glass::before { animation: none; }
-}
+/* 顶栏背景已改为纯平冰蓝（无光晕层、无漂移）——
+   移除 ::before/::after 蓝色 aurora 色斑，彻底消除"栏内扫过的蓝色光条"。 */
 
 /* ── 页脚：玻璃雾化 — 与顶栏同语汇，首尾通透呼应 ──
-   浅青玻璃面 + 顶部青色流光细线（复用 header-edge-flow）；
+   浅青玻璃面 + 顶缘内高光 + 顶部外阴影（浮起感）；
    链接墨色 → hover 青色 + 下划线渐显。替代原深海军蓝实心板。 */
 .footer-glass {
-  position: relative;                              /* anchor for ::before aurora band */
+  position: relative;
   background: oklch(0.965 0.015 250 / 0.88);      /* was 0.02 195 — cyan→ice blue */
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
   border-top: 1px solid oklch(0.88 0.025 248 / 0.38); /* was 0.87 0.03 200 */
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7);       /* 顶缘内高光 — 新拟态灵魂线 */
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),                  /* 顶缘内高光 — 新拟态灵魂线 */
+    0 -4px 20px -6px oklch(0.40 0.06 258 / 0.07);      /* 顶部外阴影 — 浮起感 */
   isolation: isolate;
 }
 .footer-glass > * {
   position: relative;
   z-index: 1;   /* ensure links/copyright bar render above ::before aurora */
 }
-/* ── 页脚极光倒影 — Header 极光带的镜面，方向镜像 + 速度减半 + 不透明度降低 ── */
-.footer-glass::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-repeat: no-repeat;
-  background-image:
-    radial-gradient(ellipse, rgba(129,174,230,0.10) 0%, transparent 50%),
-    radial-gradient(ellipse, rgba(154,194,240,0.08) 0%, transparent 48%);
-  background-size: 75% 40%, 65% 35%;
-  background-position: 80% 40%, 20% 55%;
-  animation: aurora-mirror 28s ease-in-out infinite;
-}
-@keyframes aurora-mirror {
-  0%   { background-position: 80% 40%, 20% 55%; }
-  50%  { background-position: 20% 50%, 75% 38%; }
-  100% { background-position: 80% 40%, 20% 55%; }
-}
-.footer-edge-line {
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, #9ec5f0 20%, #6090d8 40%, #88b8f0 50%, #6090d8 60%, #9ec5f0 80%, transparent 100%);
-  background-size: 200% 100%;
-  animation: header-edge-flow 4s ease-in-out infinite;
-}
+/* 底栏背景已改为纯平玻璃（无光晕层、无漂移）——
+   移除 ::before 蓝色 aurora 倒影，彻底消除"栏内扫过的蓝色光条"。 */
 .footer-link {
   position: relative;
   padding: 1.25rem 1.5rem;            /* 对齐原 px-6 py-5 */
@@ -2956,7 +2902,6 @@ a.group:hover::after {
 .footer-link:hover { color: #0891a0; }
 .footer-link:hover::after { transform: scaleX(1); }
 @media (prefers-reduced-motion: reduce) {
-  .footer-edge-line { animation: none; }
   .footer-link, .footer-link::after { transition: none; }
 }
 

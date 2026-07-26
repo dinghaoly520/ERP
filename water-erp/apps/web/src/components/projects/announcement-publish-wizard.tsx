@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
-  Megaphone, X, Send, Upload, Loader2, ArrowLeft, ArrowRight, Search,
+  Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search,
 } from 'lucide-react';
 import {
   createAnnouncement,
@@ -109,6 +109,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [scheduledDate, setScheduledDate] = useState('');
   const [attachOn, setAttachOn] = useState(false);
   const [tenderOn, setTenderOn] = useState(false);
+  // 多份采购文件时，公告引用哪一份（objectKey 唯一标识）；单份默认选它
+  const [selectedTenderObjectKey, setSelectedTenderObjectKey] = useState<string>('');
+  // 文件下载时间：从项目台账 documentAcquireTime 预填，无则必填
+  const [documentDownloadTime, setDocumentDownloadTime] = useState('');
   const [notifyOnPublish, setNotifyOnPublish] = useState(true);
   const [annId, setAnnId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; title: string }>>([]);
@@ -173,8 +177,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setCategory(procCat);
     setDraft(filledDraft);
 
-    // ★ 默认引用采购文件
+    // ★ 默认引用采购文件（多份时默认选第一份）
     setTenderOn(tenderFiles.length > 0);
+    setSelectedTenderObjectKey(tenderFiles[0]?.objectKey ?? '');
+    // ★ 文件下载时间：从采购文件获取时间(documentAcquireTime)预填；无则发布时必填
+    setDocumentDownloadTime(project.documentAcquireTime ?? '');
 
     // ★ 默认公告范围
     // 谈判采购 → 部分供应商可见（供应商已在上一邀请步骤中确定）（内置以上步骤禁止公开）
@@ -287,7 +294,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     if (!tenderOn || tenderFiles.length === 0) return;
     const existing = await listAttachments(id);
     const have = new Set(existing.map((a) => a.fileAsset.originalName));
-    for (const f of tenderFiles) {
+    // 多份采购文件时只引用用户选中的那份；单份直接引用
+    const filesToAttach = tenderFiles.length > 1
+      ? tenderFiles.filter((f) => f.objectKey === selectedTenderObjectKey)
+      : tenderFiles;
+    for (const f of filesToAttach) {
       if (have.has(f.fileName)) continue;
       try {
         await attachFromObject(id, {
@@ -316,6 +327,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       toast.error('请至少选择一家可见供应商');
       return;
     }
+    if (tenderOn && !documentDownloadTime.trim()) {
+      toast.error('请填写文件下载时间');
+      return;
+    }
     const title = `${getAnnouncementLabel(tenderType, category)} — ${project?.title || ''}`;
     const draftRecord = draft as Record<string, string>;
     setBusy(true);
@@ -341,7 +356,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       const meta: Record<string, unknown> = { ...draft, visibility, ...buildCanonicalMeta(project, draft) };
       if (visibility === 'RESTRICTED') meta.restrictedSupplierIds = restrictedSupplierIds;
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
-      meta.notifyOnPublish = notifyOnPublish;
+      meta.notifyOnPublish = visibility === 'RESTRICTED' && notifyOnPublish;
+      if (documentDownloadTime.trim()) meta.documentDownloadTime = documentDownloadTime.trim();
+      if (selectedTenderObjectKey) meta.selectedTenderObjectKey = selectedTenderObjectKey;
       const status: AnnouncementStatus = publishTiming === 'scheduled' ? 'DRAFT' : 'PUBLISHED';
       const saved = await createAnnouncement({
         title,
@@ -620,17 +637,64 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     />
                     引用采购文件{tenderAvailable ? ` · ${tenderFiles.length} 份` : ''}
                   </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={notifyOnPublish}
-                      onChange={(e) => setNotifyOnPublish(e.target.checked)}
-                      className="accent-[var(--accent)]"
-                    />
-                    发布后发送通知
-                  </label>
+                  {visibility === 'RESTRICTED' && (
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notifyOnPublish}
+                        onChange={(e) => setNotifyOnPublish(e.target.checked)}
+                        className="accent-[var(--accent)]"
+                      />
+                      发布后发送通知
+                    </label>
+                  )}
                 </div>
               </div>
+
+              {/* 采购文件选择 —— 多份时让用户指定公告引用哪一份 */}
+              {tenderOn && tenderFiles.length > 1 && (
+                <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                  <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
+                    选择引用的采购文件 <span className="text-[var(--danger)]">*</span>
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {tenderFiles.map((f) => (
+                      <label key={f.objectKey} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tenderFile"
+                          checked={selectedTenderObjectKey === f.objectKey}
+                          onChange={() => setSelectedTenderObjectKey(f.objectKey)}
+                          className="accent-[var(--accent)]"
+                        />
+                        <span className="truncate">{f.fileName}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 文件下载时间 —— 仅在引用采购文件时需要：从台账 documentAcquireTime 预填，无则必填 */}
+              {tenderOn && (
+                <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                  <div className="flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
+                    文件下载时间
+                    {!project?.documentAcquireTime && <span className="text-[var(--danger)]">*</span>}
+                  </div>
+                  <input
+                    type="text"
+                    value={documentDownloadTime}
+                    onChange={(e) => setDocumentDownloadTime(e.target.value)}
+                    placeholder="如 2026年8月1日-8月5日"
+                    className="workbench-input mt-2 w-full text-sm"
+                  />
+                  <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                    {project?.documentAcquireTime
+                      ? '已从采购文件获取时间自动填入，可调整'
+                      : '采购文件未提取到获取时间，请填写（必填）'}
+                  </p>
+                </div>
+              )}
 
               {/* Attachment section — 本地暂存，发布时统一上传 */}
               {attachOn && (
@@ -657,22 +721,19 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
             {annId ? 'ID: ' + annId.slice(-8) : ''}
           </span>
           <div className="flex gap-3">
-            <button onClick={onClose} className="neu-btn-soft">
-              取消
-            </button>
             {step === 1 ? (
-              <button onClick={handleNext} disabled={!draft} className="neu-btn-primary disabled:opacity-50">
-                下一步 <ArrowRight size={14} />
+              <button onClick={handleNext} disabled={!draft} className="neu-btn-primary !h-[34px] disabled:opacity-50">
+                下一步 <ChevronRight size={14} />
               </button>
             ) : (
               <>
-                <button onClick={() => setStep(1)} className="neu-btn-soft">
-                  <ArrowLeft size={14} /> 上一步
+                <button onClick={() => setStep(1)} className="neu-btn-soft !h-[34px]">
+                  <ChevronLeft size={14} /> 上一步
                 </button>
                 <button
                   onClick={handlePublish}
                   disabled={busy}
-                  className="neu-btn-primary disabled:opacity-50"
+                  className="neu-btn-primary !h-[34px] disabled:opacity-50"
                 >
                   {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   {busy ? '处理中...' : publishTiming === 'now' ? '立即发布' : '保存定时发布'}
