@@ -71,7 +71,9 @@ function SplashCursor({
 
     let pointers = [new pointerPrototype()];
 
-    const { gl, ext } = getWebGLContext(canvas);
+    const webgl = getWebGLContext(canvas);
+    if (!webgl) return; // 无 WebGL（无 GPU / 无头浏览器）→ 跳过流体光标特效，登录页正常渲染
+    const { gl, ext } = webgl;
     if (!ext.supportLinearFiltering) {
       config.DYE_RESOLUTION = 256;
       config.SHADING = false;
@@ -88,6 +90,7 @@ function SplashCursor({
       let gl = canvas.getContext('webgl2', params);
       const isWebGL2 = !!gl;
       if (!isWebGL2) gl = canvas.getContext('webgl', params) || canvas.getContext('experimental-webgl', params);
+      if (!gl) return null; // 无 WebGL 上下文（无 GPU / 无头浏览器）→ 调用方跳过流体光标特效
 
       let halfFloat;
       let supportLinearFiltering;
