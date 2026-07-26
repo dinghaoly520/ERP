@@ -20,6 +20,7 @@ import { CreateScorePointDto } from './dto/create-score-point.dto';
 import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
+import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 
 @ApiTags('开评标管理')
@@ -177,8 +178,9 @@ export class BidController {
   resolveOpeningDispute(
     @Param('id') id: string,
     @Param('recordId') recordId: string,
-    @Body() dto: { result: string; confirm: boolean },
-  ) { return this.bidService.resolveOpeningDispute(id, recordId, dto); }
+    @Body() dto: ResolveOpeningDisputeDto,
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.resolveOpeningDispute(id, recordId, dto, userId); }
 
   @Get('projects/:id/experts')
   @ApiOperation({ summary: '评标专家列表' })
