@@ -102,12 +102,13 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 
 ### 开评标管理端 (`bid-portal`, :3007)
 
-**纯开标执行终端**（2026-07 重构）。总则：**所有流程流转归 :3005 采购管理工作台，:3007 只执行在线开标并把数据流转回 :3005**。:3007 不持有任何阶段流转调用（确定开标/启动评标/生成结果/归档触发均在 :3005 项目详情「开标确认」面板）。页面仅两个：
+**纯开标执行终端**（2026-07 重构）。总则：**所有流程流转归 :3005 采购管理工作台，:3007 只执行在线开标并把数据流转回 :3005**。:3007 不持有任何阶段流转调用（确定开标/启动评标/生成结果/归档触发均在 :3005 项目详情「开标确认」面板）。页面三个：
 
 - **开标任务板** (`/bid`) — 只读：「开标中」项目（解密/唱标/确认/异议四计数）+ 截标已过的 SUBMIT 项目（「等待 :3005 确定开标」）+ 已归档计数；唯一行操作「进入开标大厅」
-- **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人/监督人/解密窗口，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、「开标完成」交棒横幅（跳回 :3005）
+- **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人/监督人/解密窗口，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、开标完成后横幅【完成开标·移交】生成开标文件包（FileAsset `category=bid_opening_handover`，JSON + SHA-256 指纹，存 MinIO）并 WS 广播 `opening:completed` 回传 :3005（幂等、不改 stage、非启动评标闸门），:3005「开标进度」区块展示「资料已接收·下载」
+- **项目工作区** (`/bid/project/[id]?tab=`) — 2026-07-26 恢复：三 tab「开标大厅（嵌入大厅组件）／评标管理（只读：进度·专家状态·评分矩阵·汇总排名）／评分标准（只读：评分项+得分点）」；tab 可见性按阶段门控（评标管理仅 EVALUATING/ARCHIVED 可见），默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；旧链接 `/bid/open?id=` 兼容重定向至此。评标**操作**（启动评标/生成结果/催促）、评分标准**编制**、澄清答疑、归档触发仍全归 :3005，工作区零操作按钮
 
-已迁回 :3005 的原 :3007 功能：评标管理端、评分标准管理、澄清答疑、归档触发与查看、项目创建/编辑/邀请/催办。项目工作区 `/bid/project/[id]` tab 机制已退役（`?id=` 查询参数直达大厅）。开标大厅在开标完成后横幅【完成开标·移交】生成开标文件包（FileAsset `category=bid_opening_handover`）并 WS 广播 `opening:completed`；:3005「开标进度」区块展示「资料已接收·下载」，站内信深链 `?projectId=&panel=bid-confirm` 直达开标确认面板。
+已迁回 :3005 的原 :3007 功能（:3007 仅保留只读视图）：评标管理端的编辑操作、评分标准编制、澄清答疑、归档触发与查看、项目创建/编辑/邀请/催办。
 
 **Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → cookie `token_web` is set → post-login redirect to bid portal (:3007). The bid portal shares the `token_web` cookie namespace (no separate `token_bid`), sending `X-Portal: web` for API calls.
 
