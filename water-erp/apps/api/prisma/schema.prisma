@@ -378,6 +378,8 @@ model BidOpeningSession {
   decryptWindowEnd   DateTime
   remainingSeconds   Int        @default(0)
   exchangeControl  String     @default("OPEN") // OPEN 允许群聊 | MUTED 仅主持人可发言 | CLOSED 关闭互动
+  handoverAssetId    String?    // 开标文件包 FileAsset 引用（完成开标·移交后写入）
+  handoverAt         DateTime?  // 移交时间
   project            BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
