@@ -41,11 +41,11 @@ describe('Supplier (e2e)', () => {
     prisma = app.get(PrismaService);
 
     // 取 supplier1 的信用代码，用于注册重复测试
-    const u = await prisma.user.findUnique({ where: { username_role: { username: 'supplier1', role: 'supplier' } } });
+    const u = await prisma.user.findUnique({ where: { username_role: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } } });
     const s = u ? await prisma.supplier.findUnique({ where: { userId: u.id } }) : null;
     dupCreditCode = s?.creditCode || 'DUPLICATE00000000';
 
-    supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
+    supplierCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
   });
 
   afterAll(async () => {

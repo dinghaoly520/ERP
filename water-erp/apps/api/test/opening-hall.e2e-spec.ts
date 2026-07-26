@@ -66,8 +66,8 @@ describe('Opening Hall (e2e)', () => {
     prisma = app.get(PrismaService);
 
     hostCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
-    sup1Cookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
-    sup2Cookie = await loginAs(app, 'huaxi', 'huaxi@2026', 'supplier');
+    sup1Cookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
+    sup2Cookie = await loginAs(app, '成都华西物资供应有限公司', 'supplier@2026', 'supplier');
     expertCookie = await loginAs(app, '刘苡池', 'expert@2026', 'expert');
     expect(hostCookie).toContain('token_web=');
     expect(sup1Cookie).toContain('token_supplier=');
@@ -121,8 +121,8 @@ describe('Opening Hall (e2e)', () => {
     nonMemberCookie = await loginAs(app, `e2e-nonmember-${ts0}`, 'e2e@2026', 'supplier');
     expect(nonMemberCookie).toContain('token_supplier=');
 
-    const u1 = await prisma.user.findFirst({ where: { username: 'supplier1', role: 'supplier' } });
-    const u2 = await prisma.user.findFirst({ where: { username: 'huaxi', role: 'supplier' } });
+    const u1 = await prisma.user.findFirst({ where: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } });
+    const u2 = await prisma.user.findFirst({ where: { username: '成都华西物资供应有限公司', role: 'supplier' } });
     const s1 = await prisma.supplier.findFirst({ where: { userId: u1!.id } });
     const s2 = await prisma.supplier.findFirst({ where: { userId: u2!.id } });
     sup1Id = s1!.id; sup2Id = s2!.id;
@@ -286,7 +286,7 @@ describe('Opening Hall (e2e)', () => {
   });
 
   it('Wave5-4 真库：markRead lastMessageId 游标定位 + 单调不回退（M3）+ @updatedAt 不覆盖显式值', async () => {
-    const u1 = await prisma.user.findFirst({ where: { username: 'supplier1', role: 'supplier' } });
+    const u1 = await prisma.user.findFirst({ where: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } });
     // 复位 sup1 公聊游标（前序用例可能已写过）
     await prisma.openingHallReadCursor.deleteMany({ where: { projectId, userId: u1!.id, roomKey: 'public' } });
 

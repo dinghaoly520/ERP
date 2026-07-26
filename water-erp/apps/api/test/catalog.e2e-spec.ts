@@ -51,7 +51,7 @@ describe('Catalog supply application (e2e)', () => {
 
     prisma = app.get(PrismaService);
 
-    const supplierUser = await prisma.user.findUnique({ where: { username_role: { username: 'supplier1', role: 'supplier' } } });
+    const supplierUser = await prisma.user.findUnique({ where: { username_role: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } } });
     const supplier = supplierUser ? await prisma.supplier.findUnique({ where: { userId: supplierUser.id } }) : null;
     supplierId = supplier!.id;
 
@@ -72,7 +72,7 @@ describe('Catalog supply application (e2e)', () => {
     const steel = await prisma.catalogItem.findUnique({ where: { code: 'CGML-GC-STEEL-001' } });
     steelItemId = steel!.id;
 
-    supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
+    supplierCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
     adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
   });
 

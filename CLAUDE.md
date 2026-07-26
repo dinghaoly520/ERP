@@ -216,11 +216,11 @@ Passwords follow `<username>@2026` convention:
 | Account | Password | Role | Portal |
 |---------|----------|------|--------|
 | `陈源远` | `陈源远@2026` | mall | 采购商城 (:3003) |
-| `supplier1` | `supplier1@2026` | supplier (approved) | 供应商门户 (:3004) |
+| `重庆蜀通岩土工程有限公司` | `supplier@2026` | supplier (approved) · 原 `supplier1` | 供应商门户 (:3004) |
 | `四川水发建设有限公司` | `supplier@2026` | supplier (approved) · 英雄项目 3 家之一 | 供应商门户 (:3004) |
 | `中科院成都信息技术股份有限公司` | `supplier@2026` | supplier (approved) · 英雄项目评标第 1 名 | 供应商门户 (:3004) |
 | `四川省通信产业服务有限公司` | `supplier@2026` | supplier (approved) · 英雄项目解密异常 | 供应商门户 (:3004) |
-| `huaxi` | `huaxi@2026` | supplier (approved) · 成都华西物资供应 · 参与旧种子项目 | 供应商门户 (:3004) |
+| `成都华西物资供应有限公司` | `supplier@2026` | supplier (approved) · 原 `huaxi` · 参与旧种子项目 | 供应商门户 (:3004) |
 | `陈源远` | `陈源远@2026` | procurement_staff | 采购管理工作台 (:3005) |
 | 专家姓名（如 `刘苡池`） | `expert@2026` | bid_expert | 专家门户 (:3006) |
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
@@ -230,6 +230,8 @@ Passwords follow `<username>@2026` convention:
 > `admin` role exists in schema/RBAC but has no seeded user. Use `陈源远` (bid_host) for bid portal access.
 
 > **评审专家库（186 名）**：来自真实专家库（`apps/api/prisma/seed-data/ExpertProfile.json`）。`seed.ts` 末尾会把真实库导出的编号用户名重置为专家姓名、口令统一为 `expert@2026`，便于演示登录。
+>
+> **供应商登录**：同理，`seed.ts` 会把所有供应商用户名重置为**公司名**、口令统一为 `supplier@2026`（与上表一致）。故供应商一律用「公司名 / supplier@2026」登录，不再有 `supplier1`/`huaxi` 等短用户名。
 
 ## Architecture
 

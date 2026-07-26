@@ -44,9 +44,9 @@ describe('Sealed Bid Backup (e2e)', () => {
 
     prisma = app.get(PrismaService);
     adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');       // web 门户解析为 bid_host
-    supplierCookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
+    supplierCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
 
-    const user = await prisma.user.findFirst({ where: { username: 'supplier1', role: 'supplier' } });
+    const user = await prisma.user.findFirst({ where: { username: '重庆蜀通岩土工程有限公司', role: 'supplier' } });
     const supplier = await prisma.supplier.findUnique({ where: { userId: user!.id } });
     supplierId = supplier!.id;
 

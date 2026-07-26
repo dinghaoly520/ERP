@@ -106,8 +106,8 @@ describe('Auth (e2e)', () => {
   });
 
   it('/api/auth/logout (POST) — 登出应清除 token cookie', async () => {
-    // 用 seed 中存在的 supplier1（caigou/wangjg 在当前 seed 中未生成，见既有 e2e 用例的同类失败）
-    const cookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
+    // 用 seed 中存在的供应商（公司名登录；原 supplier1 → 重庆蜀通岩土工程有限公司）
+    const cookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
     const res = await request(app.getHttpServer())
       .post('/api/auth/logout')
       .set('Cookie', cookie)
@@ -125,7 +125,7 @@ describe('Auth (e2e)', () => {
 
   describe('角色权限隔离', () => {
     it('供应商不能访问招标管理接口', async () => {
-      const cookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
+      const cookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
 
       await request(app.getHttpServer())
         .post('/api/bid/projects')
@@ -136,7 +136,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('供应商不能访问专家接口', async () => {
-      const cookie = await loginAs(app, 'supplier1', 'supplier1@2026', 'supplier');
+      const cookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
 
       await request(app.getHttpServer())
         .get('/api/expert/profile')

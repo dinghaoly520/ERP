@@ -293,6 +293,49 @@ async function main() {
   }
   console.log(`    专家 ${experts.length} 名：重命名 ${renamed}、仅改口令 ${passwordOnly}、冲突跳过 ${conflictSkipped}`);
 
+  // ═══ 供应商凭据规整 ═══
+  // 与专家规整同理：供应商用户名原始为统一社会信用代码/短码（如 s9151…、supplier1、huaxi），不便演示。
+  // 统一重置为：用户名 = 关联 Supplier.name（公司名），口令 = supplier@2026。
+  // 幂等：每次 seed 后供应商凭据恒为此状态，即便从真实库重新 dump 也能自动修复。
+  console.log('▶ 规整供应商凭据（用户名=公司名，口令 supplier@2026）');
+  const supplierHash = hashSync('supplier@2026', 10);
+  const supplierNameByUserId = new Map(
+    (await prisma.supplier.findMany({ select: { userId: true, name: true } })).map((s) => [s.userId, s.name]),
+  );
+  const supplierUsers = await prisma.user.findMany({ where: { role: 'supplier' } });
+  let supRenamed = 0;
+  let supPasswordOnly = 0;
+  let supConflictSkipped = 0;
+  let supNoCompany = 0;
+  for (const u of supplierUsers) {
+    const companyName = supplierNameByUserId.get(u.id);
+    if (!companyName) {
+      supNoCompany++;
+      continue;
+    }
+    const targetUsername = companyName.trim();
+    if (targetUsername === u.username) {
+      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: supplierHash } });
+      supPasswordOnly++;
+      continue;
+    }
+    const occupied = await prisma.user.findFirst({
+      where: { username: targetUsername, role: 'supplier', NOT: { id: u.id } },
+    });
+    if (occupied) {
+      console.warn(`  ⚠ 「${targetUsername}」已被占用，供应商 ${u.username} 保留原用户名，仅重置口令`);
+      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: supplierHash } });
+      supConflictSkipped++;
+      continue;
+    }
+    await prisma.user.update({
+      where: { id: u.id },
+      data: { username: targetUsername, passwordHash: supplierHash },
+    });
+    supRenamed++;
+  }
+  console.log(`    供应商 ${supplierUsers.length} 名：重命名 ${supRenamed}、仅改口令 ${supPasswordOnly}、冲突跳过 ${supConflictSkipped}、无公司名跳过 ${supNoCompany}`);
+
   // ═══ 「陈源远」账号口令规整（冗余保护）═══
   // User.json 的 passwordHash 已修正为「陈源远@2026」的正确 bcrypt。
   // 此 override 保留作 belt-and-suspenders：防止有人误改 User.json hash 时 seed 仍能保证可登录。
@@ -338,7 +381,7 @@ async function main() {
   console.log('\n  各门户独立账号（每端口需单独登录，口令沿用 <用户名>@2026）：');
   console.log('    [信息门户   :3002]  公开访问，无需登录');
   console.log('    [电子商城   :3003]  陈源远 / 陈源远@2026');
-  console.log('    [供应商端   :3004]  supplier1 / supplier1@2026');
+  console.log('    [供应商端   :3004]  公司名登录 / 口令 supplier@2026（例：四川水发建设有限公司 / supplier@2026）');
   console.log('    [采购管理端 :3005]  陈源远 / 陈源远@2026');
   console.log('    [专家评标   :3006]  专家库任意专家（用户名=专家姓名）/ 口令 expert@2026');
   console.log('    [开评标管理端 :3007]  陈源远 / 陈源远@2026');
