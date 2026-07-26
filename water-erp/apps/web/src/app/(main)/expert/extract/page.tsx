@@ -225,8 +225,12 @@ export function ExpertExtractPage({
           }
         }
       } catch (e: any) {
-        // 自动抽取失败，提示用户手动操作
-        toast.error('自动抽取失败，请手动配置抽取参数');
+        // 按 code 给针对性提示（后端结构化错误），避免笼统"自动抽取失败"
+        if (e?.code === 'NO_ELIGIBLE_EXPERTS') {
+          toast.error('专家库暂无可用候选人，请先在专家管理维护可用专家');
+        } else {
+          toast.error('自动抽取失败，请手动配置抽取参数');
+        }
       }
     })();
   }, [defaultProjectTitle, projects]);
@@ -400,6 +404,26 @@ export function ExpertExtractPage({
     setConfirming(false);
   };
 
+  // O4：仅确认专家组入库、暂不发通知——支持"先组队、延后通知"。
+  // 落库后直接进完成态（step4 done），可从完成页"发送通知"按钮重新打开通知弹窗补发。
+  const confirmOnly = async () => {
+    if (!pid || selectedExperts.length === 0) return;
+    if (!leadExpertId) { setError('请指定一位专家担任评审组长'); return; }
+    setConfirming(true); setError('');
+    try {
+      const exps = selectedExperts.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: s.userId === leadExpertId }));
+      const candidates = alternativeExperts.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty }));
+      const result = await confirmExtraction({ projectId: pid, experts: exps, candidates });
+      setConfirmedExpertIds(result.expertIds || exps.map(e => e.userId));
+      setNotifyExpertList(selectedExperts);
+      setNotifyMessages(new Map());
+      setDone(true);
+      setStep(4);
+      toast.success(`专家组已确认（${exps.length} 人），未发通知，可稍后补发`);
+    } catch (e: any) { toast.error(e?.message || '确认失败'); }
+    setConfirming(false);
+  };
+
   const sendNotify = async () => {
     if (confirmedExpertIds.length === 0) return;
     // 开标时间必填校验：留空会导致文案中的时间占位无法替换
@@ -409,26 +433,47 @@ export function ExpertExtractPage({
     }
     setNotifying(true);
     try {
-      const allResults: any[] = [];
-      let sentCount = 0;
-      for (const eid of confirmedExpertIds) {
-        const msg = notifyMessages.get(eid) || '';
-        if (!msg) continue;
-        const channels = notifyChannelsByExpert.get(eid) || ['in_app', 'sms', 'phone'];
-        if (channels.length === 0) continue;
-        const result = await sendExtractionNotify({ projectId: pid, expertIds: [eid], channels, message: msg });
-        if (result.results) allResults.push(...result.results);
-        sentCount++;
-      }
+      // 构造待发送任务（有文案 + 有渠道），跳过无文案/无渠道的专家
+      const tasks = confirmedExpertIds
+        .map(eid => {
+          const msg = notifyMessages.get(eid) || '';
+          const channels = notifyChannelsByExpert.get(eid) || ['in_app', 'sms', 'phone'];
+          if (!msg || channels.length === 0) return null;
+          return { eid, msg, channels };
+        })
+        .filter((x): x is { eid: string; msg: string; channels: string[] } => x !== null);
+
       // 全员无文案时实际 0 条发送：不置完成态、不进步骤5，提示用户先生成文案
-      if (sentCount === 0) {
+      if (tasks.length === 0) {
         toast.warning('未发送任何通知：无可用通知文案，请先生成文案');
         return;
       }
+
+      // 并行发送，逐条独立成败（部分失败不阻断其余），便于汇总与重试
+      const settled = await Promise.allSettled(
+        tasks.map(t => sendExtractionNotify({ projectId: pid, expertIds: [t.eid], channels: t.channels, message: t.msg })),
+      );
+      const allResults: any[] = [];
+      let okCount = 0;
+      let failCount = 0;
+      settled.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          okCount++;
+          if (r.value.results) allResults.push(...r.value.results);
+        } else {
+          failCount++;
+          allResults.push({ userId: tasks[i].eid, results: { error: (r.reason as any)?.message || '发送失败' } });
+        }
+      });
+
       setNotifyResults(allResults);
       setDone(true);
       setStep(5);
-      toast.success(`通知已发送（${sentCount} 名专家）`);
+      if (failCount === 0) {
+        toast.success(`通知已发送（${okCount} 名专家）`);
+      } else {
+        toast.warning(`通知部分成功：成功 ${okCount} 名，失败 ${failCount} 名（可稍后重试失败项）`);
+      }
     } catch (e: any) { toast.error(e?.message || '通知发送失败'); }
     finally { setNotifying(false); }
   };
@@ -905,17 +950,21 @@ export function ExpertExtractPage({
                 <div className="flex items-center justify-between mb-3"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业配额（正选合计 {qt} 人）</span><button onClick={addQ} className="neu-btn-xs"><Plus size={12} />添加专业</button></div>
                 {quotas.map((q, i) => (
                   <div key={i} className="flex items-center gap-2 mb-2">
-                    <select value={q.specialty} onChange={e => upQ(i, 'specialty', e.target.value)} className="neu-input text-sm flex-1"><option value="">选择专业</option>{specs.map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人可用）` : ''}</option>)}</select>
+                    <select value={q.specialty} onChange={e => upQ(i, 'specialty', e.target.value)} className="neu-input text-sm flex-1"><option value="">选择专业</option>{specs.map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
                     <div className="flex items-center gap-1"><button onClick={() => upQ(i, 'count', Math.max(1, q.count - 1))} className="neu-btn-xs">−</button><span className="w-6 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{q.count}</span><button onClick={() => upQ(i, 'count', q.count + 1)} className="neu-btn-xs">+</button></div>
                     <button onClick={() => rmQ(i)} disabled={quotas.length <= 1} className="neu-btn-xs is-danger">×</button>
                   </div>
                 ))}
+                <p className="text-[10px] text-[var(--muted-foreground)]/70 mt-1">「库内」= 专家库该专业总人数；实际可抽取数受合规过滤影响（回避供应商关联、已分配同项目、占用/停用）。</p>
               </div>
             )}
 
             {/* 专家选取：搜索+选中 */}
             {extractMode === 'manual' && (
               <div className="space-y-3">
+                <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-3 py-2 text-[11px] leading-relaxed text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                  专家选取为自由指定模式，建议覆盖项目主要专业领域，避免专业失衡。{manualExperts.length > 0 && (() => { const specs = Array.from(new Set(manualExperts.map(e => e.specialty).filter(Boolean))); return <> 当前已选 <strong className="text-[var(--foreground)]">{manualExperts.length}</strong> 人{specs.length ? <>，涉及专业：<strong className="text-[var(--foreground)]">{specs.join('、')}</strong></> : ''}</>; })()}
+                </div>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
                   <input value={manualSearch} onChange={e => setManualSearch(e.target.value)} placeholder="搜索姓名、专业或单位..." className="neu-input !pl-9 text-sm" />
@@ -1119,7 +1168,10 @@ export function ExpertExtractPage({
                 )}
 
                 <button onClick={confirm} disabled={confirming || selectedExperts.length === 0 || !leadExpertId} className="neu-btn-soft is-success w-full justify-center" title={!leadExpertId ? '请先指定评审组长' : undefined}>
-                  <Check size={16} />{confirming ? '确认中...' : `确认组建专家组（${selectedExperts.length} 人）`}{!leadExpertId ? ' · 请指定组长' : ''}
+                  <Check size={16} />{confirming ? '确认中...' : `确认组建并通知（${selectedExperts.length} 人）`}{!leadExpertId ? ' · 请指定组长' : ''}
+                </button>
+                <button onClick={confirmOnly} disabled={confirming || selectedExperts.length === 0 || !leadExpertId} className="neu-btn-xs w-full justify-center mt-2" title="确认专家组入库，暂不发通知，可稍后从完成页补发">
+                  仅确认专家组，稍后通知
                 </button>
               </div>
             )}
@@ -1128,9 +1180,9 @@ export function ExpertExtractPage({
             {done && (
               <div className="neu-table-card p-10 text-center">
                 <ShieldCheck size={40} className="mx-auto text-[var(--success)] mb-3" />
-                <h3 className="text-lg font-bold text-[var(--foreground)] mb-1">通知已发送，等待专家确认</h3>
+                <h3 className="text-lg font-bold text-[var(--foreground)] mb-1">{notifyResults ? '通知已发送，等待专家确认' : '专家组已确认'}</h3>
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  已向「{sel?.name}」的 {selectedExperts.length} 名专家发出邀请通知，专家确认后即正式加入评审组
+                  {notifyResults ? `已向「${sel?.name}」的 ${selectedExperts.length} 名专家发出邀请通知，专家确认后即正式加入评审组` : `「${sel?.name}」的专家组（${selectedExperts.length} 人）已确认入库，尚未发送通知`}
                 </p>
                 {notifyResults && (
                   <div className="mt-4 text-left max-w-md mx-auto space-y-1">
@@ -1174,7 +1226,7 @@ export function ExpertExtractPage({
         <div className="space-y-4">
           <div className="neu-table-card p-10 text-center">
             <ShieldCheck size={40} className="mx-auto text-[var(--success)] mb-3" />
-            <h3 className="text-lg font-bold text-[var(--foreground)] mb-1">通知已发送，等待专家确认</h3>
+            <h3 className="text-lg font-bold text-[var(--foreground)] mb-1">{notifyResults ? '通知已发送，等待专家确认' : '专家组已确认'}</h3>
             <p className="text-sm text-[var(--muted-foreground)]">
               已向「{sel?.name}」的 {selectedExperts.length} 名专家发出邀请通知，专家确认后即正式加入评审组
             </p>
@@ -1196,6 +1248,11 @@ export function ExpertExtractPage({
               </div>
             )}
             <div className="flex justify-center gap-3 mt-6">
+              {!notifyResults && (
+                <button onClick={() => setShowNotifyModal(true)} className="neu-btn-soft is-success">
+                  <Bell size={14} />发送通知
+                </button>
+              )}
               <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                 返回专家库
@@ -1389,7 +1446,7 @@ export function ExpertExtractPage({
                           onClick={() => item.resourceId && openRetrospect(item.resourceId)}
                           disabled={!item.resourceId}
                           className="neu-btn-xs shrink-0"
-                          title="对本次抽取做质量复盘"
+                          title={item.resourceId ? '对本次抽取做质量复盘' : '该记录缺少项目关联，无法复盘'}
                         >
                           <ClipboardList size={12} />复盘
                         </button>

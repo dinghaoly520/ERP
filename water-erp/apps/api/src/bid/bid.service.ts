@@ -539,15 +539,21 @@ export class BidService {
   async abortBidProject(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { id: true, name: true, stage: true, procurementMethod: true },
+      select: { id: true, name: true, stage: true, procurementMethod: true, _count: { select: { suppliers: true } } },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
     assertBidStageTransition(project.stage, 'ABORTED');
 
+    // #16 流标业务留痕：riskNote 记录采购方式 + 投标供应商数 + 时间 + 操作人
+    // （请求级留痕含操作人 userId 由全局 OperationLogInterceptor 自动记录）
+    const supplierCount = project._count.suppliers;
+    const abortAt = new Date().toISOString();
+    const riskNote = `流标（${project.procurementMethod}，投标供应商 ${supplierCount} 家，${abortAt}${actorId ? `，操作人 ${actorId}` : ''}）`;
+
     const updated = await this.prisma.bidProject.update({
       where: { id },
-      data: { stage: 'ABORTED', riskNote: '流标' },
+      data: { stage: 'ABORTED', riskNote },
       select: { id: true, stage: true },
     });
 
@@ -556,7 +562,7 @@ export class BidService {
       await this.notificationService.sendToRole('bid_host', {
         type: 'BID_ABORTED',
         title: `项目${project.name}已流标`,
-        content: `招标方式：${project.procurementMethod}`,
+        content: `招标方式：${project.procurementMethod}，投标供应商 ${supplierCount} 家`,
         link: `/bid?id=${id}`,
       });
     } catch { /* 通知失败不阻塞流标 */ }

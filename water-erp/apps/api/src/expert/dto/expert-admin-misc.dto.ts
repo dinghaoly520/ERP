@@ -1,5 +1,6 @@
 import {
   IsString,
+  IsNotEmpty,
   IsOptional,
   IsBoolean,
   IsInt,
@@ -25,6 +26,7 @@ export class UpdateExpertProfileDto {
   @IsOptional() @IsString() ethnicity?: string;
   @IsOptional() @IsString() education?: string;
   @IsOptional() @IsString() licenseNo?: string;
+  @IsOptional() @IsIn(['可用', '占用', '停用']) availability?: '可用' | '占用' | '停用';
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() notes?: string;
 }
@@ -70,4 +72,10 @@ export class OcrIntakeDto {
   @IsString() imageBase64!: string;
   @IsOptional() @IsString() mimeType?: string;
   @IsOptional() @IsString() filename?: string;
+}
+
+/** AI 辅助评价建议 */
+export class AiSuggestEvaluationDto {
+  @IsString() @IsNotEmpty()
+  expertUserId!: string;
 }

@@ -80,7 +80,16 @@ export default function ExpertEntryPage() {
       if (filled === 0) toast.warning('未识别到有效字段，请手动填写');
       else { setForm(prev => ({ ...prev, ...map })); toast.success(`已识别并填充 ${filled} 个字段，请核对后保存`); }
     } catch (err: any) {
-      toast.error(err?.message || '识别失败，请手动填写');
+      const msg = err?.message || '';
+      if (msg.includes('OCR 服务不可用') || msg.includes('OCR_UNAVAILABLE')) {
+        toast.error('OCR 服务未启动，请手动填写或启动 OCR 微服务（pnpm dev:ocr）');
+      } else if (msg.includes('未识别到文字') || msg.includes('OCR_EMPTY')) {
+        toast.error('未识别到文字：请确认图片清晰、完整且为证件/证书照');
+      } else if (msg.includes('识别失败') || msg.includes('OCR_FAILED')) {
+        toast.error('识别失败：图片模糊或格式不支持，请更换图片或手动填写');
+      } else {
+        toast.error(msg || '识别失败，请手动填写');
+      }
     }
     setOcrLoading(false);
     e.target.value = '';
@@ -155,15 +164,18 @@ export default function ExpertEntryPage() {
         </fieldset>
         <hr className="wb-section-rule" />
 
-        {/* ④ 档案信息 */}
-        <fieldset>
-          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={4} />档案信息</legend>
+        {/* ④ 档案信息（选填，默认折叠）*/}
+        <details className="group">
+          <summary className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)] cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <Step n={4} />档案信息（选填）<span className="text-[var(--muted-foreground)]/60 font-normal normal-case tracking-normal">— 民族 / 学历 / 执业资格证号</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto text-[var(--muted-foreground)] transition-transform group-open:rotate-180"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">民族</span><input value={form.ethnicity} onChange={e => set('ethnicity', e.target.value)} list="ethnicity-list" placeholder="如 汉族" className={inputCls('ethnicity')} /><datalist id="ethnicity-list">{ETHNICITIES.map(t => <option key={t} value={t} />)}</datalist></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">学历</span><input value={form.education} onChange={e => set('education', e.target.value)} list="edu-list" placeholder="如 硕士" className={inputCls('education')} /><datalist id="edu-list">{EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span><input value={form.licenseNo} onChange={e => set('licenseNo', e.target.value)} placeholder="执业资格证号" className={inputCls('licenseNo') + ' font-mono'} /></label>
           </div>
-        </fieldset>
+        </details>
         <hr className="wb-section-rule" />
 
         {/* ⑤ 补充信息 */}

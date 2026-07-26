@@ -7,6 +7,8 @@ import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
+import { ReactivateDto } from './dto/reactivate.dto';
+import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('supplier-portal')
@@ -113,6 +115,12 @@ export class SupplierPortalController {
     return this.portalService.convertToRegular(req.user.sub, dto);
   }
 
+  @Post('reactivate')
+  @Public()
+  async reactivate(@Body() dto: ReactivateDto) {
+    return this.portalService.reactivateTemporary(dto);
+  }
+
   // ─── Evaluations ───
 
   @Get('evaluations')
@@ -189,6 +197,9 @@ export class SupplierPortalController {
       technicalFile?: string; businessFile?: string; coverLetter?: string;
       technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
       bidBondAssetId?: string;
+      // P0-1：前端完整/拆分模型字段（服务层 normalizeBidFileAssets 归一到三角色契约）
+      fullBidFileAssetId?: string; coverLetterFileAssetId?: string;
+      splitFiles?: { tech?: any; biz?: any; other?: any };
     },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
@@ -204,6 +215,9 @@ export class SupplierPortalController {
       technicalFile?: string; businessFile?: string; coverLetter?: string;
       technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
       bidBondAssetId?: string;
+      // P0-1：前端完整/拆分模型字段（服务层 normalizeBidFileAssets 归一到三角色契约）
+      fullBidFileAssetId?: string; coverLetterFileAssetId?: string;
+      splitFiles?: { tech?: any; biz?: any; other?: any };
     },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);

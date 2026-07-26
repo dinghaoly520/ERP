@@ -269,7 +269,8 @@ export class CatalogController {
   }
 
   @Get('export')
-  @ApiOperation({ summary: '导出采购目录 Excel' })
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '导出采购目录 Excel（仅内部管理角色；供应商价格已脱敏，但全量目录清单收紧到管理端）' })
   async exportCatalog(
     @Request() req: any,
     @Res() res: Response,

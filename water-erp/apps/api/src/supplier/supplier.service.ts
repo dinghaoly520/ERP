@@ -51,7 +51,7 @@ export class SupplierService {
     const { user, supplier } = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          username: dto.username,
+          username: dto.username.trim(),
           displayName: dto.displayName,
           email: dto.email,
           passwordHash: hashSync(dto.password, 10),
@@ -115,7 +115,9 @@ export class SupplierService {
   // ═══════════════════════════════════════════════════════════
   //  临时供应商邀请码（采购端生成，有效期 30/180/360 天）
   // ═══════════════════════════════════════════════════════════
-  static readonly INVITATION_VALIDITY_DAYS = [30, 180, 360] as const;
+  // X-2：有效期档位可经 INVITATION_VALIDITY_DAYS env 配置（逗号分隔的正整数），默认 30/180/360
+  static readonly INVITATION_VALIDITY_DAYS: readonly number[] = (process.env.INVITATION_VALIDITY_DAYS || '30,180,360')
+    .split(',').map(s => parseInt(s.trim(), 10)).filter((n: number) => Number.isFinite(n) && n > 0);
   // 去除易混字符（O/0/I/1），保证人工抄录与口传无误
   private static readonly CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -150,6 +152,7 @@ export class SupplierService {
         code,
         validityDays: dto.validityDays,
         note: dto.note?.trim() || null,
+        boundCreditCode: dto.boundCreditCode?.trim() || null,
         createdById: creatorId,
         expiresAt,
       },
@@ -185,6 +188,7 @@ export class SupplierService {
     if (!inv) throw new NotFoundException('邀请码不存在');
     if (inv.status === 'USED') throw new BadRequestException({ error: '已使用的邀请码不可作废', code: 'ALREADY_USED' });
     if (inv.status === 'REVOKED') throw new BadRequestException({ error: '邀请码已作废', code: 'ALREADY_REVOKED' });
+    if (inv.status === 'EXPIRED') throw new BadRequestException({ error: '已过期邀请码不可作废', code: 'ALREADY_EXPIRED' });
     return this.prisma.supplierInvitation.update({
       where: { id },
       data: { status: 'REVOKED', revokedAt: new Date(), revokedById: userId },
@@ -217,6 +221,10 @@ export class SupplierService {
     if (inv.status === 'USED') throw new BadRequestException({ error: '邀请码已被使用', code: 'INVITATION_USED' });
     if (inv.status === 'REVOKED') throw new BadRequestException({ error: '邀请码已作废', code: 'INVITATION_REVOKED' });
     if (inv.status === 'EXPIRED' || inv.expiresAt < new Date()) throw new BadRequestException({ error: '邀请码已过期', code: 'INVITATION_EXPIRED' });
+    // R-3：若邀请码绑定了信用代码，校验注册企业必须匹配（防码泄漏被任意企业使用）
+    if (inv.boundCreditCode && inv.boundCreditCode !== dto.creditCode.trim()) {
+      throw new BadRequestException({ error: '该邀请码已绑定其他企业，无法使用', code: 'INVITATION_BOUND_MISMATCH' });
+    }
 
     const normalizedName = dto.name.trim().toLowerCase();
     // 企业名称即登录用户名：同名企业 = 同 username，与 normalizedName 唯一性一致
@@ -258,11 +266,15 @@ export class SupplierService {
         },
         include: { contacts: true },
       });
-      // 标记邀请码已使用（绑定使用者）
-      await tx.supplierInvitation.update({
-        where: { id: inv.id },
+      // P0-7 邀请码消费原子化：并发同码双注册时仅一方能把 status 从 ACTIVE 置 USED，
+      // 另一方 count=0 → 事务回滚（其 user/supplier 创建一并撤销），杜绝孤儿 supplier 与占位冲突。
+      const claimedInv = await tx.supplierInvitation.updateMany({
+        where: { id: inv.id, status: 'ACTIVE' },
         data: { status: 'USED', usedById: supplier.id, usedAt: new Date() },
       });
+      if (claimedInv.count === 0) {
+        throw new BadRequestException({ error: '邀请码已被使用或已失效', code: 'INVITATION_CONFLICT' });
+      }
       return { user, supplier };
     });
 
@@ -490,12 +502,16 @@ export class SupplierService {
       // 不区分「不存在」与「无记录」，避免被用于枚举信用代码是否注册。
       return { found: false as const, name: null, status: null, reason: null };
     }
-    const reason = supplier.rejectReason || supplier.returnReason || null;
+    // P1-28：公开查询仅对 RETURNED 状态返回补正说明（供应商需知如何修改）；REJECTED 等原因可能含
+    // 审核员内部备注，不对未登录公开，避免信息泄露与信用代码枚举爬取。
+    const reason = supplier.status === 'RETURNED' ? (supplier.returnReason || null) : null;
     return { found: true as const, name: supplier.name, status: supplier.status, reason };
   }
 
   private async audit(userId: string, action: string, resourceId: string, details?: any) {
-    await this.prisma.auditLog.create({ data: { userId, action, resourceType: 'supplier', resourceId, details: details ?? {} } }).catch(() => {});
+    // 审计写入失败不应阻断业务流程，但必须可观测——静默吞错会让 DB 故障期的合规审计悄悄丢失。
+    await this.prisma.auditLog.create({ data: { userId, action, resourceType: 'supplier', resourceId, details: details ?? {} } })
+      .catch((err: any) => console.error(`[audit] 写入失败 action=${action} resource=${resourceId}`, err?.message ?? err));
   }
 
   async approve(id: string, userId?: string) {
@@ -507,17 +523,17 @@ export class SupplierService {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
 
-    // 更新供应商状态和用户激活状态
-    await this.prisma.$transaction([
-      this.prisma.supplier.update({
-        where: { id },
+    // 更新供应商状态和用户激活状态（P1-17 乐观锁：并发双审时仅一方能从 PENDING/RETURNED 转出）
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.supplier.updateMany({
+        where: { id, status: { in: ['PENDING', 'RETURNED'] } },
         data: { status: 'APPROVED', returnReason: null, rejectReason: null },
-      }),
-      this.prisma.user.update({
-        where: { id: supplier.userId },
-        data: { isActive: true },
-      }),
-    ]);
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
+      }
+      await tx.user.update({ where: { id: supplier.userId }, data: { isActive: true } });
+    });
 
     // 待办清零：resolve SUPPLIER_PENDING
     await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
@@ -545,10 +561,15 @@ export class SupplierService {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
 
-    const result = await this.prisma.supplier.update({
-      where: { id },
+    // P1-17 乐观锁：并发双审时仅一方能从 PENDING/RETURNED 转为 REJECTED。
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id, status: { in: ['PENDING', 'RETURNED'] } },
       data: { status: 'REJECTED', rejectReason: reason },
     });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    const result = await this.prisma.supplier.findUnique({ where: { id } });
 
     // 待办清零：resolve SUPPLIER_PENDING
     await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
@@ -575,10 +596,15 @@ export class SupplierService {
       throw new BadRequestException({ error: '供应商状态不允许退回', code: 'INVALID_STATUS' });
     }
 
-    const result = await this.prisma.supplier.update({
-      where: { id },
+    // P1-17 乐观锁：return 仅允许 PENDING→RETURNED，并发时仅一方成功。
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id, status: 'PENDING' },
       data: { status: 'RETURNED', returnReason: reason },
     });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    const result = await this.prisma.supplier.findUnique({ where: { id } });
 
     // 待办清零：resolve SUPPLIER_PENDING
     await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`);
@@ -607,27 +633,93 @@ export class SupplierService {
     }
 
     // B6：停用/拉黑原因写入独立字段 disableReason（不再错用 returnReason）。
-    const result = await this.prisma.supplier.update({
-      where: { id },
+    // P0-2：停用/黑名单必须联动账号停用——否则被拉黑的供应商仍可登录、仍能投标（最严重数据一致性洞）。
+    // P1-17：乐观锁，并发时仅一方能从 APPROVED 转出。
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id, status: 'APPROVED' },
       data: { status, disableReason: reason, eliminatedAt: null },
     });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    await this.prisma.user.update({ where: { id: supplier.userId }, data: { isActive: false } });
     if (userId) await this.audit(userId, `SUPPLIER_${status}`, id, { name: supplier.name, reason });
-    return result;
+    return this.prisma.supplier.findUnique({ where: { id } });
   }
 
   /** 恢复/解禁：把 DISABLED/BLACKLIST 的供应商重新置为 APPROVED（解决「停用/黑名单断头、无恢复入口」）。 */
-  async restoreStatus(id: string, userId?: string) {
-    const supplier = await this.prisma.supplier.findUnique({ where: { id }, select: { id: true, name: true, status: true } });
+  async restoreStatus(id: string, userId?: string, reason?: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id }, select: { id: true, name: true, status: true, userId: true } });
     if (!supplier) throw new NotFoundException('供应商不存在');
     if (supplier.status !== 'DISABLED' && supplier.status !== 'BLACKLIST') {
       throw new BadRequestException({ error: '仅停用/黑名单供应商可恢复', code: 'INVALID_STATUS' });
     }
-    const result = await this.prisma.supplier.update({
-      where: { id },
+    // 黑名单解禁属高风险反向操作，必须留痕理由（停用恢复可选）。
+    if (supplier.status === 'BLACKLIST' && !reason?.trim()) {
+      throw new BadRequestException({ error: '黑名单解禁必须填写理由', code: 'MISSING_REASON' });
+    }
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id, status: { in: ['DISABLED', 'BLACKLIST'] } },
       data: { status: 'APPROVED', disableReason: null, eliminatedAt: null },
     });
-    if (userId) await this.audit(userId, 'SUPPLIER_RESTORED', id, { name: supplier.name, from: supplier.status });
-    return result;
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    // P0-2：恢复须同步重新激活账号。
+    await this.prisma.user.update({ where: { id: supplier.userId }, data: { isActive: true } });
+    if (userId) await this.audit(userId, 'SUPPLIER_RESTORED', id, { name: supplier.name, from: supplier.status, reason: reason ?? null });
+    return { success: true };
+  }
+
+  /** P1-16 供应商补正后重新提交（RETURNED → PENDING），打通「退回补正」死胡同。 */
+  async resubmit(supplierId: string, userId: string, note?: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true, status: true, userId: true },
+    });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (supplier.userId !== userId) {
+      throw new ForbiddenException({ error: '只能重新提交自己的申请', code: 'FORBIDDEN' });
+    }
+    if (supplier.status !== 'RETURNED') {
+      throw new BadRequestException({ error: '仅被退回补正的申请可重新提交', code: 'INVALID_STATUS' });
+    }
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id: supplierId, status: 'RETURNED' },
+      data: { status: 'PENDING' },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+      type: 'SUPPLIER_PENDING',
+      title: '供应商重新提交审核',
+      content: `${supplier.name} 已补正资料重新提交${note ? `（说明：${note}）` : ''}，请前往审核。`,
+      link: `/supplier/${supplierId}`,
+    })));
+    await this.audit(userId, 'SUPPLIER_RESUBMITTED', supplierId, { name: supplier.name, note: note ?? null });
+    return { success: true };
+  }
+
+  /** P1-16 管理员复活被拒绝的申请（REJECTED → PENDING），打通「拒绝」死胡同。 */
+  async reactivate(id: string, userId?: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id },
+      select: { id: true, name: true, status: true },
+    });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (supplier.status !== 'REJECTED') {
+      throw new BadRequestException({ error: '仅被拒绝的供应商可重新激活', code: 'INVALID_STATUS' });
+    }
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id, status: 'REJECTED' },
+      data: { status: 'PENDING' },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    if (userId) await this.audit(userId, 'SUPPLIER_REACTIVATED', id, { name: supplier.name });
+    return { success: true };
   }
 
   async listChanges(supplierId: string) {
@@ -657,6 +749,15 @@ export class SupplierService {
     // 字段白名单校验
     if (!isSupplierChangeAllowedField(dto.fieldName)) {
       throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
+    }
+
+    // P1-19：同字段已有 PENDING 变更时拒绝——避免审核列表重复项 + 反复群发通知风暴。
+    const dupPending = await this.prisma.supplierChangeRecord.findFirst({
+      where: { supplierId, fieldName: dto.fieldName, status: 'PENDING' },
+      select: { id: true },
+    });
+    if (dupPending) {
+      throw new BadRequestException({ error: '该字段已有待审核的变更申请，请等待审核结果', code: 'DUPLICATE_PENDING_CHANGE' });
     }
 
     // 获取旧值
@@ -699,6 +800,12 @@ export class SupplierService {
       throw new BadRequestException({ error: '变更记录已处理', code: 'INVALID_STATUS' });
     }
 
+    // ★ 临时供应商转正申请：特殊处理（补全企业资料 + 创建联系人/资质 + 取消 isTemporary），
+    //   不走普通字段变更白名单（convertToRegular 是聚合字段，非 supplier 实体列）
+    if (change.fieldName === 'convertToRegular') {
+      return this.approveConvertToRegular(change, reviewerId);
+    }
+
     // 审批时再次校验白名单（不信任历史数据）
     if (!isSupplierChangeAllowedField(change.fieldName)) {
       throw new BadRequestException({ error: '该字段不允许通过变更申请修改', code: 'FIELD_NOT_ALLOWED' });
@@ -727,15 +834,132 @@ export class SupplierService {
           throw new BadRequestException({ error: '变更后的企业名称与已有供应商重复', code: 'DUPLICATE_NAME' });
         }
         data.normalizedName = normalizedName;
+        // S-2：企业名即登录用户名，同步 user.username（防改名后无法登录）
+        const newName = String(change.newValue).trim();
+        const supRow = await tx.supplier.findUnique({ where: { id: change.supplierId }, select: { userId: true } });
+        if (supRow) {
+          const userDup = await tx.user.findFirst({
+            where: { username: newName, role: 'supplier', NOT: { id: supRow.userId } },
+            select: { id: true },
+          });
+          if (userDup) throw new BadRequestException({ error: '新企业名与已有供应商登录名冲突', code: 'DUPLICATE_USERNAME' });
+          await tx.user.update({ where: { id: supRow.userId }, data: { username: newName } });
+        }
       }
 
       await tx.supplier.update({ where: { id: change.supplierId }, data });
     });
 
+    // P1-20：变更审批（敏感操作）补审计留痕。
+    await this.audit(reviewerId, 'SUPPLIER_CHANGE_APPROVED', change.supplierId, { field: change.fieldName });
+
     // 待办清零：resolve 该供应商的 SUPPLIER_PENDING（变更申请通知，link 与 createChangeRequest 全等）
     await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${change.supplierId}`);
 
     return { success: true };
+  }
+
+  // 临时供应商转正审批通过：补全企业资料 + 创建联系人/资质 + 取消 isTemporary
+  private async approveConvertToRegular(change: any, reviewerId: string) {
+    let payload: any = {};
+    try {
+      payload = JSON.parse(change.newValue || '{}');
+    } catch {
+      throw new BadRequestException({ error: '转正资料解析失败', code: 'INVALID_PAYLOAD' });
+    }
+    const { enterpriseType, legalPerson, registeredAddress, businessScope, creditCode, contacts = [], qualifications = [] } = payload;
+    if (![enterpriseType, legalPerson, registeredAddress, businessScope].every((v: any) => v && String(v).trim())) {
+      throw new BadRequestException({ error: '转正资料不完整，无法通过审批', code: 'INCOMPLETE_DATA' });
+    }
+    if (!creditCode || !/^[0-9A-Z]{18}$/.test(String(creditCode))) {
+      throw new BadRequestException({ error: '统一社会信用代码格式不正确', code: 'INVALID_CREDIT_CODE' });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 条件置位防并发双审
+      const claimed = await tx.supplierChangeRecord.updateMany({
+        where: { id: change.id, status: 'PENDING' },
+        data: { status: 'APPROVED', reviewedBy: reviewerId, reviewedAt: new Date() },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException({ error: '变更记录已被处理，请勿重复审批', code: 'CONFLICT' });
+      }
+
+      // 0) 信用代码变更查重（转正时可修正临时注册时的错填）
+      if (creditCode) {
+        const dup = await tx.supplier.findFirst({
+          where: { creditCode: String(creditCode), NOT: { id: change.supplierId } },
+          select: { id: true },
+        });
+        if (dup) throw new BadRequestException({ error: '该统一社会信用代码已被其他供应商占用', code: 'DUPLICATE_CREDIT_CODE' });
+      }
+
+      // 1) 补全企业资料 + 信用代码 + 取消临时标记
+      await tx.supplier.update({
+        where: { id: change.supplierId },
+        data: {
+          enterpriseType,
+          legalPerson,
+          registeredAddress,
+          businessScope,
+          ...(creditCode ? { creditCode: String(creditCode) } : {}),
+          isTemporary: false,
+          temporaryExpiresAt: null,
+        },
+      });
+
+      // 2) 联系人：若新提交含主要联系人，先清除现有 primary（避免多个主要联系人）
+      if (Array.isArray(contacts) && contacts.length > 0) {
+        if (contacts.some((c: any) => c.isPrimary)) {
+          await tx.supplierContact.updateMany({
+            where: { supplierId: change.supplierId, isPrimary: true },
+            data: { isPrimary: false },
+          });
+        }
+        await tx.supplierContact.createMany({
+          data: contacts.map((c: any) => ({
+            supplierId: change.supplierId,
+            name: String(c.name).trim(),
+            phone: String(c.phone).trim(),
+            email: c.email ? String(c.email).trim() : null,
+            isPrimary: !!c.isPrimary,
+          })),
+        });
+      }
+
+      // 3) 资质材料
+      if (Array.isArray(qualifications) && qualifications.length > 0) {
+        await tx.supplierQualification.createMany({
+          data: qualifications
+            .filter((q: any) => q && q.type && q.name)
+            .map((q: any) => ({
+              supplierId: change.supplierId,
+              type: String(q.type).trim(),
+              name: String(q.name).trim(),
+              fileUrl: q.fileUrl || '',
+              validFrom: q.validFrom ? new Date(q.validFrom) : null,
+              validTo: q.validTo ? new Date(q.validTo) : null,
+            })),
+        });
+      }
+    });
+
+    // resolve 待办 + 站内通知供应商转正成功
+    await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${change.supplierId}`);
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: change.supplierId },
+      select: { userId: true, name: true },
+    });
+    if (supplier) {
+      await this.notificationService.create({
+        userId: supplier.userId,
+        type: 'SUPPLIER_APPROVED',
+        title: '已转为正式供应商',
+        content: `${supplier.name} 的转正申请已审核通过，临时权限限制已解除，可使用全部功能。`,
+      }).catch(() => {});
+    }
+    await this.audit(reviewerId, 'SUPPLIER_CONVERTED_REGULAR', change.supplierId, { name: supplier?.name });
+    return { success: true, converted: true };
   }
 
   async rejectChange(changeId: string, reviewerId: string, reason: string) {
@@ -762,6 +986,9 @@ export class SupplierService {
     if (claimed.count === 0) {
       throw new BadRequestException({ error: '变更记录已被处理，请勿重复审批', code: 'CONFLICT' });
     }
+
+    // P1-20：变更拒绝补审计。
+    await this.audit(reviewerId, 'SUPPLIER_CHANGE_REJECTED', change.supplierId, { field: change.fieldName, reason });
 
     // 待办清零：resolve 该供应商的 SUPPLIER_PENDING（变更申请通知）
     await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/${change.supplierId}`);
@@ -876,6 +1103,15 @@ export class SupplierService {
       throw new BadRequestException({ error: '只能评价已入库供应商', code: 'INVALID_STATUS' });
     }
 
+    // P1-27：同一评价人对同一供应商（+同一项目）已评价过则拒绝，防刷分触发误淘汰。
+    const dupEval = await this.prisma.supplierEvaluation.findFirst({
+      where: { supplierId, evaluatorId, projectId: dto.projectId ?? null },
+      select: { id: true },
+    });
+    if (dupEval) {
+      throw new BadRequestException({ error: '您已对该供应商提交过评价，不可重复评价', code: 'ALREADY_EVALUATED' });
+    }
+
     // 计算总分
     const totalScore = dto.completenessScore + dto.responsivenessScore + dto.cooperationScore + dto.complianceScore + dto.overallScore;
 
@@ -907,6 +1143,9 @@ export class SupplierService {
         evidence: dto.evidence ?? undefined,
       },
     });
+
+    // P1-20：评价影响画像/淘汰，补审计。
+    await this.audit(evaluatorId, 'SUPPLIER_EVALUATION_CREATED', supplierId, { level, score: totalScore, projectId: dto.projectId ?? null });
 
     // 决策 #3：不自动停用。连续低分由 reviewEliminationCandidates()（cron + 人工）产出预警，
     // 实际淘汰须经 admin 调 confirmEliminate() 确认。此处仅返回评价结果。
@@ -995,7 +1234,7 @@ export class SupplierService {
   async confirmEliminate(supplierId: string, reason: string, userId?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, status: true, name: true },
+      select: { id: true, status: true, name: true, userId: true },
     });
     if (!supplier) throw new NotFoundException('供应商不存在');
     // 校验原状态：仅已入库供应商可被淘汰，避免对 PENDING/已停用 误操作。
@@ -1003,10 +1242,15 @@ export class SupplierService {
       throw new BadRequestException({ error: '仅已入库供应商可确认淘汰', code: 'INVALID_STATUS' });
     }
     // B12：淘汰=DISABLED + eliminatedAt 时间戳（区分手动停用：后者 eliminatedAt 为 null）。
-    await this.prisma.supplier.update({
-      where: { id: supplierId },
+    // P1-17 乐观锁 + P0-2 联动账号停用。
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id: supplierId, status: 'APPROVED' },
       data: { status: 'DISABLED', disableReason: reason, eliminatedAt: new Date() },
     });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    await this.prisma.user.update({ where: { id: supplier.userId }, data: { isActive: false } });
     if (userId) await this.audit(userId, 'SUPPLIER_ELIMINATED', supplierId, { name: supplier.name, reason });
     return { success: true };
   }
@@ -1155,7 +1399,14 @@ export class SupplierService {
     return { total, pending, approved, disabled, blacklist, returned };
   }
 
+  /** 公开大屏：仅返回非敏感计数（总数/已入库/待审核）。评价等级分布、分类计数、绩效趋势等
+   *  经营敏感数据须鉴权访问（见 getBigscreenDetail），杜绝未登录爬取竞争性情报。 */
   async getBigscreenStats() {
+    const stats = await this.getStats();
+    return { total: stats.total, approved: stats.approved, pending: stats.pending };
+  }
+
+  async getBigscreenDetail() {
     const [stats, evals, classifications] = await Promise.all([
       this.getStats(),
       this.prisma.supplierEvaluation.findMany({
@@ -1290,20 +1541,16 @@ export class SupplierService {
       }
     }
 
-    // 事务：先删后插
-    await this.prisma.$transaction([
-      this.prisma.supplierClassificationLink.deleteMany({ where: { supplierId } }),
-      ...uniqueIds.map(cid =>
-        this.prisma.supplierClassificationLink.create({
-          data: { supplierId, classificationId: cid },
-        }),
-      ),
-    ]);
-
-    // 同步更新旧 classificationId 字段为第一个分类（向后兼容）
-    await this.prisma.supplier.update({
-      where: { id: supplierId },
-      data: { classificationId: uniqueIds[0] || null },
+    // 事务：先删后插 + 同步旧 classificationId 字段（P1：全部并入同一事务，避免半同步态）。
+    await this.prisma.$transaction(async (tx) => {
+      await tx.supplierClassificationLink.deleteMany({ where: { supplierId } });
+      await Promise.all(uniqueIds.map(cid =>
+        tx.supplierClassificationLink.create({ data: { supplierId, classificationId: cid } }),
+      ));
+      await tx.supplier.update({
+        where: { id: supplierId },
+        data: { classificationId: uniqueIds[0] || null },
+      });
     });
 
     return this.getSupplierClassifications(supplierId);

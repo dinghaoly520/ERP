@@ -288,11 +288,6 @@ export function abortBidProject(bidProjectId: string) {
   return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/abort`, {});
 }
 
-/** 确认开标结果：OPENING → EVALUATING（启动评标） */
-export function startEvaluation(bidProjectId: string) {
-  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/start-evaluation`, {});
-}
-
 /** 延时开标：修改 openTime / deadline */
 export function updateBidProjectSchedule(
   bidProjectId: string,

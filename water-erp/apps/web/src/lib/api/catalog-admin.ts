@@ -183,7 +183,7 @@ export function setItemAttributes(itemId: string, attributes: { templateId: numb
 
 // ── 价格预警 ──
 
-export interface AlertRule { id: number; name: string; alertType: string; threshold: number; enabled: boolean; category?: { id: number; name: string } | null; }
+export interface AlertRule { id: number; name: string; alertType: string; threshold: number; enabled: boolean; category?: { id: number; name: string } | null; notifyRoles?: string[] | null; }
 export interface AlertRecord { id: number; message: string; alertType: string; triggerValue: number; isRead: boolean; isResolved: boolean; createdAt: string; catalogItem?: { code: string; name: string } | null; rule?: { name: string } | null; }
 
 export function listAlertRules() { return request<AlertRule[]>('/api/catalog/admin/alert-rules'); }
@@ -272,7 +272,7 @@ export function reviewCatalogApplication(id: string, body: {
   action: 'approve' | 'reject' | 'return' | 'counter';
   reason?: string; counterPrice?: number; counterNote?: string;
   referencePrice?: number; priceMin?: number; priceMax?: number;
-  validUntil?: string; code?: string;
+  validUntil?: string; code?: string; categoryId?: number;
 }) {
   return request<CatalogApplication>(`/api/catalog/applications/${id}/review`, { method: 'POST', body: JSON.stringify(body) });
 }

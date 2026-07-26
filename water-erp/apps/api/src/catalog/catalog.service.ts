@@ -6,6 +6,7 @@ import { Workbook } from 'exceljs';
 import { LlmService } from '../local-ai/llm.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmOutputValidator } from '../local-ai/llm-output-validator';
+import { NotificationService } from '../notification/notification.service';
 
 /** AI 分类/属性确定性种子（同输入复现同结果，便于前端调试与回归）。 */
 const AI_SEED = 42;
@@ -106,6 +107,7 @@ export class CatalogService {
     private readonly llm: LlmService,
     private readonly embedding: EmbeddingService,
     private readonly validator: LlmOutputValidator,
+    private readonly notification: NotificationService,
   ) {}
 
   async list(params: {
@@ -711,6 +713,7 @@ export class CatalogService {
       priceMax?: string | number;
       validUntil?: string;
       code?: string;                        // NEW_ITEM 新目录编码（可选，缺省自动生成）
+      categoryId?: string | number;         // NEW_ITEM 挂载到真实品类树节点（可选）
       reviewerNote?: string;
     },
   ) {
@@ -799,6 +802,7 @@ export class CatalogService {
             specification: app.proposedSpec || '',
             category: app.proposedCategory!,
             group: app.proposedGroup!,
+            categoryId: body.categoryId != null ? Number(body.categoryId) : null,
             unit: app.proposedUnit!,
             referencePrice: ref,
             priceMin: body.priceMin != null ? Number(body.priceMin) : ref,
@@ -982,10 +986,30 @@ export class CatalogService {
     for (const c of candidates) {
       const exists = await this.prisma.priceAlert.findFirst({ where: { ruleId: c.ruleId, catalogItemId: c.catalogItemId, isResolved: false } });
       if (exists) continue;
-      await this.prisma.priceAlert.create({ data: c });
+      const saved = await this.prisma.priceAlert.create({ data: c });
       created += 1;
+      // 按 rule.notifyRoles 发站内信（未配置时默认 admin+leader），让预警不沦为摆设
+      const rule = rules.find(r => r.id === c.ruleId);
+      const roles = rule?.notifyRoles?.length ? rule.notifyRoles : ['admin', 'leader'];
+      await this.notifyAlertRoles(roles, saved.message);
     }
     return { scanned: items.length, created };
+  }
+
+  /** 按角色向活跃用户发预警站内信；通知失败不阻塞预警生成（预警记录已落库） */
+  private async notifyAlertRoles(roles: string[], message: string) {
+    try {
+      const users = await this.prisma.user.findMany({ where: { role: { in: roles }, isActive: true }, select: { id: true } });
+      for (const u of users) {
+        await this.notification.create({
+          userId: u.id,
+          type: 'CATALOG_PRICE_ALERT',
+          title: '目录价格预警',
+          content: message,
+          link: '/mall-management/catalog?tab=alerts',
+        });
+      }
+    } catch { /* 通知失败不阻塞 */ }
   }
 
   // ── 目录版本 ──
@@ -1001,7 +1025,15 @@ export class CatalogService {
 
   async getVersion(id: number) { const v = await this.prisma.catalogVersion.findUnique({ where: { id }, include: { user: { select: { username: true, displayName: true } } } }); if (!v) throw new BadRequestException({ error: '版本不存在', code: 'NOT_FOUND' }); return v; }
 
-  async changeVersionStatus(id: number, status: string) { return this.prisma.catalogVersion.update({ where: { id }, data: { status } }); }
+  async changeVersionStatus(id: number, status: string) {
+    // 同一时刻只允许一个 ACTIVE：生效前先把其他 ACTIVE 转 ARCHIVED（事务原子，避免双生效/回滚残留）
+    return this.prisma.$transaction(async (tx) => {
+      if (status === 'ACTIVE') {
+        await tx.catalogVersion.updateMany({ where: { status: 'ACTIVE', NOT: { id } }, data: { status: 'ARCHIVED' } });
+      }
+      return tx.catalogVersion.update({ where: { id }, data: { status } });
+    });
+  }
 
   async compareVersions(idA: number, idB: number) {
     const [a, b] = await Promise.all([this.getVersion(idA), this.getVersion(idB)]);

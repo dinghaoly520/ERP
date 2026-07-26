@@ -60,8 +60,8 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       await authApi.register(data)
-      // After register, auto-login
-      await login(data.username, data.password)
+      // 注册后账号需采购侧审核（isActive:false），不自动登录——否则 401 ACCOUNT_PENDING 会被路由守卫弹回 /login，
+      // 造成「注册成功→登录中→跳回登录页」的断裂体验。由调用方跳转状态页等待审核。
       return true
     } catch {
       return false

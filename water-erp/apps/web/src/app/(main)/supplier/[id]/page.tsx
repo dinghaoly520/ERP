@@ -693,9 +693,14 @@ export default function SupplierDetailPage() {
                     <tbody>
                       {changes.map(c => (
                         <tr key={c.id}>
-                          <td className="font-semibold text-[var(--foreground)]">{c.fieldLabel}</td>
+                          <td className="font-semibold text-[var(--foreground)]">
+                            {c.fieldLabel}
+                            {c.fieldName === 'convertToRegular' && (
+                              <span className="ml-1 inline-flex items-center rounded-full bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--accent)]">转正</span>
+                            )}
+                          </td>
                           <td className="text-[var(--muted-foreground)] max-w-[150px] truncate">{c.oldValue || '—'}</td>
-                          <td className="text-[var(--accent)] font-medium max-w-[150px] truncate">{c.newValue || '—'}</td>
+                          <td className="text-[var(--accent)] font-medium max-w-[150px] truncate">{c.fieldName === 'convertToRegular' ? '企业资料+联系人+资质' : (c.newValue || '—')}</td>
                           <td className="text-[var(--muted-foreground)] max-w-[150px] truncate">{c.reason || '—'}</td>
                           <td><StatusBadge tone={CHANGE_TONE[c.status] || 'gray'}>{c.status === 'PENDING' ? '待审批' : c.status === 'APPROVED' ? '已通过' : '已拒绝'}</StatusBadge></td>
                           <td className="text-[var(--muted-foreground)]">{new Date(c.createdAt).toLocaleDateString('zh-CN')}</td>

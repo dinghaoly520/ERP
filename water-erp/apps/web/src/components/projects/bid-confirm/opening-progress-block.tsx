@@ -6,7 +6,7 @@
  * 数据来自父组件传入的 BidProjectDetail，实时性由父组件的 socket 刷新驱动。
  */
 
-import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle } from 'lucide-react';
+import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle, CheckCircle2, Ban } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import type { BidProjectDetail } from '@/lib/api/bid';
 
@@ -14,6 +14,10 @@ type Props = {
   bidProjectId: string;
   detail: BidProjectDetail | null;
   onChanged: () => void;
+  /** 开标完成后：确认开标结果（→ startEvaluation 进入评标） */
+  onConfirmOpening?: () => void;
+  /** 开标完成后：流标（→ 打开流标公告制作） */
+  onAbort?: () => void;
 };
 
 function formatDateTime(iso: string | null): string {
@@ -56,7 +60,7 @@ function ProgressStat({
   );
 }
 
-export function OpeningProgressBlock({ bidProjectId, detail }: Props) {
+export function OpeningProgressBlock({ bidProjectId, detail, onConfirmOpening, onAbort }: Props) {
   if (!detail) return null;
   const { stage, openingSession, suppliers, openingRecords } = detail;
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
@@ -141,9 +145,19 @@ export function OpeningProgressBlock({ bidProjectId, detail }: Props) {
           </div>
 
           {openingDone && stage === 'OPENING' && (
-            <div className="flex items-center gap-2 rounded-[14px] px-4 py-3 text-xs font-semibold" style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)', color: 'var(--success)' }}>
-              <UserCheck size={14} />
-              开标已完成——全部解密、唱标与供应商确认均已完成，可回本面板启动评标或开标归档。
+            <div className="flex flex-wrap items-center gap-2 rounded-[14px] px-4 py-3" style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}>
+              <UserCheck size={14} className="text-[var(--success)]" />
+              <span className="text-xs font-semibold text-[var(--success)] mr-auto">开标已完成——请确认开标结果进入评标，或流标。</span>
+              {onAbort && (
+                <button type="button" onClick={onAbort} className="neu-btn-soft is-danger !h-[32px] !text-xs">
+                  <Ban size={13} /> 流标
+                </button>
+              )}
+              {onConfirmOpening && (
+                <button type="button" onClick={onConfirmOpening} className="neu-btn-primary !h-[32px] !text-xs">
+                  <CheckCircle2 size={13} /> 确认开标结果
+                </button>
+              )}
             </div>
           )}
         </div>

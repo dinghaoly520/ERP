@@ -88,7 +88,7 @@ export default function ExpertRepositoryPage() {
     if (selectedIds.size === 0) return; setBatchSaving(true);
     try {
       await batchOperation({ action: batchAction, ids: [...selectedIds], reason: batchAction === 'disable' && batchReason ? batchReason : undefined });
-      toast.success(`${batchAction === 'enable' ? '启用' : '停用'} ${selectedIds.size} 位专家`);
+      toast.success(`${batchAction === 'enable' ? '启用' : '停用'} ${selectedIds.size} 位专家${batchAction === 'disable' && batchReason.trim() ? `（原因：${batchReason.trim()}）` : ''}，已记录至操作日志`);
       setConfirmBatch(false); setSelectedIds(new Set()); setBatchMode(false); setBatchReason(''); load();
     } catch (e: any) { toast.error(e?.message || '批量操作失败'); }
     setBatchSaving(false);
@@ -348,7 +348,7 @@ export default function ExpertRepositoryPage() {
               </div>
               <div className="min-w-0">
                 <h3 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">确认{confirmToggle.isActive ? '停用' : '启用'}专家 {confirmToggle.displayName}？</h3>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">{confirmToggle.isActive ? '停用后该专家将无法参与新的评审抽取' : '启用后该专家可重新参与评审抽取'}</p>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">{confirmToggle.isActive ? '停用后该专家将无法参与新的评审抽取' : '启用后该专家可重新参与评审抽取，并清除退库标记'}</p>
               </div>
             </div>
             <hr className="wb-section-rule my-4" />

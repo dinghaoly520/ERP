@@ -92,7 +92,7 @@ export default function SupplierRepositoryPage() {
   // ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）──
   const [invitations, setInvitations] = useState<SupplierInvitation[]>([]);
   const [invLoading, setInvLoading] = useState(false);
-  const [invForm, setInvForm] = useState({ validityDays: 180, note: '' });
+  const [invForm, setInvForm] = useState({ validityDays: 180, note: '', boundCreditCode: '' });
   const [invCreating, setInvCreating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [invModalOpen, setInvModalOpen] = useState(false);
@@ -112,9 +112,9 @@ export default function SupplierRepositoryPage() {
   const handleCreateInvitation = async () => {
     setInvCreating(true);
     try {
-      await createInvitation({ validityDays: invForm.validityDays, note: invForm.note.trim() || undefined });
+      await createInvitation({ validityDays: invForm.validityDays, note: invForm.note.trim() || undefined, boundCreditCode: invForm.boundCreditCode.trim() || undefined });
       toast.success('邀请码已生成');
-      setInvForm(f => ({ validityDays: f.validityDays, note: '' }));
+      setInvForm(f => ({ validityDays: f.validityDays, note: '', boundCreditCode: '' }));
       await loadInvitations();
     } catch (e: any) { toast.error(e?.message || '生成失败'); }
     finally { setInvCreating(false); }
@@ -257,6 +257,10 @@ export default function SupplierRepositoryPage() {
             <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">备注（选填）</span>
             <input className="workbench-input" placeholder="如：XX 项目临时供应商" value={invForm.note} onChange={e => setInvForm(f => ({ ...f, note: e.target.value }))} maxLength={200} />
           </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">绑定信用代码（选填）</span>
+            <input className="workbench-input" placeholder="指定企业可用，留空则任意企业" value={invForm.boundCreditCode} onChange={e => setInvForm(f => ({ ...f, boundCreditCode: e.target.value.toUpperCase() }))} maxLength={18} />
+          </div>
           <button onClick={handleCreateInvitation} disabled={invCreating} className="neu-btn-primary !h-[40px]">
             <Plus size={14} />{invCreating ? '生成中…' : '生成邀请码'}
           </button>
@@ -279,7 +283,7 @@ export default function SupplierRepositoryPage() {
                 <tr key={inv.id}>
                   <td>
                     <button onClick={() => copyCode(inv.code)} title="点击复制" className="font-mono font-bold tracking-wider text-[var(--accent)] inline-flex items-center gap-1.5">
-                      {inv.code}
+                      {inv.code.slice(0, 4)}-{inv.code.slice(4)}
                       {copiedCode === inv.code ? <Check size={12} className="text-[var(--success)]" /> : <Copy size={12} className="opacity-50" />}
                     </button>
                   </td>

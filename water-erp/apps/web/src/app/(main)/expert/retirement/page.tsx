@@ -127,7 +127,7 @@ export default function RetirementPage() {
               <div className="neu-icon-well flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"><UserX size={18} className="text-[var(--danger)]" /></div>
               <div className="min-w-0">
                 <h3 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">确认退库</h3>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">退库后该专家将移出评审专家库，此操作不可撤销</p>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">停用后该专家将不再参与新的评审抽取，退库状态保留；如需恢复可重新启用</p>
               </div>
             </div>
             <hr className="wb-section-rule my-4" />

@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { SupplierService } from './supplier.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { ProcurementGuard } from './procurement.guard';
@@ -93,6 +94,7 @@ export class SupplierController {
   // 仅回传 name/status/rejectReason，不泄漏敏感字段；按信用代码精确匹配，不可枚举。
   @Get('register/status/public')
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // P1-28：防信用代码枚举爬取
   @ApiOperation({ summary: '凭信用代码公开查询注册审核进度' })
   async getRegisterStatusPublic(@Query('creditCode') creditCode?: string) {
     const code = (creditCode ?? '').trim();
@@ -144,9 +146,17 @@ export class SupplierController {
 
   @Public()
   @Get('bigscreen')
-  @ApiOperation({ summary: '大屏供应商统计（公开）' })
+  @ApiOperation({ summary: '大屏供应商统计（公开，仅计数；详细须鉴权）' })
   async getBigscreenStats() {
     return this.supplierService.getBigscreenStats();
+  }
+
+  @Get('bigscreen/detail')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff') // P0-15：评价分布/分类计数/绩效趋势属经营敏感数据，须鉴权
+  @ApiOperation({ summary: '大屏供应商统计（详细，需采购侧鉴权）' })
+  async getBigscreenDetail() {
+    return this.supplierService.getBigscreenDetail();
   }
 
   @Get('evaluations/stats')
@@ -302,6 +312,7 @@ export class SupplierController {
   }
 
   @Patch(':id/status')
+  @UseGuards(ProcurementGuard) // P1：与 restore 对齐，统一由 ProcurementGuard 收口角色
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '更新供应商状态（停用/黑名单）' })
   async updateStatus(
@@ -319,20 +330,37 @@ export class SupplierController {
 
   @Post(':id/restore')
   @UseGuards(ProcurementGuard)
-  @ApiOperation({ summary: '恢复/解禁供应商（停用或黑名单 → 已入库）' })
-  async restoreStatus(@Param('id') id: string, @Request() req: any) {
-    return this.supplierService.restoreStatus(id, req.user?.sub);
+  @ApiOperation({ summary: '恢复/解禁供应商（停用或黑名单 → 已入库；黑名单解禁须填理由）' })
+  async restoreStatus(@Param('id') id: string, @Body() body: { reason?: string }, @Request() req: any) {
+    return this.supplierService.restoreStatus(id, req.user?.sub, body?.reason);
+  }
+
+  @Post(':id/reactivate')
+  @UseGuards(ProcurementGuard)
+  @ApiOperation({ summary: '复活被拒绝的供应商（REJECTED → PENDING）' })
+  async reactivate(@Param('id') id: string, @Request() req: any) {
+    return this.supplierService.reactivate(id, req.user?.sub);
+  }
+
+  @Post(':id/resubmit')
+  @UseGuards(AuthGuard)
+  @Roles('supplier') // P1-16：供应商补正后重新提交（RETURNED → PENDING）；归属校验在 service 内
+  @ApiOperation({ summary: '供应商补正后重新提交（RETURNED → PENDING）' })
+  async resubmit(@Param('id') id: string, @Body() body: { note?: string }, @Request() req: any) {
+    return this.supplierService.resubmit(id, req.user.sub, body?.note);
   }
 
   @Get(':id/changes')
-  @UseGuards(OwnerGuard)
+  @UseGuards(AuthGuard, OwnerGuard)
+  @Roles('admin', 'leader', 'staff', 'supplier') // P0-3：杜绝 bid_expert/mall 越权读他企变更（含 oldValue/newValue PII）
   @ApiOperation({ summary: '变更记录列表' })
   async listChanges(@Param('id') id: string) {
     return this.supplierService.listChanges(id);
   }
 
   @Post(':id/changes')
-  @UseGuards(OwnerGuard)
+  @UseGuards(AuthGuard, OwnerGuard)
+  @Roles('admin', 'leader', 'staff', 'supplier')
   @ApiOperation({ summary: '提交变更申请' })
   async createChangeRequest(@Param('id') id: string, @Body() dto: CreateChangeRequestDto, @Request() req: any) {
     return this.supplierService.createChangeRequest(id, req.user.sub, dto);
@@ -353,7 +381,8 @@ export class SupplierController {
   }
 
   @Get(':id/qualifications')
-  @UseGuards(OwnerGuard)
+  @UseGuards(AuthGuard, OwnerGuard)
+  @Roles('admin', 'leader', 'staff', 'supplier') // P0-3：资质记录含 fileUrl（身份证/营业执照），杜绝跨角色读取
   @ApiOperation({ summary: '资质材料列表' })
   async listQualifications(@Param('id') id: string) {
     return this.supplierService.listQualifications(id);

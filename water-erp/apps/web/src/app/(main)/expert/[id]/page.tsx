@@ -42,8 +42,8 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'notify', label: '通知偏好', icon: Bell },
 ];
 
-type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; employer: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; notes: string };
-const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes'>; label: string; placeholder: string }[] = [
+type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; employer: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; availability: '可用' | '占用' | '停用'; notes: string };
+const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes' | 'availability'>; label: string; placeholder: string }[] = [
   { key: 'displayName', label: '姓名', placeholder: '专家姓名' },
   { key: 'email', label: '邮箱', placeholder: '用于登录与通知触达' },
   { key: 'specialty', label: '专业', placeholder: '如 水利水电工程' },
@@ -87,7 +87,7 @@ export default function ExpertDetailPage() {
   const [vioSaving, setVioSaving] = useState(false);
   // 编辑资料弹窗
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', notes: '' });
+  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '' });
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
@@ -183,6 +183,7 @@ export default function ExpertDetailPage() {
       ethnicity: p?.ethnicity || '',
       education: p?.education || '',
       licenseNo: p?.licenseNo || '',
+      availability: (p?.availability as '可用' | '占用' | '停用') || '可用',
       notes: p?.notes || '',
     });
     setShowEditModal(true);
@@ -544,7 +545,7 @@ export default function ExpertDetailPage() {
             {[
               ['评分记录', aiAdoption?.overall?.total ?? 0, '参与评分项数'],
               ['AI采纳', aiAdoption?.overall?.accepted ?? 0, '与AI建议一致'],
-              ['采纳率', `${aiAdoption?.overall?.adoptionRate ?? 0}%`, '越高说明评分越客观'],
+              ['采纳率', `${aiAdoption?.overall?.adoptionRate ?? 0}%`, '与 AI 建议一致比例'],
               ['平均偏离', aiAdoption?.overall?.total > 0 ? '±' + Math.round(aiAdoption?.byExpert?.find((e: any) => e.expertId === expertId)?.avgAbsDelta || 0) : '—', '偏离度绝对值'],
             ].map(([label, value, sub]) => (
               <div key={label} className="kpi-card flex flex-col gap-1 p-3">
@@ -560,8 +561,8 @@ export default function ExpertDetailPage() {
             <div className="neu-table-card p-4">
               <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">说明</span>
               <p className="text-xs text-[var(--muted-foreground)] mt-2 leading-relaxed">
-                AI 采纳率反映专家评分与 AI 建议分的一致性。每项评分若与 AI 建议偏差在 ±10% 以内则视为"采纳"。
-                采纳率越高说明专家评分越接近 AI 客观基准；偏离度越低说明专家主观偏差越小。
+                AI 采纳率反映专家评分与 AI 建议分的一致程度（偏差 ±10% 内视为一致），仅作参考指标。
+                专家独立评分是评审制度的基本要求，采纳率高低本身不构成好坏判定——偏离 AI 既可能是专业判断的差异，也可能是 AI 建议失准。请结合具体评审场景综合研判。
               </p>
             </div>
           )}
@@ -678,6 +679,14 @@ export default function ExpertDetailPage() {
                   <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
                 </label>
               ))}
+              <label className="space-y-1 block">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">可用状态</span>
+                <select value={editForm.availability} onChange={e => setEditForm(prev => ({ ...prev, availability: e.target.value as '可用' | '占用' | '停用' }))} className="workbench-input">
+                  <option value="可用">可用</option>
+                  <option value="占用">占用</option>
+                  <option value="停用">停用</option>
+                </select>
+              </label>
               <label className="space-y-1 block sm:col-span-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注</span>
                 <textarea value={editForm.notes} onChange={e => setEditForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="履职备注、回避事项等（可选）" className="neu-input text-sm w-full" rows={3} />

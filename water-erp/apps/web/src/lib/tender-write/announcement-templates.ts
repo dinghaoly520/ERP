@@ -99,7 +99,7 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
   },
   {
     key: "announcementEnd",
-    label: "公示期限（止）",
+    label: "公告截止时间",
     placeholder: "选择日期",
     type: "date",
   },
@@ -195,7 +195,7 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   },
   {
     key: "announcementEnd",
-    label: "公示期限（止）",
+    label: "公告截止时间",
     placeholder: "选择日期",
     type: "date",
   },

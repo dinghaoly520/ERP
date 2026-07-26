@@ -2,6 +2,7 @@
 
 import { Archive, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
   analyzeProjectManagementItem,
@@ -30,11 +31,9 @@ import {
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
-import { ExpertExtractModal } from './expert-extract-modal';
 import { SupplierExtractModal } from './supplier-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
-import { ScoreStandardPanel } from './score-standard/score-standard-panel';
 import { AwardFileMaker } from './award-file-maker';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
@@ -295,11 +294,10 @@ export function ProjectDetailPanel({
   canModify?: boolean;
   currentUsername?: string;
 }) {
+  const router = useRouter();
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
   const [selectedRound, setSelectedRound] = useState(item.currentRound ?? 1);
   const [bidConfirmRound, setBidConfirmRound] = useState(1);
-  const [scoreStandardOpen, setScoreStandardOpen] = useState(false);
-  const [scoreStandardRound, setScoreStandardRound] = useState(1);
 
   // 本地 item 镜像 —— 上传后立即注入附件，不等父组件 onUpdated 回流
   const [localItem, setLocalItem] = useState(item);
@@ -389,9 +387,9 @@ export function ProjectDetailPanel({
   const [summaryRefreshing, setSummaryRefreshing] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [tenderWriteStageAction, setTenderWriteStageAction] = useState<string | null>(null);
-  const [expertExtractOpen, setExpertExtractOpen] = useState(false);
   const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
+  const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid'>('procurement_document');
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
   const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
@@ -891,7 +889,7 @@ export function ProjectDetailPanel({
                 if (stageKey === 'TENDER_DOCUMENT') {
                   setTenderWriteStageAction(stageKey);
                 } else if (stageKey === 'EXPERT_SELECTION') {
-                  setExpertExtractOpen(true);
+                  router.push(`/expert/extract?projectId=${item.id}`);
                 } else if (stageKey === 'SUPPLIER_INVITATION') {
                   setSupplierExtractOpen(true);
                 } else if (stageKey === 'PUBLIC_ANNOUNCEMENT') {
@@ -907,10 +905,6 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               tenderDocxAttachments={tenderDocxFiles}
               onEditTenderFile={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: 'TENDER_DOCUMENT' })}
-              onScoreStandard={() => {
-                setScoreStandardRound(selectedRound);
-                setScoreStandardOpen(true);
-              }}
             />
 
             {showArchiveStep ? (
@@ -1634,13 +1628,6 @@ export function ProjectDetailPanel({
         />
       )}
 
-      {/* 专家抽取弹窗 */}
-      <ExpertExtractModal
-        isOpen={expertExtractOpen}
-        onClose={() => setExpertExtractOpen(false)}
-        project={item}
-      />
-
       {/* 供应商邀请弹窗 */}
       <SupplierExtractModal
         isOpen={supplierExtractOpen}
@@ -1651,9 +1638,10 @@ export function ProjectDetailPanel({
       {/* 公告制作与发布弹窗（两步向导）*/}
       <AnnouncementPublishWizard
         isOpen={announcementPublishOpen}
-        onClose={() => setAnnouncementPublishOpen(false)}
+        onClose={() => { setAnnouncementPublishOpen(false); setAnnouncementCategory('procurement_document'); }}
         project={item}
         onPublished={onUpdated}
+        initialCategory={announcementCategory}
         onStageAttachmentUploaded={(result) => handleStageAttachmentChanged('PUBLIC_ANNOUNCEMENT', result)}
       />
 
@@ -1663,24 +1651,20 @@ export function ProjectDetailPanel({
         onClose={() => setBidConfirmOpen(false)}
         project={item}
         round={bidConfirmRound}
+        onAbort={() => {
+          setBidConfirmOpen(false);
+          setAnnouncementCategory('failed_bid');
+          setAnnouncementPublishOpen(true);
+        }}
       />
 
       {/* 评分标准编制面板（2026-07-24 从开评标管理端 :3007 前置到采购文件阶段）*/}
-      <ScoreStandardPanel
-        isOpen={scoreStandardOpen}
-        onClose={() => setScoreStandardOpen(false)}
-        project={item}
-        round={scoreStandardRound}
-      />
-
-      {/* 定标 · 文件制作（中标公告 / 中标通知书 / 流标公告）*/}
+      {/* 定标 · 文件制作（中标公告 / 中标通知书）—— 流标公告已移至开标确认面板 */}
       <AwardFileMaker
         isOpen={awardFileMakerOpen}
         onClose={() => setAwardFileMakerOpen(false)}
         project={item}
         onPublished={onUpdated}
-        onReproc={async () => { await reprocProject(item.id); await onUpdated(); }}
-        onArchive={handleAwardArchive}
       />
     </>
   );

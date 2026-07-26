@@ -17,6 +17,7 @@ import {
   RecordViolationDto,
   NotifyPrefsDto,
   OcrIntakeDto,
+  AiSuggestEvaluationDto,
 } from './dto/expert-admin-misc.dto';
 
 @ApiTags('专家管理')
@@ -252,6 +253,12 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '资质 OCR 自动录入（识别证件图片 → 结构化字段回填）' })
   ocrIntake(@Body() dto: OcrIntakeDto) {
     return this.expertAdminService.ocrIntake(dto.imageBase64, dto.mimeType, dto.filename);
+  }
+
+  @Post('evaluations/ai-suggest')
+  @ApiOperation({ summary: 'AI 辅助评价建议（LLM 综合历史评价/偏离度/违规/负荷给出建议分数）' })
+  aiSuggestEvaluation(@Body() dto: AiSuggestEvaluationDto) {
+    return this.expertAdminService.aiSuggestEvaluation(dto.expertUserId);
   }
 
   @Post('evaluations')

@@ -701,7 +701,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   </div>
                   <div>
                     <div className="mb-1 flex items-center justify-between">
-                      <span className="text-xs text-[var(--muted-foreground)]">标书投递截止时间</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">投标截止时间</span>
                       <div className="flex gap-1">
                         {[5, 10].map((n) => (
                           <button key={n} type="button" onClick={() => setBidSubmissionDeadline(deadlineAfterDays(n))} className={`neu-btn-xs !h-[24px] !px-2 !text-[11px] ${bidSubmissionDeadline === deadlineAfterDays(n) ? 'is-info' : ''}`}>{n}天</button>

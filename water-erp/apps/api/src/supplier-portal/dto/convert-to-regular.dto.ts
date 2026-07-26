@@ -45,6 +45,9 @@ export class ConvertToRegularDto {
   @IsString() @IsNotEmpty()
   businessScope: string;
 
+  @IsString() @IsNotEmpty()
+  creditCode: string; // 统一社会信用代码（转正时可修正临时注册时的错填）
+
   @IsArray() @ValidateNested({ each: true }) @Type(() => ConvertContactDto)
   contacts: ConvertContactDto[];
 

@@ -57,11 +57,11 @@ export function ProjectCard({
           </span>
         </div>
         <div className="flex gap-2">
-          {item.stages.map((stage) => {
+          {item.stages.map((stage, idx) => {
             const status = stage.status;
             return (
               <div
-                key={stage.stageKey}
+                key={`${stage.stageKey}-${stage.round ?? 1}-${idx}`}
                 className={[
                   'h-2 rounded-full transition-all duration-300 min-w-0 flex-1',
                   status === 'COMPLETED'

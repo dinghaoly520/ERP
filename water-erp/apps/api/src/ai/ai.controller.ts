@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -6,11 +6,13 @@ import { AiService } from './ai.service';
 import { SupplierEvaluationAnalysisService } from './supplier-evaluation-analysis.service';
 import { SupplierPortraitAnalysisService } from './supplier-portrait-analysis.service';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('AI辅助评标')
 @ApiCookieAuth('token')
 @Controller('ai')
-
+// P0-13：所有 AI 路由默认限流 20/min/用户，防脚本刷爆 DeepSeek 账单；重路由再单独收紧到 10/min。
+@Throttle({ default: { limit: 20, ttl: 60_000 } })
 export class AiController {
   constructor(
     private aiService: AiService,
@@ -50,6 +52,7 @@ export class AiController {
   }
 
   @Post('supplier-selection')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
   @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
   async recommendSuppliers(
@@ -90,6 +93,7 @@ export class AiController {
   getAiCalibration() { return this.aiService.getAiCalibration(); }
 
   @Post('dashboard-analysis')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入）' })
   @Roles('admin', 'bid_host', 'leader', 'staff')
   async dashboardAnalysis(@Body() payload: any) {
@@ -118,6 +122,7 @@ export class AiController {
   }
 
   @Post('generate-notification')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI生成供应商通知文案' })
   @Roles('admin', 'bid_expert', 'leader', 'staff')
   async generateNotificationContent(
@@ -132,11 +137,14 @@ export class AiController {
   }
 
   @Post('polish-requirement')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI润色采购需求描述' })
   @Roles('admin', 'bid_expert', 'leader', 'staff')
   async polishRequirement(@Body() payload: { text: string; projectName?: string; procurementMethod?: string; deadline?: string; additionalContext?: string }) {
     if (!payload.text?.trim()) throw new BadRequestException('请提供需求文本');
-    return this.aiService.polishRequirement(payload.text.trim(), {
+    // P1-24：截断超长文本，防 prompt 撑爆模型上下文与成本失控。
+    const text = payload.text.trim().slice(0, 4000);
+    return this.aiService.polishRequirement(text, {
       projectName: payload.projectName,
       procurementMethod: payload.procurementMethod,
       deadline: payload.deadline,
@@ -168,6 +176,7 @@ export class AiController {
   }
 
   @Post('supplier-evaluation-analysis')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI供应商评价维度分析' })
   @Roles('admin', 'bid_expert', 'leader', 'staff')
   async supplierEvaluationAnalysis(@Body() payload: { supplierId: string }) {
@@ -176,6 +185,7 @@ export class AiController {
   }
 
   @Post('supplier-portrait-analysis')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI供应商综合画像分析' })
   @Roles('admin', 'bid_expert', 'leader', 'staff')
   async getSupplierPortraitAnalysis(@Body() payload: { supplierId: string }) {
@@ -223,7 +233,7 @@ export class AiController {
   @Post('share-shortlist')
   @ApiOperation({ summary: '分享候选名单给采购主管' })
   @Roles('admin', 'leader', 'staff')
-  async shareShortlist(@Body() body: ShareShortlistDto) {
-    return this.aiService.shareShortlist(body);
+  async shareShortlist(@Body() body: ShareShortlistDto, @Request() req: any) {
+    return this.aiService.shareShortlist(body, { id: req.user?.sub, displayName: req.user?.displayName });
   }
 }

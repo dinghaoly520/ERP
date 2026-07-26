@@ -4,8 +4,8 @@ export class CreateExpertEvaluationDto {
   @IsString() @IsNotEmpty()
   expertUserId!: string;
 
-  @IsOptional() @IsString()
-  projectId?: string;
+  @IsString() @IsNotEmpty({ message: '评价必须关联一个评审项目' })
+  projectId!: string;
 
   @IsInt() @Min(0) @Max(100)
   attendanceScore!: number;

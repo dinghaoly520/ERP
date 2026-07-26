@@ -120,8 +120,10 @@ async function crSubmit(){
   if(!crHasChanges.value){ElMessage.warning('请至少修改一项资料');return}
   if(crMode.value==='basic'){
     if(!crReason.value.trim()){ElMessage.warning('请填写变更原因');return}
-    const ls=crFieldChanged.value.map(k=>`<div style="margin:6px 0"><b>${crFieldLabels[k]}</b><br/><span style="color:#94a3b8;text-decoration:line-through">${crOrig[k]||'（空）'}</span> → <span style="color:#059669;font-weight:600">${crForm[k]}</span></div>`).join('')
-    try{await ElMessageBox.confirm(`<div style="font-size:13px;line-height:1.6">将提交 <b>${crFieldChanged.value.length}</b> 项变更：${ls}<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.06);color:#64748b">变更原因：${crReason.value}</div></div>`,'确认提交变更',{confirmButtonText:'确认提交',cancelButtonText:'取消',type:'warning',dangerouslyUseHTMLString:true})}catch{return}
+    // P0-5：用户输入拼进 dangerouslyUseHTMLString 弹窗，须 HTML 转义防存储型 XSS（与 ChangeRequest.vue 的 esc 一致）。
+    const esc=(s:any)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    const ls=crFieldChanged.value.map(k=>`<div style="margin:6px 0"><b>${crFieldLabels[k]}</b><br/><span style="color:#94a3b8;text-decoration:line-through">${esc(crOrig[k])||'（空）'}</span> → <span style="color:#059669;font-weight:600">${esc(crForm[k])}</span></div>`).join('')
+    try{await ElMessageBox.confirm(`<div style="font-size:13px;line-height:1.6">将提交 <b>${crFieldChanged.value.length}</b> 项变更：${ls}<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.06);color:#64748b">变更原因：${esc(crReason.value)}</div></div>`,'确认提交变更',{confirmButtonText:'确认提交',cancelButtonText:'取消',type:'warning',dangerouslyUseHTMLString:true})}catch{return}
     crSub.value=true; let ok=0,fail=0
     for(const k of crFieldChanged.value){ try{await supplierStore.createChangeRequest({fieldName:k,fieldLabel:crFieldLabels[k],oldValue:crOrig[k]||'',newValue:crForm[k],reason:crReason.value.trim()});ok++}catch{fail++} }
     crSub.value=false

@@ -74,7 +74,7 @@ export function listInvitations(params?: { page?: number; pageSize?: number; sta
   if (params?.status) q.set('status', params.status);
   return api.get<InvitationListResponse>(`/supplier/invitations?${q.toString()}`);
 }
-export function createInvitation(data: { validityDays: number; note?: string }) {
+export function createInvitation(data: { validityDays: number; note?: string; boundCreditCode?: string }) {
   return api.post<SupplierInvitation>('/supplier/invitations', data);
 }
 export function revokeInvitation(id: string) {

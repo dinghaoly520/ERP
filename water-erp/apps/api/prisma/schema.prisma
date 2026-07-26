@@ -783,7 +783,7 @@ model Supplier {
   alertAcks           QualificationAlertAck[]      @relation("SupplierAlertAcks")
   clarifications      BidClarification[]
   contractPrices      ContractPrice[]
-  invitation          SupplierInvitation?          @relation("InvitationUsedBy")
+  invitation          SupplierInvitation[]         @relation("InvitationUsedBy")
 
   // ── 采购中心关联 ──
   awardedRounds  ProcurementRound[] @relation("AwardedSupplier")
@@ -800,10 +800,11 @@ model SupplierInvitation {
   validityDays Int // 30 / 180 / 360
   status       InvitationStatus @default(ACTIVE)
   note         String? // 备注（如「XX项目临时供应商」）
+  boundCreditCode String? // R-3：绑定指定信用代码（仅该企业可用，防码泄漏任意注册）
   createdById  String // 创建人（procurement_staff）
   createdAt    DateTime         @default(now())
   expiresAt    DateTime // createdAt + validityDays
-  usedById     String?          @unique // 使用者 Supplier.id
+  usedById     String?          // 使用者 Supplier.id（非唯一：一个供应商可通过多个邀请码续期）
   usedAt       DateTime?
   revokedAt    DateTime?
   revokedById  String?

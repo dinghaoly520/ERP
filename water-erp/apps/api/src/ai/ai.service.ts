@@ -898,7 +898,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       recommendations = pool
         .slice(0, maxCount)
         .map(({ supplier: s, overlap }) =>
-          this.toRecommendation(s.id, Math.round(55 + overlap * 40), this.fallbackReason(s, overlap), supplierMap, enrichment)!,
+          this.toRecommendation(s.id, Math.round(20 + overlap * 40), this.fallbackReason(s, overlap), supplierMap, enrichment)!,
         )
         .filter(Boolean);
     }
@@ -2320,6 +2320,27 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
   // ── 选取历史持久化（#13 落库）：替代多实例不安全的 JSON 文件存储（跨进程 read-modify-write 会丢记录/分裂/阻塞事件循环）。
 
   async saveSelectionHistoryRecord(rec: { requirement: string; classificationId?: string; classificationName?: string; resultSummary: string; recommendations: any[]; candidatePool: number }) {
+    // P0-12：同一需求 5 分钟内复用并更新同一条记录，防反复点「推荐」无限刷历史、DB 膨胀、
+    // 旧记录超 take:100 后对所有人永久不可见。
+    const recent = await this.prisma.supplierSelectionHistory.findFirst({
+      where: { requirement: rec.requirement },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true },
+    });
+    if (recent && Date.now() - recent.createdAt.getTime() < 5 * 60 * 1000) {
+      return this.prisma.supplierSelectionHistory.update({
+        where: { id: recent.id },
+        data: {
+          classificationId: rec.classificationId ?? null,
+          classificationName: rec.classificationName ?? null,
+          resultSummary: rec.resultSummary,
+          recommendationCount: rec.recommendations.length,
+          candidatePool: rec.candidatePool,
+          recommendations: rec.recommendations,
+          shortlistedIds: [],
+        },
+      });
+    }
     return this.prisma.supplierSelectionHistory.create({
       data: {
         requirement: rec.requirement,
@@ -2375,12 +2396,13 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
   }
 
   /** 分享候选名单给采购主管：以站内通知下发（无独立分享表，复用通知中心）。 */
-  async shareShortlist(data: ShareShortlistDto) {
+  async shareShortlist(data: ShareShortlistDto, sharer?: { id: string; displayName: string }) {
     const names = (data.shortlist || []).map((s) => s.name).filter(Boolean).join('、');
-    await Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+    // P1-30：定向发给采购主管（leader），不再群发 admin/staff；附分享人，减少无关打扰。
+    await Promise.all(['leader'].map(r => this.notificationService.sendToRole(r, {
       type: 'SELECTION_SHARED',
       title: '收到一份供应商候选名单分享',
-      content: `需求：${(data.requirement || '').slice(0, 60)}；推荐：${names || '（空）'}${data.note ? `；备注：${data.note}` : ''}`,
+      content: `${sharer?.displayName ? `${sharer.displayName} 分享了一份候选名单。` : ''}需求：${(data.requirement || '').slice(0, 60)}；推荐：${names || '（空）'}${data.note ? `；备注：${data.note}` : ''}`,
       link: '/supplier/selection',
     }))).catch(() => {});
     return { success: true };

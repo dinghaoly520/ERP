@@ -24,6 +24,7 @@ import {
   nudgeExperts,
   nudgeSuppliers,
   notifyBidScheduleChange,
+  startEvaluation,
   startOpening,
   updateBidProjectSchedule,
   type BidProjectDetail,
@@ -42,6 +43,8 @@ type Props = {
   onClose: () => void;
   project: ProjectManagementItem | null;
   round?: number;
+  /** 流标回调（开标完成后选择流标时触发，父面板打开流标公告制作） */
+  onAbort?: () => void;
 };
 
 /* ── 日期工具 ── */
@@ -59,7 +62,7 @@ function formatDateTime(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
+export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Props) {
   const [bidProject, setBidProject] = useState<BidProjectRef | null>(null);
   const [workspace, setWorkspace] = useState<BidWorkspace | null>(null);
   /** Phase 2：项目全量详情（开标进度/评标管理/澄清答疑/归档四区块共用数据源） */
@@ -206,6 +209,15 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
       showToast('已确定开标，请主持人在「开标进度」区块进入开标大厅组建会话');
       await load();
     }, '开标失败');
+  }
+
+  async function handleConfirmOpening() {
+    if (!bpId) return;
+    await withBusy(async () => {
+      await startEvaluation(bpId);
+      showToast('已确认开标结果，进入评标');
+      await load();
+    }, '确认开标结果失败');
   }
 
   async function handleDelaySave() {
@@ -443,7 +455,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round }: Props) {
                   —— :3007 开标执行数据经同一 API 回流，各区块按 stage 自行决定渲染 */}
               {bpId && detail && (
                 <>
-                  <OpeningProgressBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
+                  <OpeningProgressBlock
+                    bidProjectId={bpId}
+                    detail={detail}
+                    onChanged={refreshDetail}
+                    onConfirmOpening={() => void handleConfirmOpening()}
+                    onAbort={onAbort}
+                  />
                   <EvaluationBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   <ClarificationsBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} refreshTick={clarTick} />
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />

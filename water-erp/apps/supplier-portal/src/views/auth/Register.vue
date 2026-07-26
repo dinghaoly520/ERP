@@ -184,10 +184,16 @@ async function submitRegister() {
         validTo: q.validTo || undefined,
       })),
     }
-    await authStore.register(data)
+    const ok = await authStore.register(data)
     draft.clearDraft()
-    ElMessage.success('注册成功，正在登录...')
-    router.push('/dashboard')
+    if (ok) {
+      // P0-10：新账号待审核（isActive:false，无法登录），跳登录页 + success 提示，避免「成功→登录中→弹回登录页」断裂。
+      // 登录页已有「查询审核进度」面板（公开信用代码查询）供供应商跟进。/onboarding/status 仍未挂路由且依赖鉴权，故不使用。
+      ElMessage.success('注册申请已提交，请耐心等待采购中心审核（通常 3 个工作日内）')
+      router.push({ path: '/login', query: { registered: '1', creditCode: data.creditCode } })
+    } else {
+      ElMessage.error('注册失败，请检查信息后重试')
+    }
   } catch {
     ElMessage.error('注册失败，请检查信息后重试')
   } finally {

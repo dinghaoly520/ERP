@@ -47,7 +47,10 @@ const rules = {
 watch(() => form.invitationCode, (val) => {
   inviteVerified.value = false
   inviteError.value = ''
-  if (val.trim().length === 8) verifyCode()
+  // 容错：粘贴带空格/换行/小写时清洗为大写字母数字；变化则回写（触发二次 watch 但 cleaned 已稳定不再回写）
+  const cleaned = (val || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
+  if (cleaned !== val) { form.invitationCode = cleaned; return }
+  if (cleaned.length === 8) verifyCode()
 })
 
 async function verifyCode() {

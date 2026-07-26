@@ -82,8 +82,8 @@ export interface DefaultRiskPrediction {
 
 export function predictDefaultRisk(i: DefaultRiskInput): DefaultRiskPrediction {
   const n = i.evalSeries.length;
-  // 置信度：无评价=10（仅能凭资质判断），随评价数递增，封顶 90。
-  const confidence = n === 0 ? 10 : Math.min(90, 30 + n * 12);
+  // 置信度（P1-26 下压）：无评价=5，1 次=20，2 次=35，≥3 次才过 50，封顶 90——单点评价不足以建立信心。
+  const confidence = n === 0 ? 5 : n === 1 ? 20 : n === 2 ? 35 : Math.min(90, 50 + (n - 3) * 10);
 
   const drivers: string[] = [];
   let risk = 20; // 基线：无信号时偏低风险

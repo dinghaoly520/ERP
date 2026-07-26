@@ -150,6 +150,10 @@ const isExpiringSoon = computed(() => {
   const d = daysRemaining.value
   return typeof d === 'number' && d <= 3 && d > 0
 })
+const expireDate = computed(() => {
+  const exp = statusInfo.value?.temporaryExpiresAt
+  return exp ? dayjs(exp).format('YYYY-MM-DD') : ''
+})
 
 // 转正弹窗
 const convertDialog = ref(false)
@@ -159,6 +163,7 @@ const convertForm = ref({
   legalPerson: '',
   registeredAddress: '',
   businessScope: '',
+  creditCode: '',
   contacts: [{ name: '', phone: '', email: '', isPrimary: true }] as { name: string; phone: string; email: string; isPrimary: boolean }[],
   qualifications: [] as { type: string; name: string; fileUrl: string; validFrom: string; validTo: string }[],
 })
@@ -169,11 +174,31 @@ function addContact() { convertForm.value.contacts.push({ name: '', phone: '', e
 function removeContact(i: number) { if (convertForm.value.contacts.length > 1) convertForm.value.contacts.splice(i, 1) }
 function addQualification() { convertForm.value.qualifications.push({ type: '资质证书', name: '', fileUrl: '', validFrom: '', validTo: '' }) }
 function removeQualification(i: number) { convertForm.value.qualifications.splice(i, 1) }
+function onQualUploadSuccess(q: any, resp: any) {
+  q.fileUrl = resp?.id || resp?.url || ''
+  ElMessage.success('资质材料上传成功')
+}
 
-function openConvertDialog() { convertDialog.value = true }
+async function openConvertDialog() {
+  // 预填已有资料（临时注册时填的企业信息/联系人），避免重复填写；信用代码可在此修正
+  try {
+    const profile = await supplierApi.getProfile() as any
+    convertForm.value.enterpriseType = profile.enterpriseType || '有限责任公司'
+    convertForm.value.legalPerson = profile.legalPerson || ''
+    convertForm.value.registeredAddress = profile.registeredAddress || ''
+    convertForm.value.businessScope = profile.businessScope || ''
+    convertForm.value.creditCode = profile.creditCode || ''
+    convertForm.value.contacts = (profile.contacts && profile.contacts.length > 0)
+      ? profile.contacts.map((c: any) => ({ name: c.name || '', phone: c.phone || '', email: c.email || '', isPrimary: !!c.isPrimary }))
+      : [{ name: '', phone: '', email: '', isPrimary: true }]
+    convertForm.value.qualifications = []
+  } catch { /* 预填失败不阻塞打开弹窗 */ }
+  convertDialog.value = true
+}
 async function submitConvert() {
   const f = convertForm.value
   if ([f.enterpriseType, f.legalPerson, f.registeredAddress, f.businessScope].some(v => !v.trim())) { ElMessage.warning('请填写完整企业信息'); return }
+  if (!/^[0-9A-Z]{18}$/.test(f.creditCode.trim())) { ElMessage.warning('统一社会信用代码须为 18 位数字与大写字母'); return }
   if (f.contacts.some(c => !c.name.trim() || !c.phone.trim())) { ElMessage.warning('请填写完整联系人信息'); return }
   if (f.qualifications.length === 0) { ElMessage.warning('请至少添加一项资质材料'); return }
   if (f.qualifications.some(q => !q.type || !q.name.trim())) { ElMessage.warning('请填写完所有资质信息（类型与名称必填）'); return }
@@ -184,6 +209,7 @@ async function submitConvert() {
       legalPerson: f.legalPerson.trim(),
       registeredAddress: f.registeredAddress.trim(),
       businessScope: f.businessScope.trim(),
+      creditCode: f.creditCode.trim(),
       contacts: f.contacts.map(c => ({ name: c.name.trim(), phone: c.phone.trim(), email: c.email.trim() || undefined, isPrimary: c.isPrimary })),
       qualifications: f.qualifications.map(q => ({ type: q.type, name: q.name.trim(), fileUrl: q.fileUrl || undefined, validFrom: q.validFrom || undefined, validTo: q.validTo || undefined })),
     })
@@ -252,10 +278,15 @@ async function submitConvert() {
             <div class="db-temp-banner">
               <span class="db-temp-countdown" :class="{ expiring: isExpiringSoon }">
                 <el-icon style="margin-right:4px;font-size:14px"><Clock /></el-icon>
-                临时权限 <strong>{{ daysRemaining }}</strong> 天后到期
+                {{ expireDate }} 到期 · 剩 <strong>{{ daysRemaining }}</strong> 天
               </span>
               <button class="neu-btn-soft" @click="openConvertDialog">转为正式供应商</button>
             </div>
+          </div>
+          <div v-else class="page-hero__right db-hero-right">
+            <span class="page-hero__stat page-hero__stat--info" style="cursor:pointer" @click="router.push('/notifications')">
+              未读消息 <strong style="font-size:14px">{{ notifStore.unreadCount }}</strong>
+            </span>
           </div>
         </div>
       </div>
@@ -402,8 +433,11 @@ async function submitConvert() {
         <!-- ══ 企业信息 ══ -->
         <section class="cv-section">
           <h3 class="cv-sec-title">企业信息</h3>
-          <p class="cv-sec-desc">企业名称和统一社会信用代码不可修改</p>
+          <p class="cv-sec-desc">企业名称不可修改；统一社会信用代码可在此修正（需审批）</p>
           <el-form :model="convertForm" label-width="110px" size="large" class="cv-form">
+            <el-form-item label="统一信用代码">
+              <el-input v-model="convertForm.creditCode" placeholder="18 位统一社会信用代码 *" maxlength="18" />
+            </el-form-item>
             <el-form-item label="企业类型">
               <el-select v-model="convertForm.enterpriseType" style="width:100%">
                 <el-option v-for="t in enterpriseTypes" :key="t" :label="t" :value="t" />
@@ -450,7 +484,7 @@ async function submitConvert() {
             <el-input v-model="q.name" placeholder="资质名称 *" class="cv-qs-name" />
             <el-date-picker v-model="q.validFrom" type="date" placeholder="有效期起" value-format="YYYY-MM-DD" class="cv-qs-date" />
             <el-date-picker v-model="q.validTo" type="date" placeholder="有效期止" value-format="YYYY-MM-DD" class="cv-qs-date" />
-            <el-upload class="cv-upload" action="/api/upload?category=qualification" :headers="{ 'X-Portal': 'supplier' }" :show-file-list="false" :on-success="(resp) => { q.fileUrl = resp?.id || resp?.url || '' }">
+            <el-upload class="cv-upload" action="/api/upload?category=qualification" :headers="{ 'X-Portal': 'supplier' }" :show-file-list="false" :on-success="(resp) => onQualUploadSuccess(q, resp)">
               <el-button size="small">上传</el-button>
             </el-upload>
             <el-button v-if="q.fileUrl" size="small" tag="a" :href="'/api/upload/files/' + q.fileUrl" target="_blank" type="primary" plain>查看</el-button>

@@ -49,9 +49,11 @@ function SupplierApprovalPage() {
   const batchApprove = async () => {
     if (selected.size === 0) return;
     setBatchApproving(true);
-    let done = 0;
-    for (const id of selected) { try { await approveSupplier(id); done++; } catch {} }
-    toast.success(`已批量通过 ${done} 个供应商`);
+    let done = 0; const failed: string[] = [];
+    for (const id of selected) { try { await approveSupplier(id); done++; } catch { failed.push(id); } }
+    // P0-9：暴露失败项，而非静默吞错只报成功数。
+    if (failed.length > 0) toast.error(`${done} 个成功，${failed.length} 个失败（可能已被他人处理或状态变更），已自动刷新`);
+    else toast.success(`已批量通过 ${done} 个供应商`);
     setSelected(new Set());
     setBatchApproving(false);
     setBatchApproveModal(false);
@@ -65,15 +67,17 @@ function SupplierApprovalPage() {
   const executeBatchReturnReject = async () => {
     if (!batchModal || !batchReason.trim()) { toast.error('请填写原因'); return; }
     const { type, ids } = batchModal;
-    let done = 0;
+    let done = 0; const failed: string[] = [];
     for (const id of ids) {
       try {
         if (type === 'return') await returnSupplier(id, batchReason);
         else await rejectSupplier(id, batchReason);
         done++;
-      } catch {}
+      } catch { failed.push(id); }
     }
-    toast.success(`已批量${type === 'return' ? '退回' : '拒绝'} ${done} 个供应商`);
+    // P0-9：暴露失败项。
+    if (failed.length > 0) toast.error(`${done} 个成功，${failed.length} 个失败（可能已被他人处理或状态变更），已自动刷新`);
+    else toast.success(`已批量${type === 'return' ? '退回' : '拒绝'} ${done} 个供应商`);
     setBatchModal(null);
     setBatchReason('');
     setSelected(new Set());

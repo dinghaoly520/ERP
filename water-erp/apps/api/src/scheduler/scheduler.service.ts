@@ -26,6 +26,24 @@ export class SchedulerService {
     private supplierService: SupplierService,
   ) {}
 
+  // R-4：每天扫描过期超 30 天的临时供应商，记录并通知采购端清理（不删数据，由管理员决定）
+  @Cron('0 6 * * *')
+  async cleanupExpiredTemporarySuppliers() {
+    const cutoff = new Date(Date.now() - 30 * 86400000);
+    const expired = await this.prisma.supplier.findMany({
+      where: { isTemporary: true, temporaryExpiresAt: { lt: cutoff } },
+      select: { id: true, name: true },
+    });
+    if (expired.length === 0) return;
+    this.logger.warn(`[R-4] 发现 ${expired.length} 个过期临时供应商（超 30 天）：${expired.map(s => s.name).join('、')}`);
+    const sample = expired.slice(0, 5).map(s => s.name).join('、');
+    void this.notification.sendToRole('staff', {
+      type: 'SYSTEM',
+      title: '过期临时供应商待清理',
+      content: `${expired.length} 个临时供应商已过期超过 30 天，建议清理或转正：${sample}${expired.length > 5 ? '…' : ''}`,
+    }).catch(() => {});
+  }
+
   /** 每日 09:00 扫描未来 N 天内到期且未通知的资质，向供应商发站内信（经多渠道分发）。 */
   @Cron('0 9 * * *')
   async scanExpiringQualifications() {

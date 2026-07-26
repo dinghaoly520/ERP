@@ -29,6 +29,10 @@ type BidSubmissionData = {
   bidBondAssetId?: string;
   fileHash?: string;
   signature?: string;
+  // P0-1：前端完整/拆分模型字段（BidSubmit.vue）。由 normalizeBidFileAssets 归一到三角色契约。
+  fullBidFileAssetId?: string;
+  coverLetterFileAssetId?: string;
+  splitFiles?: { tech?: any; biz?: any; other?: any };
 };
 
 /**
@@ -51,6 +55,30 @@ function pickBidSubmissionFields(data: BidSubmissionData) {
     fileHash: data.fileHash,
     signature: data.signature,
   };
+}
+
+/**
+ * P0-1：把前端「完整标书 / 拆分文件」模型归一到后端三角色（technical/business/coverLetter）契约。
+ * BidSubmit.vue 发 fullBidFileAssetId（完整模式）或 splitFiles{tech,biz,other:FileEntry[]}（拆分模式）+ coverLetterFileAssetId（投标函）。
+ * 后端加密/备份/开标/AI 分析管道仅认 technical/business/coverLetter——此处翻译，管道与 schema 不动。
+ * 拆分模式每类取首个文件对齐后端单槽（多文件支持需 schema 扩展为数组/关联表，当前优先杜绝整盘丢失）。
+ */
+function normalizeBidFileAssets(data: BidSubmissionData) {
+  let technicalFileAssetId = data.technicalFileAssetId;
+  let businessFileAssetId = data.businessFileAssetId;
+  let coverLetterAssetId = data.coverLetterAssetId;
+  if (data.coverLetterFileAssetId) coverLetterAssetId = data.coverLetterFileAssetId;
+  if (data.fullBidFileAssetId) technicalFileAssetId = data.fullBidFileAssetId; // 完整标书=整本，归 technical
+  const split: any = data.splitFiles;
+  if (split) {
+    const firstId = (v: any): string | undefined => Array.isArray(v) ? (v[0]?.id ?? v[0]) : v?.id;
+    if (firstId(split.tech)) technicalFileAssetId = firstId(split.tech);
+    if (firstId(split.biz)) businessFileAssetId = firstId(split.biz);
+    if (firstId(split.other) && !coverLetterAssetId) coverLetterAssetId = firstId(split.other);
+  }
+  data.technicalFileAssetId = technicalFileAssetId;
+  data.businessFileAssetId = businessFileAssetId;
+  data.coverLetterAssetId = coverLetterAssetId;
 }
 
 @Injectable()
@@ -427,9 +455,13 @@ export class SupplierPortalService {
 
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, status: true },
     });
     if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
+    // P2：停用/黑名单供应商不得发起答疑（即便仍残留 bidSupplier 记录）。
+    if (supplier.status !== 'APPROVED') {
+      throw new BadRequestException({ error: '当前账号状态不允许发起答疑', code: 'NOT_APPROVED' });
+    }
 
     // Verify the supplier is registered for this project
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
@@ -467,6 +499,15 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '采购文件下载时间已截止', code: 'DOWNLOAD_DEADLINE_PASSED' });
     }
 
+    // R-2：临时供应商权限过期禁止下载招标文件（业务侧兜底，防过期供应商获取文件）
+    const self = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { isTemporary: true, temporaryExpiresAt: true },
+    });
+    if (self?.isTemporary && self.temporaryExpiresAt && self.temporaryExpiresAt < new Date()) {
+      throw new BadRequestException({ error: '临时供应商权限已过期，无法下载', code: 'TEMPORARY_EXPIRED' });
+    }
+
     // 查找关联的招标公告（BID_NOTICE）
     const announcement = await this.prisma.announcement.findFirst({
       where: {
@@ -502,6 +543,10 @@ export class SupplierPortalService {
     if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     if (supplier.status !== 'APPROVED') {
       throw new BadRequestException({ error: '供应商未通过审核，无法投标', code: 'NOT_APPROVED' });
+    }
+    // R-2：临时供应商过期禁止投标（draft+submit 共用入口，比 P0-3 单点更彻底）
+    if (supplier.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
+      throw new BadRequestException({ error: '临时供应商权限已过期，无法投标', code: 'TEMPORARY_EXPIRED' });
     }
     if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
     if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
@@ -555,6 +600,18 @@ export class SupplierPortalService {
     if (existing && existing.status === 'submitted') {
       throw new BadRequestException({ error: '已提交过标书，不可重复提交', code: 'ALREADY_SUBMITTED' });
     }
+
+    // P0-3：临时供应商权限过期禁止投标（登录拦截外的业务侧兜底，防投标后过期）
+    const self = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { isTemporary: true, temporaryExpiresAt: true },
+    });
+    if (self?.isTemporary && self.temporaryExpiresAt && self.temporaryExpiresAt < new Date()) {
+      throw new BadRequestException({ error: '临时供应商权限已过期，无法投标', code: 'TEMPORARY_EXPIRED' });
+    }
+
+    // P0-1：前端「完整标书/拆分文件」字段归一到三角色契约，否则 pickBidSubmissionFields 丢弃 → 标书丢失 → 流标。
+    normalizeBidFileAssets(data);
 
     const { supplier } = await this.assertCanSubmitBid(supplierId, projectId);
     await this.assertBidFileAssetsOwnedByUser(supplier.userId, [
@@ -721,6 +778,7 @@ export class SupplierPortalService {
 
   async saveBidDraft(supplierId: string, projectId: string, data: BidSubmissionData) {
     const { supplier } = await this.assertCanSaveBidDraft(supplierId, projectId);
+    normalizeBidFileAssets(data); // P0-1：归一前端完整/拆分模型
     await this.assertBidFileAssetsOwnedByUser(supplier.userId, [
       data.technicalFileAssetId,
       data.businessFileAssetId,
@@ -781,9 +839,15 @@ export class SupplierPortalService {
   }
 
   async getSubmission(supplierId: string, projectId: string) {
-    return this.prisma.supplierBidSubmission.findUnique({
+    const sub = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId, projectId } },
     });
+    // P0-1：前端 BidSubmit.vue 按 fullBidFileAssetId/coverLetterFileAssetId 回读草稿——回传别名避免回显丢文件。
+    if (sub) {
+      (sub as any).fullBidFileAssetId = sub.technicalFileAssetId;
+      (sub as any).coverLetterFileAssetId = sub.coverLetterAssetId;
+    }
+    return sub;
   }
 
   async withdrawSubmission(supplierId: string, submissionId: string) {
@@ -1406,10 +1470,47 @@ export class SupplierPortalService {
           legalPerson: dto.legalPerson,
           registeredAddress: dto.registeredAddress,
           businessScope: dto.businessScope,
+          creditCode: dto.creditCode,
+          contacts: dto.contacts,
+          qualifications: dto.qualifications,
         }),
         status: 'PENDING',
       },
     });
     return { success: true, record };
+  }
+
+  // P0-2：临时供应商过期续期（凭新邀请码；公开接口——过期账号登录不了，无法走鉴权调用）
+  async reactivateTemporary(dto: { username: string; password: string; invitationCode: string }) {
+    const { compareSync } = await import('bcryptjs');
+    const user = await this.prisma.user.findFirst({
+      where: { username: dto.username.trim(), role: 'supplier' },
+      select: { id: true, passwordHash: true },
+    });
+    // 密码错误不区分账号是否存在（防枚举），但因续期需明确指引，单独提示
+    if (!user?.passwordHash || !compareSync(dto.password, user.passwordHash)) {
+      throw new BadRequestException({ error: '用户名或密码错误', code: 'INVALID_CREDENTIALS' });
+    }
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId: user.id },
+      select: { id: true, name: true, isTemporary: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'NOT_FOUND' });
+    if (!supplier.isTemporary) throw new BadRequestException({ error: '正式供应商无需续期', code: 'NOT_TEMPORARY' });
+
+    const code = dto.invitationCode.toUpperCase().trim();
+    const inv = await this.prisma.supplierInvitation.findUnique({ where: { code } });
+    if (!inv) throw new BadRequestException({ error: '邀请码不存在', code: 'INVITATION_NOT_FOUND' });
+    if (inv.status !== 'ACTIVE') throw new BadRequestException({ error: `邀请码不可用（${inv.status}）`, code: 'INVITATION_INVALID' });
+    if (inv.expiresAt < new Date()) throw new BadRequestException({ error: '邀请码已过期', code: 'INVITATION_EXPIRED' });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.supplier.update({ where: { id: supplier.id }, data: { temporaryExpiresAt: inv.expiresAt } });
+      await tx.supplierInvitation.update({
+        where: { id: inv.id },
+        data: { status: 'USED', usedById: supplier.id, usedAt: new Date() },
+      });
+    });
+    return { success: true, temporaryExpiresAt: inv.expiresAt, validityDays: inv.validityDays, name: supplier.name };
   }
 }

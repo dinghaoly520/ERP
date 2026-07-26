@@ -323,6 +323,21 @@ export class ProjectManagementService {
     }
 
     const maxRound = item.stages.reduce((m, s) => Math.max(m, s.round ?? 1), 1);
+
+    // 幂等：最新一轮（maxRound > 1）首个重采阶段仍 NOT_STARTED → 上次 reproc 尚未推进，拒绝重复开轮
+    // （防双击 / 多入口重复触发，避免插入 round+2、round+3… 脏数据）
+    if (maxRound > 1) {
+      const latestRoundFirst = item.stages.find(
+        (s) => s.round === maxRound && s.stageKey === segment[0].key,
+      );
+      if (latestRoundFirst?.status === 'NOT_STARTED') {
+        throw new BadRequestException({
+          error: '已有新一轮采购等待开始，无需重复发起',
+          code: 'REPROC_ALREADY_PENDING',
+        });
+      }
+    }
+
     const newRound = maxRound + 1;
 
     // 新一轮插在 CONTRACT 前；CONTRACT 及之后阶段 stageOrder 后移
@@ -333,6 +348,15 @@ export class ProjectManagementService {
     const shift = segment.length;
 
     await this.prisma.$transaction(async (tx) => {
+      // #2 旧轮定标清理：流标后标记当前轮开标评标/定标为已流标终态，避免时间线残留"未开始"阶段
+      await tx.projectManagementStage.updateMany({
+        where: {
+          projectManagementItemId: itemId,
+          round: maxRound,
+          stageKey: { in: ['BID_EVALUATION', 'AWARD_DECISION'] },
+        },
+        data: { status: 'COMPLETED', note: '已流标（重新采购）' },
+      });
       await tx.projectManagementStage.updateMany({
         where: { projectManagementItemId: itemId, stageOrder: { gte: insertAt } },
         data: { stageOrder: { increment: shift } },

@@ -37,7 +37,8 @@ async function handleLogin() {
     } else if (result === 'invalid') {
       ElMessage.error('用户名或密码错误')
     } else if (result === 'expired') {
-      ElMessage.error('临时供应商有效期已过，请联系采购中心续期')
+      // 临时权限过期：展开续期面板（凭新邀请码），而非仅弹错让用户死锁
+      showReactivate.value = true
     }
     // result === 'pending'：不弹错，登录页凭 pendingInfo 展示「查询审核进度」面板
   } catch {
@@ -78,6 +79,26 @@ async function handleQueryStatus() {
     querying.value = false
   }
 }
+
+// 临时供应商过期续期（凭新邀请码）
+const showReactivate = ref(false)
+const reactivateCode = ref('')
+const reactivating = ref(false)
+async function handleReactivate() {
+  const code = reactivateCode.value.trim()
+  if (!code) { ElMessage.warning('请输入新的邀请码'); return }
+  reactivating.value = true
+  try {
+    await authApi.reactivateTemporary({ username: form.username, password: form.password, invitationCode: code })
+    ElMessage.success('续期成功，请重新登录')
+    showReactivate.value = false
+    reactivateCode.value = ''
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.error || '续期失败，请核对邀请码')
+  } finally {
+    reactivating.value = false
+  }
+}
 </script>
 
 <template>
@@ -108,7 +129,7 @@ async function handleQueryStatus() {
         >
           <el-form-item prop="username" class="lp-field">
             <template #label>用户名</template>
-            <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
+            <el-input v-model="form.username" placeholder="用户名 / 企业名称" prefix-icon="User" />
           </el-form-item>
 
           <el-form-item prop="password" class="lp-field">
@@ -147,6 +168,17 @@ async function handleQueryStatus() {
               <span v-if="queryResult.reason" class="lp-query__reason">原因：{{ queryResult.reason }}</span>
             </template>
             <template v-else>未查询到该信用代码对应的注册记录，请核对后重试，或先完成注册。</template>
+          </div>
+        </div>
+
+        <!-- 临时供应商过期续期面板（凭新邀请码延长有效期） -->
+        <div v-if="showReactivate" class="lp-pending">
+          <p class="lp-pending__hint">临时供应商权限已过期。输入新的邀请码可延长有效期：</p>
+          <div class="lp-query">
+            <el-input v-model="reactivateCode" placeholder="请输入新的 8 位邀请码" maxlength="20" @keyup.enter="handleReactivate" />
+            <button type="button" class="lp-secondary" :disabled="reactivating" @click="handleReactivate">
+              {{ reactivating ? '续期中…' : '续期' }}
+            </button>
           </div>
         </div>
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Building2, TrendingUp, Clock3, AlertTriangle, Activity, Star,
-  Target, Layers, Lightbulb, ChevronDown,
+  Target, Layers, Lightbulb, ChevronDown, RefreshCw,
 } from 'lucide-react';
 import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getSupplierList } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';

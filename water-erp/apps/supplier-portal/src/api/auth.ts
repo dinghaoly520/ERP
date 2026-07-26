@@ -60,4 +60,9 @@ export const authApi = {
   registerTemporary(data: RegisterTemporaryParams) {
     return api.post('/supplier/register/temporary', data)
   },
+
+  /** 公开：临时供应商过期续期（凭新邀请码，需用户名+密码验证身份）。 */
+  reactivateTemporary(data: { username: string; password: string; invitationCode: string }) {
+    return api.post('/supplier-portal/reactivate', data)
+  },
 }

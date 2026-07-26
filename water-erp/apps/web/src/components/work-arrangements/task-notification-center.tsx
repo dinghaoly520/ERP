@@ -98,7 +98,7 @@ function enrich(item: NotificationItem): EnrichedItem {
     item.type === 'BID_OPENING' ? portalURL('bid', '/bid')
     : item.type === 'CLARIFICATION_REPLIED' ? '/projects'
     : null;
-  const link = forced ?? item.link ?? TYPE_LINKS[item.type] || '/notifications';
+  const link = (forced ?? item.link ?? TYPE_LINKS[item.type]) || '/notifications';
   return {
     ...item,
     typeLabel: TYPE_LABELS[item.type] ?? item.type,

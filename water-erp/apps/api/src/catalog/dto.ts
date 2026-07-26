@@ -533,6 +533,12 @@ export class ReviewApplicationDto {
   @MaxLength(64)
   code?: string;
 
+  /** NEW_ITEM 通过时挂载到真实品类树节点（不传则 categoryId 为 null，仅留文本 category） */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  categoryId?: number;
+
   @IsOptional()
   @IsString()
   @MaxLength(500)

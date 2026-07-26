@@ -14,6 +14,7 @@ import type { CreateExpertDto } from './dto/create-expert.dto';
 import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import type { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
+import type { UpdateExpertProfileDto } from './dto/expert-admin-misc.dto';
 import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from './expert-deviation';
 import { buildExpertPortrait } from './expert-portrait.util';
 import { NotificationService } from '../notification/notification.service';
@@ -267,13 +268,20 @@ export class ExpertAdminService {
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { isActive: available } }),
-      this.prisma.expertProfile.updateMany({ where: { userId }, data: { availability: available ? '可用' : '停用' } }),
+      // 启用时清空退库标记，避免"可用却带退库标记"的脏数据；停用时保留退库字段供退库流程写入
+      this.prisma.expertProfile.updateMany({
+        where: { userId },
+        data: {
+          availability: available ? '可用' : '停用',
+          ...(available ? { retiredAt: null, retireReason: null } : {}),
+        },
+      }),
     ]);
     return { success: true };
   }
 
   /** 更新专家资料 */
-  async updateProfile(userId: string, dto: Partial<CreateExpertDto>) {
+  async updateProfile(userId: string, dto: UpdateExpertProfileDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // 仅限专家角色，防止给非专家用户 upsert 出 ExpertProfile
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
@@ -290,9 +298,10 @@ export class ExpertAdminService {
           ...(dto.ethnicity !== undefined && { ethnicity: dto.ethnicity }),
           ...(dto.education !== undefined && { education: dto.education }),
           ...(dto.licenseNo !== undefined && { licenseNo: dto.licenseNo }),
+          ...(dto.availability !== undefined && { availability: dto.availability }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
         },
-        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: dto.phone, idNumber: dto.idNumber, ethnicity: dto.ethnicity, education: dto.education, licenseNo: dto.licenseNo, notes: dto.notes },
+        create: { userId, specialty: dto.specialty || '综合', title: dto.title, employer: dto.employer, phone: dto.phone, idNumber: dto.idNumber, ethnicity: dto.ethnicity, education: dto.education, licenseNo: dto.licenseNo, availability: dto.availability ?? '可用', notes: dto.notes },
       }),
     ]);
     return { success: true };
@@ -344,6 +353,10 @@ export class ExpertAdminService {
     });
 
     const eligibleIds = eligible.map(e => e.id);
+    if (eligible.length === 0) {
+      // 结构化错误：前端按 code 给针对性提示，而非笼统"自动抽取失败"
+      throw new BadRequestException({ error: '专家库暂无可用候选人，请先在专家管理维护可用专家', code: 'NO_ELIGIBLE_EXPERTS' });
+    }
     const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 3600 * 1000);
 
     // 批量拉取多维度数据
@@ -939,6 +952,89 @@ export class ExpertAdminService {
   }
 
   /* ── 专家评价 ── */
+
+  /** AI 辅助评价建议：LLM 综合历史评价 / 评分偏离度 / 违规 / 当前负荷给出三维建议分数，
+   *  LLM 不可用时走规则兜底（历史均分 ± 偏离度/违规罚分），engine 字段标识来源，前端据实展示。 */
+  async aiSuggestEvaluation(expertUserId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: expertUserId, role: 'bid_expert' },
+      select: { id: true, displayName: true, expertProfile: { select: { specialty: true, title: true } } },
+    });
+    if (!user) throw new NotFoundException('专家不存在');
+
+    const [evals, scoreRecords, violations, activeAssigns] = await Promise.all([
+      this.prisma.expertEvaluation.findMany({
+        where: { expertUserId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { attendanceScore: true, qualityScore: true, disciplineScore: true, overallScore: true, level: true },
+      }),
+      this.prisma.bidScoreRecord.findMany({
+        where: { expert: { userId: expertUserId } },
+        select: { score: true, scoreItemId: true, supplierId: true },
+      }),
+      this.prisma.auditLog.findMany({
+        where: { action: 'EXPERT_VIOLATION_RECORDED', resourceId: expertUserId },
+        select: { id: true },
+      }),
+      this.prisma.bidExpert.findMany({
+        where: { userId: expertUserId, project: { stage: { not: 'ARCHIVED' } } },
+        select: { id: true },
+      }),
+    ]);
+
+    const deviations = computeExpertMeanDeviations(
+      scoreRecords.map(r => ({ expertId: expertUserId, scoreItemId: r.scoreItemId, supplierId: r.supplierId, score: Number(r.score) })),
+    );
+    const meanDeviation = deviations.length > 0 ? Math.round(deviations[0].meanDeviation * 10) / 10 : null;
+
+    // 规则兜底：历史均分 ± 偏离度/违规罚分（LLM 不可用时使用）
+    const ruleFallback = () => {
+      const attAvg = evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.attendanceScore, 0) / evals.length) : 85;
+      const qualAvg = evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.qualityScore, 0) / evals.length) : 85;
+      const discAvg = evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.disciplineScore, 0) / evals.length) : 90;
+      const penalty = (meanDeviation != null && Math.abs(meanDeviation) > 10 ? 4 : 0) + (violations.length > 0 ? 6 : 0);
+      const clamp = (n: number) => Math.max(50, Math.min(100, n));
+      return {
+        attendanceScore: clamp(attAvg - penalty),
+        qualityScore: clamp(qualAvg - penalty),
+        disciplineScore: clamp(discAvg - penalty),
+        analysis: `规则兜底建议：基于近 ${evals.length} 次评价均分（出勤 ${attAvg}/质量 ${qualAvg}/廉洁 ${discAvg}）${
+          meanDeviation != null ? `、评分偏离度 ${meanDeviation}` : ''
+        }${violations.length > 0 ? `、${violations.length} 条违规记录` : ''}综合得出。AI 暂不可用，建议人工复核后调整。`,
+        engine: 'rules' as const,
+      };
+    };
+
+    try {
+      const recentLevels = evals.slice(0, 5).map(e => e.level).join('、') || '无';
+      const recentAvg = evals.length > 0 ? Math.round(evals.reduce((s, e) => s + e.overallScore, 0) / evals.length) : null;
+      const suggestion = await this.llm.chatJson<{
+        attendanceScore: number; qualityScore: number; disciplineScore: number; analysis: string;
+      }>(
+        '你是评审专家履职评价助手。根据专家历史履职数据，给出本次评价的三维建议分数（0-100 整数）与简明分析（150字内，说明依据与关注点）。客观中立，分数须与历史表现匹配，不得无依据拔高或打压。',
+        `专家：${user.displayName}（${user.expertProfile?.specialty ?? '专业未填写'} / ${user.expertProfile?.title ?? '职称未填写'}）。
+近 ${evals.length} 次履职评价：等级序列 ${recentLevels}；综合均分 ${recentAvg ?? '无数据'}。
+评分偏离度（与评审共识的偏差）：${meanDeviation ?? '无数据'}。
+违规记录：${violations.length} 条。
+当前负荷：${activeAssigns.length} 个未归档项目。
+请综合以上数据给出建议分数与分析，以 JSON 返回：{"attendanceScore":number,"qualityScore":number,"disciplineScore":number,"analysis":"string"}`,
+        0.3,
+      );
+      if (!suggestion) return ruleFallback();
+      const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+      return {
+        attendanceScore: clamp(suggestion.attendanceScore),
+        qualityScore: clamp(suggestion.qualityScore),
+        disciplineScore: clamp(suggestion.disciplineScore),
+        analysis: (suggestion.analysis ?? '').slice(0, 300),
+        engine: 'ai' as const,
+      };
+    } catch (err) {
+      new Logger(ExpertAdminService.name).warn(`评价 AI 建议降级（LLM 不可用），返回规则兜底: ${(err as Error)?.message ?? err}`);
+      return ruleFallback();
+    }
+  }
 
   async createEvaluation(evaluatorId: string, dto: CreateExpertEvaluationDto) {
     const expert = await this.prisma.user.findFirst({ where: { id: dto.expertUserId, role: 'bid_expert' } });

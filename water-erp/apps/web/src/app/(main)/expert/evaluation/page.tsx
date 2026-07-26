@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { listExperts, getExpertEvalStats, createExpertEvaluation, getExpertEvaluations, getExpertDimensionStats, getAiAdoptionRate } from '@/lib/api/expert';
+import { listExperts, getExpertEvalStats, createExpertEvaluation, getExpertDimensionStats, aiSuggestEvaluation } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvalStats } from '@/lib/api/expert';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { SortableTh } from '@/lib/hooks/use-sort';
@@ -32,6 +32,7 @@ export default function ExpertEvaluationPage() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
   const [target, setTarget] = useState<ExpertListItem | null>(null);
+  const [projectId, setProjectId] = useState('');
   const [scores, setScores] = useState({ attendanceScore: 85, qualityScore: 85, disciplineScore: 90 });
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
@@ -40,6 +41,7 @@ export default function ExpertEvaluationPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiSuggested, setAiSuggested] = useState(false);
+  const [aiEngine, setAiEngine] = useState<'ai' | 'rules'>('ai');
 
   // 搜索防抖：停止击键 300ms 后才发起请求，避免每次击键触发查询
   useEffect(() => {
@@ -89,34 +91,20 @@ export default function ExpertEvaluationPage() {
 
   const overall = Math.round((scores.attendanceScore + scores.qualityScore + scores.disciplineScore) / 3);
   const previewLevel = overall >= 90 ? 'A' : overall >= 80 ? 'B' : overall >= 60 ? 'C' : 'D';
-  const openModal = (e: ExpertListItem) => { setTarget(e); setScores({ attendanceScore: 85, qualityScore: 85, disciplineScore: 90 }); setComment(''); setAiLoading(false); setAiError(''); setAiSuggested(false); };
-  const submit = async () => { if (!target) return; setSaving(true); try { await createExpertEvaluation({ expertUserId: target.id, ...scores, comment: comment || undefined }); toast.success('评价已提交'); setTarget(null); load(); getExpertEvalStats().then(setStats).catch(() => {}); } catch (e: any) { toast.error(e?.message || '评价失败'); } setSaving(false); };
+  const openModal = (e: ExpertListItem) => { setTarget(e); setProjectId(''); setScores({ attendanceScore: 85, qualityScore: 85, disciplineScore: 90 }); setComment(''); setAiLoading(false); setAiError(''); setAiSuggested(false); setAiEngine('ai'); };
+  const submit = async () => { if (!target) return; if (!projectId) { toast.error('请选择本次评价对应的评审项目'); return; } setSaving(true); try { await createExpertEvaluation({ expertUserId: target.id, projectId, ...scores, comment: comment || undefined }); toast.success('评价已提交'); setTarget(null); load(); getExpertEvalStats().then(setStats).catch(() => {}); } catch (e: any) { toast.error(e?.message || '评价失败'); } setSaving(false); };
 
+  // 真实 AI 分析：调用后端 LLM 综合历史评价/偏离度/违规/负荷给出建议，失败走规则兜底（engine 字段标识）
   const runAiAnalysis = async () => {
     if (!target) return;
     setAiLoading(true); setAiError(''); setAiSuggested(false);
     try {
-      const [evals, adoption] = await Promise.all([
-        getExpertEvaluations(target.id).catch(() => [] as any[]),
-        getAiAdoptionRate(target.id).catch(() => null),
-      ]);
-      // 从历史评价计算各维度均分，作为 AI 建议
-      if (evals.length > 0) {
-        const attAvg = Math.round(evals.reduce((s: number, e: any) => s + e.attendanceScore, 0) / evals.length);
-        const qualAvg = Math.round(evals.reduce((s: number, e: any) => s + e.qualityScore, 0) / evals.length);
-        const discAvg = Math.round(evals.reduce((s: number, e: any) => s + e.disciplineScore, 0) / evals.length);
-        // 如果采纳率低，适当降低建议分数
-        const adoptionRate = adoption?.overall?.adoptionRate ?? 100;
-        const penalty = adoptionRate < 50 ? 8 : adoptionRate < 70 ? 4 : adoptionRate < 85 ? 2 : 0;
-        setScores({
-          attendanceScore: Math.max(50, attAvg - penalty),
-          qualityScore: Math.max(50, qualAvg - penalty),
-          disciplineScore: Math.max(50, discAvg - penalty),
-        });
-        setComment(`AI 辅助参考：近 ${evals.length} 次评价均分（出勤 ${attAvg} / 质量 ${qualAvg} / 廉洁 ${discAvg}），AI 采纳率 ${adoptionRate}%。建议根据专家履职表现调整。`);
-      }
+      const res = await aiSuggestEvaluation(target.id);
+      setScores({ attendanceScore: res.attendanceScore, qualityScore: res.qualityScore, disciplineScore: res.disciplineScore });
+      setComment(res.analysis);
+      setAiEngine(res.engine);
       setAiSuggested(true);
-      toast.success('AI 分析完成，已自动填入建议分数');
+      toast.success(res.engine === 'ai' ? 'AI 分析完成，已填入建议分数' : '规则兜底已填入建议分数（AI 暂不可用）');
     } catch (e: any) {
       setAiError(e?.message || 'AI 分析失败');
     }
@@ -211,7 +199,7 @@ export default function ExpertEvaluationPage() {
                 const latest = (e as any).latestEval;
                 const levelTone = latest?.level === 'A' ? 'green' : latest?.level === 'B' ? 'blue' : latest?.level === 'D' ? 'red' : 'orange';
                 return (
-                <tr key={e.id} className="row-clickable" onClick={() => openModal(e)}>
+                <tr key={e.id} className="row-clickable" onClick={() => router.push(`/expert/${e.id}`)}>
                   <td><div className="flex items-center gap-2.5"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{e.displayName[0]}</div><span className="text-sm font-bold text-[var(--foreground)] hover:text-[var(--accent)] transition-colors">{e.displayName}</span></div></td>
                   <td className="text-center">{e.expertProfile?.specialty && <StatusBadge tone="blue">{e.expertProfile.specialty}</StatusBadge>}</td>
                   <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.employer || '—'}</td>
@@ -260,15 +248,30 @@ export default function ExpertEvaluationPage() {
             </>
           }
         >
+          {/* ══ 关联项目（本次评价对应的评审）══ */}
+          <div>
+            <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">关联项目 <span className="text-[var(--danger)]">*</span></span>
+            {target.bidExperts.length === 0 ? (
+              <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--warning)]">该专家尚未参与任何评审项目，无法发起履职评价</div>
+            ) : (
+              <select value={projectId} onChange={e => setProjectId(e.target.value)} className="neu-input text-sm w-full">
+                <option value="">请选择本次评价对应的评审项目</option>
+                {target.bidExperts.map(b => (
+                  <option key={b.project.id} value={b.project.id}>{b.project.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
           {/* ══ AI 辅助分析栏 ══ */}
           <div className="flex items-center gap-3 rounded-xl p-3 bg-[var(--surface)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {aiLoading ? (
-                <><Loader2 size={14} className="animate-spin text-[var(--accent)]" /><span className="text-xs text-[var(--muted-foreground)]">AI 正在分析历史评价与评分偏离数据…</span></>
+                <><Loader2 size={14} className="animate-spin text-[var(--accent)]" /><span className="text-xs text-[var(--muted-foreground)]">AI 正在综合分析历史评价、偏离度与履职数据…</span></>
               ) : aiSuggested ? (
-                <><Brain size={14} className="text-[var(--accent)] flex-shrink-0" /><span className="text-xs text-[var(--accent)] font-semibold">AI 已分析</span><span className="text-xs text-[var(--muted-foreground)] truncate">基于历史数据给出建议分数，可手动调整</span></>
+                <><Brain size={14} className={`${aiEngine === 'ai' ? 'text-[var(--accent)]' : 'text-[var(--warning)]'} flex-shrink-0`} /><span className={`text-xs font-semibold flex-shrink-0 ${aiEngine === 'ai' ? 'text-[var(--accent)]' : 'text-[var(--warning)]'}`}>{aiEngine === 'ai' ? 'AI 已分析' : '规则兜底'}</span><span className="text-xs text-[var(--muted-foreground)] truncate">{aiEngine === 'ai' ? 'LLM 综合历史评价、偏离度、违规与负荷给出建议' : '基于历史均值 + 偏离度/违规罚分（AI 暂不可用）'}</span></>
               ) : (
-                <><Brain size={14} className="text-[var(--muted-foreground)]/40 flex-shrink-0" /><span className="text-xs text-[var(--muted-foreground)]">AI 可基于历史评价均分与评分采纳率自动填入建议分数</span></>
+                <><Brain size={14} className="text-[var(--muted-foreground)]/40 flex-shrink-0" /><span className="text-xs text-[var(--muted-foreground)]">AI 可综合历史评价、评分偏离度、违规记录、当前负荷给出建议分数</span></>
               )}
             </div>
             <button onClick={runAiAnalysis} disabled={aiLoading} className="neu-btn-soft flex-shrink-0">
@@ -286,7 +289,7 @@ export default function ExpertEvaluationPage() {
                 <span className="text-sm font-extrabold text-[var(--accent)] tabular-nums min-w-[2rem] text-right">{scores[d.key]}</span>
               </div>
               {aiSuggested && (
-                <div className="flex items-center gap-1 mb-2 -mt-0.5"><span className="text-[10px] text-[var(--accent)]/70">AI 建议区间：历史均分 ± 采纳率修正</span></div>
+                <div className="flex items-center gap-1 mb-2 -mt-0.5"><span className="text-[10px] text-[var(--accent)]/70">{aiEngine === 'ai' ? 'AI 建议：综合历史评价 + 偏离度 + 违规 + 负荷' : '规则兜底：历史均分 ± 偏离度/违规罚分'}</span></div>
               )}
               <input type="range" min={0} max={100} step={1} value={scores[d.key]} onChange={e => setScores({ ...scores, [d.key]: Number(e.target.value) })} className="w-full accent-[var(--accent)]" />
             </div>
@@ -302,7 +305,7 @@ export default function ExpertEvaluationPage() {
           {/* ══ 评价说明 ══ */}
           <div>
             <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">评价说明</span>
-            <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder={aiSuggested ? 'AI 已填入参考说明，可编辑或补充...' : '评价说明（可选）'} className="neu-input w-full h-20 resize-none text-sm" />
+            <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder={aiSuggested ? `${aiEngine === 'ai' ? 'AI' : '规则兜底'}已填入参考说明，可编辑或补充...` : '评价说明（可选）'} className="neu-input w-full h-20 resize-none text-sm" />
           </div>
         </Modal>
       )}

@@ -166,6 +166,14 @@ export function getExpertDimensionStats() {
   return api.get<{ attendanceAvg: number; qualityAvg: number; disciplineAvg: number; total: number }>('/expert-admin/evaluations/dimensions');
 }
 
+/** AI 辅助评价建议（LLM 综合历史评价/偏离度/违规/负荷给出建议分数） */
+export function aiSuggestEvaluation(expertUserId: string) {
+  return api.post<{
+    attendanceScore: number; qualityScore: number; disciplineScore: number;
+    analysis: string; engine: 'ai' | 'rules';
+  }>('/expert-admin/evaluations/ai-suggest', { expertUserId });
+}
+
 /* ── 采购项目（抽取页选择用）── */
 
 export interface BidProjectOption {

@@ -51,6 +51,9 @@ import { PriceTrendChart } from '@/components/catalog/PriceTrendChart';
 
 const PALETTE = ['oklch(0.55 0.18 258)', 'oklch(0.55 0.18 30)', 'oklch(0.55 0.18 150)', 'oklch(0.55 0.18 330)', 'oklch(0.55 0.18 80)'];
 const ALERT_TYPE_LABELS: Record<string, string> = { PRICE_SURGE: '涨幅预警', PRICE_DROP: '跌幅预警', EXPIRING: '即将过期', DEVIATION: '偏离均值' };
+/** 预警通知可选角色（与后端 @Roles 放行集对齐；bid_expert/supplier 不在目录管理域） */
+const ALERT_ROLES = ['admin', 'leader', 'staff'] as const;
+const ROLE_LABELS: Record<string, string> = { admin: '管理员', leader: '负责人', staff: '专员' };
 const LOG_LABELS: Record<string, string> = { CATALOG_CREATED: '新增目录', CATALOG_UPDATED: '编辑目录', CATALOG_PRICE_CHANGED: '价格调整', CATALOG_STATUS_CHANGED: '状态变更', CATALOG_IMPORTED: '批量导入', CATALOG_TEMPLATE_DOWNLOADED: '模板下载', CATALOG_EXPORTED: '目录导出' };
 
 /** 内部岗位（与后端写接口 @Roles 放行集对齐）；其余角色只读浏览 */
@@ -129,7 +132,6 @@ type AiHint =
 
 function ItemsTab({ canManage }: { canManage: boolean }) {
   const searchParams = useSearchParams();
-  const statuses = ['全部', '有效', '价格波动', '即将过期', '待复核', '下架', '停用'];
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [stats, setStats] = useState<CatalogStats | null>(null);
   const [status, setStatus] = useState('全部');
@@ -140,6 +142,9 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
   const [detailItem, setDetailItem] = useState<CatalogItem | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
+  const [batchTarget, setBatchTarget] = useState<'下架' | '有效' | null>(null);
+  const [batchReason, setBatchReason] = useState('');
+  const [exporting, setExporting] = useState(false);
   const [editItem, setEditItem] = useState<CatalogItem | null>(null);
 
   const load = async () => {
@@ -186,19 +191,33 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
     catch (e: any) { toast.error(e.message); }
   };
 
-  const batchSetStatus = async (target: '下架' | '有效') => {
-    const ok = await confirmDialog({
-      message: target === '下架' ? `确认批量下架选中的 ${selected.size} 个目录项？` : `确认批量启用选中的 ${selected.size} 个目录项？`,
-      danger: target === '下架',
-    });
-    if (!ok) return;
+  const batchSetStatus = async (target: '下架' | '有效', reason: string) => {
     setBatchBusy(true);
     try {
-      const results = await Promise.allSettled([...selected].map(id => changeCatalogStatus(id, target, `管理端批量${target}`)));
-      const failed = results.filter(r => r.status === 'rejected').length;
-      failed ? toast.error(`批量操作完成，${failed} 项失败`) : toast.success(`批量${target === '下架' ? '下架' : '启用'}成功`);
-      setSelected(new Set()); load();
+      const ids = [...selected];
+      const results = await Promise.allSettled(ids.map(id => changeCatalogStatus(id, target, reason.trim() ? `管理端批量${target}：${reason.trim()}` : `管理端批量${target}`)));
+      const failures = results.flatMap((r, i) => (r.status === 'rejected' ? [{ id: ids[i] }] : []));
+      if (failures.length) {
+        const names = failures.map(f => items.find(i => i.id === f.id)?.code || f.id).slice(0, 5);
+        toast.error(`批量${target}失败 ${failures.length} 项：${names.join('、')}${failures.length > 5 ? ' 等' : ''}`);
+      } else {
+        toast.success(`批量${target === '下架' ? '下架' : '启用'}成功（${ids.length} 项）`);
+      }
+      setSelected(new Set()); setBatchTarget(null); setBatchReason(''); load();
     } finally { setBatchBusy(false); }
+  };
+
+  const doExportFiltered = async () => {
+    setExporting(true);
+    try {
+      const params: Record<string, string | undefined> = {};
+      if (status !== '全部') params.status = status;
+      if (selectedCategoryId) params.categoryId = String(selectedCategoryId);
+      if (search.trim()) params.search = search.trim();
+      const blob = await exportCatalog(params);
+      triggerBlobDownload(blob, `采购目录-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      toast.success(Object.keys(params).length ? '已导出当前筛选结果' : '已导出全部目录');
+    } catch (e: any) { toast.error(e.message); } finally { setExporting(false); }
   };
 
   const toggleDetail = (item: CatalogItem) => setDetailItem(d => (d?.id === item.id ? null : item));
@@ -209,17 +228,23 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
   const [aiPriceLoading, setAiPriceLoading] = useState(false);
   const [aiPriceResult, setAiPriceResult] = useState<AiPriceAnalysisResult | null>(null);
   const [aiPriceEmpty, setAiPriceEmpty] = useState(false);
-  useEffect(() => { setAiPriceResult(null); setAiPriceEmpty(false); setAiPriceLoading(false); }, [detailItem?.id]);
+  const [aiPriceError, setAiPriceError] = useState(false);
+  const [priceHistory, setPriceHistory] = useState<{ recordedAt: string; price: number; note: string | null }[]>([]);
+  useEffect(() => { setAiPriceResult(null); setAiPriceEmpty(false); setAiPriceError(false); setAiPriceLoading(false); }, [detailItem?.id]);
+  useEffect(() => {
+    if (!detailItem) { setPriceHistory([]); return; }
+    getPriceHistory(detailItem.id).then(setPriceHistory).catch(() => setPriceHistory([]));
+  }, [detailItem?.id]);
 
   const runAiPriceAnalysis = async (id: string) => {
-    setAiPriceLoading(true); setAiPriceResult(null); setAiPriceEmpty(false);
+    setAiPriceLoading(true); setAiPriceResult(null); setAiPriceEmpty(false); setAiPriceError(false);
     try {
       const data = await getAiPriceAnalysis(id);
       if (!data?.backedByData || !data.analysis) setAiPriceEmpty(true);
       else setAiPriceResult(data);
     } catch {
-      // 接口报错（含端点未就绪）→ 柔和降级，不阻塞详情浏览
-      setAiPriceEmpty(true);
+      // 接口报错（含端点未就绪）→ 与"数据不足"区分，给出可重试提示
+      setAiPriceError(true);
     } finally {
       setAiPriceLoading(false);
     }
@@ -228,16 +253,18 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {[['目录总数', stats?.total ?? '—'], ['有效', stats?.active ?? '—'], ['下架/停用', stats?.inactive ?? '—'], ['待复核', stats?.review ?? '—'], ['本月更新', stats?.updatedThisMonth ?? '—']].map(([label, value]) => (
-          <div key={label} className="kpi-card p-3 rounded-xl flex flex-col gap-1">
+        {[['目录总数', stats?.total ?? '—', '当前目录项总数'], ['有效', stats?.active ?? '—', '状态为有效的目录项'], ['下架/停用', stats?.inactive ?? '—', '已下架或停用的目录项'], ['待复核', stats?.review ?? '—', '待复核状态的目录项'], ['本月更新', stats?.updatedThisMonth ?? '—', '本月内有价格变更、字段编辑或状态变更的目录项数']].map(([label, value, hint]) => (
+          <div key={label} title={hint as string} className="kpi-card p-3 rounded-xl flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">{label}</span>
             <span className="text-[1.4rem] font-black tabular-nums text-[var(--foreground)]">{value}</span>
           </div>
         ))}
       </div>
       <div className="wb-toolbar flex-wrap">
-        <div className="neu-tab-bar">
-          {statuses.map(s => <button key={s} onClick={() => { setStatus(s); setPage(1); setSelected(new Set()); }} className={`neu-tab ${status === s ? 'is-active' : ''}`}>{s}</button>)}
+        <div className="neu-tab-bar flex-wrap items-center">
+          {['全部', '有效', '下架', '停用'].map(s => <button key={s} onClick={() => { setStatus(s); setPage(1); setSelected(new Set()); }} className={`neu-tab ${status === s ? 'is-active' : ''}`}>{s}</button>)}
+          <span aria-hidden className="w-px h-4 bg-[var(--muted)] mx-0.5 self-center" />
+          {['价格波动', '即将过期', '待复核'].map(s => <button key={s} onClick={() => { setStatus(s); setPage(1); setSelected(new Set()); }} title="按目录状态/生命周期标记筛选" className={`neu-tab ${status === s ? 'is-active' : ''}`}>{s}</button>)}
         </div>
         <CategoryTreeSelect value={selectedCategoryId} onChange={(id) => { setSelectedCategoryId(id); setPage(1); setSelected(new Set()); }} placeholder="按品类筛选" className="min-w-[160px]" />
         <div className="relative flex-1 min-w-[140px]">
@@ -246,13 +273,14 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
           {search && <button onClick={() => { setSearch(''); setSelected(new Set()); }} aria-label="清除搜索" className="absolute right-2 top-1/2 -translate-y-1/2"><X size={14} /></button>}
         </div>
         <button onClick={load} disabled={loading} aria-label="刷新目录列表" className="neu-btn-xs"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /></button>
+        {canManage && <button onClick={doExportFiltered} disabled={exporting} className="neu-btn-xs" title="导出当前筛选结果（无筛选时导出全部）"><Download size={14} /> {exporting ? '导出中...' : '导出'}</button>}
       </div>
       {canManage && selected.size > 0 && (
         <div className="neu-batch-bar">
           <span className="neu-batch-bar-count">已选 <strong>{selected.size}</strong> 条</span>
           <div className="neu-batch-bar-spacer" />
-          <button onClick={() => batchSetStatus('下架')} disabled={batchBusy} className="neu-btn-xs is-warning">批量下架</button>
-          <button onClick={() => batchSetStatus('有效')} disabled={batchBusy} className="neu-btn-xs is-success">批量启用</button>
+          <button onClick={() => { setBatchReason(''); setBatchTarget('下架'); }} disabled={batchBusy} className="neu-btn-xs is-warning">批量下架</button>
+          <button onClick={() => { setBatchReason(''); setBatchTarget('有效'); }} disabled={batchBusy} className="neu-btn-xs is-success">批量启用</button>
           <button onClick={() => setSelected(new Set())} disabled={batchBusy} className="neu-btn-xs">取消选择</button>
         </div>
       )}
@@ -330,7 +358,7 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
               <div><span className="text-[var(--muted-foreground)] text-xs">规格</span><p>{detailItem.specification || '—'}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">参考价</span><p className="font-bold tabular-nums">¥{(detailItem.referencePrice ?? 0).toLocaleString('zh-CN')}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">国标号</span><p className="text-xs font-mono">{(detailItem as any).nationalStandard || '—'}</p></div>
-              <div><span className="text-[var(--muted-foreground)] text-xs">生命周期</span><p><span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent-tint)]">{(detailItem as any).lifecycleStage || detailItem.status}</span></p></div>
+              <div title="基于价格波动/有效期等派生的关注标记，与状态字段独立"><span className="text-[var(--muted-foreground)] text-xs">状态标记</span><p><span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent-tint)]">{(detailItem as any).lifecycleStage || detailItem.status}</span></p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">供应商</span><p>{detailItem.supplier || '—'}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">区域</span><p>{detailItem.region || '—'}</p></div>
               <div><span className="text-[var(--muted-foreground)] text-xs">有效期</span><p>{detailItem.validUntil?.slice(0, 10) || '—'}</p></div>
@@ -338,6 +366,24 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
               <div><span className="text-[var(--muted-foreground)] text-xs">最近成交价</span><p className="font-medium tabular-nums">¥{(detailItem.lastDealPrice ?? 0).toLocaleString()}</p></div>
               {detailItem.changeRate != null && (
                 <div><span className="text-[var(--muted-foreground)] text-xs">价格变化</span><p className={detailItem.changeRate > 0 ? 'text-[var(--danger)]' : detailItem.changeRate < 0 ? 'text-[var(--success)]' : ''}>{detailItem.changeRate}%</p></div>
+              )}
+            </div>
+            <div className="mt-4 pt-3" style={HAIRLINE}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--foreground)]">价格变更记录</span>
+                <span className="text-[11px] text-[var(--muted-foreground)]">{priceHistory.length} 条</span>
+              </div>
+              {priceHistory.length === 0 ? (
+                <p className="text-xs text-[var(--muted-foreground)]">暂无价格变更记录</p>
+              ) : (
+                <ul className="flex flex-col gap-1 max-h-40 overflow-y-auto">
+                  {priceHistory.map((p, i) => (
+                    <li key={i} className="flex items-center justify-between text-xs px-2 py-1 rounded-lg bg-[var(--accent-tint)]">
+                      <span className="tabular-nums font-medium">¥{Number(p.price).toLocaleString('zh-CN')}</span>
+                      <span className="text-[var(--muted-foreground)]">{p.recordedAt.slice(0, 10)}{p.note ? ` · ${p.note}` : ''}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
             <div className="mt-4 pt-3 flex items-center gap-2 flex-wrap" style={HAIRLINE}>
@@ -349,8 +395,11 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
               <span className="text-[11px] text-[var(--muted-foreground)]">基于历史成交与同品类价格分布，仅供参考</span>
             </div>
             <div aria-live="polite">
+              {aiPriceError && (
+                <p role="status" className="mt-3 text-xs px-3 py-2.5 rounded-xl bg-[var(--warning-soft)] text-[var(--warning)]">AI 服务暂不可用，请稍后重试</p>
+              )}
               {aiPriceEmpty && (
-                <p role="status" className="mt-3 text-xs px-3 py-2.5 rounded-xl bg-[var(--accent-tint)] text-[var(--muted-foreground)]">暂无 AI 研判</p>
+                <p role="status" className="mt-3 text-xs px-3 py-2.5 rounded-xl bg-[var(--accent-tint)] text-[var(--muted-foreground)]">暂无足够数据生成研判</p>
               )}
               {aiPriceResult?.analysis && (() => {
                 const a = aiPriceResult.analysis;
@@ -383,6 +432,25 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
           </div>
         </div>
       )}
+      <Modal open={!!batchTarget} onClose={() => setBatchTarget(null)} size="sm"
+        title={batchTarget === '下架' ? `批量下架 ${selected.size} 项` : `批量启用 ${selected.size} 项`}
+        description={batchTarget === '下架' ? '下架后目录项在商城不可见，可随时重新启用' : '启用后目录项恢复上架'}
+        footer={<>
+          <button onClick={() => setBatchTarget(null)} disabled={batchBusy} className="neu-btn-soft">取消</button>
+          <button onClick={() => batchTarget && batchSetStatus(batchTarget, batchReason)} disabled={batchBusy || (batchTarget === '下架' && !batchReason.trim())}
+            className={`neu-btn-primary ${batchTarget === '下架' ? 'is-warning' : 'is-success'}`}>
+            {batchBusy ? '处理中...' : `确认${batchTarget === '下架' ? '下架' : '启用'}`}
+          </button>
+        </>}>
+        {batchTarget === '下架' && (
+          <div>
+            <label htmlFor="batch-reason" className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">下架原因<span className="text-[var(--danger)] ml-0.5">*</span></label>
+            <textarea id="batch-reason" value={batchReason} onChange={e => setBatchReason(e.target.value)} rows={3}
+              placeholder="如：季节性停供、供应商资质到期、价格待重新核算" className="neu-input w-full text-sm resize-y" />
+            <p className="text-[11px] text-[var(--muted-foreground)] mt-1">将记入操作日志，便于后续追溯</p>
+          </div>
+        )}
+      </Modal>
       {editItem && <ItemEditDialog item={editItem} onClose={() => setEditItem(null)} onSaved={() => { setEditItem(null); load(); }} />}
     </div>
   );
@@ -393,13 +461,13 @@ function ItemEditDialog({ item, onClose, onSaved }: { item: CatalogItem; onClose
   const uid = useId();
   const [form, setForm] = useState({
     name: item.name, specification: item.specification ?? '', unit: item.unit ?? '',
-    category: item.category ?? '', supplier: item.supplier ?? '',
+    category: item.category ?? '', categoryId: (item as any).categoryId ?? null, supplier: item.supplier ?? '',
     referencePrice: item.referencePrice ?? 0, priceMin: item.priceMin ?? 0, priceMax: item.priceMax ?? 0,
     validUntil: item.validUntil?.slice(0, 10) ?? '', remark: item.remark ?? '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const set = (k: keyof typeof form, v: string | number) => { setForm(p => ({ ...p, [k]: v })); setError(''); };
+  const set = (k: keyof typeof form, v: string | number | null) => { setForm(p => ({ ...p, [k]: v })); setError(''); };
 
   const save = async () => {
     if (!form.name.trim()) { setError('名称不能为空'); return; }
@@ -432,7 +500,10 @@ function ItemEditDialog({ item, onClose, onSaved }: { item: CatalogItem; onClose
         {field('unit', '单位')}
         {field('priceMin', '价格下限（元）', { type: 'number' })}
         {field('priceMax', '价格上限（元）', { type: 'number' })}
-        {field('category', '品类')}
+        <div className="sm:col-span-2">
+          <span className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">品类（绑定品类树）</span>
+          <CategoryTreeSelect value={form.categoryId} onChange={(id) => set('categoryId', id ?? null)} placeholder="选择品类节点" />
+        </div>
         {field('supplier', '供应商')}
         {field('validUntil', '有效期', { type: 'date' })}
       </div>
@@ -467,6 +538,19 @@ function CategoryTreeTab({ canManage }: { canManage: boolean }) {
   const handleAddChild = (p: CategoryNode) => { setFormMode('create-child'); setFormParentId(p.id); setFormInitial(undefined); setFormOpen(true); };
   const handleEdit = (node: CategoryNode) => { setFormMode('edit'); setFormParentId(node.id); setFormInitial({ name: node.name, code: node.code || '', isLeaf: node.isLeaf, icon: node.icon || '' }); setFormOpen(true); };
   const handleDelete = async (node: CategoryNode) => {
+    // 前置检查：叶子品类下若有目录项、或存在子品类，提示先迁移，避免误删导致目录项孤儿
+    let itemCount = 0;
+    if (node.isLeaf) {
+      try { itemCount = (await listCatalogItems({ categoryId: node.id })).length; } catch { /* 查询失败不阻塞，交给后端校验 */ }
+    }
+    const childCount = node.children?.length ?? 0;
+    if (itemCount > 0 || childCount > 0) {
+      const parts: string[] = [];
+      if (itemCount > 0) parts.push(`${itemCount} 个目录项`);
+      if (childCount > 0) parts.push(`${childCount} 个子品类`);
+      toast.error(`该品类下存在${parts.join('、')}，请先迁移或删除后再操作`);
+      return;
+    }
     const ok = await confirmDialog({ message: `确认删除品类「${node.name}」？删除后不可恢复。`, danger: true, confirmText: '删除' });
     if (!ok) return;
     try { await deleteCategory(node.id); toast.success('已删除'); refresh(); } catch (e: any) { toast.error(e.message); }
@@ -539,6 +623,9 @@ function CategoryTreeTab({ canManage }: { canManage: boolean }) {
           <button onClick={handleMoveSave} disabled={moveSaving} className="neu-btn-primary is-info">{moveSaving ? '移动中...' : '确认移动'}</button>
         </>}>
         <div className="flex flex-col gap-3">
+          {moveNode && moveNode.children && moveNode.children.length > 0 && (
+            <p className="text-xs text-[var(--muted-foreground)] bg-[var(--accent-tint)] px-3 py-2 rounded-lg">该节点下含 {moveNode.children.length} 个直接子品类，将随本次移动一并迁移。</p>
+          )}
           <div>
             <span className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">新上级节点（留空为根节点）</span>
             <CategoryTreeSelect value={moveParentId} onChange={id => setMoveParentId(id)} placeholder="根节点" />
@@ -576,10 +663,15 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof EntryForm, string>>>({});
   const [draftRestored, setDraftRestored] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const hasChanges = Object.entries(form).some(([k, v]) => v !== (INITIAL_FORM as any)[k]);
+  const dynamicDirty = dynamicFields.some(f => f.value !== '' && f.value != null);
+  const hasChanges = Object.entries(form).some(([k, v]) => v !== (INITIAL_FORM as any)[k]) || dynamicDirty;
   // enabled 传 hasChanges：表单无改动时不落盘，避免空表单被写成幽灵草稿、
-  // 提交后 clearDraft 又被下一个 tick 写回
-  const { getDraft, clearDraft } = useFormAutosave('price-entry', form as unknown as Record<string, unknown>, hasChanges);
+  // 提交后 clearDraft 又被下一个 tick 写回。dynamicFields 一并落盘，否则刷新后属性录入全丢。
+  const { getDraft, clearDraft } = useFormAutosave(
+    'price-entry',
+    { ...form, _dynamicFields: dynamicFields } as unknown as Record<string, unknown>,
+    hasChanges,
+  );
   useUnsavedGuard(hasChanges);
 
   // 挂载时恢复未提交草稿（仅一次）；草稿与初始表单全等（提交后残留的空草稿）→ 不提示不恢复
@@ -587,13 +679,16 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
     if (draftRestored) return;
     const draft = getDraft();
     if (draft) {
-      const { _savedAt, ...rest } = draft;
-      const sameAsInitial = Object.entries(rest).every(([k, v]) => v === (INITIAL_FORM as any)[k]);
+      const { _savedAt, _dynamicFields, ...rest } = draft as typeof draft & { _dynamicFields?: DynamicField[] };
+      const fieldsDirty = Array.isArray(_dynamicFields) && _dynamicFields.some(f => f.value !== '' && f.value != null);
+      const sameAsInitial = Object.entries(rest).every(([k, v]) => v === (INITIAL_FORM as any)[k]) && !fieldsDirty;
       if (sameAsInitial) {
         clearDraft();
       } else {
         setForm(prev => ({ ...prev, ...(rest as Partial<EntryForm>) }));
-        toast.info('已恢复未保存的录入草稿');
+        if (fieldsDirty && Array.isArray(_dynamicFields)) setDynamicFields(_dynamicFields);
+        const minAgo = _savedAt ? Math.max(1, Math.round((Date.now() - _savedAt) / 60000)) : null;
+        toast.info(`已恢复未保存的录入草稿${minAgo != null ? `（${minAgo} 分钟前）` : ''}`);
       }
     }
     setDraftRestored(true);
@@ -780,7 +875,8 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
               )}
             </div>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] flex items-center gap-1.5"><Package size={12} /> 基本信息</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
             {txtField('code', '目录编码', '唯一编码，如 CG-2025-001', true)}
             {txtField('name', '商品名称', '商品通用名称', true)}
             {txtField('specification', '规格型号', '如 500ml×24瓶')}
@@ -790,7 +886,8 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
             <span className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">品类</span>
             <CategoryTreeSelect value={(form.categoryId ?? null) as number | null} onChange={handleCategoryChange} placeholder="选择品类" />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] flex items-center gap-1.5 mt-4"><PenLine size={12} /> 价格与供应商</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
             {numField('referencePrice', '参考价（元） *')}
             {numField('priceMin', '价格下限（元）')}
             {numField('priceMax', '价格上限（元）')}
@@ -823,6 +920,7 @@ function EntryTab({ canManage, roleReady }: { canManage: boolean; roleReady: boo
           {importResult && (
             <div className="mt-4 p-3 rounded-xl bg-[var(--accent-tint)] text-sm">
               <span>共 {importResult.totalRows} 行 · 新增 {importResult.created} · 更新 {importResult.updated} · 失败 {importResult.failed}</span>
+              {importResult.failed > 0 && <p className="mt-1 text-xs text-[var(--muted-foreground)]">逐行导入：已成功的 {importResult.created + importResult.updated} 行不会因失败行回滚，请修正失败行后重新导入。</p>}
               {importResult.failedRows?.length > 0 && <div className="mt-2 max-h-40 overflow-y-auto text-xs">{importResult.failedRows.map((r: any, i: number) => <div key={i} className="text-[var(--danger)]">行{r.rowNumber} {r.code}: {r.errors?.join(', ')}</div>)}</div>}
             </div>
           )}
@@ -838,7 +936,7 @@ const APP_STATUS_LABELS: Record<string, string> = {
   PENDING: '待审批', COUNTERED: '议价中', RETURNED: '已退回',
   APPROVED: '已通过', REJECTED: '已拒绝', WITHDRAWN: '已撤回',
 };
-const APP_TYPE_LABELS: Record<string, string> = { NEW_ITEM: '新增品类', JOIN_EXISTING: '加入供货', PRICE_ADJUST: '报价调整', UPDATE_QUOTE: '报价调整' };
+const APP_TYPE_LABELS: Record<string, string> = { NEW_ITEM: '新增品类', JOIN_EXISTING: '加入供货', PRICE_ADJUST: '价格调整', UPDATE_QUOTE: '报价更新' };
 const appStatusTone = (s: string): 'blue' | 'purple' | 'orange' | 'green' | 'red' | 'gray' =>
   s === 'PENDING' ? 'blue' : s === 'COUNTERED' ? 'purple' : s === 'RETURNED' ? 'orange' : s === 'APPROVED' ? 'green' : s === 'REJECTED' ? 'red' : 'gray';
 
@@ -851,12 +949,20 @@ function ApprovalTab({ canManage }: { canManage: boolean }) {
   const [typeFilter, setTypeFilter] = useState('全部');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [auditLogs, setAuditLogs] = useState<CatalogAuditLog[]>([]);
   const [review, setReview] = useState<{ app: CatalogApplication; action: ReviewAction } | null>(null);
 
   // 全量加载一次（KPI 反映整体工作量，不随页签筛选而塌缩）；状态/类型/关键字均在客户端过滤
   const load = async () => {
     setLoading(true);
-    try { setApps(await listApplications()); }
+    try {
+      const [apps, logs] = await Promise.all([
+        listApplications(),
+        listCatalogAuditLogs().catch(() => [] as CatalogAuditLog[]),
+      ]);
+      setApps(apps);
+      setAuditLogs(logs);
+    }
     catch (e: any) { toast.error(e.message); } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
@@ -909,7 +1015,7 @@ function ApprovalTab({ canManage }: { canManage: boolean }) {
         </div>
         <label className="sr-only" htmlFor="approval-type-filter">申请类型</label>
         <select id="approval-type-filter" value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="workbench-input !w-auto min-w-[110px]">
-          <option value="全部">全部类型</option><option value="NEW_ITEM">新增品类</option><option value="JOIN_EXISTING">加入供货</option><option value="UPDATE_QUOTE">报价调整</option>
+          <option value="全部">全部类型</option><option value="NEW_ITEM">新增品类</option><option value="JOIN_EXISTING">加入供货</option><option value="UPDATE_QUOTE">报价更新</option><option value="PRICE_ADJUST">价格调整</option>
         </select>
         <div className="relative flex-1 min-w-[140px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
@@ -982,6 +1088,23 @@ function ApprovalTab({ canManage }: { canManage: boolean }) {
                     {app.reviewerNote && <div className="md:col-span-2"><span className="text-[var(--muted-foreground)]">审核备注：</span>{app.reviewerNote}</div>}
                     {app.rejectReason && <div className="md:col-span-2"><span className="text-[var(--muted-foreground)]">{app.status === 'RETURNED' ? '退回原因：' : '拒绝原因：'}</span><span className="text-[var(--danger)]">{app.rejectReason}</span></div>}
                     {app.approvedReferencePrice && <div className="md:col-span-2"><span className="text-[var(--muted-foreground)]">通过参考价：</span><span className="font-bold text-[var(--success)]">¥{Number(app.approvedReferencePrice).toLocaleString('zh-CN')}</span></div>}
+                    {(() => {
+                      const counters = auditLogs.filter(l => l.action === 'CATALOG_APPLICATION_COUNTERED' && (l.details as any)?.applicationId === app.id);
+                      if (counters.length === 0) return null;
+                      return (
+                        <div className="md:col-span-2">
+                          <span className="text-[var(--muted-foreground)]">议价历史：</span>
+                          <div className="flex flex-col gap-1 mt-1">
+                            {counters.map(l => (
+                              <div key={l.id} className="text-xs flex items-center gap-2">
+                                <span className="font-bold tabular-nums text-[var(--accent-strong)]">¥{Number((l.details as any)?.counterPrice || 0).toLocaleString('zh-CN')}</span>
+                                <span className="text-[var(--muted-foreground)]">{new Date(l.createdAt).toLocaleString('zh-CN')}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -1006,6 +1129,7 @@ function ReviewDialog({ app, action, onClose, onDone }: { app: CatalogApplicatio
   const [priceMax, setPriceMax] = useState<number>(0);
   const [validUntil, setValidUntil] = useState('');
   const [code, setCode] = useState('');
+  const [categoryId, setCategoryId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -1030,6 +1154,7 @@ function ReviewDialog({ app, action, onClose, onDone }: { app: CatalogApplicatio
       body.referencePrice = refPrice; body.priceMin = priceMin; body.priceMax = priceMax;
       if (validUntil) body.validUntil = validUntil;
       if (code.trim()) body.code = code.trim();
+      if (categoryId != null) body.categoryId = categoryId;
     }
     setSubmitting(true);
     try { await reviewCatalogApplication(app.id, body); toast.success(TOASTS[action]); onDone(); }
@@ -1065,6 +1190,10 @@ function ReviewDialog({ app, action, onClose, onDone }: { app: CatalogApplicatio
           <div>
             <label htmlFor={`${uid}-valid`} className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">有效期</label>
             <input id={`${uid}-valid`} type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} className="workbench-input w-full text-sm" />
+          </div>
+          <div className="sm:col-span-2">
+            <span className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">归属品类（绑定品类树，推荐填写以便归类检索）</span>
+            <CategoryTreeSelect value={categoryId} onChange={(id) => setCategoryId(id ?? null)} placeholder="选择品类节点（可留空）" />
           </div>
         </div>
       )}
@@ -1173,6 +1302,7 @@ function TrendsTab() {
             <div className="flex flex-col items-center justify-center py-16 gap-2 text-sm text-[var(--muted-foreground)]">
               <TrendingUp size={32} className="opacity-30" />
               <p>该品类下暂无足够的价格历史数据</p>
+              <p className="text-[11px]">价格在「价格录入」新增或供货申请审批通过时会自动记录历史</p>
             </div>
           )}
         </>
@@ -1189,7 +1319,7 @@ function AlertsTab({ canManage }: { canManage: boolean }) {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [ruleForm, setRuleForm] = useState<{ name: string; alertType: string; threshold: number; categoryId: number | null } | null>(null);
+  const [ruleForm, setRuleForm] = useState<{ name: string; alertType: string; threshold: number; categoryId: number | null; notifyRoles: string[] } | null>(null);
   const [editingRule, setEditingRule] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -1225,7 +1355,7 @@ function AlertsTab({ canManage }: { canManage: boolean }) {
           <div className="flex flex-col gap-3">
             {canManage && (
               <div className="flex justify-end">
-                <button onClick={() => { setRuleForm({ name: '', alertType: 'PRICE_SURGE', threshold: 10, categoryId: null }); setEditingRule(null); }} className="neu-btn-xs is-info"><Plus size={14} /> 新增规则</button>
+                <button onClick={() => { setRuleForm({ name: '', alertType: 'PRICE_SURGE', threshold: 10, categoryId: null, notifyRoles: ['admin', 'leader'] }); setEditingRule(null); }} className="neu-btn-xs is-info"><Plus size={14} /> 新增规则</button>
               </div>
             )}
             {ruleForm && (
@@ -1246,10 +1376,23 @@ function AlertsTab({ canManage }: { canManage: boolean }) {
                     <div>
                       <label htmlFor="rule-threshold" className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">阈值{ruleForm.alertType === 'EXPIRING' ? '（天）' : '（%）'}</label>
                       <input id="rule-threshold" type="number" min={0} value={ruleForm.threshold} onChange={e => setRuleForm({ ...ruleForm, threshold: Number(e.target.value) })} className="workbench-input w-full text-sm" />
+                      <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">{ruleForm.alertType === 'PRICE_SURGE' ? '涨幅超过该值触发' : ruleForm.alertType === 'PRICE_DROP' ? '跌幅超过该值触发' : ruleForm.alertType === 'EXPIRING' ? '有效期剩余不足该天数触发' : '偏离同类均值超过该值触发'}</p>
                     </div>
                     <div className="sm:col-span-2">
                       <span className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">适用品类（留空为全部品类）</span>
                       <CategoryTreeSelect value={ruleForm.categoryId} onChange={id => setRuleForm({ ...ruleForm, categoryId: id })} placeholder="全部品类" />
+                    </div>
+                    <div className="sm:col-span-4">
+                      <span className="text-xs font-medium text-[var(--muted-foreground)] block mb-1">通知角色（预警生成时发站内信）</span>
+                      <div className="flex gap-4">
+                        {ALERT_ROLES.map(role => (
+                          <label key={role} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input type="checkbox" checked={ruleForm.notifyRoles.includes(role)} onChange={e => setRuleForm({ ...ruleForm, notifyRoles: e.target.checked ? [...ruleForm.notifyRoles, role] : ruleForm.notifyRoles.filter(r => r !== role) })} className="neu-checkbox" />
+                            {ROLE_LABELS[role] ?? role}
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">不勾选则默认通知管理员与负责人</p>
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 mt-4">
@@ -1273,7 +1416,7 @@ function AlertsTab({ canManage }: { canManage: boolean }) {
                         {canManage && (
                           <td className="text-center">
                             <button onClick={async () => { await toggleAlertRule(r.id); loadRules(); }} className="neu-btn-xs">{r.enabled ? '停用' : '启用'}</button>
-                            <button onClick={() => { setRuleForm({ name: r.name, alertType: r.alertType, threshold: r.threshold, categoryId: r.category?.id ?? null }); setEditingRule(r.id); }} aria-label={`编辑规则「${r.name}」`} className="neu-btn-xs ml-1"><PenLine size={12} /></button>
+                            <button onClick={() => { setRuleForm({ name: r.name, alertType: r.alertType, threshold: r.threshold, categoryId: r.category?.id ?? null, notifyRoles: r.notifyRoles ?? [] }); setEditingRule(r.id); }} aria-label={`编辑规则「${r.name}」`} className="neu-btn-xs ml-1"><PenLine size={12} /></button>
                             <button onClick={async () => { if (await confirmDialog({ message: `确认删除预警规则「${r.name}」？`, danger: true, confirmText: '删除' })) { await deleteAlertRule(r.id); loadRules(); } }} aria-label={`删除规则「${r.name}」`} className="neu-btn-xs is-danger ml-1"><X size={12} /></button>
                           </td>
                         )}
@@ -1395,16 +1538,17 @@ function VersionsTab({ canManage }: { canManage: boolean }) {
               <div className="flex gap-1 mt-auto pt-2">
                 <button onClick={() => setDiffA(diffA === v.id ? null : v.id)} aria-label="设为对比基准 A" className={`neu-btn-xs ${diffA === v.id ? 'is-info' : ''}`}>A</button>
                 <button onClick={() => setDiffB(diffB === v.id ? null : v.id)} aria-label="设为对比基准 B" className={`neu-btn-xs ${diffB === v.id ? 'is-info' : ''}`}>B</button>
-                {canManage && v.status !== 'ACTIVE' && v.status !== 'ARCHIVED' && <button onClick={() => requestActivate(v)} className="neu-btn-xs is-success ml-auto">生效</button>}
+                {canManage && v.status !== 'ACTIVE' && <button onClick={() => requestActivate(v)} className="neu-btn-xs is-success ml-auto">{v.status === 'ARCHIVED' ? '重新生效' : '生效'}</button>}
                 {canManage && v.status !== 'ARCHIVED' && <button onClick={() => requestArchive(v)} className="neu-btn-xs ml-auto">归档</button>}
               </div>
             </div>
           ))}
         </div>}
-      {(diffA && diffB) && (
+      {(diffA || diffB) && (
         <div className="flex items-center justify-center gap-2">
-          <button disabled={diffA === diffB} onClick={async () => { try { setDiff(await compareVersions(diffA, diffB)); } catch (e: any) { toast.error(e.message); } }} className="neu-btn-soft">对比 A vs B</button>
-          {diffA === diffB && <span className="text-xs text-[var(--muted-foreground)]">A/B 选择了同一版本，请选择两个不同版本再对比</span>}
+          <button disabled={!diffA || !diffB || diffA === diffB} onClick={async () => { try { setDiff(await compareVersions(diffA!, diffB!)); } catch (e: any) { toast.error(e.message); } }} className="neu-btn-soft">对比 A vs B</button>
+          {diffA && diffB && diffA === diffB && <span className="text-xs text-[var(--muted-foreground)]">A/B 选择了同一版本，请选择两个不同版本再对比</span>}
+          <button onClick={() => { setDiffA(null); setDiffB(null); setDiff(null); }} className="neu-btn-xs">清除选择</button>
         </div>
       )}
       {diff && (
@@ -1545,7 +1689,7 @@ function SuppliersTab() {
         ))}
 
       {tab === 'radar' && (radarLoading ? <div className="flex justify-center py-16"><RefreshCw size={24} className="animate-spin text-[var(--muted-foreground)]" aria-label="加载中" /></div>
-        : radarData.items.length === 0 ? <EmptyHint icon={Radar} text="暂无有效供货价格，无法生成比价雷达" />
+        : radarData.items.length === 0 ? <EmptyHint icon={Radar} text="暂无有效供货价格，无法生成比价雷达（需先在「价格录入」或供货审批中建立含价目录项）" />
         : <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
@@ -1744,6 +1888,11 @@ function CatalogManagementPageInner() {
       </div>
 
       <div style={{ ...HAIRLINE, paddingTop: '1rem' }} className="flex flex-col gap-5">
+        {roleReady && !canManage && (
+          <div className="px-3 py-2 rounded-xl bg-[var(--accent-tint)] text-xs text-[var(--muted-foreground)] flex items-center gap-2">
+            <Eye size={14} className="flex-shrink-0" /> 当前为只读视图，仅可浏览目录列表；如需管理品类、价格审批、预警、版本等操作，请联系管理员开通内部岗位权限。
+          </div>
+        )}
         <div className="neu-tab-bar flex-wrap">
           {visibleTabs.map(t => {
             const Icon = t.icon;
