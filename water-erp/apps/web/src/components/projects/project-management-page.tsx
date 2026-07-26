@@ -35,6 +35,7 @@ export function ProjectManagementPage() {
   const { setPageContext } = useAssistant();
   const [recycleActionId, setRecycleActionId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [autoBidConfirm, setAutoBidConfirm] = useState(false);
 
   const loadItems = async () => {
     setLoading(true);
@@ -68,6 +69,7 @@ export function ProjectManagementPage() {
     const target = items.find((i) => i.id === pid);
     if (target) {
       setSelectedItemId(target.id);
+      setAutoBidConfirm(new URLSearchParams(window.location.search).get('panel') === 'bid-confirm');
       setPageContext({
         selectedItemId: target.id,
         selectedItemType: 'project',
@@ -364,11 +366,13 @@ export function ProjectManagementPage() {
               onClose={() => {
                 setSelectedItemId(null);
                 setPageContext({ selectedItemId: undefined, selectedItemType: undefined, selectedItemData: undefined });
+                setAutoBidConfirm(false);
               }}
               onUpdated={() => loadItems()}
               onMoveToRecycleBin={handleMoveToRecycleBin}
               canModify={canModifyProject(selectedItem)}
               currentUsername={currentUser?.username}
+              autoOpenBidConfirm={autoBidConfirm}
             />,
             document.getElementById('app-main') || document.body,
           )
