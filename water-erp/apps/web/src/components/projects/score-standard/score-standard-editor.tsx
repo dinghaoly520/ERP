@@ -270,25 +270,26 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   };
 
   const toolbar = (
-    <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-      {items.length > 0 && (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      {/* 左侧：模板与提取 */}
+      <div className="flex flex-wrap items-center gap-2">
+        {items.length > 0 && (
+          <button
+            onClick={() => setShowSaveTpl(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
+          >
+            <Save size={14} strokeWidth={1.8} />
+            存为模板
+          </button>
+        )}
         <button
-          onClick={() => setShowSaveTpl(true)}
+          onClick={() => setShowLib(true)}
           className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
         >
-          <Save size={14} strokeWidth={1.8} />
-          存为模板
+          <FileSpreadsheet size={14} strokeWidth={1.8} />
+          应用模板
         </button>
-      )}
-      <button
-        onClick={() => setShowLib(true)}
-        className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
-      >
-        <FileSpreadsheet size={14} strokeWidth={1.8} />
-        应用模板
-      </button>
-      {!locked && (
-        <>
+        {!locked && (
           <button
             onClick={handleBulkExtract}
             disabled={extractingAll}
@@ -297,6 +298,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             <Sparkles size={14} strokeWidth={1.8} />
             {extractingAll ? '提取中…' : 'AI 提取'}
           </button>
+        )}
+      </div>
+      {/* 右侧：发布与新增 */}
+      {!locked && (
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handlePublish}
             className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#0e8f61]"
@@ -314,7 +320,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             <Plus size={14} strokeWidth={2} />
             新增评分项
           </button>
-        </>
+        </div>
       )}
     </div>
   );
