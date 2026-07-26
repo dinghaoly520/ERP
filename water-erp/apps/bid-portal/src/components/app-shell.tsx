@@ -56,7 +56,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const userInitial = registeredName.slice(0, 1);
 
   // 顶栏左侧上下文标签：大厅实时执行 vs 任务板
-  const inHall = pathname?.startsWith('/bid/open');
+  // 大厅实际路由为工作区 /bid/project/[id]（open tab）；/bid/open 仅重定向中间态。
+  const inHall =
+    pathname?.startsWith('/bid/open') || pathname?.startsWith('/bid/project/');
   const CtxIcon = inHall ? Gavel : ClipboardList;
   const ctxLabel = inHall ? '开标大厅 · 实时执行' : '开标任务板';
 
