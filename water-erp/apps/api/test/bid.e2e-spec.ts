@@ -200,7 +200,8 @@ describe('Bid Lifecycle (e2e)', () => {
   it('管理员可启动评标 OPENING → EVALUATING', async () => {
     // P2/G4/G9 前置：真实解密需 MinIO 加密投标文件 + AES-GCM/SHA-256 校验（属独立单测范畴），
     // 此流程测试用 prisma 直接 setup 评标前置——≥1 解密成功供应商(G4)、≥1 评审专家(P2)、≥1 评分项(G9)
-    // H4 共享守卫（T4 抽入 startEvaluation）：未撤回供应商须到终局态——SUCCESS 且 confirmStatus CONFIRMED/EXCEPTION
+    // H4 共享守卫（T4 仅为零行为变更的等价抽取）：未撤回供应商须到终局态——SUCCESS 且 confirmStatus CONFIRMED/EXCEPTION
+    // fixture 补齐 confirmStatus：H4 守卫自 e646107a 起要求确认闭环，原 fixture 未更新致红，T6 修复
     await prisma.bidSupplier.update({ where: { id: createdSupplierId }, data: { decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' } });
     const expertUser = await prisma.user.findFirst({ where: { role: 'bid_expert' } });
     expect(expertUser).toBeTruthy();
