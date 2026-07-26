@@ -2,6 +2,7 @@
 
 import { Check, AlertTriangle } from 'lucide-react';
 import type { DemandFields } from '@/lib/api/project-management';
+import { PROCUREMENT_METHODS, PROCUREMENT_CATEGORY_OPTIONS } from '@/lib/types/project-management';
 
 type InitiationValues = {
   requesterName: string;
@@ -34,26 +35,8 @@ const FIELD_LABELS: Record<keyof InitiationValues, string> = {
 
 const SELECT_FIELDS = ['procurementCategory', 'procurementMethod'] as const;
 
-const PROCUREMENT_METHOD_OPTIONS = [
-  '公开招标',
-  '邀请招标',
-  '竞价采购',
-  '谈判采购',
-  '询比采购',
-  '单一来源采购',
-  '框架协议采购',
-  '直接签订合同',
-];
+const PROCUREMENT_METHOD_OPTIONS = [...PROCUREMENT_METHODS];
 
-const PROCUREMENT_CATEGORY_OPTIONS = [
-  '生产技术类采购',
-  'EPC项目采购',
-  'EPC管理采购',
-  '公用集中采购',
-  '科技研发类采购',
-  '信息化采购',
-  '其他',
-];
 
 export function FieldComparisonTable({
   demandFields,
@@ -69,7 +52,6 @@ export function FieldComparisonTable({
     'supplierRequirements',
     'budgetAmount',
     'procurementCategory',
-    'procurementMethod',
   ];
 
   const formatValue = (value: string | number | boolean | undefined): string => {

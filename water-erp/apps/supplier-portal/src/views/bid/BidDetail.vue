@@ -44,6 +44,34 @@ const heroSub = computed(() => {
   return `${p.projectCode} · ${p.procurementMethod}${pub}`
 })
 
+// ── 公告结构化信息（来自 announcement.metadata）──
+const announceMeta = computed(() => (project.value?.announcement?.metadata || null) as any)
+function fmtBudget(raw: any): string {
+  if (raw == null || raw === '') return ''
+  const n = Number(raw)
+  if (isNaN(n)) return String(raw)
+  if (n >= 10000) return `${(n / 10000).toFixed(0)} 万元`
+  return `${n} 元`
+}
+function fmtMetaDate(raw: any): string {
+  if (!raw) return ''
+  const d = dayjs(raw)
+  return d.isValid() ? d.format('YYYY/MM/DD HH:mm') : String(raw)
+}
+// 仅展示有值的字段
+const metaFields = computed(() => {
+  const m = announceMeta.value
+  if (!m) return []
+  const fields: { label: string; value: string; mono?: boolean; strong?: boolean }[] = []
+  if (m.projectCode) fields.push({ label: '项目编号', value: m.projectCode, mono: true })
+  if (m.method) fields.push({ label: '招标方式', value: m.method })
+  if (m.budget != null && m.budget !== '') fields.push({ label: '预算金额', value: fmtBudget(m.budget), strong: true })
+  if (m.deadline) fields.push({ label: '报名/投标截止', value: fmtMetaDate(m.deadline), strong: true })
+  if (m.openTime) fields.push({ label: '开标时间', value: fmtMetaDate(m.openTime), strong: true })
+  if (m.contact) fields.push({ label: '联系方式', value: m.contact })
+  return fields
+})
+
 // ── 招标文件 ──
 const bidDoc = ref<any>(null); const bidDocLoading = ref(false); const paying = ref(false); const downloading = ref(false)
 const payDialog = ref(false); const paymentRef = ref('')
@@ -53,12 +81,28 @@ async function doDownload() { if (!bidDoc.value?.announcementId) return; downloa
 
 // ── 书面交流（来函 + 可选附件；澄清模块保持单向，无实时推送）──
 const questionText = ref(''); const questionPosting = ref(false)
-const attachAssetId = ref(''); const attachUploadRef = ref<any>(null)
+const attachAssetId = ref(''); const attachUploadRef = ref<any>(null); const attachUploading = ref(false)
 const replyOpen = ref<string | null>(null); const replyText = ref(''); const replyPosting = ref(false)
-async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入函件内容'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim(), attachAssetId.value || undefined); ElMessage.success('来函已提交'); questionText.value = ''; attachAssetId.value = ''; attachUploadRef.value?.clearFiles(); await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } questionPosting.value = false }
+// U5：catch 仅保留状态复位——业务错误消息已由 axios 拦截器统一弹出（data.error），不再重复 toast
+async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入函件内容'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim(), attachAssetId.value || undefined); ElMessage.success('来函已提交'); questionText.value = ''; attachAssetId.value = ''; attachUploadRef.value?.clearFiles(); await bidStore.fetchProject(projectId.value) } catch { /* 拦截器已提示 */ } questionPosting.value = false }
 function openReply(id: string) { replyOpen.value = id; replyText.value = '' }
 function closeReply() { replyOpen.value = null; replyText.value = '' }
-async function postReply(id: string) { if (!replyText.value.trim()) { ElMessage.warning('请输入回复'); return }; replyPosting.value = true; try { await bidApi.createQuestion(projectId.value, replyText.value.trim()); ElMessage.success('回复已提交'); closeReply(); await bidStore.fetchProject(projectId.value) } catch (e: any) { ElMessage.error(e?.message || '提交失败') } replyPosting.value = false }
+async function postReply(id: string) { if (!replyText.value.trim()) { ElMessage.warning('请输入回复'); return }; replyPosting.value = true; try { await bidApi.createQuestion(projectId.value, replyText.value.trim()); ElMessage.success('回复已提交'); closeReply(); await bidStore.fetchProject(projectId.value) } catch { /* 拦截器已提示 */ } replyPosting.value = false }
+// U6：附件上传失败 → toast + 清 assetId；re-throw 让 el-upload 将文件标红
+async function handleAttachUpload(opt: any) {
+  attachUploading.value = true
+  try {
+    const asset = await uploadFile(opt.file as File, 'clarification')
+    attachAssetId.value = asset.id
+  } catch (e: any) {
+    attachAssetId.value = ''
+    // 带 response 的错误已由 axios 拦截器统一弹出；仅补无 response（断网/超时）这一空洞，避免双弹窗（M2）
+    if (!e?.response) ElMessage.error('附件上传失败，请检查网络后重试')
+    throw e
+  } finally {
+    attachUploading.value = false
+  }
+}
 
 // 将纯文本公告格式化为 HTML（处理中文招标公告结构）
 function formatContent(raw: string): string {
@@ -122,7 +166,6 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
         <div class="stage-msg" :style="{ '--sc': stageMap[project.stage]?.color || 'var(--brand)' }">
           <span class="sm-badge"><span class="sm-dot" />{{ stageMap[project.stage]?.label }}</span>
           <span class="sm-text">{{ stageMap[project.stage]?.guide || '' }}</span>
-          <button v-if="project.stage === 'SUBMIT'" class="neu-btn-primary sm-cta" @click="goToSubmit">提交标书</button>
         </div>
       </div>
 
@@ -136,6 +179,14 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 
       <!-- ═══ 公告正文 ═══ -->
       <div class="content-card neu-card">
+        <!-- 公告结构化信息（镜像信息发布中心） -->
+        <div v-if="metaFields.length" class="cc-meta">
+          <div v-for="f in metaFields" :key="f.label" class="cc-meta-item">
+            <span class="cc-meta-label">{{ f.label }}</span>
+            <span class="cc-meta-value" :class="{ mono: f.mono, strong: f.strong }">{{ f.value }}</span>
+          </div>
+        </div>
+
         <!-- 招标条件 -->
         <div v-if="project.scope || project.qualification || project.contact || project.qualityRequirement" class="cc-conds">
           <div v-if="project.scope" class="cc-cond">
@@ -192,17 +243,16 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           <p class="cq-desc">如需获取信息，可提交书面函件（支持附件），或致电项目联系人</p>
           <div class="cq-ask">
             <el-input v-model="questionText" placeholder="填写书面函件内容…" :rows="2" type="textarea" size="small" />
-            <button class="neu-btn-xs cq-submit-btn" :disabled="questionPosting" @click="postQuestion">提交</button>
+            <!-- U6：附件上传进行中禁用提交，防裸提交丢附件 -->
+            <button class="neu-btn-xs cq-submit-btn" :disabled="questionPosting || attachUploading" @click="postQuestion">提交</button>
           </div>
           <div class="cq-attach">
             <el-upload
               ref="attachUploadRef"
               :auto-upload="true"
               :limit="1"
-              :http-request="async (opt: any) => {
-                const asset = await uploadFile(opt.file as File, 'clarification')
-                attachAssetId.value = asset.id
-              }"
+              :http-request="handleAttachUpload"
+              :on-exceed="() => ElMessage.warning('仅支持 1 个附件')"
               :on-remove="() => (attachAssetId.value = '')"
             >
               <el-button size="small">添加附件</el-button>
@@ -281,7 +331,6 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 .sm-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; flex-shrink: 0; color: var(--sc); }
 .sm-dot   { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .sm-text  { flex: 1; font-size: 12px; line-height: 1.5; color: var(--foreground); }
-.sm-cta   { height: 30px; font-size: 12px; padding: 0 16px; flex-shrink: 0; }
 
 /* ══════ 关键信息条 ══════ */
 .info-bar {
@@ -298,6 +347,18 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 .content-card {
   margin-top: 16px; padding: 28px;
 }
+/* 公告结构化信息条 — 镜像信息发布中心，仅展示有值字段 */
+.cc-meta {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px 14px;
+  padding-bottom: 18px; margin-bottom: 18px;
+  box-shadow: inset 0 -1px 0 var(--hairline);
+}
+.cc-meta-item { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cc-meta-label { font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.08em; }
+.cc-meta-value { font-size: 14px; color: var(--foreground); line-height: 1.5; word-break: break-word; }
+.cc-meta-value.mono { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--brand); font-weight: 700; }
+.cc-meta-value.strong { font-weight: 800; font-variant-numeric: tabular-nums; }
 .cc-conds {
   display: flex; flex-direction: column; gap: 10px;
   padding-bottom: 18px; margin-bottom: 18px;

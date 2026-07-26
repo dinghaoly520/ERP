@@ -58,6 +58,29 @@ export function ProjectManagementPage() {
     fetchCurrentUser().then(setCurrentUser).catch(() => {/* ignore */});
   }, []);
 
+  // 深链：?projectId= 来自工作台招标类任务通知（种子/运行时通知 link 带 projectId），
+  // 列表就绪后自动打开该项目详情面板，使"通知所指项目"与"点进去看到的"一致。
+  // 在 effect 内读 window.location.search（仅客户端执行），避免 useSearchParams 的 Suspense 约束。
+  useEffect(() => {
+    if (loading) return;
+    const pid = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('projectId') : null;
+    if (!pid) return;
+    const target = items.find((i) => i.id === pid);
+    if (target) {
+      setSelectedItemId(target.id);
+      setPageContext({
+        selectedItemId: target.id,
+        selectedItemType: 'project',
+        selectedItemData: {
+          title: target.title,
+          currentStage: target.currentStage,
+          status: target.status,
+          requesterDepartment: target.requesterDepartment,
+        },
+      });
+    }
+  }, [loading, items]);
+
   useEffect(() => {
     setPortalReady(true);
   }, []);
@@ -93,7 +116,7 @@ export function ProjectManagementPage() {
     const normalized = keyword.trim().toLowerCase();
     if (normalized) {
       result = result.filter((item) =>
-        [item.title, item.requesterName, item.requesterDepartment]
+        [item.title, item.requesterName, item.requesterDepartment, item.projectCode ?? '', item.contractNumber ?? '', item.departmentNumber ?? '']
           .join(' ')
           .toLowerCase()
           .includes(normalized),

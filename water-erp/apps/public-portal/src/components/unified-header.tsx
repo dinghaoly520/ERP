@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { AnnouncementItem } from '@/lib/announcements';
 import { portalURL } from '@water-erp/config';
-import FluidHeader from '@/components/fluid-header';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    统一顶栏 — 品牌 + 公告搜索 + 登录注册
@@ -240,15 +239,11 @@ export function UnifiedHeader({
 
   return (
     <header className="sticky top-0 z-50 flow-header-bg" style={{ willChange: 'transform' }}>
-      {/* 底部动态光影线 — 青色调 */}
-      <div className="absolute bottom-0 left-0 right-0 h-px z-30" style={{
-        background: 'linear-gradient(90deg, transparent 0%, #5ecfd6 20%, #3db8c4 40%, #a8f0f0 50%, #3db8c4 60%, #5ecfd6 80%, transparent 100%)',
-        backgroundSize: '200% 100%',
-        animation: 'header-edge-flow 4s ease-in-out infinite',
+      {/* 底部静态光泽边 — 中间微亮两端淡出，无动画 */}
+      <div className="absolute bottom-0 left-0 right-0 h-px z-30 pointer-events-none" style={{
+        background: 'linear-gradient(90deg, transparent 0%, oklch(0.72 0.06 245 / 0.18) 25%, oklch(0.78 0.08 235 / 0.30) 50%, oklch(0.72 0.06 245 / 0.18) 75%, transparent 100%)',
       }} />
       <div className="relative">
-        <div className="absolute inset-0 bg-transparent" />
-        <FluidHeader />
         <div className="relative z-10 flex h-[68px] items-center px-[clamp(16px,4vw,48px)]">
         {/* ── 左侧：品牌 ── */}
         <div className="flex flex-1 items-center">
@@ -269,29 +264,26 @@ export function UnifiedHeader({
 
         {/* ── 中间：搜索栏 ── */}
         <div ref={containerRef} className="relative w-full max-w-[480px] shrink-0 px-4">
-          {/* 外层：流动光影边框 — 始终流动，聚焦时加速并增强色彩 */}
+          {/* 外层：静态浅色边框 — 聚焦时变为浅品牌蓝，无飘动动画 */}
           <div
-            className={`rounded-lg p-[1px] ${
+            className={`rounded-lg p-[1px] transition-shadow duration-300 ${
               showDropdown
-                ? 'shadow-[0_4px_20px_rgba(37,99,174,.10),0_0_0_4px_rgba(37,99,174,.04)]'
-                : 'shadow-none hover:shadow-[0_4px_16px_rgba(37,99,174,.06),0_0_0_2px_rgba(37,99,174,.02)]'
+                ? 'shadow-[0_4px_18px_rgba(80,120,190,.10),0_0_0_3px_rgba(120,160,220,.12)]'
+                : 'shadow-none hover:shadow-[0_3px_12px_rgba(80,120,190,.06)]'
             }`}
             style={{
               backgroundImage: showDropdown
-                ? 'linear-gradient(110deg, #bcd2ee, #2563ae 20%, #1d5fa8 40%, #3b8fd9 60%, #1d5fa8 80%, #bcd2ee)'
-                : 'linear-gradient(110deg, #dce5f2 0%, #c8d4e8 20%, #bccae4 40%, #cbd6e6 60%, #d3deec 80%, #dce5f2 100%)',
-              backgroundSize: '300% 100%',
-              animation: `search-border-flow ${showDropdown ? '2.2s' : '6s'} ease-in-out infinite`,
+                ? 'linear-gradient(110deg, #cfe0f4, #a9c8ee 50%, #cfe0f4)'
+                : 'linear-gradient(110deg, #e3eaf4, #cdd8e8 50%, #e3eaf4)',
             }}
           >
             {/* 内层：白色容器 */}
             <div className={`flex items-center rounded-[7px] transition-colors duration-300 ${showDropdown ? 'bg-[oklch(1,0,0/0.6)]' : 'bg-[oklch(1,0,0/0.35)]'}`}>
-            {/* 搜索图标 — 始终呼吸，聚焦时加速 */}
+            {/* 搜索图标 — 静态，聚焦时变色 */}
             <span
-              className={`shrink-0 pl-3.5 transition-all duration-300 ${
-                showDropdown ? 'text-[#5a6d8a] scale-95' : 'text-[#94a3b8]'
+              className={`shrink-0 pl-3.5 transition-colors duration-300 ${
+                showDropdown ? 'text-[#5a6d8a]' : 'text-[#94a3b8]'
               }`}
-              style={{ animation: `search-icon-breathe ${showDropdown ? '1.6s' : '2.8s'} ease-in-out infinite` }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
@@ -324,35 +316,17 @@ export function UnifiedHeader({
               </button>
             )}
 
-            {/* 搜索按钮 — 微光脉冲 + glow 径向扩散 + hover 流光爆发 */}
+            {/* 搜索按钮 — 静态，无脉冲/流光动画 */}
             <button
               type="button"
               onClick={() => executeSearch(query)}
-              className={`group relative h-8 shrink-0 overflow-hidden rounded-r-[7px] text-xs font-bold transition-all duration-300 active:scale-95 ${
+              className={`h-8 shrink-0 rounded-r-[7px] text-xs font-bold transition-all duration-300 active:scale-95 ${
                 hasInput
                   ? 'bg-gradient-to-r from-[#2563ae] to-[#1d5fa8] text-white shadow-[0_1px_3px_rgba(37,99,174,.15)] hover:shadow-[0_2px_8px_rgba(37,99,174,.25)] hover:from-[#1d4f8e] hover:to-[#143f74]'
                   : 'bg-[#e9ecf2] text-[#5a6d8a] hover:bg-[#dde1e8] hover:text-[#18243a]'
               }`}
             >
-              {/* 辉光环 — 按钮居中脉冲扩散 */}
-              <span
-                className="pointer-events-none absolute inset-0 rounded-[inherit]"
-                style={{
-                  background: 'radial-gradient(circle at center, rgba(37,99,174,0.18) 0%, transparent 70%)',
-                  animation: 'dingdang-breathe 2.2s ease-in-out infinite',
-                }}
-                aria-hidden="true"
-              />
-              {/* 表面细流光 — 始终慢扫，hover 加速 */}
-              <span
-                className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
-                style={{
-                  backgroundSize: '300% 100%',
-                  animation: `search-btn-shimmer ${showDropdown ? '1.5s' : '4s'} ease-in-out infinite`,
-                }}
-                aria-hidden="true"
-              />
-              <span className="relative z-[1] px-3.5">搜索</span>
+              <span className="px-3.5">搜索</span>
             </button>
             </div>
           </div>

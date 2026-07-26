@@ -6,10 +6,12 @@ import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
 
 const prismaMock = {
+  // 回调式事务：tx 即 prismaMock 自身（与 bid.service.spec 同模式）
+  $transaction: jest.fn(async (fn: any) => fn(prismaMock)),
   bidProject: { findUnique: jest.fn() },
   bidOpeningSession: { findUnique: jest.fn(), update: jest.fn() },
-  bidSupplier: { findFirst: jest.fn(), update: jest.fn(), findMany: jest.fn() },
-  openingHallMessage: { create: jest.fn(), findMany: jest.fn(), count: jest.fn() },
+  bidSupplier: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
+  openingHallMessage: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), count: jest.fn() },
   openingHallReadCursor: { upsert: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
   bidSupervisionLog: { create: jest.fn() },
   supplier: { findFirst: jest.fn() },
@@ -29,6 +31,8 @@ function setup() {
   prismaMock.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
   prismaMock.bidOpeningSession.findUnique.mockResolvedValue({ projectId: 'p1', exchangeControl: 'OPEN' });
   prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: null });
+  prismaMock.bidSupplier.updateMany.mockResolvedValue({ count: 1 }); // R6：默认抢占成功（首签）
+  prismaMock.bidSupplier.findUnique.mockResolvedValue({ checkInAt: null });
   prismaMock.openingHallMessage.create.mockImplementation(async ({ data }: any) => ({ ...data, id: 'm1', createdAt: new Date('2026-07-23T00:00:00Z') }));
 }
 
@@ -256,6 +260,121 @@ describe('OpeningHallService', () => {
         response: { code: 'NOT_FOUND' },
       });
       expect(prismaMock.openingHallReadCursor.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('markRead 已读末条游标（R5：防"拉历史→markRead"窗口内消息被误判已读）', () => {
+    const t1 = new Date('2026-07-24T10:00:00.000Z');
+    const t2 = new Date('2026-07-24T10:00:01.000Z');
+    const t3 = new Date('2026-07-24T10:00:02.000Z');
+    const msgs = [
+      { id: 'M1', projectId: 'p1', roomType: 'PUBLIC', supplierId: null, createdAt: t1 },
+      { id: 'M2', projectId: 'p1', roomType: 'PUBLIC', supplierId: null, createdAt: t2 },
+      { id: 'M3', projectId: 'p1', roomType: 'PUBLIC', supplierId: null, createdAt: t3 },
+    ];
+
+    beforeEach(() => {
+      // 消息命中：仅同项目同会话的 id 命中（跨项目/跨会话乱报 → null → 回退 now()）
+      prismaMock.openingHallMessage.findFirst.mockImplementation(async ({ where }: any) =>
+        msgs.find(m =>
+          m.id === where.id && m.projectId === where.projectId && m.roomType === where.roomType &&
+          (where.supplierId === undefined || m.supplierId === where.supplierId),
+        ) ?? null);
+      // 游标表：upsert 落库 → findUnique 读回；count 按 createdAt > 游标过滤
+      const cursors = new Map<string, Date>();
+      prismaMock.openingHallReadCursor.upsert.mockImplementation(async ({ where, create, update }: any) => {
+        const k = where.projectId_userId_roomKey;
+        const at = update?.lastReadAt ?? create.lastReadAt;
+        cursors.set(`${k.projectId}|${k.userId}|${k.roomKey}`, at);
+        return { ...k, lastReadAt: at };
+      });
+      prismaMock.openingHallReadCursor.findUnique.mockImplementation(async ({ where }: any) => {
+        const k = where.projectId_userId_roomKey;
+        const at = cursors.get(`${k.projectId}|${k.userId}|${k.roomKey}`);
+        return at ? { ...k, lastReadAt: at } : null;
+      });
+      prismaMock.openingHallMessage.count.mockImplementation(async ({ where }: any) =>
+        msgs.filter(m =>
+          m.projectId === where.projectId && m.roomType === where.roomType &&
+          (where.supplierId === undefined || m.supplierId === where.supplierId) &&
+          (!where.createdAt || m.createdAt.getTime() > where.createdAt.gt.getTime()),
+        ).length);
+    });
+
+    it('上报已读末条 M2 → 游标定在 M2.createdAt，未读仅 M3（1 条）', async () => {
+      await svc.markRead(sup, 'p1', 'public', 'M2');
+      expect(prismaMock.openingHallMessage.findFirst).toHaveBeenCalledWith({
+        where: { id: 'M2', projectId: 'p1', roomType: 'PUBLIC' },
+      });
+      expect(prismaMock.openingHallReadCursor.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ lastReadAt: t2 }),
+        update: expect.objectContaining({ lastReadAt: t2 }),
+      }));
+      const unread = await svc.unreadCounts(sup, 'p1');
+      expect(unread.public).toBe(1); // 仅 M3；旧 now() 实现会把 M3 也误判已读
+    });
+
+    it('私聊 roomKey 上报末条 → findFirst 带 supplierId 限定（防跨会话 id 乱报）', async () => {
+      await svc.markRead(sup, 'p1', 'supplier:sup-1', 'M1');
+      expect(prismaMock.openingHallMessage.findFirst).toHaveBeenCalledWith({
+        where: { id: 'M1', projectId: 'p1', roomType: 'PRIVATE', supplierId: 'sup-1' },
+      });
+    });
+
+    it('未知 lastMessageId → 回退 now()（全已读，unread 0）', async () => {
+      await svc.markRead(sup, 'p1', 'public', 'M-ghost');
+      const call = prismaMock.openingHallReadCursor.upsert.mock.calls[0][0];
+      expect(call.update.lastReadAt).toBeInstanceOf(Date);
+      expect(call.update.lastReadAt.getTime()).toBeGreaterThan(t3.getTime()); // now() 晚于全部消息
+      expect((await svc.unreadCounts(sup, 'p1')).public).toBe(0);
+    });
+
+    it('跨项目乱报 id（findFirst 未命中）→ 回退 now()，不用来路不明消息的 createdAt', async () => {
+      prismaMock.openingHallMessage.findFirst.mockResolvedValue(null); // 模拟 id 属于别的项目/会话
+      await svc.markRead(sup, 'p1', 'public', 'M1');
+      const call = prismaMock.openingHallReadCursor.upsert.mock.calls[0][0];
+      expect(call.update.lastReadAt.getTime()).toBeGreaterThan(t3.getTime());
+    });
+
+    it('向后兼容：不传 lastMessageId（旧前端）仍走 now()', async () => {
+      await svc.markRead(sup, 'p1', 'public');
+      expect(prismaMock.openingHallMessage.findFirst).not.toHaveBeenCalled();
+      const call = prismaMock.openingHallReadCursor.upsert.mock.calls[0][0];
+      expect(call.update.lastReadAt.getTime()).toBeGreaterThan(t3.getTime());
+    });
+
+    it('M3 游标单调：游标已在 M3，上报更旧的 M1 → 游标保持 M3（不倒退、unread 0）', async () => {
+      await svc.markRead(sup, 'p1', 'public', 'M3'); // 游标 → t3
+      await svc.markRead(sup, 'p1', 'public', 'M1'); // 客户端乱序上报更旧消息
+      const calls = prismaMock.openingHallReadCursor.upsert.mock.calls;
+      expect(calls[0][0].update.lastReadAt.getTime()).toBe(t3.getTime());
+      expect(calls[1][0].update.lastReadAt.getTime()).toBe(t3.getTime()); // 不倒退到 t1
+      expect((await svc.unreadCounts(sup, 'p1')).public).toBe(0); // 无假未读
+    });
+  });
+
+  describe('checkIn 原子抢占（R6：并发双签到不重复留痕、签到与监督日志同事务）', () => {
+    it('首签：updateMany({ checkInAt: null }) 抢占 + 同事务写监督日志', async () => {
+      const res = await svc.checkIn(sup, 'p1', { ip: '1.2.3.4', ua: 'test' });
+      expect(res.already).toBe(false);
+      expect(prismaMock.$transaction).toHaveBeenCalled();
+      expect(prismaMock.bidSupplier.updateMany).toHaveBeenCalledWith({
+        where: { id: 'bs1', checkInAt: null }, // 原子抢占：仅首签命中
+        data: expect.objectContaining({ checkInAt: expect.any(Date) }),
+      });
+      expect(prismaMock.bidSupervisionLog.create).toHaveBeenCalled();
+      expect(gatewayMock.notifyHallCheckin).toHaveBeenCalled();
+    });
+
+    it('并发第二签到（抢占 count=0）→ already:true、不重复写监督日志、不广播', async () => {
+      const t = new Date('2026-07-24T09:00:00Z');
+      prismaMock.bidSupplier.updateMany.mockResolvedValue({ count: 0 }); // 另一请求已抢占
+      prismaMock.bidSupplier.findUnique.mockResolvedValue({ checkInAt: t });
+      const res = await svc.checkIn(sup, 'p1', { ip: '1.2.3.4', ua: 'test' });
+      expect(res.already).toBe(true);
+      expect(res.checkInAt.toISOString()).toBe(t.toISOString()); // 回读首签时间
+      expect(prismaMock.bidSupervisionLog.create).not.toHaveBeenCalled(); // 无重复留痕
+      expect(gatewayMock.notifyHallCheckin).not.toHaveBeenCalled();
     });
   });
 });

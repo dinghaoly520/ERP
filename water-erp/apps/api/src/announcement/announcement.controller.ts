@@ -221,6 +221,9 @@ export class AnnouncementController {
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'AI 重新生成摘要' })
   async generateSummary(@Param('id') id: string) {
+    if (!this.announcementAiService.isConfigured()) {
+      throw new BadRequestException({ error: 'AI 摘要未启用：服务端未配置 DeepSeek（请在 apps/api/.env 设置 DEEPSEEK_API_KEY 后重启 API）', code: 'AI_NOT_CONFIGURED' });
+    }
     const ann = await this.announcementService.get(id);
     if (!ann) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
     if (!ann.content) throw new BadRequestException({ error: '公告无正文内容，无法生成摘要', code: 'NO_CONTENT' });
@@ -230,7 +233,7 @@ export class AnnouncementController {
       type: typeMap[ann.type] ?? ann.type,
       content: ann.content,
     });
-    if (!summary) throw new BadRequestException({ error: 'AI 摘要生成失败，请确认 DeepSeek API Key 已配置且网络可达', code: 'AI_FAILED' });
+    if (!summary) throw new BadRequestException({ error: 'AI 摘要生成失败：模型服务暂时不可用（网络波动或上游限流），请稍后重试', code: 'AI_FAILED' });
     await this.announcementService.update(id, { summary } as any);
     return { summary };
   }

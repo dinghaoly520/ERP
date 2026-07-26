@@ -18,6 +18,7 @@ import {
 } from '@/lib/api/project-management';
 import {
   PROCUREMENT_METHODS,
+  PROCUREMENT_CATEGORY_OPTIONS,
   type ProcurementMethod,
   type FieldCandidate,
   type FieldComparison,
@@ -26,16 +27,6 @@ import { fetchCurrentUser, type AuthUser } from '@/lib/api/auth';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 
 type Step = 'upload' | 'compare' | 'review';
-
-const PROCUREMENT_CATEGORY_OPTIONS = [
-  '生产技术类采购',
-  'EPC项目采购',
-  'EPC管理采购',
-  '公用集中采购',
-  '科技研发类采购',
-  '信息化采购',
-  '其他',
-];
 
 type Attachment = {
   fileName: string;

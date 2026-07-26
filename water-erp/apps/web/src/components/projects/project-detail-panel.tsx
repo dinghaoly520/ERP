@@ -19,6 +19,7 @@ import {
 } from '@/lib/api/project-management';
 import {
   PROCUREMENT_METHODS,
+  PROCUREMENT_CATEGORY_OPTIONS,
   PROJECT_STAGE_STATUS_LABELS,
   PROJECT_WORKFLOW_STAGES,
   type ProjectDetailAnalysis,
@@ -33,21 +34,13 @@ import { ExpertExtractModal } from './expert-extract-modal';
 import { SupplierExtractModal } from './supplier-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
+import { ScoreStandardPanel } from './score-standard/score-standard-panel';
 import { AwardFileMaker } from './award-file-maker';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal } from '@/components/workbench';
 
 // ─── Extracted Info Field Components ───────────────────────────────────────────
 
-const PROCUREMENT_CATEGORY_OPTIONS = [
-  '生产技术类采购',
-  'EPC项目采购',
-  'EPC管理采购',
-  '公用集中采购',
-  '科技研发类采购',
-  '信息化采购',
-  '其他',
-];
 
 // Expert info display component - handles structured expert data
 function ExpertInfoField({
@@ -305,6 +298,8 @@ export function ProjectDetailPanel({
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
   const [selectedRound, setSelectedRound] = useState(item.currentRound ?? 1);
   const [bidConfirmRound, setBidConfirmRound] = useState(1);
+  const [scoreStandardOpen, setScoreStandardOpen] = useState(false);
+  const [scoreStandardRound, setScoreStandardRound] = useState(1);
 
   // 本地 item 镜像 —— 上传后立即注入附件，不等父组件 onUpdated 回流
   const [localItem, setLocalItem] = useState(item);
@@ -346,6 +341,7 @@ export function ProjectDetailPanel({
     departmentNumber: '',
     projectOverview: '',
     bidOpeningTime: '',
+    documentAcquireTime: '',
     invitedSuppliers: '',
     paymentPerformance: '',
     requesterName: '',
@@ -849,7 +845,7 @@ export function ProjectDetailPanel({
               <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目简报</span>
               <button
                 type="button"
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--muted)] hover:text-[color:var(--foreground)] disabled:opacity-50"
+                className="neu-btn-xs"
                 disabled={summaryRefreshing}
                 onClick={() => {
                   setSummaryRefreshing(true);
@@ -864,7 +860,7 @@ export function ProjectDetailPanel({
                     .finally(() => setSummaryRefreshing(false));
                 }}
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${summaryRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw size={12} className={summaryRefreshing ? 'animate-spin' : ''} />
                 刷新简报
               </button>
             </div>
@@ -911,6 +907,10 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               tenderDocxAttachments={tenderDocxFiles}
               onEditTenderFile={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: 'TENDER_DOCUMENT' })}
+              onScoreStandard={() => {
+                setScoreStandardRound(selectedRound);
+                setScoreStandardOpen(true);
+              }}
             />
 
             {showArchiveStep ? (
@@ -1187,6 +1187,20 @@ export function ProjectDetailPanel({
                       </button>
                     )}
                   </div>
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span>
+                    {editingField === 'documentAcquireTime' ? (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <input type="text" value={editValues.documentAcquireTime} onChange={(e) => setEditValues((prev) => ({ ...prev, documentAcquireTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年8月1日-8月5日" autoFocus />
+                        <button type="button" onClick={() => void handleSaveField('documentAcquireTime')} className="neu-btn-xs"><Save size={13} /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleStartEdit('documentAcquireTime', extractedInfoOverride?.documentAcquireTime ?? item.documentAcquireTime ?? null)} className="group mt-0.5 flex items-center gap-1">
+                        <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? item.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.documentAcquireTime ?? item.documentAcquireTime) || '待补充'}</span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1423,9 +1437,9 @@ export function ProjectDetailPanel({
                     type="button"
                     disabled={analysisLoading || stageLocked || stageFileAnalysis.length === 0}
                     onClick={() => { loadAnalysis(); }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-medium text-[color:var(--accent)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)] disabled:opacity-50"
+                    className="neu-btn-xs is-info"
                   >
-                    <RefreshCw size={11} className={analysisLoading ? 'animate-spin' : ''} />重新分析
+                    <RefreshCw size={12} className={analysisLoading ? 'animate-spin' : ''} />重新分析
                   </button>
                 </div>
               </div>
@@ -1475,12 +1489,12 @@ export function ProjectDetailPanel({
                   complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}`);
                   runComplianceAudit(true);
                 }}
-                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[color:var(--accent)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)] disabled:opacity-50"
+                className="neu-btn-xs is-info"
               >
                 {complianceLoading ? (
                   <><Loader2 size={12} className="animate-spin" />审查中...</>
                 ) : (
-                  <><Shield size={12} />{complianceLoading ? '检查中...' : '重新检查'}</>
+                  <><Shield size={12} />重新检查</>
                 )}
               </button>
             </div>
@@ -1649,6 +1663,14 @@ export function ProjectDetailPanel({
         onClose={() => setBidConfirmOpen(false)}
         project={item}
         round={bidConfirmRound}
+      />
+
+      {/* 评分标准编制面板（2026-07-24 从开评标管理端 :3007 前置到采购文件阶段）*/}
+      <ScoreStandardPanel
+        isOpen={scoreStandardOpen}
+        onClose={() => setScoreStandardOpen(false)}
+        project={item}
+        round={scoreStandardRound}
       />
 
       {/* 定标 · 文件制作（中标公告 / 中标通知书 / 流标公告）*/}

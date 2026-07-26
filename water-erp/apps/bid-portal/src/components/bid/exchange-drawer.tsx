@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { toast } from 'sonner';
 import { openingHallApi } from '@/lib/opening-hall';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import type {
@@ -9,12 +10,13 @@ import type {
   HallPresenceUpdatePayload,
   HallCheckinPayload,
   HallExchangeControlPayload,
+  StageChangePayload,
 } from '@water-erp/shared';
 
 type Msg = { id: string; senderRole: string; senderName: string; content: string; createdAt: string };
 type Session = { supplierId: string; supplierName: string; checkInAt: string | null; unread: number };
 
-export function ExchangeDrawer({ projectId }: { projectId: string }) {
+export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: string; initialStageClosed?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [activeSupplier, setActiveSupplier] = useState<Session | null>(null);
@@ -27,6 +29,10 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [checkins, setCheckins] = useState<Record<string, string>>({});
+  // R4：stage:change 离开 OPENING 后关闭输入；Wave 5-6：初值由页面当前项目阶段同步
+  // （纯事件驱动时，阶段已离 OPENING 后才开的抽屉初始仍可输入，首次发送撞 403）
+  const [stageClosed, setStageClosed] = useState(initialStageClosed ?? false);
+  const hydratedRef = useRef(false); // R3：本轮打开是否已首载（决定重连后是否补齐）
   const listRef = useRef<HTMLDivElement>(null);
 
   const toMsg = (d: HallMessagePayload): Msg => ({
@@ -37,8 +43,15 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
   // tabRef：事件回调内读当前 tab（避免在 setTab 更新器里做副作用——StrictMode/并发双调会重复计数）
   const tabRef = useRef(tab);
   tabRef.current = tab;
+  // projectIdRef：hydrate 陈旧响应守卫（切项目后旧请求晚归时不再写回新项目的 state）
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
 
-  useBidWebSocket(projectId, {
+  const { connection, reconnectNow } = useBidWebSocket(projectId, {
+    // R4：阶段离开 OPENING → 关闭 host 输入（大厅互动仅在开标阶段开放；MUTED 不影响 host 发言）
+    onStageChange: useCallback((d: StageChangePayload) => {
+      if (d.to && d.to !== 'OPENING') setStageClosed(true);
+    }, []),
     onHallMessage: useCallback((d: HallMessagePayload) => {
       if (d.roomType === 'PUBLIC') {
         setPublicMsgs(prev => { const exists = prev.some(m => m.id === d.id); return exists ? prev : [...prev, toMsg(d)]; });
@@ -57,24 +70,93 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
 
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [publicMsgs, privateMsgs, tab]);
 
-  useEffect(() => {
-    if (!open) return;
-    openingHallApi.messages(projectId, { roomType: 'PUBLIC', limit: 100 })
-      .then(r => setPublicMsgs(prev => {
-        // 按 id 合并，避免覆盖 hydrate 请求在途期间到达的 socket 增量
-        const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id));
-        return [...r.items.map(toMsg), ...fresh];
-      })).catch(() => {});
-    openingHallApi.unread(projectId).then(r => {
-      setPublicUnread(r.public ?? 0);
-      setSessions(r.sessions ?? []);
-    }).catch(() => {});
-    openingHallApi.presence(projectId).then(r => {
-      setRoster((r.suppliers ?? []).filter((s: any) => s.online).map((s: any) => ({
+  /** 公聊历史/未读/花名册 + 私聊（若已选中供应商）一把拉齐。首开与 R3 重连补齐共用。 */
+  const hydrate = useCallback(async () => {
+    const [pub, unread, pres] = await Promise.allSettled([
+      openingHallApi.messages(projectId, { roomType: 'PUBLIC', limit: 100 }),
+      openingHallApi.unread(projectId),
+      openingHallApi.presence(projectId),
+    ]);
+    // 陈旧响应守卫（I2）：切项目后本 hydrate（闭包旧 projectId）晚归时丢弃，不写回新项目 state
+    if (projectIdRef.current !== projectId) return;
+    let lastPublicId: string | undefined;
+    if (pub.status === 'fulfilled') {
+      lastPublicId = pub.value.items[pub.value.items.length - 1]?.id;
+      setPublicMsgs(prev => {
+        // 按 id 合并，避免覆盖 hydrate 请求在途期间到达的 socket 增量。
+        // Wave 5-5：fresh 只保留比服务端窗口最新一条还新的本地消息（真在途增量）——消息超 100
+        // 条重开抽屉时，窗口外的旧残留若追加尾部会造成尾部乱序且永不消除，故丢弃
+        const items = pub.value.items;
+        const maxIso = items[items.length - 1]?.createdAt;
+        const fresh = prev.filter(m => !items.some((i: any) => i.id === m.id) && (!maxIso || m.createdAt > maxIso));
+        return [...items.map(toMsg), ...fresh];
+      });
+    }
+    if (unread.status === 'fulfilled') {
+      setSessions(unread.value.sessions ?? []);
+      // U2：默认停留 PUBLIC——未读即时清零（看的是公聊列表本身）
+      setPublicUnread(tabRef.current === 'PUBLIC' ? 0 : (unread.value.public ?? 0));
+    }
+    if (pres.status === 'fulfilled') {
+      setRoster((pres.value.suppliers ?? []).filter((s: any) => s.online).map((s: any) => ({
         supplierId: s.supplierId, supplierName: s.supplierName, checkInAt: s.checkInAt ? String(s.checkInAt) : null,
       })));
-    }).catch(() => {});
-  }, [open, projectId]);
+    }
+    // 私聊：已选中供应商时补拉历史（同 openPrivate 的陈旧响应守卫）
+    const sid = activeSupplierRef.current;
+    let lastPrivateId: string | undefined;
+    if (sid) {
+      const r = await openingHallApi.messages(projectId, { roomType: 'PRIVATE', supplierId: sid, limit: 100 }).catch(() => null);
+      if (r && projectIdRef.current === projectId) {
+        lastPrivateId = r.items[r.items.length - 1]?.id;
+        setPrivateMsgs(prev => {
+          if (activeSupplierRef.current !== sid || projectIdRef.current !== projectId) return prev;
+          // Wave 5-5：同公聊——只保留比服务端窗口最新一条还新的本地在途增量，丢弃窗口外旧残留
+          const maxIso = r.items[r.items.length - 1]?.createdAt;
+          const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id) && (!maxIso || m.createdAt > maxIso));
+          return [...r.items.map(toMsg), ...fresh];
+        });
+      }
+    }
+    if (projectIdRef.current !== projectId) return;
+    // U2：hydrate 后对当前 tab 即时 markRead，游标定在已加载末条（在途消息不被 now() 误判已读）
+    if (tabRef.current === 'PUBLIC') {
+      openingHallApi.markRead(projectId, 'public', lastPublicId).catch(() => {});
+    } else if (sid) {
+      openingHallApi.markRead(projectId, `supplier:${sid}`, lastPrivateId).catch(() => {});
+    }
+  }, [projectId]);
+
+  // 首次 open 立即 hydrate；其后仅重连回 connected 时重跑补齐断线窗口（R3）
+  useEffect(() => {
+    if (!open) { hydratedRef.current = false; return; }
+    if (!hydratedRef.current) { hydratedRef.current = true; hydrate(); }
+    else if (connection === 'connected') { hydrate(); }
+  }, [open, projectId, connection, hydrate]);
+
+  // U8：切换项目时重置抽屉全部状态，避免跨项目数据串档
+  useEffect(() => {
+    activeSupplierRef.current = null;
+    setActiveSupplier(null);
+    setPrivateMsgs([]);
+    setPublicMsgs([]);
+    setSessions([]);
+    setPublicUnread(0);
+    setTab('PUBLIC');
+    setCheckins({});
+    setRoster([]);
+    setStageClosed(initialStageClosed ?? false);
+    setControl('OPEN'); // M1：避免 A 项目的 CLOSED 串到 B 项目（control 无 REST 来源，仅事件驱动）
+    setInput('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在切项目时以新项目阶段初值复位；initialStageClosed 的后续变化由下方只升不降的 effect 接管
+  }, [projectId]);
+
+  // Wave 5-6：prop 初值同步——stageClosed 原纯事件驱动，阶段已离 OPENING 后才开的抽屉初始仍可输入。
+  // 声明在切项目复位 effect 之后：同一 commit 内复位先跑、同步后跑，最终值正确。
+  // 只升不降：事件已置 true 后不被 prop 回退（阶段不会倒流，防御 prop 闪变）
+  useEffect(() => {
+    setStageClosed(prev => prev || (initialStageClosed ?? false));
+  }, [initialStageClosed]);
 
   async function openPrivate(s: Session) {
     // 同步写 ref：消除点击到重渲染之间 activeSupplierRef 的旧值窗口
@@ -89,10 +171,12 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
       if (!r) return prev;
       // 陈旧响应守卫：快速切换 A→B→C 且 B 请求晚归时，丢弃 B 的响应，不污染 C 的会话
       if (activeSupplierRef.current !== s.supplierId) return prev;
-      const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id));
+      // Wave 5-5：同公聊——只保留比服务端窗口最新一条还新的本地在途增量，丢弃窗口外旧残留
+      const maxIso = r.items[r.items.length - 1]?.createdAt;
+      const fresh = prev.filter(m => !r.items.some((i: any) => i.id === m.id) && (!maxIso || m.createdAt > maxIso));
       return [...r.items.map(toMsg), ...fresh];
     });
-    await openingHallApi.markRead(projectId, `supplier:${s.supplierId}`).catch(() => {});
+    await openingHallApi.markRead(projectId, `supplier:${s.supplierId}`, r?.items?.[r.items.length - 1]?.id).catch(() => {});
   }
 
   async function send() {
@@ -108,7 +192,8 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
       });
       setInput('');
     } catch (e: any) {
-      alert(e?.message || '发送失败');
+      // U9：alert → sonner toast（页面级 Toaster 已挂载）
+      toast.error(e?.message || '操作失败');
     } finally {
       setSending(false);
     }
@@ -119,11 +204,21 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
       await openingHallApi.setControl(projectId, next);
       setControl(next);
     } catch (e: any) {
-      alert(e?.message || '切换失败');
+      // U9：alert → sonner toast
+      toast.error(e?.message || '操作失败');
     }
   }
 
   const msgs = tab === 'PUBLIC' ? publicMsgs : privateMsgs;
+
+  // R4：阶段离开 OPENING 关输入；U11：control=CLOSED 关 host 输入（MUTED 不影响 host 发言）
+  const inputDisabled = (tab === 'PRIVATE' && !activeSupplier) || stageClosed || control === 'CLOSED';
+  const inputHint = stageClosed ? '开标阶段已结束，互动已关闭' : control === 'CLOSED' ? '主持人已关闭互动' : '';
+  const connBadge = connection === 'connected'
+    ? { text: '实时已连', cls: 'text-emerald-600', dot: 'bg-emerald-500' }
+    : connection === 'reconnecting'
+      ? { text: '重连中…', cls: 'text-amber-600', dot: 'bg-amber-500' }
+      : { text: '已断开', cls: 'text-red-500', dot: 'bg-red-500' };
 
   return (
     <>
@@ -147,7 +242,17 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
       {open && createPortal(
         <aside className="fixed right-0 top-[68px] z-40 flex h-[calc(100%-68px)] w-[420px] flex-col border-l border-slate-200 bg-white shadow-xl">
           <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <h3 className="text-sm font-semibold">会场交流</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold">会场交流</h3>
+              {/* R10：连接态徽标；断开时给手动重连入口 */}
+              <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${connBadge.cls}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${connBadge.dot}`} />
+                {connBadge.text}
+                {connection === 'disconnected' && (
+                  <button onClick={reconnectNow} className="ml-0.5 font-semibold text-blue-600 hover:underline">重连</button>
+                )}
+              </span>
+            </div>
             <div className="flex items-center gap-1 text-xs">
               {(['OPEN', 'MUTED', 'CLOSED'] as const).map(c => (
                 <button key={c} onClick={() => changeControl(c)}
@@ -172,7 +277,7 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
           </div>
 
           <div className="flex gap-2 border-b border-slate-200 px-4 py-2 text-sm">
-            <button onClick={() => { setTab('PUBLIC'); setPublicUnread(0); openingHallApi.markRead(projectId, 'public').catch(() => {}); }}
+            <button onClick={() => { setTab('PUBLIC'); setPublicUnread(0); openingHallApi.markRead(projectId, 'public', publicMsgs[publicMsgs.length - 1]?.id).catch(() => {}); }}
               className={tab === 'PUBLIC' ? 'font-semibold text-slate-900' : 'text-slate-500'}>
               公聊{publicUnread > 0 ? ` (${publicUnread})` : ''}
             </button>
@@ -204,17 +309,20 @@ export function ExchangeDrawer({ projectId }: { projectId: string }) {
             ))}
           </div>
 
-          <div className="flex gap-2 border-t border-slate-200 p-3">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !(e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229)) send(); }}
-              placeholder={tab === 'PRIVATE' && !activeSupplier ? '请先选择供应商' : '输入消息（Enter 发送）'}
-              disabled={tab === 'PRIVATE' && !activeSupplier}
-              className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
-            />
-            <button onClick={send} disabled={sending || !input.trim()}
-              className="rounded-xl bg-slate-900 px-4 text-sm text-white disabled:opacity-40">发送</button>
+          <div className="border-t border-slate-200">
+            {inputHint && <div className="px-3 pt-2 text-[11px] font-medium text-amber-600">{inputHint}</div>}
+            <div className="flex gap-2 p-3">
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !(e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229)) send(); }}
+                placeholder={inputDisabled ? (tab === 'PRIVATE' && !activeSupplier ? '请先选择供应商' : '互动已关闭') : '输入消息（Enter 发送）'}
+                disabled={inputDisabled}
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 disabled:bg-slate-50"
+              />
+              <button onClick={send} disabled={sending || !input.trim() || inputDisabled}
+                className="rounded-xl bg-slate-900 px-4 text-sm text-white disabled:opacity-40">发送</button>
+            </div>
           </div>
         </aside>,
         document.body,

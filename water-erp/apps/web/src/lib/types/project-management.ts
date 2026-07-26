@@ -8,6 +8,16 @@ export const PROCUREMENT_METHODS = [
 
 export type ProcurementMethod = (typeof PROCUREMENT_METHODS)[number];
 
+export const PROCUREMENT_CATEGORY_OPTIONS: string[] = [
+  '生产技术类采购',
+  'EPC项目采购',
+  'EPC管理采购',
+  '公用集中采购',
+  '科技研发类采购',
+  '信息化采购',
+  '其他',
+];
+
 export type StageConfig = {
   key: string;
   label: string;
@@ -170,6 +180,7 @@ export type ProjectManagementItem = {
   initiationDate?: string | null;
   projectOverview?: string | null;
   bidOpeningTime?: string | null;
+  documentAcquireTime?: string | null;
   invitedSuppliers?: string | null;
   paymentPerformance?: string | null;
   expertInfo?: string | null;

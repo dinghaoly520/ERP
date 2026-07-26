@@ -6,9 +6,11 @@ import { supplierApi } from '@/api/supplier'
 import { bidApi } from '@/api/bid'
 import { openingHallApi } from '@/api/openingHall'
 import { useBidWebSocket } from '@/composables/useBidWebSocket'
+import { useAuthStore } from '@/stores/auth'
 import ChatPanel from '@/components/bid/ChatPanel.vue'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const projectId = route.params.projectId as string
 
 const project = ref<any>(null)
@@ -77,8 +79,8 @@ async function checkIn() {
     const res = await openingHallApi.checkIn(projectId)
     checkedInAt.value = res.checkInAt
     ElMessage.success('签到成功')
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.error || '签到失败')
+  } catch {
+    // U5：业务错误消息已由 axios 拦截器统一弹出（data.error），此处不重复提示
   }
 }
 
@@ -89,9 +91,9 @@ async function confirmRecord() {
     ElMessage.success('已确认开标记录')
     await refresh()
   } catch (e: any) {
-    // ElMessageBox：取消按钮 reject 'cancel'，ESC/X 关闭 reject 'close'——都属用户关闭，不报错
+    // ElMessageBox：取消按钮 reject 'cancel'，ESC/X 关闭 reject 'close'——都属用户关闭，静默
     if (e === 'cancel' || e === 'close' || e?.toString?.().includes('cancel') || e?.toString?.().includes('close')) return
-    ElMessage.error(e?.response?.data?.error || '确认失败')
+    // U5：其余业务错误消息已由 axios 拦截器统一弹出（data.error），此处不重复提示
   }
 }
 
@@ -106,7 +108,7 @@ async function disputeRecord() {
     await refresh()
   } catch (e: any) {
     if (e === 'cancel' || e === 'close' || e?.toString?.().includes('cancel') || e?.toString?.().includes('close')) return
-    ElMessage.error(e?.response?.data?.error || '提交失败')
+    // U5：其余业务错误消息已由 axios 拦截器统一弹出（data.error），此处不重复提示
   }
 }
 
@@ -164,7 +166,8 @@ onMounted(bootstrap)
     </div>
 
     <div class="right">
-      <ChatPanel v-if="supplierId" :project-id="projectId" :supplier-id="supplierId" :supplier-name="supplierName" />
+      <!-- U3：userId 取 auth store 的 User.id（消息 senderId = actor.userId，非 Supplier.id） -->
+      <ChatPanel v-if="supplierId" :project-id="projectId" :supplier-id="supplierId" :supplier-name="supplierName" :user-id="authStore.user?.id ?? ''" />
       <el-card v-else-if="profileError" shadow="never">
         <el-empty description="会话加载失败" :image-size="64">
           <el-button size="small" type="primary" @click="retryProfile">重试</el-button>

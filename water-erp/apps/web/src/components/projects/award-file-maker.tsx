@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { Archive, FileX, Mail, RotateCcw, Trophy, X } from 'lucide-react';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
@@ -74,9 +75,10 @@ export function AwardFileMaker({ isOpen, onClose, project, onPublished, onReproc
   };
 
   async function handleReprocConfirm() {
+    if (!onReproc) { toast.warning('当前页面未接入再次采购功能'); return; }
     setActing(true);
     try {
-      if (onReproc) await onReproc();
+      await onReproc();
     } finally {
       setActing(false);
       closeAll();
@@ -84,9 +86,10 @@ export function AwardFileMaker({ isOpen, onClose, project, onPublished, onReproc
   }
 
   async function handleArchiveConfirm() {
+    if (!onArchive) { toast.warning('当前页面未接入归档功能'); return; }
     setActing(true);
     try {
-      if (onArchive) await onArchive();
+      await onArchive();
     } finally {
       setActing(false);
       closeAll();

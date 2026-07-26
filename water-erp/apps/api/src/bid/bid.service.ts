@@ -1169,6 +1169,16 @@ export class BidService {
       const existing = await tx.bidOpeningRecord.findFirst({
         where: { projectId, bidSupplierId: bidSupplier.id },
       });
+      // 状态门（Wave4a-I1）：已确认/异议/已处理的记录不得被唱标重录覆写——否则异议态记录被
+      // 覆写回「待供应商确认」（objectionReason 残留）后 resolve 撞 R7 状态门 400，bidSupplier
+      // 永久停留 DISPUTED 并被 generateEvaluationResults 静默排除（R7 引入的交互回归楔子）。
+      const LOCKED = ['供应商已确认', '供应商提出异议', '异议已处理-确认', '异议已处理-退回'];
+      if (existing && LOCKED.includes(existing.confirmStatus)) {
+        throw new ConflictException({
+          error: `开标记录处于「${existing.confirmStatus}」状态，不得重录唱标；请通过异议处理结果（维持/退回）完成闭环`,
+          code: 'RECORD_LOCKED',
+        });
+      }
       const rec = existing
         ? await tx.bidOpeningRecord.update({ where: { id: existing.id }, data: payload })
         : await tx.bidOpeningRecord.create({
@@ -1192,26 +1202,35 @@ export class BidService {
     const record = await this.prisma.bidOpeningRecord.findFirst({ where: { id: recordId, projectId } });
     if (!record) throw new BadRequestException({ error: '开标记录不存在', code: 'NOT_FOUND' });
 
-    // H6: 状态前置——仅可处理处于「供应商提出异议」状态的记录，杜绝绕过供应商确认环节直接改判
-    if (record.confirmStatus !== '供应商提出异议') {
-      throw new ConflictException({ error: '仅可处理处于「供应商提出异议」状态的开标记录', code: 'NOT_IN_DISPUTE' });
-    }
-
     // P0: 阶段门控 — 仅在开标阶段可处理异议
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'OPENING') {
       throw new BadRequestException({ error: '项目不在开标阶段，无法处理异议', code: 'PROJECT_NOT_OPENING' });
     }
 
+    // R7：状态机门 — 仅「供应商提出异议」态记录可处理。旧实现不校验记录态：主持人可"处理"
+    // 从未被异议的记录（翻转确认态）、对已处理记录反复覆盖。阶段门控之后、事务之前拦截。
+    if (record.confirmStatus !== '供应商提出异议') {
+      throw new BadRequestException({ error: '该记录不处于异议待处理状态', code: 'DISPUTE_NOT_PENDING' });
+    }
+
     const now = new Date();
     const confirmStatus = dto.confirm ? '异议已处理-确认' : '异议已处理-退回';
+    // Wave4a-M5：监督日志记态迁移（前态 → 后态：处理结果），便于监督端回放异议闭环
+    const supervisionResult = `供应商提出异议 → ${confirmStatus}：${dto.result}`;
 
     // P0: Wrap record update + supplier update + supervision log in transaction
     await this.prisma.$transaction(async (tx) => {
-      await tx.bidOpeningRecord.update({
-        where: { id: recordId },
+      // Wave4a-M4：事务内条件更新是并发防线——事务外的状态门基于 stale read，并发双处理都过门时
+      // 仅首笔命中异议待处理行（count=1），第二笔 count=0 → 400，杜绝双落（与 R6 原子抢占同构）。
+      // H6 并入：updateMany 同时写 handledBy 操作者留痕。
+      const res = await tx.bidOpeningRecord.updateMany({
+        where: { id: recordId, confirmStatus: '供应商提出异议' },
         data: { confirmStatus, handleResult: dto.result, handledAt: now, handledBy: actorId ?? null },
       });
+      if (res.count === 0) {
+        throw new BadRequestException({ error: '该异议已被处理', code: 'DISPUTE_NOT_PENDING' });
+      }
       if (record.bidSupplierId) {
         await tx.bidSupplier.update({
           where: { id: record.bidSupplierId },
@@ -1221,7 +1240,7 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: now, role: '开标主持人', target: record.supplierName,
-          action: '处理开标异议', result: dto.result, riskFlag: '中风险',
+          action: '处理开标异议', result: supervisionResult, riskFlag: '中风险',
         },
       });
       // H6: 操作者留痕（开标异议处理是法定留痕环节）
@@ -1232,7 +1251,7 @@ export class BidService {
       }
     });
 
-    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: dto.result, riskFlag: '中风险' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: supervisionResult, riskFlag: '中风险' });
     if (record.bidSupplierId) {
       const bs = await this.prisma.bidSupplier.findUnique({
         where: { id: record.bidSupplierId },

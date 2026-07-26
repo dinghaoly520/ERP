@@ -15,6 +15,11 @@ export class AnnouncementAiService {
     private readonly config: ConfigService,
   ) {}
 
+  /** LLM 是否已配置（供 controller 给出准确报错；未配置 DEEPSEEK_API_KEY 时为 false） */
+  isConfigured(): boolean {
+    return !!this.llm.getModel();
+  }
+
   async summarize(input: { title: string; type: string; content: string }): Promise<string | undefined> {
     if (!this.llm.getModel()) return undefined;
 

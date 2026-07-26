@@ -36,8 +36,14 @@ api.interceptors.response.use(
       ElMessage.error(data?.error || '无权访问')
     } else if (status === 400) {
       ElMessage.error(data?.error || '请求参数错误')
+    } else if (!error.response) {
+      // 断网/超时（无 response）——开标现场网络不稳 + 关键动作密集，不能静默（Wave 4b 评审 I1）
+      ElMessage.error('网络异常或请求超时，请检查网络')
     } else if (status >= 500) {
       ElMessage.error('服务器错误，请稍后重试')
+    } else if (status) {
+      // 其余状态码（404/409/429…）：显示业务错误消息
+      ElMessage.error(data?.error || '请求失败')
     }
 
     return Promise.reject(error)

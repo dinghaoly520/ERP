@@ -150,6 +150,7 @@ export default function BidOpenPage() {
   const [inlineDispute, setInlineDispute] = useState<string | null>(null);
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false); // M9：防双击 + 失败态按钮锁
   const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
@@ -236,13 +237,22 @@ export default function BidOpenPage() {
 
   // ═══ API ═══
   const handleResolveDispute = async (recordId: string, result: string, confirm: boolean) => {
-    if (!projectId) return;
-    await resolveOpeningDispute(projectId, recordId, { result, confirm });
-    const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-    setProject(updated);
-    setInlineDispute(null);
-    setDisputeHandleResult('');
-    setDisputeHandleConfirm(null);
+    if (!projectId || disputeSubmitting) return;
+    setDisputeSubmitting(true);
+    try {
+      await resolveOpeningDispute(projectId, recordId, { result, confirm });
+      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
+      setProject(updated);
+      setInlineDispute(null);
+      setDisputeHandleResult('');
+      setDisputeHandleConfirm(null);
+    } catch (err: any) {
+      // M9：失败时面板不收起、按钮解锁；非异议态记录后端返回 400 code=DISPUTE_NOT_PENDING
+      if (err?.code === 'DISPUTE_NOT_PENDING') toast.error('该异议已被处理');
+      else toast.error(err?.message || '处理异议失败');
+    } finally {
+      setDisputeSubmitting(false);
+    }
   };
 
   const executeDecrypt = async (targets: { id: string; name: string }[]) => {
@@ -311,7 +321,11 @@ export default function BidOpenPage() {
       setRecordEntry(null);
       const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
       setProject(updated);
-    } catch (e: any) { toast.error(e.message || '录入失败'); }
+    } catch (e: any) {
+      // M9：唱标重录对锁定态记录后端返回 409 code=RECORD_LOCKED
+      if (e?.code === 'RECORD_LOCKED') toast.error('该开标记录已锁定，无法重录');
+      else toast.error(e?.message || '录入失败');
+    }
   };
 
   // ═══ Data loading ═══
@@ -555,7 +569,8 @@ export default function BidOpenPage() {
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
               </button>
             )}
-            {projectId && <ExchangeDrawer projectId={projectId} />}
+            {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403） */}
+            {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} />}
           </div>
         </div>
 
@@ -736,10 +751,10 @@ export default function BidOpenPage() {
                               className="rounded-lg px-4 py-2 text-xs font-bold text-[#5a6d8a] hover:bg-[#f8fafc] border border-[#dce6f3] transition">取消</button>
                             <button onClick={() => handleResolveDispute(r.id, disputeHandleResult, false)}
                               className="rounded-lg px-4 py-2 text-xs font-bold text-[#e74c3c] hover:bg-red-50 border border-[#e74c3c] transition disabled:opacity-50"
-                              disabled={!disputeHandleResult.trim()}>退回异议</button>
+                              disabled={!disputeHandleResult.trim() || disputeSubmitting}>{disputeSubmitting ? '处理中…' : '退回异议'}</button>
                             <button onClick={() => handleResolveDispute(r.id, disputeHandleResult, true)}
                               className="rounded-lg px-4 py-2 text-xs font-bold text-white bg-[#11a874] hover:bg-[#0e8c5f] transition disabled:opacity-50"
-                              disabled={!disputeHandleResult.trim()}>确认受理</button>
+                              disabled={!disputeHandleResult.trim() || disputeSubmitting}>{disputeSubmitting ? '处理中…' : '确认受理'}</button>
                           </div>
                         </div>
                       </td>
