@@ -1,6 +1,6 @@
 # 开标流转重设计：:3007 执行端「接活 → 执行 → 交回」机制
 
-- 日期：2026-07-26
+- 日期：2026-07-26（v2：新增扩展章 A/B）
 - 状态：已批准，待实施
 - 涉及端：`apps/api`、`apps/bid-portal`（:3007）、`apps/web`（:3005）、`packages/shared`
 
@@ -60,7 +60,7 @@
      - 写 `AuditLog`（`BID_STAGE_CHANGE` 不适用，action 用 `BID_OPENING_HANDOVER`，details 含 assetId/sha256）。
   4. 事务后（try/catch，失败不阻塞主流程，与 abort 通知同模式）：
      - `gateway.notifyOpeningCompleted(id, { handoverAt, handoverAssetId })`；
-     - `notificationService.sendToRole('leader', …)` 与 `sendToRole('staff', …)`：标题「项目〈name〉开标完成，资料已移交」，`link: /projects`（:3005 项目页）。
+     - `notificationService.sendToRole('leader', …)` 与 `sendToRole('staff', …)`：标题「项目〈name〉开标完成，资料已移交」，`link: /projects?projectId=<id>&panel=bid-confirm`（深链直达开标确认面板，见 §13）。
 - 响应 200：`{ status: '开标完成', handoverAt, handoverAssetId, downloadUrl: '/api/upload/files/<assetId>' }`。
 
 ### 4.2 H4 完成度校验抽共享方法
@@ -84,7 +84,7 @@ this.notificationService.sendToRole('bid_host', {
   type: 'BID_OPENING_CONFIRMED',
   title: `项目${project.name}已确定开标`,
   content: '请前往开标大厅组建会话（填写主持人、监督人与解密窗口）',
-  link: `/bid/open?id=${id}`,
+  link: `/bid/project/${id}`,
 });
 ```
 
@@ -155,7 +155,7 @@ model BidOpeningSession {
 
 - 替换现有「开标完成」横幅（现 518-531 行）为三态：
   1. `openingDone && !session.handoverAt && stage==='OPENING'`：横幅「开标完成」+ 主按钮【完成开标 · 移交采购管理工作台】→ `completeOpening(projectId)` → 成功 toast「开标资料已移交」+ refetch；失败按 error.code 提示（`OPENING_NOT_DONE` 展示名单）。
-  2. `session.handoverAt` 存在：绿色横幅「开标资料已于 {handoverAt} 移交采购管理工作台，后续评标 / 归档请前往 :3005」+ 按钮【前往采购管理工作台】（`portalURL('web','/projects')`）。**删除原文案中"或执行开标归档"字样。**
+  2. `session.handoverAt` 存在：绿色横幅「开标资料已于 {handoverAt} 移交采购管理工作台，后续评标 / 归档请前往 :3005」+ 按钮【前往开标确认面板】（`portalURL('web', `/projects?projectId=${projectId}&panel=bid-confirm`)`）。**删除原文案中"或执行开标归档"字样。**
   3. 阶段终局横幅（现 489-501 行覆盖 EVALUATING/ARCHIVED）：增加 `ABORTED` 分支——「本项目已流标，后续处理（流标公告）请在采购管理工作台操作」。
 - `openingDone` 派生逻辑不变（已是 H4 同口径）。
 
@@ -213,12 +213,14 @@ model BidOpeningSession {
 
 - :3005 按时开标 → bid_host 站内信到达 → :3007 任务板/大厅组建会话 → 走完开标 → 交回 → :3005 开标进度块出现"资料已接收 · 下载" → 下载包内容正确 → :3005 启动评标不受影响。
 - :3005 先流标 → :3007 大厅出现流标终局横幅、交回按钮不可达。
+- 站内信 / 交回横幅深链：点击直达 :3005 项目详情且开标确认面板自动弹出（§13）。
+- 工作区（§12）：任务板进入 `/bid/project/<id>` 默认 tab 随阶段正确（OPENING→开标大厅，EVALUATING→评标管理）；`/bid/open?id=<id>` 重定向不破坏旧链接；评标管理 tab 无任何操作按钮；评分标准 tab 只读（无编辑/模板/AI 提取控件）；OPENING 阶段评标管理 tab 灰显提示。
 
 ## 10. 文档同步
 
 实施完成后更新 `CLAUDE.md`（经 Bash 编辑）：
 
-- 「开评标管理端」章节：页面描述补充"完成开标·移交"机制与交回横幅；
+- 「开评标管理端」章节：页面描述改为三页（任务板 / 开标大厅 / 项目工作区），补充"完成开标·移交"机制与交回横幅；**"项目工作区 tab 机制已退役"一句改为"项目工作区 `/bid/project/[id]` 恢复，挂开标大厅 / 评标管理（只读）/ 评分标准（只读）三 tab；流转操作仍全归 :3005"**；
 - 「Bid Stage State Machine」段落：在":3005 驱动流转"之后补一句":3007 在 OPENING 阶段内另持有完成开标·资料移交（不改 stage，产物回传 :3005）"；
 - 模块表 `Bid` 行无需改动。
 
@@ -227,4 +229,69 @@ model BidOpeningSession {
 - 不改 `archiveAll` 任何语义；不给 :3007 归档 / 流标入口。
 - 不把交回设为启动评标的前置条件。
 - 不清理 :3005 现有任何按钮（含"确认开标结果"重复入口）。
-- 不动任务板、不动 open-submission、不动延时开标。
+- 不动 open-submission、不动延时开标。
+- 工作区（§12）不恢复旧版「澄清答疑」「归档」tab（归 :3005）；评标管理 tab 不含任何操作按钮（启动评标/生成结果/催促归 :3005）；评分标准 tab 不含编辑能力。
+
+## 12. 扩展章 A：:3007 项目工作区恢复（tab 机制）
+
+### 12.1 背景与边界
+
+2026-07 Phase 3 瘦身（commit `8b097d4c`）删除了 `/bid/project/[id]` tab 工作区（旧五 tab：开标大厅/评分标准/监督端/评标端/澄清答疑）。本次恢复其中**监测类**两 tab，供开标主持人在交回后就近跟踪评标进展：
+
+- **总则不变**：全部流转操作（确定开标/启动评标/生成结果/归档/流标/催促）仍归 :3005，工作区内零操作按钮。
+- 恢复：评标管理（只读）、评分标准（只读）；开标大厅沿用现有页面作为首 tab；监督视图不单独成 tab（保留厅内切换）。
+- 不恢复：澄清答疑、归档（含触发与查看）。
+
+### 12.2 路由与入口
+
+| 路由 | 说明 |
+|---|---|
+| `/bid/project/[id]?tab=open\|evaluate\|standard` | 恢复的工作区页（新建）；`tab` 缺省按阶段取默认（12.3） |
+| `/bid/open?id=<id>` | 改为重定向 → `/bid/project/<id>?tab=open`（兼容旧通知链接、最近访问、:3005「前往开标大厅」按钮） |
+| `/bid` 任务板 | 「进入开标大厅」改指 `/bid/project/<id>`（默认 tab 随阶段） |
+
+### 12.3 Tab 定义（仿旧版 `TabDef` 结构）
+
+```ts
+const TABS = [
+  { key: 'open',     label: '开标大厅', minStage: ['OPENING','EVALUATING','ARCHIVED','ABORTED'], stageHint: '开标尚未开始…' },
+  { key: 'evaluate', label: '评标管理', minStage: ['EVALUATING','ARCHIVED'], stageHint: '评标尚未开始。当前阶段：{stage}，请等待 :3005 启动评标' },
+  { key: 'standard', label: '评分标准', minStage: ['DOWNLOAD','SUBMIT','OPENING','EVALUATING','ARCHIVED'], stageHint: '—' },
+];
+// 默认 tab：EVALUATING → evaluate；其余（含 ABORTED）→ open
+```
+
+阶段不满足的 tab 灰显不可点（旧版 `isStageAllowed` 同款交互）。`DOWNLOAD/SUBMIT` 项目旧版默认 standard（因可编制），现 standard 只读，默认改 open（前阶段引导横幅已在厅内）。
+
+### 12.4 组件移植清单（从 :3005 现状移植，不从 git 历史挖旧组件）
+
+| :3007 新组件 | 来源 | 移植方式 |
+|---|---|---|
+| `workspace/project-tabs.tsx` + `page.tsx` | 旧版结构 + cgzxui 样式 | 新建（旧组件为暗色主题，弃用） |
+| `workspace/evaluation-view.tsx` | `apps/web/.../evaluation-block.tsx` | 剪掉：启动评标横幅、生成评标结果按钮/向导、催促按钮、`busy`/操作态；保留：进度四联、专家状态卡（含评分明细展开）、评分矩阵 + 偏差异常、汇总排名表、实时/官方结果切换 |
+| `workspace/score-standard-view.tsx` | `apps/web/.../score-standard/score-standard-editor.tsx` 展示部分 | 只保留评分项 + 得分点树状展示与分值汇总；删除编辑/发布/模板库/AI 提取全部交互 |
+
+样式统一到 :3007 cgzxui 浅色新拟态（`neu-card-static`/`neu-table`）。
+
+### 12.5 数据与实时（后端零改动）
+
+- `GET /bid/projects/:id` 响应已含 `experts`/`scoreItems`/`scores`（:3005 评标管理块同接口消费）；排名表补 `GET /bid/projects/:id/evaluation-results`。:3007 `lib/api/bid.ts` 增 `listEvaluationResults(projectId)`。
+- WS：`use-bid-websocket`（Phase 3 裁剪到开标事件组）补回评标事件订阅——gateway 侧 `EXPERT_PRESENCE(_AGGREGATE)` 等 emitter 均在（`bid.gateway.ts:277-297`），仅需前端 hook 接收并在 evaluate tab 激活时驱动 refetch。
+
+### 12.6 与其他章节的衔接
+
+- §4.3 bid_host 通知 link 已改为 `/bid/project/<id>`（工作区默认 tab 随阶段）。
+- §7.1 交回后横幅按钮改深链至 :3005 开标确认面板（§13）。
+- §9 测试计划已含工作区验证项。
+
+## 13. 扩展章 B：:3005 移交深链（panel=bid-confirm）
+
+现状：`project-management-page.tsx:61-82` 已支持 `?projectId=` 列表就绪后自动展开项目详情面板；但开标确认面板还需人工在「采购流程」时间线里点 BID_EVALUATION 阶段卡的小 chip（`project-stage-timeline.tsx:66`），四级深入口。
+
+改动（约 10 行，纯 :3005 前端）：
+
+1. `project-management-page.tsx` 深链 effect 扩展：读取 `panel=bid-confirm` 参数，随 `pageContext`/选中态透传给 `ProjectDetailPanel`（新增 prop `autoOpenBidConfirm?: boolean`）。
+2. `project-detail-panel.tsx`：详情数据就绪且 `autoOpenBidConfirm` 为真时 `setBidConfirmOpen(true)`（一次性，触发后清标记，避免关闭后反复弹）。
+3. 消费方链接统一为 `/projects?projectId=<id>&panel=bid-confirm`：§4.1 移交通知（leader/staff）、§7.1 交回后横幅按钮。
+
+**验证**：深链打开 → 详情展开 → 面板自动弹出 → 关闭后不复发；无 `panel` 参数时行为与现状完全一致。
