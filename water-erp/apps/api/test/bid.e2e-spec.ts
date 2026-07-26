@@ -200,7 +200,8 @@ describe('Bid Lifecycle (e2e)', () => {
   it('管理员可启动评标 OPENING → EVALUATING', async () => {
     // P2/G4/G9 前置：真实解密需 MinIO 加密投标文件 + AES-GCM/SHA-256 校验（属独立单测范畴），
     // 此流程测试用 prisma 直接 setup 评标前置——≥1 解密成功供应商(G4)、≥1 评审专家(P2)、≥1 评分项(G9)
-    await prisma.bidSupplier.update({ where: { id: createdSupplierId }, data: { decryptStatus: 'SUCCESS' } });
+    // H4 共享守卫（T4 抽入 startEvaluation）：未撤回供应商须到终局态——SUCCESS 且 confirmStatus CONFIRMED/EXCEPTION
+    await prisma.bidSupplier.update({ where: { id: createdSupplierId }, data: { decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' } });
     const expertUser = await prisma.user.findFirst({ where: { role: 'bid_expert' } });
     expect(expertUser).toBeTruthy();
     await prisma.bidExpert.create({
@@ -337,7 +338,8 @@ describe('Bid Lifecycle (e2e)', () => {
       data: { projectId: proj.id, userId: expertUser!.id, expertName: expertUser!.username, major: '综合' },
     });
     await prisma.bidSupplier.create({
-      data: { projectId: proj.id, supplierName: '残缺测试供应商', decryptStatus: 'SUCCESS', submitStatus: '已提交' },
+      // confirmStatus: CONFIRMED 满足 H4 终局态守卫，使闸门推进到 G9（评分标准完整性）
+      data: { projectId: proj.id, supplierName: '残缺测试供应商', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: '已提交' },
     });
     await prisma.bidScoreItem.createMany({
       data: [
@@ -485,5 +487,109 @@ describe('Bid Lifecycle (e2e)', () => {
     await prisma.bidSupervisionLog.deleteMany({ where: { projectId: proj.id } });
     await prisma.bidScoreItem.deleteMany({ where: { projectId: proj.id } });
     await prisma.bidProject.delete({ where: { id: proj.id } }).catch(() => {});
+  });
+
+  describe('完成开标·资料移交 (complete-opening, e2e)', () => {
+    let projectId: string;
+
+    beforeAll(async () => {
+      // 创建一个 deadline 已过的最小项目（字段照套件首个建项目用例；projectCode 不在 DTO 内，由服务端生成）
+      const createRes = await request(app.getHttpServer())
+        .post('/api/bid/projects')
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({
+          name: `移交测试项目-${Date.now()}`,
+          procurementMethod: '公开招标',
+          budget: 1000000,
+          deadline: new Date(Date.now() - 86400_000).toISOString(),
+          openTime: new Date(Date.now() - 43200_000).toISOString(),
+        });
+      projectId = createRes.body.id;
+      // 确定开标（裸推阶段，不建会话）
+      await request(app.getHttpServer())
+        .post(`/api/bid/projects/${projectId}/open`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({});
+    });
+
+    afterAll(async () => {
+      await prisma.bidSupervisionLog.deleteMany({ where: { projectId } }).catch(() => {});
+      await prisma.bidOpeningSession.deleteMany({ where: { projectId } }).catch(() => {});
+      await prisma.fileAsset.deleteMany({ where: { category: 'bid_opening_handover', key: `bid-opening-handover/${projectId}.json` } }).catch(() => {});
+      await prisma.bidProject.delete({ where: { id: projectId } }).catch(() => {});
+    });
+
+    it('未组建会话 → 409 SESSION_NOT_FOUND', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/bid/projects/${projectId}/complete-opening`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({});
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('SESSION_NOT_FOUND');
+    });
+
+    it('组建会话后移交成功 → 文件包可下载、stage 保持 OPENING、幂等返回同一 asset', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/bid/projects/${projectId}/open`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({
+          host: '测试主持', supervisor: '测试监督',
+          decryptWindowStart: new Date(Date.now() - 3600_000).toISOString(),
+          decryptWindowEnd: new Date(Date.now() + 3600_000).toISOString(),
+        });
+
+      const r1 = await request(app.getHttpServer())
+        .post(`/api/bid/projects/${projectId}/complete-opening`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({});
+      expect(r1.status).toBe(201);
+      expect(r1.body.status).toBe('开标完成');
+      const assetId = r1.body.handoverAssetId;
+      expect(assetId).toBeTruthy();
+
+      // stage 未被改动
+      const proj = await prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+      expect(proj?.stage).toBe('OPENING');
+
+      // 文件包可下载且内容齐全
+      const dl = await request(app.getHttpServer())
+        .get(`/api/upload/files/${assetId}`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .buffer(true).parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+      expect(dl.status).toBe(200);
+      const pkg = JSON.parse((dl.body as Buffer).toString('utf8'));
+      expect(pkg.packageType).toBe('BID_OPENING_HANDOVER');
+      expect(pkg.project.projectCode).toBeTruthy();
+      expect(pkg.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+
+      // 幂等
+      const r2 = await request(app.getHttpServer())
+        .post(`/api/bid/projects/${projectId}/complete-opening`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({});
+      expect(r2.status).toBe(201);
+      expect(r2.body.handoverAssetId).toBe(assetId);
+    });
+
+    it('不移交也能启动评标的前提守卫仍生效（无专家 → NO_EXPERTS_ASSIGNED，证明非门控）', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/bid/projects/${projectId}/start-evaluation`)
+        .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({});
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('NO_EXPERTS_ASSIGNED'); // 报的是专家缺失而非"未移交"——交回非闸门
+    });
   });
 });
