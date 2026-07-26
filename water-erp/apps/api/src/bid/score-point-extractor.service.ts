@@ -7,7 +7,7 @@ import { EmbeddingService } from '../local-ai/embedding.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { processFile } from '../ai-bid-analysis/utils/file-processor';
 import { SCORE_POINTS_EXTRACT_SYSTEM, SCORE_POINTS_EXTRACT_PROMPT } from './prompts/score-points.prompt';
-import { ScorePointSuggestion } from '@water-erp/shared';
+import { ScorePointSuggestion, ScorePointSuggestionGroup } from '@water-erp/shared';
 
 @Injectable()
 export class ScorePointExtractorService {
@@ -93,6 +93,39 @@ export class ScorePointExtractorService {
     }
 
     return result.items;
+  }
+
+  /**
+   * 一键提取：全部非 PRICE 评分项逐项复用 extractScorePoints。
+   * 招标文件文本预取一次写入 tenderTextCache（TTL 1min），逐项调用零成本命中；
+   * 单项 LLM 失败由其内部 E6 降级返回 []，不中断整批。
+   */
+  async extractAllScorePoints(projectId: string): Promise<ScorePointSuggestionGroup[]> {
+    const items = await this.prisma.bidScoreItem.findMany({
+      where: { projectId },
+      orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
+      include: { points: true },
+    });
+    if (items.length === 0) return [];
+
+    const tenderText = await this.getTenderText(projectId);
+    if (!tenderText) {
+      throw new BadRequestException({ error: '招标文件未就绪（未发布招标公告或无招标文件）', code: 'TENDER_NOT_READY' });
+    }
+
+    const groups: ScorePointSuggestionGroup[] = [];
+    for (const item of items) {
+      if (item.category === 'PRICE') continue; // E5: 价格分由报价公式计算
+      const suggestions = await this.extractScorePoints(projectId, item.id);
+      groups.push({
+        itemId: item.id,
+        itemName: item.name,
+        category: item.category,
+        maxScore: Number(item.maxScore),
+        suggestions,
+      });
+    }
+    return groups;
   }
 
   // ── E1 辅助方法 ──

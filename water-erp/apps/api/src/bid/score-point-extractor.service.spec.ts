@@ -12,7 +12,7 @@ describe('ScorePointExtractorService', () => {
   const ocr = {};
   const embedding = { embed: jest.fn() };
   const prisma = {
-    bidScoreItem: { findFirst: jest.fn() },
+    bidScoreItem: { findFirst: jest.fn(), findMany: jest.fn() },
   };
 
   beforeEach(() => {
@@ -137,5 +137,68 @@ describe('ScorePointExtractorService', () => {
     const r = await service.extractScorePoints('p1', 'i1');
     expect(r[0].duplicate).toBe(true);   // 与已有「施工组织设计」高度相似
     expect(r[1].duplicate).toBeUndefined();
+  });
+
+  // ── extractAllScorePoints：一键提取全部评分项 ──
+
+  it('一键提取：跳过 PRICE 项，其余项分组返回', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([
+      { id: 't1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] },
+      { id: 'pr1', projectId: 'p1', category: 'PRICE', name: '价格评分', maxScore: 30, points: [] },
+    ]);
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from('fake-tender'));
+    validator.retryChatJson.mockResolvedValue({
+      items: [{ name: '施工组织设计', fullScore: 10, evidenceHint: '', objective: true }],
+    });
+    const r = await service.extractAllScorePoints('p1');
+    expect(r.map((g) => g.itemId)).toEqual(['t1']);
+    expect(r[0]).toMatchObject({ itemName: '技术评分', category: 'TECHNICAL', maxScore: 50 });
+    expect(r[0].suggestions).toHaveLength(1);
+  });
+
+  it('一键提取：逐项聚合且保留空建议组，招标文件只取一次（缓存）', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([
+      { id: 't1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] },
+      { id: 'b1', projectId: 'p1', category: 'BUSINESS', name: '商务评分', maxScore: 20, points: [] },
+    ]);
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from('fake-tender'));
+    validator.retryChatJson
+      .mockResolvedValueOnce({ items: [{ name: 'A', fullScore: 10, evidenceHint: '', objective: true }] })
+      .mockResolvedValueOnce({ items: [] });
+    const r = await service.extractAllScorePoints('p1');
+    expect(r).toHaveLength(2);
+    expect(r[0].suggestions).toHaveLength(1);
+    expect(r[1]).toMatchObject({ itemId: 'b1', suggestions: [] });
+    expect(plaintextFetcher.fetchTenderPlaintext).toHaveBeenCalledTimes(1);
+  });
+
+  it('一键提取：招标文件未就绪抛 TENDER_NOT_READY', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([
+      { id: 't1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] },
+    ]);
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(null);
+    await expect(service.extractAllScorePoints('p1')).rejects.toMatchObject({
+      response: { code: 'TENDER_NOT_READY' },
+    });
+  });
+
+  it('一键提取：单项 LLM 失败该组为空，不中断整批', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([
+      { id: 't1', projectId: 'p1', category: 'TECHNICAL', name: '技术评分', maxScore: 50, points: [] },
+      { id: 'b1', projectId: 'p1', category: 'BUSINESS', name: '商务评分', maxScore: 20, points: [] },
+    ]);
+    plaintextFetcher.fetchTenderPlaintext.mockResolvedValue(Buffer.from('fake-tender'));
+    validator.retryChatJson
+      .mockRejectedValueOnce(new Error('llm down'))
+      .mockResolvedValueOnce({ items: [{ name: 'B', fullScore: 5, evidenceHint: '', objective: true }] });
+    const r = await service.extractAllScorePoints('p1');
+    expect(r[0].suggestions).toEqual([]);
+    expect(r[1].suggestions).toHaveLength(1);
+  });
+
+  it('一键提取：无评分项返回空数组且不取招标文件', async () => {
+    prisma.bidScoreItem.findMany.mockResolvedValue([]);
+    await expect(service.extractAllScorePoints('p1')).resolves.toEqual([]);
+    expect(plaintextFetcher.fetchTenderPlaintext).not.toHaveBeenCalled();
   });
 });

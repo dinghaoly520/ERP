@@ -340,6 +340,13 @@ export class BidController {
     return this.scorePointExtractor.extractScorePoints(id, itemId);
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @Post('projects/:id/score-items/points/extract-all')
+  @ApiOperation({ summary: '一键 AI 提取全部评分项的得分点建议（同步，不落库）' })
+  extractAllScorePoints(@Param('id') id: string) {
+    return this.scorePointExtractor.extractAllScorePoints(id);
+  }
+
   @Post('projects/:id/score-items/:itemId/points/batch')
   @ApiOperation({ summary: '批量导入得分点（管理员审核 AI 建议后）' })
   batchCreateScorePoints(
