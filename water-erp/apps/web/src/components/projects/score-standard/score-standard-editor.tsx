@@ -304,13 +304,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       {!locked && (
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={handlePublish}
-            className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#0e8f61]"
-          >
-            <Check size={14} strokeWidth={1.8} />
-            发布评分标准
-          </button>
-          <button
             onClick={() => {
               setShowAdd(true);
               setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 });
@@ -319,6 +312,13 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           >
             <Plus size={14} strokeWidth={2} />
             新增评分项
+          </button>
+          <button
+            onClick={handlePublish}
+            className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#0e8f61]"
+          >
+            <Check size={14} strokeWidth={1.8} />
+            发布评分标准
           </button>
         </div>
       )}
