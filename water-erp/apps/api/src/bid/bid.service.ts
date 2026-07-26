@@ -33,6 +33,7 @@ import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { buildArchiveAiUsage } from '../ai-bid-analysis/utils/archive-ai-usage';
 import { ClarificationAiService } from './clarification-ai.service';
 import { ScoreStandardValidator } from './score-standard-validator.service';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class BidService {
@@ -40,6 +41,7 @@ export class BidService {
     private prisma: PrismaService,
     private notificationService: NotificationService,
     private readonly scoreStandardValidator: ScoreStandardValidator,
+    private readonly storage: StorageService,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
     @Optional()
@@ -488,11 +490,158 @@ export class BidService {
     return this.startOpeningInternal(projectId, dto, userId);
   }
 
-  async completeOpening(id: string, _actorId?: string) {
-    const project = await this.prisma.bidProject.findUnique({ where: { id }, select: { stage: true } });
+  /**
+   * 完成开标·资料移交（幂等，不改 stage）。
+   * 开标执行端 :3007 在开标完成后调用：生成开标文件包（JSON + sha256）存 MinIO，
+   * FileAsset 引用挂到 BidOpeningSession，WS 广播 opening:completed，
+   * 并向 leader/staff 发站内信（深链直达 :3005 开标确认面板）。
+   * 非闸门：:3005 启动评标不依赖本动作（H4 口径独立满足即可）。
+   */
+  async completeOpening(id: string, actorId?: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, projectCode: true, name: true, stage: true, procurementMethod: true, openTime: true, deadline: true, projectManagementItemId: true },
+    });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new ConflictException({
+        error: `当前阶段 ${project.stage}，仅开标阶段可完成开标移交`,
+        code: 'OPENING_STAGE_REQUIRED',
+      });
+    }
+    const existing = await this.prisma.bidOpeningSession.findUnique({ where: { projectId: id } });
+    if (!existing) {
+      throw new ConflictException({ error: '开标会话尚未组建', code: 'SESSION_NOT_FOUND' });
+    }
+    // 幂等：已移交直接返回既有产物
+    if (existing.status === '开标完成') {
+      return {
+        status: existing.status,
+        handoverAt: existing.handoverAt,
+        handoverAssetId: existing.handoverAssetId,
+        downloadUrl: existing.handoverAssetId ? `/api/upload/files/${existing.handoverAssetId}` : null,
+      };
+    }
     await this.assertOpeningDone(id);
-    return { status: '开标完成' };
+
+    // 文件包与上传放在事务之前：MinIO 失败 → 零数据库副作用，可安全重试
+    const pkg = await this.buildHandoverPackage(project, existing);
+    const buffer = Buffer.from(JSON.stringify(pkg, null, 2), 'utf8');
+    const objectKey = `bid-opening-handover/${id}.json`;
+    await this.storage.upload(objectKey, buffer, 'application/json');
+    const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+
+    const session = await this.prisma.$transaction(async (tx) => {
+      await this.lockAndReassertStage(tx, id, 'OPENING'); // 行锁复查：防并发归档/流标偷跑
+      const fresh = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
+      if (fresh?.status === '开标完成') return fresh; // 并发幂等：后提交方走既有产物
+      const now = new Date();
+      const asset = await tx.fileAsset.create({
+        data: {
+          key: objectKey,
+          originalName: `开标文件包-${project.projectCode}.json`,
+          mimeType: 'application/json',
+          size: buffer.length,
+          sha256,
+          category: 'bid_opening_handover',
+          uploaderId: actorId ?? null,
+        },
+      });
+      const updated = await tx.bidOpeningSession.update({
+        where: { projectId: id },
+        data: { status: '开标完成', handoverAt: now, handoverAssetId: asset.id },
+      });
+      await tx.bidSupervisionLog.create({
+        data: { projectId: id, time: now, role: existing.host, target: project.name, action: '完成开标·资料移交', result: '开标文件包已生成并移交采购管理工作台', riskFlag: '无' },
+      });
+      if (actorId) {
+        await tx.auditLog.create({ data: { userId: actorId, action: 'BID_OPENING_HANDOVER', resourceType: `BidProject:${id}`, details: { assetId: asset.id, sha256 } } });
+      }
+      return updated;
+    });
+
+    // 事务后通知（失败不阻塞，同 abort 通知模式）
+    this.gateway?.notifyOpeningCompleted(id, {
+      handoverAt: (session.handoverAt ?? new Date()).toISOString(),
+      handoverAssetId: session.handoverAssetId ?? '',
+    });
+    this.gateway?.notifySupervisionLog(id, { role: existing.host, action: '完成开标·资料移交', target: project.name, result: '开标文件包已生成并移交采购管理工作台', riskFlag: '无' });
+    const pmLink = project.projectManagementItemId
+      ? `/projects?projectId=${project.projectManagementItemId}&panel=bid-confirm`
+      : '/projects';
+    for (const role of ['leader', 'staff']) {
+      try {
+        await this.notificationService.sendToRole(role, {
+          type: 'BID_OPENING_HANDED_OVER',
+          title: `项目${project.name}开标完成，资料已移交`,
+          content: '开标文件包已生成，可在开标确认面板启动评标或执行后续流程',
+          link: pmLink,
+        });
+      } catch { /* 通知失败不阻塞移交 */ }
+    }
+
+    return {
+      status: '开标完成',
+      handoverAt: session.handoverAt,
+      handoverAssetId: session.handoverAssetId,
+      downloadUrl: `/api/upload/files/${session.handoverAssetId}`,
+    };
+  }
+
+  /** 开标文件包：开标环节全部资料（会话/供应商/开标记录/监督日志）+ 内容指纹。 */
+  private async buildHandoverPackage(
+    project: { id: string; projectCode: string; name: string; procurementMethod: string; openTime: Date; deadline: Date; stage: string },
+    session: { host: string; supervisor: string; decryptWindowStart: Date; decryptWindowEnd: Date; status: string },
+  ) {
+    const [suppliers, records, logs] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId: project.id },
+        select: { supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.bidOpeningRecord.findMany({
+        where: { projectId: project.id },
+        select: { supplierName: true, amount: true, period: true, qualityTarget: true, bondStatus: true, confirmStatus: true, objectionReason: true, handleResult: true },
+      }),
+      this.prisma.bidSupervisionLog.findMany({
+        where: { projectId: project.id },
+        select: { time: true, role: true, action: true, target: true, result: true, riskFlag: true },
+        orderBy: { time: 'asc' },
+      }),
+    ]);
+    const active = suppliers.filter(s => s.submitStatus !== '已撤回');
+    const summary = {
+      supplierTotal: suppliers.length,
+      active: active.length,
+      decrypted: active.filter(s => s.decryptStatus === 'SUCCESS').length,
+      decryptFailed: active.filter(s => s.decryptStatus === 'DANGER').length,
+      recorded: records.length,
+      confirmed: active.filter(s => s.confirmStatus === 'CONFIRMED').length,
+      disputed: active.filter(s => s.confirmStatus === 'DISPUTED').length,
+      withdrawn: suppliers.length - active.length,
+    };
+    const body = {
+      packageType: 'BID_OPENING_HANDOVER',
+      packageVersion: 1,
+      generatedAt: new Date().toISOString(),
+      project: {
+        id: project.id, projectCode: project.projectCode, name: project.name,
+        procurementMethod: project.procurementMethod,
+        openTime: project.openTime.toISOString(), deadline: project.deadline.toISOString(),
+        stage: project.stage,
+      },
+      session: {
+        host: session.host, supervisor: session.supervisor,
+        decryptWindowStart: session.decryptWindowStart.toISOString(),
+        decryptWindowEnd: session.decryptWindowEnd.toISOString(),
+      },
+      suppliers,
+      openingRecords: records,
+      supervisionLogs: logs,
+      summary,
+    };
+    const fingerprint = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+    return { ...body, fingerprint };
   }
 
   async openSubmission(id: string, actorId?: string) {

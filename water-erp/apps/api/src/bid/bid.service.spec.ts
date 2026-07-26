@@ -6,6 +6,7 @@ import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from './clarification-ai.service';
 import { BidGateway } from './bid.gateway';
 import { ScoreStandardValidator } from './score-standard-validator.service';
+import { StorageService } from '../storage/storage.service';
 import { assertBidStageTransition } from './bid-state';
 
 // Mock decrypt utilities and MinIO client for decryptSupplier tests
@@ -127,6 +128,7 @@ describe('BidService — stage transitions', () => {
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
         { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
@@ -1373,6 +1375,7 @@ describe('BidService — decryptSupplier 真实校验', () => {
         { provide: BidGateway, useValue: { notifyDecryptStatus: jest.fn(), notifyStageChange: jest.fn(), notifyAnomaly: jest.fn(), notifySupervisionLog: jest.fn(), notifySubmissionOpened: jest.fn(), notifyOpeningStarted: jest.fn(), notifyEvaluationStarted: jest.fn(), broadcastAggregatePresence: jest.fn() } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();
     const service = module.get(BidService);
@@ -1407,6 +1410,7 @@ describe('BidService — score items (评分标准)', () => {
         { provide: NotificationService, useValue: { create: jest.fn() } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidService);
@@ -1574,6 +1578,7 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
         { provide: NotificationService, useValue: { create: jest.fn() } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidService);
@@ -1689,6 +1694,7 @@ describe('BidService — nudge (催办)', () => {
         { provide: NotificationService, useValue: { create: notifyCreate } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidService);
@@ -1831,6 +1837,7 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
         { provide: NotificationService, useValue: { create: notifyCreate } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidService);
@@ -1973,6 +1980,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
       ],
@@ -2021,6 +2029,7 @@ describe('BidService — createProject 字段写入', () => {
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
         { provide: BidGateway, useValue: {} },
@@ -2059,6 +2068,7 @@ describe('BidService — getOpeningRecordDraft', () => {
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
         { provide: BidGateway, useValue: {} },
@@ -2122,6 +2132,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
         { provide: BidGateway, useValue: { notifySupervisionLog: jest.fn() } },
@@ -2193,6 +2204,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
         { provide: NotificationService, useValue: { create: jest.fn() } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();
     service = module.get(BidService);
@@ -2314,6 +2326,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
         { provide: BidGateway, useValue: { notifyBidValidity: jest.fn() } },
