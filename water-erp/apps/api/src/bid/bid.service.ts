@@ -767,7 +767,7 @@ export class BidService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockAndReassertStage(tx, id, 'OPENING'); // C1: 事务内行锁后复查阶段（同阶段 OPENING→OPENING 幂等放行）
       let sessionUpserted = false;
       if (providedCount === 4) {
@@ -817,6 +817,19 @@ export class BidService {
 
       return updated;
     });
+
+    // 流入侧通知：仅阶段推进（:3005 按时开标）时发；:3007 组建会话的同阶段调用不重复发
+    if (isTransitioning) {
+      try {
+        await this.notificationService.sendToRole('bid_host', {
+          type: 'BID_OPENING_CONFIRMED',
+          title: `项目${project.name}已确定开标`,
+          content: '请前往开标大厅组建会话（填写主持人、监督人与解密窗口）',
+          link: `/bid/project/${id}`,
+        });
+      } catch { /* 通知失败不阻塞阶段流转 */ }
+    }
+    return updated;
   }
 
   /**
