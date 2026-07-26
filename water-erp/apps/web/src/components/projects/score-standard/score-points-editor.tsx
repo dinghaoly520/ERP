@@ -13,6 +13,7 @@ import {
   type BidScoreItem,
   type ScorePointSuggestion,
 } from '@/lib/api/bid';
+import { SuggestionRow } from './suggestion-row';
 
 interface Props {
   projectId: string;
@@ -226,40 +227,18 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
               <button onClick={() => setSuggestions(null)} className="text-[oklch(0.6_0.01_264)] hover:text-red-600"><X size={16} /></button>
             </div>
             <div className="max-h-80 space-y-1.5 overflow-y-auto">
-              {suggestions.map((s, idx) => {
-                const conf = s.confidence ?? 0;
-                const confColor = conf >= 0.8 ? 'text-[#11a874]' : conf >= 0.5 ? 'text-[#f5a623]' : 'text-[#e74c3c]';
-                return (
-                <div key={idx} className={`rounded-lg border px-2 py-2 text-sm ${s.duplicate ? 'border-[#fde68a] bg-[#fffbeb]' : s.adjusted ? 'border-[#fde68a] bg-[#fffdf5]' : 'border-[oklch(0.92_0.004_265)]'}`}>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={s.selected} onChange={() => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, selected: !p.selected } : p))} />
-                    <input
-                      className="min-w-[120px] flex-1 rounded border border-[oklch(0.9_0.005_264)] px-1.5 py-0.5"
-                      value={s.name}
-                      onChange={(e) => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, name: e.target.value } : p))}
-                    />
-                    <input
-                      type="number" min={0} step={0.5} className="w-16 rounded border border-[oklch(0.9_0.005_264)] px-1 py-0.5 text-right font-mono"
-                      value={s.fullScore}
-                      onChange={(e) => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, fullScore: Number(e.target.value) } : p))}
-                    />
-                    {s.adjusted && <span title="分数被等比缩放" className="text-xs">⚠️</span>}
-                    <button
-                      onClick={() => setSuggestions((prev) => prev!.map((p, i) => i === idx ? { ...p, objective: !p.objective } : p))}
-                      className={`rounded px-1.5 py-0.5 text-xs ${s.objective ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}
-                    >{s.objective ? '客观' : '主观'}</button>
-                    <span className={`font-mono text-xs ${confColor}`} title={`信心分 ${conf}`}>
-                      {conf >= 0.8 ? '●●●' : conf >= 0.5 ? '●●○' : '●○○'}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-[oklch(0.55_0.01_264)]">
-                    {s.evidenceSection && <span className="truncate" title={s.evidenceSection}>📎 {s.evidenceSection}</span>}
-                    {s.evidenceHint && <span className="truncate max-w-[200px]" title={s.evidenceHint}>{s.evidenceHint}</span>}
-                    {s.duplicate && <span className="rounded bg-[#fef3c7] px-1.5 py-0.5 text-[#92400e] font-bold">可能重复</span>}
-                  </div>
-                </div>
-                );
-              })}
+              {suggestions.map((s, idx) => (
+                <SuggestionRow
+                  key={idx}
+                  suggestion={s}
+                  onToggleSelected={() =>
+                    setSuggestions((prev) => prev!.map((p, i) => (i === idx ? { ...p, selected: !p.selected } : p)))
+                  }
+                  onChange={(patch) =>
+                    setSuggestions((prev) => prev!.map((p, i) => (i === idx ? { ...p, ...patch } : p)))
+                  }
+                />
+              ))}
             </div>
             <div className="mt-3 flex items-center justify-between">
               <span className="text-xs text-[oklch(0.5_0.01_264)]">
