@@ -421,6 +421,7 @@ describe('SupplierPortalService', () => {
     it('confirmOpening marks record and BidSupplier as confirmed', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r-1', confirmStatus: '待供应商确认' });
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
@@ -448,6 +449,7 @@ describe('SupplierPortalService', () => {
     it('disputeOpening marks record disputed with reason and BidSupplier DISPUTED', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r-1', confirmStatus: '待供应商确认' });
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
@@ -467,6 +469,61 @@ describe('SupplierPortalService', () => {
     it('disputeOpening requires a reason', async () => {
       await expect(service.disputeOpening('supplier-1', 'project-1', ''))
         .rejects.toMatchObject({ response: { code: 'MISSING_REASON' } });
+    });
+
+    // Wave 5-1：「待确认」为旧值（种子/历史数据），与「待供应商确认」同为可操作态
+    it('confirmOpening 兼容旧值「待确认」态记录 → 正常确认', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r-1', confirmStatus: '待确认' });
+      prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
+      prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
+
+      await expect(service.confirmOpening('supplier-1', 'project-1')).resolves.toMatchObject({ success: true });
+    });
+
+    // Wave 5-1：API 状态门（与 host 侧 R7/I1 对称；UI 已门控，此为直调防线）
+    it.each([
+      ['异议已处理-退回'], // EXCEPTION 供应商被主持人退回后的记录态——confirm 不得翻回 CONFIRMED 让其逃脱
+      ['供应商已确认'],
+      ['供应商提出异议'],
+      ['异议已处理-确认'],
+    ])('confirmOpening 状态门：%s 态记录确认 → 400 RECORD_NOT_CONFIRMABLE', async (confirmStatus) => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r-1', confirmStatus });
+
+      await expect(service.confirmOpening('supplier-1', 'project-1'))
+        .rejects.toMatchObject({ response: { code: 'RECORD_NOT_CONFIRMABLE' } });
+      expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    it('confirmOpening 状态门：开标记录不存在 → 400 RECORD_NOT_CONFIRMABLE', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+      await expect(service.confirmOpening('supplier-1', 'project-1'))
+        .rejects.toMatchObject({ response: { code: 'RECORD_NOT_CONFIRMABLE' } });
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['异议已处理-退回'], // R7 闭环：退回后不可再异议（走线下/书面渠道）
+      ['供应商已确认'],
+      ['异议已处理-确认'],
+    ])('disputeOpening 状态门：%s 态记录异议 → 400 RECORD_NOT_DISPUTABLE', async (confirmStatus) => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(decryptedSupplier);
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r-1', confirmStatus });
+
+      await expect(service.disputeOpening('supplier-1', 'project-1', '报价有误'))
+        .rejects.toMatchObject({ response: { code: 'RECORD_NOT_DISPUTABLE' } });
+      expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
     });
   });
 

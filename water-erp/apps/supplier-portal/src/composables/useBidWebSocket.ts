@@ -46,7 +46,9 @@ export function useBidWebSocket(
   let pongTimer: ReturnType<typeof setTimeout> | null = null
   let attempt = 0
   let manualClose = false
-  let handlersRef = handlers
+  // R9：holder 间接层——listener 在每次事件到达时解引用 holder.current，
+  // 组件每渲染 setHandlers 即可换上最新闭包（一次性捕获会丢后续渲染的 handler）
+  const holder = { current: handlers }
 
   const pid = () => (typeof projectId === 'string' ? projectId : projectId?.value)
 
@@ -99,16 +101,20 @@ export function useBidWebSocket(
     })
     s.on('connect_error', () => { connection.value = 'disconnected'; scheduleReconnect() })
 
-    const on = <T,>(ev: string, fn?: (d: T) => void) => {
-      s.on(ev, (d: T) => { if (fn) { lastEventAt.value = Date.now(); fn(d) } })
+    // listener 内按 key 延迟解引用：事件到达时取 holder.current 上的最新 handler
+    const on = <T,>(ev: string, key: keyof BidWsHandlers) => {
+      s.on(ev, (d: T) => {
+        const fn = holder.current[key] as ((d: T) => void) | undefined
+        if (fn) { lastEventAt.value = Date.now(); fn(d) }
+      })
     }
-    on(BID_EVENT.DECRYPT_STATUS, handlersRef.onDecryptStatus)
-    on(BID_EVENT.STAGE_CHANGE, handlersRef.onStageChange)
-    on(BID_EVENT.HALL_MESSAGE_NEW, handlersRef.onHallMessage)
-    on(BID_EVENT.HALL_PRESENCE_UPDATE, handlersRef.onHallPresence)
-    on(BID_EVENT.HALL_CHECKIN, handlersRef.onHallCheckin)
-    on(BID_EVENT.HALL_EXCHANGE_CONTROL, handlersRef.onHallExchangeControl)
-    on(BID_EVENT.OPENING_DISPUTE_RESOLVED, handlersRef.onOpeningDisputeResolved)
+    on(BID_EVENT.DECRYPT_STATUS, 'onDecryptStatus')
+    on(BID_EVENT.STAGE_CHANGE, 'onStageChange')
+    on(BID_EVENT.HALL_MESSAGE_NEW, 'onHallMessage')
+    on(BID_EVENT.HALL_PRESENCE_UPDATE, 'onHallPresence')
+    on(BID_EVENT.HALL_CHECKIN, 'onHallCheckin')
+    on(BID_EVENT.HALL_EXCHANGE_CONTROL, 'onHallExchangeControl')
+    on(BID_EVENT.OPENING_DISPUTE_RESOLVED, 'onOpeningDisputeResolved')
   }
 
   function reconnectNow() {
@@ -146,5 +152,8 @@ export function useBidWebSocket(
     document.removeEventListener('visibilitychange', onVisibility)
   })
 
-  return { connection, lastEventAt, reconnectNow }
+  /** R9：handler 闭包了可变 state 的组件可每渲染调用，替换 holder 内引用 */
+  function setHandlers(h: BidWsHandlers) { holder.current = h }
+
+  return { connection, lastEventAt, reconnectNow, setHandlers }
 }

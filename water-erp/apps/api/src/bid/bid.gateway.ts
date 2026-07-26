@@ -169,15 +169,26 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (role === 'bid_expert') {
       // 指派门控（S1）：仅本项目指派的专家（BidExpert projectId×userId）可进
       // project 房 + 专家聚合进度房（§4.3 供应商不可见）；断连时 socket.io 自动移出其加入的房间。
-      const assigned = await this.prisma.bidExpert.findFirst({ where: { projectId, userId } });
+      // 已拒邀（declined）专家不得旁观项目评标进度；候补/pending 放行（候补可递补、pending 待响应）。
+      const assigned = await this.prisma.bidExpert.findFirst({
+        where: { projectId, userId, invitationStatus: { not: 'declined' } },
+      });
       if (!assigned) return { error: 'NOT_ASSIGNED_EXPERT' };
       client.join(`project:${projectId}`);
       client.join(`experts:${projectId}`);
       return { ok: true };
     }
 
-    // 显式角色白名单（C1）：仅 host 角色进 project + host 房；
-    // mall / procurement_staff 等其他角色不进开标实时流。
+    if (role === 'procurement_staff') {
+      // 内部采购员工：放行公开流（project 房——解密进度/阶段/公聊等开标公开信息），
+      // 不进 host 房（监督日志/异常/专家个体进度仍屏蔽）；REST 敏感操作（私聊/交流控制）
+      // 由 opening-hall.service 的 assertHost 另行拒绝（S8 决策：公开流放行、敏感操作收紧）。
+      client.join(`project:${projectId}`);
+      return { ok: true };
+    }
+
+    // 显式角色白名单（C1）：host 角色进 project + host 房；
+    // mall 等其余角色不进开标实时流。
     if (canJoinHostRoom(role)) {
       client.join(`project:${projectId}`);
       client.join(`host:${projectId}`);
@@ -188,9 +199,31 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('leave:project')
   handleLeaveProject(client: Socket, projectId: string) {
-    client.leave(`project:${projectId}`);
-    client.leave(`host:${projectId}`);
-    client.leave(`experts:${projectId}`);
+    // R8：退房同时回收连接表——旧实现只退房不清 supplierSockets/socketProjects，
+    // 导致离场后仍计在线、仍收私聊定向推送。
+    // Wave4a-M6：连接表清理一律以 socketProjects 登记项目为准（而非 leave 载荷）——
+    // 恶意/异常端 emit leave('p1') 不得误清/漏清登记于 p2 的 socket（自伤型）。
+    // 退房：载荷房 + 登记房去重后都退；presence 按涉及项目刷新。
+    const supplierId: string | undefined = (client.data as any).supplierId;
+    const registered: string | undefined = this.socketProjects.get(client.id);
+    const requested: string | undefined = projectId || (client.data as any).projectId;
+    if (supplierId && registered) {
+      const set = this.supplierSockets.get(supplierId);
+      if (set) {
+        set.delete(client.id);
+        if (set.size === 0) this.supplierSockets.delete(supplierId);
+      }
+    }
+    this.socketProjects.delete(client.id);
+    const pids = new Set<string>();
+    if (requested) pids.add(requested);
+    if (registered) pids.add(registered);
+    for (const pid of pids) {
+      client.leave(`project:${pid}`);
+      client.leave(`host:${pid}`);
+      client.leave(`experts:${pid}`);
+      this.broadcastHallPresence(pid).catch(() => {});
+    }
   }
 
   // ── Heartbeat ──
@@ -288,6 +321,16 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // ── 开标大厅（迭代一）：供应商可见事件走 project 房；私聊/定向事件按连接表投递 ──
 
+  /**
+   * R8：该供应商在指定项目内的 socket 列表（按 socketProjects 过滤项目）。
+   * 旧实现遍历该供应商**全部** socket → 同一供应商跨项目 tab 互收私聊/确认/异议定向事件。
+   */
+  private supplierSocketsIn(supplierId: string, projectId: string): string[] {
+    const ids = this.supplierSockets.get(supplierId);
+    if (!ids) return [];
+    return [...ids].filter(sid => this.socketProjects.get(sid) === projectId);
+  }
+
   /** 大厅消息：PUBLIC → project 房全员；PRIVATE → host 房 + 该供应商自己的连接。 */
   notifyHallMessage(projectId: string, payload: HallMessagePayload) {
     if (payload.roomType === 'PUBLIC') {
@@ -296,8 +339,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     this.server.to(`host:${projectId}`).emit(BID_EVENT.HALL_MESSAGE_NEW, payload);
     if (payload.supplierId) {
-      const ids = this.supplierSockets.get(payload.supplierId);
-      if (ids) for (const sid of ids) this.server.to(sid).emit(BID_EVENT.HALL_MESSAGE_NEW, payload);
+      for (const sid of this.supplierSocketsIn(payload.supplierId, projectId)) {
+        this.server.to(sid).emit(BID_EVENT.HALL_MESSAGE_NEW, payload);
+      }
     }
   }
 
@@ -311,12 +355,15 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** 在场名单：合并内存连接表与 DB 签到状态，广播 project 房。 */
   async broadcastHallPresence(projectId: string) {
+    // Wave4a-M2：在线口径与 getOnlineSupplierIds 一致（按项目过滤 socketProjects）——
+    // 旧实现按 supplierSockets 全局 size>0 判定，供应商仅连 p2 时 p1 的在场名单仍列其在线。
+    const online = this.getOnlineSupplierIds(projectId);
     const rows = await this.prisma.bidSupplier.findMany({
       where: { projectId },
       select: { supplierId: true, supplierName: true, checkInAt: true },
     });
     const onlineSuppliers = rows
-      .filter(r => r.supplierId && (this.supplierSockets.get(r.supplierId)?.size ?? 0) > 0)
+      .filter(r => r.supplierId && online.has(r.supplierId))
       .map(r => ({ supplierId: r.supplierId as string, supplierName: r.supplierName, checkInAt: r.checkInAt?.toISOString() ?? null }));
     const payload: HallPresenceUpdatePayload = {
       projectId, onlineSuppliers, onlineCount: onlineSuppliers.length, timestamp: Date.now(),
@@ -336,19 +383,22 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   notifyOpeningConfirmed(projectId: string, supplierId: string, payload: OpeningConfirmedPayload) {
     this.server.to(`host:${projectId}`).emit(BID_EVENT.OPENING_CONFIRMED, payload);
-    const ids = this.supplierSockets.get(supplierId);
-    if (ids) for (const sid of ids) this.server.to(sid).emit(BID_EVENT.OPENING_CONFIRMED, payload);
+    for (const sid of this.supplierSocketsIn(supplierId, projectId)) {
+      this.server.to(sid).emit(BID_EVENT.OPENING_CONFIRMED, payload);
+    }
   }
 
   notifyOpeningDisputed(projectId: string, supplierId: string, payload: OpeningDisputedPayload) {
     this.server.to(`host:${projectId}`).emit(BID_EVENT.OPENING_DISPUTED, payload);
-    const ids = this.supplierSockets.get(supplierId);
-    if (ids) for (const sid of ids) this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTED, payload);
+    for (const sid of this.supplierSocketsIn(supplierId, projectId)) {
+      this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTED, payload);
+    }
   }
 
   notifyOpeningDisputeResolved(projectId: string, supplierId: string, payload: OpeningDisputeResolvedPayload) {
     this.server.to(`host:${projectId}`).emit(BID_EVENT.OPENING_DISPUTE_RESOLVED, payload);
-    const ids = this.supplierSockets.get(supplierId);
-    if (ids) for (const sid of ids) this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTE_RESOLVED, payload);
+    for (const sid of this.supplierSocketsIn(supplierId, projectId)) {
+      this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTE_RESOLVED, payload);
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
@@ -1123,6 +1124,16 @@ export class BidService {
       const existing = await tx.bidOpeningRecord.findFirst({
         where: { projectId, bidSupplierId: bidSupplier.id },
       });
+      // 状态门（Wave4a-I1）：已确认/异议/已处理的记录不得被唱标重录覆写——否则异议态记录被
+      // 覆写回「待供应商确认」（objectionReason 残留）后 resolve 撞 R7 状态门 400，bidSupplier
+      // 永久停留 DISPUTED 并被 generateEvaluationResults 静默排除（R7 引入的交互回归楔子）。
+      const LOCKED = ['供应商已确认', '供应商提出异议', '异议已处理-确认', '异议已处理-退回'];
+      if (existing && LOCKED.includes(existing.confirmStatus)) {
+        throw new ConflictException({
+          error: `开标记录处于「${existing.confirmStatus}」状态，不得重录唱标；请通过异议处理结果（维持/退回）完成闭环`,
+          code: 'RECORD_LOCKED',
+        });
+      }
       const rec = existing
         ? await tx.bidOpeningRecord.update({ where: { id: existing.id }, data: payload })
         : await tx.bidOpeningRecord.create({
@@ -1152,15 +1163,28 @@ export class BidService {
       throw new BadRequestException({ error: '项目不在开标阶段，无法处理异议', code: 'PROJECT_NOT_OPENING' });
     }
 
+    // R7：状态机门 — 仅「供应商提出异议」态记录可处理。旧实现不校验记录态：主持人可"处理"
+    // 从未被异议的记录（翻转确认态）、对已处理记录反复覆盖。阶段门控之后、事务之前拦截。
+    if (record.confirmStatus !== '供应商提出异议') {
+      throw new BadRequestException({ error: '该记录不处于异议待处理状态', code: 'DISPUTE_NOT_PENDING' });
+    }
+
     const now = new Date();
     const confirmStatus = dto.confirm ? '异议已处理-确认' : '异议已处理-退回';
+    // Wave4a-M5：监督日志记态迁移（前态 → 后态：处理结果），便于监督端回放异议闭环
+    const supervisionResult = `供应商提出异议 → ${confirmStatus}：${dto.result}`;
 
     // P0: Wrap record update + supplier update + supervision log in transaction
     await this.prisma.$transaction(async (tx) => {
-      await tx.bidOpeningRecord.update({
-        where: { id: recordId },
+      // Wave4a-M4：事务内条件更新是并发防线——事务外的状态门基于 stale read，并发双处理都过门时
+      // 仅首笔命中异议待处理行（count=1），第二笔 count=0 → 400，杜绝双落（与 R6 原子抢占同构）。
+      const res = await tx.bidOpeningRecord.updateMany({
+        where: { id: recordId, confirmStatus: '供应商提出异议' },
         data: { confirmStatus, handleResult: dto.result, handledAt: now },
       });
+      if (res.count === 0) {
+        throw new BadRequestException({ error: '该异议已被处理', code: 'DISPUTE_NOT_PENDING' });
+      }
       if (record.bidSupplierId) {
         await tx.bidSupplier.update({
           where: { id: record.bidSupplierId },
@@ -1170,12 +1194,12 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: now, role: '开标主持人', target: record.supplierName,
-          action: '处理开标异议', result: dto.result, riskFlag: '中风险',
+          action: '处理开标异议', result: supervisionResult, riskFlag: '中风险',
         },
       });
     });
 
-    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: dto.result, riskFlag: '中风险' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '处理开标异议', target: record.supplierName, result: supervisionResult, riskFlag: '中风险' });
     if (record.bidSupplierId) {
       const bs = await this.prisma.bidSupplier.findUnique({
         where: { id: record.bidSupplierId },
@@ -1992,9 +2016,32 @@ export class BidService {
     });
     const aiUsage = aiTask ? buildArchiveAiUsage(aiTask.aiProvenance as any, aiTask.bidderResults as any) : null;
 
+    // S2：存证 sections（大厅消息 / 监督日志 / 澄清答疑）纳入归档包防篡改覆盖。
+    // 信任模型与 archiveItems 哈希链一致：均为"导出包内防局部篡改"——整体包的真伪由
+    // 导出时的捕获/签章环节保证（既有设计边界，不在本次扩展）。算法与 bid-archive.digest.ts
+    // 同款：crypto.createHash('sha256').update(JSON.stringify(...), 'utf8')，同输入恒等。
+    // 摘要取自与 sections 完全相同的数组引用/映射，保证复算口径一致。
+    const sha256Json = (v: unknown) => crypto.createHash('sha256').update(JSON.stringify(v), 'utf8').digest('hex');
+    const hallSection = hallMessages.map(m => ({
+      id: m.id, roomType: m.roomType,
+      supplierName: m.supplierId ? (hallSupplierNames.get(m.supplierId) ?? null) : null,
+      senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt,
+    }));
+    const sectionDigests = {
+      hallMessages: sha256Json(hallSection),
+      supervisionLogs: sha256Json(project.supervisionLogs),
+      clarifications: sha256Json(project.clarifications),
+    };
+    const sectionsRoot = sha256Json(sectionDigests);
+
     if (format === 'csv') {
       const BOM = '﻿';
-      const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      // RFC4180 转义 + CSV 公式注入中和：以 = + - @ \t \r 开头的值前置单引号，
+      // 防 Excel/WPS 把用户输入（大厅消息/异议原因/澄清等）当公式求值（=HYPERLINK 钓鱼/外部引用）。
+      const esc = (v: unknown) => {
+        const s = String(v ?? '').replace(/"/g, '""');
+        return `"${/^[=+\-@\t\r]/.test(s) ? `'${s}` : s}"`;
+      };
       const lines: string[] = [];
       lines.push('=== 招标项目基础信息 ===');
       lines.push(['项目编号', '项目名称', '采购方式', '预算', '招标范围', '资质要求', '联系人', '阶段'].map(esc).join(','));
@@ -2029,6 +2076,19 @@ export class BidService {
       lines.push(['类型', '发起人', '供应商', '问题', '状态', '回复'].map(esc).join(','));
       project.clarifications.forEach(c => lines.push([c.type, c.issuer, c.supplierName, c.question, c.status, c.reply || ''].map(esc).join(',')));
       lines.push('');
+      // S3：开标大厅消息段（与 JSON 导出 sections.hallMessages 对齐）。
+      // esc 统一双引号包裹 + 内部双引号加倍，内容含逗号/换行/引号亦为合法 CSV 字段。
+      lines.push('=== 开标大厅消息 ===');
+      lines.push(['时间', '类型', '供应商', '发送者角色', '发送者', '内容'].map(esc).join(','));
+      hallSection.forEach(m => lines.push([
+        m.createdAt.toISOString(),
+        m.roomType === 'PUBLIC' ? '公聊' : '私聊',
+        m.supplierName ?? '',
+        m.senderRole === 'HOST' ? '主持人' : m.senderRole === 'SUPPLIER' ? '供应商' : '系统',
+        m.senderName,
+        m.content,
+      ].map(esc).join(',')));
+      lines.push('');
       lines.push('=== 档案哈希链验证摘要 ===');
       lines.push(['算法', 'SHA-256'].join(','));
       lines.push(['创世哈希', genesis].join(','));
@@ -2037,6 +2097,11 @@ export class BidService {
         const item = project.archiveItems.find(a => a.id === itemId);
         lines.push([`#${i + 1} ${item?.name || itemId}`, hash].map(esc).join(','));
       });
+      // S2：存证 sections 摘要（与 JSON 导出 hashChain.sectionDigests/sectionsRoot 同源）
+      lines.push(['存证摘要-开标大厅消息', sectionDigests.hallMessages].join(','));
+      lines.push(['存证摘要-监督日志', sectionDigests.supervisionLogs].join(','));
+      lines.push(['存证摘要-澄清答疑', sectionDigests.clarifications].join(','));
+      lines.push(['存证摘要根（sectionsRoot）', sectionsRoot].join(','));
       if (aiUsage) {
         lines.push('');
         lines.push('=== AI 辅助说明 ===');
@@ -2074,11 +2139,7 @@ export class BidService {
         evaluationResults: project.evaluationResults,
         supervisionLogs: project.supervisionLogs,
         clarifications: project.clarifications,
-        hallMessages: hallMessages.map(m => ({
-          id: m.id, roomType: m.roomType,
-          supplierName: m.supplierId ? (hallSupplierNames.get(m.supplierId) ?? null) : null,
-          senderRole: m.senderRole, senderName: m.senderName, content: m.content, createdAt: m.createdAt,
-        })),
+        hallMessages: hallSection, // S2：与 sectionDigests.hallMessages 同引用，保证摘要可复算
         confirmationRecords: project.suppliers.filter(s => s.confirmStatus !== 'PENDING').map(s => ({ supplierName: s.supplierName, status: s.confirmStatus, error: s.decryptError })),
       },
       hashChain: {
@@ -2088,6 +2149,9 @@ export class BidService {
           const item = project.archiveItems.find(a => a.id === itemId);
           return { itemId, name: item?.name, hash };
         }),
+        // S2：存证 sections 逐段摘要 + 根摘要（信任模型见上方注释：导出包内防局部篡改）
+        sectionDigests,
+        sectionsRoot,
       },
       ...(aiUsage ? { aiUsage } : {}),
     };

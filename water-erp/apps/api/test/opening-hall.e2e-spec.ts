@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { createHash } from 'crypto';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { hashSync } from 'bcryptjs';
@@ -212,6 +213,21 @@ describe('Opening Hall (e2e)', () => {
     expect(ds.supplierId).toBe(sup1Id);
   });
 
+  it('R6：并发双签到原子抢占——仅一条监督日志、仅一次 already:false', async () => {
+    // 重置 sup2 签到态构造「首签」前置（sup2 前例未签到，防御性重置）
+    await prisma.bidSupplier.updateMany({ where: { projectId, supplierId: sup2Id }, data: { checkInAt: null, checkInMeta: null } });
+    const before = await prisma.bidSupervisionLog.count({ where: { projectId, action: '在线签到' } });
+    const [r1, r2] = await Promise.all([
+      request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/check-in`).set('Cookie', sup2Cookie).set('X-Portal', 'supplier'),
+      request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/check-in`).set('Cookie', sup2Cookie).set('X-Portal', 'supplier'),
+    ]);
+    expect(r1.status).toBe(201);
+    expect(r2.status).toBe(201);
+    expect([r1.body.already, r2.body.already].sort()).toEqual([false, true]); // 恰好一次首签
+    const after = await prisma.bidSupervisionLog.count({ where: { projectId, action: '在线签到' } });
+    expect(after - before).toBe(1); // 并发第二签到不产生重复监督日志（旧实现事务外两步会写 2 行）
+  });
+
   it('公聊：主持发 → 两家供应商都收到', async () => {
     const s1 = track(connectBid(base, sup1Cookie)); await connected(s1); await joinAck(s1, projectId);
     const s2 = track(connectBid(base, sup2Cookie)); await connected(s2); await joinAck(s2, projectId);
@@ -269,12 +285,148 @@ describe('Opening Hall (e2e)', () => {
     expect(r2.body.public).toBe(0);
   });
 
-  it('历史分页：items 升序、nextCursor 可翻页', async () => {
-    const r = await request(app.getHttpServer())
-      .get(`/api/opening-hall/${projectId}/messages?roomType=PUBLIC&limit=2`).set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
-    expect(r.body.items.length).toBeLessThanOrEqual(2);
-    const times = r.body.items.map((m: any) => new Date(m.createdAt).getTime());
-    expect(times).toEqual([...times].sort((a, b) => a - b));
+  it('Wave5-4 真库：markRead lastMessageId 游标定位 + 单调不回退（M3）+ @updatedAt 不覆盖显式值', async () => {
+    const u1 = await prisma.user.findFirst({ where: { username: 'supplier1', role: 'supplier' } });
+    // 复位 sup1 公聊游标（前序用例可能已写过）
+    await prisma.openingHallReadCursor.deleteMany({ where: { projectId, userId: u1!.id, roomKey: 'public' } });
+
+    // host 发 3 条公聊（间隔 15ms 避同毫秒落库——未读计数是 createdAt 严格 gt 比较）
+    const send = async (c: string) => (
+      await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+        .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: c }).expect(201)
+    ).body;
+    const m1 = await send('游标探针-1');
+    await new Promise(r => setTimeout(r, 15));
+    const m2 = await send('游标探针-2');
+    await new Promise(r => setTimeout(r, 15));
+    const m3 = await send('游标探针-3');
+
+    // 游标定在第二条（R5：客户端上报已读末条）→ 仅第三条未读
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: 'public', lastMessageId: m2.id }).expect(201);
+    const r1 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/unread`).set('Cookie', sup1Cookie).set('X-Portal', 'supplier').expect(200);
+    expect(r1.body.public).toBe(1); // 仅 m3
+
+    // M3 单调：再上报更旧的第一条 → 游标不得回退，未读仍 1
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: 'public', lastMessageId: m1.id }).expect(201);
+    const r2 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/unread`).set('Cookie', sup1Cookie).set('X-Portal', 'supplier').expect(200);
+    expect(r2.body.public).toBe(1);
+
+    // 承重点：游标 lastReadAt 精确等于 m2.createdAt —— lastReadAt 带 @updatedAt，
+    // upsert update 分支必须显式传值，否则被 now() 覆盖（届时 m3 会被误判已读、未读变 0）
+    const cursor = await prisma.openingHallReadCursor.findUnique({
+      where: { projectId_userId_roomKey: { projectId, userId: u1!.id, roomKey: 'public' } },
+    });
+    const msg2 = await prisma.openingHallMessage.findUnique({ where: { id: m2.id } });
+    expect(cursor!.lastReadAt.getTime()).toBe(msg2!.createdAt.getTime());
+
+    // Wave5-3：lastMessageId @MaxLength(64) — cuid 长度内的合法 id 放行，超大串 400
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: 'public', lastMessageId: 'x'.repeat(65) })
+      .expect(400);
+  });
+
+  it('历史分页：items 升序、复合 nextCursor（ISO|id）翻页不重不漏', async () => {
+    // 连发 5 条公聊（可能同毫秒落库）确保可翻页
+    for (const c of ['P1', 'P2', 'P3', 'P4', 'P5']) {
+      await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+        .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: `分页探针-${c}` }).expect(201);
+    }
+    const seen = new Set<string>();
+    let prevPageMinT = Infinity; // 页间连续性：后一页消息不晚于前一页最旧消息
+    let cursor: string | undefined;
+    let guard = 0;
+    do {
+      const url = `/api/opening-hall/${projectId}/messages?roomType=PUBLIC&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const r = await request(app.getHttpServer()).get(url).set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+      expect(r.body.items.length).toBeLessThanOrEqual(2);
+      // 页内升序
+      const times = r.body.items.map((m: any) => new Date(m.createdAt).getTime());
+      expect(times).toEqual([...times].sort((a, b) => a - b));
+      for (const m of r.body.items) {
+        expect(seen.has(m.id)).toBe(false); // 跨页不重复（同毫秒不再被跳过或重复）
+        seen.add(m.id);
+        expect(new Date(m.createdAt).getTime()).toBeLessThanOrEqual(prevPageMinT);
+      }
+      if (times.length > 0) prevPageMinT = Math.min(...times);
+      cursor = r.body.nextCursor ?? undefined;
+      if (cursor) expect(cursor).toContain('|'); // 新格式：ISO|id
+      expect(++guard).toBeLessThan(100); // 防游标死循环
+    } while (cursor);
+    // 与 DB 全量比对：不丢失
+    const all = await prisma.openingHallMessage.findMany({ where: { projectId, roomType: 'PUBLIC' } });
+    expect(seen.size).toBe(all.length);
+  });
+
+  it('S6：非法 cursor → 400 INVALID_CURSOR（不再 500）；limit 非法 → 回落默认 200', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/opening-hall/${projectId}/messages?roomType=PUBLIC&cursor=abc`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'INVALID_CURSOR' }));
+    await request(app.getHttpServer())
+      .get(`/api/opening-hall/${projectId}/messages?roomType=PUBLIC&limit=abc`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+  });
+
+  it('S4/S5：纯空白消息 400 MESSAGE_EMPTY；含 & < > 的消息原文落库（不再被富文本消毒）', async () => {
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: '   ' })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'MESSAGE_EMPTY' }));
+    const raw = '报价 <100> 万元 & 工期';
+    const r = await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: raw }).expect(201);
+    expect(r.body.content).toBe(raw);
+    const stored = await prisma.openingHallMessage.findUnique({ where: { id: r.body.id } });
+    expect(stored!.content).toBe(raw); // DB 不再是 报价 &lt;100&gt; 万元 &amp; 工期
+  });
+
+  it('归档存证（S2/S3）：大厅消息进 sections（公聊+私聊）、哈希链摘要可复算、CSV 含大厅消息段', async () => {
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: '存证探针-公聊' }).expect(201);
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PRIVATE', supplierId: sup1Id, content: '存证探针-私聊' }).expect(201);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/bid/projects/${projectId}/archive-package/export?format=json`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    const { sections, hashChain } = res.body;
+    expect(sections.hallMessages.find((m: any) => m.content === '存证探针-公聊'))
+      .toMatchObject({ roomType: 'PUBLIC', senderRole: 'HOST' });
+    expect(sections.hallMessages.find((m: any) => m.content === '存证探针-私聊'))
+      .toMatchObject({ roomType: 'PRIVATE', senderRole: 'HOST' });
+
+    // sectionDigests / sectionsRoot 复算——与导出同算法：sha256(JSON.stringify(...))，utf8
+    const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v), 'utf8').digest('hex');
+    expect(hashChain.sectionDigests).toEqual({
+      hallMessages: sha(sections.hallMessages),
+      supervisionLogs: sha(sections.supervisionLogs),
+      clarifications: sha(sections.clarifications),
+    });
+    expect(hashChain.sectionsRoot).toBe(sha(hashChain.sectionDigests));
+    // 篡改探测：改动消息内容即与摘要失配
+    const tampered = sections.hallMessages.map((m: any) => ({ ...m, content: '篡改' }));
+    expect(hashChain.sectionDigests.hallMessages).not.toBe(sha(tampered));
+
+    // S3：CSV 归档含"开标大厅消息"段（与 JSON 对齐）
+    const csv = await request(app.getHttpServer())
+      .get(`/api/bid/projects/${projectId}/archive-package/export?format=csv`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    expect(csv.text).toContain('=== 开标大厅消息 ===');
+    expect(csv.text).toContain('存证探针-公聊');
+    expect(csv.text).toContain('存证探针-私聊');
+
+    // CSV 公式注入中和：以 = 开头的消息导出后前置单引号，Excel 不按公式求值
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', sup1Cookie).set('X-Portal', 'supplier')
+      .send({ roomType: 'PUBLIC', content: '=1+1 公式注入探针' }).expect(201);
+    const csv2 = await request(app.getHttpServer())
+      .get(`/api/bid/projects/${projectId}/archive-package/export?format=csv`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    expect(csv2.text).toContain(`"'=1+1 公式注入探针"`);
+    expect(csv2.text).not.toContain(`"=1+1 公式注入探针"`);
   });
 
   it('供应商确认开标记录 → 主持端收到 opening:confirmed', async () => {
@@ -287,6 +439,13 @@ describe('Opening Hall (e2e)', () => {
   });
 
   it('供应商提异议 → 主持端收到 opening:disputed；主持处理 → 供应商收到 dispute:resolved', async () => {
+    // Wave 5-1 状态门：前例已把 sup1 记录置「供应商已确认」，已确认记录不可再异议（UI 仅待确认态
+    // 给按钮，API 同门控）——先复位为待确认态构造真实异议路径
+    const bs1x = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup1Id } });
+    await prisma.bidOpeningRecord.updateMany({
+      where: { projectId, bidSupplierId: bs1x!.id },
+      data: { confirmStatus: '待确认', objectionReason: null, confirmedAt: null },
+    });
     const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
     const sup = track(connectBid(base, sup1Cookie)); await connected(sup); await joinAck(sup, projectId);
     const pDisputed = onceEvent(host, 'opening:disputed');
@@ -302,6 +461,31 @@ describe('Opening Hall (e2e)', () => {
       .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: '复核无误', confirm: true }).expect(201);
     const rd = await pResolved;
     expect(rd.confirm).toBe(true);
+  });
+
+  it('R7 状态机：非异议态记录不可 resolve → 400 DISPUTE_NOT_PENDING（含二次处理）', async () => {
+    // 1) 从未异议的记录（sup2 记录仍为「待确认」态）
+    const bs2 = await prisma.bidSupplier.findFirst({ where: { projectId, supplierId: sup2Id } });
+    const pending = await prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bs2!.id } });
+    expect(pending!.confirmStatus).toBe('待确认');
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectId}/opening-records/${pending!.id}/resolve-dispute`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: 'x', confirm: true })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'DISPUTE_NOT_PENDING' }));
+    // 记录态未被翻转、供应商态未被动
+    const unchanged = await prisma.bidOpeningRecord.findUnique({ where: { id: pending!.id } });
+    expect(unchanged!.confirmStatus).toBe('待确认');
+
+    // 2) 已处理记录二次处理（前例 sup1 已 resolve 为「异议已处理-确认」）→ 400
+    const resolved = await prisma.bidOpeningRecord.findFirst({ where: { projectId, confirmStatus: '异议已处理-确认' } });
+    expect(resolved).toBeTruthy();
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectId}/opening-records/${resolved!.id}/resolve-dispute`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ result: 'y', confirm: false })
+      .expect(400)
+      .expect((res) => expect(res.body).toMatchObject({ code: 'DISPUTE_NOT_PENDING' }));
+    expect((await prisma.bidOpeningRecord.findUnique({ where: { id: resolved!.id } }))!.confirmStatus).toBe('异议已处理-确认');
   });
 
   it('授权收口：专家读私聊转录 → 403 HOST_ONLY（非主持非供应商角色）', async () => {
@@ -374,5 +558,80 @@ describe('Opening Hall (e2e)', () => {
     // 合法路径仍可用：supplier 写自身 roomKey
     await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/read`)
       .set('Cookie', sup1Cookie).set('X-Portal', 'supplier').send({ roomKey: `supplier:${sup1Id}` }).expect(201);
+  });
+
+  it('角色分级：procurement_staff 放行公开流（project 房）但 REST 敏感操作拒绝；mall 完全拒绝', async () => {
+    // 临时 procurement_staff 用户（单一角色 → 任意门户登录都解析为 procurement_staff）
+    const ts = Date.now();
+    let staffUserId = '';
+    try {
+      const staffUser = await prisma.user.create({
+        data: {
+          username: `e2e-staff-${ts}`, displayName: `E2E采购员-${ts}`,
+          role: 'procurement_staff', isActive: true, passwordHash: hashSync('e2e@2026', 10),
+        },
+      });
+      staffUserId = staffUser.id;
+      const staffCookie = await loginAs(app, staffUser.username, 'e2e@2026', 'web');
+
+      // 1) join 放行（进 project 房；host 房不在该分支加入——结构性隔离，见 bid.gateway.ts 分支代码）
+      const s = track(connectBid(base, staffCookie)); await connected(s);
+      const ack = await joinAck(s, projectId);
+      expect(ack).toEqual(expect.objectContaining({ ok: true }));
+
+      // 2) 收到公开流（主持公聊广播）
+      const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
+      const got = onceEvent(s, 'hall:message:new');
+      await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+        .set('Cookie', hostCookie).set('X-Portal', 'web')
+        .send({ roomType: 'PUBLIC', content: 'procurement_staff 公开流测试' }).expect(201);
+      expect((await got).content).toBe('procurement_staff 公开流测试');
+
+      // 3) REST 敏感操作仍被 assertHost 拒绝（S8：公开流放行、私聊转录收紧）
+      await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/messages?roomType=PRIVATE&supplierId=${sup1Id}`)
+        .set('Cookie', staffCookie).set('X-Portal', 'web')
+        .expect(403)
+        .expect((res) => expect(res.body).toMatchObject({ code: 'HOST_ONLY' }));
+
+      // 4) mall 门户完全拒绝：token_mall 不在网关解析集（mall 无开标业务）→ 未认证 UNAUTHORIZED；
+      //    FORBIDDEN 分支兜底"已认证但非白名单角色"（防御纵深，cookie 路径下 mall 实际落 UNAUTHORIZED）。
+      const mallCookie = await loginAs(app, '陈源远', '陈源远@2026', 'mall');
+      const m = track(connectBid(base, mallCookie)); await connected(m);
+      expect(await joinAck(m, HERO_PROJECT_ID)).toEqual({ error: 'UNAUTHORIZED' });
+    } finally {
+      if (staffUserId) await prisma.user.delete({ where: { id: staffUserId } }).catch(() => {});
+    }
+  });
+
+  it('R8：leave:project 清连接表——离场后公聊零接收、presence 不再计在线', async () => {
+    // 清理前例遗留 socket，确保 sup2 仅存一条活连接（presence 口径精确）
+    for (const s of sockets) s.disconnect();
+    sockets.length = 0;
+    await new Promise(r => setTimeout(r, 300)); // 等服务端 handleDisconnect 回收连接表
+
+    const sup = track(connectBid(base, sup2Cookie)); await connected(sup);
+    expect(await joinAck(sup, projectId)).toEqual(expect.objectContaining({ ok: true }));
+    const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
+
+    // 在线基线：sup2 计在线
+    const pr0 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/presence`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    expect(pr0.body.suppliers.find((s: any) => s.supplierId === sup2Id)?.online).toBe(true);
+
+    // leave:project → 退房 + 清连接表
+    sup.emit('leave:project', projectId);
+    await new Promise(r => setTimeout(r, 300)); // 等服务端 leave 处理
+
+    let leaked = 0;
+    sup.on('hall:message:new', () => leaked++);
+    await request(app.getHttpServer()).post(`/api/opening-hall/${projectId}/messages`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').send({ roomType: 'PUBLIC', content: 'R8 leave 后探针' }).expect(201);
+    await new Promise(r => setTimeout(r, 600)); // 沉降窗口：离场 socket 零接收
+    expect(leaked).toBe(0);
+
+    // presence 不再计在线（旧实现 leave 不清表 → 仍计在线）
+    const pr1 = await request(app.getHttpServer()).get(`/api/opening-hall/${projectId}/presence`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(200);
+    expect(pr1.body.suppliers.find((s: any) => s.supplierId === sup2Id)?.online).toBe(false);
   });
 });

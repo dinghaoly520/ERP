@@ -6,9 +6,11 @@ import { supplierApi } from '@/api/supplier'
 import { bidApi } from '@/api/bid'
 import { openingHallApi } from '@/api/openingHall'
 import { useBidWebSocket } from '@/composables/useBidWebSocket'
+import { useAuthStore } from '@/stores/auth'
 import ChatPanel from '@/components/bid/ChatPanel.vue'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const projectId = route.params.projectId as string
 
 const project = ref<any>(null)
@@ -20,15 +22,51 @@ const stage = computed<string>(() => project.value?.stage ?? '')
 const isOpening = computed(() => stage.value === 'OPENING')
 const supplierId = ref('')
 const supplierName = ref('')
+const loadError = ref(false)
+const loadErrorMsg = ref('')
+const profileError = ref(false)
+const bootstrapping = ref(false)
 
 async function refresh() {
   // supplier-portal 的 axios 拦截器已解包 response.data（src/api/index.ts），返回值即响应体
-  const [p, r] = await Promise.all([
-    bidApi.getProject(projectId),
-    supplierApi.getOpeningRecord(projectId).catch(() => null),
-  ])
-  project.value = p
-  record.value = r
+  try {
+    const [p, r] = await Promise.all([
+      bidApi.getProject(projectId),
+      supplierApi.getOpeningRecord(projectId).catch(() => null),
+    ])
+    project.value = p
+    record.value = r
+    loadError.value = false
+  } catch (e: any) {
+    // 失败保留上次成功数据，仅置标志；首屏（project 为空）时由错误态 + 重试展示
+    loadError.value = true
+    loadErrorMsg.value = e?.response?.data?.error || e?.message || '加载开标大厅数据失败'
+  }
+}
+
+async function loadProfile() {
+  try {
+    const profile = await supplierApi.getProfile()
+    supplierId.value = profile?.id ?? ''
+    supplierName.value = profile?.name ?? ''
+    profileError.value = !supplierId.value
+  } catch {
+    profileError.value = true
+  }
+}
+
+async function retryProfile() {
+  profileError.value = false
+  await loadProfile()
+  if (profileError.value) ElMessage.error('加载供应商信息失败，会话暂不可用')
+}
+
+/** 首屏加载逻辑：挂载与"重试"共用 */
+async function bootstrap() {
+  bootstrapping.value = true
+  await Promise.all([loadProfile(), refresh(), loadPresence()])
+  bootstrapping.value = false
+  if (loadError.value && !project.value) ElMessage.error(loadErrorMsg.value)
 }
 
 async function loadPresence() {
@@ -41,8 +79,8 @@ async function checkIn() {
     const res = await openingHallApi.checkIn(projectId)
     checkedInAt.value = res.checkInAt
     ElMessage.success('签到成功')
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.error || '签到失败')
+  } catch {
+    // U5：业务错误消息已由 axios 拦截器统一弹出（data.error），此处不重复提示
   }
 }
 
@@ -53,9 +91,9 @@ async function confirmRecord() {
     ElMessage.success('已确认开标记录')
     await refresh()
   } catch (e: any) {
-    // ElMessageBox：取消按钮 reject 'cancel'，ESC/X 关闭 reject 'close'——都属用户关闭，不报错
+    // ElMessageBox：取消按钮 reject 'cancel'，ESC/X 关闭 reject 'close'——都属用户关闭，静默
     if (e === 'cancel' || e === 'close' || e?.toString?.().includes('cancel') || e?.toString?.().includes('close')) return
-    ElMessage.error(e?.response?.data?.error || '确认失败')
+    // U5：其余业务错误消息已由 axios 拦截器统一弹出（data.error），此处不重复提示
   }
 }
 
@@ -70,31 +108,31 @@ async function disputeRecord() {
     await refresh()
   } catch (e: any) {
     if (e === 'cancel' || e === 'close' || e?.toString?.().includes('cancel') || e?.toString?.().includes('close')) return
-    ElMessage.error(e?.response?.data?.error || '提交失败')
+    // U5：其余业务错误消息已由 axios 拦截器统一弹出（data.error），此处不重复提示
   }
 }
 
 useBidWebSocket(projectId, {
-  onStageChange: () => refresh(),
+  // refresh 内部已 try/catch（失败置标志、保留上次数据），.catch 仅作兜底，避免 unhandled rejection
+  onStageChange: () => { refresh().catch(() => {}) },
   onDecryptStatus: d => { if (d.supplierId === supplierId.value) decryptStatus.value = d.decryptStatus },
   onHallPresence: d => { onlineCount.value = d.onlineCount },
   onOpeningDisputeResolved: d => {
     ElMessage.info(d.confirm ? `异议已处理（确认）：${d.result}` : `异议已处理（退回）：${d.result}`)
-    refresh()
+    refresh().catch(() => {})
   },
 })
 
-onMounted(async () => {
-  const profile = await supplierApi.getProfile().catch(() => null)
-  supplierId.value = profile?.id ?? ''
-  supplierName.value = profile?.name ?? ''
-  await refresh()
-  await loadPresence()
-})
+onMounted(bootstrap)
 </script>
 
 <template>
   <div class="hall">
+    <!-- 首屏加载失败（尚无项目数据）：错误态 + 重试 -->
+    <el-empty v-if="loadError && !project" class="hall-error" :description="loadErrorMsg || '加载开标大厅数据失败'">
+      <el-button type="primary" :loading="bootstrapping" @click="bootstrap">重试</el-button>
+    </el-empty>
+    <template v-else>
     <div class="left">
       <el-card shadow="never">
         <template #header>
@@ -128,14 +166,22 @@ onMounted(async () => {
     </div>
 
     <div class="right">
-      <ChatPanel v-if="supplierId" :project-id="projectId" :supplier-id="supplierId" :supplier-name="supplierName" />
+      <!-- U3：userId 取 auth store 的 User.id（消息 senderId = actor.userId，非 Supplier.id） -->
+      <ChatPanel v-if="supplierId" :project-id="projectId" :supplier-id="supplierId" :supplier-name="supplierName" :user-id="authStore.user?.id ?? ''" />
+      <el-card v-else-if="profileError" shadow="never">
+        <el-empty description="会话加载失败" :image-size="64">
+          <el-button size="small" type="primary" @click="retryProfile">重试</el-button>
+        </el-empty>
+      </el-card>
       <el-card v-else shadow="never"><div class="empty">加载供应商信息中…</div></el-card>
     </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
 .hall { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.2fr); gap: 16px; }
+.hall-error { grid-column: 1 / -1; }
 .head { display: flex; align-items: center; gap: 12px; }
 .online { margin-left: auto; color: #909399; font-size: 12px; }
 .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }

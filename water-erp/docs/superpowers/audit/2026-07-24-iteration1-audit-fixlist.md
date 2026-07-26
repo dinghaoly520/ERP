@@ -7,6 +7,22 @@
 
 > **范围说明**：本地分支另有并行工作线的 9 个未推送提交（C1-C6 阶段棘轮 + Phase 2/3 开评标指挥中心重构）。本清单仅计迭代一范围内问题；与并行工作线的交互项单列于 §5。
 
+## 修复进度
+
+- **Wave 1（安全波）✅ 已完成并通过聚焦评审**（commits `52168dc2` + `8b9afda9` + declined 专家收口）：C1 全分支闭合、S1 指派门 + declined 过滤、S7 三段门控无绕过、S10 四组负用例；**S8 用户决策已落地**：procurement_staff 放行 project 房（公开流，可见面 ⊆ 供应商可见面），不进 host 房，REST 敏感操作维持 HOST_ONLY
+- **Wave 1 评审新 Minor**（不阻塞，并入后续波次）：M1 连接级信任无驱逐机制（JWT 过期/撤权后不踢）· M2 supplier 可为未参投项目 markRead('public')（仅自身游标，无泄漏）· M3 setExchangeControl 缺服务层 assertHost（仅控制器 @Roles）· M4 staff 零接收 host-only 事件的 E2E 探针 · M5 projectId 无形态校验 · M6 markRead 项目不存在语义应 404
+- **Wave 2（存证波）✅ 已完成并通过聚焦评审**（commits `527027b5` + CSV 注入中和）：S2 sectionDigests+sectionsRoot 同源同时机、E2E 篡改失配负对照背书 · S3 CSV 大厅消息段 · S4 纯文本存储（全部渲染路径转义核实）· S5 空白消息 400 + 码点安全截断 · S6 复合游标（排序严格配对、旧格式兼容）+ 非法输入 400 · 评审残留 CSV 公式注入（既有跨截面弱点）已随波收口（esc 前置单引号，一处覆盖所有用户输入段）
+- **Wave 2 评审新 Minor**：摘要 include 缺 orderBy tiebreaker（重导出复算场景）· hashChain 十六进制前缀不一致（archiveItems 带 `sha256:`、sectionDigests 裸 hex）· 语义非法 ISO 游标被 V8 翻滚接受 · CSV 转义路径测试补强 · sectionsRoot 可扩展覆盖全部 sections
+- **Wave 3（UI 明显故障波）✅ 已完成（两轮：`1f01acd8` + 评审收口）**：C2 抽屉 portal 化（评审发现被 sticky 页头遮挡 → top-[68px] 收口）· C3 更新器纯化 + tabRef · R1 确认/异议后 refetch · R2 hydrate 按 id 合并（评审发现快速切换陈旧响应污染 → activeSupplierRef 守卫收口）· U1 双端 IME 守卫（评审发现 Vue keyup 守卫在 Chromium 无效 → 改 keydown 收口）· U7 大厅失败态+重试
+- **Wave 3 待手工复验**（代码层已闭合，浏览器效果需人工确认）：① 任意滚动位置开抽屉控制行完整可点、与 z-50 模态层级正确 ② 中文输入法 Enter 选词不误发（双端）③ 私聊停留收公聊角标不再 ×2 ④ 快速连点 3 家私聊最终只含最后一家 ⑤ 停 API 刷新大厅→错误态+重试 ⑥ 供应商确认/异议后主持端表即时变化
+- **Wave 3 评审新 Minor**（并入 Wave 4/5）：N4 公聊超 100 条重开尾部乱序（与"无加载更多"同源）· N5 抽屉开着切项目跨项目消息混并（随 U8 projectId reset 消解）· N6 tabRef 亚帧 ±1 未读偏差（切 tab 自纠正）
+- **Wave 4a（后端实时健壮性）✅ 已完成（主修复 `0f10c9a7` + 收口 `46d98dfc`）**：R5 markRead 已读末条游标（@updatedAt 不覆盖显式值经 DB 探针实证、向后兼容）· R6 签到事务内原子抢占 · R7 异议处理状态门（收口补事务内条件 updateMany 消灭并发双处理 + 监督日志前后态）· R8 leave 按登记清表 + 定向推送按项目过滤 + presence 口径统一 · I1 唱标重录状态门（锁定态 409 RECORD_LOCKED，消灭 R7 引入的楔子态，评审推演无新死结）· 游标单调
+- **Wave 4a 评审登记**（后续）：供应商端 confirmOpening/disputeOpening 无状态门（pre-existing，直调 API 可翻 EXCEPTION→CONFIRMED）· handledBy 死字段 · M3 游标 read-then-upsert 理论非原子
+- **Wave 4b（双端前端健壮性）✅ 已完成（主修复 `01d05f2c` + 收口）**：R3 重连 hydrate 补齐（含 projectIdRef 陈旧响应守卫）· R4 阶段联动关输入 · R9 handlers 真 ref · R10 三态连接徽标 + 重连 · U2 即时 markRead 上报末条 id · U3 mine 判 senderId（auth store user.id 同源核实）· U4 入口收敛 + 逾期文案分态 · U5 弹窗收口（收口补网络错误兜底，修删过头退化）· U6 附件边界 · U8 项目切换全量重置（含 control）· U9 alert→toast · U11 CLOSED 禁输入 · M9 resolve 错误处理 + 防重
+- **Wave 4b 评审登记**（后续/手工验收）：M4 红色"已断开"徽标实际不可达（自动重连永不放弃，恒橙色——非功能缺陷）· M5 阶段已离 OPENING 后才开的抽屉初始 stageClosed 未同步（事件驱动固有，首次发送 403 兜底）· 7+6 项视觉效果待手工验收
+- **Wave 5（打磨波）✅ 已完成（`0fa06e01`）**：供应商端确认/异议 API 状态门（RECORD_NOT_CONFIRMABLE/DISPUTABLE，兼容旧值「待确认」）· I1 409 文案修正 · lastMessageId @MaxLength(64) · markRead 真库 E2E（游标单调 + @updatedAt 承重点固化）· 公聊 hydrate 窗口外语序修正（maxIso 过滤，双端 4 处）· 抽屉 stageClosed 初值同步（只升不降）· 全量 893/893 + E2E 24/24
+- **最终全分支评审：✅ 合并就绪**（最高规格模型逐条核验：P0×3 + Important×21 全闭合于 diff + 现状源码双重核实；安全四主线 SAFE；893 单测实测全绿、E2E 24 条与实现逐条吻合；新发现 5 项均 Minor 入迭代二工单；合并前必修项：无）
+
 ## 验证状态图例
 
 - 【实证】= 真实环境复现验证（探针/DB 直查/验收观察）

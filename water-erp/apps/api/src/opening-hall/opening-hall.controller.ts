@@ -72,7 +72,7 @@ export class OpeningHallController {
 
   @Post(':projectId/read')
   async read(@Request() req: any, @Param('projectId') projectId: string, @Body() dto: MarkReadDto) {
-    return this.svc.markRead(await this.actor(req), projectId, dto.roomKey);
+    return this.svc.markRead(await this.actor(req), projectId, dto.roomKey, dto.lastMessageId);
   }
 
   @Patch(':projectId/exchange-control')

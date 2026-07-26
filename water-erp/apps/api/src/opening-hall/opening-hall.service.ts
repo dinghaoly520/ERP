@@ -2,7 +2,6 @@ import { Injectable, Optional, Inject, ForbiddenException, BadRequestException }
 import { PrismaService } from '../prisma/prisma.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { NotificationService } from '../notification/notification.service';
-import { sanitizeHtmlContent } from '../common/html-sanitize.util';
 import type { OpeningHallRoomType, OpeningHallSenderRole, HallMessagePayload } from '@water-erp/shared';
 
 export const HOST_ROLES_SET = new Set(['admin', 'bid_host', 'leader', 'staff']);
@@ -36,6 +35,15 @@ export class OpeningHallService {
   }
 
   async sendMessage(actor: HallActor, projectId: string, dto: { roomType: OpeningHallRoomType; supplierId?: string; content: string }) {
+    // S4/S5：大厅是纯文本频道（两端均转义渲染：Vue `{{ }}` / React `{}`），与异议原因、澄清等
+    // 其他文本字段口径一致——原文落库，不复用公告富文本消毒器（旧实现把 `A & B` 存成 `A &amp; B`、
+    // 纯 `<script>` 消毒成空串仍落库）。DTO @IsNotEmpty 只挡空串，纯空白在此拒绝；
+    // 码点安全截断（[...str] 按码点迭代）避免切断 emoji 代理对——超长主要由 DTO @MaxLength(2000)
+    // （按 UTF-16 码元计）拦截，此处为防御纵深。
+    const content = dto.content.trim();
+    if (!content) throw new BadRequestException({ error: '消息内容不能为空', code: 'MESSAGE_EMPTY' });
+    const clipped = [...content].slice(0, 2000).join('');
+
     const { project, session } = await this.loadGate(projectId);
     if (project.stage !== 'OPENING') throw new ForbiddenException({ error: '大厅仅在开标阶段开放', code: 'HALL_CLOSED' });
     const control = session?.exchangeControl ?? 'OPEN';
@@ -73,7 +81,7 @@ export class OpeningHallService {
       data: {
         projectId, roomType: dto.roomType, supplierId,
         senderId: actor.userId, senderRole, senderName,
-        content: sanitizeHtmlContent(dto.content).slice(0, 2000),
+        content: clipped,
       },
     });
 
@@ -104,7 +112,21 @@ export class OpeningHallService {
 
   async listMessages(actor: HallActor, projectId: string, q: { roomType: OpeningHallRoomType; supplierId?: string; cursor?: string; limit?: number }) {
     if (actor.role !== 'supplier') this.assertHost(actor); // 非供应商仅主持人可读大厅消息（含私聊转录）
-    const limit = Math.min(Math.max(q.limit ?? 50, 1), 100);
+    // S6：limit 健壮化——NaN/非有限值（limit=abc / Infinity）回落默认 50，再夹取 [1,100]
+    const limit = Number.isFinite(q.limit) ? Math.min(Math.max(Math.trunc(q.limit as number), 1), 100) : 50;
+    // S6：cursor 先校验再进 Prisma——非法值 400（旧实现让 Invalid Date 进 SQL → 500）。
+    // 复合游标格式 `<createdAt-ISO>|<id>`；无 `|` 的旧格式游标按纯时间处理（cursorId='' →
+    // `id < ''` 恒不命中，退化到 createdAt lt 分支，向后兼容）。
+    let cursorTime: Date | undefined;
+    let cursorId = '';
+    if (q.cursor) {
+      const sep = q.cursor.indexOf('|');
+      const iso = sep < 0 ? q.cursor : q.cursor.slice(0, sep);
+      cursorId = sep < 0 ? '' : q.cursor.slice(sep + 1);
+      const t = new Date(iso);
+      if (isNaN(t.getTime())) throw new BadRequestException({ error: 'cursor 非法', code: 'INVALID_CURSOR' });
+      cursorTime = t;
+    }
     if (q.roomType === 'PRIVATE') {
       if (actor.role === 'supplier' && q.supplierId !== actor.supplierId) {
         throw new ForbiddenException({ error: '只能查看自己的私聊', code: 'PRIVATE_ROOM_MISMATCH' });
@@ -115,14 +137,19 @@ export class OpeningHallService {
       where: {
         projectId, roomType: q.roomType,
         ...(q.roomType === 'PRIVATE' ? { supplierId: q.supplierId } : {}),
-        ...(q.cursor ? { createdAt: { lt: new Date(q.cursor) } } : {}),
+        // S6：(createdAt, id) 复合游标翻页——同毫秒多条消息不再被 `createdAt < t` 跳过
+        ...(cursorTime ? { OR: [
+          { createdAt: { lt: cursorTime } },
+          { createdAt: { equals: cursorTime }, id: { lt: cursorId } },
+        ] } : {}),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     });
     const hasMore = items.length > limit;
     const page = hasMore ? items.slice(0, limit) : items;
-    return { items: page.reverse(), nextCursor: hasMore ? page[page.length - 1].createdAt.toISOString() : null };
+    const last = page[page.length - 1];
+    return { items: page.reverse(), nextCursor: hasMore ? `${last.createdAt.toISOString()}|${last.id}` : null };
   }
 
   private roomKeyFor(roomType: OpeningHallRoomType, supplierId?: string) {
@@ -158,7 +185,7 @@ export class OpeningHallService {
     return { public: publicUnread, private: sessions.reduce((s, x) => s + x.unread, 0), sessions };
   }
 
-  async markRead(actor: HallActor, projectId: string, roomKey: string) {
+  async markRead(actor: HallActor, projectId: string, roomKey: string, lastMessageId?: string) {
     // S7 归属门：项目必须存在；roomKey 只能落在自己的会话上（防游标表无界增长/写 dangling 项目）
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
@@ -175,10 +202,30 @@ export class OpeningHallService {
     } else {
       this.assertHost(actor); // → 403 HOST_ONLY
     }
+    // R5：游标定在客户端上报的"已读末条"消息上——"拉历史→markRead"窗口内到达的消息不再被
+    // 服务端 now() 误判已读。id 必须命中本项目本会话（防跨项目/跨会话乱报他人消息的 createdAt）；
+    // 未上报（旧前端兼容）或未命中 → 回退 now()。
+    let lastReadAt = new Date();
+    if (lastMessageId) {
+      const isPrivate = roomKey.startsWith('supplier:');
+      const msg = await this.prisma.openingHallMessage.findFirst({
+        where: {
+          id: lastMessageId, projectId,
+          roomType: isPrivate ? 'PRIVATE' : 'PUBLIC',
+          ...(isPrivate ? { supplierId: roomKey.slice('supplier:'.length) } : {}),
+        },
+      });
+      if (msg) lastReadAt = msg.createdAt;
+    }
+    // Wave4a-M3：游标单调——上报更旧的"已读末条"不得使游标倒退（防假未读/角标虚高）
+    const existing = await this.prisma.openingHallReadCursor.findUnique({
+      where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },
+    });
+    if (existing && existing.lastReadAt > lastReadAt) lastReadAt = existing.lastReadAt;
     return this.prisma.openingHallReadCursor.upsert({
       where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },
-      create: { projectId, userId: actor.userId, roomKey, lastReadAt: new Date() },
-      update: { lastReadAt: new Date() },
+      create: { projectId, userId: actor.userId, roomKey, lastReadAt },
+      update: { lastReadAt },
     });
   }
 
@@ -190,17 +237,30 @@ export class OpeningHallService {
     if (!member) throw new BadRequestException({ error: '您未参与该项目投标', code: 'NOT_PROJECT_MEMBER' });
     if (member.checkInAt) return { checkInAt: member.checkInAt, already: true };
 
+    // R6：原子抢占——updateMany({ where: { id, checkInAt: null } }) 仅首签命中一行；
+    // 签到写入与监督日志同一事务，杜绝旧实现事务外两步的两个缺口：
+    // ① 并发双签到都读到 checkInAt=null → 重复监督日志；
+    // ② update 成功而 log.create 失败 → 重试命中 already → 监督日志永久丢失（存证缺口）。
     const now = new Date();
-    await this.prisma.bidSupplier.update({
-      where: { id: member.id },
-      data: { checkInAt: now, checkInMeta: JSON.stringify(meta) },
+    const affected = await this.prisma.$transaction(async (tx) => {
+      const res = await tx.bidSupplier.updateMany({
+        where: { id: member.id, checkInAt: null },
+        data: { checkInAt: now, checkInMeta: JSON.stringify(meta) },
+      });
+      if (res.count === 0) return 0;
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: now, role: '供应商', target: member.supplierName,
+          action: '在线签到', result: '供应商进入开标大厅并签到', riskFlag: '无',
+        },
+      });
+      return res.count;
     });
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: now, role: '供应商', target: member.supplierName,
-        action: '在线签到', result: '供应商进入开标大厅并签到', riskFlag: '无',
-      },
-    });
+    if (affected === 0) {
+      // 并发第二签到：回读首签时间，幂等返回（不再写日志/广播）
+      const fresh = await this.prisma.bidSupplier.findUnique({ where: { id: member.id }, select: { checkInAt: true } });
+      return { checkInAt: fresh?.checkInAt ?? now, already: true };
+    }
     this.gateway?.notifyHallCheckin(projectId, {
       projectId, supplierId: actor.supplierId, supplierName: member.supplierName,
       checkInAt: now.toISOString(), timestamp: Date.now(),

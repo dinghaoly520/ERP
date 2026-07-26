@@ -99,7 +99,7 @@ describe('BidService — stage transitions', () => {
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
-      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
+      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
       supplierBidSubmission: { findUnique: jest.fn() },
@@ -420,16 +420,21 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidOpeningRecord.findFirst.mockResolvedValue({
         id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
+        confirmStatus: '供应商提出异议',
       });
-      prisma.bidOpeningRecord.update.mockResolvedValue({});
+      prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidOpeningRecord.findUnique.mockResolvedValue({ id: 'r1', confirmStatus: '异议已处理-确认' });
       prisma.bidSupplier.update.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
       await service.resolveOpeningDispute('p1', 'r1', { result: '经核实无误', confirm: true });
 
-      expect(prisma.bidOpeningRecord.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'r1' }, data: expect.objectContaining({ handleResult: '经核实无误', confirmStatus: '异议已处理-确认' }) }),
+      // M4：事务内条件更新——where 带异议态条件（并发防线，仅异议待处理行命中）
+      expect(prisma.bidOpeningRecord.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'r1', confirmStatus: '供应商提出异议' },
+          data: expect.objectContaining({ handleResult: '经核实无误', confirmStatus: '异议已处理-确认' }),
+        }),
       );
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'CONFIRMED' }) }),
@@ -440,8 +445,9 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
       prisma.bidOpeningRecord.findFirst.mockResolvedValue({
         id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
+        confirmStatus: '供应商提出异议',
       });
-      prisma.bidOpeningRecord.update.mockResolvedValue({});
+      prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidOpeningRecord.findUnique.mockResolvedValue({ id: 'r1' });
       prisma.bidSupplier.update.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
@@ -457,6 +463,75 @@ describe('BidService — stage transitions', () => {
       prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
       await expect(service.resolveOpeningDispute('p1', 'r1', { result: 'x', confirm: true }))
         .rejects.toThrow(BadRequestException);
+    });
+
+    it.each([
+      ['从未异议（待确认态）', '待确认'],
+      ['从未异议（唱标录入态）', '待供应商确认'],
+      ['已确认', '供应商已确认'],
+      ['已处理过（防反复覆盖）', '异议已处理-确认'],
+      ['已处理过（退回态）', '异议已处理-退回'],
+    ])('R7 状态机：%s的记录 resolve → 400 DISPUTE_NOT_PENDING，不落库', async (_label, confirmStatus) => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1', confirmStatus,
+      });
+      await expect(service.resolveOpeningDispute('p1', 'r1', { result: 'x', confirm: true }))
+        .rejects.toMatchObject({ response: { code: 'DISPUTE_NOT_PENDING' } });
+      expect(prisma.$transaction).not.toHaveBeenCalled(); // 事务前拦截：记录/供应商态/监督日志均不动
+      expect(prisma.bidOpeningRecord.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    it('R7 状态机：仅「供应商提出异议」态可处理（异议→处理放行）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
+        confirmStatus: '供应商提出异议',
+      });
+      prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
+      prisma.bidOpeningRecord.findUnique.mockResolvedValue({ id: 'r1', confirmStatus: '异议已处理-确认' });
+      prisma.bidSupplier.update.mockResolvedValue({});
+      prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 'sup-1' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      await expect(service.resolveOpeningDispute('p1', 'r1', { result: '复核无误', confirm: true })).resolves.toBeDefined();
+      expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it('M4：事务内条件更新抢占失败（updateMany count=0，并发双处理）→ 400 DISPUTE_NOT_PENDING，供应商态/监督日志不动', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
+        confirmStatus: '供应商提出异议',
+      });
+      prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 0 }); // 另一请求已在事务内抢占成功
+
+      await expect(service.resolveOpeningDispute('p1', 'r1', { result: 'x', confirm: true }))
+        .rejects.toMatchObject({ response: { code: 'DISPUTE_NOT_PENDING' } });
+      expect(prisma.$transaction).toHaveBeenCalled(); // 走到了事务内并发防线（非门外快速失败）
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    });
+
+    it('M5：resolve 监督日志记态迁移（供应商提出异议 → 异议已处理-确认：处理结果）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r1', projectId: 'p1', supplierName: '测试供应商', bidSupplierId: 'bs-1',
+        confirmStatus: '供应商提出异议',
+      });
+      prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
+      prisma.bidOpeningRecord.findUnique.mockResolvedValue({ id: 'r1', confirmStatus: '异议已处理-确认' });
+      prisma.bidSupplier.update.mockResolvedValue({});
+      prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 'sup-1' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await service.resolveOpeningDispute('p1', 'r1', { result: '复核无误', confirm: true });
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          action: '处理开标异议',
+          result: '供应商提出异议 → 异议已处理-确认：复核无误',
+        }),
+      }));
     });
   });
 
@@ -1398,6 +1473,39 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
     await service.enterOpeningRecord('p1', dto as any);
     expect(prisma.bidOpeningRecord.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'r1' } }));
     expect(prisma.bidOpeningRecord.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['供应商已确认'],
+    ['供应商提出异议'],
+    ['异议已处理-确认'],
+    ['异议已处理-退回'],
+  ])('I1 状态门：%s 态记录重录唱标 → 409 RECORD_LOCKED（防异议态被覆写后撞 R7 成楔子）', async (confirmStatus) => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r1', confirmStatus });
+
+    // Wave 5-2：409 文案须指向"异议处理结果闭环"（resolve 两结局均终态，旧文案"先处理异议再操作"
+    // 误导主持人以为 resolve 后可重录，实际重录永久锁定）
+    await expect(service.enterOpeningRecord('p1', dto as any))
+      .rejects.toMatchObject({
+        response: {
+          code: 'RECORD_LOCKED',
+          error: expect.stringContaining('请通过异议处理结果（维持/退回）完成闭环'),
+        },
+      });
+    expect(prisma.bidOpeningRecord.update).not.toHaveBeenCalled();
+    expect(prisma.bidOpeningRecord.create).not.toHaveBeenCalled();
+  });
+
+  it.each([['待供应商确认'], ['待确认']])('I1 状态门：%s 态仍可重录（正常唱标补录路径不挡）', async (confirmStatus) => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'r1', confirmStatus });
+    prisma.bidOpeningRecord.update.mockResolvedValue({ id: 'r1', confirmStatus: '待供应商确认' });
+
+    await expect(service.enterOpeningRecord('p1', dto as any)).resolves.toBeDefined();
+    expect(prisma.bidOpeningRecord.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'r1' } }));
   });
 
   it('非 OPENING 阶段拒绝', async () => {
