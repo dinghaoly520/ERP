@@ -29,7 +29,7 @@ function RecentProjectsInner() {
 
   const handleClick = (p: RecentProject) => {
     // Phase 3：project 工作区已退役，最近项目直达开标大厅
-    router.push(`/bid/open?id=${p.id}`);
+    router.push(`/bid/project/${p.id}`);
   };
 
   const handleRemove = (e: React.MouseEvent, id: string) => {

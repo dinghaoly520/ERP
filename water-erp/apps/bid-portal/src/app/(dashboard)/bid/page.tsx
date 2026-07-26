@@ -67,7 +67,7 @@ export default function BidTaskBoard() {
   });
   const archivedCount = stageDistribution['ARCHIVED'] ?? 0;
 
-  const enterHall = (id: string) => router.push(`/bid/open?id=${id}`);
+  const enterHall = (id: string) => router.push(`/bid/project/${id}`);
 
   return (
     <div className="space-y-5">
