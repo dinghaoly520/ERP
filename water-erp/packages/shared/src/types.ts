@@ -144,6 +144,15 @@ export interface ScorePointSuggestion {
   duplicate?: boolean;        // 与已有得分点高度相似
 }
 
+/** 一键 AI 提取：按评分项分组的得分点建议（extract-all 端点返回） */
+export interface ScorePointSuggestionGroup {
+  itemId: string;
+  itemName: string;
+  category: string; // ScoreCategory 联合，与 BidScoreItem.category 保持一致用 string
+  maxScore: number;
+  suggestions: ScorePointSuggestion[];
+}
+
 export interface BidSupervisionLog {
   id: string;
   time: string;
