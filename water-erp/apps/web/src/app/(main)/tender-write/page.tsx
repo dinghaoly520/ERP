@@ -470,7 +470,7 @@ export default function TenderWritePage() {
                 <button type="button" onClick={() => setShowHistoryDialog(true)} className="neu-btn-soft">
                   <History size={14} />历史记录
                 </button>
-                <button type="button" onClick={() => void handleExport()} disabled={exporting || selectedMeta?.availability !== "ready"} className="neu-btn-soft">
+                <button type="button" onClick={() => void handleExport()} disabled={exporting || selectedMeta?.availability !== "ready"} className="neu-btn-soft is-primary">
                   <FileDown size={14} />{exporting ? "导出中..." : "导出采购文件"}
                 </button>
               </div>

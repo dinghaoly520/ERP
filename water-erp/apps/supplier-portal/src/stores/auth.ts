@@ -46,6 +46,10 @@ export const useAuthStore = defineStore('auth', () => {
         pendingInfo.value = { code }
         return 'pending'
       }
+      if (code === 'TEMPORARY_EXPIRED') {
+        pendingInfo.value = { code }
+        return 'expired'
+      }
       return 'invalid'
     } finally {
       loading.value = false

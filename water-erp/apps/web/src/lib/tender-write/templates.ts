@@ -536,6 +536,21 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         aiPrompt: "根据项目概况和采购内容，建议合理的最高限价，只输出纯数字金额。",
       },
       {
+        key: "submissionRequirements",
+        label: "提交成果要求",
+        placeholder: "请输入提交成果要求",
+        multiline: true,
+        aiPrompt: "根据项目类型生成提交成果要求，描述成果形式、数量、质量要求等。不要包含'5.提交成果要求：'这样的标题或前缀，只输出提交成果要求正文。",
+        composite: {
+          typeKey: "submissionRequirementsType",
+          typeLabel: "是否有提交成果要求",
+          typeOptions: [
+            { value: "none", label: "无" },
+            { value: "have", label: "有" },
+          ],
+        },
+      },
+      {
         key: "qualificationRequirements",
         label: "特定资质要求",
         placeholder: "请输入特定资质要求",
@@ -727,8 +742,8 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
       {
         key: "copyCount",
         label: "副本份数",
-        placeholder: "例如 3 份",
-        aiPrompt: "生成响应文件副本份数要求。规则：在2-5之间选一个整数（如3），只输出该数字本身，不要范围、不要文字说明。",
+        placeholder: "根据最高限价自动确定",
+        aiPrompt: "根据最高限价确定响应文件副本份数：1000000元以下为4份，1000000元及以上为6份。只输出纯数字。",
       },
       {
         key: "evaluationCommitteeCount",
@@ -805,6 +820,8 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
     projectOverview: "",
     procurementContent: "",
     maxPrice: "",
+    submissionRequirements: "",
+    submissionRequirementsType: "",
     qualificationRequirements: "",
     consortiumForm: "",
     consortiumFormType: "",

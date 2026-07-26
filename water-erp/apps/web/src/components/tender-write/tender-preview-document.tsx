@@ -1344,6 +1344,9 @@ function InternalBiddingPreview({
               <p>2.项目概况和采购内容：<PreviewValue value={draft.projectOverview} placeholder="{{项目概况和采购内容}}" fieldKey="projectOverview" onValueChange={onValueChange} /></p>
               <p>3.项目最高限价（含税）：最高限价<PreviewValue value={draft.maxPrice} placeholder="{{最高限价}}" fieldKey="maxPrice" onValueChange={onValueChange} />元。</p>
               <p>4.合同履行期限：双方履行完合同约定的义务后，本合同终止。</p>
+              {draft.submissionRequirementsType !== 'none' && (
+                <PreviewValue value={normalizeSubmissionRequirements(draft.submissionRequirements)} placeholder="{{提交成果要求}}" multiline fieldKey="submissionRequirements" onValueChange={onValueChange} />
+              )}
             </div>
           </div>
           <div className="tender-preview-subsection">

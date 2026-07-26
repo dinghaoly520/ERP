@@ -6,6 +6,7 @@ import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
+import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('supplier-portal')
@@ -105,6 +106,11 @@ export class SupplierPortalController {
   async createChangeRequest(@Request() req: any, @Body() dto: CreateChangeRequestDto) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.createChangeRequest(supplierId, req.user.sub, dto);
+  }
+
+  @Post('convert-request')
+  async convertToRegular(@Request() req: any, @Body() dto: ConvertToRegularDto) {
+    return this.portalService.convertToRegular(req.user.sub, dto);
   }
 
   // ─── Evaluations ───
@@ -265,9 +271,9 @@ export class SupplierPortalController {
   }
 
   @Get('bid-documents/:announcementId/download')
-  async downloadBidDocument(@Request() req: any, @Param('announcementId') announcementId: string, @Res() res: any) {
+  async downloadBidDocument(@Request() req: any, @Param('announcementId') announcementId: string, @Query('password') password: string | undefined, @Res() res: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
-    const { buffer, fileName, mimeType } = await this.bidDocumentService.downloadForSupplier(announcementId, supplierId);
+    const { buffer, fileName, mimeType } = await this.bidDocumentService.downloadForSupplier(announcementId, supplierId, password);
     res.setHeader('Content-Type', mimeType || 'application/octet-stream');
     res.setHeader('Content-Length', String(buffer.length));
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);

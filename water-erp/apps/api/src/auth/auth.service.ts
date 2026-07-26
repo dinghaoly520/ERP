@@ -63,6 +63,16 @@ export class AuthService {
     if (!user.isActive) {
       return { pending: true as const, role: user.role, code: 'ACCOUNT_PENDING' };
     }
+    // 临时供应商过期拦截：邀请码绑定的有效期已过则禁止登录（与未激活一样走 pending 分支）
+    if (user.role === 'supplier') {
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { userId: user.id },
+        select: { isTemporary: true, temporaryExpiresAt: true },
+      });
+      if (supplier?.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
+        return { pending: true as const, role: user.role, code: 'TEMPORARY_EXPIRED' };
+      }
+    }
     return this.issueToken(user.id, user.username, user.role);
   }
 

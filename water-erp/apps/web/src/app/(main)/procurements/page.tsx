@@ -1323,36 +1323,6 @@ export default function ProcurementsPage() {
           />
         </div>
 
-        {/* KPI 指标 */}
-        {ledgerStats && (
-          <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="kpi-card flex flex-col gap-1 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">总预算</span>
-              <span className="text-[1.35rem] font-black tabular-nums tracking-[-0.03em] text-[var(--foreground)]">{ledgerStats.totalBudgetLabel}</span>
-              <span className="text-[10px] text-[var(--muted-foreground)]">{ledgerStats.totalCount} 条记录</span>
-            </div>
-            <div className="kpi-card flex flex-col gap-1 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">总成交</span>
-              <span className="text-[1.35rem] font-black tabular-nums tracking-[-0.03em] text-[var(--foreground)]">{ledgerStats.totalAwardLabel}</span>
-              <span className="text-[10px] text-[var(--muted-foreground)]">{ledgerStats.awardedCount} 条已定标</span>
-            </div>
-            <div className="kpi-card flex flex-col gap-1 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">节资额</span>
-              <span className="text-[1.35rem] font-black tabular-nums tracking-[-0.03em] text-[var(--success)]">{ledgerStats.totalSavingsLabel}</span>
-              <span className="text-[10px] text-[var(--muted-foreground)]">预算 vs 成交差额</span>
-            </div>
-            <div className="kpi-card flex flex-col gap-1 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">待处理</span>
-              <span className="text-[1.35rem] font-black tabular-nums tracking-[-0.03em] text-[var(--accent)]">{ledgerStats.pendingCount}</span>
-              {ledgerStats.abnormalCount > 0 && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--danger)]">
-                  <span className="h-1 w-1 rounded-full bg-[var(--danger)]" />异常 {ledgerStats.abnormalCount}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* 加载错误提示 */}
         {loadError && (
           <div className="mb-4 flex items-center justify-between rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm text-[color:var(--danger)]">

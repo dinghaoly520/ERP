@@ -124,34 +124,29 @@ const REPROC_STAGE_SEGMENTS: Record<string, Array<{ key: string; label: string }
     { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
-    { key: 'AWARD_DECISION', label: '定标' },
   ],
   竞价采购: [
     { key: 'TENDER_DOCUMENT', label: '采购文件' },
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
     { key: 'EXPERT_SELECTION', label: '专家抽取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
-    { key: 'AWARD_DECISION', label: '定标' },
   ],
   直接采购: [
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示(供应商邀请)' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
-    { key: 'AWARD_DECISION', label: '定标' },
   ],
   邀请招标: [
     { key: 'TENDER_DOCUMENT', label: '招标文件' },
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
     { key: 'EXPERT_SELECTION', label: '专家抽取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
-    { key: 'AWARD_DECISION', label: '定标' },
   ],
   询比采购: [
     { key: 'TENDER_DOCUMENT', label: '采购文件' },
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
-    { key: 'AWARD_DECISION', label: '定标' },
   ],
 };
 

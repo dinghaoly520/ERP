@@ -406,17 +406,16 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
 .sp-layout { background: transparent !important; }
 .sp-content { background: transparent !important; }
 
+/* :3002 public-portal flow-header 风格：全宽贴顶半透明玻璃条 + 底部 hairline，不浮起、无圆角。
+   负 margin 抵消 sp-layout 的 12px padding，使 header 真正拉满到视口边缘。 */
 .sp-header {
-  border-radius: 16px !important;
-  background: oklch(0.985 0.006 258 / 0.82) !important;
+  margin: 0 -12px !important;
+  border-radius: 0 !important;
+  background: oklch(0.975 0.012 258 / 0.78) !important;
   border: none !important;
-  backdrop-filter: blur(18px) saturate(150%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(150%) !important;
-  /* cgzxui 方向性双影（替换旧扁平 0 2px 10px drop）+ 顶部内高光线 */
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.85),
-    2px 2px 8px oklch(0.55 0.03 258 / 0.1),
-    -2px -2px 8px oklch(1 0 0 / 0.9) !important;
+  backdrop-filter: blur(20px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
+  box-shadow: inset 0 -1px 0 oklch(0.8 0.03 258 / 0.5) !important;
 }
 .sp-header-icon, .sp-user-pill, .sp-logout-btn, .sp-collapse-toggle {
   border: none !important;

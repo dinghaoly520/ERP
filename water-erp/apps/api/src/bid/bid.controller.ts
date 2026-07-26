@@ -96,6 +96,10 @@ export class BidController {
   @ApiOperation({ summary: '启动开标' })
   startOpening(@Param('id') id: string, @Body() dto?: StartOpeningDto, @CurrentUser('sub') userId?: string) { return this.bidService.startOpening(id, dto, userId); }
 
+  @Post('projects/:id/abort')
+  @ApiOperation({ summary: '流标（SUBMIT/OPENING→ABORTED）' })
+  abortBidProject(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.abortBidProject(id, userId); }
+
   @Post('projects/:id/start-evaluation')
   @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
   startEvaluation(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.startEvaluation(id, userId); }

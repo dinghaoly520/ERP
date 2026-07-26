@@ -312,6 +312,7 @@ const INTERNAL_BIDDING_SECTIONS: TenderSectionDef[] = [
       { key: 'projectOverview', label: '项目概况和采购内容' },
       { key: 'procurementContent', label: '采购内容' },
       { key: 'maxPrice', label: '最高限价' },
+      { key: 'submissionRequirements', label: '提交成果要求' },
       { key: 'qualificationRequirements', label: '特定资格要求' },
       { key: 'consortiumForm', label: '联合体形式' },
       { key: 'documentAcquireTime', label: '文件获取时间' },

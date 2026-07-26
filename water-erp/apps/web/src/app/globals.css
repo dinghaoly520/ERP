@@ -8668,6 +8668,9 @@ a {
 .neu-btn-soft.is-danger:hover { background: oklch(0.95 0.05 27 / 0.5); }
 .neu-btn-soft.is-warning { color: var(--warning); }
 .neu-btn-soft.is-warning:hover { background: oklch(0.95 0.05 83 / 0.5); }
+.neu-btn-soft.is-primary { color: #fff; background: var(--neu-brand); }
+.neu-btn-soft.is-primary:hover { color: #fff; background: var(--neu-brand-deep); }
+.neu-btn-soft.is-primary:disabled { opacity: 0.5; }
 
 /* 紧凑行操作按钮 —— 用于表格行内的 查看/详情/停用/删除 等 */
 .neu-btn-xs {

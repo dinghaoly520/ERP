@@ -196,7 +196,7 @@ export class BidDocumentService {
   async getForSupplier(announcementId: string, supplierId: string) {
     const doc = await this.prisma.bidDocument.findUnique({
       where: { announcementId },
-      include: { announcement: { select: { id: true, title: true, type: true, status: true } } },
+      include: { announcement: { select: { id: true, title: true, type: true, status: true, metadata: true } } },
     });
     if (!doc || doc.announcement.type !== 'BID_NOTICE') return null;
 
@@ -204,6 +204,10 @@ export class BidDocumentService {
     const access = await this.prisma.bidDocumentAccess.findUnique({
       where: { documentId_supplierId: { documentId: doc.id, supplierId } },
     });
+
+    // 解密下载模式：需要供应商输入密码才能解密（密码存于 announcement.metadata.downloadPassword）
+    const annMeta = (doc.announcement as any)?.metadata as Record<string, any> | undefined;
+    const needPassword = doc.accessScope === 'DESIGNATED' && !!annMeta?.downloadPassword;
 
     return {
       id: doc.id,
@@ -217,7 +221,8 @@ export class BidDocumentService {
       eligible: eligibility.eligible,
       reason: eligibility.reason,
       paid: access?.paid ?? false,
-      canDownload: eligibility.eligible && (!doc.requirePayment || access?.paid === true),
+      canDownload: eligibility.eligible && (!doc.requirePayment || access?.paid === true) && !needPassword,
+      needPassword,
       needPayment: doc.requirePayment && !access?.paid,
       downloadCount: access?.downloadCount ?? 0,
     };
@@ -256,12 +261,22 @@ export class BidDocumentService {
   }
 
   /* ── 供应商端：鉴权下载（解密 + 流式 + 记录）── */
-  async downloadForSupplier(announcementId: string, supplierId: string): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
-    const doc = await this.prisma.bidDocument.findUnique({ where: { announcementId }, include: { fileAsset: true } });
+  async downloadForSupplier(announcementId: string, supplierId: string, password?: string): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
+    const doc = await this.prisma.bidDocument.findUnique({ where: { announcementId }, include: { fileAsset: true, announcement: { select: { metadata: true } } } });
     if (!doc) throw new NotFoundException({ error: '招标文件不存在', code: 'NOT_FOUND' });
 
     const elig = await this.checkEligibility(doc, supplierId);
     if (!elig.eligible) throw new ForbiddenException({ error: elig.reason, code: 'NOT_ELIGIBLE' });
+
+    // 解密下载模式：DESIGNATED 需验证密码（存于 announcement.metadata.downloadPassword）
+    if (doc.accessScope === 'DESIGNATED') {
+      const annMeta = (doc.announcement as any)?.metadata as Record<string, any> | undefined;
+      if (annMeta?.downloadPassword) {
+        if (!password || password !== annMeta.downloadPassword) {
+          throw new ForbiddenException({ error: '下载密码错误', code: 'WRONG_PASSWORD' });
+        }
+      }
+    }
     if (doc.requirePayment) {
       const access = await this.prisma.bidDocumentAccess.findUnique({ where: { documentId_supplierId: { documentId: doc.id, supplierId } } });
       if (!access?.paid) throw new ForbiddenException({ error: '请先完成付费', code: 'PAYMENT_REQUIRED' });

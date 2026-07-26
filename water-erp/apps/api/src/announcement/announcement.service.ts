@@ -85,10 +85,12 @@ export class AnnouncementService {
     return { total, page, pageSize, items };
   }
 
-  /** Public listing — only published items；公开端不含招标文件（首页不泄露） */
+  /** Public listing — only published items；公开端不含招标文件（首页不泄露）；RESTRICTED 可见范围不流转到首页 */
   async publicList(params: { type?: string; search?: string; page?: number; pageSize?: number }) {
     const res = await this.list({ ...params, status: 'PUBLISHED' });
-    return { ...res, items: res.items.map((a: any) => this.stripForPublic(a)) };
+    return { ...res, items: res.items
+      .filter((a: any) => a.metadata?.visibility !== 'RESTRICTED')
+      .map((a: any) => this.stripForPublic(a)) };
   }
 
   async get(id: string) {
@@ -204,6 +206,11 @@ export class AnnouncementService {
       if (existingProject) {
         await this.bidService.syncFromAnnouncement(existingProject.id, { title: announcement.title }, meta);
         this.logger.log(`公告已关联项目 ${existingProject.projectCode}，同步更新字段`);
+        // 流标公告：发布后自动将 BidProject 置为 ABORTED
+        if (meta.category === 'failed_bid') {
+          await this.bidService.abortBidProject(existingProject.id);
+          this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已标记为 ABORTED`);
+        }
       } else {
         const project = await this.bidService.createFromAnnouncement(
           { id: announcement.id, title: announcement.title, publishDate: announcement.publishDate }, meta,

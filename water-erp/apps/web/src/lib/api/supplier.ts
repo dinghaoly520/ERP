@@ -51,6 +51,36 @@ export function getSupplierList(params?: { status?: string; classificationId?: s
   return api.get<SupplierListResponse>(`/supplier/list?${query.toString()}`);
 }
 
+/* ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）── */
+export interface SupplierInvitation {
+  id: string;
+  code: string;
+  validityDays: number;
+  status: 'ACTIVE' | 'USED' | 'EXPIRED' | 'REVOKED';
+  note?: string | null;
+  createdAt: string;
+  expiresAt: string;
+  usedAt?: string | null;
+  revokedAt?: string | null;
+  createdBy?: { id: string; displayName: string };
+  usedBy?: { id: string; name: string } | null;
+}
+export interface InvitationListResponse { items: SupplierInvitation[]; total: number; page: number; pageSize: number; }
+
+export function listInvitations(params?: { page?: number; pageSize?: number; status?: string }) {
+  const q = new URLSearchParams();
+  if (params?.page) q.set('page', String(params.page));
+  if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+  if (params?.status) q.set('status', params.status);
+  return api.get<InvitationListResponse>(`/supplier/invitations?${q.toString()}`);
+}
+export function createInvitation(data: { validityDays: number; note?: string }) {
+  return api.post<SupplierInvitation>('/supplier/invitations', data);
+}
+export function revokeInvitation(id: string) {
+  return api.post<SupplierInvitation>(`/supplier/invitations/${id}/revoke`, {});
+}
+
 // 供应商统计（总数 / 待审核 / 已入库 / 停用 / 黑名单）
 export function getSupplierStats() {
   return api.get<SupplierStats>('/supplier/stats');

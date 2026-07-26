@@ -1,6 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 
-export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED';
+export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED' | 'ABORTED';
 
 const STAGE_ORDER: Record<BidStage, number> = {
   DOWNLOAD: 0,
@@ -8,6 +8,7 @@ const STAGE_ORDER: Record<BidStage, number> = {
   OPENING: 2,
   EVALUATING: 3,
   ARCHIVED: 4,
+  ABORTED: 5,
 };
 
 /**

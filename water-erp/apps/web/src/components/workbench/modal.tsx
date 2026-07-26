@@ -4,8 +4,8 @@ import { useEffect, useRef, useId, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
-const SIZE_PX: Record<ModalSize, number> = { sm: 420, md: 560, lg: 720, xl: 820 };
+type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+const SIZE_PX: Record<ModalSize, number> = { sm: 420, md: 560, lg: 720, xl: 820, '2xl': 1080 };
 
 type ModalProps = {
   open: boolean;

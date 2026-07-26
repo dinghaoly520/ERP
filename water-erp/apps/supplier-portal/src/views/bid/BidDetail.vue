@@ -66,7 +66,9 @@ const metaFields = computed(() => {
   if (m.projectCode) fields.push({ label: '项目编号', value: m.projectCode, mono: true })
   if (m.method) fields.push({ label: '招标方式', value: m.method })
   if (m.budget != null && m.budget !== '') fields.push({ label: '预算金额', value: fmtBudget(m.budget), strong: true })
-  if (m.deadline) fields.push({ label: '报名/投标截止', value: fmtMetaDate(m.deadline), strong: true })
+  if (m.deadline) fields.push({ label: '投标截止', value: fmtMetaDate(m.deadline), strong: true })
+  if (m.downloadDeadline) fields.push({ label: '采购文件下载截止', value: fmtMetaDate(m.downloadDeadline), strong: true })
+  if (m.downloadMode) fields.push({ label: '下载方式', value: m.downloadMode === 'encrypted' ? '解密下载' : m.downloadMode === 'paid' ? '付费下载' : '免费下载' })
   if (m.openTime) fields.push({ label: '开标时间', value: fmtMetaDate(m.openTime), strong: true })
   if (m.contact) fields.push({ label: '联系方式', value: m.contact })
   return fields
@@ -75,9 +77,10 @@ const metaFields = computed(() => {
 // ── 招标文件 ──
 const bidDoc = ref<any>(null); const bidDocLoading = ref(false); const paying = ref(false); const downloading = ref(false)
 const payDialog = ref(false); const paymentRef = ref('')
+const pwdDialog = ref(false); const decryptPwd = ref('')
 async function loadBidDoc() { bidDocLoading.value = true; try { bidDoc.value = await bidApi.getProjectBidDocument(projectId.value) as any } catch { bidDoc.value = null } bidDocLoading.value = false }
 async function doPay() { if (!bidDoc.value?.announcementId) return; paying.value = true; try { await announcementApi.payBidDocument(bidDoc.value.announcementId, paymentRef.value || undefined); ElMessage.success('付款凭证已提交'); payDialog.value = false; paymentRef.value = ''; await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '提交失败') } paying.value = false }
-async function doDownload() { if (!bidDoc.value?.announcementId) return; downloading.value = true; try { const { blob, fileName } = await announcementApi.downloadBidDocument(bidDoc.value.announcementId); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url); await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '下载失败') } downloading.value = false }
+async function doDownload() { if (!bidDoc.value?.announcementId) return; downloading.value = true; try { const { blob, fileName } = await announcementApi.downloadBidDocument(bidDoc.value.announcementId, decryptPwd.value || undefined); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url); decryptPwd.value = ''; pwdDialog.value = false; await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '下载失败') } downloading.value = false }
 
 // ── 书面交流（来函 + 可选附件；澄清模块保持单向，无实时推送）──
 const questionText = ref(''); const questionPosting = ref(false)
@@ -230,6 +233,8 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
                 <el-alert v-if="bidDoc.needPayment" title="需付费下载" type="warning" :closable="false" show-icon />
                 <el-alert v-else-if="bidDoc.requirePayment && !bidDoc.paid" title="付款凭证已提交，等待确认" type="info" :closable="false" show-icon />
                 <button v-if="bidDoc.needPayment" class="neu-btn-soft" @click="payDialog = true">提交付款凭证</button>
+                <el-alert v-if="bidDoc.needPassword" title="需输入下载密码" type="warning" :closable="false" show-icon />
+                <button v-if="bidDoc.needPassword" class="neu-btn-soft" @click="pwdDialog = true">输入下载密码</button>
                 <button v-if="bidDoc.canDownload" class="neu-btn-primary" :disabled="downloading" @click="doDownload"><Download :size="13" :stroke-width="1.75" />下载招标文件</button>
               </template>
             </div>
@@ -286,6 +291,11 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
       <el-dialog v-model="payDialog" title="提交付款凭证" width="420px">
         <el-form><el-form-item label="付款凭证/流水号"><el-input v-model="paymentRef" placeholder="如：银行流水号" /></el-form-item></el-form>
         <template #footer><el-button @click="payDialog = false">取消</el-button><el-button type="primary" :loading="paying" @click="doPay">提交</el-button></template>
+      </el-dialog>
+
+      <el-dialog v-model="pwdDialog" title="输入下载密码" width="380px">
+        <el-form><el-form-item label="下载密码"><el-input v-model="decryptPwd" placeholder="请输入6位下载密码" maxlength="10" /></el-form-item></el-form>
+        <template #footer><el-button @click="pwdDialog = false">取消</el-button><el-button type="primary" @click="pwdDialog = false; doDownload()">确认下载</el-button></template>
       </el-dialog>
     </template>
   </div>

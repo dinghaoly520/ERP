@@ -445,6 +445,7 @@ export function AnnouncementDialog({
   initialCategory = null,
   initialDraft = null,
   onDraftChange,
+  hiddenFields = [],
 }: {
   isOpen: boolean;
   tenderType: ReadyTenderDocumentType;
@@ -455,6 +456,8 @@ export function AnnouncementDialog({
   initialCategory?: AnnouncementCategory | null;
   initialDraft?: AnnouncementDraft | null;
   onDraftChange?: (draft: AnnouncementDraft, category: AnnouncementCategory) => void;
+  /** 渲染时隐藏的字段 key（如 wizard 把某些字段移到发布配置单独编辑） */
+  hiddenFields?: string[];
 }) {
   const [step, setStep] = useState<"select_category" | "edit">("select_category");
   const [category, setCategory] = useState<AnnouncementCategory | null>(null);
@@ -836,6 +839,7 @@ export function AnnouncementDialog({
                 <div className="grid gap-3">
                   {fields
                     .filter((field) => {
+                      if (hiddenFields.includes(field.key)) return false;
                       // Hide scheduleRequirements content when type is not "have"
                       if (field.key === "scheduleRequirements") {
                         const typeVal = draftRecord.scheduleRequirementsType;

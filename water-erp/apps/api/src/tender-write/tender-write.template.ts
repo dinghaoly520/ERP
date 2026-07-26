@@ -7,12 +7,12 @@ import type {
 } from './tender-write.types';
 
 export const COMPETITIVE_NEGOTIATION_TEMPLATE_FILE =
-  '模板文件/谈判采购模板.docx';
+  '模板文件/谈判采购文件模板.docx';
 export const SINGLE_SOURCE_TEMPLATE_FILE = '模板文件/直接采购模板.docx';
-export const INQUIRY_PURCHASE_TEMPLATE_FILE = '模板文件/询比采购模板.docx';
+export const INQUIRY_PURCHASE_TEMPLATE_FILE = '模板文件/询比采购文件模板.docx';
 export const INTERNAL_BIDDING_TEMPLATE_FILE =
-  '模板文件/竞价采购模板.docx';
-export const INVITED_BIDDING_TEMPLATE_FILE = '模板文件/邀请招标模板.docx';
+  '模板文件/竞价采购文件模板.docx';
+export const INVITED_BIDDING_TEMPLATE_FILE = '模板文件/邀请招标文件模板.docx';
 
 // Chinese number mapping for date formatting
 const CHINESE_NUMBERS = [
@@ -885,6 +885,17 @@ export function buildInternalBiddingReplacementPlan(
   const evalMethod1 = answers.evaluationMethod === '综合评分法' ? '☑' : '☐';
   const evalMethod2 = answers.evaluationMethod === '最低评标价法' ? '☑' : '☐';
 
+  // Handle submission requirements - empty if type is "none"
+  const submissionRequirementsValue =
+    answers.submissionRequirementsType === 'none'
+      ? ''
+      : normalizeSubmissionRequirements(answers.submissionRequirements);
+  const submissionRequirementsReplacement: TemplateReplacement = {
+    targetText: '提交成果要求',
+    ...buildReplacement('提交成果要求', submissionRequirementsValue, true),
+    shouldDeleteLine: answers.submissionRequirementsType === 'none',
+  };
+
   const projectOverviewReplacement: TemplateReplacement = {
     targetText: '项目概况和采购内容',
     ...buildReplacement('项目概况和采购内容', answers.projectOverview),
@@ -935,6 +946,7 @@ export function buildInternalBiddingReplacementPlan(
       targetText: '最高限价',
       ...buildReplacement('最高限价', answers.maxPrice),
     },
+    submissionRequirementsReplacement,
     qualificationRequirementsReplacement,
     {
       targetText: '特定资格要求',
@@ -1074,36 +1086,52 @@ export function buildInternalBiddingReplacementPlan(
 }
 
 function deleteComprehensiveScoringTable(xml: string): string {
-  const headingTextMatch = xml.match(/六、\s*综合评分法评标标准/);
-  if (!headingTextMatch || headingTextMatch.index === undefined) {
-    return xml;
+  // 遍历所有段落，提取纯文本（合并跨 <w:r>/<w:t> 的文本片段），
+  // 定位含「六、综合评分法评标标准」的标题段落。
+  // 「六、」和「综合评分法评标标准」在模板中常在不同 run 里，
+  // 直接 regex 匹配 raw XML 会失败。
+  let headingStart = -1;
+  let headingEnd = -1;
+
+  const pStarts: number[] = [];
+  const psRe = /<w:p\b/g;
+  let psMatch: RegExpExecArray | null;
+  while ((psMatch = psRe.exec(xml)) !== null) {
+    pStarts.push(psMatch.index);
   }
 
-  let headingStart = -1;
-  for (let i = headingTextMatch.index; i >= 0; i--) {
-    if (
-      xml.substring(i, i + 4) === '<w:p' &&
-      (xml[i + 4] === ' ' || xml[i + 4] === '>')
-    ) {
-      headingStart = i;
+  const pEnds: number[] = [];
+  const peRe = /<\/w:p>/g;
+  let peMatch: RegExpExecArray | null;
+  while ((peMatch = peRe.exec(xml)) !== null) {
+    pEnds.push(peMatch.index + 6);
+  }
+
+  for (let i = 0; i < Math.min(pStarts.length, pEnds.length); i++) {
+    const pStart = pStarts[i];
+    const pEnd = pEnds[i];
+    const pXml = xml.substring(pStart, pEnd);
+    const texts = [
+      ...pXml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g),
+    ].map((m) => m[1]);
+    const plain = texts.join('').trim();
+    if (/六、\s*综合评分法评标标准/.test(plain)) {
+      headingStart = pStart;
+      headingEnd = pEnd;
       break;
     }
   }
-  if (headingStart === -1) {
+
+  if (headingStart < 0 || headingEnd < 0) {
     return xml;
   }
 
-  const headingEnd = xml.indexOf('</w:p>', headingTextMatch.index);
-  if (headingEnd === -1) {
-    return xml;
-  }
-
-  const tableStart = xml.indexOf('<w:tbl', headingEnd + 6);
+  const tableStart = xml.indexOf('<w:tbl', headingEnd);
   if (tableStart === -1) {
     return xml;
   }
 
-  const chapterFourStart = xml.indexOf('第四章', headingEnd + 6);
+  const chapterFourStart = xml.indexOf('第四章', headingEnd);
   if (chapterFourStart !== -1 && chapterFourStart < tableStart) {
     return xml;
   }
@@ -1806,7 +1834,7 @@ function replacePlaceholderPreservingFormat(
 export const INVITED_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE =
   '模板文件/邀请招标公告模板.docx';
 export const INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE =
-  '模板文件/竞价采购公示采购公告.docx';
+  '模板文件/竞价采购公告.docx';
 export const INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE =
   '模板文件/询比采购公示.docx';
 export const SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE =

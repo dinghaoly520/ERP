@@ -85,4 +85,13 @@ export const supplierApi = {
   changePassword(oldPassword: string, newPassword: string) {
     return api.post('/supplier-portal/change-password', { oldPassword, newPassword })
   },
+
+  /** 临时供应商申请转为正式（补全企业+联系人+资质资料，提交审批） */
+  convertToRegular(data: {
+    enterpriseType: string; legalPerson: string; registeredAddress: string; businessScope: string;
+    contacts: { name: string; phone: string; email?: string; isPrimary?: boolean }[];
+    qualifications: { type: string; name: string; fileUrl?: string; validFrom?: string; validTo?: string }[];
+  }) {
+    return api.post('/supplier-portal/convert-request', data)
+  },
 }

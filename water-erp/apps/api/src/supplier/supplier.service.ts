@@ -4,6 +4,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
+import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
@@ -108,6 +110,172 @@ export class SupplierService {
     })));
 
     return { user: safeUser, supplier };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  临时供应商邀请码（采购端生成，有效期 30/180/360 天）
+  // ═══════════════════════════════════════════════════════════
+  static readonly INVITATION_VALIDITY_DAYS = [30, 180, 360] as const;
+  // 去除易混字符（O/0/I/1），保证人工抄录与口传无误
+  private static readonly CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  private async generateUniqueCode(): Promise<string> {
+    const alphabet = SupplierService.CODE_ALPHABET;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      let code = '';
+      for (let i = 0; i < 8; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+      const exists = await this.prisma.supplierInvitation.findUnique({ where: { code }, select: { id: true } });
+      if (!exists) return code;
+    }
+    throw new BadRequestException({ error: '邀请码生成失败，请重试', code: 'CODE_GEN_FAILED' });
+  }
+
+  // 把已过期但仍为 ACTIVE 的邀请码标记为 EXPIRED（惰性同步，避免定时任务）
+  private async syncExpiredStatus(): Promise<void> {
+    await this.prisma.supplierInvitation.updateMany({
+      where: { status: 'ACTIVE', expiresAt: { lt: new Date() } },
+      data: { status: 'EXPIRED' },
+    });
+  }
+
+  async createInvitation(dto: CreateInvitationDto, creatorId: string) {
+    if (!(SupplierService.INVITATION_VALIDITY_DAYS as readonly number[]).includes(dto.validityDays)) {
+      throw new BadRequestException({ error: '有效期仅支持 30/180/360 天', code: 'INVALID_VALIDITY' });
+    }
+    const code = await this.generateUniqueCode();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + dto.validityDays * 86400000);
+    return this.prisma.supplierInvitation.create({
+      data: {
+        code,
+        validityDays: dto.validityDays,
+        note: dto.note?.trim() || null,
+        createdById: creatorId,
+        expiresAt,
+      },
+      include: {
+        createdBy: { select: { id: true, displayName: true } },
+      },
+    });
+  }
+
+  async listInvitations(params: { page?: number; pageSize?: number; status?: string }) {
+    await this.syncExpiredStatus();
+    const page = params.page ?? 1;
+    const pageSize = Math.min(params.pageSize ?? 20, 100);
+    const where = params.status ? { status: params.status as any } : {};
+    const [items, total] = await Promise.all([
+      this.prisma.supplierInvitation.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          createdBy: { select: { id: true, displayName: true } },
+          usedBy: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.supplierInvitation.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
+  }
+
+  async revokeInvitation(id: string, userId: string) {
+    const inv = await this.prisma.supplierInvitation.findUnique({ where: { id } });
+    if (!inv) throw new NotFoundException('邀请码不存在');
+    if (inv.status === 'USED') throw new BadRequestException({ error: '已使用的邀请码不可作废', code: 'ALREADY_USED' });
+    if (inv.status === 'REVOKED') throw new BadRequestException({ error: '邀请码已作废', code: 'ALREADY_REVOKED' });
+    return this.prisma.supplierInvitation.update({
+      where: { id },
+      data: { status: 'REVOKED', revokedAt: new Date(), revokedById: userId },
+    });
+  }
+
+  // 公开校验邀请码（临时注册前用）——仅回 valid + validityDays + expiresAt，不泄漏创建者/使用者
+  async verifyInvitationCode(rawCode: string) {
+    await this.syncExpiredStatus();
+    const code = rawCode.toUpperCase().trim();
+    const inv = await this.prisma.supplierInvitation.findUnique({
+      where: { code },
+      select: { validityDays: true, status: true, expiresAt: true },
+    });
+    if (!inv) return { valid: false, reason: '邀请码不存在' };
+    if (inv.status === 'USED') return { valid: false, reason: '邀请码已被使用' };
+    if (inv.status === 'REVOKED') return { valid: false, reason: '邀请码已作废' };
+    if (inv.status === 'EXPIRED' || inv.expiresAt < new Date()) return { valid: false, reason: '邀请码已过期' };
+    return { valid: true, validityDays: inv.validityDays, expiresAt: inv.expiresAt };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  临时供应商注册（凭邀请码，极简字段；审批通过后由供应商补全资料）
+  // ═══════════════════════════════════════════════════════════
+  async registerTemporary(dto: RegisterTemporarySupplierDto) {
+    const code = dto.invitationCode.toUpperCase().trim();
+    await this.syncExpiredStatus();
+    const inv = await this.prisma.supplierInvitation.findUnique({ where: { code } });
+    if (!inv) throw new BadRequestException({ error: '邀请码不存在', code: 'INVITATION_NOT_FOUND' });
+    if (inv.status === 'USED') throw new BadRequestException({ error: '邀请码已被使用', code: 'INVITATION_USED' });
+    if (inv.status === 'REVOKED') throw new BadRequestException({ error: '邀请码已作废', code: 'INVITATION_REVOKED' });
+    if (inv.status === 'EXPIRED' || inv.expiresAt < new Date()) throw new BadRequestException({ error: '邀请码已过期', code: 'INVITATION_EXPIRED' });
+
+    const normalizedName = dto.name.trim().toLowerCase();
+    // 企业名称即登录用户名：同名企业 = 同 username，与 normalizedName 唯一性一致
+    const username = dto.name.trim();
+    const existingName = await this.prisma.supplier.findUnique({ where: { normalizedName } });
+    if (existingName) throw new BadRequestException({ error: '企业名称已存在', code: 'DUPLICATE_NAME' });
+    const existingCredit = await this.prisma.supplier.findUnique({ where: { creditCode: dto.creditCode.trim() } });
+    if (existingCredit) throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
+    const existingUser = await this.prisma.user.findFirst({ where: { username, role: 'supplier' } });
+    if (existingUser) throw new BadRequestException({ error: '企业名称已被注册', code: 'DUPLICATE_USERNAME' });
+
+    const { user, supplier } = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          username,
+          displayName: dto.displayName,
+          phone: dto.phone,
+          passwordHash: hashSync(dto.password, 10),
+          role: 'supplier',
+          isActive: false, // 仍需审核
+        },
+      });
+      const supplier = await tx.supplier.create({
+        data: {
+          userId: user.id,
+          name: dto.name,
+          normalizedName,
+          creditCode: dto.creditCode.trim(),
+          // 临时供应商必填字段留空（DB NOT NULL 用空串满足），不写入占位/虚假内容；
+          // 审批通过后由供应商在企业信息中自行补全。
+          enterpriseType: '',
+          legalPerson: '',
+          registeredAddress: '',
+          businessScope: '',
+          isTemporary: true,
+          temporaryExpiresAt: inv.expiresAt,
+          invitation: { connect: { id: inv.id } },
+          contacts: { create: [{ name: dto.displayName, phone: dto.phone, isPrimary: true }] },
+        },
+        include: { contacts: true },
+      });
+      // 标记邀请码已使用（绑定使用者）
+      await tx.supplierInvitation.update({
+        where: { id: inv.id },
+        data: { status: 'USED', usedById: supplier.id, usedAt: new Date() },
+      });
+      return { user, supplier };
+    });
+
+    const expireLabel = inv.expiresAt.toISOString().slice(0, 10);
+    const { passwordHash: _omit, ...safeUser } = user; void _omit;
+    void Promise.all(['admin', 'leader', 'staff'].map(r => this.notificationService.sendToRole(r, {
+      type: 'SUPPLIER_PENDING',
+      title: '新临时供应商注册待审批',
+      content: `${supplier.name}（临时供应商，有效期至 ${expireLabel}）提交了注册申请，请前往审批。`,
+      link: `/supplier/${supplier.id}`,
+    })));
+
+    return { user: safeUser, supplier, temporaryExpiresAt: inv.expiresAt, validityDays: inv.validityDays };
   }
 
   async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; scopeUserId?: string }) {

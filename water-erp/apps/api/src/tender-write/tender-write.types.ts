@@ -97,6 +97,8 @@ export type InternalBiddingAnswers = {
   projectOverview: string;
   procurementContent: string;
   maxPrice: string;
+  submissionRequirements: string;
+  submissionRequirementsType: string;
   qualificationRequirements: string;
   consortiumForm: string;
   consortiumFormType: string;

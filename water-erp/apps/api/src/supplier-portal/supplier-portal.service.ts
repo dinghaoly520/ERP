@@ -6,6 +6,7 @@ import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
+import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
@@ -106,6 +107,7 @@ export class SupplierPortalService {
         id: true, name: true, status: true,
         returnReason: true, rejectReason: true,
         createdAt: true, updatedAt: true,
+        isTemporary: true, temporaryExpiresAt: true,
       },
     });
     if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'NOT_FOUND' });
@@ -310,6 +312,7 @@ export class SupplierPortalService {
           procurementMethod: true,
           openTime: true,
           deadline: true,
+          downloadDeadline: true,
           stage: true,
           riskNote: true,
           createdAt: true,
@@ -374,6 +377,7 @@ export class SupplierPortalService {
         procurementMethod: true,
         openTime: true,
         deadline: true,
+        downloadDeadline: true,
         stage: true,
         riskNote: true,
         bondRequired: true,
@@ -454,9 +458,14 @@ export class SupplierPortalService {
   async getBidProjectDocument(projectId: string, supplierId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { projectCode: true },
+      select: { projectCode: true, downloadDeadline: true },
     });
     if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
+
+    // 采购文件下载截止时间 gate：超时不可下载
+    if (project.downloadDeadline && project.downloadDeadline.getTime() < Date.now()) {
+      throw new BadRequestException({ error: '采购文件下载时间已截止', code: 'DOWNLOAD_DEADLINE_PASSED' });
+    }
 
     // 查找关联的招标公告（BID_NOTICE）
     const announcement = await this.prisma.announcement.findFirst({
@@ -1380,5 +1389,27 @@ export class SupplierPortalService {
       data: { passwordHash: hashSync(newPassword, 10) },
     })
     return { success: true }
+  }
+
+  // 临时供应商申请转为正式（提交资料变更请求，管理员审批后补全字段并取消 isTemporary）
+  async convertToRegular(userId: string, dto: ConvertToRegularDto) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { userId } });
+    if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'NOT_FOUND' });
+    if (!supplier.isTemporary) throw new BadRequestException({ error: '非临时供应商无需转正', code: 'NOT_TEMPORARY' });
+    const record = await this.prisma.supplierChangeRecord.create({
+      data: {
+        supplierId: supplier.id,
+        fieldName: 'convertToRegular',
+        fieldLabel: '临时转正式',
+        newValue: JSON.stringify({
+          enterpriseType: dto.enterpriseType,
+          legalPerson: dto.legalPerson,
+          registeredAddress: dto.registeredAddress,
+          businessScope: dto.businessScope,
+        }),
+        status: 'PENDING',
+      },
+    });
+    return { success: true, record };
   }
 }

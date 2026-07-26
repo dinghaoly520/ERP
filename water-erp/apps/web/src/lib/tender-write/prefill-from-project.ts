@@ -176,6 +176,7 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
       return withPrompts([
         ...cover,
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
+        { fieldKey: 'submissionRequirements', label: '提交成果要求' },
         { fieldKey: 'consortiumForm', label: '联合体形式' },
         { fieldKey: 'documentAcquireTime', label: '文件获取时间' },
         { fieldKey: 'documentPrice', label: '采购文件售价' },

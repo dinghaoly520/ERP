@@ -36,6 +36,8 @@ async function handleLogin() {
       router.push('/dashboard')
     } else if (result === 'invalid') {
       ElMessage.error('用户名或密码错误')
+    } else if (result === 'expired') {
+      ElMessage.error('临时供应商有效期已过，请联系采购中心续期')
     }
     // result === 'pending'：不弹错，登录页凭 pendingInfo 展示「查询审核进度」面板
   } catch {
@@ -150,8 +152,13 @@ async function handleQueryStatus() {
 
         <div class="lp-foot">
           <a href="#" class="lp-foot-link" @click.prevent="openQuery">查询审核进度 / 忘记密码？</a>
-          <span class="lp-foot-sep">|</span>
-          还没有账号？<router-link to="/register">立即注册供应商</router-link>
+        </div>
+
+        <!-- 注册入口：正式 / 临时（凭邀请码） -->
+        <div class="lp-register-entry">
+          <router-link to="/register" class="lp-reg-btn lp-reg-btn--primary">正式注册供应商</router-link>
+          <div class="lp-reg-divider"><span>或</span></div>
+          <router-link to="/register-temporary" class="lp-reg-btn lp-reg-btn--temp">凭邀请码 · 临时注册</router-link>
         </div>
       </div>
     </section>
@@ -310,6 +317,29 @@ async function handleQueryStatus() {
 .lp-foot a, .lp-foot-link { color: oklch(0.5 0.13 var(--hue)); font-weight: 700; text-decoration: none; cursor: pointer; }
 .lp-foot a:hover, .lp-foot-link:hover { text-decoration: underline; }
 .lp-foot-sep { margin: 0 12px; color: oklch(0.8 0.02 var(--hue)); }
+
+/* 注册入口：正式（实心品牌）+ 临时（凸起中性）—— 复用 cgzxui 凸起按钮语言 */
+.lp-register-entry { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.lp-reg-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  height: 46px; border: none; border-radius: 12px;
+  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; text-decoration: none;
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+}
+.lp-reg-btn--primary {
+  color: #fff;
+  background: linear-gradient(180deg, oklch(0.55 0.16 252), oklch(0.45 0.15 252));
+  box-shadow: 3px 3px 8px oklch(0.4 0.1 252 / 0.3), -2px -2px 6px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.3);
+}
+.lp-reg-btn--primary:hover { transform: translateY(-1px); box-shadow: 4px 4px 12px oklch(0.4 0.1 252 / 0.38), -2px -2px 6px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.35); }
+.lp-reg-btn--temp {
+  color: oklch(0.45 0.13 252);
+  background: linear-gradient(180deg, oklch(0.99 0.01 252), oklch(0.96 0.02 252));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12), -2px -2px 6px oklch(1 0 0 / 0.85);
+}
+.lp-reg-btn--temp:hover { transform: translateY(-1px); color: oklch(0.4 0.15 252); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 8px oklch(0.55 0.03 258 / 0.16), -2px -2px 6px oklch(1 0 0 / 0.9); }
+.lp-reg-divider { display: flex; align-items: center; gap: 10px; color: oklch(0.7 0.02 252); font-size: 12px; }
+.lp-reg-divider::before, .lp-reg-divider::after { content: ''; flex: 1; height: 1px; background: oklch(0.9 0.02 252); }
 
 /* Staggered entrance (motion only; no glass) */
 .lp-head, .lp-field, .lp-primary, .lp-foot { animation: lp-up 0.5s var(--ease) backwards; }

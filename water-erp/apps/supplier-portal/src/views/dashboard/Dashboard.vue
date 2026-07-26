@@ -7,6 +7,8 @@ import { useBidStore } from '@/stores/bid'
 import SkeletonCard from '@/components/SkeletonCard.vue'
 import SpKpi from '@/components/SpKpi.vue'
 import { AlertTriangle } from 'lucide-vue-next'
+import { supplierApi } from '@/api/supplier'
+import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -137,6 +139,62 @@ const daysSinceReg = computed(() => {
   if (!created) return null
   return Math.ceil((Date.now() - new Date(created).getTime()) / 86400000)
 })
+// 临时供应商倒计时
+const daysRemaining = computed(() => {
+  const exp = statusInfo.value?.temporaryExpiresAt
+  if (!exp) return '--'
+  const days = Math.ceil((new Date(exp).getTime() - Date.now()) / 86400000)
+  return Math.max(0, days)
+})
+const isExpiringSoon = computed(() => {
+  const d = daysRemaining.value
+  return typeof d === 'number' && d <= 3 && d > 0
+})
+
+// 转正弹窗
+const convertDialog = ref(false)
+const convertLoading = ref(false)
+const convertForm = ref({
+  enterpriseType: '有限责任公司',
+  legalPerson: '',
+  registeredAddress: '',
+  businessScope: '',
+  contacts: [{ name: '', phone: '', email: '', isPrimary: true }] as { name: string; phone: string; email: string; isPrimary: boolean }[],
+  qualifications: [] as { type: string; name: string; fileUrl: string; validFrom: string; validTo: string }[],
+})
+const enterpriseTypes = ['有限责任公司','股份有限公司','国有企业','集体企业','合伙企业','个人独资企业','外商投资企业','其他']
+const qualTypeOptions = ['营业执照','资质证书','安全生产许可证','质量管理体系认证','环境管理体系认证','职业健康安全管理体系认证','信用评级','其他']
+
+function addContact() { convertForm.value.contacts.push({ name: '', phone: '', email: '', isPrimary: false }) }
+function removeContact(i: number) { if (convertForm.value.contacts.length > 1) convertForm.value.contacts.splice(i, 1) }
+function addQualification() { convertForm.value.qualifications.push({ type: '资质证书', name: '', fileUrl: '', validFrom: '', validTo: '' }) }
+function removeQualification(i: number) { convertForm.value.qualifications.splice(i, 1) }
+
+function openConvertDialog() { convertDialog.value = true }
+async function submitConvert() {
+  const f = convertForm.value
+  if ([f.enterpriseType, f.legalPerson, f.registeredAddress, f.businessScope].some(v => !v.trim())) { ElMessage.warning('请填写完整企业信息'); return }
+  if (f.contacts.some(c => !c.name.trim() || !c.phone.trim())) { ElMessage.warning('请填写完整联系人信息'); return }
+  if (f.qualifications.length === 0) { ElMessage.warning('请至少添加一项资质材料'); return }
+  if (f.qualifications.some(q => !q.type || !q.name.trim())) { ElMessage.warning('请填写完所有资质信息（类型与名称必填）'); return }
+  convertLoading.value = true
+  try {
+    await supplierApi.convertToRegular({
+      enterpriseType: f.enterpriseType,
+      legalPerson: f.legalPerson.trim(),
+      registeredAddress: f.registeredAddress.trim(),
+      businessScope: f.businessScope.trim(),
+      contacts: f.contacts.map(c => ({ name: c.name.trim(), phone: c.phone.trim(), email: c.email.trim() || undefined, isPrimary: c.isPrimary })),
+      qualifications: f.qualifications.map(q => ({ type: q.type, name: q.name.trim(), fileUrl: q.fileUrl || undefined, validFrom: q.validFrom || undefined, validTo: q.validTo || undefined })),
+    })
+    ElMessage.success('转正申请已提交，等待审核')
+    convertDialog.value = false
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.error || '提交失败')
+  } finally {
+    convertLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -171,7 +229,7 @@ const daysSinceReg = computed(() => {
           <div class="page-hero__left">
             <div class="page-hero__icon"><el-icon :size="20"><OfficeBuilding /></el-icon></div>
             <div>
-              <div class="page-hero__eyebrow">业务工作台</div>
+              <div class="page-hero__eyebrow">{{ statusInfo.isTemporary ? '临时供应商 · 业务工作台' : '业务工作台' }}</div>
               <div class="page-hero__title">{{ statusInfo.name }}</div>
               <div class="page-hero__sub db-hero-sub">
                 <span class="sp-status" :class="statusType[statusInfo.status]||'pending'">{{ statusLabel[statusInfo.status]||statusInfo.status }}</span>
@@ -190,11 +248,13 @@ const daysSinceReg = computed(() => {
               </div>
             </div>
           </div>
-          <div class="page-hero__right db-hero-right">
-            <div class="neu-btn-group">
-              <button class="neu-btn-soft" @click="router.push('/bids')">可投标项目</button>
-              <button class="neu-btn-soft" @click="router.push('/my-bids')">投标进展</button>
-              <button class="neu-btn-primary" @click="router.push('/profile')">完善档案</button>
+          <div v-if="statusInfo.isTemporary" class="page-hero__right db-hero-right">
+            <div class="db-temp-banner">
+              <span class="db-temp-countdown" :class="{ expiring: isExpiringSoon }">
+                <el-icon style="margin-right:4px;font-size:14px"><Clock /></el-icon>
+                临时权限 <strong>{{ daysRemaining }}</strong> 天后到期
+              </span>
+              <button class="neu-btn-soft" @click="openConvertDialog">转为正式供应商</button>
             </div>
           </div>
         </div>
@@ -335,6 +395,76 @@ const daysSinceReg = computed(() => {
         </div>
       </div>
     </template>
+
+    <!-- 临时供应商转正弹窗（完整表单：企业信息 + 联系人 + 资质材料） -->
+    <el-dialog v-model="convertDialog" title="转为正式供应商" width="680px" destroy-on-close class="cv-dlg">
+      <div class="cv-body">
+        <!-- ══ 企业信息 ══ -->
+        <section class="cv-section">
+          <h3 class="cv-sec-title">企业信息</h3>
+          <p class="cv-sec-desc">企业名称和统一社会信用代码不可修改</p>
+          <el-form :model="convertForm" label-width="110px" size="large" class="cv-form">
+            <el-form-item label="企业类型">
+              <el-select v-model="convertForm.enterpriseType" style="width:100%">
+                <el-option v-for="t in enterpriseTypes" :key="t" :label="t" :value="t" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="法定代表人"><el-input v-model="convertForm.legalPerson" placeholder="请输入法定代表人" /></el-form-item>
+            <el-form-item label="注册地址"><el-input v-model="convertForm.registeredAddress" placeholder="请输入注册地址" /></el-form-item>
+            <el-form-item label="经营范围">
+              <el-input v-model="convertForm.businessScope" type="textarea" :rows="2" placeholder="请输入经营范围" />
+            </el-form-item>
+          </el-form>
+        </section>
+
+        <!-- ══ 联系人 ══ -->
+        <section class="cv-section">
+          <div class="cv-sec-head">
+            <h3 class="cv-sec-title">联系人信息</h3>
+            <el-button plain size="small" @click="addContact">+ 添加联系人</el-button>
+          </div>
+          <div v-for="(c, i) in convertForm.contacts" :key="'ct'+i" class="cv-contact-row">
+            <span class="cv-subrow-idx">{{ i + 1 }}</span>
+            <el-input v-model="c.name" placeholder="姓名 *" class="cv-ci-name" />
+            <el-input v-model="c.phone" placeholder="手机号 *" class="cv-ci-phone" />
+            <el-input v-model="c.email" placeholder="邮箱（选填）" class="cv-ci-email" />
+            <label class="cv-ci-switch">
+              <span class="cv-ci-switch-label">主要</span>
+              <el-switch v-model="c.isPrimary" size="small" />
+            </label>
+            <el-button v-if="convertForm.contacts.length > 1" plain size="small" type="danger" @click="removeContact(i)">删除</el-button>
+          </div>
+        </section>
+
+        <!-- ══ 资质材料 ══ -->
+        <section class="cv-section">
+          <div class="cv-sec-head">
+            <h3 class="cv-sec-title">资质材料</h3>
+            <el-button plain size="small" @click="addQualification">+ 添加资质</el-button>
+          </div>
+          <div v-for="(q, i) in convertForm.qualifications" :key="'ql'+i" class="cv-qual-row">
+            <span class="cv-subrow-idx">{{ i + 1 }}</span>
+            <el-select v-model="q.type" placeholder="资质类型 *" class="cv-qs-type">
+              <el-option v-for="t in qualTypeOptions" :key="t" :label="t" :value="t" />
+            </el-select>
+            <el-input v-model="q.name" placeholder="资质名称 *" class="cv-qs-name" />
+            <el-date-picker v-model="q.validFrom" type="date" placeholder="有效期起" value-format="YYYY-MM-DD" class="cv-qs-date" />
+            <el-date-picker v-model="q.validTo" type="date" placeholder="有效期止" value-format="YYYY-MM-DD" class="cv-qs-date" />
+            <el-upload class="cv-upload" action="/api/upload?category=qualification" :headers="{ 'X-Portal': 'supplier' }" :show-file-list="false" :on-success="(resp) => { q.fileUrl = resp?.id || resp?.url || '' }">
+              <el-button size="small">上传</el-button>
+            </el-upload>
+            <el-button v-if="q.fileUrl" size="small" tag="a" :href="'/api/upload/files/' + q.fileUrl" target="_blank" type="primary" plain>查看</el-button>
+            <el-button plain size="small" type="danger" @click="removeQualification(i)">删除</el-button>
+          </div>
+        </section>
+
+        <p style="font-size:12px;color:var(--muted-foreground);margin-top:12px">提交后需管理员审批，审批通过后自动转为正式供应商。</p>
+      </div>
+      <template #footer>
+        <el-button @click="convertDialog = false">取消</el-button>
+        <el-button type="primary" :loading="convertLoading" @click="submitConvert">提交转正申请</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -351,6 +481,12 @@ const daysSinceReg = computed(() => {
 .db-hero-hint { font-size: 12px; color: var(--muted-foreground); }
 .db-hero-hint.warn { color: var(--warning); font-weight: 600; }
 .db-hero-right { flex-shrink: 0; }
+
+/* 临时供应商标题栏：授权倒计时 + 转正按钮 */
+.db-temp-banner { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.db-temp-countdown { display: inline-flex; align-items: center; font-size: 13px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.db-temp-countdown strong { font-size: 16px; font-weight: 900; color: var(--brand); }
+.db-temp-countdown.expiring strong { color: var(--danger); }
 
 /* ═══════════════ KPI strip spacing — consistent 20px rhythm with hero + body ═══════════════ */
 :deep(.kpi-grid) { margin: 20px 0; }
@@ -371,7 +507,7 @@ const daysSinceReg = computed(() => {
 }
 .db-panel-left { min-height: 200px; min-width: 0; }
 .db-panel-comp { min-width: 0; flex-shrink: 0; }
-.db-panel-msg { min-width: 0; flex-shrink: 0; margin-top: auto; }  /* 沉底对齐左列底部 */
+.db-panel-msg { min-width: 0; flex: 1; display: flex; flex-direction: column; }  /* 撑满右列剩余空间，与左列底部对齐 */
 
 /* ── LEFT: Project list ── */
 .db-list { display: flex; flex-direction: column; }
@@ -424,7 +560,7 @@ const daysSinceReg = computed(() => {
 .db-comp-done { border-top: 1px solid var(--hairline); padding-top: 12px; font-size: 12px; font-weight: 600; color: var(--success); display: flex; align-items: center; gap: 5px; }
 
 /* ── RIGHT BOTTOM: Notifications ── */
-.db-msg-list { display: flex; flex-direction: column; }
+.db-msg-list { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
 .db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease); }
 .db-msg-row.is-last { border-bottom: none; }
 .db-msg-row:hover { background: oklch(0.985 0.01 258 / 0.5); border-radius: 8px; }
@@ -444,5 +580,30 @@ const daysSinceReg = computed(() => {
 }
 @media (prefers-reduced-motion: reduce) {
   .db-comp-bar-fill { transition: none; }
+}
+
+/* 转正弹窗 */
+.cv-body { max-height: 72vh; overflow-y: auto; padding-right: 4px; }
+.cv-section { margin-bottom: 20px; }
+.cv-sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.cv-sec-title { margin: 0 0 4px; font-size: 14px; font-weight: 800; color: var(--foreground); }
+.cv-sec-desc { margin: 0 0 10px; font-size: 12px; color: var(--muted-foreground); }
+.cv-form { margin-bottom: 0; }
+.cv-subrow-idx { width: 20px; height: 20px; border-radius: 50%; background: var(--brand); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+/* 联系人 — 占满窗口宽度 */
+.cv-contact-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.cv-ci-name { flex: 1; min-width: 0; }
+.cv-ci-phone { flex: 1; min-width: 0; }
+.cv-ci-email { flex: 1.2; min-width: 0; }
+.cv-ci-switch { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted-foreground); white-space: nowrap; flex-shrink: 0; }
+/* 资质 — 多字段弹性行 + 上传/查看 */
+.cv-qual-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.cv-qs-type { width: 130px; flex-shrink: 0; }
+.cv-qs-name { flex: 1; min-width: 0; }
+.cv-qs-date { width: 130px; flex-shrink: 0; }
+.cv-upload { flex-shrink: 0; }
+@media (max-width: 760px) {
+  .cv-contact-row, .cv-qual-row { flex-wrap: wrap; }
+  .cv-ci-name, .cv-ci-phone, .cv-ci-email, .cv-qs-type, .cv-qs-name, .cv-qs-date { width: 100%; flex: auto; }
 }
 </style>

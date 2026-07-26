@@ -7,6 +7,8 @@ import { OwnerGuard } from './owner.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
+import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
 import { UpdateSupplierStatusDto } from './dto/update-supplier-status.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { ApproveChangeDto } from './dto/approve-change.dto';
@@ -31,6 +33,54 @@ export class SupplierController {
   @ApiOperation({ summary: '供应商注册' })
   async register(@Body() dto: RegisterSupplierDto) {
     return this.supplierService.register(dto);
+  }
+
+  @Post('register/temporary')
+  @Public()
+  @ApiOperation({ summary: '临时供应商注册（凭邀请码）' })
+  async registerTemporary(@Body() dto: RegisterTemporarySupplierDto) {
+    return this.supplierService.registerTemporary(dto);
+  }
+
+  // ── 临时供应商邀请码（采购端管理）──
+  @Post('invitations')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '生成临时供应商邀请码（30/180/360 天）' })
+  async createInvitation(@Body() dto: CreateInvitationDto, @Request() req: any) {
+    return this.supplierService.createInvitation(dto, req.user.sub);
+  }
+
+  @Get('invitations')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '邀请码列表' })
+  async listInvitations(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.supplierService.listInvitations({
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 20,
+      status: status || undefined,
+    });
+  }
+
+  @Post('invitations/:id/revoke')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '作废邀请码' })
+  async revokeInvitation(@Param('id') id: string, @Request() req: any) {
+    return this.supplierService.revokeInvitation(id, req.user.sub);
+  }
+
+  @Get('invitations/verify')
+  @Public()
+  @ApiOperation({ summary: '公开校验邀请码（临时注册前）' })
+  async verifyInvitation(@Query('code') code?: string) {
+    if (!code) throw new BadRequestException('请提供邀请码');
+    return this.supplierService.verifyInvitationCode(code);
   }
 
   @Get('register/status')

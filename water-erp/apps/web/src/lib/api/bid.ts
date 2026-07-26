@@ -7,7 +7,7 @@ export type { ScorePointSuggestion };
    后端 /bid/projects/:id/... 已提供全部能力；此处仅做类型化封装。
    BidProject 与 ProjectManagementItem 通过 bidProjectId 关联（懒创建）。 */
 
-export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED';
+export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED' | 'ABORTED';
 export type ScoreCategory = 'QUALIFICATION' | 'RESPONSIVE' | 'BUSINESS' | 'TECHNICAL' | 'PRICE';
 
 export const BID_STAGE_LABELS: Record<BidStage, string> = {
@@ -16,6 +16,7 @@ export const BID_STAGE_LABELS: Record<BidStage, string> = {
   OPENING: '开标中',
   EVALUATING: '评标中',
   ARCHIVED: '已归档',
+  ABORTED: '已流标',
 };
 
 export const SCORE_CATEGORY_LABELS: Record<ScoreCategory, string> = {
@@ -280,6 +281,16 @@ export function startOpening(
   dto?: { host?: string; supervisor?: string; decryptWindowStart?: string; decryptWindowEnd?: string },
 ) {
   return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/open`, dto ?? {});
+}
+
+/** 流标：将项目状态置为 ABORTED */
+export function abortBidProject(bidProjectId: string) {
+  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/abort`, {});
+}
+
+/** 确认开标结果：OPENING → EVALUATING（启动评标） */
+export function startEvaluation(bidProjectId: string) {
+  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/start-evaluation`, {});
 }
 
 /** 延时开标：修改 openTime / deadline */

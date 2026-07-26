@@ -829,7 +829,7 @@ export function ExpertExtractPage({
             )}
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end pr-4">
             <button onClick={() => { if (!pid) { setError('请先选择采购项目'); return; } setError(''); setStep(2); }} disabled={!pid} className="neu-btn-soft is-info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg> 下一步：配置抽取</button>
           </div>
         </div>
@@ -964,7 +964,7 @@ export function ExpertExtractPage({
             )}
           </div>
           {extractMode === 'manual' && (
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 pr-4">
               <button
                 onClick={async () => {
                   if (!pid) { setError('请选择采购项目'); return; }
@@ -995,7 +995,7 @@ export function ExpertExtractPage({
               </button>
             </div>
           )}
-          <div className="flex justify-between">
+          <div className="flex justify-between pr-4">
             <button onClick={() => setStep(1)} className="neu-btn-soft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 上一步：选择项目</button>
           </div>
         </div>
@@ -1283,7 +1283,7 @@ export function ExpertExtractPage({
                 </div>
               </div>
 
-              <div className="flex justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+              <div className="flex justify-between pr-4 pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                 <div className="flex items-center gap-3">
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">5</span>
                   <span className="text-sm font-bold text-[var(--foreground)]">专家确认</span>

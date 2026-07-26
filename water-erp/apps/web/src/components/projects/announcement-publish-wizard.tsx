@@ -15,7 +15,7 @@ import {
   buildAnnouncement,
 } from '@/lib/api/announcement';
 import type { AnnouncementStatus } from '@/lib/api/announcement';
-import { uploadProjectStageAttachment, type UploadStageAttachmentResult } from '@/lib/api/project-management';
+import { uploadProjectStageAttachment, reprocProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getSupplierList } from '@/lib/api/supplier';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption } from '@/lib/api/expert';
 import type { Supplier } from '@/lib/types';
@@ -88,6 +88,30 @@ function buildCanonicalMeta(
   return out;
 }
 
+/** 今天 + n 天后的截止时刻（YYYY-MM-DDTHH:MM），时分默认 23:59
+ *  （datetime-local 时分上限为 23:59，无法表示 24:00，以 23:59 表示当天截止） */
+function deadlineAfterDays(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}T23:59`;
+}
+
+/** 中文日期 "2026年8月1日" → YYYY-MM-DD；已是数字格式则直接返回 */
+function toDateInputValue(text: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const m = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if (m) {
+    const y = m[1];
+    const mo = m[2].padStart(2, '0');
+    const d = m[3].padStart(2, '0');
+    return `${y}-${mo}-${d}`;
+  }
+  return text;
+}
+
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document' }: Props) {
   // Wizard state
   const [step, setStep] = useState<1 | 2>(1);
@@ -107,12 +131,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [restrictedSupplierIds, setRestrictedSupplierIds] = useState<string[]>([]);
   const [publishTiming, setPublishTiming] = useState<'now' | 'scheduled'>('now');
   const [scheduledDate, setScheduledDate] = useState('');
+  // 公告截止时间（从公告制作提取到发布配置）+ 标书投递截止时间
+  const [announcementEndDate, setAnnouncementEndDate] = useState('');
+  const [bidSubmissionDeadline, setBidSubmissionDeadline] = useState('');
+  // 采购文件下载方式：免费 / 解密密码 / 付费（占位）
+  const [downloadMode, setDownloadMode] = useState<'free' | 'encrypted' | 'paid'>('free');
+  const [downloadPassword, setDownloadPassword] = useState('');
+  const [paidAmount, setPaidAmount] = useState('');
   const [attachOn, setAttachOn] = useState(false);
   const [tenderOn, setTenderOn] = useState(false);
   // 多份采购文件时，公告引用哪一份（objectKey 唯一标识）；单份默认选它
   const [selectedTenderObjectKey, setSelectedTenderObjectKey] = useState<string>('');
-  // 文件下载时间：从项目台账 documentAcquireTime 预填，无则必填
-  const [documentDownloadTime, setDocumentDownloadTime] = useState('');
   const [notifyOnPublish, setNotifyOnPublish] = useState(true);
   const [annId, setAnnId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<Array<{ file: File; title: string }>>([]);
@@ -175,13 +204,35 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       getAnnouncementFields(tt, procCat),
     );
     setCategory(procCat);
+
+    // 从采购文件获取时间(documentAcquireTime)区间自动填入公示期限起/止
+    const acquireTime = project.documentAcquireTime?.trim();
+    if (acquireTime) {
+      const dashIdx = acquireTime.lastIndexOf('-');
+      if (dashIdx > 0) {
+        const startRaw = acquireTime.slice(0, dashIdx).trim();
+        const endRaw = acquireTime.slice(dashIdx + 1).trim();
+        const fd = filledDraft as Record<string, string>;
+        if (!fd.announcementStart) fd.announcementStart = toDateInputValue(startRaw);
+        if (!fd.announcementEnd) fd.announcementEnd = toDateInputValue(endRaw);
+      }
+    }
+
     setDraft(filledDraft);
 
     // ★ 默认引用采购文件（多份时默认选第一份）
     setTenderOn(tenderFiles.length > 0);
     setSelectedTenderObjectKey(tenderFiles[0]?.objectKey ?? '');
-    // ★ 文件下载时间：从采购文件获取时间(documentAcquireTime)预填；无则发布时必填
-    setDocumentDownloadTime(project.documentAcquireTime ?? '');
+    // 默认截止时间：优先取公示期限（止）→ 兜底按采购方式给默认
+    const isQuickDeadlineCategory = project.procurementMethod === '询比采购' || project.procurementMethod === '竞价采购';
+    const inheritEnd = (filledDraft as Record<string, string>).announcementEnd ?? '';
+    if (inheritEnd) {
+      // 从公示期限（止）带入，纯日期补默认时分 23:59
+      setAnnouncementEndDate(inheritEnd.length <= 10 ? `${inheritEnd}T23:59` : inheritEnd);
+    } else {
+      setAnnouncementEndDate(deadlineAfterDays(isQuickDeadlineCategory ? 3 : 5));
+    }
+    setBidSubmissionDeadline(deadlineAfterDays(isQuickDeadlineCategory ? 5 : 10));
 
     // ★ 默认公告范围
     // 谈判采购 → 部分供应商可见（供应商已在上一邀请步骤中确定）（内置以上步骤禁止公开）
@@ -189,6 +240,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     const defaultRestricted =
       tt === 'COMPETITIVE_NEGOTIATION' || tt === 'INTERNAL_BIDDING' || tt === 'SINGLE_SOURCE';
     setVisibility(defaultRestricted ? 'RESTRICTED' : 'PUBLIC');
+
+    // 流标公告：强制全部可见 + 立即发布（发布配置不含 Timing/关键时间/引用采购文件）
+    if (initialCategory === 'failed_bid') {
+      setVisibility('PUBLIC');
+      setPublishTiming('now');
+    }
 
     // ★ 加载投标项目中被邀供应商 → 自动预选为"部分可见"的已选供应商
     if (defaultRestricted) {
@@ -327,19 +384,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       toast.error('请至少选择一家可见供应商');
       return;
     }
-    if (tenderOn && !documentDownloadTime.trim()) {
-      toast.error('请填写文件下载时间');
-      return;
-    }
     const title = `${getAnnouncementLabel(tenderType, category)} — ${project?.title || ''}`;
     const draftRecord = draft as Record<string, string>;
     setBusy(true);
     try {
       // 1. 用公告模板渲染生成 docx + 提取公告全文（mammoth）
+      // 公告截止时间由发布配置接管（step1 已隐藏 announcementEnd），合并进 draft
+      const finalDraft = { ...(draft as Record<string, string>), announcementEnd: announcementEndDate } as AnnouncementDraft;
       const { blob, fileName, textContent } = await buildAnnouncement({
         tenderType,
         category,
-        draft,
+        draft: finalDraft,
       });
 
       // 2. 正文 = 公告全文 → HTML 段落（escape 防注入，空行分段，段内换行转 <br/>）
@@ -353,12 +408,21 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         : `<p>${esc(title)}</p>`;
 
       // 3. 创建公告（正文为全文；canonical 精炼字段供「信息发布」详情页与后端消费）
-      const meta: Record<string, unknown> = { ...draft, visibility, ...buildCanonicalMeta(project, draft) };
+      const meta: Record<string, unknown> = { ...finalDraft, visibility, category, ...buildCanonicalMeta(project, finalDraft) };
       if (visibility === 'RESTRICTED') meta.restrictedSupplierIds = restrictedSupplierIds;
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
       meta.notifyOnPublish = visibility === 'RESTRICTED' && notifyOnPublish;
-      if (documentDownloadTime.trim()) meta.documentDownloadTime = documentDownloadTime.trim();
       if (selectedTenderObjectKey) meta.selectedTenderObjectKey = selectedTenderObjectKey;
+      // 投递截止（bid deadline）—— 优先标书投递截止，兜底公告截止
+      meta.deadline = bidSubmissionDeadline.trim() || announcementEndDate;
+      // 下载截止（downloadDeadline）—— 公告截止时间
+      if (announcementEndDate) meta.downloadDeadline = announcementEndDate;
+      // 下载方式 —— 引用采购文件时生效
+      if (tenderOn) {
+        meta.downloadMode = downloadMode;
+        if (downloadMode === 'encrypted') meta.downloadPassword = downloadPassword;
+        if (downloadMode === 'paid') meta.paidAmount = paidAmount;
+      }
       const status: AnnouncementStatus = publishTiming === 'scheduled' ? 'DRAFT' : 'PUBLISHED';
       const saved = await createAnnouncement({
         title,
@@ -389,6 +453,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       await ensureTenderAttached(id);
 
       toast.success(publishTiming === 'now' ? '已发布' : '已保存为定时发布');
+      // 流标公告发布后：自动触发再次采购（按采购方式新增新一轮「立项后→开标评标」阶段）
+      if (category === 'failed_bid' && project?.id) {
+        try {
+          await reprocProject(project.id);
+          toast.success('已开启新一轮采购');
+        } catch (e) {
+          toast.error('再次采购失败：' + (e instanceof Error ? e.message : '未知错误'));
+        }
+      }
       onPublished();
       onClose();
     } catch (e) {
@@ -577,7 +650,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 )}
               </div>
 
-              {/* Timing */}
+              {category !== 'failed_bid' && (
               <div className="rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
                 <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">发布时间</div>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -609,90 +682,168 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   />
                 )}
               </div>
+              )}
+
+              {category !== 'failed_bid' && (
+              <div className="rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">关键时间</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-xs text-[var(--muted-foreground)]">公告截止时间</span>
+                      <div className="flex gap-1">
+                        {[3, 5].map((n) => (
+                          <button key={n} type="button" onClick={() => setAnnouncementEndDate(deadlineAfterDays(n))} className={`neu-btn-xs !h-[24px] !px-2 !text-[11px] ${announcementEndDate === deadlineAfterDays(n) ? 'is-info' : ''}`}>{n}天</button>
+                        ))}
+                      </div>
+                    </div>
+                    <input type="datetime-local" value={announcementEndDate} onChange={(e) => setAnnouncementEndDate(e.target.value)} className="workbench-input w-full text-sm" />
+                  </div>
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-xs text-[var(--muted-foreground)]">标书投递截止时间</span>
+                      <div className="flex gap-1">
+                        {[5, 10].map((n) => (
+                          <button key={n} type="button" onClick={() => setBidSubmissionDeadline(deadlineAfterDays(n))} className={`neu-btn-xs !h-[24px] !px-2 !text-[11px] ${bidSubmissionDeadline === deadlineAfterDays(n) ? 'is-info' : ''}`}>{n}天</button>
+                        ))}
+                      </div>
+                    </div>
+                    <input type="datetime-local" value={bidSubmissionDeadline} onChange={(e) => setBidSubmissionDeadline(e.target.value)} className="workbench-input w-full text-sm" />
+                  </div>
+                </div>
+              </div>
+              )}
 
               {/* Toggles */}
-              <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                <div className="flex flex-wrap items-center gap-6">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={attachOn}
-                      onChange={(e) => setAttachOn(e.target.checked)}
-                      className="accent-[var(--accent)]"
-                    />
-                    添加附件
-                  </label>
-                  <label
-                    className={[
-                      'flex items-center gap-2 text-sm',
-                      tenderAvailable ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed',
-                    ].join(' ')}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={tenderOn && tenderAvailable}
-                      disabled={!tenderAvailable}
-                      onChange={(e) => setTenderOn(e.target.checked)}
-                      className="accent-[var(--accent)]"
-                    />
-                    引用采购文件{tenderAvailable ? ` · ${tenderFiles.length} 份` : ''}
-                  </label>
-                  {visibility === 'RESTRICTED' && (
+              {category !== 'failed_bid' ? (
+                <>
+                  <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={attachOn}
+                          onChange={(e) => setAttachOn(e.target.checked)}
+                          className="accent-[var(--accent)]"
+                        />
+                        添加附件
+                      </label>
+                      <label
+                        className={[
+                          'flex items-center gap-2 text-sm',
+                          tenderAvailable ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed',
+                        ].join(' ')}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={tenderOn && tenderAvailable}
+                          disabled={!tenderAvailable}
+                          onChange={(e) => setTenderOn(e.target.checked)}
+                          className="accent-[var(--accent)]"
+                        />
+                        引用采购文件{tenderAvailable ? ` · ${tenderFiles.length} 份` : ''}
+                      </label>
+                      {visibility === 'RESTRICTED' && (
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={notifyOnPublish}
+                            onChange={(e) => setNotifyOnPublish(e.target.checked)}
+                            className="accent-[var(--accent)]"
+                          />
+                          发布后发送通知
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 采购文件选择 —— 多份时让用户指定公告引用哪一份 */}
+                  {tenderOn && tenderFiles.length > 1 && (
+                    <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                      <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
+                        选择引用的采购文件 <span className="text-[var(--danger)]">*</span>
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {tenderFiles.map((f) => (
+                          <label key={f.objectKey} className="flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              name="tenderFile"
+                              checked={selectedTenderObjectKey === f.objectKey}
+                              onChange={() => setSelectedTenderObjectKey(f.objectKey)}
+                              className="accent-[var(--accent)]"
+                            />
+                            <span className="truncate">{f.fileName}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 下载方式 —— 仅在引用采购文件时显示 */}
+                  {tenderOn && (
+                    <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                      <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">下载方式</div>
+                      <div className="mt-2 space-y-2">
+                        {([
+                          { value: 'free', label: '免费下载', desc: '供应商可直接下载采购文件' },
+                          { value: 'encrypted', label: '解密下载', desc: '供应商需输入密码才可下载' },
+                          { value: 'paid', label: '付费下载', desc: '供应商需付费后下载（功能开发中，暂为占位）' },
+                        ] as const).map((m) => (
+                          <label key={m.value} className="flex items-start gap-2 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              name="downloadMode"
+                              checked={downloadMode === m.value}
+                              onChange={() => {
+                                setDownloadMode(m.value);
+                                if (m.value === 'encrypted' && !downloadPassword) {
+                                  setDownloadPassword(String(Math.floor(100000 + Math.random() * 900000)));
+                                }
+                              }}
+                              className="accent-[var(--accent)] mt-0.5"
+                            />
+                            <div>
+                              <div className="font-semibold text-[var(--foreground)]">{m.label}</div>
+                              <div className="text-[10px] text-[var(--muted-foreground)]">{m.desc}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      {downloadMode === 'encrypted' && (
+                        <div className="mt-3 rounded-lg px-3 py-2 flex items-center gap-2" style={{ background: 'color-mix(in oklch, var(--accent-soft) 15%, transparent)' }}>
+                          <span className="text-[11px] font-bold text-[var(--foreground)]">下载密码：</span>
+                          <code className="text-[11px] font-mono tabular-nums tracking-[0.15em] text-[var(--accent-strong)]">{downloadPassword}</code>
+                          <button type="button" onClick={() => setDownloadPassword(String(Math.floor(100000 + Math.random() * 900000)))} className="neu-btn-xs ml-auto">刷新</button>
+                        </div>
+                      )}
+                      {downloadMode === 'paid' && (
+                        <div className="mt-3">
+                          <input
+                            type="number"
+                            value={paidAmount}
+                            onChange={(e) => setPaidAmount(e.target.value)}
+                            placeholder="请输入售价（元）"
+                            className="workbench-input w-full text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                  <div className="flex flex-wrap items-center gap-6">
                     <label className="flex items-center gap-2 text-sm cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={notifyOnPublish}
-                        onChange={(e) => setNotifyOnPublish(e.target.checked)}
+                        checked={attachOn}
+                        onChange={(e) => setAttachOn(e.target.checked)}
                         className="accent-[var(--accent)]"
                       />
-                      发布后发送通知
+                      添加附件
                     </label>
-                  )}
-                </div>
-              </div>
-
-              {/* 采购文件选择 —— 多份时让用户指定公告引用哪一份 */}
-              {tenderOn && tenderFiles.length > 1 && (
-                <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                  <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-                    选择引用的采购文件 <span className="text-[var(--danger)]">*</span>
                   </div>
-                  <div className="mt-2 space-y-2">
-                    {tenderFiles.map((f) => (
-                      <label key={f.objectKey} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="radio"
-                          name="tenderFile"
-                          checked={selectedTenderObjectKey === f.objectKey}
-                          onChange={() => setSelectedTenderObjectKey(f.objectKey)}
-                          className="accent-[var(--accent)]"
-                        />
-                        <span className="truncate">{f.fileName}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 文件下载时间 —— 仅在引用采购文件时需要：从台账 documentAcquireTime 预填，无则必填 */}
-              {tenderOn && (
-                <div className="rounded-[20px] p-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                  <div className="flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-                    文件下载时间
-                    {!project?.documentAcquireTime && <span className="text-[var(--danger)]">*</span>}
-                  </div>
-                  <input
-                    type="text"
-                    value={documentDownloadTime}
-                    onChange={(e) => setDocumentDownloadTime(e.target.value)}
-                    placeholder="如 2026年8月1日-8月5日"
-                    className="workbench-input mt-2 w-full text-sm"
-                  />
-                  <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                    {project?.documentAcquireTime
-                      ? '已从采购文件获取时间自动填入，可调整'
-                      : '采购文件未提取到获取时间，请填写（必填）'}
-                  </p>
                 </div>
               )}
 

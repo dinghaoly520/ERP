@@ -15,8 +15,9 @@ export const announcementApi = {
     return api.post(`/supplier-portal/bid-documents/${announcementId}/pay`, { paymentRef })
   },
   // 下载（cookie 鉴权 + 服务端解密），返回 blob
-  async downloadBidDocument(announcementId: string): Promise<{ blob: Blob; fileName: string }> {
+  async downloadBidDocument(announcementId: string, password?: string): Promise<{ blob: Blob; fileName: string }> {
     const res = await api.get(`/supplier-portal/bid-documents/${announcementId}/download`, {
+      params: password ? { password } : undefined,
       responseType: 'blob',
     })
     const disposition = res.headers['content-disposition'] || ''

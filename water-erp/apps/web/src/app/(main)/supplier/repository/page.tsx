@@ -7,10 +7,12 @@ import {
   getSupplierList, getSupplierStats, getClassifications,
   updateSupplierStatus, createClassification, updateClassification, deleteClassification,
   toggleFavorite, getFavorites,
+  listInvitations, createInvitation, revokeInvitation,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
+import type { SupplierInvitation } from '@/lib/api/supplier';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
-import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2 } from 'lucide-react';
+import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 
@@ -86,6 +88,45 @@ export default function SupplierRepositoryPage() {
   const [classSaving, setClassSaving] = useState(false);
   const [classDelete, setClassDelete] = useState<SupplierClassification | null>(null);
   const [classDeleting, setClassDeleting] = useState(false);
+
+  // ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）──
+  const [invitations, setInvitations] = useState<SupplierInvitation[]>([]);
+  const [invLoading, setInvLoading] = useState(false);
+  const [invForm, setInvForm] = useState({ validityDays: 180, note: '' });
+  const [invCreating, setInvCreating] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [invModalOpen, setInvModalOpen] = useState(false);
+  const INV_STATUS_META: Record<string, { label: string; cls: string }> = {
+    ACTIVE: { label: '可用', cls: 'text-[var(--success)] bg-[color-mix(in_oklch,var(--success)_14%,transparent)]' },
+    USED: { label: '已使用', cls: 'text-[var(--accent)] bg-[color-mix(in_oklch,var(--accent)_14%,transparent)]' },
+    EXPIRED: { label: '已过期', cls: 'text-[var(--muted-foreground)] bg-[color-mix(in_oklch,var(--muted-foreground)_14%,transparent)]' },
+    REVOKED: { label: '已作废', cls: 'text-[var(--danger)] bg-[color-mix(in_oklch,var(--danger)_14%,transparent)]' },
+  };
+  const loadInvitations = useCallback(async () => {
+    setInvLoading(true);
+    try { const res = await listInvitations({ pageSize: 50 }); setInvitations(res.items); }
+    catch { toast.error('邀请码加载失败'); }
+    finally { setInvLoading(false); }
+  }, []);
+  useEffect(() => { loadInvitations(); }, [loadInvitations]);
+  const handleCreateInvitation = async () => {
+    setInvCreating(true);
+    try {
+      await createInvitation({ validityDays: invForm.validityDays, note: invForm.note.trim() || undefined });
+      toast.success('邀请码已生成');
+      setInvForm(f => ({ validityDays: f.validityDays, note: '' }));
+      await loadInvitations();
+    } catch (e: any) { toast.error(e?.message || '生成失败'); }
+    finally { setInvCreating(false); }
+  };
+  const handleRevokeInvitation = async (id: string) => {
+    if (!confirm('确定作废此邀请码？未使用的将无法再用于注册。')) return;
+    try { await revokeInvitation(id); toast.success('已作废'); await loadInvitations(); }
+    catch { toast.error('作废失败'); }
+  };
+  const copyCode = async (code: string) => {
+    try { await navigator.clipboard.writeText(code); setCopiedCode(code); setTimeout(() => setCopiedCode(null), 1500); } catch {}
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -169,6 +210,7 @@ export default function SupplierRepositoryPage() {
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
             <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
+            <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>
             <button onClick={loadData} disabled={loading} className="neu-btn-xs" aria-label="刷新"><RefreshCw size={14} className={loading ? "animate-spin" : ""} /></button>
           </div>
         </div>
@@ -197,6 +239,74 @@ export default function SupplierRepositoryPage() {
         </div>
         </div>
       </div>
+
+      {/* ══════ 临时供应商邀请码弹窗（标题栏「邀请码」按钮触发）══════ */}
+      {invModalOpen && (
+        <Modal open onClose={() => setInvModalOpen(false)} title="临时供应商邀请码" size="2xl" footer={<span className="text-xs text-[var(--muted-foreground)]">凭码注册的供应商在有效期内可登录，到期自动失效；同样需审核</span>}>
+        {/* 生成区 */}
+        <div className="flex flex-wrap items-end gap-3 pb-4 mb-3" style={{ boxShadow: 'inset 0 -1px 0 var(--hairline)' }}>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">有效期</span>
+            <div className="neu-tab-bar">
+              {[{ d: 30, l: '30 天' }, { d: 180, l: '180 天' }, { d: 360, l: '360 天' }].map(opt => (
+                <button key={opt.d} className={`neu-tab ${invForm.validityDays === opt.d ? 'is-active' : ''}`} onClick={() => setInvForm(f => ({ ...f, validityDays: opt.d }))}>{opt.l}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">备注（选填）</span>
+            <input className="workbench-input" placeholder="如：XX 项目临时供应商" value={invForm.note} onChange={e => setInvForm(f => ({ ...f, note: e.target.value }))} maxLength={200} />
+          </div>
+          <button onClick={handleCreateInvitation} disabled={invCreating} className="neu-btn-primary !h-[40px]">
+            <Plus size={14} />{invCreating ? '生成中…' : '生成邀请码'}
+          </button>
+          <button onClick={loadInvitations} disabled={invLoading} className="neu-btn-xs mb-[2px]" title="刷新列表">
+            <RefreshCw size={13} className={invLoading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+        {/* 列表 */}
+        <div className="overflow-x-auto">
+          <table className="neu-table w-full min-w-[760px]">
+            <thead>
+              <tr>
+                <th>邀请码</th><th>有效期</th><th>状态</th><th>创建人</th><th>使用者</th><th>创建时间</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invitations.length === 0 ? (
+                <tr><td colSpan={7} className="text-center text-[var(--muted-foreground)] py-10">暂无邀请码，选择有效期后点击「生成邀请码」</td></tr>
+              ) : invitations.map(inv => (
+                <tr key={inv.id}>
+                  <td>
+                    <button onClick={() => copyCode(inv.code)} title="点击复制" className="font-mono font-bold tracking-wider text-[var(--accent)] inline-flex items-center gap-1.5">
+                      {inv.code}
+                      {copiedCode === inv.code ? <Check size={12} className="text-[var(--success)]" /> : <Copy size={12} className="opacity-50" />}
+                    </button>
+                  </td>
+                  <td className="tabular-nums">
+                    {inv.validityDays} 天
+                    <div className="text-[10px] text-[var(--muted-foreground)]">至 {new Date(inv.expiresAt).toLocaleDateString()}</div>
+                  </td>
+                  <td>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${INV_STATUS_META[inv.status]?.cls || ''}`}>
+                      {INV_STATUS_META[inv.status]?.label || inv.status}
+                    </span>
+                  </td>
+                  <td>{inv.createdBy?.displayName || '—'}</td>
+                  <td>{inv.usedBy?.name || '—'}</td>
+                  <td className="tabular-nums text-[var(--muted-foreground)]">{new Date(inv.createdAt).toLocaleString()}</td>
+                  <td>
+                    {inv.status === 'ACTIVE' && (
+                      <button onClick={() => handleRevokeInvitation(inv.id)} className="neu-btn-xs is-danger"><Ban size={12} />作废</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        </Modal>
+      )}
 
       {/* ══════ 分类管理弹窗 ══════ */}
       {classMgrOpen && (

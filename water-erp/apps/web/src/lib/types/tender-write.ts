@@ -151,6 +151,8 @@ export type InternalBiddingFieldKey =
   | "projectOverview"
   | "procurementContent"
   | "maxPrice"
+  | "submissionRequirements"
+  | "submissionRequirementsType"
   | "qualificationRequirements"
   | "consortiumForm"
   | "consortiumFormType"

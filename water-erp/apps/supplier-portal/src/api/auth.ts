@@ -20,6 +20,15 @@ export interface RegisterParams {
   qualifications: { type: string; name: string; fileUrl: string; validFrom?: string; validTo?: string }[]
 }
 
+export interface RegisterTemporaryParams {
+  invitationCode: string
+  name: string
+  creditCode: string
+  displayName: string
+  password: string
+  phone: string
+}
+
 export const authApi = {
   login(data: LoginParams) {
     return api.post('/auth/login', data)
@@ -40,5 +49,15 @@ export const authApi = {
   /** 公开：凭统一社会信用代码查询注册审核进度（无需登录）。 */
   getRegisterStatusPublic(creditCode: string) {
     return api.get('/supplier/register/status/public', { params: { creditCode } })
+  },
+
+  /** 公开：校验邀请码（临时注册前）。返回 { valid, validityDays?, expiresAt?, reason? } */
+  verifyInvitation(code: string) {
+    return api.get('/supplier/invitations/verify', { params: { code } })
+  },
+
+  /** 公开：临时供应商注册（凭邀请码）。 */
+  registerTemporary(data: RegisterTemporaryParams) {
+    return api.post('/supplier/register/temporary', data)
   },
 }

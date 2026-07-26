@@ -390,6 +390,10 @@ export class BidService {
     const deadline = metadata.deadline
       ? new Date(metadata.deadline)
       : new Date(openTime.getTime() + 7 * 86400000);
+    // 采购文件下载截止时间（= 公告截止时间），超时不可下载
+    const downloadDeadline = metadata.downloadDeadline
+      ? new Date(metadata.downloadDeadline)
+      : null;
 
     const project = await this.prisma.bidProject.create({
       data: {
@@ -398,6 +402,7 @@ export class BidService {
         procurementMethod: metadata.method || '公开招标',
         openTime,
         deadline,
+        downloadDeadline,
         riskNote: '（来自公告自动创建）',
         budget: metadata.budget != null ? Number(metadata.budget) : null,
         scope: metadata.scope || null,
@@ -431,6 +436,7 @@ export class BidService {
 
     const openTime = metadata.openTime ? new Date(metadata.openTime) : undefined;
     const deadline = metadata.deadline ? new Date(metadata.deadline) : undefined;
+    const downloadDeadline = metadata.downloadDeadline ? new Date(metadata.downloadDeadline) : undefined;
 
     const updated = await this.prisma.bidProject.update({
       where: { id: projectId },
@@ -439,6 +445,7 @@ export class BidService {
         ...(metadata.method !== undefined && { procurementMethod: metadata.method }),
         ...(openTime && { openTime }),
         ...(deadline && { deadline }),
+        ...(downloadDeadline !== undefined && { downloadDeadline }),
         ...(metadata.budget !== undefined && { budget: Number(metadata.budget) }),
         ...(metadata.scope !== undefined && { scope: metadata.scope }),
         ...(metadata.qualification !== undefined && { qualification: metadata.qualification }),
@@ -520,6 +527,39 @@ export class BidService {
     this.gateway?.notifyStageChange(id, 'DOWNLOAD', 'SUBMIT', 'host');
     this.gateway?.notifySubmissionOpened(id);
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: `开放投递 (${project.stage}→SUBMIT)`, target: project.name, result: '阶段变更成功', riskFlag: '无' });
+
+    return updated;
+  }
+
+  /**
+   * 流标：将项目标记为 ABORTED。
+   * 允许从 SUBMIT 或 OPENING 阶段流转（开标确认后发现供应商不足）。
+   * 直接委托（SINGLE_SOURCE）阈值 1，其余阈值 3。
+   */
+  async abortBidProject(id: string, actorId?: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: { id: true, name: true, stage: true, procurementMethod: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    assertBidStageTransition(project.stage, 'ABORTED');
+
+    const updated = await this.prisma.bidProject.update({
+      where: { id },
+      data: { stage: 'ABORTED', riskNote: '流标' },
+      select: { id: true, stage: true },
+    });
+
+    // 通知 bid_host 流标
+    try {
+      await this.notificationService.sendToRole('bid_host', {
+        type: 'BID_ABORTED',
+        title: `项目${project.name}已流标`,
+        content: `招标方式：${project.procurementMethod}`,
+        link: `/bid?id=${id}`,
+      });
+    } catch { /* 通知失败不阻塞流标 */ }
 
     return updated;
   }
