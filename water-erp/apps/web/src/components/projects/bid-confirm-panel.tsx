@@ -124,6 +124,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
     onOpeningConfirmed: scheduleRefresh,
     onOpeningDisputed: scheduleRefresh,
     onOpeningDisputeResolved: scheduleRefresh,
+    onOpeningCompleted: () => { if (isOpen) void load(); },
     // F6：唱标录入只 emit supervision:log（无开标记录类事件），订阅它使「唱标录入」计数实时回流
     onSupervisionLog: scheduleRefresh,
     onClarificationCreated: () => { scheduleRefresh(); setClarTick(t => t + 1); },
