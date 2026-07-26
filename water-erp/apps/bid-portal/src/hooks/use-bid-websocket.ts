@@ -17,6 +17,7 @@ import {
   type OpeningConfirmedPayload,
   type OpeningDisputedPayload,
   type OpeningDisputeResolvedPayload,
+  type OpeningCompletedPayload,
 } from '@water-erp/shared';
 
 function wsUrl(): string {
@@ -39,6 +40,7 @@ export interface BidWsHandlers {
   onOpeningConfirmed?: (d: OpeningConfirmedPayload) => void;
   onOpeningDisputed?: (d: OpeningDisputedPayload) => void;
   onOpeningDisputeResolved?: (d: OpeningDisputeResolvedPayload) => void;
+  onOpeningCompleted?: (d: OpeningCompletedPayload) => void;
 }
 
 export interface UseBidWebSocketResult {
@@ -140,6 +142,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.OPENING_CONFIRMED, 'onOpeningConfirmed');
     on(BID_EVENT.OPENING_DISPUTED, 'onOpeningDisputed');
     on(BID_EVENT.OPENING_DISPUTE_RESOLVED, 'onOpeningDisputeResolved');
+    on(BID_EVENT.OPENING_COMPLETED, 'onOpeningCompleted');
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {

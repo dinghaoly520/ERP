@@ -121,3 +121,30 @@ export function upsertSupervisionAnnotation(projectId: string, body: {
 export function deleteSupervisionAnnotation(projectId: string, supplierId: string) {
   return api.delete(`/bid/projects/${projectId}/supervision-annotations/${supplierId}`);
 }
+
+/* ── 完成开标·资料移交（开标完成后主持人一键交回 :3005；幂等）── */
+
+export interface HandoverResult {
+  status: string;
+  handoverAt: string | null;
+  handoverAssetId: string | null;
+  downloadUrl: string | null;
+}
+
+export function completeOpening(projectId: string) {
+  return api.post<HandoverResult>(`/bid/projects/${projectId}/complete-opening`, {});
+}
+
+/* ── 工作区·评标管理（只读）：评标结果汇总 ── */
+
+export interface EvaluationResultRow {
+  supplierId: string;
+  supplierName: string;
+  totalScore: number;
+  rank: number;
+  recommended: boolean;
+}
+
+export function listEvaluationResults(projectId: string) {
+  return api.get<EvaluationResultRow[]>(`/bid/projects/${projectId}/evaluation-results`);
+}
