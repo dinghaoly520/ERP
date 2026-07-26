@@ -286,7 +286,7 @@ export class OpeningHallService {
     return { suppliers: list, onlineCount: list.filter(x => x.online).length };
   }
 
-  async setExchangeControl(projectId: string, control: 'OPEN' | 'MUTED' | 'CLOSED', byName: string) {
+  async setExchangeControl(projectId: string, control: 'OPEN' | 'MUTED' | 'CLOSED', byName: string, actorUserId: string) {
     await this.prisma.bidOpeningSession.update({ where: { projectId }, data: { exchangeControl: control } });
     await this.prisma.bidSupervisionLog.create({
       data: {
@@ -295,6 +295,26 @@ export class OpeningHallService {
       },
     });
     this.gateway?.notifyExchangeControl(projectId, { projectId, control, by: byName, timestamp: Date.now() });
+    // 控制变更留痕进聊天流：SYSTEM 消息落 PUBLIC 房 → 双端气泡层居中提示条，
+    // 持久化（重载后 listMessages 仍返回）、私聊视图由前端归并 publicMsgs 的 SYSTEM 行。
+    const controlText =
+      control === 'MUTED' ? '主持人已开启全员禁言'
+      : control === 'CLOSED' ? '主持人已关闭聊天大厅'
+      : '主持人已恢复自由发言';
+    const sys = await this.prisma.openingHallMessage.create({
+      data: {
+        projectId, roomType: 'PUBLIC', supplierId: null,
+        senderId: actorUserId, senderRole: 'SYSTEM', senderName: '系统',
+        content: controlText,
+      },
+    });
+    const sysPayload: HallMessagePayload = {
+      id: sys.id, projectId, roomType: sys.roomType,
+      supplierId: sys.supplierId, supplierName: null,
+      senderId: sys.senderId, senderRole: sys.senderRole, senderName: sys.senderName,
+      content: sys.content, createdAt: sys.createdAt.toISOString(), timestamp: Date.now(),
+    };
+    this.gateway?.notifyHallMessage(projectId, sysPayload);
     return { exchangeControl: control };
   }
 }

@@ -78,6 +78,7 @@ export class OpeningHallController {
   @Patch(':projectId/exchange-control')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   async control(@Request() req: any, @Param('projectId') projectId: string, @Body() dto: ExchangeControlDto) {
-    return this.svc.setExchangeControl(projectId, dto.control, req.user?.username ?? req.user?.sub);
+    // byName 给监督日志留痕；actorUserId（JWT sub）作 SYSTEM 提示消息的 senderId
+    return this.svc.setExchangeControl(projectId, dto.control, req.user?.username ?? req.user?.sub, req.user.sub);
   }
 }

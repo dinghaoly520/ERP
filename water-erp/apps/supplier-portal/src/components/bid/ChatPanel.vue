@@ -19,12 +19,18 @@ const stageClosed = ref(false)   // R4：stage:change 离开 OPENING 后关闭�
 const hydrated = ref(false)      // R3：首次加载完成后才在重连时做 REST 补齐
 const listEl = ref<HTMLElement | null>(null)
 
-const current = computed(() => (tab.value === 'PUBLIC' ? publicMsgs.value : privateMsgs.value))
+// 私聊 tab 归并公聊里的 SYSTEM 控制提示（交流控制变更落 PUBLIC 房）——按时间插入排序，
+// 使「主持人已开启全员禁言」等居中提示条在私聊视图同样可见，重载后与公聊视图一致
+const current = computed(() => {
+  if (tab.value === 'PUBLIC') return publicMsgs.value
+  const sys = publicMsgs.value.filter(m => m.senderRole === 'SYSTEM')
+  return [...privateMsgs.value, ...sys].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt))
+})
 const canSend = computed(() => exchangeControl.value === 'OPEN' && !stageClosed.value)
 const controlHint = computed(() =>
   stageClosed.value ? '开标阶段已结束，互动已关闭' :
   exchangeControl.value === 'MUTED' ? '主持人已开启全员禁言' :
-  exchangeControl.value === 'CLOSED' ? '主持人已关闭互动' : '')
+  exchangeControl.value === 'CLOSED' ? '主持人已关闭聊天大厅' : '')
 
 function pushMsg(d: HallMessagePayload) {
   const m: Msg = { id: d.id, senderId: d.senderId, senderRole: d.senderRole, senderName: d.senderName, content: d.content, createdAt: d.createdAt, roomType: d.roomType }

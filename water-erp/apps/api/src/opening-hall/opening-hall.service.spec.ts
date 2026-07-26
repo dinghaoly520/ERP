@@ -203,10 +203,30 @@ describe('OpeningHallService', () => {
     await expect(svc.listMessages(sup, 'p1', { roomType: 'PRIVATE', supplierId: 'sup-2' })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('交流控制切换写库+监督日志+广播', async () => {
-    await svc.setExchangeControl('p1', 'MUTED', '陈源远');
+  it('交流控制切换写库+监督日志+广播+居中系统提示落库并广播', async () => {
+    await svc.setExchangeControl('p1', 'MUTED', '陈源远', 'u-host');
     expect(prismaMock.bidOpeningSession.update).toHaveBeenCalledWith({ where: { projectId: 'p1' }, data: { exchangeControl: 'MUTED' } });
+    expect(prismaMock.bidSupervisionLog.create).toHaveBeenCalled();
     expect(gatewayMock.notifyExchangeControl).toHaveBeenCalled();
+    // SYSTEM 提示落 PUBLIC 房（双端居中渲染 + 持久化 + 私聊视图归并来源）
+    expect(prismaMock.openingHallMessage.create).toHaveBeenCalledWith({
+      data: {
+        projectId: 'p1', roomType: 'PUBLIC', supplierId: null,
+        senderId: 'u-host', senderRole: 'SYSTEM', senderName: '系统',
+        content: '主持人已开启全员禁言',
+      },
+    });
+    expect(gatewayMock.notifyHallMessage).toHaveBeenCalledWith('p1', expect.objectContaining({
+      roomType: 'PUBLIC', supplierId: null, senderRole: 'SYSTEM', senderName: '系统',
+      content: '主持人已开启全员禁言', createdAt: expect.any(String),
+    }));
+  });
+
+  it('交流控制三态系统提示文案（MUTED/CLOSED/OPEN）', async () => {
+    await svc.setExchangeControl('p1', 'CLOSED', '陈源远', 'u-host');
+    await svc.setExchangeControl('p1', 'OPEN', '陈源远', 'u-host');
+    const contents = prismaMock.openingHallMessage.create.mock.calls.map((c: any[]) => c[0].data.content);
+    expect(contents).toEqual(['主持人已关闭聊天大厅', '主持人已恢复自由发言']);
   });
 
   describe('markRead 归属门（S7）', () => {

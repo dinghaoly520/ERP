@@ -217,11 +217,14 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
     }
   }
 
-  const msgs = tab === 'PUBLIC' ? publicMsgs : privateMsgs;
+  // 私聊 tab 归并公聊里的 SYSTEM 控制提示（交流控制变更落 PUBLIC 房）——按时间插入排序，
+  // 使「主持人已开启全员禁言」等居中提示条在私聊视图同样可见，重载后与公聊视图一致
+  const sysMsgs = publicMsgs.filter(m => m.senderRole === 'SYSTEM');
+  const msgs = tab === 'PUBLIC' ? publicMsgs : [...privateMsgs, ...sysMsgs].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
 
   // R4：阶段离开 OPENING 关输入；U11：control=CLOSED 关 host 输入（MUTED 不影响 host 发言）
   const inputDisabled = (tab === 'PRIVATE' && !activeSupplier) || stageClosed || control === 'CLOSED';
-  const inputHint = stageClosed ? '开标阶段已结束，互动已关闭' : control === 'CLOSED' ? '主持人已关闭互动' : '';
+  const inputHint = stageClosed ? '开标阶段已结束，互动已关闭' : control === 'CLOSED' ? '主持人已关闭聊天大厅' : '';
   const connBadge = connection === 'connected'
     ? { text: '实时已连', cls: 'text-emerald-600', dot: 'bg-emerald-500' }
     : connection === 'reconnecting'
