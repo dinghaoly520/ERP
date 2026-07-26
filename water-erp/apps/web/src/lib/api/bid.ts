@@ -1,7 +1,7 @@
 import { api } from '../api';
-import type { ScorePointSuggestion } from '@water-erp/shared';
+import type { ScorePointSuggestion, ScorePointSuggestionGroup } from '@water-erp/shared';
 
-export type { ScorePointSuggestion };
+export type { ScorePointSuggestion, ScorePointSuggestionGroup };
 
 /* ── 开评标项目（:3005 项目管理 · BID_EVALUATION 开标确认面板用）──
    后端 /bid/projects/:id/... 已提供全部能力；此处仅做类型化封装。
@@ -198,6 +198,15 @@ export function publishScoreStandard(bidProjectId: string) {
 export function extractScorePoints(bidProjectId: string, itemId: string, options?: RequestInit) {
   return api.post<ScorePointSuggestion[]>(
     `/bid/projects/${bidProjectId}/score-items/${itemId}/points/extract`,
+    {},
+    options,
+  );
+}
+
+/** 一键 AI 提取：全部评分项（除 PRICE）分组返回建议（同步、不落库；300s 超时可经 options.signal 中断）。限流 3 次/分。*/
+export function extractAllScorePoints(bidProjectId: string, options?: RequestInit) {
+  return api.post<ScorePointSuggestionGroup[]>(
+    `/bid/projects/${bidProjectId}/score-items/points/extract-all`,
     {},
     options,
   );

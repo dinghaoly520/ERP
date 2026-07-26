@@ -10,15 +10,18 @@ import {
   Pencil,
   Plus,
   Save,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { CATEGORY_COLOR, CATEGORY_LABEL, STAGE_LABEL, isPassFailCategory } from '@water-erp/shared';
 import {
+  batchCreateScorePoints,
   createScoreItem,
   deleteScoreItem,
   ensureBidProject,
+  extractAllScorePoints,
   getBidProjectDetail,
   listScoreItems,
   publishScoreStandard,
@@ -32,6 +35,7 @@ import { Modal, TableSkeleton } from '@/components/workbench';
 import { ScorePointsEditor } from './score-points-editor';
 import { SaveTemplateDialog } from './save-template-dialog';
 import { TemplateLibraryDialog } from './template-library-dialog';
+import { BulkExtractReviewDialog, type EditableGroup } from './bulk-extract-review-dialog';
 
 const CATEGORY_OPTIONS: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
 const inputCls = 'workbench-input';
@@ -58,6 +62,8 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showSaveTpl, setShowSaveTpl] = useState(false);
   const [showLib, setShowLib] = useState(false);
+  const [bulkGroups, setBulkGroups] = useState<EditableGroup[] | null>(null);
+  const [extractingAll, setExtractingAll] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
@@ -122,6 +128,70 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       onChanged?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '发布失败');
+    }
+  };
+
+  const handleBulkExtract = async () => {
+    if (!bpId) return;
+    if (items.length === 0) {
+      toast.error('请先「应用模板」或手动新增评分项');
+      return;
+    }
+    if (items.every((i) => i.category === 'PRICE')) {
+      toast.error('当前评分项均为价格项，无需 AI 提取');
+      return;
+    }
+    setExtractingAll(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 300_000);
+    try {
+      const groups = await extractAllScorePoints(bpId, { signal: controller.signal });
+      const withSelection: EditableGroup[] = groups
+        .filter((g) => g.suggestions.length > 0)
+        .map((g) => ({
+          ...g,
+          suggestions: [...g.suggestions]
+            .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
+            .map((s) => ({ ...s, selected: !s.duplicate })),
+        }));
+      if (withSelection.length === 0) {
+        toast.info('AI 未提取到任何得分点建议');
+      } else {
+        setBulkGroups(withSelection);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.name 判 AbortError + e?.message 回退（与单项提取一致）
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        toast.error('AI 提取超时（300s），招标文件可能较大，请稍后重试');
+      } else {
+        toast.error(e?.message ?? 'AI 提取暂时不可用，请稍后重试或逐项提取。');
+      }
+    } finally {
+      clearTimeout(timer);
+      setExtractingAll(false);
+    }
+  };
+
+  const handleBulkImport = async (groups: EditableGroup[]) => {
+    if (!bpId) return;
+    const picked = groups
+      .map((g) => ({ itemId: g.itemId, points: g.suggestions.filter((s) => s.selected) }))
+      .filter((g) => g.points.length > 0);
+    if (picked.length === 0) {
+      setBulkGroups(null);
+      return;
+    }
+    const results = await Promise.allSettled(picked.map((g) => batchCreateScorePoints(bpId, g.itemId, g.points)));
+    const okCount = results.filter((r) => r.status === 'fulfilled').length;
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        toast.error(r.reason instanceof Error ? r.reason.message : '部分得分点导入失败');
+      }
+    }
+    if (okCount > 0) {
+      toast.success(`已导入得分点（${okCount}/${picked.length} 个评分项）`);
+      setBulkGroups(null);
+      await reloadItems();
     }
   };
 
@@ -219,6 +289,14 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       </button>
       {!locked && (
         <>
+          <button
+            onClick={handleBulkExtract}
+            disabled={extractingAll}
+            className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Sparkles size={14} strokeWidth={1.8} />
+            {extractingAll ? '提取中…' : 'AI 提取'}
+          </button>
           <button
             onClick={handlePublish}
             className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#0e8f61]"
@@ -517,6 +595,15 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             setItems(updated);
             onChanged?.();
           }}
+        />
+      )}
+      {bulkGroups && bpId && (
+        <BulkExtractReviewDialog
+          open
+          groups={bulkGroups}
+          locked={locked}
+          onClose={() => setBulkGroups(null)}
+          onImport={handleBulkImport}
         />
       )}
     </div>
