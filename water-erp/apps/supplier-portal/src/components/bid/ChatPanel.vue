@@ -120,6 +120,15 @@ function onEnter(e: KeyboardEvent) {
   send()
 }
 
+// 时间格式：当天仅显示时刻，跨天带月日（避免跨天消息时间歧义）
+function fmtTime(iso: string): string {
+  const d = new Date(iso)
+  const sameDay = d.toDateString() === new Date().toDateString()
+  return sameDay
+    ? d.toLocaleTimeString('zh-CN')
+    : d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
 onMounted(() => { void hydrate() })
 </script>
 
@@ -144,11 +153,18 @@ onMounted(() => { void hydrate() })
 
     <div ref="listEl" class="msg-list">
       <div v-if="current.length === 0" class="empty">暂无消息</div>
-      <!-- U3：按 senderId 判"我发的"——senderRole 会让公聊里其他供应商的消息也显示成己方气泡 -->
-      <div v-for="m in current" :key="m.id" class="msg" :class="{ mine: m.senderId === userId, system: m.senderRole === 'SYSTEM' }">
-        <div class="meta">{{ m.senderName }} · {{ new Date(m.createdAt).toLocaleTimeString('zh-CN') }}</div>
-        <div class="body">{{ m.content }}</div>
-      </div>
+      <template v-for="m in current" :key="m.id">
+        <!-- 系统消息：居中提示条 -->
+        <div v-if="m.senderRole === 'SYSTEM'" class="sys-tip">{{ m.content }}</div>
+        <!-- 气泡式：己方右对齐（U3：按 senderId 判定，避免公聊里其他供应商的消息显示成己方气泡），对方左对齐带头像 -->
+        <div v-else class="chat-row" :class="{ 'is-mine': m.senderId === userId }">
+          <div class="avatar" :class="{ 'avatar-host': m.senderRole === 'HOST' }">{{ (m.senderName || '?').slice(0, 1) }}</div>
+          <div class="bubble-col">
+            <div class="meta">{{ m.senderName }} · {{ fmtTime(m.createdAt) }}</div>
+            <div class="bubble">{{ m.content }}</div>
+          </div>
+        </div>
+      </template>
     </div>
 
     <div v-if="!canSend" class="muted-hint">{{ controlHint }}</div>
@@ -168,13 +184,19 @@ onMounted(() => { void hydrate() })
 .conn-connected { color: #67c23a; }
 .conn-reconnecting { color: #e6a23c; }
 .conn-disconnected { color: #f56c6c; }
-.msg-list { flex: 1; overflow-y: auto; min-height: 320px; max-height: 480px; padding: 4px 0; }
+.msg-list { flex: 1; overflow-y: auto; min-height: 320px; max-height: 480px; padding: 10px 4px; }
 .empty { color: #999; text-align: center; padding: 40px 0; }
-.msg { margin: 8px 0; padding: 8px 12px; border-radius: 8px; background: #f5f7fa; }
-.msg.mine { background: #ecf5ff; }
-.msg.system { background: transparent; text-align: center; color: #909399; font-size: 12px; }
-.meta { font-size: 12px; color: #909399; margin-bottom: 2px; }
-.body { white-space: pre-wrap; word-break: break-all; }
+.sys-tip { margin: 10px auto; padding: 3px 12px; width: fit-content; max-width: 85%; border-radius: 999px; background: #f0f2f5; color: #909399; font-size: 12px; text-align: center; }
+.chat-row { display: flex; gap: 8px; margin: 12px 0; align-items: flex-start; }
+.chat-row.is-mine { flex-direction: row-reverse; }
+.avatar { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #fff; background: #8fa6c4; }
+.avatar-host { background: #064ea2; }
+.bubble-col { display: flex; flex-direction: column; max-width: 74%; }
+.is-mine .bubble-col { align-items: flex-end; }
+.meta { font-size: 11px; color: #909399; margin-bottom: 3px; }
+.is-mine .meta { text-align: right; }
+.bubble { padding: 8px 12px; border-radius: 12px; border-top-left-radius: 3px; background: #f5f7fa; border: 1px solid #e8ebf0; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.is-mine .bubble { background: #064ea2; border-color: #064ea2; color: #fff; border-radius: 12px; border-top-right-radius: 3px; }
 .muted-hint { color: #e6a23c; font-size: 12px; padding: 4px 0; }
 .input-row { display: flex; gap: 8px; margin-top: 8px; }
 </style>

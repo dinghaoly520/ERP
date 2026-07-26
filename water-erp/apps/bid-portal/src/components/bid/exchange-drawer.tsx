@@ -38,6 +38,14 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   const toMsg = (d: HallMessagePayload): Msg => ({
     id: d.id, senderRole: d.senderRole, senderName: d.senderName, content: d.content, createdAt: d.createdAt,
   });
+  // 时间格式：当天仅显示时刻，跨天带月日（避免跨天消息时间歧义）
+  const fmtTime = (iso: string) => {
+    const d = new Date(iso);
+    const sameDay = d.toDateString() === new Date().toDateString();
+    return sameDay
+      ? d.toLocaleTimeString('zh-CN')
+      : d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
   const activeSupplierRef = useRef<string | null>(null);
   activeSupplierRef.current = activeSupplier?.supplierId ?? null;
   // tabRef：事件回调内读当前 tab（避免在 setTab 更新器里做副作用——StrictMode/并发双调会重复计数）
@@ -299,12 +307,23 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
             </div>
           )}
 
-          <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+          <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3">
             {tab === 'PRIVATE' && !activeSupplier && <div className="pt-10 text-center text-xs text-slate-400">选择一家供应商开始私聊</div>}
-            {msgs.map(m => (
-              <div key={m.id} className={`rounded-lg px-3 py-2 text-sm ${m.senderRole === 'HOST' ? 'bg-slate-100' : m.senderRole === 'SYSTEM' ? 'bg-transparent text-center text-xs text-slate-400' : 'bg-blue-50'}`}>
-                <div className="mb-0.5 text-[11px] text-slate-400">{m.senderName} · {new Date(m.createdAt).toLocaleTimeString('zh-CN')}</div>
-                <div className="whitespace-pre-wrap break-all">{m.content}</div>
+            {msgs.map(m => m.senderRole === 'SYSTEM' ? (
+              // 系统消息：居中提示条
+              <div key={m.id} className="mx-auto my-2 w-fit max-w-[85%] rounded-full bg-slate-100 px-3 py-1 text-center text-[11px] text-slate-400">{m.content}</div>
+            ) : (
+              // 气泡式：己方（HOST）右对齐深色气泡，供应商左对齐带头像
+              <div key={m.id} className={`my-3 flex items-start gap-2 ${m.senderRole === 'HOST' ? 'flex-row-reverse' : ''}`}>
+                <div className={`flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-semibold text-white ${m.senderRole === 'HOST' ? 'bg-slate-900' : 'bg-[#064ea2]'}`}>
+                  {(m.senderName || '?').slice(0, 1)}
+                </div>
+                <div className={`flex max-w-[74%] flex-col ${m.senderRole === 'HOST' ? 'items-end' : 'items-start'}`}>
+                  <div className="mb-0.5 text-[11px] text-slate-400">{m.senderName} · {fmtTime(m.createdAt)}</div>
+                  <div className={`whitespace-pre-wrap break-all rounded-xl px-3 py-2 text-sm leading-relaxed ${m.senderRole === 'HOST'
+                    ? 'rounded-tr-sm bg-slate-900 text-white'
+                    : 'rounded-tl-sm border border-slate-200 bg-slate-50'}`}>{m.content}</div>
+                </div>
               </div>
             ))}
           </div>
