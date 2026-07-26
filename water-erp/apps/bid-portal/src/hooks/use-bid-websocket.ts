@@ -18,6 +18,8 @@ import {
   type OpeningDisputedPayload,
   type OpeningDisputeResolvedPayload,
   type OpeningCompletedPayload,
+  type ExpertPresencePayload,
+  type ExpertPresenceAggregatePayload,
 } from '@water-erp/shared';
 
 function wsUrl(): string {
@@ -25,9 +27,10 @@ function wsUrl(): string {
   return portalURL('api', '/bid');
 }
 
-/** Phase 3 裁剪：:3007 仅保留开标执行相关事件组
- * （decrypt / stage / supervision / anomaly / hall / opening）。
- * 评标在场、澄清事件随评标管理/澄清答疑迁往 :3005。 */
+/** Phase 3 裁剪：:3007 保留开标执行相关事件组
+ * （decrypt / stage / supervision / anomaly / hall / opening）；
+ * 评标在场事件已随只读评标管理 tab 回归。
+ * 澄清事件仍随澄清答疑留在 :3005。 */
 export interface BidWsHandlers {
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
   onStageChange?: (d: StageChangePayload) => void;
@@ -41,6 +44,8 @@ export interface BidWsHandlers {
   onOpeningDisputed?: (d: OpeningDisputedPayload) => void;
   onOpeningDisputeResolved?: (d: OpeningDisputeResolvedPayload) => void;
   onOpeningCompleted?: (d: OpeningCompletedPayload) => void;
+  onExpertPresence?: (d: ExpertPresencePayload) => void;
+  onExpertPresenceAggregate?: (d: ExpertPresenceAggregatePayload) => void;
 }
 
 export interface UseBidWebSocketResult {
@@ -143,6 +148,8 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.OPENING_DISPUTED, 'onOpeningDisputed');
     on(BID_EVENT.OPENING_DISPUTE_RESOLVED, 'onOpeningDisputeResolved');
     on(BID_EVENT.OPENING_COMPLETED, 'onOpeningCompleted');
+    on(BID_EVENT.EXPERT_PRESENCE, 'onExpertPresence');
+    on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, 'onExpertPresenceAggregate');
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {
