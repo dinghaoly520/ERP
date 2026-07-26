@@ -166,40 +166,37 @@ const daysSinceReg = computed(() => {
 
     <template v-else-if="statusInfo">
       <!-- ═══════════════════════ Hero (greeting card, neumorphic) ═══════════════════════ -->
-      <div class="db-hero">
-        <div class="db-hero-left">
-          <div class="db-hero-topline">
-            <h1 class="db-hero-name">{{ statusInfo.name }}</h1>
-            <span class="sp-status" :class="statusType[statusInfo.status]||'pending'">{{ statusLabel[statusInfo.status]||statusInfo.status }}</span>
-            <span v-if="daysSinceReg" class="db-hero-meta">入驻 {{ daysSinceReg }} 天</span>
+      <div class="page-hero db-hero">
+        <div class="page-hero__row">
+          <div class="page-hero__left">
+            <div class="page-hero__icon"><el-icon :size="20"><OfficeBuilding /></el-icon></div>
+            <div>
+              <div class="page-hero__eyebrow">业务工作台</div>
+              <div class="page-hero__title">{{ statusInfo.name }}</div>
+              <div class="page-hero__sub db-hero-sub">
+                <span class="sp-status" :class="statusType[statusInfo.status]||'pending'">{{ statusLabel[statusInfo.status]||statusInfo.status }}</span>
+                <span v-if="daysSinceReg" class="db-hero-meta">入驻 {{ daysSinceReg }} 天</span>
+                <template v-if="statusInfo.status === 'APPROVED'">
+                  <span class="db-hero-div">·</span>
+                  <span class="db-hero-stat"><strong>{{ evalStats?.avgScore ? evalStats.avgScore.toFixed(1) : '--' }}</strong> 分</span>
+                  <span class="db-hero-stat"><strong>{{ evalStats?.total ?? 0 }}</strong> 次评价</span>
+                </template>
+                <template v-else-if="statusInfo.status === 'PENDING'">
+                  <span class="db-hero-hint">审核中 — 通常 3 个工作日内完成</span>
+                </template>
+                <template v-else-if="statusInfo.status === 'RETURNED'">
+                  <span class="db-hero-hint warn">{{ statusInfo.returnReason || '资料被退回，请补正' }}</span>
+                </template>
+              </div>
+            </div>
           </div>
-          <div class="db-hero-subline">
-            <template v-if="statusInfo.status === 'APPROVED'">
-              <span class="db-hero-stat">
-                <span class="db-hero-stat-value">{{ evalStats?.avgScore ? evalStats.avgScore.toFixed(1) : '--' }}</span>
-                <span class="db-hero-stat-suffix">分</span>
-              </span>
-              <span class="db-hero-div">·</span>
-              <span class="db-hero-stat">
-                <span class="db-hero-stat-value">{{ evalStats?.total ?? 0 }}</span>
-                <span class="db-hero-stat-suffix">次评价</span>
-              </span>
-            </template>
-            <template v-else-if="statusInfo.status === 'PENDING'">
-              <span class="db-hero-hint">审核中 — 通常 3 个工作日内完成</span>
-            </template>
-            <template v-else-if="statusInfo.status === 'RETURNED'">
-              <span class="db-hero-hint warn">{{ statusInfo.returnReason || '资料被退回，请补正' }}</span>
-            </template>
-            <template v-else>
-              <span class="db-hero-hint">{{ new Date().getHours() < 12 ? '上午好' : new Date().getHours() < 18 ? '下午好' : '晚上好' }}</span>
-            </template>
+          <div class="page-hero__right db-hero-right">
+            <div class="neu-btn-group">
+              <button class="neu-btn-soft" @click="router.push('/bids')">可投标项目</button>
+              <button class="neu-btn-soft" @click="router.push('/my-bids')">投标进展</button>
+              <button class="neu-btn-primary" @click="router.push('/profile')">完善档案</button>
+            </div>
           </div>
-        </div>
-        <div class="db-hero-right">
-          <el-button type="primary" size="large" @click="router.push('/bids')">可投标项目</el-button>
-          <el-button size="large" @click="router.push('/my-bids')">投标进展</el-button>
-          <el-button size="large" @click="router.push('/profile')">完善档案</el-button>
         </div>
       </div>
 
@@ -342,25 +339,18 @@ const daysSinceReg = computed(() => {
 </template>
 
 <style scoped>
-/* ═══════════════ Hero — neumorphic plate (no glass / no drift) ═══════════════ */
-.db-hero {
-  display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  border-radius: 18px; padding: 20px 24px; margin-bottom: 20px;
-  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.965 0.013 258));
-  box-shadow: 7px 7px 16px oklch(0.55 0.03 258 / 0.10), -6px -6px 14px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.75);
-}
-.db-hero-left { min-width: 0; overflow: hidden; }
-.db-hero-topline { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-.db-hero-name { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: -0.02em; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+/* ═══════════════ Hero — 复用 cgzxui 全局 .page-hero（105deg 渐变 + 方向性双影 + ::after 光晕，
+   对齐 :3005 dashboard-home 的 page-hero）。.db-hero 仅覆盖子元素排版。 ═══════════════ */
+.db-hero { margin-bottom: 20px; }
+.db-hero .page-hero__title { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-hero-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .db-hero-meta { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
-.db-hero-subline { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.db-hero-stat { display: inline-flex; align-items: baseline; gap: 3px; }
-.db-hero-stat-value { font-size: 16px; font-weight: 900; color: var(--brand); font-variant-numeric: tabular-nums; line-height: 1; }
-.db-hero-stat-suffix { color: var(--muted-foreground); font-size: 12px; }
+.db-hero-stat { font-size: 12px; color: var(--muted-foreground); }
+.db-hero-stat strong { font-size: 14px; font-weight: 800; color: var(--brand); font-variant-numeric: tabular-nums; }
 .db-hero-div { color: var(--hairline); }
-.db-hero-hint { color: var(--muted-foreground); font-size: 13px; }
+.db-hero-hint { font-size: 12px; color: var(--muted-foreground); }
 .db-hero-hint.warn { color: var(--warning); font-weight: 600; }
-.db-hero-right { display: flex; gap: 8px; flex-shrink: 0; }
+.db-hero-right { flex-shrink: 0; }
 
 /* ═══════════════ KPI strip spacing — consistent 20px rhythm with hero + body ═══════════════ */
 :deep(.kpi-grid) { margin: 20px 0; }
@@ -449,7 +439,7 @@ const daysSinceReg = computed(() => {
 /* ═══════════════ Responsive ═══════════════ */
 @media (max-width: 1100px) {
   .db-body { grid-template-columns: 1fr; }
-  .db-hero { flex-direction: column; align-items: stretch; }
+  .db-hero .page-hero__row { flex-direction: column; align-items: stretch; gap: 14px; }
   .db-hero-right { justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {

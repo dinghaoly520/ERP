@@ -530,7 +530,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 
   // ── 政策法规 ──
   {
-    id: '11', type: 'POLICY', tag: '政策法规', color: '#f5a623',
+    id: '11', type: 'POLICY', tag: '政策法规', color: '#d43030',
     date: '2026-05-28', urgent: false,
     title: '四川省水利厅关于进一步规范水利工程招标投标活动的通知',
     desc: '为深入贯彻落实《招标投标法》及其实施条例，进一步规范我省水利工程招标投标活动，维护招标投标市场秩序，保障工程质量和安全...',
@@ -580,7 +580,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 主管部门将适时开展专项检查和随机抽查，对发现的问题依法依规处理。各单位应建立整改台账，明确整改措施、完成时限和责任人，确保政策要求落实到项目全过程。`,
   },
   {
-    id: '12', type: 'POLICY', tag: '政策法规', color: '#f5a623',
+    id: '12', type: 'POLICY', tag: '政策法规', color: '#d43030',
     date: '2026-05-15', urgent: false,
     title: '水利部关于修改《水利工程建设项目招标投标管理规定》的决定',
     desc: '水利部对《水利工程建设项目招标投标管理规定》进行修改，适应新形势新要求...',
@@ -613,7 +613,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 主管部门将适时开展专项检查和随机抽查，对发现的问题依法依规处理。各单位应建立整改台账，明确整改措施、完成时限和责任人，确保政策要求落实到项目全过程。`,
   },
   {
-    id: '13', type: 'POLICY', tag: '政策法规', color: '#f5a623',
+    id: '13', type: 'POLICY', tag: '政策法规', color: '#d43030',
     date: '2026-04-20', urgent: false,
     title: '四川省发展和改革委员会关于开展招标投标领域优化营商环境整治工作的通知',
     desc: '为深入贯彻党中央、国务院关于优化营商环境的决策部署，进一步规范招标投标市场秩序...',
@@ -644,7 +644,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 主管部门将适时开展专项检查和随机抽查，对发现的问题依法依规处理。各单位应建立整改台账，明确整改措施、完成时限和责任人，确保政策要求落实到项目全过程。`,
   },
   {
-    id: '14', type: 'POLICY', tag: '政策法规', color: '#f5a623',
+    id: '14', type: 'POLICY', tag: '政策法规', color: '#d43030',
     date: '2026-03-30', urgent: false,
     title: '国务院办公厅关于创新完善体制机制推动招标投标市场规范健康发展的意见',
     desc: '国务院办公厅就创新完善体制机制、推动招标投标市场规范健康发展提出的指导意见...',
@@ -684,7 +684,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 主管部门将适时开展专项检查和随机抽查，对发现的问题依法依规处理。各单位应建立整改台账，明确整改措施、完成时限和责任人，确保政策要求落实到项目全过程。`,
   },
   {
-    id: '15', type: 'POLICY', tag: '政策法规', color: '#f5a623',
+    id: '15', type: 'POLICY', tag: '政策法规', color: '#d43030',
     date: '2026-02-18', urgent: false,
     title: '水利工程建设标准强制性条文（2026年版）发布实施',
     desc: '水利部发布《水利工程建设标准强制性条文（2026年版）》，自发布之日起施行...',
@@ -716,7 +716,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 
   // ── 平台通知 ──
   {
-    id: '16', type: 'PLATFORM', tag: '平台通知', color: '#5a6d8a',
+    id: '16', type: 'PLATFORM', tag: '平台通知', color: '#f5a623',
     date: '2026-06-11', urgent: false,
     title: '蜀水云采平台系统升级维护公告',
     desc: '为提升平台服务质量和系统稳定性，蜀水云采电子化招标采购平台将于 2026 年 6 月 15 日（周日）02:00-06:00 进行系统升级维护...',
@@ -755,7 +755,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 后续安排如有调整，将通过平台公告、短信或站内信另行通知。请各用户持续关注蜀水云采平台消息，合理安排相关工作。`,
   },
   {
-    id: '17', type: 'PLATFORM', tag: '平台通知', color: '#5a6d8a',
+    id: '17', type: 'PLATFORM', tag: '平台通知', color: '#f5a623',
     date: '2026-06-01', urgent: false,
     title: '关于开通电子商城集中采购功能的通知',
     desc: '蜀水云采平台正式开通电子商城集中采购功能，为各采购单位提供一站式水利工程物资采购服务...',
@@ -794,7 +794,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 后续安排如有调整，将通过平台公告、短信或站内信另行通知。请各用户持续关注蜀水云采平台消息，合理安排相关工作。`,
   },
   {
-    id: '18', type: 'PLATFORM', tag: '平台通知', color: '#5a6d8a',
+    id: '18', type: 'PLATFORM', tag: '平台通知', color: '#f5a623',
     date: '2026-05-20', urgent: false,
     title: '蜀水云采平台供应商操作手册（2026版）更新发布',
     desc: '蜀水云采平台供应商操作手册（2026版）已更新发布，请各供应商及时下载查阅...',
@@ -832,7 +832,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 后续安排如有调整，将通过平台公告、短信或站内信另行通知。请各用户持续关注蜀水云采平台消息，合理安排相关工作。`,
   },
   {
-    id: '19', type: 'PLATFORM', tag: '平台通知', color: '#5a6d8a',
+    id: '19', type: 'PLATFORM', tag: '平台通知', color: '#f5a623',
     date: '2026-05-10', urgent: false,
     title: '关于调整专家评审费发放方式的通知',
     desc: '自 2026 年 6 月 1 日起，专家评审费将通过蜀水云采平台在线发放...',
@@ -865,7 +865,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 后续安排如有调整，将通过平台公告、短信或站内信另行通知。请各用户持续关注蜀水云采平台消息，合理安排相关工作。`,
   },
   {
-    id: '20', type: 'PLATFORM', tag: '平台通知', color: '#5a6d8a',
+    id: '20', type: 'PLATFORM', tag: '平台通知', color: '#f5a623',
     date: '2026-04-28', urgent: false,
     title: '平台数字证书（CA）办理流程变更公告',
     desc: '为提升用户办理效率，蜀水云采平台数字证书（CA）办理流程进行调整...',

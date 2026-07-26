@@ -726,6 +726,9 @@ export class CatalogService {
     const action = body.action;
     const now = new Date();
 
+    // 审核员既已处理该申请，清掉 :3005 工作台对应待办（link 与 notifyReviewer 全等）。
+    await this.resolveCatalogReviewerTodo(applicationId);
+
     // ── REJECT ──
     if (action === 'reject') {
       if (!body.reason?.trim()) throw new BadRequestException({ error: '请填写拒绝理由', code: 'MISSING_REASON' });
@@ -1508,6 +1511,19 @@ export class CatalogService {
 
   private async notify(userId: string, title: string, content: string, link: string) {
     await this.prisma.notification.create({ data: { userId, type: 'CATALOG_APPLICATION', title, content, link } });
+  }
+
+  /**
+   * 清零 :3005 工作台「目录/报价申请待审核」待办：按 type+link 全等匹配
+   * （link 与 supplier-portal.notifyReviewer 下发的一致），将未 resolve 的标为已处理。
+   * 直接用 prisma 更新，避免为此注入 NotificationService。
+   */
+  private async resolveCatalogReviewerTodo(applicationId: string) {
+    const link = `/mall-management/catalog?tab=approval&appId=${applicationId}`;
+    await this.prisma.notification.updateMany({
+      where: { type: 'CATALOG_APPLICATION', link, resolvedAt: null },
+      data: { resolvedAt: new Date() },
+    });
   }
 
   /** 为新增品类生成唯一目录编码 CGML-NEW-{序号}。 */

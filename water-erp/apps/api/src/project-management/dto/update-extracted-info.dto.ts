@@ -56,6 +56,10 @@ export class UpdateExtractedInfoDto {
 
   @IsOptional()
   @IsString()
+  documentAcquireTime?: string;
+
+  @IsOptional()
+  @IsString()
   invitedSuppliers?: string;
 
   @IsOptional()

@@ -21,7 +21,7 @@ export function AiAssistPanel({ dailyPlan, refreshingPlan, isChairman, showProje
       </div>
       <div className="wb-panel-body">
         <WorkbenchPlanningPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} onSelectTimeBlock={onSelectTimeBlock} onRefreshPlan={onRefreshPlan} showAiScheduling={!isChairman} isChairman={isChairman}/>
-        {!isChairman && showProjectBrief && dailyPlan ? <div className="mt-4"><ProjectBriefCard dailyPlan={dailyPlan}/></div> : null}
+        {showProjectBrief && dailyPlan ? <div className="mt-4"><ProjectBriefCard dailyPlan={dailyPlan}/></div> : null}
       </div>
     </section>
   );

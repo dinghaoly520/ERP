@@ -58,11 +58,13 @@ function rowClass(p: any) { if (p.stage === 'SUBMIT') return 'is-submit'; if (p.
     <template v-else>
       <div v-loading="loading">
     <SpPageHero :icon="Gavel" title="可投标项目" sub="按项目类别快速筛选与进入详情，持续关注最新招标公告。">
-      <template #actions />
+      <template #actions>
+        <span class="page-hero__stat page-hero__stat--info">共 {{ bidStore.total }} 个</span>
+      </template>
     </SpPageHero>
 
-    <div class="neu-card bid-filter">
-      <el-input v-model="search" placeholder="搜索项目名称或编号" prefix-icon="Search" clearable />
+    <div class="bid-toolbar">
+      <el-input v-model="search" placeholder="搜索项目名称或编号" prefix-icon="Search" clearable class="bid-search" />
     </div>
 
     <div v-if="bidStore.projects.length > 0" class="opportunity-list">
@@ -72,13 +74,13 @@ function rowClass(p: any) { if (p.stage === 'SUBMIT') return 'is-submit'; if (p.
             <span class="bid-tag" :class="{ 'bid-tag-submit': p.stage === 'SUBMIT' }">{{ p.accessScope === 'INVITED' || p.accessScope === 'DESIGNATED' ? '受邀' : '公告' }}</span>
             <span class="bid-stage" :style="{ '--stage-c': stageMap[p.stage]?.color || '#94a3b8' } as any">{{ stageMap[p.stage]?.label || p.stage }}</span>
           </div>
-          <div class="row-meta"><span>{{ p.projectCode }}</span><span>{{ p.procurementMethod }}</span><span>开标 {{ dayjs(p.openTime).format('MM-DD HH:mm') }}</span></div>
+          <div class="row-meta"><span class="meta-code">{{ p.projectCode }}</span><span class="meta-sep">·</span><span>{{ p.procurementMethod }}</span><span class="meta-sep">·</span><span>开标 {{ dayjs(p.openTime).format('MM-DD HH:mm') }}</span></div>
         </div>
         <div class="row-deadline" :class="{ 'submit-deadline': isSubmitStage(p.stage) }">
           <small>投递截止</small><strong>{{ dayjs(p.deadline).format('MM-DD HH:mm') }}</strong>
           <CountdownTimer :deadline="p.deadline" />
         </div>
-        <el-button type="primary" plain size="small">详情</el-button>
+        <button class="neu-btn-xs row-action">详情<el-icon style="font-size:12px;margin-left:2px"><ArrowRight /></el-icon></button>
       </div>
     </div>
 
@@ -104,45 +106,38 @@ function rowClass(p: any) { if (p.stage === 'SUBMIT') return 'is-submit'; if (p.
 </template>
 
 <style scoped>
-/* Filter plate — neumorphic; layout only (visuals from cgzxui .neu-card / .neu-tab*) */
-.bid-filter { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: center; margin-top: 16px; }
-.bid-tabs { overflow-x: auto; }
-.bid-tabs .neu-tab span { margin-left: 5px; opacity: .6; font-variant-numeric: tabular-nums; }
+/* Toolbar — 独立浮起卡片（标题卡下方、列表上方） */
+.bid-toolbar {
+  display: flex; align-items: center; gap: 14px;
+  margin-top: 16px; padding: 12px 16px; border-radius: 14px;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 10px oklch(0.55 0.03 258 / 0.1), -3px -3px 8px oklch(1 0 0 / 0.9);
+}
+.bid-toolbar .bid-search { max-width: 380px; }
 
-/* Opportunity rows — neumorphic plates (no glass / no drift) */
+/* Opportunity rows — cgzxui neu-card（105deg 渐变 + 标准方向性双影），状态用左色轨标注（背景保持统一） */
 .opportunity-list { display: grid; gap: 12px; margin-top: 18px; }
 .opportunity-row {
   display: grid; grid-template-columns: minmax(0,1fr) 180px auto; gap: 18px; align-items: center;
-  padding: 16px 20px; border-radius: 16px; cursor: pointer;
-  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
-  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
-  transition: transform .15s ease, box-shadow .15s ease;
+  padding: 16px 20px; border-radius: 16px; cursor: pointer; border-left: 3px solid transparent;
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 10px oklch(0.55 0.03 258 / 0.1), -3px -3px 8px oklch(1 0 0 / 0.9);
+  transition: transform .25s cubic-bezier(0.16,1,0.3,1), box-shadow .25s ease, border-color .2s ease;
 }
 .opportunity-row:hover {
-  transform: translateY(-1px);
-  box-shadow: 7px 7px 16px oklch(0.55 0.03 258 / 0.12), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 4px 4px 12px oklch(0.45 0.08 258 / 0.12), -2px -2px 8px oklch(1 0 0 / 0.9);
 }
 
-/* ── SUBMIT 阶段洋红色高亮 ── */
-.opportunity-row.is-submit {
-  border-left: 4px solid oklch(0.58 0.22 340);
-  background: linear-gradient(180deg, oklch(0.993 0.012 340), oklch(0.97 0.015 340));
-  box-shadow: 5px 5px 12px oklch(0.5 0.06 340 / 0.1), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
-}
-.opportunity-row.is-submit:hover {
-  box-shadow: 7px 7px 16px oklch(0.45 0.08 340 / 0.14), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
-}
+/* SUBMIT 阶段 — 洋红色轨 + 标题强调 */
+.opportunity-row.is-submit { border-left-color: oklch(0.58 0.22 340); }
 .opportunity-row.is-submit .row-title-line h3 { color: oklch(0.42 0.15 340); }
 
-/* ── DOWNLOAD 阶段截止临近（≤3天）粉红色渐变高亮 ── */
-.opportunity-row.is-dl-close {
-  border-left: 4px solid oklch(0.72 0.16 350);
-  background: linear-gradient(180deg, oklch(0.994 0.008 350), oklch(0.975 0.012 350));
-  box-shadow: 5px 5px 12px oklch(0.55 0.04 350 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
-}
-.opportunity-row.is-dl-close:hover {
-  box-shadow: 7px 7px 16px oklch(0.5 0.06 350 / 0.12), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
-}
+/* DOWNLOAD 截止临近（≤3天）— 粉色色轨 */
+.opportunity-row.is-dl-close { border-left-color: oklch(0.72 0.16 350); }
+
+/* 详情按钮 — 固定宽度对齐 */
+.row-action { min-width: 78px; }
 
 /* Scope tag */
 .bid-tag {
@@ -162,7 +157,9 @@ function rowClass(p: any) { if (p.stage === 'SUBMIT') return 'is-submit'; if (p.
 }
 .row-title-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .row-title-line h3 { margin: 0; color: var(--foreground); font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.row-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; color: var(--muted-foreground); font-size: 12px; }
+.row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 7px; color: var(--muted-foreground); font-size: 12px; }
+.row-meta .meta-code { font-family: 'SF Mono','JetBrains Mono',monospace; font-size: 11px; color: var(--brand); font-weight: 700; }
+.row-meta .meta-sep { color: var(--hairline); font-size: 11px; }
 .row-deadline { padding-left: 18px; border-left: 1px solid var(--hairline); }
 .row-deadline small { display: block; color: var(--muted-foreground); font-size: 11px; }
 .row-deadline strong { display: block; color: var(--foreground); font-size: 14px; margin-top: 2px; font-variant-numeric: tabular-nums; }

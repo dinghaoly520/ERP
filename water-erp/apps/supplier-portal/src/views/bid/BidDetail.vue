@@ -44,6 +44,34 @@ const heroSub = computed(() => {
   return `${p.projectCode} · ${p.procurementMethod}${pub}`
 })
 
+// ── 公告结构化信息（来自 announcement.metadata）──
+const announceMeta = computed(() => (project.value?.announcement?.metadata || null) as any)
+function fmtBudget(raw: any): string {
+  if (raw == null || raw === '') return ''
+  const n = Number(raw)
+  if (isNaN(n)) return String(raw)
+  if (n >= 10000) return `${(n / 10000).toFixed(0)} 万元`
+  return `${n} 元`
+}
+function fmtMetaDate(raw: any): string {
+  if (!raw) return ''
+  const d = dayjs(raw)
+  return d.isValid() ? d.format('YYYY/MM/DD HH:mm') : String(raw)
+}
+// 仅展示有值的字段
+const metaFields = computed(() => {
+  const m = announceMeta.value
+  if (!m) return []
+  const fields: { label: string; value: string; mono?: boolean; strong?: boolean }[] = []
+  if (m.projectCode) fields.push({ label: '项目编号', value: m.projectCode, mono: true })
+  if (m.method) fields.push({ label: '招标方式', value: m.method })
+  if (m.budget != null && m.budget !== '') fields.push({ label: '预算金额', value: fmtBudget(m.budget), strong: true })
+  if (m.deadline) fields.push({ label: '报名/投标截止', value: fmtMetaDate(m.deadline), strong: true })
+  if (m.openTime) fields.push({ label: '开标时间', value: fmtMetaDate(m.openTime), strong: true })
+  if (m.contact) fields.push({ label: '联系方式', value: m.contact })
+  return fields
+})
+
 // ── 招标文件 ──
 const bidDoc = ref<any>(null); const bidDocLoading = ref(false); const paying = ref(false); const downloading = ref(false)
 const payDialog = ref(false); const paymentRef = ref('')
@@ -138,7 +166,6 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
         <div class="stage-msg" :style="{ '--sc': stageMap[project.stage]?.color || 'var(--brand)' }">
           <span class="sm-badge"><span class="sm-dot" />{{ stageMap[project.stage]?.label }}</span>
           <span class="sm-text">{{ stageMap[project.stage]?.guide || '' }}</span>
-          <button v-if="project.stage === 'SUBMIT'" class="neu-btn-primary sm-cta" @click="goToSubmit">提交标书</button>
         </div>
       </div>
 
@@ -152,6 +179,14 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 
       <!-- ═══ 公告正文 ═══ -->
       <div class="content-card neu-card">
+        <!-- 公告结构化信息（镜像信息发布中心） -->
+        <div v-if="metaFields.length" class="cc-meta">
+          <div v-for="f in metaFields" :key="f.label" class="cc-meta-item">
+            <span class="cc-meta-label">{{ f.label }}</span>
+            <span class="cc-meta-value" :class="{ mono: f.mono, strong: f.strong }">{{ f.value }}</span>
+          </div>
+        </div>
+
         <!-- 招标条件 -->
         <div v-if="project.scope || project.qualification || project.contact || project.qualityRequirement" class="cc-conds">
           <div v-if="project.scope" class="cc-cond">
@@ -296,7 +331,6 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 .sm-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; flex-shrink: 0; color: var(--sc); }
 .sm-dot   { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .sm-text  { flex: 1; font-size: 12px; line-height: 1.5; color: var(--foreground); }
-.sm-cta   { height: 30px; font-size: 12px; padding: 0 16px; flex-shrink: 0; }
 
 /* ══════ 关键信息条 ══════ */
 .info-bar {
@@ -313,6 +347,18 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 .content-card {
   margin-top: 16px; padding: 28px;
 }
+/* 公告结构化信息条 — 镜像信息发布中心，仅展示有值字段 */
+.cc-meta {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px 14px;
+  padding-bottom: 18px; margin-bottom: 18px;
+  box-shadow: inset 0 -1px 0 var(--hairline);
+}
+.cc-meta-item { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cc-meta-label { font-size: 10px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.08em; }
+.cc-meta-value { font-size: 14px; color: var(--foreground); line-height: 1.5; word-break: break-word; }
+.cc-meta-value.mono { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--brand); font-weight: 700; }
+.cc-meta-value.strong { font-weight: 800; font-variant-numeric: tabular-nums; }
 .cc-conds {
   display: flex; flex-direction: column; gap: 10px;
   padding-bottom: 18px; margin-bottom: 18px;

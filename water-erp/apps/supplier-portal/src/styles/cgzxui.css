@@ -55,14 +55,36 @@
   --sp-surface: var(--surface);
 }
 
-/* ── Page background: flat-ish baseline so neumorphic shadows read correctly ── */
+/* ── Page background ──
+   body 只承载 oklch(0.975 0.012 258) 不透明冷白底色；色彩由 .flow-glow 提供。
+   去掉旧的超浅椭圆，使 .flow-glow 成为唯一色彩源（与 web :3005 策略一致）。 */
 html, body { background: var(--bg) !important; }
 body {
-  background-image:
-    radial-gradient(ellipse at 8% 0%, oklch(0.5 0.16 258 / 0.05), transparent 40%),
-    radial-gradient(ellipse at 96% 4%, oklch(0.5 0.12 175 / 0.04), transparent 38%) !important;
   color: var(--fg);
   font-family: var(--font-display);
+}
+
+/* ── cgzxui 水彩光晕（移植自 public-portal :3002 / web :3005 的 .flow-glow）
+   浅彩水彩光晕 = fixed pastel blooms，是玻璃面板背后模糊掉的色彩来源。
+   oklch 色彩空间 + 方向性定位（左上蓝 / 右上青 / 左下紫 / 右下黄 / 底部蓝），
+   配合 glow-drift 缓慢漂移，是 cgzxui 背景的视觉灵魂。
+   .flow-glow 节点由 App.vue 根挂载（fixed → 相对视口，覆盖登录页与主布局）。 ── */
+.flow-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 460px at 6% 6%, oklch(0.82 0.09 258 / 0.5), transparent 68%),
+    radial-gradient(circle 420px at 94% 16%, oklch(0.84 0.08 175 / 0.45), transparent 68%),
+    radial-gradient(circle 440px at 14% 64%, oklch(0.85 0.06 300 / 0.4), transparent 68%),
+    radial-gradient(circle 380px at 86% 78%, oklch(0.88 0.06 60 / 0.4), transparent 68%),
+    radial-gradient(circle 360px at 50% 100%, oklch(0.8 0.07 210 / 0.36), transparent 68%);
+  animation: glow-drift 26s ease-in-out infinite alternate;
+}
+@keyframes glow-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06); }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -364,6 +386,7 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
    reduced motion
    ═══════════════════════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
+  .flow-glow { animation: none !important; }
   .neu-btn-primary, .neu-btn-soft, .neu-btn-xs, .neu-link, .neu-card, .kpi-card.clickable, .neu-table tbody tr { transition: none !important; }
   .neu-btn-primary:hover, .neu-btn-soft:hover, .kpi-card.clickable:hover, .neu-card:hover { transform: none !important; }
 }
@@ -380,13 +403,20 @@ textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize:
    !important so it wins over the component's scoped styles without
    touching them. Surfaces become borderless neumorphic.
    ═══════════════════════════════════════════════════════════ */
-.sp-layout { background: var(--bg) !important; }
-.sp-content { background: var(--bg) !important; }
+.sp-layout { background: transparent !important; }
+.sp-content { background: transparent !important; }
 
 .sp-header {
-  background: oklch(0.985 0.006 258 / 0.85) !important;
+  border-radius: 16px !important;
+  background: oklch(0.985 0.006 258 / 0.82) !important;
   border: none !important;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 0 2px 10px oklch(0.55 0.03 258 / 0.08) !important;
+  backdrop-filter: blur(18px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(150%) !important;
+  /* cgzxui 方向性双影（替换旧扁平 0 2px 10px drop）+ 顶部内高光线 */
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    2px 2px 8px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.9) !important;
 }
 .sp-header-icon, .sp-user-pill, .sp-logout-btn, .sp-collapse-toggle {
   border: none !important;

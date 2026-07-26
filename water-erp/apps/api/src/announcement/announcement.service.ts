@@ -264,6 +264,23 @@ export class AnnouncementService {
                 riskFlag: '高',
               },
             });
+            // H3: 级联失效下游开标/评标产物——否则陈旧数据被棘轮跳步当作合法准入凭证
+            // （可直接用上一轮的解密成功供应商/已确认报告"启动评标/生成结果"；重投新标书因 SUCCESS 保护永不开封）。
+            // 复位供应商与专家、删除开标会话/唱标/评分记录/评标结果/废标，关闭所有流转闸门。
+            // 注：评分标准结构（BidScoreItem/BidScorePoint）保留以便重招复用；闸门已由复位关闭。
+            await tx.bidOpeningSession.deleteMany({ where: { projectId: project.id } });
+            await tx.bidOpeningRecord.deleteMany({ where: { projectId: project.id } });
+            await tx.bidScoreRecord.deleteMany({ where: { supplier: { projectId: project.id } } });
+            await tx.bidEvaluationResult.deleteMany({ where: { projectId: project.id } });
+            await tx.bidInvalidBid.deleteMany({ where: { projectId: project.id } });
+            await tx.bidSupplier.updateMany({
+              where: { projectId: project.id },
+              data: { decryptStatus: 'PENDING', confirmStatus: 'PENDING', bidValidity: null },
+            });
+            await tx.bidExpert.updateMany({
+              where: { projectId: project.id },
+              data: { reportConfirmed: false, reportConfirmedAt: null },
+            });
           }
           await tx.bidDocument.updateMany({
             where: { announcementId: id },

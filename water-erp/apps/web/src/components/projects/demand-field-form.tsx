@@ -1,14 +1,6 @@
 "use client";
 
-const PROCUREMENT_CATEGORY_OPTIONS = [
-  '生产技术类采购',
-  'EPC项目采购',
-  'EPC管理采购',
-  '公用集中采购',
-  '科技研发类采购',
-  '信息化采购',
-  '其他',
-] as const;
+import { PROCUREMENT_CATEGORY_OPTIONS } from '@/lib/types/project-management';
 
 type DemandFieldValues = {
   requesterName: string;

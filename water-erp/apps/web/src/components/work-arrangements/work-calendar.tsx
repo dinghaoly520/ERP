@@ -11,6 +11,7 @@ type CalendarDay = {
   isSelected: boolean;
   isWeekend: boolean;
   dots: WorkArrangementUrgency[];
+  taskCount: number;
 };
 
 const URGENCY_COLORS: Record<WorkArrangementUrgency, string> = {
@@ -52,16 +53,17 @@ export function WorkCalendar({
   }, []);
 
   const dotMap = useMemo(() => {
-    const map = new Map<string, WorkArrangementUrgency[]>();
+    const map = new Map<string, { dots: WorkArrangementUrgency[]; count: number }>();
     for (const item of items) {
       if (!item.dueAt || item.status === 'COMPLETED' || item.status === 'CANCELLED') continue;
       const d = new Date(item.dueAt);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      const list = map.get(key) ?? [];
-      if (list.length < MAX_DOTS) {
-        list.push(item.urgency);
+      const entry = map.get(key) ?? { dots: [], count: 0 };
+      entry.count++;
+      if (entry.dots.length < MAX_DOTS) {
+        entry.dots.push(item.urgency);
       }
-      map.set(key, list);
+      map.set(key, entry);
     }
     return map;
   }, [items]);
@@ -89,7 +91,8 @@ export function WorkCalendar({
         isToday: isSameDay(date, today),
         isSelected: isSameDay(date, selectedDate),
         isWeekend: dow === 0 || dow === 6,
-        dots: dotMap.get(key) ?? [],
+        dots: dotMap.get(key)?.dots ?? [],
+        taskCount: dotMap.get(key)?.count ?? 0,
       });
     }
 
@@ -142,7 +145,7 @@ export function WorkCalendar({
         </div>
 
         {/* Weekday headers */}
-        <div className="mb-[2px]" className="grid grid-cols-7">
+        <div className="mb-[2px] grid grid-cols-7">
           {WEEKDAY_LABELS.map(label => (
             <div
               key={label}
@@ -197,6 +200,9 @@ export function WorkCalendar({
                         }}
                       />
                     ))}
+                    {day.taskCount > MAX_DOTS && (
+                      <span className="text-[7px] font-bold leading-none text-[color:var(--muted-foreground)]">+{day.taskCount - MAX_DOTS}</span>
+                    )}
                   </div>
                 )}
               </button>

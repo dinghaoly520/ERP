@@ -367,6 +367,7 @@ export type ExtractedInfo = {
   contractNumber: string | null;
   projectOverview: string | null;
   bidOpeningTime: string | null;
+  documentAcquireTime: string | null;
   invitedSuppliers: string | null;
   paymentPerformance: string | null;
 };
@@ -469,6 +470,7 @@ export type ExtractedInfoPayload = {
   departmentNumber?: string;
   projectOverview?: string;
   bidOpeningTime?: string;
+  documentAcquireTime?: string;
   invitedSuppliers?: string;
   paymentPerformance?: string;
   requesterName?: string;

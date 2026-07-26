@@ -462,7 +462,7 @@ export function WorkArrangementsPageChairman({
           <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => {}} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-4">
-          <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={true} showProjectBrief={false} onSelectTimeBlock={() => {}} onRefreshPlan={handleRefreshPlan} />
+          <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={true} showProjectBrief={true} onSelectTimeBlock={() => {}} onRefreshPlan={handleRefreshPlan} />
         </div>
       </div>
 
