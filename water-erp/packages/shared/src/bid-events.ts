@@ -30,6 +30,7 @@ export const BID_EVENT = {
   OPENING_CONFIRMED: 'opening:confirmed',
   OPENING_DISPUTED: 'opening:disputed',
   OPENING_DISPUTE_RESOLVED: 'opening:dispute:resolved',
+  OPENING_COMPLETED: 'opening:completed',
 } as const;
 
 // ── 载荷类型 ──
@@ -190,5 +191,12 @@ export interface OpeningDisputeResolvedPayload {
   recordId: string;
   confirm: boolean;
   result: string;
+  timestamp: number;
+}
+
+export interface OpeningCompletedPayload {
+  projectId: string;
+  handoverAt: string;       // ISO
+  handoverAssetId: string;  // FileAsset.id
   timestamp: number;
 }
