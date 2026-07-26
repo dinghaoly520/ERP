@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import {
   listScoreTemplates,
   applySavedScoreTemplate,
+  applyScoreTemplate,
   deleteScoreTemplate,
   type ScoreTemplateRef,
   type BidScoreItem,
@@ -25,6 +26,7 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
   const [loading, setLoading] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ScoreTemplateRef | null>(null);
+  const [applyingStandard, setApplyingStandard] = useState(false);
 
   const reload = async () => {
     setLoading(true);
@@ -42,6 +44,20 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
     if (open) reload();
   }, [open]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleApplyStandard = async () => {
+    setApplyingStandard(true);
+    try {
+      const updated = await applyScoreTemplate(projectId);
+      onChanged(updated);
+      toast.success('已应用标准评分模板');
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '应用失败');
+    } finally {
+      setApplyingStandard(false);
+    }
+  };
 
   const handleApply = async (t: ScoreTemplateRef) => {
     setApplyingId(t.id);
@@ -80,55 +96,82 @@ export function TemplateLibraryDialog({ open, onClose, projectId, locked, onChan
 
         {loading ? (
           <div className="py-10 text-center text-sm text-[#8a96aa]">加载中…</div>
-        ) : templates.length === 0 ? (
-          <div className="py-10 text-center text-sm text-[#8a96aa]">
-            尚无保存的模板。可在评分项页用「存为模板」创建。
-          </div>
         ) : (
           <div className="space-y-1.5">
-            {templates.map((t) => {
-              const mine = !!t.createdById;
-              return (
-                <div
-                  key={t.id}
-                  className="flex items-center gap-3 rounded-lg border border-[#edf2f7] bg-white px-3 py-2.5"
-                >
-                  <FileSpreadsheet size={16} strokeWidth={1.5} className="shrink-0 text-[#064ea2]" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-[#18243a]">{t.name}</span>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
-                          mine ? 'bg-[#e6f0fb] text-[#064ea2]' : 'bg-[#f3f7fc] text-[#5a6d8a]'
-                        }`}
-                      >
-                        {mine ? '我的' : '公共'}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-xs text-[#8a96aa]">
-                      {t.createdByName || '—'} · {new Date(t.createdAt).toLocaleString('zh-CN')}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      onClick={() => handleApply(t)}
-                      disabled={locked || applyingId === t.id}
-                      title={locked ? '评分标准已锁定，无法应用' : '应用到此项目'}
-                      className="rounded-lg bg-[#064ea2] px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-[#054280] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {applyingId === t.id ? '应用中…' : '应用'}
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(t)}
-                      title={mine ? '删除模板' : '删除公共模板（仅管理员可成功）'}
-                      className="rounded-lg p-1.5 text-[#5a6d8a] transition hover:bg-[#fef2f2] hover:text-[#e74c3c]"
-                    >
-                      <Trash2 size={14} strokeWidth={1.5} />
-                    </button>
-                  </div>
+            {/* 系统内置标准模板（置顶） */}
+            <div className="flex items-center gap-3 rounded-lg border border-[#dce6f3] bg-[#f8fbff] px-3 py-2.5">
+              <FileSpreadsheet size={16} strokeWidth={1.5} className="shrink-0 text-[#064ea2]" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-medium text-[#18243a]">标准评分模板</span>
+                  <span className="shrink-0 rounded-full bg-[#f3f7fc] px-2 py-0.5 text-xs font-bold text-[#5a6d8a]">
+                    系统内置
+                  </span>
                 </div>
-              );
-            })}
+                <div className="mt-0.5 text-xs text-[#8a96aa]">
+                  系统默认 · 资格审查 / 响应性 / 商务 / 技术 / 价格五类标准项
+                </div>
+              </div>
+              <button
+                onClick={handleApplyStandard}
+                disabled={locked || applyingStandard}
+                title={locked ? '评分标准已锁定，无法应用' : '应用到此项目'}
+                className="rounded-lg bg-[#064ea2] px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-[#054280] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {applyingStandard ? '应用中…' : '应用'}
+              </button>
+            </div>
+
+            {/* 已保存模板 */}
+            {templates.length === 0 ? (
+              <div className="py-6 text-center text-sm text-[#8a96aa]">
+                尚无保存的模板。可在评分项页用「存为模板」创建。
+              </div>
+            ) : (
+              templates.map((t) => {
+                const mine = !!t.createdById;
+                return (
+                  <div
+                    key={t.id}
+                    className="flex items-center gap-3 rounded-lg border border-[#edf2f7] bg-white px-3 py-2.5"
+                  >
+                    <FileSpreadsheet size={16} strokeWidth={1.5} className="shrink-0 text-[#064ea2]" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium text-[#18243a]">{t.name}</span>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
+                            mine ? 'bg-[#e6f0fb] text-[#064ea2]' : 'bg-[#f3f7fc] text-[#5a6d8a]'
+                          }`}
+                        >
+                          {mine ? '我的' : '公共'}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-[#8a96aa]">
+                        {t.createdByName || '—'} · {new Date(t.createdAt).toLocaleString('zh-CN')}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => handleApply(t)}
+                        disabled={locked || applyingId === t.id}
+                        title={locked ? '评分标准已锁定，无法应用' : '应用到此项目'}
+                        className="rounded-lg bg-[#064ea2] px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-[#054280] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {applyingId === t.id ? '应用中…' : '应用'}
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(t)}
+                        title={mine ? '删除模板' : '删除公共模板（仅管理员可成功）'}
+                        className="rounded-lg p-1.5 text-[#5a6d8a] transition hover:bg-[#fef2f2] hover:text-[#e74c3c]"
+                      >
+                        <Trash2 size={14} strokeWidth={1.5} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
       </Modal>

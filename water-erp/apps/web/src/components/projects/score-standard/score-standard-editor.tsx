@@ -16,7 +16,6 @@ import {
 import { toast } from 'sonner';
 import { CATEGORY_COLOR, CATEGORY_LABEL, STAGE_LABEL, isPassFailCategory } from '@water-erp/shared';
 import {
-  applyScoreTemplate,
   createScoreItem,
   deleteScoreItem,
   ensureBidProject,
@@ -126,18 +125,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     }
   };
 
-  const handleApplyTemplate = async () => {
-    if (!bpId) return;
-    try {
-      const updated = await applyScoreTemplate(bpId);
-      setItems(updated);
-      toast.success('已应用标准评分模板');
-      onChanged?.();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '操作失败');
-    }
-  };
-
   const handleCreate = async () => {
     if (!bpId) return;
     if (!draft.name.trim()) {
@@ -228,7 +215,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
       >
         <FileSpreadsheet size={14} strokeWidth={1.8} />
-        模板库
+        应用模板
       </button>
       {!locked && (
         <>
@@ -238,13 +225,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           >
             <Check size={14} strokeWidth={1.8} />
             发布评分标准
-          </button>
-          <button
-            onClick={handleApplyTemplate}
-            className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
-          >
-            <FileSpreadsheet size={14} strokeWidth={1.8} />
-            应用标准模板
           </button>
           <button
             onClick={() => {
@@ -287,7 +267,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           <div className="py-14 text-center">
             <p className="text-sm text-[#8a96aa]">该项目尚未编制评分标准。</p>
             <p className="mt-1 text-xs text-[#aab4c5]">
-              评分项是评标的前置条件——无评分项则专家无法打分。请「应用标准模板」或手动新增。
+              评分项是评标的前置条件——无评分项则专家无法打分。请点击「应用模板」选用标准模板，或手动新增。
             </p>
           </div>
         ) : (
