@@ -26,7 +26,7 @@ Run workspace commands from `water-erp/`.
 | **专家门户** | `apps/expert-portal` | Next.js 16 App Router | 3006 | Bid expert workstation — project review, identity verification, scoring, reports |
 | **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | **在线开标执行终端（纯开标）**：开标任务板 + 开标大厅（组建会话/解密/唱标/异议/监督视图）。项目管理与全部阶段流转归 :3005 |
 | **水叮当助手** | `apps/assistant` | Next.js 16 App Router | 3008 | AI assistant chatbot — public, no login required |
-| **大屏** | `apps/bigscreen` | Next.js 16 | 3010 | Data-viz big-screen dashboard. Standalone — **not** started by `pnpm dev`; run `pnpm dev:bigscreen`. Port is hardcoded (not in `packages/config/ports.ts`). |
+| **大屏** | `apps/bigscreen` | Next.js 16 | 3010 | Data-viz big-screen dashboard. Started by `pnpm dev` (one of 9 apps); can also run standalone via `pnpm dev:bigscreen`. Port is hardcoded (not in `packages/config/ports.ts`). |
 
 ### Shared Packages
 
@@ -157,7 +157,7 @@ pnpm db:migrate      # Run migrations
 pnpm db:seed         # Seed data (idempotent + destructive — see Seed Data)
 pnpm db:studio       # Open Prisma Studio
 
-# Start all (8 core portals — does NOT include bigscreen)
+# Start all (9 portals — includes bigscreen)
 pnpm dev
 
 # Start individual apps
@@ -169,7 +169,7 @@ pnpm dev:web         # :3005 采购管理工作台
 pnpm dev:expert      # :3006 专家门户
 pnpm dev:bid         # :3007 开评标管理端
 pnpm dev:assistant   # :3008 水叮当助手
-pnpm dev:bigscreen   # :3010 大屏（独立启动，不在 pnpm dev 内）
+pnpm dev:bigscreen   # :3010 大屏（已在 pnpm dev 内，也可单独启动）
 
 # AI 投标分析 worker（独立进程 — 必需，否则 per-item 分析任务不出队执行）
 pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/src/ai-bid-analysis-worker.js
