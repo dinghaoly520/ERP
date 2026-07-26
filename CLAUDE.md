@@ -107,7 +107,7 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 - **开标任务板** (`/bid`) — 只读：「开标中」项目（解密/唱标/确认/异议四计数）+ 截标已过的 SUBMIT 项目（「等待 :3005 确定开标」）+ 已归档计数；唯一行操作「进入开标大厅」
 - **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人/监督人/解密窗口，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、「开标完成」交棒横幅（跳回 :3005）
 
-已迁回 :3005 的原 :3007 功能：评标管理端、评分标准管理、澄清答疑、归档触发与查看、项目创建/编辑/邀请/催办。项目工作区 `/bid/project/[id]` tab 机制已退役（`?id=` 查询参数直达大厅）。
+已迁回 :3005 的原 :3007 功能：评标管理端、评分标准管理、澄清答疑、归档触发与查看、项目创建/编辑/邀请/催办。项目工作区 `/bid/project/[id]` tab 机制已退役（`?id=` 查询参数直达大厅）。开标大厅在开标完成后横幅【完成开标·移交】生成开标文件包（FileAsset `category=bid_opening_handover`）并 WS 广播 `opening:completed`；:3005「开标进度」区块展示「资料已接收·下载」，站内信深链 `?projectId=&panel=bid-confirm` 直达开标确认面板。
 
 **Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → cookie `token_web` is set → post-login redirect to bid portal (:3007). The bid portal shares the `token_web` cookie namespace (no separate `token_bid`), sending `X-Portal: web` for API calls.
 
@@ -367,7 +367,7 @@ The API uses `@nestjs/websockets` + Socket.IO for real-time bid opening (开标�
 DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ```
 
-**单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转统一由 :3005「开标确认」面板驱动（按时开标/启动评标/归档），:3007 仅在 OPENING 阶段内写开标会话、不持有任何阶段流转。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会把关联项目 stage 裸重置回 DOWNLOAD（`announcement.service.ts`，管理员刻意回滚，不经状态机）。
+**单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转统一由 :3005「开标确认」面板驱动（按时开标/启动评标/归档），:3007 仅在 OPENING 阶段内写开标会话、不持有任何阶段流转。:3007 在 OPENING 阶段内另持有「完成开标·资料移交」（`POST /bid/projects/:id/complete-opening`：开标文件包（JSON + SHA-256 指纹）存 MinIO、FileAsset 挂到会话并回传 :3005，幂等、不改 stage，**不作为启动评标的前置闸门**）。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会把关联项目 stage 裸重置回 DOWNLOAD（`announcement.service.ts`，管理员刻意回滚，不经状态机）。
 
 ### File Uploads (MinIO)
 
