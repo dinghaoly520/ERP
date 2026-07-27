@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { MessageSquareQuote, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { openingHallApi } from '@/lib/opening-hall';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
@@ -17,6 +17,57 @@ import type {
 type Msg = { id: string; senderRole: string; senderName: string; content: string; createdAt: string };
 type Session = { supplierId: string; supplierName: string; checkInAt: string | null; unread: number };
 
+/** 主持人常用语：按开标流程阶段分组，点击填入输入框（可再编辑后发送）。 */
+const HOST_PHRASES: { label: string; items: string[] }[] = [
+  {
+    label: '开场签到',
+    items: [
+      '各位投标人，本项目开标会现在开始，请各家确认在线并签到。',
+      '请尚未签到的投标人尽快完成签到，开标时间即将到来。',
+      '各家签到已完成，感谢准时参加，现在进入投标文件解密环节。',
+    ],
+  },
+  {
+    label: '文件解密',
+    items: [
+      '现在进入投标文件解密环节，请各家在规定时间内完成解密。',
+      '解密窗口即将关闭，请尚未完成解密的投标人抓紧时间。',
+      '全部投标文件解密完成，现在进入唱标环节。',
+      '个别投标人解密异常，请相关单位耐心等待并按系统提示操作。',
+    ],
+  },
+  {
+    label: '唱标',
+    items: [
+      '现在开始唱标，请各家投标人仔细核对唱标内容。',
+      '唱标完毕，请各家确认唱标内容与投标文件是否一致。',
+    ],
+  },
+  {
+    label: '异议处理',
+    items: [
+      '如对唱标内容有异议，请在异议窗口内通过系统提交，我们将依规处理。',
+      '异议已收到，工作人员正在核实，请稍候。',
+      '异议已处理完毕，感谢各家配合。',
+    ],
+  },
+  {
+    label: '结束离场',
+    items: [
+      '本次开标会各项议程已全部完成，感谢各位投标人参与，开标会到此结束。',
+      '开标记录已生成，请各家确认后离场，谢谢。',
+    ],
+  },
+  {
+    label: '通用',
+    items: [
+      '请各位投标人保持在线，不要关闭会场。',
+      '如遇系统问题，请及时通过会场交流联系工作人员。',
+      '会场纪律提醒：请勿在会场内发布与开标无关的内容。',
+    ],
+  },
+];
+
 export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: string; initialStageClosed?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
@@ -29,12 +80,14 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   const [control, setControl] = useState<'OPEN' | 'MUTED' | 'CLOSED'>('OPEN');
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [showPhrases, setShowPhrases] = useState(false);
   const [checkins, setCheckins] = useState<Record<string, string>>({});
   // R4：stage:change 离开 OPENING 后关闭输入；Wave 5-6：初值由页面当前项目阶段同步
   // （纯事件驱动时，阶段已离 OPENING 后才开的抽屉初始仍可输入，首次发送撞 403）
   const [stageClosed, setStageClosed] = useState(initialStageClosed ?? false);
   const hydratedRef = useRef(false); // R3：本轮打开是否已首载（决定重连后是否补齐）
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const toMsg = (d: HallMessagePayload): Msg => ({
     id: d.id, senderRole: d.senderRole, senderName: d.senderName, content: d.content, createdAt: d.createdAt,
@@ -157,6 +210,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
     setStageClosed(initialStageClosed ?? false);
     setControl('OPEN'); // M1：避免 A 项目的 CLOSED 串到 B 项目（control 无 REST 来源，仅事件驱动）
     setInput('');
+    setShowPhrases(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在切项目时以新项目阶段初值复位；initialStageClosed 的后续变化由下方只升不降的 effect 接管
   }, [projectId]);
 
@@ -336,8 +390,35 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
 
           <div className="border-t border-[oklch(0.6_0.04_258_/_0.14)]">
             {inputHint && <div className="px-3 pt-2 text-[11px] font-medium text-[var(--warning)]">{inputHint}</div>}
+            {/* 主持人常用语：点击填入输入框（可再编辑后发送）；输入禁用（阶段结束/大厅关闭）时不展开 */}
+            {showPhrases && !inputDisabled && (
+              <div className="max-h-52 overflow-y-auto px-3 pb-1 pt-2">
+                {HOST_PHRASES.map(g => (
+                  <div key={g.label} className="mb-2 last:mb-0">
+                    <div className="mb-1 text-[11px] font-semibold text-[color:var(--muted-foreground)]">{g.label}</div>
+                    <div className="flex flex-col gap-1">
+                      {g.items.map(p => (
+                        <button key={p} type="button"
+                          onClick={() => { setInput(p); setShowPhrases(false); inputRef.current?.focus(); }}
+                          className="rounded-lg bg-[oklch(0.985_0.006_258)] px-2.5 py-1.5 text-left text-xs leading-relaxed text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.7),1px_1px_3px_oklch(0.55_0.03_258_/_0.1),-1px_-1px_2px_oklch(1_0_0_/_0.8)] transition-colors hover:bg-[oklch(0.96_0.02_258)] hover:text-[color:var(--accent-strong)]">
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2 p-3">
+              <button type="button"
+                onClick={() => setShowPhrases(s => !s)}
+                disabled={inputDisabled}
+                title="常用语"
+                className={`inline-flex items-center !h-[40px] gap-1 whitespace-nowrap !px-2.5 text-xs ${showPhrases && !inputDisabled ? segActive : 'neu-btn-xs'}`}>
+                <MessageSquareQuote size={15} />常用语
+              </button>
               <input
+                ref={inputRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !(e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229)) send(); }}
