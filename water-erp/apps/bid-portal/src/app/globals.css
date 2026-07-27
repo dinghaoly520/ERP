@@ -1065,3 +1065,29 @@ select.neu-select {
 .bid-ring-num[data-urgent="warn"] { color: var(--warning); }
 .bid-ring-num[data-urgent="danger"] { color: var(--danger); }
 
+/* =============================================================================
+   sp-* shell styles — verbatim port from supplier-portal :3004 MainLayout.vue
+   顶栏（品牌 + 通知 + 用户瓷片 + 退出）与面包屑，视觉与 :3004 一致。
+   类名保持 sp- 前缀，与本文件既有定义零冲突；旧 flow-header / neu-chip /
+   bid-bell 等定义保留不动（可能仍被他处引用）。
+   ============================================================================= */
+.sp-header{position:sticky;top:0;z-index:50;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;height:72px;padding:0 24px;background:oklch(0.985 0.006 258 / 0.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid oklch(0.6 0.04 258 / 0.14);}
+.sp-header-left,.sp-header-right{display:flex;align-items:center;gap:12px;}
+.sp-brand{display:flex;align-items:center;gap:10px;text-align:left;background:none;border:none;cursor:pointer;padding:0;}
+.sp-brand-logo{height:40px;width:auto;object-fit:contain;}
+.sp-brand-title{display:block;font-size:18px;font-weight:900;letter-spacing:0.10em;font-family:"SimHei","黑体",sans-serif;background:linear-gradient(to right,#1a2332,#2563EB,#0891b2,#18a56c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;background-size:200% auto;animation:spBrandShift 6s ease infinite;}
+@keyframes spBrandShift{0%{background-position:0% center}50%{background-position:100% center}100%{background-position:0% center}}
+.sp-header-icon{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;color:#5a6d8a;border-radius:12px;cursor:pointer;transition:all .18s ease;border:1px solid #e5ecf4;background:#f8fbff;position:relative;}
+.sp-header-icon:hover{color:#064ea2;border-color:#bfdbfe;background:#eff6ff;}
+.sp-user-pill{display:flex;align-items:center;gap:8px;cursor:default;padding:4px 12px 4px 4px;border-radius:12px;transition:background .18s ease;border:1px solid #e5ecf4;background:#fff;box-shadow:0 1px 3px rgba(15,47,87,.04);}
+.sp-user-avatar{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#064ea2,#0b63ce);color:#fff;font-size:12px;font-weight:900;flex-shrink:0;}
+.sp-user-name{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:800;color:#18243a;}
+.sp-user-arrow{color:#8a96aa;display:inline-flex;}
+.sp-logout-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:12px;border:1px solid #d5e0ef;background:#fff;color:#5a6d8a;font-size:14px;font-weight:700;cursor:pointer;transition:all .18s ease;}
+.sp-logout-btn:hover{border-color:#e74c3c;color:#e74c3c;}
+.sp-breadcrumb{display:flex;align-items:center;gap:8px;padding:10px 18px;border-radius:12px;background:oklch(0.99 0.004 258 / 0.55);font-size:13px;flex-shrink:0;}
+.sp-breadcrumb-link{color:#8a96aa;font-weight:600;text-decoration:none;transition:color .15s;}
+.sp-breadcrumb-link:hover{color:#064ea2;}
+.sp-breadcrumb-current{color:#18243a;font-weight:700;}
+.sp-breadcrumb-sep{color:#c2ccda;}
+

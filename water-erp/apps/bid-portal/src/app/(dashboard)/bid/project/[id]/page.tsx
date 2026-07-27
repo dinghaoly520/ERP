@@ -16,6 +16,14 @@ import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { toast } from 'sonner';
 
+/* 面包屑末段标签：工作区 tab key → 中文名（对齐 :3004 sp-breadcrumb 语义）*/
+const TAB_LABELS: Record<TabDef['key'], string> = {
+  open: '开标大厅',
+  supervise: '监督视图',
+  evaluate: '评标管理',
+  standard: '评分标准',
+};
+
 /* ── Sound Engine helpers（从 opening-hall 上提：解密音效由页级 socket 驱动，跨 tab 常驻）── */
 function playTone(ctx: AudioContext, freq: number, duration: number, type: OscillatorType = 'sine') {
   try {
@@ -190,6 +198,15 @@ function WorkspaceInner() {
 
   return (
     <div className="space-y-5">
+      {project && (
+        <nav className="sp-breadcrumb" aria-label="面包屑">
+          <a className="sp-breadcrumb-link" href="/bid">开标任务板</a>
+          <span className="sp-breadcrumb-sep">/</span>
+          <span className="sp-breadcrumb-current">{project.projectCode} · {project.name}</span>
+          <span className="sp-breadcrumb-sep">/</span>
+          <span className="sp-breadcrumb-current">{TAB_LABELS[current]}</span>
+        </nav>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ProjectTabs stage={stage} current={current} onSwitch={switchTab} />
         <span className="text-[11px] text-[color:var(--muted-foreground)]">
