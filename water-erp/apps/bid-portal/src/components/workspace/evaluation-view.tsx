@@ -1,168 +1,125 @@
 'use client';
 
 /**
- * 只读评标管理视图——:3007 项目工作区「评标管理」tab（Phase 2 · T16）。
- * 移植自 apps/web/src/components/projects/bid-confirm/evaluation-block.tsx
- * （:3005 开评标指挥中心评标区块，源文件 684 行）：进度四联、专家状态卡、
- * 专家×供应商评分矩阵（偏差 >20% 标异常）、供应商汇总排名（官方结果 /
- * 实时均分参考）、偏差异常清单。
+ * 只读评标管理视图——:3007 项目工作区「评标管理」tab。
+ * 本组件是旧 :3007 评标页（bid/evaluate/page.tsx）渲染树的逐字复刻：进度四联磁贴、
+ * 专家状态玻璃卡（3 徽标 + 已评分工作量条 + 整体进度条 + 平均分 + 点击展开每供应商进度）、
+ * 专家×供应商评分矩阵（表头解密标签 + 得分分布迷你折线，单元格悬停 CellTooltip，偏差 >20%
+ * 标异常，表下展开专家明细）、供应商评分汇总（排名 / 单位 / 5 分类列「通过·不通过」结论 +
+ * 数值类均分悬停专家明细 / 总分平均 / 推荐列，表头未确认红点脉冲 + 名单 hover 浮窗）。
+ * 全部 className / inline style / #hex 配色 / glass-card·workbench-table·Manrope 类原样保留。
  *
- * 只读裁剪（总则：所有流程流转归 :3005，本端零操作按钮）：
- * - 已删除：进入评标阶段的横幅按钮与对应提交 handler（源 L219-230 / L292-313）；
- * - 已删除：结果生成按钮 + 3 步确认向导模态与对应提交 handler（源 L232-246 / L272-276 / L570-681）；
- * - 已删除：提醒专家按钮及 busy 操作态（源文件移植到 :3005 时已剥离，本次确认无残留）；
- * - 改动：进度第四联源为「可生成结果」（服务结果生成向导），本端改为「得分异常数」。
+ * operation controls omitted (read-only tab)：旧页的阶段流转、结果生成、归档等写入操作件
+ * 及其向导模态已全部剥离——相关流转统一在采购管理工作台（:3005）进行，本页只读。
  *
- * 信息量对齐（2026-07 parity）：在保持零操作按钮前提下，从旧 :3007 评标页补回展示元素——
- * 专家卡三指标（已评分供应商数/整体进度/平均分）、矩阵表头解密状态+得分分布迷你折线、
- * 供应商汇总改按分类表（通过性结论/数值类均分+专家明细展开/总分平均/推荐列）、未确认报告脉冲。
- *
- * 实时性：评标在场事件（expert:presence / expert:presence:aggregate / stage 变更）
- * 驱动项目上下文 refetch（专家签到/评分进度回流）+ 官方结果重拉。
+ * 数据源改造（唯一偏离旧页逻辑处）：project 不再自取，改由 useBidProjectContext 提供
+ * （experts 元素自带 scoreRecords）；评标结果经 listEvaluationResults 读取；实时性由
+ * useBidWebSocket 的在场 / 阶段事件驱动 onRefresh（上下文 refetch）与结果重拉。
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  AlertTriangle, ChevronDown, ChevronRight, ClipboardCheck,
-  FileCheck, ShieldCheck, Trophy, UserCheck, X,
+  UserCircle, CheckCircle, Clock, ShieldCheck, FileCheck,
+  ChevronDown, ChevronRight, AlertTriangle, Play,
+  Trophy, X, Users,
 } from 'lucide-react';
-import { CATEGORY_COLOR, CATEGORY_LABEL, DECRYPT_LABEL, isPassFailCategory } from '@water-erp/shared';
-import { listEvaluationResults, type EvaluationResultRow } from '@/lib/api/bid';
-import type { BidProjectDetail, ScoreCategory } from '@/lib/types';
+import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, isPassFailCategory } from '@water-erp/shared';
+import { MetricCard, SectionCard } from '@water-erp/ui';
+import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { listEvaluationResults, type EvaluationResultRow } from '@/lib/api/bid';
 
-/** 通过性类别（满分 0，只记通过/不通过） */
-const PASS_FAIL_CATEGORIES: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE'];
-const ANOMALY_THRESHOLD = 20; // 偏差 >20% 标异常
-
-/** 汇总分类列顺序（旧评标页 CATEGORY_ORDER） */
-const CATEGORY_ORDER: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
-
-/** 评标前置阶段中文标签（阶段闸门空态展示用） */
-const PRE_EVAL_STAGE_LABEL: Record<string, string> = { DOWNLOAD: '文件下载', SUBMIT: '投标提交' };
-
+/* ── Local types ── */
 type ExpertInfo = BidProjectDetail['experts'][number];
 type SupplierInfo = BidProjectDetail['suppliers'][number];
+type ScoreItemInfo = BidProjectDetail['scoreItems'][number];
 
-/** 后端 BidEvaluationResult 另含 disqualified / averageScore（T8 EvaluationResultRow 仅声明子集）；本地交叉补齐。
+/** 后端 BidEvaluationResult 另含 disqualified / averageScore（EvaluationResultRow 仅声明子集）；本地交叉补齐。
  *  averageScore = 去极值后平均总分（官方结果优先展示列）；后端缺省时回退 totalScore。 */
 type OfficialResultRow = EvaluationResultRow & { disqualified?: boolean; averageScore?: string };
 
-/* ── 聚合工具（源 evaluation-block.tsx L40-83 原样移植）── */
-
 interface ExpertSupplierCell {
-  totalScore: number;
-  maxScore: number;
-  scoredCount: number;
-  items: { name: string; category: ScoreCategory; score: number; maxScore: number; passed?: boolean | null; reason?: string | null }[];
+  totalScore: number; maxScore: number; scoredCount: number; totalCount: number;
+  items: { name: string; score: number; maxScore: number; passed?: boolean | null; reason?: string | null; category?: string }[];
 }
 type ExpertSupplierMatrix = Map<string, Map<string, ExpertSupplierCell>>;
+interface SupplierCategoryCell { sum: number; max: number; count: number; }
+type SupplierCategoryMatrix = Map<string, Map<string, SupplierCategoryCell>>;
 
-function buildExpertSupplierMatrix(detail: BidProjectDetail): ExpertSupplierMatrix {
-  const itemMap = new Map(detail.scoreItems.map(si => [si.id, si]));
+const CATEGORY_ORDER = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'] as const;
+
+/* ── Data aggregation ── */
+function buildExpertSupplierMatrix(
+  experts: ExpertInfo[], scoreItemMap: Map<string, ScoreItemInfo>, suppliers: SupplierInfo[],
+): ExpertSupplierMatrix {
   const matrix: ExpertSupplierMatrix = new Map();
-  for (const expert of detail.experts) {
-    const row: Map<string, ExpertSupplierCell> = new Map();
-    for (const supplier of detail.suppliers) {
-      row.set(supplier.id, { totalScore: 0, maxScore: 0, scoredCount: 0, items: [] });
+  for (const expert of experts) {
+    const expertRow: Map<string, ExpertSupplierCell> = new Map();
+    for (const supplier of suppliers) {
+      expertRow.set(supplier.id, { totalScore: 0, maxScore: 0, scoredCount: 0, totalCount: scoreItemMap.size, items: [] });
     }
     for (const record of expert.scoreRecords) {
-      const item = itemMap.get(record.scoreItemId);
+      const item = scoreItemMap.get(record.scoreItemId);
       if (!item) continue;
-      const cell = row.get(record.supplierId);
+      const cell = expertRow.get(record.supplierId);
       if (!cell) continue;
       const score = Number(record.score);
-      cell.totalScore += score;
-      cell.maxScore += Number(item.maxScore);
-      cell.scoredCount += 1;
-      cell.items.push({
-        name: item.name, category: item.category, score, maxScore: Number(item.maxScore),
-        passed: record.passed, reason: record.reason,
-      });
+      cell.totalScore += score; cell.maxScore += Number(item.maxScore); cell.scoredCount += 1;
+      cell.items.push({ name: item.name, score, maxScore: Number(item.maxScore), passed: record.passed, reason: record.reason, category: item.category });
     }
-    matrix.set(expert.id, row);
+    matrix.set(expert.id, expertRow);
   }
   return matrix;
 }
 
-/** 各专家对同一供应商的百分制得分（用于偏差检测与实时均分） */
-function supplierPercentScores(detail: BidProjectDetail, matrix: ExpertSupplierMatrix, supplierId: string): number[] {
-  const scores: number[] = [];
-  for (const expert of detail.experts) {
-    const cell = matrix.get(expert.id)?.get(supplierId);
-    if (cell && cell.maxScore > 0) scores.push((cell.totalScore / cell.maxScore) * 100);
-  }
-  return scores;
-}
-
-/** 供应商×分类聚合（sum/max/count 跨全体专家）——汇总表分类均分与总分(平均)的数据源（旧 buildSupplierCategoryMatrix 移植） */
-interface SupplierCategoryCell { sum: number; max: number; count: number; }
-type SupplierCategoryMatrix = Map<string, Map<string, SupplierCategoryCell>>;
-
-function buildSupplierCategoryMatrix(detail: BidProjectDetail): SupplierCategoryMatrix {
-  const itemMap = new Map(detail.scoreItems.map(si => [si.id, si]));
+function buildSupplierCategoryMatrix(
+  experts: ExpertInfo[], scoreItemMap: Map<string, ScoreItemInfo>, suppliers: SupplierInfo[],
+): SupplierCategoryMatrix {
   const matrix: SupplierCategoryMatrix = new Map();
-  for (const supplier of detail.suppliers) {
+  for (const supplier of suppliers) {
     const catMap: Map<string, SupplierCategoryCell> = new Map();
     for (const cat of CATEGORY_ORDER) catMap.set(cat, { sum: 0, max: 0, count: 0 });
     matrix.set(supplier.id, catMap);
   }
-  for (const expert of detail.experts) {
+  for (const expert of experts) {
     for (const record of expert.scoreRecords) {
-      const item = itemMap.get(record.scoreItemId);
+      const item = scoreItemMap.get(record.scoreItemId);
       if (!item) continue;
       const catCell = matrix.get(record.supplierId)?.get(item.category);
       if (!catCell) continue;
-      catCell.sum += Number(record.score);
-      catCell.max = Number(item.maxScore);
-      catCell.count += 1;
+      catCell.sum += Number(record.score); catCell.max = Number(item.maxScore); catCell.count += 1;
     }
   }
   return matrix;
 }
 
-/* ── 迷你环形进度 / 进度磁贴（源 L86-115 原样移植）── */
-
-function Ring({ pct, size = 34, stroke = 4, color }: { pct: number; size?: number; stroke?: number; color: string }) {
+/* ── Ring progress chart ── */
+function RingChart({ pct, size = 56, stroke = 5, color }: { pct: number; size?: number; stroke?: number; color: string }) {
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const dash = circ * Math.min(1, pct / 100);
   return (
-    <div className="relative inline-flex shrink-0 items-center justify-center">
+    <div className="relative inline-flex items-center justify-center">
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="oklch(0.92 0.008 258)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" className="transition-all duration-700"
-        />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="oklch(0.94 0.004 264)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" className="transition-all duration-1000" />
       </svg>
-      <span className="absolute text-[9px] font-extrabold tabular-nums" style={{ color }}>{Math.round(pct)}</span>
+      <span className="absolute text-xs font-extrabold tabular-nums" style={{ color }}>{Math.round(pct)}%</span>
     </div>
   );
 }
 
-function StatTile({ label, value, sub, pct, color }: { label: string; value: string; sub: string; pct: number; color: string }) {
-  return (
-    <div className="flex flex-1 items-center gap-2.5 rounded-[14px] px-3 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.4)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
-      <Ring pct={pct} color={color} />
-      <div className="min-w-0">
-        <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</div>
-        <div className="text-sm font-black tabular-nums tracking-[-0.02em] text-[var(--foreground)]">{value}</div>
-        <div className="truncate text-[10px] text-[var(--muted-foreground)]">{sub}</div>
-      </div>
-    </div>
-  );
-}
-
-/** 得分分布迷你折线图（矩阵表头每供应商名下方；纯内联 svg + group-hover 均分提示，非 portal）。旧 DistributionChart 移植 */
+/* ── Score distribution mini line chart ── */
 function DistributionChart({ scores, avg }: { scores: number[]; avg: number }) {
   if (scores.length === 0) return null;
   const w = 52, h = 28, padX = 2, padY = 4;
   const minScore = Math.min(...scores);
   const maxScore = Math.max(...scores);
-  const range = maxScore - minScore || 1; // 全等时避免除零
-  // 上下各扩 15% 留白，极值不贴边；限制在 [0,100]
+  const range = maxScore - minScore || 1; // avoid div-by-zero when all equal
+  // Expand range by 10% so extremes don't clip at egde; keep within [0,100]
   const yMin = Math.max(0, minScore - range * 0.15);
   const yMax = Math.min(100, maxScore + range * 0.15);
   const ySpan = yMax - yMin || 1;
@@ -171,620 +128,691 @@ function DistributionChart({ scores, avg }: { scores: number[]; avg: number }) {
     const x = padX + i * xStep;
     const y = padY + (h - padY * 2) * (1 - (s - yMin) / ySpan);
     return `${x},${y}`;
-  }).join(' ');
+  });
+  const polyline = points.join(' ');
   const avgY = padY + (h - padY * 2) * (1 - (avg - yMin) / ySpan);
   return (
-    <div className="group relative shrink-0" style={{ width: w, height: h }}>
+    <div className="relative group shrink-0" style={{ width: w, height: h }}>
       <svg width={w} height={h} className="block">
-        <line x1={0} x2={w} y1={avgY} y2={avgY} stroke="oklch(0.7 0.02 258)" strokeWidth={0.5} strokeDasharray="2 2" opacity={0.6} />
-        <polyline points={points} fill="none" stroke="var(--accent-strong)" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
+        {/* Grid line at avg */}
+        <line x1={0} x2={w} y1={avgY} y2={avgY}
+          stroke="oklch(0.55 0.01 264)" strokeWidth={0.5} strokeDasharray="2 2" opacity={0.5} />
+        {/* Polyline */}
+        <polyline points={polyline} fill="none" stroke="#064ea2" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
+        {/* Dots */}
         {scores.map((s, i) => {
           const x = padX + i * xStep;
           const y = padY + (h - padY * 2) * (1 - (s - yMin) / ySpan);
-          return <circle key={i} cx={x} cy={y} r={2} fill="white" stroke="var(--accent-strong)" strokeWidth={1.2} />;
+          return <circle key={i} cx={x} cy={y} r={2} fill="white" stroke="#064ea2" strokeWidth={1.2} />;
         })}
       </svg>
-      <div
-        className="pointer-events-none absolute -bottom-1 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] text-white opacity-0 transition group-hover:opacity-100"
-        style={{ background: 'oklch(0.25 0.025 258)' }}
-      >
+      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-[#18243a] text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
         均分 {avg.toFixed(0)}
       </div>
     </div>
   );
 }
 
-/* ═══ 组件 ═══ */
+/* ── Tooltip ── */
+function CellTooltip({ cell, supplierName, expertName, onClose, anchorRect }: {
+  cell: ExpertSupplierCell; supplierName: string; expertName: string; onClose: () => void;
+  anchorRect: DOMRect;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; flip: boolean }>({ left: 0, top: 0, flip: false });
 
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const h = ref.current.offsetHeight;
+    const spaceAbove = anchorRect.top;
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    const left = Math.min(anchorRect.left, window.innerWidth - 340);
+    // Prefer above; flip below if not enough space above
+    const flip = spaceAbove < h + 12 && spaceBelow > spaceAbove;
+    const top = flip ? anchorRect.bottom + 8 : anchorRect.top - h - 8;
+    setPos({ left, top, flip });
+  }, [anchorRect]);
+
+  return createPortal(
+    <div ref={ref}
+      className="fixed z-[9999] w-[320px] rounded-2xl border border-[#dce6f3] bg-white p-4 shadow-[0_18px_60px_rgba(15,47,87,0.15)]"
+      style={{ left: pos.left, top: pos.top }}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold text-[#18243a]">{expertName} → {supplierName}</span>
+        <button onClick={onClose} className="text-[#8a99ad] hover:text-[#18243a]"><X size={12} /></button>
+      </div>
+      <div className="text-xs font-mono font-bold mb-2" style={{ color: '#064ea2' }}>
+        {cell.totalScore.toFixed(1)}/{cell.maxScore} ({cell.scoredCount}/{cell.totalCount} 项)
+      </div>
+      <div className="space-y-1.5">
+        {cell.items.map(item => (
+          <div key={item.name} className="flex items-center justify-between text-[11px]">
+            <span className="text-[#5a6d8a] truncate flex-1">{item.name}</span>
+            <span className="font-mono font-bold text-[#18243a] ml-2">{item.score}/{item.maxScore}</span>
+            {item.reason && <span className="text-[10px] text-[#8a99ad] ml-1">({item.reason})</span>}
+          </div>
+        ))}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function CategoryDetailTooltip({ expertScores, onClose, anchorRect }: {
+  expertScores: { name: string; score: number }[];
+  onClose: () => void;
+  anchorRect: DOMRect;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; flip: boolean }>({ left: 0, top: 0, flip: false });
+
+  useLayoutEffect(() => {
+    if (!ref.current) return;
+    const h = ref.current.offsetHeight;
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    const spaceAbove = anchorRect.top;
+    const left = Math.min(anchorRect.left, window.innerWidth - 220);
+    // Prefer below; flip above if not enough space below
+    const flip = spaceBelow < h + 8 && spaceAbove > h + 8;
+    const top = flip ? anchorRect.top - h - 4 : anchorRect.bottom + 4;
+    setPos({ left, top, flip });
+  }, [anchorRect]);
+
+  return createPortal(
+    <div ref={ref}
+      className="fixed z-[9999] w-48 rounded-xl border border-[#dce6f3] bg-white p-3 shadow-[0_12px_40px_rgba(15,47,87,0.12)]"
+      style={{ left: pos.left, top: pos.top }}>
+      <div className="text-[11px] font-semibold text-[#5a6d8a] mb-1.5">专家明细</div>
+      {expertScores.map(es => (
+        <div key={es.name} className="flex items-center justify-between text-[11px] py-0.5">
+          <span className="text-[oklch(0.55_0.01_264)]">{es.name}</span>
+          <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{es.score.toFixed(1)}</span>
+        </div>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
+/* ═══ View ═══ */
 export default function EvaluationView({ projectId, onRefresh }: { projectId: string; onRefresh: () => void }) {
   const { project } = useBidProjectContext();
   const [results, setResults] = useState<OfficialResultRow[]>([]);
   const [expandedExperts, setExpandedExperts] = useState<Set<string>>(new Set());
-  const [expandedCell, setExpandedCell] = useState<string | null>(null); // `${expertId}:${supplierId}`
-  const [expandedRankRow, setExpandedRankRow] = useState<string | null>(null); // 汇总分类表展开的供应商 id（各分类专家明细）
+  const [expandedCard, setExpandedCard] = useState<Set<string>>(new Set());
 
+  // ═══ New UX state ═══
+  const [tooltip, setTooltip] = useState<{ cell: ExpertSupplierCell; expertName: string; supplierName: string; anchorRect: DOMRect } | null>(null);
+  const [categoryTooltip, setCategoryTooltip] = useState<{ expertScores: { name: string; score: number }[]; anchorRect: DOMRect; key: string } | null>(null);
+
+  /* ── Data loading：评标结果（project 由上下文提供，不再自取）── */
   const loadResults = useCallback(() => {
     listEvaluationResults(projectId).then(setResults).catch(() => {});
   }, [projectId]);
 
-  // 仅按项目挂载拉取（project 每次 socket 刷新都换引用，放入依赖会导致任何无关事件都重拉评标结果）
   useEffect(() => { loadResults(); }, [loadResults]);
 
-  // 评标在场事件 → 刷新项目上下文（专家签到/评分进度实时回流）+ 结果重拉
+  /* ── WebSocket：评标在场 / 阶段事件 → 上下文刷新（专家签到 / 评分进度回流）+ 结果重拉 ── */
   useBidWebSocket(projectId, {
-    onExpertPresence: () => { onRefresh(); },
-    onExpertPresenceAggregate: () => { onRefresh(); },
+    onExpertPresence: () => onRefresh(),
+    onExpertPresenceAggregate: () => onRefresh(),
     onStageChange: () => { onRefresh(); loadResults(); },
   });
 
-  /* ── 派生数据（源 L141-216）── */
-  const matrix = useMemo(() => (project ? buildExpertSupplierMatrix(project) : new Map()), [project]);
+  /* ── Derived data ── */
+  const scoreItemMap = useMemo(() => {
+    if (!project) return new Map<string, ScoreItemInfo>();
+    return new Map(project.scoreItems.map(si => [si.id, si]));
+  }, [project]);
 
-  const supplierAvg = useMemo(() => {
-    if (!project) return new Map<string, number>();
-    const avgs = new Map<string, number>();
-    for (const s of project.suppliers) {
-      const scores = supplierPercentScores(project, matrix, s.id);
-      avgs.set(s.id, scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0);
-    }
-    return avgs;
-  }, [project, matrix]);
+  const expertMatrix = useMemo(() => {
+    if (!project) return new Map<string, Map<string, ExpertSupplierCell>>();
+    return buildExpertSupplierMatrix(project.experts, scoreItemMap, project.suppliers);
+  }, [project, scoreItemMap]);
 
-  /** 供应商×分类聚合（汇总表分类均分 / 总分(平均) 数据源） */
-  const categoryMatrix = useMemo(
-    () => (project ? buildSupplierCategoryMatrix(project) : new Map<string, Map<string, SupplierCategoryCell>>()),
-    [project],
-  );
+  const categoryMatrix = useMemo(() => {
+    if (!project) return new Map<string, Map<string, SupplierCategoryCell>>();
+    return buildSupplierCategoryMatrix(project.experts, scoreItemMap, project.suppliers);
+  }, [project, scoreItemMap]);
 
-  /** 报告确认聚合（汇总表头「未确认」脉冲）——旧 allReportsConfirmed / unconfirmedCount / unconfirmedNames */
   const allReportsConfirmed = useMemo(() => {
-    if (!project || project.experts.length === 0) return false;
+    if (!project) return false;
+    if (project.experts.length === 0) return false;
     return project.experts.every(e => e.reportConfirmed);
   }, [project]);
-  const unconfirmedCount = useMemo(
-    () => (project ? project.experts.filter(e => !e.reportConfirmed).length : 0),
-    [project],
-  );
-  const unconfirmedNames = useMemo(
-    () => (project ? project.experts.filter(e => !e.reportConfirmed).map(e => e.expertName) : []),
-    [project],
-  );
 
-  /** 实时均分排名（未生成官方结果时，仅供参考） */
-  const liveRanks = useMemo(() => {
+  const unconfirmedCount = useMemo(() => {
+    if (!project) return 0;
+    return project.experts.filter(e => !e.reportConfirmed).length;
+  }, [project]);
+
+  const unconfirmedNames = useMemo(() => {
+    if (!project) return [];
+    return project.experts.filter(e => !e.reportConfirmed).map(e => e.expertName);
+  }, [project]);
+
+  // ═══ Progress dashboard metrics ═══
+  const dashMetrics = useMemo(() => {
+    if (!project) return null;
+    const { experts, suppliers } = project;
+    // 进度按「评分项完成度」计算（专家×供应商×评分项），而非 slot 只要有 1 条记录即记满
+    const itemCount = project.scoreItems?.length ?? 0;
+    const totalItemSlots = experts.length * suppliers.length * itemCount;
+    let scoredItems = 0;
+    for (const expert of experts) {
+      const row = expertMatrix.get(expert.id);
+      if (row) for (const supplier of suppliers) {
+        const cell = row.get(supplier.id);
+        if (cell) scoredItems += Math.min(cell.scoredCount, itemCount);
+      }
+    }
+    const scorePct = totalItemSlots > 0 ? Math.round((scoredItems / totalItemSlots) * 100) : 0;
+    const signedIn = experts.filter(e => e.signedIn).length;
+    const reportsDone = experts.filter(e => e.reportConfirmed).length;
+    const canGenerate = allReportsConfirmed;
+    return { scorePct, signedIn, total: experts.length, reportsDone, canGenerate };
+  }, [project, expertMatrix, allReportsConfirmed]);
+
+  const supplierRanks = useMemo(() => {
     if (!project) return new Map<string, number>();
-    const entries = [...project.suppliers].map(s => ({ id: s.id, avg: supplierAvg.get(s.id) ?? 0 }));
+    // 官方结果已生成 → 直接用官方 rank（含去极值后的排序与废标置后）
+    if (results.length > 0) {
+      return new Map(results.map(r => [r.supplierId, r.rank]));
+    }
+    // 未生成：实时均分排名（仅供参考）
+    const entries: { supplierId: string; avg: number }[] = [];
+    for (const supplier of project.suppliers) {
+      const catMap = categoryMatrix.get(supplier.id);
+      if (!catMap) continue;
+      let total = 0;
+      for (const cat of CATEGORY_ORDER) {
+        const cell = catMap.get(cat);
+        if (cell && cell.count > 0) total += cell.sum / cell.count;
+      }
+      entries.push({ supplierId: supplier.id, avg: total });
+    }
     entries.sort((a, b) => b.avg - a.avg);
-    const ranks = new Map<string, number>();
+    const rankMap = new Map<string, number>();
     let rank = 1;
     for (let i = 0; i < entries.length; i++) {
       if (i > 0 && entries[i].avg < entries[i - 1].avg) rank = i + 1;
-      ranks.set(entries[i].id, rank);
+      rankMap.set(entries[i].supplierId, rank);
     }
-    return ranks;
-  }, [project, supplierAvg]);
+    return rankMap;
+  }, [project, categoryMatrix, results]);
 
-  if (!project) return null;
-  const { stage, experts, suppliers, scoreItems } = project;
-
-  // 阶段闸门（源 L170）：开标前阶段无评标数据——源返回 null，tab 化改空态卡
-  if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') {
-    return (
-      <section className="neu-card-static px-5 py-10 text-center text-xs leading-5 text-[var(--muted-foreground)]">
-        项目处于「{PRE_EVAL_STAGE_LABEL[stage] ?? stage}」阶段，尚未进入评标——在线开标启动后评标数据将实时回流至本视图
-      </section>
-    );
-  }
-
-  const signedIn = experts.filter(e => e.signedIn).length;
-  const reportsDone = experts.filter(e => e.reportConfirmed).length;
-
-  const itemCount = scoreItems.length;
-  const totalSlots = experts.length * suppliers.length * itemCount;
-  let scoredSlots = 0;
-  for (const expert of experts) {
-    const row = matrix.get(expert.id);
-    if (row) for (const s of suppliers) scoredSlots += Math.min(row.get(s.id)?.scoredCount ?? 0, itemCount);
-  }
-  const scorePct = totalSlots > 0 ? Math.round((scoredSlots / totalSlots) * 100) : 0;
-
-  /** 官方排名（含废标置后）或实时排名 */
-  const rankedSuppliers = [...suppliers].sort((a, b) => {
+  const rankedSuppliers = useMemo(() => {
+    if (!project) return [];
+    // 官方结果已生成 → 按官方 rank 排序（废标置后），否则按实时均分
     if (results.length > 0) {
       const rankOf = new Map(results.map(r => [r.supplierId, r.rank]));
-      return (rankOf.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rankOf.get(b.id) ?? Number.MAX_SAFE_INTEGER);
+      return [...project.suppliers].sort((a, b) => (rankOf.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rankOf.get(b.id) ?? Number.MAX_SAFE_INTEGER));
     }
-    return (supplierAvg.get(b.id) ?? 0) - (supplierAvg.get(a.id) ?? 0);
-  });
-
-  /** 偏差异常清单（某专家对某供应商的百分制得分偏离全体均分 >20%） */
-  const anomalies: { expert: ExpertInfo; supplier: SupplierInfo; pct: number; avg: number }[] = [];
-  for (const expert of experts) {
-    for (const s of suppliers) {
-      const cell = matrix.get(expert.id)?.get(s.id);
-      if (!cell || cell.maxScore <= 0) continue;
-      const pct = (cell.totalScore / cell.maxScore) * 100;
-      const avg = supplierAvg.get(s.id) ?? 0;
-      if (avg > 0 && Math.abs(pct - avg) > ANOMALY_THRESHOLD) {
-        anomalies.push({ expert, supplier: s, pct, avg });
+    return [...project.suppliers].sort((a, b) => {
+      const catMapA = categoryMatrix.get(a.id);
+      const catMapB = categoryMatrix.get(b.id);
+      let totalA = 0, totalB = 0;
+      for (const cat of CATEGORY_ORDER) {
+        const cellA = catMapA?.get(cat);
+        const cellB = catMapB?.get(cat);
+        if (cellA && cellA.count > 0) totalA += cellA.sum / cellA.count;
+        if (cellB && cellB.count > 0) totalB += cellB.sum / cellB.count;
       }
-    }
-  }
+      return totalB - totalA;
+    });
+  }, [project, categoryMatrix, results]);
 
-  const isCellAnomaly = (expertId: string, supplierId: string): boolean => {
-    const cell = matrix.get(expertId)?.get(supplierId);
-    if (!cell || cell.maxScore <= 0) return false;
-    const avg = supplierAvg.get(supplierId) ?? 0;
-    return avg > 0 && Math.abs((cell.totalScore / cell.maxScore) * 100 - avg) > ANOMALY_THRESHOLD;
-  };
+  // ═══ Anomaly detection ═══
+  const anomalyThreshold = 20; // deviation >20% flagged
+  const supplierAverages = useMemo(() => {
+    if (!project) return new Map<string, number>();
+    const avgs = new Map<string, number>();
+    for (const supplier of project.suppliers) {
+      const scores: number[] = [];
+      for (const expert of project.experts) {
+        const cell = expertMatrix.get(expert.id)?.get(supplier.id);
+        if (cell && cell.maxScore > 0) scores.push((cell.totalScore / cell.maxScore) * 100);
+      }
+      avgs.set(supplier.id, scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0);
+    }
+    return avgs;
+  }, [project, expertMatrix]);
+
+  /* ── empty ── */
+  if (!project) return <div className="py-16 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无评标数据</div>;
+
+  const { experts, suppliers } = project;
 
   return (
-    <div className="space-y-4">
-      {/* ── 头部（源 L257-271；结果生成按钮已删，流转归 :3005）── */}
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-        <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]"
-          style={{ background: 'color-mix(in oklch, var(--stage-evaluation, var(--accent)) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}
-        >
-          <ClipboardCheck size={15} className="text-[var(--accent)]" />
+    <div className="space-y-6">
+      {/* ═══ Progress dashboard ═══ */}
+      {dashMetrics && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <MetricCard label="评分进度" value={`${dashMetrics.scorePct}%`} tone={dashMetrics.scorePct >= 80 ? 'green' : dashMetrics.scorePct >= 50 ? 'blue' : 'orange'}
+            icon={<RingChart pct={dashMetrics.scorePct} size={40} stroke={4} color={
+              dashMetrics.scorePct >= 80 ? '#11a874' : dashMetrics.scorePct >= 50 ? '#064ea2' : '#f5a623'
+            } />}
+            hint={dashMetrics.scorePct >= 80 ? '即将完成全部评分' : dashMetrics.scorePct >= 50 ? '评分进行中' : '评分刚起步'}
+          />
+          <MetricCard label="专家签到" value={<><span className="text-[#11a874]">{dashMetrics.signedIn}</span><span className="text-[#8a99ad]">/{dashMetrics.total}</span></>}
+            tone={dashMetrics.signedIn === dashMetrics.total ? 'green' : 'blue'}
+            icon={<Users size={14} />} hint="已签到 / 总计"
+          />
+          <MetricCard label="报告确认" value={<><span className="text-[#11a874]">{dashMetrics.reportsDone}</span><span className="text-[#8a99ad]">/{dashMetrics.total}</span></>}
+            tone={dashMetrics.reportsDone === dashMetrics.total ? 'green' : dashMetrics.reportsDone > 0 ? 'blue' : 'gray'}
+            icon={<FileCheck size={14} />} hint="报告已确认 / 总计"
+          />
+          <MetricCard label="可生成结果" value={dashMetrics.canGenerate ? '是' : '否'}
+            tone={dashMetrics.canGenerate ? 'green' : 'gray'}
+            icon={dashMetrics.canGenerate ? <CheckCircle size={14} /> : <Clock size={14} />}
+            hint={dashMetrics.canGenerate ? '所有报告已确认' : `仍有 ${unconfirmedCount} 位未确认`}
+          />
         </div>
-        <h3 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标管理</h3>
-        {results.length > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', color: 'var(--success)' }}>
-            <Trophy size={10} /> 结果已生成
-          </span>
-        )}
-        <span className="text-[10px] text-[var(--muted-foreground)]">只读视图 · 评标流转操作在采购管理工作台（:3005）进行</span>
-      </div>
+      )}
 
-      {/* ── 进度四联（源 L315-337；第四联源为「可生成结果」，本端改「得分异常数」）── */}
-      <section className="neu-card-static px-4 py-3.5">
-        <div className="flex flex-wrap gap-2.5">
-          <StatTile
-            label="评分进度" value={`${scorePct}%`}
-            sub={scorePct >= 80 ? '即将完成全部评分' : scorePct >= 50 ? '评分进行中' : '评分刚起步'}
-            pct={scorePct} color={scorePct >= 80 ? 'var(--success)' : scorePct >= 50 ? 'var(--accent)' : 'var(--warning)'}
-          />
-          <StatTile
-            label="专家签到" value={`${signedIn}/${experts.length}`} sub="已签到 / 总计"
-            pct={experts.length > 0 ? (signedIn / experts.length) * 100 : 0}
-            color={signedIn === experts.length && experts.length > 0 ? 'var(--success)' : 'var(--accent)'}
-          />
-          <StatTile
-            label="报告确认" value={`${reportsDone}/${experts.length}`} sub="报告已确认 / 总计"
-            pct={experts.length > 0 ? (reportsDone / experts.length) * 100 : 0}
-            color={reportsDone === experts.length && experts.length > 0 ? 'var(--success)' : reportsDone > 0 ? 'var(--accent)' : 'var(--muted-foreground)'}
-          />
-          <StatTile
-            label="得分异常数" value={`${anomalies.length}`}
-            sub={anomalies.length === 0 ? '无偏差超限评分' : `偏差 >${ANOMALY_THRESHOLD}% 待重点复核`}
-            pct={anomalies.length === 0 ? 100 : 0}
-            color={anomalies.length === 0 ? 'var(--success)' : 'var(--danger)'}
-          />
+      {/* ═══ Stage transition（只读横幅：operation controls omitted，流转在 :3005）═══ */}
+      {project.stage === 'OPENING' && (
+        <div className="rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Play size={16} strokeWidth={1.5} className="text-[#064ea2]" />
+            <div>
+              <span className="text-sm font-bold text-[#064ea2]">当前阶段：在线开标</span>
+              <span className="text-xs text-[#5a6d8a] ml-2">— 评标启动 / 生成结果 / 归档均在采购管理工作台（:3005）进行，本页只读</span>
+            </div>
+          </div>
         </div>
-      </section>
+      )}
 
-      {/* ── 专家状态卡（源 L340-431；提醒按钮源已无残留；新增每专家三指标子行）── */}
-      <section className="neu-card-static overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-          <span className="text-[11px] font-bold text-[var(--foreground)]">专家状态</span>
-          <span className="text-[10px] text-[var(--muted-foreground)]">点击展开查看各供应商评分明细</span>
-        </div>
+      {/* ═══ Section 1: Expert status cards ═══ */}
+      <SectionCard title="专家状态" className="overflow-hidden">
         {experts.length === 0 ? (
-          <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">
-            尚未抽取专家{stage !== 'ARCHIVED' && '——请在专家管理中心完成抽取'}
+          <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 flex items-center gap-2">
+            <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)]" />
+            <span className="text-[12px] text-[oklch(0.18_0.012_265)]">暂无专家数据，请先配置评标专家。</span>
           </div>
         ) : (
-          <div>
+          <div className="flex flex-wrap gap-4">
             {experts.map(expert => {
-              const expanded = expandedExperts.has(expert.id);
-              const row = matrix.get(expert.id);
-              // 平均分取「矩阵中该专家已评分供应商的 per-supplier 总分均值」，与上方评分矩阵
-              // 单元格同源同口径（含 DANGER 等所有已打分供应商）。不读持久化 expert.totalScore：
-              // 其一该聚合字段种子未回填（恒 0）；其二 recomputeExpertProgress 的 totalScore 仅累加
-              // 活跃(SUCCESS)供应商，与本矩阵(含 DANGER)口径不一致，会导致平均分与矩阵对不上。
-              const scoredCells = row ? [...row.values()].filter(c => c.scoredCount > 0) : [];
+              const isExpanded = expandedCard.has(expert.id);
+              const row = expertMatrix.get(expert.id);
+              const supplierCount = suppliers.length;
+              // 平均分用「本卡所依赖矩阵中已评分供应商的 per-supplier 总分均值」，与下方
+              // 评分矩阵单元格同口径同数据源；不读持久化 expert.totalScore（种子未回填恒 0，
+              // 且其运行时口径仅含活跃供应商，会与含 DANGER 的矩阵矛盾——旧页此处即 0.0，
+              // 系数据缺陷非设计，故在保持界面逐字不变的前提下校正该单一数值）。
+              const scoredCells = row ? Array.from(row.values()).filter(c => c.scoredCount > 0) : [];
               const scoredCount = scoredCells.length;
-              const avgScore = scoredCount > 0
-                ? (scoredCells.reduce((s, c) => s + c.totalScore, 0) / scoredCount).toFixed(1)
-                : '0.0';
               return (
-                <Fragment key={expert.id}>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedExperts(prev => {
-                      const next = new Set(prev);
-                      if (next.has(expert.id)) next.delete(expert.id); else next.add(expert.id);
-                      return next;
-                    })}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-[oklch(0.97_0.01_258_/_0.5)]"
-                    style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.08)' }}
-                  >
-                    {expanded ? <ChevronDown size={13} className="shrink-0 text-[var(--muted-foreground)]" /> : <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />}
-                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
+                <div key={expert.id}
+                  className={`flex-1 min-w-[240px] glass-card-lighter glass-card-blue border p-4 cursor-pointer transition-all duration-300 ${
+                    expert.signedIn && expert.avoidanceConfirmed && expert.reportConfirmed
+                      ? 'border-[#11a874]/30 hover:border-[#11a874]'
+                      : 'border-[oklch(0.91_0.006_264)] hover:border-[oklch(0.82_0.04_258)]'
+                  }`}
+                  onClick={() => setExpandedCard(prev => { const next = new Set(prev); if (isExpanded) next.delete(expert.id); else next.add(expert.id); return next; })}
+                >
+                  {/* Name + specialty */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <UserCircle size={14} strokeWidth={1.5} className="text-[oklch(0.42_0.14_260)] shrink-0" />
+                    <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight truncate">
                       {expert.expertName}
-                      <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
                     </span>
-                    <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.signedIn ? 'var(--success)' : 'var(--muted-foreground)' }}>
-                      <UserCheck size={11} /> {expert.signedIn ? '已签到' : '未签到'}
+                    {expert.major && <span className="text-[11px] text-[oklch(0.62_0.008_264)] shrink-0">{expert.major}</span>}
+                    {isExpanded ? <ChevronDown size={12} className="ml-auto text-[oklch(0.55_0.01_264)]" /> : <ChevronRight size={12} className="ml-auto text-[oklch(0.55_0.01_264)]" />}
+                  </div>
+
+                  {/* Status badges */}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5"
+                      style={{ color: expert.signedIn ? 'oklch(0.54 0.16 158)' : 'oklch(0.62 0.008 264)', backgroundColor: expert.signedIn ? 'oklch(0.96 0.03 158)' : 'oklch(0.97 0.004 264)' }}>
+                      {expert.signedIn ? <CheckCircle size={10} strokeWidth={2} /> : <Clock size={10} strokeWidth={2} />}
+                      {expert.signedIn ? '已签到' : '未签到'}
                     </span>
-                    <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.avoidanceConfirmed ? 'var(--success)' : 'var(--warning)' }}>
-                      <ShieldCheck size={11} /> {expert.avoidanceConfirmed ? '已回避确认' : '待回避确认'}
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5"
+                      style={{ color: expert.avoidanceConfirmed ? 'oklch(0.54 0.16 158)' : 'oklch(0.64 0.16 82)', backgroundColor: expert.avoidanceConfirmed ? 'oklch(0.96 0.03 158)' : 'oklch(0.96 0.04 85)' }}>
+                      <ShieldCheck size={10} strokeWidth={2} />{expert.avoidanceConfirmed ? '已回避' : '未回避'}
                     </span>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold" style={{ color: expert.reportConfirmed ? 'var(--success)' : 'var(--muted-foreground)' }}>
-                      <FileCheck size={11} /> {expert.reportConfirmed ? '报告已确认' : '报告未确认'}
-                    </span>
-                  </button>
-                  {/* 指标子行（一眼三指标：已评分供应商数 / 整体进度 / 平均分） */}
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 pb-2 pt-1" style={{ background: 'oklch(0.975 0.012 258 / 0.28)' }}>
-                    <span className="inline-flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
-                      已评分 <b className="font-mono tabular-nums text-[var(--foreground)]">{scoredCount}/{suppliers.length}</b> 供应商
-                      <span className="h-1 w-14 overflow-hidden rounded-full" style={{ background: 'oklch(0.94 0.01 258)' }}>
-                        <span className="block h-full transition-all" style={{ width: `${suppliers.length > 0 ? (scoredCount / suppliers.length) * 100 : 0}%`, background: 'var(--accent)' }} />
-                      </span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
-                      整体进度
-                      <span className="h-1 w-14 overflow-hidden rounded-full" style={{ background: 'oklch(0.94 0.01 258)' }}>
-                        <span className="block h-full transition-all" style={{ width: `${expert.progress}%`, background: 'var(--accent)' }} />
-                      </span>
-                      <b className="font-mono tabular-nums text-[var(--accent-strong)]">{expert.progress}%</b>
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[10px] text-[var(--muted-foreground)]">
-                      平均分 <b className="font-mono tabular-nums text-[var(--foreground)]">{avgScore}</b>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5"
+                      style={{ color: expert.reportConfirmed ? 'oklch(0.54 0.16 158)' : 'oklch(0.55 0.01 264)', backgroundColor: expert.reportConfirmed ? 'oklch(0.96 0.03 158)' : 'oklch(0.97 0.004 264)' }}>
+                      <FileCheck size={10} strokeWidth={2} />{expert.reportConfirmed ? '报告已确认' : '报告未确认'}
                     </span>
                   </div>
-                  {expanded && row && (
-                    <div className="px-6 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.35)', borderTop: '1px dashed oklch(0.6 0.04 258 / 0.12)' }}>
-                      {suppliers.length === 0 ? (
-                        <span className="text-[11px] text-[var(--muted-foreground)]">暂无投标供应商</span>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {suppliers.map(s => {
-                            const cell = row.get(s.id);
-                            const scored = cell && cell.scoredCount > 0;
-                            return (
-                              <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                <span className="w-40 shrink-0 truncate text-[11px] font-medium text-[var(--foreground)]">{s.supplierName}</span>
-                                {scored ? (
-                                  <>
-                                    <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--accent-strong)]">
-                                      {cell.totalScore.toFixed(1)}<span className="font-normal text-[var(--muted-foreground)]">/{cell.maxScore}</span>
-                                    </span>
-                                    <span className="text-[10px] text-[var(--muted-foreground)]">{cell.scoredCount}/{scoreItems.length} 项</span>
-                                    <span className="flex flex-wrap gap-1">
-                                      {cell.items.map((it: ExpertSupplierCell['items'][number]) => (
-                                        <span
-                                          key={it.name}
-                                          className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px]"
-                                          title={it.reason ?? undefined}
-                                          style={{
-                                            background: it.passed === false ? 'color-mix(in oklch, var(--danger) 12%, transparent)' : 'oklch(0.94 0.01 258 / 0.7)',
-                                            color: it.passed === false ? 'var(--danger)' : 'var(--muted-foreground)',
-                                          }}
-                                        >
-                                          {it.name}：{PASS_FAIL_CATEGORIES.includes(it.category) ? (it.passed === false ? '不通过' : '通过') : `${it.score}/${it.maxScore}`}
-                                        </span>
-                                      ))}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span className="text-[10px] text-[var(--muted-foreground)]">未评分</span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+
+                  {/* Scoring workload */}
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between text-[10px] text-[oklch(0.62_0.008_264)] mb-1">
+                      <span>已评分</span>
+                      <span className="font-mono">{scoredCount}/{supplierCount} 供应商</span>
+                    </div>
+                    <div className="h-1.5 bg-[oklch(0.94_0.004_264)]">
+                      <div className="h-full bg-[oklch(0.42_0.14_260)] transition-all"
+                        style={{ width: `${supplierCount > 0 ? (scoredCount / supplierCount) * 100 : 0}%` }} />
+                    </div>
+                  </div>
+
+                  {/* Progress + total */}
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex-1 h-1.5 bg-[oklch(0.94_0.004_264)]">
+                      <div className="h-full bg-[oklch(0.42_0.14_260)] transition-all" style={{ width: `${expert.progress}%` }} />
+                    </div>
+                    <span className="text-[11px] font-mono font-semibold text-[oklch(0.42_0.14_260)]">{expert.progress}%</span>
+                  </div>
+                  <div className="text-[12px] text-[oklch(0.55_0.01_264)]">
+                    平均分 <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{scoredCount > 0 ? (scoredCells.reduce((s, c) => s + c.totalScore, 0) / scoredCount).toFixed(1) : '0.0'}</span>
+                  </div>
+
+                  {/* Expandable: per-supplier progress */}
+                  {isExpanded && row && (
+                    <div className="mt-3 pt-3 border-t border-[oklch(0.94_0.004_264)] space-y-1.5">
+                      {suppliers.map(supplier => {
+                        const cell = row.get(supplier.id);
+                        const spct = cell && cell.totalCount > 0 ? Math.round((cell.scoredCount / cell.totalCount) * 100) : 0;
+                        return (
+                          <div key={supplier.id} className="flex items-center gap-2 text-[11px]">
+                            <span className="w-20 truncate text-[oklch(0.55_0.01_264)]">{supplier.supplierName}</span>
+                            <div className="flex-1 h-1 bg-[oklch(0.94_0.004_264)]">
+                              <div className="h-full transition-all" style={{
+                                width: `${spct}%`,
+                                backgroundColor: spct >= 100 ? '#11a874' : spct > 0 ? '#064ea2' : 'oklch(0.88 0.006 264)',
+                              }} />
+                            </div>
+                            <span className="font-mono font-bold w-10 text-right tabular-nums">{cell ? `${cell.totalScore.toFixed(0)}` : '—'}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                </Fragment>
+                </div>
               );
             })}
           </div>
         )}
-      </section>
+      </SectionCard>
 
-      {/* ── 专家×供应商评分矩阵（源 L433-518 原样；外壳换 neu-card-static）── */}
-      {experts.length > 0 && suppliers.length > 0 && (
-        <section className="neu-card-static overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-xs">
-              <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.5)' }}>
-                  <th className="px-3.5 py-2">评分矩阵</th>
-                  {suppliers.map(s => {
-                    const scores = supplierPercentScores(project, matrix, s.id);
-                    const avg = supplierAvg.get(s.id) ?? 0;
+      {/* ═══ Section 2: Expert×Supplier matrix ═══ */}
+      {suppliers.length === 0 ? (
+        <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 mb-8 flex items-center gap-2">
+          <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)]" />
+          <span className="text-[12px] text-[oklch(0.18_0.012_265)]">暂无供应商数据。</span>
+        </div>
+      ) : (
+        <div className="glass-card glass-card-blue mb-8">
+          <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
+            <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+              专家评分概览
+            </h2>
+          </div>
+          {experts.length === 0 ? (
+            <div className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无专家数据</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="workbench-table mx-auto">
+                <thead>
+                  <tr className="text-[oklch(0.55_0.01_264)]">
+                    <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">专家</th>
+                    {suppliers.map(s => {
+                      const scores = experts.map(e => {
+                        const cell = expertMatrix.get(e.id)?.get(s.id);
+                        return cell && cell.maxScore > 0 ? (cell.totalScore / cell.maxScore) * 100 : null;
+                      }).filter(Boolean) as number[];
+                      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+                      return (
+                        <th key={s.id} className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">
+                          <div className="text-[oklch(0.18_0.012_265)]">{s.supplierName}</div>
+                          <div className="flex items-center justify-center gap-2 mt-1">
+                            <span className="text-[10px] font-normal text-[oklch(0.62_0.008_264)]">{DECRYPT_LABEL[s.decryptStatus] || s.decryptStatus}</span>
+                            {scores.length > 1 && <DistributionChart scores={scores} avg={avg} />}
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {experts.map(expert => {
+                    const isExpanded = expandedExperts.has(expert.id);
+                    const row = expertMatrix.get(expert.id);
+                    const hasAnyScore = Array.from(row?.values() ?? []).some(c => c.scoredCount > 0);
                     return (
-                      <th key={s.id} className="px-3.5 py-2 align-top" title={s.supplierName}>
-                        <div className="max-w-[130px] truncate">{s.supplierName}</div>
-                        <div className="mt-1 flex items-center gap-1.5">
-                          <span className="text-[9px] font-normal normal-case tracking-normal text-[var(--muted-foreground)]">
-                            {DECRYPT_LABEL[s.decryptStatus] ?? s.decryptStatus}
-                          </span>
-                          {scores.length > 1 && <DistributionChart scores={scores} avg={avg} />}
-                        </div>
-                      </th>
+                      <tr key={expert.id}>
+                        <td className="px-5 py-3">
+                          <button onClick={() => setExpandedExperts(prev => { const next = new Set(prev); if (isExpanded) next.delete(expert.id); else next.add(expert.id); return next; })} disabled={!hasAnyScore}
+                            className={`inline-flex items-center gap-1.5 text-left ${hasAnyScore ? 'cursor-pointer hover:text-[oklch(0.42_0.14_260)]' : 'cursor-default'} transition-colors`}>
+                            {hasAnyScore && (isExpanded ? <ChevronDown size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" /> : <ChevronRight size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" />)}
+                            <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">{expert.expertName}</span>
+                          </button>
+                        </td>
+                        {suppliers.map(s => {
+                          const cell = row?.get(s.id);
+                          const avg = supplierAverages.get(s.id) ?? 0;
+                          const cellPct = cell && cell.maxScore > 0 ? (cell.totalScore / cell.maxScore) * 100 : null;
+                          const isAnomaly = cellPct !== null && avg > 0 && Math.abs(cellPct - avg) > anomalyThreshold;
+                          if (!cell || cell.scoredCount === 0) {
+                            return <td key={s.id} className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)]">—</td>;
+                          }
+                          return (
+                            <td key={s.id} className="px-5 py-3">
+                              <div className={`relative inline-flex items-center gap-1 cursor-default rounded-md px-2 py-1 transition-all ${
+                                isAnomaly ? 'border border-[#f5a623] bg-[#fef6e8]' : ''
+                              }`}
+                                onMouseEnter={(e) => setTooltip({ cell, expertName: expert.expertName, supplierName: s.supplierName, anchorRect: e.currentTarget.getBoundingClientRect() })}
+                                onMouseLeave={() => setTooltip(null)}
+                              >
+                                <span className="font-mono text-[oklch(0.18_0.012_265)]">
+                                  <span className="font-bold">{cell.totalScore.toFixed(1)}</span>
+                                  <span className="text-[oklch(0.62_0.008_264)]">/{cell.maxScore}</span>
+                                </span>
+                                <span className="text-[11px] text-[oklch(0.62_0.008_264)]">({cell.scoredCount})</span>
+                                {isAnomaly && <AlertTriangle size={10} className="text-[#f5a623]" />}
+                                {tooltip && tooltip.expertName === expert.expertName && tooltip.supplierName === s.supplierName && (
+                                  <CellTooltip cell={cell} expertName={expert.expertName} supplierName={s.supplierName}
+                                    anchorRect={tooltip.anchorRect}
+                                    onClose={() => setTooltip(null)} />
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
                     );
                   })}
-                </tr>
-              </thead>
-              <tbody>
-                {experts.map(expert => (
-                  <Fragment key={expert.id}>
-                    <tr style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
-                      <td className="px-3.5 py-2 font-medium text-[var(--foreground)]">{expert.expertName}</td>
-                      {suppliers.map(s => {
-                        const cell = matrix.get(expert.id)?.get(s.id);
-                        const scored = cell && cell.scoredCount > 0;
-                        const anomaly = isCellAnomaly(expert.id, s.id);
-                        const key = `${expert.id}:${s.id}`;
-                        return (
-                          <td key={s.id} className="px-3.5 py-2">
-                            {scored ? (
-                              <button
-                                type="button"
-                                onClick={() => setExpandedCell(prev => (prev === key ? null : key))}
-                                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums transition-colors hover:bg-[oklch(0.94_0.01_258_/_0.8)]"
-                                title="点击查看评分项明细"
-                                style={{
-                                  color: anomaly ? 'var(--danger)' : 'var(--accent-strong)',
-                                  background: anomaly ? 'color-mix(in oklch, var(--danger) 10%, transparent)' : undefined,
-                                }}
-                              >
-                                {cell.totalScore.toFixed(1)}<span className="text-[9px] font-normal text-[var(--muted-foreground)]">/{cell.maxScore}</span>
-                                {anomaly && <AlertTriangle size={10} />}
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-[var(--muted-foreground)]">—</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    {(() => {
-                      const [exId, spId] = (expandedCell ?? '').split(':');
-                      if (exId !== expert.id) return null;
-                      const cell = matrix.get(expert.id)?.get(spId);
-                      if (!cell || cell.scoredCount === 0) return null;
-                      const supplier = suppliers.find(s => s.id === spId);
-                      return (
-                        <tr key={`${expert.id}-detail`}>
-                          <td colSpan={suppliers.length + 1} className="px-6 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.35)', borderTop: '1px dashed oklch(0.6 0.04 258 / 0.12)' }}>
-                            <div className="mb-1 flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-[var(--muted-foreground)]">
-                                {expert.expertName} → {supplier?.supplierName} · {cell.totalScore.toFixed(1)}/{cell.maxScore}（{cell.scoredCount}/{scoreItems.length} 项）
-                              </span>
-                              <button type="button" onClick={() => setExpandedCell(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={11} /></button>
-                            </div>
-                            <div className="flex flex-wrap gap-x-4 gap-y-1">
-                              {cell.items.map((it: ExpertSupplierCell['items'][number]) => (
-                                <span key={it.name} className="text-[10px] text-[var(--muted-foreground)]" title={it.reason ?? undefined}>
-                                  {it.name}{' '}
-                                  <b style={{ color: it.passed === false ? 'var(--danger)' : 'var(--foreground)' }}>
-                                    {PASS_FAIL_CATEGORIES.includes(it.category) ? (it.passed === false ? '不通过' : '通过') : `${it.score}/${it.maxScore}`}
-                                  </b>
-                                </span>
+                </tbody>
+              </table>
+              {/* Expanded detail panels — one per expanded expert */}
+              {[...expandedExperts].map(expId => {
+                const expert = experts.find(e => e.id === expId);
+                if (!expert) return null;
+                const row = expertMatrix.get(expId);
+                if (!row) return null;
+                return (
+                  <div key={expId} className="border-t border-[oklch(0.91_0.006_264)]">
+                    <div className="p-5 bg-[oklch(0.98_0.005_264)]">
+                      <div className="text-[12px] font-semibold text-[oklch(0.42_0.14_260)] mb-3 tracking-tight">
+                        {expert.expertName} 详细评分
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        {suppliers.map(supplier => {
+                          const cell = row.get(supplier.id);
+                          if (!cell || cell.scoredCount === 0) return null;
+                          return (
+                            <div key={supplier.id} className="glass-card glass-card-lighter glass-card-blue p-4">
+                              <div className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] mb-2 tracking-tight">{supplier.supplierName}</div>
+                              {cell.items.map(item => (
+                                <div key={item.name} className="flex justify-between items-center text-[12px] py-1.5 border-b border-[oklch(0.94_0.004_264)] last:border-0">
+                                  <span className="text-[oklch(0.55_0.01_264)]">{item.name}</span>
+                                  <span className="font-mono">
+                                    <span className="font-bold text-[oklch(0.18_0.012_265)]">{item.score}</span>
+                                    <span className="text-[oklch(0.62_0.008_264)]">/{item.maxScore}</span>
+                                    {item.reason && <span className="text-[oklch(0.55_0.01_264)] ml-1.5 text-[11px]">({item.reason})</span>}
+                                  </span>
+                                </div>
                               ))}
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {anomalies.length > 0 && (
-            <div className="flex items-start gap-1.5 px-3.5 py-2 text-[10px]" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'color-mix(in oklch, var(--danger) 5%, transparent)', color: 'var(--danger)' }}>
-              <AlertTriangle size={11} className="mt-0.5 shrink-0" />
-              <span>{anomalies.length} 处评分偏差超过 {ANOMALY_THRESHOLD}%（与全体均分相比），生成结果前请重点复核。</span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
-        </section>
+        </div>
       )}
 
-      {/* ── 供应商评分汇总（按分类表；旧评标页 L794-918 展示移植，去掉全部操作按钮；结果生成入口归 :3005）── */}
-      <section className="neu-card-static overflow-hidden">
-        <div className="flex items-center justify-between px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
-          <span className="text-[11px] font-bold text-[var(--foreground)]">供应商评分汇总</span>
-          <div className="flex items-center gap-3">
-            {!allReportsConfirmed && experts.length > 0 && (
-              <span className="group relative inline-flex cursor-default items-center gap-1.5 text-[10px] font-semibold" style={{ color: 'var(--warning)' }}>
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" style={{ background: 'var(--danger)' }} />
-                  <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: 'var(--danger)' }} />
-                </span>
-                {unconfirmedCount} 位未确认
-                <span
-                  className="invisible absolute right-0 top-full z-50 mt-1 w-44 rounded-xl border p-2.5 text-left text-[10px] font-normal opacity-0 transition group-hover:visible group-hover:opacity-100"
-                  style={{ background: 'white', borderColor: 'oklch(0.6 0.04 258 / 0.2)', color: 'var(--muted-foreground)', boxShadow: '0 8px 30px oklch(0.3 0.03 258 / 0.12)' }}
-                >
-                  {unconfirmedNames.map((n, i) => <div key={n} className="py-0.5">{i + 1}. {n}</div>)}
-                </span>
-              </span>
-            )}
-            <span className="text-[10px] text-[var(--muted-foreground)]">
-              {results.length > 0 ? '官方结果（去极值 · 废标置后）' : '各分类专家均分 · 实时参考（尚无官方结果）'}
-            </span>
+      {/* ═══ Section 3: Supplier score summary ═══ */}
+      {suppliers.length > 0 && (
+        <div className="glass-card glass-card-blue mb-8">
+          <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+                  供应商评分汇总
+                </h2>
+                <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">各分类展示专家均分。尚无官方结果时排名/总分为实时参考值（未去极值）；官方结果生成后以其为准（≥5 专家去 1 高 1 低、废标置后）。悬停分类得分查看专家明细。</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {!allReportsConfirmed && experts.length > 0 && (
+                  <span className="relative inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#92400e] group cursor-default" title={unconfirmedNames.join('、')}>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e74c3c] opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-[#e74c3c]" />
+                    </span>
+                    {unconfirmedCount} 位未确认
+                    <span className="absolute top-full mt-1 right-0 w-48 rounded-xl border border-[#dce6f3] bg-white p-2.5 text-[11px] text-[#5a6d8a] shadow-[0_8px_30px_rgba(15,47,87,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition z-50 text-left font-normal">
+                      {unconfirmedNames.map((n, i) => <div key={n} className="py-0.5">{i + 1}. {n}</div>)}
+                    </span>
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-        {rankedSuppliers.length === 0 ? (
-          <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">暂无投标供应商</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-xs">
+          <div className="overflow-x-auto overflow-y-visible">
+            <table className="workbench-table mx-auto">
               <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.5)' }}>
-                  <th className="px-3.5 py-2" title="按专家总分均分排名，同分同名次（竞赛式）">排名</th>
-                  <th className="px-3.5 py-2">投标单位</th>
+                <tr className="text-[oklch(0.55_0.01_264)] relative z-0">
+                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="按专家总分均分排名，同分同名次（竞赛式）">排名</th>
+                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">投标单位</th>
                   {CATEGORY_ORDER.map(cat => (
-                    <th key={cat} className="whitespace-nowrap px-3.5 py-2">{CATEGORY_LABEL[cat] ?? cat}</th>
+                    <th key={cat} className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">{CATEGORY_LABEL[cat] || cat}</th>
                   ))}
-                  <th className="whitespace-nowrap px-3.5 py-2" title="商务+技术+价格分类均分之和">总分(平均)</th>
-                  {results.length > 0 && <th className="px-3.5 py-2">推荐</th>}
+                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="商务+技术+价格分类均分之和，满分 100">总分(平均)</th>
+                  {results.length > 0 && (
+                    <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">推荐</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {rankedSuppliers.map(s => {
-                  const catMap = categoryMatrix.get(s.id);
-                  const official = results.find(r => r.supplierId === s.id);
-                  const rank = official ? official.rank : (liveRanks.get(s.id) ?? 0);
-                  const disqualified = official?.disqualified ?? false;
-                  const recommended = official?.recommended ?? false;
-                  // 总分(平均)：官方 averageScore（去极值，缺省回退 totalScore）优先；否则数值类分类均分之和
-                  let liveTotal = 0;
-                  if (catMap) for (const cat of CATEGORY_ORDER) {
-                    if (isPassFailCategory(cat)) continue;
-                    const cell = catMap.get(cat);
-                    if (cell && cell.count > 0) liveTotal += cell.sum / cell.count;
+                {rankedSuppliers.map(supplier => {
+                  const catMap = categoryMatrix.get(supplier.id);
+                  const rank = supplierRanks.get(supplier.id);
+                  // 总分(平均)：各分类均分之和（与 per-category 显示值同源，确保自洽）
+                  let total = 0;
+                  if (catMap) {
+                    for (const cat of CATEGORY_ORDER) {
+                      if (isPassFailCategory(cat)) continue;
+                      const cell = catMap.get(cat);
+                      if (cell && cell.count > 0) total += cell.sum / cell.count;
+                    }
                   }
-                  const overallAvg = official
-                    ? Number(official.averageScore ?? official.totalScore).toFixed(1)
-                    : (liveTotal > 0 ? liveTotal.toFixed(1) : null);
-                  const rowExpanded = expandedRankRow === s.id;
+                  const evalResult = results.find(r => r.supplierId === supplier.id);
+                  // 官方结果已生成 → 显示官方 averageScore（去极值后，缺省回退 totalScore）；否则实时均分（仅供参考）
+                  const overallAvg = evalResult
+                    ? Number(evalResult.averageScore ?? evalResult.totalScore).toFixed(1)
+                    : (total > 0 ? total.toFixed(1) : null);
                   return (
-                    <Fragment key={s.id}>
-                      <tr style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)', opacity: disqualified ? 0.6 : undefined }}>
-                        <td className="px-3.5 py-2">
-                          <span className="font-mono font-bold tabular-nums text-[var(--foreground)]">#{rank}</span>
-                        </td>
-                        <td className="whitespace-nowrap px-3.5 py-2 font-semibold text-[var(--foreground)]">{s.supplierName}</td>
-                        {CATEGORY_ORDER.map(cat => {
-                          // 通过性类别：扫所有专家 matrix cell.items 的 passed，failCount>passCount → 不通过
-                          if (isPassFailCategory(cat)) {
-                            let passCount = 0, failCount = 0;
-                            for (const expert of experts) {
-                              const expertCell = matrix.get(expert.id)?.get(s.id);
-                              if (!expertCell) continue;
-                              for (const it of expertCell.items) {
-                                if (it.category !== cat) continue;
+                    <tr key={supplier.id} className={`transition-colors ${evalResult?.disqualified ? 'opacity-60' : ''}`}>
+                      <td className="px-5 py-3">
+                        {rank != null ? (
+                          <span className="font-mono font-bold text-[oklch(0.18_0.012_265)] transition-all duration-300">#{rank}</span>
+                        ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
+                      </td>
+                      <td className="px-5 py-3 font-semibold text-[oklch(0.18_0.012_265)] whitespace-nowrap">{supplier.supplierName}</td>
+                      {CATEGORY_ORDER.map(cat => {
+                        const cell = catMap?.get(cat);
+                        // ── Pass-fail categories: show verdict ──
+                        if (isPassFailCategory(cat)) {
+                          let passCount = 0, failCount = 0;
+                          for (const expert of experts) {
+                            const expertCell = expertMatrix.get(expert.id)?.get(supplier.id);
+                            if (expertCell) {
+                              const catItems = expertCell.items.filter(i => i.category === cat);
+                              for (const it of catItems) {
                                 if (it.passed === false) failCount++;
                                 else if (it.passed === true) passCount++;
                               }
                             }
-                            const hasVerdict = passCount + failCount > 0;
-                            const failed = failCount > passCount;
-                            return (
-                              <td key={cat} className="px-3.5 py-2">
-                                {hasVerdict ? (
-                                  <span
-                                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
-                                    style={failed
-                                      ? { color: 'var(--danger)', background: 'color-mix(in oklch, var(--danger) 12%, transparent)' }
-                                      : { color: 'var(--success)', background: 'color-mix(in oklch, var(--success) 12%, transparent)' }}
-                                  >
-                                    {failed ? '不通过' : '通过'}
-                                  </span>
-                                ) : <span className="text-[10px] text-[var(--muted-foreground)]">—</span>}
-                              </td>
-                            );
                           }
-                          // 数值类：分类均分 + 色条 + 点击展开各专家明细（click-expand 非 portal）
-                          const cell = catMap?.get(cat);
-                          const avg = cell && cell.count > 0 ? (cell.sum / cell.count).toFixed(1) : null;
+                          const hasVerdict = passCount + failCount > 0;
+                          const failed = failCount > passCount;
                           return (
-                            <td key={cat} className="px-3.5 py-2">
-                              {avg != null ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedRankRow(prev => (prev === s.id ? null : s.id))}
-                                  className="inline-flex items-center gap-1.5 rounded px-1 py-0.5 transition-colors hover:bg-[oklch(0.94_0.01_258_/_0.8)]"
-                                  title="点击查看各专家明细"
-                                >
-                                  <span className="h-3 w-0.5 shrink-0" style={{ background: CATEGORY_COLOR[cat] }} />
-                                  <span className="font-mono font-bold tabular-nums text-[var(--foreground)]">{avg}</span>
-                                </button>
-                              ) : <span className="text-[10px] text-[var(--muted-foreground)]">—</span>}
+                            <td key={cat} className="px-5 py-3">
+                              {hasVerdict ? (
+                                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-full ${failed ? 'text-[#e74c3c] border border-[#e74c3c]/40 bg-[#fef2f2]' : 'text-[#11a874] border border-[#11a874]/40 bg-[#ecfdf5]'}`}>
+                                  {failed ? '不通过' : '通过'}
+                                </span>
+                              ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
                             </td>
                           );
-                        })}
-                        <td className="px-3.5 py-2">
-                          {overallAvg != null ? (
-                            <span className="font-mono font-bold tabular-nums text-[var(--accent-strong)]">{overallAvg}</span>
-                          ) : <span className="text-[10px] text-[var(--muted-foreground)]">—</span>}
-                        </td>
-                        {results.length > 0 && (
-                          <td className="px-3.5 py-2">
-                            {disqualified ? (
-                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: 'var(--danger)', background: 'color-mix(in oklch, var(--danger) 12%, transparent)' }}>废标</span>
-                            ) : recommended ? (
-                              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: 'var(--success)', background: 'color-mix(in oklch, var(--success) 12%, transparent)' }}>
-                                <Trophy size={10} /> 第一中标候选人
+                        }
+                        // ── Numeric categories: show avg ──
+                        const hasData = cell && cell.count > 0;
+                        const avg = hasData ? (cell!.sum / cell!.count).toFixed(1) : null;
+                        const expertScores: { name: string; score: number }[] = [];
+                        if (catMap) {
+                          for (const expert of experts) {
+                            const expertCell = expertMatrix.get(expert.id)?.get(supplier.id);
+                            if (expertCell) {
+                              const catItems = expertCell.items.filter(i => i.category === cat);
+                              const catTotal = catItems.reduce((a, b) => a + b.score, 0);
+                              if (catItems.length > 0) expertScores.push({ name: expert.expertName, score: catTotal });
+                            }
+                          }
+                        }
+                        return (
+                          <td key={cat} className="px-5 py-3">
+                            {avg != null ? (
+                              <span className="inline-flex items-center gap-1.5 cursor-default"
+                                onMouseEnter={(e) => setCategoryTooltip({ expertScores, anchorRect: e.currentTarget.getBoundingClientRect(), key: `${supplier.id}-${cat}` })}
+                                onMouseLeave={() => setCategoryTooltip(null)}
+                              >
+                                <span className="w-0.5 h-3 shrink-0" style={{ backgroundColor: CATEGORY_COLOR[cat] }} />
+                                <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{avg}</span>
+                                {categoryTooltip && categoryTooltip.key === `${supplier.id}-${cat}` && (
+                                  <CategoryDetailTooltip expertScores={categoryTooltip.expertScores}
+                                    anchorRect={categoryTooltip.anchorRect}
+                                    onClose={() => setCategoryTooltip(null)} />
+                                )}
                               </span>
-                            ) : <span className="text-[10px] text-[var(--muted-foreground)]">—</span>}
+                            ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="px-5 py-3">
+                        {overallAvg != null ? (
+                          <span className="font-mono font-bold text-[oklch(0.42_0.14_260)]">{overallAvg}</span>
+                        ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
+                      </td>
+                      {results.length > 0 && (
+                          <td className="px-5 py-3">
+                            {evalResult?.disqualified ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 tracking-wide rounded-full text-[#e74c3c] border border-[#e74c3c]/40 bg-[#fef2f2]">
+                                废标（资格/响应性不通过）
+                              </span>
+                            ) : evalResult?.recommended ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 tracking-wide rounded-full text-[#11a874] border border-[#11a874]/40 bg-gradient-to-r from-[#f0fdf4] to-[#ecfdf5]">
+                                <Trophy size={11} /> 第一中标候选人
+                              </span>
+                            ) : <span className="text-[11px] text-[oklch(0.62_0.008_264)]">—</span>}
                           </td>
                         )}
-                      </tr>
-                      {rowExpanded && (
-                        <tr>
-                          <td colSpan={8 + (results.length > 0 ? 1 : 0)} className="px-6 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.35)', borderTop: '1px dashed oklch(0.6 0.04 258 / 0.12)' }}>
-                            <div className="mb-1.5 flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-[var(--muted-foreground)]">{s.supplierName} · 各分类专家明细</span>
-                              <button type="button" onClick={() => setExpandedRankRow(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={11} /></button>
-                            </div>
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                              {CATEGORY_ORDER.filter(cat => !isPassFailCategory(cat)).map(cat => {
-                                const rows: { name: string; score: number }[] = [];
-                                for (const expert of experts) {
-                                  const expertCell = matrix.get(expert.id)?.get(s.id);
-                                  if (!expertCell) continue;
-                                  const catItems: ExpertSupplierCell['items'] = expertCell.items.filter((i: ExpertSupplierCell['items'][number]) => i.category === cat);
-                                  if (catItems.length === 0) continue;
-                                  rows.push({ name: expert.expertName, score: catItems.reduce((a, b) => a + b.score, 0) });
-                                }
-                                if (rows.length === 0) return null;
-                                return (
-                                  <div key={cat} className="rounded-lg px-2.5 py-2" style={{ background: 'oklch(0.97 0.01 258 / 0.6)' }}>
-                                    <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold text-[var(--foreground)]">
-                                      <span className="h-2.5 w-0.5" style={{ background: CATEGORY_COLOR[cat] }} />
-                                      {CATEGORY_LABEL[cat] ?? cat}
-                                    </div>
-                                    {rows.map(r => (
-                                      <div key={r.name} className="flex items-center justify-between py-0.5 text-[10px]">
-                                        <span className="text-[var(--muted-foreground)]">{r.name}</span>
-                                        <span className="font-mono font-bold tabular-nums text-[var(--foreground)]">{r.score.toFixed(1)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+                    </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        )}
-      </section>
-
-      {/* ── 偏差异常清单（明细行源自向导 step1 L630-641，向导删除后独立为只读卡）── */}
-      {anomalies.length > 0 && (
-        <section className="neu-card-static overflow-hidden">
-          <div className="flex flex-wrap items-center gap-1.5 px-4 py-3" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
-            <AlertTriangle size={12} className="shrink-0 text-[var(--danger)]" />
-            <span className="text-[11px] font-bold text-[var(--foreground)]">评分偏差异常</span>
-            <span className="text-[10px] text-[var(--muted-foreground)]">与全体均分偏差超过 {ANOMALY_THRESHOLD}%，结果生成前请重点复核（生成在 :3005 进行）</span>
-          </div>
-          <div className="space-y-1.5 px-4 py-3">
-            {anomalies.map((a, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-[10px] px-3 py-2" style={{ background: 'color-mix(in oklch, var(--danger) 7%, transparent)' }}>
-                <AlertTriangle size={12} className="shrink-0 text-[var(--danger)]" />
-                <span className="flex-1 text-[11px]">
-                  <b>{a.expert.expertName}</b> 对 <b>{a.supplier.supplierName}</b> 打分
-                  <b className="mx-1 tabular-nums" style={{ color: 'var(--danger)' }}>{a.pct.toFixed(1)}%</b>
-                  （全体均分 <b className="tabular-nums">{a.avg.toFixed(1)}%</b>）
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
+        </div>
       )}
     </div>
   );
