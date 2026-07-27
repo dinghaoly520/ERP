@@ -379,8 +379,15 @@ export default function EvaluationView({ projectId, onRefresh }: { projectId: st
             {experts.map(expert => {
               const expanded = expandedExperts.has(expert.id);
               const row = matrix.get(expert.id);
-              const scoredCount = row ? [...row.values()].filter(c => c.scoredCount > 0).length : 0;
-              const avgScore = scoredCount > 0 ? (Number(expert.totalScore) / scoredCount).toFixed(1) : '0.0';
+              // 平均分取「矩阵中该专家已评分供应商的 per-supplier 总分均值」，与上方评分矩阵
+              // 单元格同源同口径（含 DANGER 等所有已打分供应商）。不读持久化 expert.totalScore：
+              // 其一该聚合字段种子未回填（恒 0）；其二 recomputeExpertProgress 的 totalScore 仅累加
+              // 活跃(SUCCESS)供应商，与本矩阵(含 DANGER)口径不一致，会导致平均分与矩阵对不上。
+              const scoredCells = row ? [...row.values()].filter(c => c.scoredCount > 0) : [];
+              const scoredCount = scoredCells.length;
+              const avgScore = scoredCount > 0
+                ? (scoredCells.reduce((s, c) => s + c.totalScore, 0) / scoredCount).toFixed(1)
+                : '0.0';
               return (
                 <Fragment key={expert.id}>
                   <button
