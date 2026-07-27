@@ -9,6 +9,7 @@ export interface SupplierStats {
   disabled: number;
   blacklist: number;
   returned: number;
+  temporaryApproved: number;
 }
 
 export interface SupplierRecommendation {
@@ -35,7 +36,7 @@ export interface SupplierSelectionResult {
 }
 
 // 供应商列表
-export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string }) {
+export function getSupplierList(params?: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean }) {
   const query = new URLSearchParams();
   if (params?.status) query.set('status', params.status);
   if (params?.classificationId) query.set('classificationId', params.classificationId);
@@ -48,6 +49,7 @@ export function getSupplierList(params?: { status?: string; classificationId?: s
   if (params?.dateTo) query.set('dateTo', params.dateTo);
   if (params?.evalLevel) query.set('evalLevel', params.evalLevel);
   if (params?.qualificationStatus) query.set('qualificationStatus', params.qualificationStatus);
+  if (params?.isTemporary) query.set('isTemporary', 'true');
   return api.get<SupplierListResponse>(`/supplier/list?${query.toString()}`);
 }
 

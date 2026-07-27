@@ -161,6 +161,11 @@ export class ProjectManagementController {
   }
 
   /** 流标后再次采购：按采购方式在定标后插入新一轮"采购文件→定标"阶段 */
+  @Post(':id/extract-tender-fields')
+  extractTenderFields(@Param('id') id: string) {
+    return this.projectManagementService.extractTenderFields(id);
+  }
+
   @Post(':id/reproc')
   reproc(@Param('id') id: string) {
     return this.projectManagementService.reproc(id);

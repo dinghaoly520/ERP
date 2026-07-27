@@ -159,6 +159,7 @@ export class SupplierPortalService {
         phone: dto.phone,
         email: dto.email,
         isPrimary: dto.isPrimary,
+        position: dto.position,
       },
     });
   }
@@ -175,6 +176,7 @@ export class SupplierPortalService {
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.isPrimary !== undefined && { isPrimary: dto.isPrimary }),
+        ...(dto.position !== undefined && { position: dto.position }),
       },
     });
   }

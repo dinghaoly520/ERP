@@ -13,6 +13,9 @@ class ConvertContactDto {
 
   @IsBoolean() @IsOptional()
   isPrimary?: boolean;
+
+  @IsString() @IsOptional()
+  position?: string;
 }
 
 class ConvertQualificationDto {

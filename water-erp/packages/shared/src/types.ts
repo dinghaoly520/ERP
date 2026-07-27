@@ -355,6 +355,8 @@ export interface Supplier {
   contacts?: SupplierContact[];
   qualifications?: SupplierQualification[];
   _count?: { evaluations: number };
+  /** 平均评价等级（取该供应商历史评价 finalGrade 的众数，A/B/C/D/E）；无评价时为 null。由 supplier.service attachAvgScores 附带。 */
+  _avgGrade?: string | null;
 }
 
 export interface SupplierContact {

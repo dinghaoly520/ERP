@@ -164,12 +164,12 @@ const convertForm = ref({
   registeredAddress: '',
   businessScope: '',
   creditCode: '',
-  contacts: [{ name: '', phone: '', email: '', isPrimary: true }] as { name: string; phone: string; email: string; isPrimary: boolean }[],
+  contacts: [{ name: '', phone: '', email: '', position: '', isPrimary: true }] as { name: string; phone: string; email: string; position: string; isPrimary: boolean }[],
   qualifications: [] as { type: string; name: string; fileUrl: string; validFrom: string; validTo: string }[],
 })
 import { ENTERPRISE_TYPES as enterpriseTypes, QUAL_TYPE_OPTIONS as qualTypeOptions } from '@/constants/supplier'
 
-function addContact() { convertForm.value.contacts.push({ name: '', phone: '', email: '', isPrimary: false }) }
+function addContact() { convertForm.value.contacts.push({ name: '', phone: '', email: '', position: '', isPrimary: false }) }
 function removeContact(i: number) { if (convertForm.value.contacts.length > 1) convertForm.value.contacts.splice(i, 1) }
 function addQualification() { convertForm.value.qualifications.push({ type: '资质证书', name: '', fileUrl: '', validFrom: '', validTo: '' }) }
 function removeQualification(i: number) { convertForm.value.qualifications.splice(i, 1) }
@@ -188,7 +188,7 @@ async function openConvertDialog() {
     convertForm.value.businessScope = profile.businessScope || ''
     convertForm.value.creditCode = profile.creditCode || ''
     convertForm.value.contacts = (profile.contacts && profile.contacts.length > 0)
-      ? profile.contacts.map((c: any) => ({ name: c.name || '', phone: c.phone || '', email: c.email || '', isPrimary: !!c.isPrimary }))
+      ? profile.contacts.map((c: any) => ({ name: c.name || '', phone: c.phone || '', email: c.email || '', position: c.position || '', isPrimary: !!c.isPrimary }))
       : [{ name: '', phone: '', email: '', isPrimary: true }]
     convertForm.value.qualifications = []
   } catch { /* 预填失败不阻塞打开弹窗 */ }
@@ -209,7 +209,7 @@ async function submitConvert() {
       registeredAddress: f.registeredAddress.trim(),
       businessScope: f.businessScope.trim(),
       creditCode: f.creditCode.trim(),
-      contacts: f.contacts.map(c => ({ name: c.name.trim(), phone: c.phone.trim(), email: c.email.trim() || undefined, isPrimary: c.isPrimary })),
+      contacts: f.contacts.map(c => ({ name: c.name.trim(), phone: c.phone.trim(), email: c.email.trim() || undefined, position: c.position.trim() || undefined, isPrimary: c.isPrimary })),
       qualifications: f.qualifications.map(q => ({ type: q.type, name: q.name.trim(), fileUrl: q.fileUrl || undefined, validFrom: q.validFrom || undefined, validTo: q.validTo || undefined })),
     })
     ElMessage.success('转正申请已提交，等待审核')
@@ -461,6 +461,7 @@ async function submitConvert() {
             <el-input v-model="c.name" placeholder="姓名 *" class="cv-ci-name" />
             <el-input v-model="c.phone" placeholder="手机号 *" class="cv-ci-phone" />
             <el-input v-model="c.email" placeholder="邮箱（选填）" class="cv-ci-email" />
+            <el-input v-model="c.position" placeholder="职位/职务" class="cv-ci-position" />
             <label class="cv-ci-switch">
               <span class="cv-ci-switch-label">主要</span>
               <el-switch v-model="c.isPrimary" size="small" />
@@ -628,6 +629,7 @@ async function submitConvert() {
 .cv-ci-name { flex: 1; min-width: 0; }
 .cv-ci-phone { flex: 1; min-width: 0; }
 .cv-ci-email { flex: 1.2; min-width: 0; }
+.cv-ci-position { flex: 1; min-width: 0; }
 .cv-ci-switch { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted-foreground); white-space: nowrap; flex-shrink: 0; }
 /* 资质 — 多字段弹性行 + 上传/查看 */
 .cv-qual-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
@@ -637,6 +639,6 @@ async function submitConvert() {
 .cv-upload { flex-shrink: 0; }
 @media (max-width: 760px) {
   .cv-contact-row, .cv-qual-row { flex-wrap: wrap; }
-  .cv-ci-name, .cv-ci-phone, .cv-ci-email, .cv-qs-type, .cv-qs-name, .cv-qs-date { width: 100%; flex: auto; }
+  .cv-ci-name, .cv-ci-phone, .cv-ci-email, .cv-ci-position, .cv-qs-type, .cv-qs-name, .cv-qs-date { width: 100%; flex: auto; }
 }
 </style>

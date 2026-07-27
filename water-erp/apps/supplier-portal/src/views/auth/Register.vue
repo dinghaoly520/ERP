@@ -34,7 +34,7 @@ const companyForm = reactive({
 
 // Step 3: Contacts & Qualifications
 const contacts = ref<any[]>([
-  { name: '', phone: '', email: '', isPrimary: true },
+  { name: '', phone: '', email: '', position: '', isPrimary: true },
 ])
 
 const qualifications = ref<any[]>([
@@ -101,7 +101,7 @@ const steps = [
 ]
 
 function addContact() {
-  contacts.value.push({ name: '', phone: '', email: '', isPrimary: false })
+  contacts.value.push({ name: '', phone: '', email: '', position: '', isPrimary: false })
 }
 
 function removeContact(index: number) {
@@ -179,6 +179,7 @@ async function submitRegister() {
         name: c.name,
         phone: c.phone,
         email: c.email || undefined,
+        position: c.position || undefined,
         isPrimary: c.isPrimary,
       })),
       qualifications: qualifications.value.map(q => ({
@@ -363,6 +364,7 @@ async function submitRegister() {
                 <div class="reg-row-fields">
                   <el-input v-model="c.name" placeholder="姓名" size="large" class="reg-row-input" />
                   <el-input v-model="c.phone" placeholder="手机号" size="large" class="reg-row-input" />
+                  <el-input v-model="c.position" placeholder="职位/职务" size="large" class="reg-row-input" />
                   <el-input v-model="c.email" placeholder="邮箱（选填）" size="large" class="reg-row-input" />
                   <label class="reg-row-switch">
                     <span class="reg-row-switch-label">主要联系人</span>
@@ -482,7 +484,7 @@ async function submitRegister() {
               <dl class="reg-summary">
                 <div v-for="(c, i) in contacts" :key="i" class="reg-summary-item reg-summary-item--wide">
                   <dt>联系人 {{ i + 1 }}{{ c.isPrimary ? ' · 主要' : '' }}</dt>
-                  <dd>{{ c.name || '—' }}　{{ c.phone || '' }}{{ c.email ? `　${c.email}` : '' }}</dd>
+                  <dd>{{ c.name || '—' }}{{ c.position ? `　${c.position}` : '' }}{{ c.phone ? `　${c.phone}` : '' }}{{ c.email ? `　${c.email}` : '' }}</dd>
                 </div>
               </dl>
             </section>

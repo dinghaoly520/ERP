@@ -123,6 +123,15 @@ export async function reprocProject(projectId: string) {
   return parseJsonResponse<{ round: number; inserted: number }>(response);
 }
 
+/** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */
+export async function extractTenderFields(projectId: string) {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return parseJsonResponse<{ projectOverview: string | null; bidOpeningTime: string | null; documentAcquireTime: string | null }>(response);
+}
+
 export async function extractInitiationFields(file: File) {
   const formData = new FormData();
   formData.append('file', file);

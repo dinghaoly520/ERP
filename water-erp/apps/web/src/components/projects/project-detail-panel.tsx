@@ -7,6 +7,7 @@ import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
   analyzeProjectManagementItem,
   completeProjectManagementItem,
+  extractTenderFields,
   reprocProject,
   fetchProjectAttributions,
   refreshProjectSummary,
@@ -303,7 +304,21 @@ export function ProjectDetailPanel({
   const [localItem, setLocalItem] = useState(item);
 
   // 父组件重新渲染后同步本地镜像
-  useEffect(() => { setLocalItem(item); }, [item]);
+  useEffect(() => {
+    if (tenderFileJustDeletedRef.current) {
+      tenderFileJustDeletedRef.current = false;
+      // 删除采购文件后：同步非提取字段（stages等），但保持提取字段为 null
+      setLocalItem((prev) => prev ? {
+        ...item,
+        projectOverview: null,
+        bidOpeningTime: null,
+        documentAcquireTime: null,
+        evaluationMethod: null,
+      } : item);
+      return;
+    }
+    setLocalItem(item);
+  }, [item]);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number } | null>(null);
@@ -387,6 +402,7 @@ export function ProjectDetailPanel({
   const [summaryRefreshing, setSummaryRefreshing] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [tenderWriteStageAction, setTenderWriteStageAction] = useState<string | null>(null);
+  const [aiExtracting, setAiExtracting] = useState(false);
   const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid'>('procurement_document');
@@ -396,6 +412,7 @@ export function ProjectDetailPanel({
 
   // 步骤检查状态 —— 按 stageKey 缓存结果
   const complianceCache = useRef<Map<string, ComplianceAuditResponse>>(new Map());
+  const tenderFileJustDeletedRef = useRef(false); // 删除采购文件时标记，阻止 useEffect[item] 恢复提取字段
   const [complianceAudit, setComplianceAudit] = useState<ComplianceAuditResponse | null>(null);
   const [complianceLoading, setComplianceLoading] = useState(false);
   const [complianceError, setComplianceError] = useState<string | null>(null);
@@ -738,6 +755,32 @@ export function ProjectDetailPanel({
       await onUpdated();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '保存失败。');
+    }
+  };
+
+  const handleAiExtractTender = async () => {
+    // 前置检查：TENDER_DOCUMENT 阶段是否有采购文件
+    const tenderStage = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT');
+    const hasTenderFile = tenderStage?.attachments?.some(
+      (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
+    );
+    if (!hasTenderFile) {
+      setErrorMessage('该步骤暂无采购文件，请先上传后再进行AI提取');
+      return;
+    }
+    setAiExtracting(true);
+    setErrorMessage(null);
+    try {
+      const result = await extractTenderFields(item.id);
+      if (result.projectOverview || result.bidOpeningTime || result.documentAcquireTime) {
+        await onUpdated();
+      } else {
+        setErrorMessage('未能从采购文件中提取到信息，请检查文件内容');
+      }
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : 'AI提取失败');
+    } finally {
+      setAiExtracting(false);
     }
   };
 
@@ -1154,7 +1197,7 @@ export function ProjectDetailPanel({
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span><button type="button" onClick={() => void handleAiExtractTender()} disabled={aiExtracting} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'projectOverview' ? (
                       <div className="mt-1 flex items-start gap-2">
                         <textarea value={editValues.projectOverview} onChange={(e) => setEditValues((prev) => ({ ...prev, projectOverview: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[60px]" autoFocus />
@@ -1168,7 +1211,7 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span><button type="button" onClick={() => void handleAiExtractTender()} disabled={aiExtracting} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="text" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年8月15日" autoFocus />
@@ -1182,10 +1225,10 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span><button type="button" onClick={() => void handleAiExtractTender()} disabled={aiExtracting} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'documentAcquireTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
-                        <input type="text" value={editValues.documentAcquireTime} onChange={(e) => setEditValues((prev) => ({ ...prev, documentAcquireTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年8月1日-8月5日" autoFocus />
+                        <input type="text" value={editValues.documentAcquireTime} onChange={(e) => setEditValues((prev) => ({ ...prev, documentAcquireTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年3月23日9:00-3月26日15:00" autoFocus />
                         <button type="button" onClick={() => void handleSaveField('documentAcquireTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
@@ -1363,11 +1406,40 @@ export function ProjectDetailPanel({
                 files={selectedStage.attachments}
                 projectId={item.id}
                 onDeleted={async (deletedObjectKey) => {
+                  // 判断被删文件是否"采购文件"（信息来源），而非审批表/公告/合同等附件
+                  const deletedFile = selectedStage.attachments.find((a) => a.objectKey === deletedObjectKey);
+                  const deletedName = deletedFile?.fileName || '';
+                  const isTenderDoc = /采购文件|招标文件/.test(deletedName) && !/审批表|公告|合同|通知书|需求|立项/.test(deletedName);
+
+                  if (isTenderDoc && selectedStage.stageKey === 'TENDER_DOCUMENT') {
+                    // 删除采购文件：清空提取信息（DB 持久化）+ 文件分析 + 步骤检查
+                    tenderFileJustDeletedRef.current = true; // 阻止 onUpdated 后 useEffect[item] 恢复提取字段
+                    try {
+                      await updateProjectExtractedInfo(item.id, { projectOverview: '', bidOpeningTime: '', documentAcquireTime: '', evaluationMethod: '' });
+                    } catch (e) {
+                      setErrorMessage(e instanceof Error ? e.message : '清空提取信息失败');
+                    }
+                    // 前端立即清空 localItem（乐观更新，不等 onUpdated）
+                    setLocalItem((prev) => prev ? {
+                      ...prev,
+                      projectOverview: null,
+                      bidOpeningTime: null,
+                      documentAcquireTime: null,
+                      evaluationMethod: null,
+                    } : prev);
+                    setAnalysis(null);
+                    setComplianceAudit(null);
+                    setComplianceError(null);
+                  }
+
                   await onUpdated();
-                  if (analysis) { setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) }); }
-                  // 删除文件后刷新当前阶段的步骤检查
+                  // 非采购文件：仅过滤被删文件的 analysis
+                  if (!isTenderDoc && analysis) {
+                    setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) });
+                  }
+                  // 删除文件后刷新步骤检查（采购文件已清空，不重跑）
                   complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}`);
-                  runComplianceAudit(true);
+                  if (!isTenderDoc) runComplianceAudit(true);
                 }}
                 onEdit={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
               />

@@ -360,7 +360,7 @@ export default function SupplierDetailPage() {
             {/* 右：联系人与账户 */}
             <div className="space-y-2.5">
               {((
-                [primaryContact && { icon: User, label: '主要联系人', value: `${primaryContact.name}${primaryContact.phone ? ' · ' + primaryContact.phone : ''}` },
+                [primaryContact && { icon: User, label: '主要联系人', value: `${primaryContact.name}${primaryContact.position ? ' · ' + primaryContact.position : ''}${primaryContact.phone ? ' · ' + primaryContact.phone : ''}` },
                 { icon: Mail, label: '注册邮箱', value: supplier.user?.email || '未登记' },
                 { icon: Calendar, label: '用户名', value: supplier.user?.username || '—' },
               ] as { icon: React.ComponentType<{ size?: number }>; label: string; value: string }[]).filter(Boolean).map(item => (
@@ -492,6 +492,7 @@ export default function SupplierDetailPage() {
                   </h3>
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
                     <span><span className="text-[var(--muted-foreground)]">姓名：</span><strong className="text-[var(--foreground)]">{primaryContact.name}</strong></span>
+                    {primaryContact.position && <span><span className="text-[var(--muted-foreground)]">职位：</span><strong className="text-[var(--foreground)]">{primaryContact.position}</strong></span>}
                     <span><span className="text-[var(--muted-foreground)]">电话：</span><strong className="text-[var(--foreground)] font-mono">{primaryContact.phone}</strong></span>
                     {primaryContact.email && <span><span className="text-[var(--muted-foreground)]">邮箱：</span><strong className="text-[var(--foreground)]">{primaryContact.email}</strong></span>}
                   </div>
@@ -521,7 +522,7 @@ export default function SupplierDetailPage() {
               <div className="overflow-x-auto">
                 <table className="workbench-table">
                   <thead>
-                    <tr><th>姓名</th><th>手机号</th><th>邮箱</th><th>类型</th></tr>
+                    <tr><th>姓名</th><th>手机号</th><th>邮箱</th><th>职位</th><th>类型</th></tr>
                   </thead>
                   <tbody>
                     {supplier.contacts.map(c => (
@@ -529,6 +530,7 @@ export default function SupplierDetailPage() {
                         <td className="font-semibold text-[var(--foreground)]">{c.name}</td>
                         <td className="text-[var(--muted-foreground)] font-mono text-xs">{c.phone}</td>
                         <td className="text-[var(--muted-foreground)]">{c.email || '—'}</td>
+                        <td className="text-[var(--muted-foreground)]">{c.position || '—'}</td>
                         <td>
                           {c.isPrimary
                             ? <StatusBadge tone="blue">主要联系人</StatusBadge>

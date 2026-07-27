@@ -13,6 +13,7 @@ import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-ht
 import { patchDocx, ConcurrentEditError } from './docx/html-to-docx.patcher';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx';
 import { DocumentParserService } from '../knowledge/services/document-parser.service';
+import { StorageService } from '../storage/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
@@ -158,6 +159,7 @@ export class ProjectManagementService {
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
     private readonly documentParser: DocumentParserService,
+    private readonly storage: StorageService,
   ) {}
 
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
@@ -381,6 +383,44 @@ export class ProjectManagementService {
 
     this.logger.log(`项目 ${itemId} 再次采购：插入第 ${newRound} 轮（${segment.length} 个阶段），currentStage → ${segment[0].key}`);
     return { round: newRound, inserted: segment.length };
+  }
+
+  /**
+   * 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime。
+   * 用于上传时解析失败、用户手动触发重新提取的场景。
+   */
+  async extractTenderFields(itemId: string) {
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: itemId, stageKey: 'TENDER_DOCUMENT' },
+      include: { attachments: true },
+    });
+    if (!stage) throw new NotFoundException({ error: '未找到采购文件阶段', code: 'NOT_FOUND' });
+
+    const tenderFile = stage.attachments.find(
+      (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
+    );
+    if (!tenderFile) throw new BadRequestException({ error: '未找到采购文件，请先上传', code: 'NO_TENDER_FILE' });
+
+    const buffer = await this.storage.download(tenderFile.objectKey);
+    const text = await this.documentParser.parse(buffer, tenderFile.mimeType, tenderFile.fileName);
+    this.logger.log(`[extractTenderFields] ${tenderFile.fileName}: ${text.length} chars`);
+
+    const rawOverview = this.extractProjectOverviewFromText(text);
+    const projectOverview = rawOverview ? await this.aiMinimalPolish(rawOverview) : null;
+    const rawBidTime = this.extractBidOpeningTimeFromText(text);
+    const bidOpeningTime = rawBidTime ? await this.aiNormalizeBidOpeningTime(rawBidTime) : null;
+    const rawAcquireTime = this.extractDocumentAcquireTimeFromText(text);
+    const documentAcquireTime = rawAcquireTime ? await this.aiNormalizeDocumentAcquireTime(rawAcquireTime) : null;
+
+    const updateData: Record<string, string> = {};
+    if (projectOverview) updateData.projectOverview = projectOverview;
+    if (bidOpeningTime) updateData.bidOpeningTime = bidOpeningTime;
+    if (documentAcquireTime) updateData.documentAcquireTime = documentAcquireTime;
+    if (Object.keys(updateData).length > 0) {
+      await this.prisma.projectManagementItem.update({ where: { id: itemId }, data: updateData });
+    }
+
+    return { projectOverview, bidOpeningTime, documentAcquireTime };
   }
 
   async createFromInitiation(dto: CreateProjectFromInitiationDto) {
@@ -726,6 +766,10 @@ export class ProjectManagementService {
 
     // For TENDER_DOCUMENT stage, extract project overview and bid opening time
     if (stageKey === 'TENDER_DOCUMENT') {
+      // 仅从"采购文件/招标文件"提取，审批表/公告/合同等附件不提取（避免覆盖已有信息）
+      const tdFileName = decodedFileName;
+      const isTenderDocFile = /采购文件|招标文件/.test(tdFileName) && !/审批表|公告|合同|通知书|需求|立项/.test(tdFileName);
+      if (isTenderDocFile) {
       try {
         const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
         this.logger.log(`[TENDER_DOCUMENT] Extracted ${text.length} chars from ${file.originalname}`);
@@ -748,9 +792,11 @@ export class ProjectManagementService {
           });
         }
 
-        // 采购文件获取时间：供应商可获取采购文件的时间窗口，
-        // 作为后续发布公告中"采购文件下载时间限制"的数据来源
-        const rawAcquireTime = this.extractDocumentAcquireTimeFromText(text);
+        // 采购文件获取时间：正则优先，失败时用 AI 从文本提取
+        let rawAcquireTime = this.extractDocumentAcquireTimeFromText(text);
+        if (!rawAcquireTime) {
+          rawAcquireTime = await this.aiExtractDocumentAcquireTime(text);
+        }
         if (rawAcquireTime) {
           const documentAcquireTime = await this.aiNormalizeDocumentAcquireTime(rawAcquireTime);
           await this.prisma.projectManagementItem.update({
@@ -760,6 +806,9 @@ export class ProjectManagementService {
         }
       } catch (err) {
         this.logger.warn(`Failed to extract info from tender document: ${err}`);
+      }
+      } else {
+        this.logger.log(`[TENDER_DOCUMENT] 跳过提取（非采购文件）: ${tdFileName}`);
       }
     }
 
@@ -5198,12 +5247,30 @@ ${JSON.stringify(algorithmResult, null, 2)}
         return match[1].replace(/\s+/g, '');
       }
     }
-    // Fallback: standalone date pattern near 开标/截止
+    // Fallback 1: standalone date pattern near 开标/截止（冒号紧邻）
     const contextMatch = text.match(/(开标时间|投标截止时间|响应文件提交截止时间)[：:][^。\n]{0,50}/);
     if (contextMatch) {
       const dateMatch = contextMatch[0].match(/(\d{4}\s*[年月]\s*\d{1,2}\s*[月]\s*\d{1,2}\s*日)/);
       if (dateMatch?.[1]) return dateMatch[1].replace(/\s+/g, '');
     }
+
+    // Fallback 2: "开标时间" 附近 80 字符窗口内找日期+时分（不要求冒号紧邻）
+    // 处理 "响应文件提交截止时间、开标时间：2026年3月27日14:00" 这类合并表述
+    const looserMatch = text.match(/(?:开标时间|投标截止|响应文件提交截止)[^\n]{0,40}?(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2})/);
+    if (looserMatch?.[1]) return looserMatch[1].replace(/\s+/g, '');
+
+    // Fallback 3: 含"开标"的行 + 相邻行的日期
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('开标') || lines[i].includes('投标截止') || lines[i].includes('响应文件提交')) {
+        // 当前 + 后 2 行找日期
+        for (let j = i; j < Math.min(lines.length, i + 3); j++) {
+          const dm = lines[j].match(/(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日(?:\s*\d{1,2}[：:]\d{2})?)/);
+          if (dm?.[1]) return dm[1].replace(/\s+/g, '');
+        }
+      }
+    }
+
     return null;
   }
 
@@ -5296,11 +5363,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
     if (!text) return text;
     try {
       const systemPrompt =
-        '你是采购文件获取时间规范化助手。把输入文本规范化，输出"YYYY年M月D日"（单日）或"YYYY年M月D日-YYYY年M月D日"（区间，用半角连字符"-"分隔起始与结束日期）。' +
-        '规则：① 识别文本中的日期；② 若为时间段输出"起始日期-结束日期"；③ 仅保留日期，去掉时分、星期、解释、引号与前后缀；' +
-        '④ 缺失的年份按上下文推断（若无上下文则保留原文不补）。' +
-        '示例：输入"2026年8月1日至2026年8月5日"→"2026年8月1日-2026年8月5日"；' +
-        '输入"自发布之日起至2026.8.5"→"2026年8月5日"；输入"2026-08-01 ~ 08-05"→"2026年8月1日-2026年8月5日"。';
+        '你是采购文件获取时间规范化助手。把输入文本规范化，输出"YYYY年M月D日HH:MM"（单时刻）或"YYYY年M月D日HH:MM-YYYY年M月D日HH:MM"（区间，用半角连字符"-"分隔）。' +
+        '规则：① 识别文本中的日期与时分；② 若为时间段输出"起始日期时分-结束日期时分"；③ 保留原始时分（如09:00、15:00），去掉星期、解释、引号与前后缀；若原始无时分则只输出日期；' +
+        '④ 缺失的年份按上下文推断。' +
+        '示例：输入"2026年03月23日09:00至2026年03月26日15:00"→"2026年3月23日9:00-2026年3月26日15:00"；' +
+        '输入"2026年8月1日至2026年8月5日"→"2026年8月1日-2026年8月5日"；' +
+        '输入"自发布之日起至2026.8.5"→"2026年8月5日"。';
       const result = await this.aiService.chat(systemPrompt, text, 0.2);
       const cleaned = result?.trim().replace(/^["'"，。.\s]+|["'"，。.\s]+$/g, '');
       if (cleaned && /\d{4}年\d{1,2}月\d{1,2}日/.test(cleaned)) {
@@ -5309,6 +5377,24 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return text;
     } catch {
       return text;
+    }
+  }
+
+  /** AI 从采购文件文本中提取"采购文件获取时间"（正则失败时的兜底）。 */
+  private async aiExtractDocumentAcquireTime(text: string): Promise<string | null> {
+    try {
+      const systemPrompt =
+        '从以下采购文件文本中提取"采购文件获取时间"（供应商可获取/下载/领取采购文件的时间段或截止时间）。' +
+        '只输出时间（如"2026年3月20日至2026年3月25日"或"2026年3月25日前"），不要其他说明。' +
+        '如果文本中没有获取时间信息，输出"无"。';
+      const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1);
+      const cleaned = result?.trim();
+      if (cleaned && cleaned !== '无' && /\d{4}年/.test(cleaned)) {
+        return cleaned;
+      }
+      return null;
+    } catch {
+      return null;
     }
   }
 

@@ -13,7 +13,7 @@ const dialogVisible = ref(false)
 const dialogLoading = ref(false)
 const isEdit = ref(false)
 const editId = ref('')
-const form = ref({ name: '', phone: '', email: '', isPrimary: false })
+const form = ref({ name: '', phone: '', email: '', position: '', isPrimary: false })
 const formDirty = ref(false)
 const dialogGuard = createDialogLeaveGuard(formDirty)
 function markDirty() { formDirty.value = true }
@@ -32,14 +32,14 @@ async function retryLoad() {
 
 function openAdd() {
   isEdit.value = false; editId.value = ''
-  form.value = { name: '', phone: '', email: '', isPrimary: false }
+  form.value = { name: '', phone: '', email: '', position: '', isPrimary: false }
   formDirty.value = false
   dialogVisible.value = true
 }
 
 function openEdit(c: any) {
   isEdit.value = true; editId.value = c.id
-  form.value = { name: c.name, phone: c.phone, email: c.email || '', isPrimary: c.isPrimary }
+  form.value = { name: c.name, phone: c.phone, email: c.email || '', position: c.position || '', isPrimary: c.isPrimary }
   formDirty.value = false
   dialogVisible.value = true
 }
@@ -86,6 +86,7 @@ async function handleDelete(id: string) {
         <el-table-column label="姓名" prop="name" width="160"><template #default="{row}"><div class="contact-name-cell"><el-avatar :size="32" class="contact-avatar">{{ row.name?.charAt(0) }}</el-avatar><span class="contact-name">{{ row.name }}</span></div></template></el-table-column>
         <el-table-column label="手机号" prop="phone" width="160" />
         <el-table-column label="邮箱" prop="email"><template #default="{row}">{{ row.email||'-' }}</template></el-table-column>
+        <el-table-column label="职位" prop="position" width="120"><template #default="{row}">{{ row.position||'-' }}</template></el-table-column>
         <el-table-column label="主要联系人" width="120" align="center"><template #default="{row}"><el-tag :type="row.isPrimary?'primary':'info'" size="small" effect="plain">{{ row.isPrimary?'主要':'普通' }}</el-tag></template></el-table-column>
         <el-table-column label="操作" width="160" align="center"><template #default="{row}"><el-button link type="primary" @click="openEdit(row)">编辑</el-button><el-button link type="danger" @click="handleDelete(row.id)">删除</el-button></template></el-table-column>
       </el-table>
@@ -133,6 +134,12 @@ async function handleDelete(id: string) {
                     <label class="ct-panel-label ct-panel-label--opt">邮箱</label>
                     <input class="ct-panel-input" v-model="form.email" placeholder="请输入邮箱（选填）" @input="markDirty" />
                   </div>
+                  <div class="ct-panel-field">
+                    <label class="ct-panel-label ct-panel-label--opt">职位/职务</label>
+                    <input class="ct-panel-input" v-model="form.position" placeholder="请输入职位/职务" maxlength="50" @input="markDirty" />
+                  </div>
+                </div>
+                <div class="ct-panel-row" style="margin-top:14px">
                   <div class="ct-panel-field ct-panel-field--toggle">
                     <label class="ct-panel-label ct-panel-label--opt">主要联系人</label>
                     <button

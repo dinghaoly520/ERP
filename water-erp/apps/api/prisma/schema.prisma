@@ -822,6 +822,7 @@ model SupplierContact {
   name       String
   phone      String
   email      String?
+  position   String?
   isPrimary  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

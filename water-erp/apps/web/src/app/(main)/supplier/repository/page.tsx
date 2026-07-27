@@ -15,11 +15,12 @@ import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
+import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
 
 export default function SupplierRepositoryPage() {
   const router = useRouter();
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
-  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0, returned: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0, returned: 0, temporaryApproved: 0 });
   const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
@@ -27,6 +28,8 @@ export default function SupplierRepositoryPage() {
   const [sortMode, setSortMode] = useState<'completeness' | 'createdAt'>('completeness');
   // 无「全部」标签：默认落在「已入库」，列表只展示已运营供应商。
   const [filterStatus, setFilterStatus] = useState('APPROVED');
+  // 临时供应商子视图：与 filterStatus='APPROVED' 叠加，仅看凭邀请码注册的临时入库供应商。
+  const [filterIsTemporary, setFilterIsTemporary] = useState(false);
   const [filterClassification, setFilterClassification] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -47,15 +50,19 @@ export default function SupplierRepositoryPage() {
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
 
   // 状态标签定义须先于 loadData 声明（loadData 用到 effectiveStatus，避免 TDZ）。
-  const STATUS_TABS: { label: string; status: string; tone?: string; count?: number; badge?: 'danger' | 'warning' }[] = [
-    { label: '已入库', status: 'APPROVED', tone: 'green' },
-    { label: '待审核', status: 'PENDING', tone: 'blue', count: stats.pending, badge: 'danger' as const },
-    { label: '退回补正', status: 'RETURNED', tone: 'orange', count: stats.returned, badge: 'warning' as const },
-    { label: '已停用', status: 'DISABLED', tone: 'gray' },
-    { label: '黑名单', status: 'BLACKLIST', tone: 'red' },
+  // key 为唯一标识（已入库/临时供应商同为 APPROVED，须靠 key+isTemporary 区分激活态）。
+  const STATUS_TABS: { key: string; label: string; status: string; isTemporary?: boolean; tone?: string; count?: number; badge?: 'danger' | 'warning' }[] = [
+    { key: 'APPROVED', label: '已入库', status: 'APPROVED', tone: 'green' },
+    { key: 'TEMPORARY', label: '临时供应商', status: 'APPROVED', isTemporary: true, tone: 'teal', count: stats.temporaryApproved, badge: 'warning' as const },
+    { key: 'PENDING', label: '待审核', status: 'PENDING', tone: 'blue', count: stats.pending, badge: 'danger' as const },
+    { key: 'RETURNED', label: '退回补正', status: 'RETURNED', tone: 'orange', count: stats.returned, badge: 'warning' as const },
+    { key: 'DISABLED', label: '已停用', status: 'DISABLED', tone: 'gray' },
+    { key: 'BLACKLIST', label: '黑名单', status: 'BLACKLIST', tone: 'red' },
   ];
   // 当前生效的状态过滤：无「全部」标签，filterStatus 恒为某具体状态（默认 APPROVED）。
   const effectiveStatus = filterStatus;
+  // 当前激活的标签 key：临时供应商标签与已入库同为 APPROVED，靠 filterIsTemporary 二选一。
+  const activeTabKey = filterIsTemporary ? 'TEMPORARY' : filterStatus;
 
   const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => {
@@ -137,6 +144,7 @@ export default function SupplierRepositoryPage() {
         classificationId: filterClassification || undefined,
         search: search || undefined, page, pageSize, sort: sortMode,
       };
+      if (filterIsTemporary) params.isTemporary = true;
       if (advEnterpriseTypes.length > 0) params.enterpriseTypes = advEnterpriseTypes.join(',');
       if (advDateFrom) params.dateFrom = advDateFrom;
       if (advDateTo) params.dateTo = advDateTo;
@@ -149,7 +157,7 @@ export default function SupplierRepositoryPage() {
       setError(e?.message || '供应商列表加载失败');
     }
     setLoading(false);
-  }, [effectiveStatus, filterStatus, filterClassification, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus]);
+  }, [effectiveStatus, filterStatus, filterIsTemporary, filterClassification, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus]);
 
   const refreshMeta = useCallback(() => {
     getSupplierStats().then(setStats).catch(() => {});
@@ -226,7 +234,7 @@ export default function SupplierRepositoryPage() {
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.approved}</span>
             <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">正常运营</span>
           </div>
-          <button type="button" onClick={() => { setFilterStatus('PENDING'); setPage(1); }} title="查看待审核供应商" className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
+          <button type="button" onClick={() => { setFilterStatus('PENDING'); setFilterIsTemporary(false); setPage(1); }} title="查看待审核供应商" className="kpi-card group flex h-full flex-col gap-1.5 p-3 text-left cursor-pointer w-full">
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">待审核</span>
             <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{stats.pending}</span>
             <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">新注册申请 · 点击查看</span>
@@ -400,7 +408,7 @@ export default function SupplierRepositoryPage() {
       <div className="wb-toolbar">
         <div className="neu-tab-bar">
           {STATUS_TABS.map(t => (
-            <button key={t.status} onClick={() => { setFilterStatus(t.status); setPage(1); }} className={`neu-tab ${filterStatus === t.status ? 'is-active' : ''}`}>
+            <button key={t.key} onClick={() => { setFilterStatus(t.status); setFilterIsTemporary(!!t.isTemporary); setPage(1); }} className={`neu-tab ${activeTabKey === t.key ? 'is-active' : ''}`}>
               <span className="inline-flex items-center gap-1.5">
                 {t.label}
                 {t.count != null && t.count > 0 && (
@@ -467,10 +475,11 @@ export default function SupplierRepositoryPage() {
             <thead>
               <tr>
                 <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === data.items.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < data.items.length; }} onChange={toggleAll} /></th>
-                <th style={{ width: 160 }}>企业名称</th>
+                <th style={{ width: 130 }}>企业名称</th>
                 <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
                 <th style={{ width: 140 }}>企业类型</th>
                 <th className="text-center" style={{ width: 100 }}>状态</th>
+                <th className="text-center" style={{ width: 112 }}>评价等级</th>
                 <th className="text-center" style={{ width: 200 }}>分类</th>
                 <th className="text-center" style={{ width: 96 }}>入库时间</th>
                 <th className="text-center" style={{ width: 200 }}>操作</th>
@@ -478,9 +487,9 @@ export default function SupplierRepositoryPage() {
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={8} rows={5} />
+                <TableSkeleton cols={9} rows={5} />
               ) : data.items.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-16">
+                <tr><td colSpan={9} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
@@ -506,6 +515,16 @@ export default function SupplierRepositoryPage() {
                     <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px] truncate" title={s.creditCode || ''}>{s.creditCode || '—'}</td>
                     <td className="text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
                     <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
+                    <td className="text-center">
+                      {s._avgGrade ? (
+                        <div className="flex items-center justify-center gap-1.5" title={`平均评价等级 ${s._avgGrade}（${LEVEL_LABEL[s._avgGrade] ?? ''}）`}>
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[s._avgGrade] ?? 'var(--muted-foreground)' }}>{s._avgGrade}</span>
+                          <span className="text-[11px] text-[var(--muted-foreground)]">{LEVEL_LABEL[s._avgGrade] ?? '—'}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </td>
                     <td className="text-center text-sm text-[var(--muted-foreground)] max-w-[200px] truncate" title={s.classification?.name || ''}>{s.classification?.name || '—'}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
                     <td onClick={e => e.stopPropagation()}>

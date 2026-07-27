@@ -99,6 +99,7 @@ export class SupplierService {
               phone: c.phone,
               email: c.email,
               isPrimary: c.isPrimary,
+              position: c.position,
             })),
           },
           qualifications: {
@@ -285,7 +286,7 @@ export class SupplierService {
           isTemporary: true,
           temporaryExpiresAt: inv.expiresAt,
           invitation: { connect: { id: inv.id } },
-          contacts: { create: [{ name: dto.displayName, phone: dto.phone, isPrimary: true }] },
+          contacts: { create: [{ name: dto.displayName, phone: dto.phone, isPrimary: true, position: '联系人' }] },
         },
         include: { contacts: true },
       });
@@ -313,7 +314,7 @@ export class SupplierService {
     return { user: safeUser, supplier, temporaryExpiresAt: inv.expiresAt, validityDays: inv.validityDays };
   }
 
-  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; scopeUserId?: string }) {
+  async list(params: { status?: string; classificationId?: string; search?: string; page?: number; pageSize?: number; sort?: 'completeness' | 'createdAt'; enterpriseTypes?: string[]; dateFrom?: string; dateTo?: string; evalLevel?: string; qualificationStatus?: string; isTemporary?: boolean; scopeUserId?: string }) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
@@ -344,6 +345,8 @@ export class SupplierService {
     if (params.qualificationStatus) {
       where.qualifications = { some: { status: params.qualificationStatus } };
     }
+    // 临时供应商筛选（凭邀请码注册、有效期由邀请码绑定）。与状态可叠加，如 isTemporary=true & status=APPROVED。
+    if (params.isTemporary === true) where.isTemporary = true;
     if (params.search) {
       where.OR = [
         { name: { contains: params.search, mode: 'insensitive' } },
@@ -429,6 +432,9 @@ export class SupplierService {
     if (where.qualifications?.some?.status) {
       conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "SupplierQualification" q WHERE q."supplierId" = s.id AND q."status" = ${where.qualifications.some.status})`);
     }
+    if (where.isTemporary === true) {
+      conditions.push(Prisma.sql`s."isTemporary" = TRUE`);
+    }
     const whereSql = conditions.length > 0
       ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
       : Prisma.empty;
@@ -500,7 +506,8 @@ export class SupplierService {
       gradeMap.set(sid, best as ExpertLevel);
     }
     for (const item of items) {
-      item._avgScore = gradeMap.get(item.id) ?? null;
+      // 字段名 _avgGrade 与前端（供应商库 / 评价页）读取一致；此前误写 _avgScore 致评价页平均等级列恒空。
+      item._avgGrade = gradeMap.get(item.id) ?? null;
     }
   }
 
@@ -960,6 +967,7 @@ export class SupplierService {
             phone: String(c.phone).trim(),
             email: c.email ? String(c.email).trim() : null,
             isPrimary: !!c.isPrimary,
+            position: c.position ? String(c.position).trim() : null,
           })),
         });
       }
@@ -1418,16 +1426,17 @@ export class SupplierService {
   }
 
   async getStats() {
-    const [total, pending, approved, disabled, blacklist, returned] = await Promise.all([
+    const [total, pending, approved, disabled, blacklist, returned, temporaryApproved] = await Promise.all([
       this.prisma.supplier.count(),
       this.prisma.supplier.count({ where: { status: 'PENDING' } }),
       this.prisma.supplier.count({ where: { status: 'APPROVED' } }),
       this.prisma.supplier.count({ where: { status: 'DISABLED' } }),
       this.prisma.supplier.count({ where: { status: 'BLACKLIST' } }),
       this.prisma.supplier.count({ where: { status: 'RETURNED' } }),
+      this.prisma.supplier.count({ where: { status: 'APPROVED', isTemporary: true } }),
     ]);
 
-    return { total, pending, approved, disabled, blacklist, returned };
+    return { total, pending, approved, disabled, blacklist, returned, temporaryApproved };
   }
 
   /** P0-14：企业类型分布后端聚合——替代看板拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。 */

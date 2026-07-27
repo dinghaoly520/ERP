@@ -225,7 +225,7 @@ export default function SupplierEvaluationPage() {
                 const latest = (s as any).evaluations?.[0];
                 const latestGrade = (latest?.finalGrade || latest?.level) as string | undefined;
                 const levelTone = gradeTone(latestGrade || '');
-                const avgGrade = (s as any)._avgGrade as string | undefined;
+                const avgGrade = s._avgGrade ?? undefined;
                 return (
                 <tr key={s.id} className="row-clickable" onClick={() => openEval(s)}>
                   <td>

@@ -983,33 +983,48 @@ export class CatalogService {
     }
 
     let created = 0;
+    const newAlerts: { message: string }[] = [];
+    const notifyRoleSet = new Set<string>();
     for (const c of candidates) {
       const exists = await this.prisma.priceAlert.findFirst({ where: { ruleId: c.ruleId, catalogItemId: c.catalogItemId, isResolved: false } });
       if (exists) continue;
-      const saved = await this.prisma.priceAlert.create({ data: c });
-      created += 1;
-      // 按 rule.notifyRoles 发站内信（未配置时默认 admin+leader），让预警不沦为摆设
+      try {
+        const saved = await this.prisma.priceAlert.create({ data: c });
+        created += 1;
+        newAlerts.push({ message: saved.message });
+      } catch (e: any) {
+        // 并发进程已建（唯一索引冲突 P2002）→ skip，不重复计入、不重复通知
+        if (e?.code === 'P2002') continue;
+        throw e;
+      }
       const rule = rules.find(r => r.id === c.ruleId);
       const roles = rule?.notifyRoles?.length ? rule.notifyRoles : ['admin', 'leader'];
-      await this.notifyAlertRoles(roles, saved.message);
+      roles.forEach((r) => notifyRoleSet.add(r));
+    }
+    // 聚合通知：一次评估只发一条（按角色，content 含多条预警明细），避免 N×M 通知洪水
+    if (newAlerts.length > 0) {
+      await this.notifyAlertRolesAggregated([...notifyRoleSet], newAlerts);
     }
     return { scanned: items.length, created };
   }
 
-  /** 按角色向活跃用户发预警站内信；通知失败不阻塞预警生成（预警记录已落库） */
-  private async notifyAlertRoles(roles: string[], message: string) {
+  /** 按角色向活跃用户发聚合预警站内信（一次评估一条，含多条明细）；失败不阻塞预警记录 */
+  private async notifyAlertRolesAggregated(roles: string[], alerts: { message: string }[]) {
     try {
       const users = await this.prisma.user.findMany({ where: { role: { in: roles }, isActive: true }, select: { id: true } });
+      const lines = alerts.slice(0, 5).map((a) => `· ${a.message}`).join('\n');
+      const more = alerts.length > 5 ? `\n…等 ${alerts.length} 项` : '';
+      const content = `本次评估新增 ${alerts.length} 项预警：\n${lines}${more}`;
       for (const u of users) {
         await this.notification.create({
           userId: u.id,
           type: 'CATALOG_PRICE_ALERT',
-          title: '目录价格预警',
-          content: message,
+          title: `目录价格预警 · ${alerts.length} 项待处理`,
+          content,
           link: '/mall-management/catalog?tab=alerts',
         });
       }
-    } catch { /* 通知失败不阻塞 */ }
+    } catch { /* 通知失败不阻塞预警记录 */ }
   }
 
   // ── 目录版本 ──

@@ -32,7 +32,7 @@ import TenderReviewWorkspace from '@/components/tender-review/tender-review-work
 import { uploadReviewDocument, executeReview } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
 import { fetchKnowledgeBases } from '@/lib/api/knowledge';
-import { uploadProjectStageAttachment, type UploadStageAttachmentResult } from '@/lib/api/project-management';
+import { uploadProjectStageAttachment, updateProjectExtractedInfo, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { buildTenderSectionProgress } from '@/lib/tender-write/progress';
 import type {
   ReadyTenderDocumentType,
@@ -355,6 +355,11 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         });
         const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
         onAttachmentUploaded?.(uploaded);
+        // 同步 tender-write draft 的 documentAcquireTime 到项目基本信息（绕过 PDF 解析）
+        const acquireTime = (currentDraft as any).documentAcquireTime?.trim();
+        if (acquireTime) {
+          try { await updateProjectExtractedInfo(project.id, { documentAcquireTime: acquireTime }); } catch { /* 同步失败不阻塞 */ }
+        }
         toast.success('采购文件已上传至项目采购文件阶段');
       } catch {
         // 上传失败不阻塞导出
@@ -435,6 +440,11 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       });
       const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
       onAttachmentUploaded?.(uploaded);
+      // 同步 tender-write draft 的 documentAcquireTime 到项目基本信息
+      const acquireTime = (currentDraft as any).documentAcquireTime?.trim();
+      if (acquireTime) {
+        try { await updateProjectExtractedInfo(project.id, { documentAcquireTime: acquireTime }); } catch { /* 同步失败不阻塞 */ }
+      }
       toast.success('采购文件已提交至项目采购文件阶段');
       setShowReviewUploadDialog(false);
       setShowReview(false);

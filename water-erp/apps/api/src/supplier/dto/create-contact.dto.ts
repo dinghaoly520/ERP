@@ -12,4 +12,7 @@ export class CreateContactDto {
 
   @IsBoolean()
   isPrimary: boolean;
+
+  @IsString() @IsOptional() @MaxLength(50)
+  position?: string;
 }

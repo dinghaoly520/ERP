@@ -125,6 +125,7 @@ export class SupplierController {
     @Query('dateTo') dateTo?: string,
     @Query('evalLevel') evalLevel?: string,
     @Query('qualificationStatus') qualificationStatus?: string,
+    @Query('isTemporary') isTemporary?: string,
   ) {
     // #18 status 枚举校验：非法值会让 Prisma/raw cast 抛 500；支持 `exclude:A,B` 形式。
     if (status) {
@@ -138,6 +139,8 @@ export class SupplierController {
       status, classificationId, search, page, pageSize, sort,
       enterpriseTypes: enterpriseTypes ? enterpriseTypes.split(',').filter(Boolean) : undefined,
       dateFrom, dateTo, evalLevel, qualificationStatus,
+      // 临时供应商筛选：仅 'true' 视为真，其余（'false'/缺省）均不加该过滤，避免误判。
+      isTemporary: isTemporary === 'true' ? true : undefined,
       scopeUserId: req?.user?.role === 'supplier' ? req.user.sub : undefined,
     });
   }

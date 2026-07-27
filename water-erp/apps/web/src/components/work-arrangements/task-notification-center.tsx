@@ -35,6 +35,7 @@ const TYPE_LABELS: Record<string, string> = {
   BID_EVALUATION_RESULT:  '评标结果',
   CLARIFICATION_REPLIED:  '澄清答疑',
   CATALOG_APPLICATION:    '目录申请',
+  CATALOG_PRICE_ALERT:    '目录价格预警',
   SYSTEM:                 '系统通知',
 };
 
@@ -119,6 +120,98 @@ function sortNotifications(items: EnrichedItem[]): EnrichedItem[] {
     if (bi !== -1) return 1;
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
+}
+
+// ── 同类通知聚合（同 type+title 多条折叠为一组，避免批量通知刷屏）──
+
+type GroupedItem =
+  | { kind: 'single'; key: string; item: EnrichedItem }
+  | { kind: 'group'; key: string; typeLabel: string; toneColor: string; toneBg: string; icon: string; items: EnrichedItem[] };
+
+function groupByType(items: EnrichedItem[]): GroupedItem[] {
+  const map = new Map<string, EnrichedItem[]>();
+  for (const it of items) {
+    const key = `${it.type}::${it.title}`;
+    const arr = map.get(key) ?? [];
+    arr.push(it);
+    map.set(key, arr);
+  }
+  const groups: GroupedItem[] = [];
+  for (const [k, arr] of map.entries()) {
+    if (arr.length > 1) {
+      const head = arr[0];
+      groups.push({ kind: 'group', key: k, typeLabel: head.typeLabel, toneColor: head.toneColor, toneBg: head.toneBg, icon: head.icon, items: arr });
+    } else {
+      groups.push({ kind: 'single', key: arr[0].id, item: arr[0] });
+    }
+  }
+  // 按组内最新条目时间排序（sortNotifications 已对单条排过，组内顺序保留）
+  groups.sort((a, b) => {
+    const aKey = a.kind === 'single' ? a.item : a.items[0];
+    const bKey = b.kind === 'single' ? b.item : b.items[0];
+    return new Date(bKey.createdAt).getTime() - new Date(aKey.createdAt).getTime();
+  });
+  return groups;
+}
+
+function AggregatedGroup({ group, router }: { group: Extract<GroupedItem, { kind: 'group' }>; router: ReturnType<typeof useRouter> }) {
+  const [open, setOpen] = useState(false);
+  const { items, typeLabel, toneColor, toneBg, icon } = group;
+  const Icon = (LucideIcons as any)[icon] ?? LucideIcons.Bell;
+  const unread = items.filter((i) => !i.isRead).length;
+  return (
+    <>
+      <div className="border-b border-[#eef3f8] last:border-b-0">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="group flex w-full flex-col gap-1 px-4 py-3 text-left transition hover:bg-[var(--accent-soft)]/8"
+        >
+          <span className="flex items-center gap-3">
+            <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md" style={{ backgroundColor: toneBg }}>
+              <Icon size={12} style={{ color: toneColor }} />
+            </span>
+            <span className="min-w-0 flex-1 text-[13px] font-bold text-[#18243a]">{typeLabel}</span>
+            <span
+              className="shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wide"
+              style={{ color: toneColor, backgroundColor: `color-mix(in oklch, ${toneColor} 8%, transparent)`, boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.75)' }}
+            >
+              <span className="h-1 w-1 rounded-full" style={{ backgroundColor: toneColor }} />
+              {unread > 0 ? `${unread} 项待处理` : `${items.length} 项`}
+            </span>
+          </span>
+          <span className="ml-9 text-[12px] text-[#5a6d8a]">点击查看 {items.length} 条明细</span>
+        </button>
+      </div>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        size="md"
+        title={
+          <span className="flex items-center gap-2.5">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md" style={{ backgroundColor: toneBg }}>
+              <Icon size={13} style={{ color: toneColor }} />
+            </span>
+            {typeLabel} · {items.length} 项
+          </span>
+        }
+        description={unread > 0 ? `${unread} 项待处理` : undefined}
+      >
+        <div className="-mx-2 max-h-[60vh] overflow-y-auto divide-y divide-[#eef3f8]">
+          {items.map((item) => (
+            <NotificationRow
+              key={item.id}
+              item={item}
+              onClick={() => {
+                handleNotificationClick(item, router);
+                setOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </Modal>
+    </>
+  );
 }
 
 // ── 单条通知行（在面板和弹窗中共用）──
@@ -215,8 +308,10 @@ export function TaskNotificationCenter({
     [source],
   );
 
-  const shownItems = allItems.slice(0, 10);
-  const hasMore = allItems.length > 10;
+  // 同类通知聚合：同 type+title 多条折叠为一组（避免目录价格预警等批量通知刷屏）
+  const grouped = useMemo(() => groupByType(allItems), [allItems]);
+  const shownGroups = grouped.slice(0, 10);
+  const hasMore = grouped.length > 10;
 
   return (
     <>
@@ -236,13 +331,13 @@ export function TaskNotificationCenter({
           </div>
         ) : (
           <div className="flex flex-1 flex-col">
-            {shownItems.map((item) => (
-              <NotificationRow
-                key={item.id}
-                item={item}
-                onClick={() => handleNotificationClick(item, router)}
-              />
-            ))}
+            {shownGroups.map((g) =>
+              g.kind === 'single' ? (
+                <NotificationRow key={g.key} item={g.item} onClick={() => handleNotificationClick(g.item, router)} />
+              ) : (
+                <AggregatedGroup key={g.key} group={g} router={router} />
+              ),
+            )}
 
             {/* ── 查看更多 ── */}
             {hasMore && (
@@ -252,7 +347,7 @@ export function TaskNotificationCenter({
                 className="flex items-center justify-center gap-1.5 border-b border-[#eef3f8] px-4 py-2.5 text-[12px] font-semibold text-[color:var(--accent)] transition last:border-b-0 hover:bg-[var(--accent-soft)]/10"
               >
                 <ListChecks size={14} />
-                查看更多（共 {allItems.length - 10} 条未显示）
+                查看更多（共 {grouped.length - 10} 组未显示）
               </button>
             )}
           </div>
@@ -281,20 +376,24 @@ export function TaskNotificationCenter({
               全部通知
             </span>
           }
-          description={`共 ${allItems.length} 条通知`}
+          description={`共 ${allItems.length} 条通知（${grouped.length} 组）`}
           size="lg"
         >
           <div className="-mx-2 max-h-[60vh] overflow-y-auto divide-y divide-[#eef3f8]">
-            {allItems.map((item) => (
-              <NotificationRow
-                key={item.id}
-                item={item}
-                onClick={() => {
-                  handleNotificationClick(item, router);
-                  setShowAll(false);
-                }}
-              />
-            ))}
+            {grouped.map((g) =>
+              g.kind === 'single' ? (
+                <NotificationRow
+                  key={g.key}
+                  item={g.item}
+                  onClick={() => {
+                    handleNotificationClick(g.item, router);
+                    setShowAll(false);
+                  }}
+                />
+              ) : (
+                <AggregatedGroup key={g.key} group={g} router={router} />
+              ),
+            )}
             {allItems.length === 0 && (
               <div className="py-16 text-center text-sm text-[color:var(--muted-foreground)]">
                 暂无通知
