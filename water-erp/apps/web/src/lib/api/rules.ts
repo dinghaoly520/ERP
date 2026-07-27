@@ -1,4 +1,6 @@
-const API_BASE = '/api';
+// 后端迁移后规则端点挂在 tender-review 控制器下：/api/tender-review/rules*
+// （与 review.ts / knowledge.ts 前缀保持一致；此前漏掉 tender-review 段导致全线 404）
+const API_BASE = '/api/tender-review';
 
 import type { ComplianceRule } from '../types/tender-review';
 

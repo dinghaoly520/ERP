@@ -2274,7 +2274,7 @@ model DocumentChunk {
   fileId         String
   content        String
   metadata       Json     @default("{}")
-  // embedding  Unsupported("vector")? — 待 pgvector 镜像就绪后恢复
+  embedding      Unsupported("vector")?
   createdAt      DateTime @default(now())
 
   @@index([collectionName])

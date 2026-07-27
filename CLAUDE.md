@@ -293,7 +293,7 @@ The NestJS API (`apps/api`, :4001):
 | `Procurements` | Procurement project lifecycle (active module — exports `ProcurementsService`) |
 | `Procurement` | Legacy procurement module (no Prisma; prefer `Procurements` for new work) |
 | `ProjectManagement` | Project management endpoints |
-| `TenderWrite` / `TenderReview` / `TenderSample` / `TenderHistory` | Tender-document authoring, AI review, sample library, historical-tender search |
+| `TenderWrite` / `TenderReview` / `TenderSample` / `TenderHistory` | Tender-document authoring, AI review, sample library, historical-tender search. **`TenderReview` 硬依赖基础设施**（移植自 procurement，缺一即"无法使用"）：postgres 须为 `pgvector/pgvector:pg16` + `PGVECTOR_ENABLED=true`（语义/通用审查走 pgvector RAG）；`EMBEDDING_BASE_URL` 须指本机在跑的 vLLM bge-m3 `http://localhost:8003/v1` 且 `EMBEDDING_MODEL=/home/asus/models/bge-m3`（全路径，无 `--served-model-name`）；规则提取/CRUD 走 `AdminGuard`（仅 admin），登录用 `Swhi-CGZX-admin@2026`。详见 memory `tender-review-infra-gotchas` |
 | `Knowledge` | Knowledge base / RAG corpus backing AI features |
 | `Catalog` | Mall catalog items, price history, favorites, supplier applications/catalog-suppliers |
 | `Budget` | Budget lists with items linked to catalog; convert to procurement project |

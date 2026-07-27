@@ -348,8 +348,10 @@ async function main() {
   console.log(`    陈源远 ${staffUsers.length} 个账号口令已重置`);
 
   // ═══ 内部管理账号口令规整（与 ACCOUNTS.md「<用户名>@2026」约定一致，使 :3005 有可登录的 leader/staff）═══
-  console.log('▶ 规整内部管理账号口令（Swhi-CGZX-01 leader / Swhi-CGZX-05 staff）');
-  for (const uname of ['Swhi-CGZX-01', 'Swhi-CGZX-05']) {
+  console.log('▶ 规整内部管理账号口令（Swhi-CGZX-01 leader / Swhi-CGZX-05 staff / Swhi-CGZX-admin admin）');
+  // admin 亦在列：tender-review 规则管理（AdminGuard）需 admin 角色，而 User.json 里的历史哈希明文不可考，
+  // 不规整则 :3005 无任何可登录的 admin → 规则提取/CRUD 对所有人 403。
+  for (const uname of ['Swhi-CGZX-01', 'Swhi-CGZX-05', 'Swhi-CGZX-admin']) {
     await prisma.user.updateMany({
       where: { username: uname },
       data: { passwordHash: hashSync(`${uname}@2026`, 10) },
