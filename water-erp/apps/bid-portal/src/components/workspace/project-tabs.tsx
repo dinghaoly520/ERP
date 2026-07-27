@@ -1,9 +1,9 @@
 'use client';
 
-import { Unlock, ClipboardCheck, ListChecks } from 'lucide-react';
+import { Unlock, ClipboardCheck, ListChecks, Shield } from 'lucide-react';
 
 export interface TabDef {
-  key: 'open' | 'evaluate' | 'standard';
+  key: 'open' | 'supervise' | 'evaluate' | 'standard';
   label: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   minStage: string[];
@@ -17,6 +17,14 @@ export const TABS: TabDef[] = [
     icon: Unlock,
     minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
     stageHint: '开标尚未开始。请等待项目在 :3005 确定开标。',
+  },
+  {
+    key: 'supervise',
+    label: '监督视图',
+    icon: Shield,
+    // 与开标大厅同口径启用：监督视图随开标执行阶段提供只读留痕，DOWNLOAD/SUBMIT 不可作为入口仍禁用。
+    minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
+    stageHint: '开标尚未开始，监督视图不可用。请等待项目在 :3005 确定开标。',
   },
   {
     key: 'evaluate',

@@ -12,9 +12,10 @@
  * operation controls omitted (read-only tab)：旧页的阶段流转、结果生成、归档等写入操作件
  * 及其向导模态已全部剥离——相关流转统一在采购管理工作台（:3005）进行，本页只读。
  *
- * 数据源改造（唯一偏离旧页逻辑处）：project 不再自取，改由 useBidProjectContext 提供
- * （experts 元素自带 scoreRecords）；评标结果经 listEvaluationResults 读取；实时性由
- * useBidWebSocket 的在场 / 阶段事件驱动 onRefresh（上下文 refetch）与结果重拉。
+ * 数据源改造（唯一偏离旧页逻辑处）：project 不再自取，props 优先（工作区页持有 project + 单一
+ * 实时连接）、useBidProjectContext 回退（experts 元素自带 scoreRecords）；评标结果经
+ * listEvaluationResults 读取：挂载拉一次 + project.stage 变化时重拉。专家签到 / 评分进度的实时
+ * 刷新由页级单连接在场事件 → project prop 更新驱动，本组件无自有 socket（全程单连接）。
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -28,7 +29,6 @@ import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, isPassFailCategory } fro
 import { MetricCard, SectionCard } from '@water-erp/ui';
 import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
-import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { listEvaluationResults, type EvaluationResultRow } from '@/lib/api/bid';
 
 /* ── Local types ── */
@@ -235,8 +235,10 @@ function CategoryDetailTooltip({ expertScores, onClose, anchorRect }: {
 }
 
 /* ═══ View ═══ */
-export default function EvaluationView({ projectId, onRefresh }: { projectId: string; onRefresh: () => void }) {
-  const { project } = useBidProjectContext();
+export default function EvaluationView({ projectId, project: propsProject }: { projectId: string; project?: BidProjectDetail }) {
+  const ctx = useBidProjectContext();
+  // 工作区页级单源优先（page.tsx 持有 project + 实时），context 仅作回退。
+  const project = propsProject ?? ctx.project;
   const [results, setResults] = useState<OfficialResultRow[]>([]);
   const [expandedExperts, setExpandedExperts] = useState<Set<string>>(new Set());
   const [expandedCard, setExpandedCard] = useState<Set<string>>(new Set());
@@ -245,19 +247,13 @@ export default function EvaluationView({ projectId, onRefresh }: { projectId: st
   const [tooltip, setTooltip] = useState<{ cell: ExpertSupplierCell; expertName: string; supplierName: string; anchorRect: DOMRect } | null>(null);
   const [categoryTooltip, setCategoryTooltip] = useState<{ expertScores: { name: string; score: number }[]; anchorRect: DOMRect; key: string } | null>(null);
 
-  /* ── Data loading：评标结果（project 由上下文提供，不再自取）── */
+  /* ── Data loading：评标结果——挂载拉一次 + project.stage 变化时重拉（官方结果随阶段流转生成；
+     专家签到 / 评分进度的实时刷新由页级单连接在场事件 → project prop 更新驱动，本组件无自有 socket）── */
   const loadResults = useCallback(() => {
     listEvaluationResults(projectId).then(setResults).catch(() => {});
   }, [projectId]);
 
-  useEffect(() => { loadResults(); }, [loadResults]);
-
-  /* ── WebSocket：评标在场 / 阶段事件 → 上下文刷新（专家签到 / 评分进度回流）+ 结果重拉 ── */
-  useBidWebSocket(projectId, {
-    onExpertPresence: () => onRefresh(),
-    onExpertPresenceAggregate: () => onRefresh(),
-    onStageChange: () => { onRefresh(); loadResults(); },
-  });
+  useEffect(() => { loadResults(); }, [loadResults, project?.stage]);
 
   /* ── Derived data ── */
   const scoreItemMap = useMemo(() => {

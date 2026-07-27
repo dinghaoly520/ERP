@@ -1,24 +1,17 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { api, enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening } from '@/lib/api';
+import React, { useEffect, useState, useMemo } from 'react';
+import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
-import { useBidProjectContext } from '@/contexts/bid-project-context';
-import { TableSkeleton } from '@/components/skeleton';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, Eye, ExternalLink,
   Volume2, Zap, Loader, FileText,
 } from 'lucide-react';
-import { useBidWebSocket } from '@/hooks/use-bid-websocket';
-import { useReportRealtime } from '@/contexts/bid-realtime-context';
-import NoProjectGuide from '@/components/no-project-guide';
 import { DECRYPT_LABEL } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
-import { SupervisionView, type SupervisionLog } from '@/components/bid/supervision-view';
-import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 
 /** cgzxui 裸面板（取代 @water-erp/ui SectionCard 的 p-0 用法）——无边框玻璃静态卡 */
@@ -38,31 +31,6 @@ const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
 
 /** 保证金状态选项（前端镜像 — 与后端 BOND_STATUS_OPTIONS 对齐，Task 2） */
 const BOND_STATUS_OPTIONS = ['已缴纳', '保函有效', '未缴纳', '异常'] as const;
-
-/* ── Sound Engine helpers (ref-based, no module-level state) ── */
-function playTone(ctx: AudioContext, freq: number, duration: number, type: OscillatorType = 'sine') {
-  try {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type; osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.12, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime + duration);
-  } catch { /* silent fail */ }
-}
-function createSfx(ctxRef: React.RefObject<AudioContext | null>) {
-  return {
-    decryptSuccess: () => {
-      const ctx = ctxRef.current; if (!ctx) return;
-      playTone(ctx, 880, 0.12);
-      setTimeout(() => { const c = ctxRef.current; if (c) playTone(c, 1100, 0.15); }, 120);
-    },
-    decryptFail: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 180, 0.3, 'square'); },
-    tick: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 600, 0.05); },
-    warning: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 440, 0.4, 'sawtooth'); },
-  };
-}
 
 /* ── Ring Countdown（浅色 cgzxui：data-urgent 驱动配色）── */
 function RingCountdown({ remaining, big }: { remaining: number; big?: boolean }) {
@@ -115,41 +83,15 @@ function StageStepper({ step }: { step: number }) {
   );
 }
 
-export function OpeningHall() {
-  const { projectId } = useBidProjectContext();
-  const [project, setProject] = useState<BidProjectDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail; onRefresh: () => void }) {
+  // 受控展示组件：project 数据与实时事件由工作区页（page.tsx）持有并经 props 下传；
+  // 本组件只保留开标执行交互态，写操作成功后调 onRefresh() 触发页级 refetch。
+  const projectId = project.id;
   const [startOpen, setStartOpen] = useState(false);
-  /** 视图切换：开标大厅 / 监督视图（Phase 3：监督端折叠进大厅） */
-  const [view, setView] = useState<'hall' | 'supervise'>('hall');
-  /** F8：监督/异常事件由页面级 socket 统一订阅，下传给监督视图（避免双连接） */
-  const [liveLogs, setLiveLogs] = useState<SupervisionLog[]>([]);
-  const [anomalyEvents, setAnomalyEvents] = useState<AnomalyDetectedPayload[]>([]);
-
-  // ═── Audio context with proper lifecycle (no module-level leak) ──
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const sfx = createSfx(audioCtxRef);
-  useEffect(() => {
-    audioCtxRef.current = new AudioContext();
-    return () => { audioCtxRef.current?.close(); audioCtxRef.current = null; };
-  }, []);
-  // 浏览器在用户首次交互前可能将 AudioContext 置于 suspended —— 首次点击/按键时 resume
-  useEffect(() => {
-    const resume = () => { audioCtxRef.current?.resume?.(); };
-    window.addEventListener('click', resume, { once: true });
-    window.addEventListener('keydown', resume, { once: true });
-    return () => {
-      window.removeEventListener('click', resume);
-      window.removeEventListener('keydown', resume);
-    };
-  }, []);
-
   // ═══ New UX state ═══
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
   const [bulkDecrypting, setBulkDecrypting] = useState(false);
   const [decryptTarget, setDecryptTarget] = useState<{ id: string; name: string }[] | null>(null);
-  const [soundEnabled] = useState(true);
   const [bigScreen] = useState(false);
   const [inlineDispute, setInlineDispute] = useState<string | null>(null);
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
@@ -163,8 +105,6 @@ export function OpeningHall() {
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   // 每秒驱动重渲染，让倒计时圆环/MM:SS 实时跳动（remaining 依赖 now 重新计算）
   const [now, setNow] = useState(() => Date.now());
-  const seenDecrypt = useRef<Set<string>>(new Set());
-  const prevDecryptStatuses = useRef<Map<string, string>>(new Map());
 
   // Sync server time for authoritative countdown
   useEffect(() => {
@@ -246,11 +186,10 @@ export function OpeningHall() {
     setDisputeSubmitting(true);
     try {
       await resolveOpeningDispute(projectId, recordId, { result, confirm });
-      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-      setProject(updated);
       setInlineDispute(null);
       setDisputeHandleResult('');
       setDisputeHandleConfirm(null);
+      onRefresh();
     } catch (err: any) {
       // M9：失败时面板不收起、按钮解锁；非异议态记录后端返回 400 code=DISPUTE_NOT_PENDING
       if (err?.code === 'DISPUTE_NOT_PENDING') toast.error('该异议已被处理');
@@ -267,8 +206,7 @@ export function OpeningHall() {
     try {
       await completeOpening(projectId);
       toast.success('开标资料已移交采购管理工作台');
-      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-      setProject(updated);
+      onRefresh();
     } catch (e: any) {
       toast.error(e?.message || '移交失败');
     } finally {
@@ -290,11 +228,11 @@ export function OpeningHall() {
     } else {
       // Bulk decrypt: parallelize with Promise.allSettled for partial-failure resilience
       setBulkDecrypting(true);
-      const results = await Promise.allSettled(
+      await Promise.allSettled(
         targets.map(t => decryptBid(projectId, t.id).catch(() => {})),
       );
       setBulkDecrypting(false);
-      api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
+      onRefresh();
     }
   };
 
@@ -340,8 +278,7 @@ export function OpeningHall() {
       await enterOpeningRecord(projectId, { bidSupplierId: recordEntry.bidSupplierId, amount, period, qualityTarget, bondStatus });
       toast.success('唱标信息已录入，待供应商确认');
       setRecordEntry(null);
-      const updated = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-      setProject(updated);
+      onRefresh();
     } catch (e: any) {
       // M9：唱标重录对锁定态记录后端返回 409 code=RECORD_LOCKED
       if (e?.code === 'RECORD_LOCKED') toast.error('该开标记录已锁定，无法重录');
@@ -349,138 +286,18 @@ export function OpeningHall() {
     }
   };
 
-  // ═══ Data loading ═══
-  const loadProject = useCallback(async () => {
-    if (!projectId) return;
-    setError(null);
-    setLoading(true);
-    try {
-      const p = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
-      setProject(p);
-    } catch (e: any) {
-      setError(e?.message || '加载项目数据失败');
-      toast.error(e?.message || '加载项目数据失败');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    if (!projectId) return;
-    setView('hall');
-    setLiveLogs([]);
-    setAnomalyEvents([]);
-    loadProject();
-  }, [projectId, loadProject]);
-
-  // ═══ WebSocket ═══
-  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId ?? undefined, {
-    onDecryptStatus: (data) => {
-      setProject(prev => {
-        if (!prev) return prev;
-        // Sound + toast for status changes
-        if (soundEnabled) {
-          if (data.decryptStatus === 'SUCCESS') sfx.decryptSuccess();
-          else if (data.decryptStatus === 'DANGER') sfx.decryptFail();
-        }
-        const supplier = prev.suppliers.find(s => s.id === data.supplierId);
-        if (supplier && supplier.decryptStatus !== data.decryptStatus) {
-          const key = `${data.supplierId}-${data.decryptStatus}`;
-          if (!seenDecrypt.current.has(key)) {
-            seenDecrypt.current.add(key);
-            if (data.decryptStatus === 'SUCCESS') {
-              toast.success(`🔓 ${supplier.supplierName} 解密成功`, { duration: 3000 });
-            } else if (data.decryptStatus === 'DANGER') {
-              toast.error(`⚠️ ${supplier.supplierName} 解密失败`, { duration: 5000 });
-            }
-          }
-        }
-        return {
-          ...prev,
-          suppliers: prev.suppliers.map(s =>
-            s.id === data.supplierId ? { ...s, decryptStatus: data.decryptStatus } : s,
-          ),
-        };
-      });
-    },
-    onStageChange: () => {
-      if (projectId) {
-        api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
-      }
-    },
-    onOpeningConfirmed: (d) => {
-      toast.success(`${d.supplierName} 已确认开标记录`);
-      // R1：refetch 项目数据（同 onStageChange），让解密表"确认"列与开标记录确认状态同步刷新
-      if (projectId) {
-        api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
-      }
-    },
-    // T9：移交完成（含 :3005 侧或水叮当触发的 complete-opening）→ refetch，横幅切已移交态
-    onOpeningCompleted: () => {
-      if (projectId) api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
-    },
-    onOpeningDisputed: (d) => {
-      toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);
-      if (projectId) {
-        api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject).catch(() => {});
-      }
-    },
-    // F8：监督日志与异常事件统一在页面级订阅，下传给监督视图
-    onSupervisionLog: (data) => {
-      setLiveLogs(prev => [data as unknown as SupervisionLog, ...prev].slice(0, 100));
-    },
-    onAnomalyDetected: (data) => {
-      if (data.severity === 'danger') toast.error(data.detail ?? '检测到异常');
-      else toast.warning(data.detail ?? '检测到异常');
-      setAnomalyEvents(prev => [data, ...prev].slice(0, 50));
-    },
-  });
-
-  useReportRealtime(connection, lastEventAt, reconnectNow);
-
   // ═══ Countdown + time warnings ═══
+  // 解密窗口倒计时音效（tick/warning）已随 sfx 上提至工作区页；本处仅保留每秒 setNow 驱动圆环 / MM:SS 视觉跳动。
   useEffect(() => {
     if (!session) return;
     const timer = setInterval(() => {
       setNow(Date.now());
-      const r = Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - Date.now() - serverTimeOffset) / 1000));
-      if (r > 0 && r <= 60 && soundEnabled) sfx.tick();
-      if (r === 300 && soundEnabled) sfx.warning();
     }, 1000);
     return () => clearInterval(timer);
-  }, [session, soundEnabled, serverTimeOffset]);
-
-  if (!projectId) return <NoProjectGuide />;
-  if (loading) return <TableSkeleton rows={8} cols={6} />;
-  if (error && !project) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <AlertTriangle size={32} strokeWidth={1.5} className="mb-4 text-[var(--danger)]" />
-        <p className="mb-4 text-sm font-semibold text-[color:var(--muted-foreground)]">{error}</p>
-        <button type="button" onClick={loadProject} className="neu-btn-primary !h-[38px] text-xs">重试</button>
-      </div>
-    );
-  }
-  if (!project) return <div className="py-20 text-center text-[13px] tracking-tight text-[color:var(--muted-foreground)]">暂无项目数据</div>;
-  if (!projectId) return null;
+  }, [session]);
 
   return (
     <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>
-      {/* ═══ 视图切换：开标大厅 / 监督视图（新拟态分段控件）═══ */}
-      <div className="inline-flex w-fit items-center gap-1 rounded-[12px] bg-[oklch(0.95_0.008_258)] p-1 shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.12),inset_-2px_-2px_5px_oklch(1_0_0_/_0.7)]">
-        <button type="button" onClick={() => setView('hall')}
-          className={`flex items-center gap-1.5 rounded-[9px] px-4 py-1.5 text-[12px] font-bold transition-all ${view === 'hall' ? 'bg-[oklch(1_0_0)] text-[color:var(--accent-strong)] shadow-[2px_2px_5px_oklch(0.55_0.03_258_/_0.14),-1px_-1px_3px_oklch(1_0_0_/_0.9)]' : 'text-[color:var(--muted-foreground)]'}`}>
-          <Unlock size={13} /> 开标大厅
-        </button>
-        <button type="button" onClick={() => setView('supervise')}
-          className={`flex items-center gap-1.5 rounded-[9px] px-4 py-1.5 text-[12px] font-bold transition-all ${view === 'supervise' ? 'bg-[oklch(1_0_0)] text-[color:var(--accent-strong)] shadow-[2px_2px_5px_oklch(0.55_0.03_258_/_0.14),-1px_-1px_3px_oklch(1_0_0_/_0.9)]' : 'text-[color:var(--muted-foreground)]'}`}>
-          <Shield size={13} /> 监督视图
-        </button>
-      </div>
-
-      {view === 'supervise' ? (
-        <SupervisionView projectId={projectId} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />
-      ) : (<>
       {/* ═══ Time warning banners — 无边框色调提示 ═══ */}
       {timeWarning === '5min' && (
         <div className="flex animate-pulse items-center gap-2 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] px-4 py-2.5 text-sm font-bold text-[oklch(0.46_0.11_65)]">
@@ -579,7 +396,7 @@ export function OpeningHall() {
               <div className="flex flex-wrap items-center gap-6 text-sm text-[color:var(--muted-foreground)]">
                 <span className="flex items-center gap-1.5"><Clock size={13} strokeWidth={1.5} /> {new Date(project.openTime).toLocaleString('zh-CN')}</span>
                 <span>主持人：{session.host}</span>
-                <span>监督人：{session.supervisor}</span>
+                <span>监督人：{session.supervisor ?? '未指定'}</span>
               </div>
             </div>
             <div className="rounded-xl bg-[oklch(0.985_0.005_258)] px-6 py-3 text-center shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.12),inset_-2px_-2px_5px_oklch(1_0_0_/_0.7)]">
@@ -806,7 +623,6 @@ export function OpeningHall() {
           </table>
         </div>
       </Card>
-      </>)}
 
       <StartOpeningDialog
         open={startOpen}
@@ -814,7 +630,7 @@ export function OpeningHall() {
         onClose={() => setStartOpen(false)}
         onStarted={() => {
           setStartOpen(false);
-          api.get<BidProjectDetail>(`/bid/projects/${projectId}`).then(setProject);
+          onRefresh();
         }}
       />
 

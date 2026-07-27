@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { ListChecks, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
+import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 
 /** 得分点（GET .../score-items/:itemId/points 返回的 BidScorePoint 子集）。 */
@@ -25,8 +26,10 @@ interface ScorePoint {
 }
 
 /** 评分标准只读展示（编制/发布/模板/AI 提取均在 :3005）。 */
-export default function ScoreStandardView({ projectId }: { projectId: string }) {
-  const { project } = useBidProjectContext();
+export default function ScoreStandardView({ projectId, project: propsProject }: { projectId: string; project?: BidProjectDetail }) {
+  const ctx = useBidProjectContext();
+  // 工作区页级单源优先（page.tsx 持有 project），context 仅作回退。
+  const project = propsProject ?? ctx.project;
   const [pointsByItem, setPointsByItem] = useState<Record<string, ScorePoint[]>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
