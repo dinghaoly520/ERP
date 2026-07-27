@@ -19,14 +19,6 @@ export const TABS: TabDef[] = [
     stageHint: '开标尚未开始。请等待项目在 :3005 确定开标。',
   },
   {
-    key: 'supervise',
-    label: '监督视图',
-    icon: Shield,
-    // 与开标大厅同口径启用：监督视图随开标执行阶段提供只读留痕，DOWNLOAD/SUBMIT 不可作为入口仍禁用。
-    minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
-    stageHint: '开标尚未开始，监督视图不可用。请等待项目在 :3005 确定开标。',
-  },
-  {
     key: 'evaluate',
     label: '评标管理',
     icon: ClipboardCheck,
@@ -41,6 +33,15 @@ export const TABS: TabDef[] = [
     icon: ListChecks,
     minStage: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
     stageHint: '—',
+  },
+  {
+    key: 'supervise',
+    label: '监督视图',
+    icon: Shield,
+    // 置于最右：监督为旁路只读视图，主流程三 tab(大厅/评标/标准)在前。
+    // 与开标大厅同口径启用：监督视图随开标执行阶段提供只读留痕，DOWNLOAD/SUBMIT 不可作为入口仍禁用。
+    minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
+    stageHint: '开标尚未开始，监督视图不可用。请等待项目在 :3005 确定开标。',
   },
 ];
 
