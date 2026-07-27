@@ -56,7 +56,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const userInitial = registeredName.slice(0, 1);
 
   return (
-    <div className="flow-page ambient-grid flex h-screen flex-col overflow-hidden px-2.5 pb-2.5 sm:px-3.5 lg:pr-4 lg:pl-0">
+    <div className="flow-page ambient-grid flex h-screen flex-col overflow-hidden">
       {/* cgzxui 水彩光晕 —— 五角 oklch 浅彩 bloom，作为玻璃面板背后漂移的色彩层 */}
       <div className="flow-glow" aria-hidden />
 
@@ -88,11 +88,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-0 w-full flex-1 overflow-hidden [perspective:1500px]">
+      <div className="mx-auto flex min-h-0 w-full flex-1 gap-3 overflow-hidden px-3 pb-3 pt-3 [perspective:1500px]">
         {/* ── 3D 玻璃侧栏 ── */}
         <aside
           data-hidden={collapsed ? 'true' : 'false'}
-          className="sidebar-sheen sidebar-3d sidebar-card mr-4 hidden h-full w-[268px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex"
+          className="sidebar-sheen sidebar-3d sidebar-card hidden h-full w-[268px] shrink-0 flex-col rounded-[24px] pr-2 lg:flex"
         >
           {/* 品牌块已上移至顶栏 sp-brand；侧栏顶部仅留呼吸 padding */}
           <nav className="sidebar-scroll sidebar-nav mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pt-3 pb-1">
