@@ -41,8 +41,11 @@ export async function findActiveExtraction(
     credentials: 'include',
   });
   if (!res.ok) return null;
-  const data = await res.json();
-  return data ?? null;
+  // Nest 对 controller `return null` 会发 200 + 空 body（并非 JSON `null`），
+  // 直接 res.json() 会抛 "Unexpected end of JSON input"。空 body 即「无活动任务」。
+  const text = await res.text();
+  if (!text.trim()) return null;
+  return (JSON.parse(text) as { id: string; status: string; extractedCount?: number } | null) ?? null;
 }
 
 // For rules-panel.tsx compatibility
