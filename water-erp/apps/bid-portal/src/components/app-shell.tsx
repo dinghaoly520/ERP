@@ -56,11 +56,39 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const userInitial = registeredName.slice(0, 1);
 
   return (
-    <div className="flow-page ambient-grid h-screen overflow-hidden px-2.5 pb-2.5 sm:px-3.5 lg:pr-4 lg:pl-0">
+    <div className="flow-page ambient-grid flex h-screen flex-col overflow-hidden px-2.5 pb-2.5 sm:px-3.5 lg:pr-4 lg:pl-0">
       {/* cgzxui 水彩光晕 —— 五角 oklch 浅彩 bloom，作为玻璃面板背后漂移的色彩层 */}
       <div className="flow-glow" aria-hidden />
 
-      <div className="mx-auto flex h-full w-full overflow-hidden [perspective:1500px]">
+      {/* 统一顶栏 —— 整宽置于侧栏之上，复刻 :3004 sp-header：brand 落左上角（即左侧 panel 区） */}
+      <div className="sp-header w-full shrink-0">
+        <div className="sp-header-left">
+          <button
+            type="button"
+            onClick={() => router.push('/bid')}
+            className="sp-brand"
+            aria-label="返回开标任务板"
+          >
+            <img src="/assets/logo.png" alt="智慧水发·蜀水云采" className="sp-brand-logo" />
+            <strong className="sp-brand-title">智慧水发 · 蜀水云采</strong>
+          </button>
+        </div>
+
+        <div className="sp-header-right">
+          <NotificationBell />
+          <span className="sp-user-pill">
+            <span className="sp-user-avatar">{userInitial}</span>
+            <span className="sp-user-name">{registeredName}</span>
+            <ChevronDown size={12} className="sp-user-arrow" />
+          </span>
+          <button type="button" onClick={logout} className="sp-logout-btn">
+            <LogOut size={15} strokeWidth={1.7} />
+            <span>退出登录</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="mx-auto flex min-h-0 w-full flex-1 overflow-hidden [perspective:1500px]">
         {/* ── 3D 玻璃侧栏 ── */}
         <aside
           data-hidden={collapsed ? 'true' : 'false'}
@@ -122,34 +150,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* ── 内容区 ── */}
         <section className="flex h-full min-w-0 flex-1 flex-col px-1">
           <main className="relative z-10 flex h-full min-h-0 flex-1 flex-col p-2.5 sm:p-3">
-            {/* 统一顶栏 —— 复刻 :3004 供应商门户 sp-header 视觉规范 */}
-            <div className="sp-header mb-3">
-              <div className="sp-header-left">
-                <button
-                  type="button"
-                  onClick={() => router.push('/bid')}
-                  className="sp-brand"
-                  aria-label="返回开标任务板"
-                >
-                  <img src="/assets/logo.png" alt="智慧水发·蜀水云采" className="sp-brand-logo" />
-                  <strong className="sp-brand-title">智慧水发 · 蜀水云采</strong>
-                </button>
-              </div>
-
-              <div className="sp-header-right">
-                <NotificationBell />
-                <span className="sp-user-pill">
-                  <span className="sp-user-avatar">{userInitial}</span>
-                  <span className="sp-user-name">{registeredName}</span>
-                  <ChevronDown size={12} className="sp-user-arrow" />
-                </span>
-                <button type="button" onClick={logout} className="sp-logout-btn">
-                  <LogOut size={15} strokeWidth={1.7} />
-                  <span>退出登录</span>
-                </button>
-              </div>
-            </div>
-
             {/* 页面内容滚动区 */}
             <div className="min-h-0 flex-1 overflow-y-auto">
               {children}
