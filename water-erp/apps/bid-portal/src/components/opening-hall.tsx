@@ -542,7 +542,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
-                        {!!session && project.stage === 'OPENING' && s.decryptStatus !== 'SUCCESS' && (
+                        {!!session && project.stage === 'OPENING' && !isSuccess && !isDanger && (
                           <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
                             {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
@@ -561,7 +561,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             onClick={() => handleReseal(s.id)}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
                             {resealing.has(s.id) ? <Loader size={12} className="animate-spin" /> : <RotateCcw size={12} strokeWidth={1.5} />}
-                            加载标书
+                            重试
                           </button>
                         )}
                       </div>
