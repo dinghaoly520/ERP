@@ -104,6 +104,12 @@ export class BidController {
   @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
   startEvaluation(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.startEvaluation(id, userId); }
 
+  @Post('projects/:id/complete-opening')
+  @ApiOperation({ summary: '完成开标·资料移交（生成开标文件包回传 :3005；幂等，不改 stage）' })
+  completeOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string) {
+    return this.bidService.completeOpening(id, userId);
+  }
+
   @Post('projects/:id/decrypt-all')
   @ApiOperation({ summary: '一键解密窗口内待解密供应商（4.4）' })
   decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.decryptAllSuppliers(id, userId); }

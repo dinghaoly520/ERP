@@ -59,7 +59,10 @@ const routeToModule: Record<string, string> = {
   "/mall-management": "集中目录管理",
 };
 
-const childrenScrollRoutes = new Set(["/tender-write", "/assistant"]);
+// 这些路由是「整页占满 + 内部自滚动」的工作区型页面：page 根用 flex-1 撑高，
+// 必须走 children 模式（包裹层=flex flex-1 min-h-0 flex-col，flex-1 才解析成有界高度）。
+// shell 模式下包裹层是 min-h-full 的 block，flex-1 失效 → 内部 panel 塌成内容高度、填不到页面底部。
+const childrenScrollRoutes = new Set(["/tender-write", "/assistant", "/tender-review"]);
 
 function AssistantLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();

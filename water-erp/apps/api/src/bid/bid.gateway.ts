@@ -31,6 +31,7 @@ import {
   type OpeningConfirmedPayload,
   type OpeningDisputedPayload,
   type OpeningDisputeResolvedPayload,
+  type OpeningCompletedPayload,
 } from '@water-erp/shared';
 
 /** Roles that may see individual presence / supervision / anomalies (command center). */
@@ -258,6 +259,11 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   notifyOpeningStarted(projectId: string, data: { host: string; supervisor: string }) {
     const payload: OpeningStartedPayload = { projectId, host: data.host, supervisor: data.supervisor, timestamp: Date.now() };
     this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_STARTED, payload);
+  }
+
+  notifyOpeningCompleted(projectId: string, data: { handoverAt: string; handoverAssetId: string }) {
+    const payload: OpeningCompletedPayload = { projectId, handoverAt: data.handoverAt, handoverAssetId: data.handoverAssetId, timestamp: Date.now() };
+    this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_COMPLETED, payload);
   }
 
   notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string }) {

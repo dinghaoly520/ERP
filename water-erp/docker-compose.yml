@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector/pgvector:pg16 = postgres:16 + vector 扩展（tender-review 知识库 RAG 依赖）。
+    # 与 postgres:16 数据卷格式兼容，直接换镜像不丢数据；原 16-alpine 不含 vector 扩展二进制。
+    image: pgvector/pgvector:pg16
     container_name: water-erp-postgres
     restart: unless-stopped
     command: ["postgres", "-c", "max_connections=200"]  # 为 pgbouncer 池 + 直连脚本留余量

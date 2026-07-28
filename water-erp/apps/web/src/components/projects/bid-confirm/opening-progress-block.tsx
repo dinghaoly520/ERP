@@ -136,6 +136,22 @@ export function OpeningProgressBlock({ bidProjectId, detail, onConfirmOpening, o
             </span>
           </div>
 
+          {/* 开标资料移交接收（:3007 完成开标后回传） */}
+          {openingSession.handoverAt && openingSession.handoverAssetId && (
+            <div className="flex flex-wrap items-center gap-2 rounded-[14px] px-3.5 py-2.5 text-xs" style={{ background: 'color-mix(in oklch, var(--success) 8%, transparent)' }}>
+              <UserCheck size={13} className="shrink-0 text-[var(--success)]" />
+              <span className="font-semibold text-[var(--success)]">开标资料已接收（{formatDateTime(openingSession.handoverAt)}）</span>
+              <a
+                href={`/api/upload/files/${openingSession.handoverAssetId}`}
+                target="_blank"
+                rel="noopener"
+                className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-[var(--accent)] hover:underline"
+              >
+                <FileCheck size={11} /> 下载开标文件包
+              </a>
+            </div>
+          )}
+
           {/* 进度四联 */}
           <div className="flex flex-wrap gap-2.5">
             <ProgressStat icon={<KeyRound size={12} />} label="标书解密" done={decrypted} total={total} tone={decrypted === total && total > 0 ? 'success' : 'accent'} />

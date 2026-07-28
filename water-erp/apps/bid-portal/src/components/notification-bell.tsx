@@ -54,7 +54,7 @@ export default function NotificationBell() {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(!open)} className="bid-bell" aria-label="通知">
+      <button onClick={() => setOpen(!open)} className="sp-header-icon" aria-label="通知">
         <Bell size={18} strokeWidth={1.5} />
         {unread > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[var(--danger)] px-1 font-mono text-[9px] font-bold text-white">

@@ -43,7 +43,6 @@ import { ResolveIssueDto } from './dto/resolve-issue.dto';
 import { CreateRuleDto, UpdateRuleDto } from './dto/rule.dto';
 import { ReviewReport } from './services/report-generator.service';
 import { AuthGuard } from '../auth/auth.guard';
-import { AdminGuard } from '../auth/admin.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { canViewAllUserActivity } from '../auth/auth-scope';
@@ -195,10 +194,10 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   // ── Rule Management ──
 
   @Post('rules/extract')
-  @UseGuards(AuthGuard, AdminGuard)
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({
     summary:
-      'AI-assisted rule extraction from knowledge base (async, admin only)',
+      'AI-assisted rule extraction from knowledge base (async)',
   })
   async extractRules(@Body() dto: ExtractRulesDto) {
     const task = await this.prisma.extractionTask.create({
@@ -239,8 +238,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Post('rules')
-  @UseGuards(AuthGuard, AdminGuard)
-  @ApiOperation({ summary: 'Create compliance rule (admin only)' })
+  @Roles('leader', 'admin', 'staff')
+  @ApiOperation({ summary: 'Create compliance rule' })
   async createRule(@Body() dto: CreateRuleDto) {
     return this.prisma.complianceRule.create({ data: dto as any });
   }
@@ -258,8 +257,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Put('rules/:id')
-  @UseGuards(AuthGuard, AdminGuard)
-  @ApiOperation({ summary: 'Update compliance rule (admin only)' })
+  @Roles('leader', 'admin', 'staff')
+  @ApiOperation({ summary: 'Update compliance rule' })
   async updateRule(@Param('id') id: string, @Body() dto: UpdateRuleDto) {
     return this.prisma.complianceRule.update({
       where: { id },
@@ -268,8 +267,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Delete('rules/:id')
-  @UseGuards(AuthGuard, AdminGuard)
-  @ApiOperation({ summary: 'Delete compliance rule (admin only)' })
+  @Roles('leader', 'admin', 'staff')
+  @ApiOperation({ summary: 'Delete compliance rule' })
   async deleteRule(@Param('id') id: string) {
     return this.prisma.complianceRule.delete({ where: { id } });
   }

@@ -32,8 +32,10 @@
 | `陈源远` | `陈源远@2026` | `procurement_staff` · 采购管理员 | 陈源远 |
 | `Swhi-CGZX-01` | `Swhi-CGZX-01@2026` | `leader` · 采购中心领导 | 陈源远 |
 | `Swhi-CGZX-05` | `Swhi-CGZX-05@2026` | `staff` · 采购中心员工 | 彭强 |
+| `Swhi-CGZX-admin` | `Swhi-CGZX-admin@2026` | `admin` · 采购中心管理员 | 采购中心管理员 |
 
 > 注：`陈源远` 从 :3005 登录时按 `PORTAL_ROLE_PRIORITY.web` 实际解析为 `bid_host` 账号，`/project-management` 403——:3005 项目管理请用 `Swhi-CGZX-*` leader/staff 账号。
+> `Swhi-CGZX-admin` 用于 `tender-review` 的规则提取/CRUD（`AdminGuard` 限 admin）；口令已在 `seed.ts` 内部管理账号规整循环中纳入（`<用户名>@2026`）。
 
 ## 专家门户 — http://localhost:3006
 
@@ -57,6 +59,6 @@
 | `陈源远` | `陈源远@2026` | `bid_host` · 开标主持人 | 陈源远 |
 
 ## 说明
-- **无 `admin` 账号**：`admin` 角色仍存在于 schema/RBAC（如 `BidController` 的 `@Roles`），但没有种子用户，已改为按门户划分的账号。
+- **`admin` 账号**：种子有 `Swhi-CGZX-admin`（口令 `Swhi-CGZX-admin@2026`）。`tender-review` 规则提取/CRUD 走 `AdminGuard`（仅 admin），无此账号则规则管理对所有人 403——故 `seed.ts` 已把它纳入 `<用户名>@2026` 规整循环。
 - **每门户独立登录**：cookie 按门户命名（`token_public`/`token_web`/`token_expert`/`token_supplier`/`token_mall`），切换门户需重新登录。
 - **会话共享例外**：开评标管理端 :3007 读取 `token_web` cookie，与 web :3005 共享同一会话（后端按角色命名 cookie，`admin`/`bid_host` 都落到 `web` 命名空间，无 `token_bid`）。

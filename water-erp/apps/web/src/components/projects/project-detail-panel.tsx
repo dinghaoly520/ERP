@@ -287,6 +287,7 @@ export function ProjectDetailPanel({
   onMoveToRecycleBin,
   canModify = true,
   currentUsername,
+  autoOpenBidConfirm = false,
 }: {
   item: ProjectManagementItem;
   onClose: () => void;
@@ -294,6 +295,7 @@ export function ProjectDetailPanel({
   onMoveToRecycleBin: (projectId: string) => Promise<void>;
   canModify?: boolean;
   currentUsername?: string;
+  autoOpenBidConfirm?: boolean;
 }) {
   const router = useRouter();
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
@@ -407,6 +409,14 @@ export function ProjectDetailPanel({
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid'>('procurement_document');
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
+  // 深链自动弹开标确认面板（一次性：触发后即清标记，关闭后不复发）
+  const autoOpenedBidConfirm = useRef(false);
+  useEffect(() => {
+    if (autoOpenBidConfirm && !autoOpenedBidConfirm.current) {
+      autoOpenedBidConfirm.current = true;
+      setBidConfirmOpen(true);
+    }
+  }, [autoOpenBidConfirm]);
   const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
 

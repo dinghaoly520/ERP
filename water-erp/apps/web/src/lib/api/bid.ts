@@ -323,6 +323,9 @@ export interface BidOpeningSessionInfo {
   remainingSeconds: number;
   status: string;
   exchangeControl?: string;
+  /** T10：:3007 完成开标后回传的移交资料（T1 为 BidOpeningSession 新增 handoverAt / handoverAssetId 两列） */
+  handoverAt: string | null;
+  handoverAssetId: string | null;
 }
 
 export interface BidProjectExpertInfo {

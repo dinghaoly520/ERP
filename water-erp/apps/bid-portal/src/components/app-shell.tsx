@@ -8,9 +8,9 @@ import RecentProjects from './recent-projects';
 import {
   Gavel,
   LogOut,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
 } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 
@@ -55,48 +55,47 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const registeredName = user?.displayName?.trim() || user?.username || '用户';
   const userInitial = registeredName.slice(0, 1);
 
-  // 顶栏左侧上下文标签：大厅实时执行 vs 任务板
-  const inHall = pathname?.startsWith('/bid/open');
-  const CtxIcon = inHall ? Gavel : ClipboardList;
-  const ctxLabel = inHall ? '开标大厅 · 实时执行' : '开标任务板';
-
   return (
-    <div className="flow-page ambient-grid h-screen overflow-hidden px-2.5 pb-2.5 sm:px-3.5 lg:pr-4 lg:pl-0">
+    <div className="flow-page ambient-grid flex h-screen flex-col overflow-hidden">
       {/* cgzxui 水彩光晕 —— 五角 oklch 浅彩 bloom，作为玻璃面板背后漂移的色彩层 */}
       <div className="flow-glow" aria-hidden />
 
-      <div className="mx-auto flex h-full w-full overflow-hidden [perspective:1500px]">
+      {/* 统一顶栏 —— 整宽置于侧栏之上，复刻 :3004 sp-header：brand 落左上角（即左侧 panel 区） */}
+      <div className="sp-header w-full shrink-0">
+        <div className="sp-header-left">
+          <button
+            type="button"
+            onClick={() => router.push('/bid')}
+            className="sp-brand"
+            aria-label="返回开标任务板"
+          >
+            <img src="/assets/logo.png" alt="智慧水发·蜀水云采" className="sp-brand-logo" />
+            <strong className="sp-brand-title">智慧水发 · 蜀水云采</strong>
+          </button>
+        </div>
+
+        <div className="sp-header-right">
+          <NotificationBell />
+          <span className="sp-user-pill">
+            <span className="sp-user-avatar">{userInitial}</span>
+            <span className="sp-user-name">{registeredName}</span>
+            <ChevronDown size={12} className="sp-user-arrow" />
+          </span>
+          <button type="button" onClick={logout} className="sp-logout-btn">
+            <LogOut size={15} strokeWidth={1.7} />
+            <span>退出登录</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="mx-auto flex min-h-0 w-full flex-1 gap-3 overflow-hidden px-3 pb-3 pt-3 [perspective:1500px]">
         {/* ── 3D 玻璃侧栏 ── */}
         <aside
           data-hidden={collapsed ? 'true' : 'false'}
-          className="sidebar-sheen sidebar-3d sidebar-card mr-4 hidden h-full w-[268px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex"
+          className="sidebar-sheen sidebar-3d sidebar-card hidden h-full w-[268px] shrink-0 flex-col rounded-[24px] pr-2 lg:flex"
         >
-          <header className="flex flex-col items-center gap-2 px-3.5 pb-3.5 pt-4">
-            <button
-              type="button"
-              onClick={() => router.push('/bid')}
-              className="command-orb brand-orb-3d flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]"
-              aria-label="返回开标任务板"
-            >
-              <img
-                src="/assets/logo.png"
-                alt="智慧水发·蜀水云采"
-                className="h-[46px] w-[46px] rounded-[12px] object-cover"
-              />
-            </button>
-            <div className="w-full text-center">
-              <div className="truncate font-[family-name:var(--font-display)] text-[1rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                智慧水发 · 蜀水云采
-              </div>
-              <div className="mt-0.5 truncate text-[11px] font-medium tracking-[0.04em] text-[color:var(--muted-foreground)]">
-                在线开评标执行终端
-              </div>
-            </div>
-          </header>
-
-          <div aria-hidden className="mx-3.5 h-px bg-[linear-gradient(90deg,transparent,oklch(0.7_0.04_258_/_0.5),transparent)]" />
-
-          <nav className="sidebar-scroll sidebar-nav mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 py-1">
+          {/* 品牌块已上移至顶栏 sp-brand；侧栏顶部仅留呼吸 padding */}
+          <nav className="sidebar-scroll sidebar-nav mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pt-3 pb-1">
             {navItems.map(item => {
               const active = isActive(item.path);
               const Icon = item.icon;
@@ -151,48 +150,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* ── 内容区 ── */}
         <section className="flex h-full min-w-0 flex-1 flex-col px-1">
           <main className="relative z-10 flex h-full min-h-0 flex-1 flex-col p-2.5 sm:p-3">
-            {/* 统一浮动顶栏 */}
-            <div className="flow-header">
-              <div className="flex min-w-0 items-center gap-2.5">
-                {/* 移动端品牌（侧栏隐藏时显示） */}
-                <div className="flex items-center gap-2 lg:hidden">
-                  <span className="flow-brand-mark">
-                    <img src="/assets/logo.png" alt="智慧水发·蜀水云采" className="h-7 w-7 rounded-[8px] object-cover" />
-                  </span>
-                  <span className="truncate font-[family-name:var(--font-display)] text-[13px] font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">
-                    智慧水发 · 蜀水云采
-                  </span>
-                </div>
-                {/* 桌面端上下文标签 */}
-                <div className="hidden items-center gap-2 lg:flex">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[oklch(0.62_0.16_258_/_0.12)] text-[color:var(--accent-strong)]">
-                    <CtxIcon size={15} strokeWidth={1.7} />
-                  </span>
-                  <span className="truncate font-[family-name:var(--font-display)] text-[13px] font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">
-                    {ctxLabel}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <NotificationBell />
-                <span className="neu-chip rounded-[11px] px-2.5 py-1.5">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--accent-strong),var(--accent))] text-[11px] font-black text-white">
-                    {userInitial}
-                  </span>
-                  <span className="hidden text-[13px] font-semibold text-[color:var(--foreground)] sm:block">{registeredName}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="neu-btn-soft h-[38px] !px-3"
-                >
-                  <LogOut size={15} strokeWidth={1.7} />
-                  <span className="hidden sm:inline">退出登录</span>
-                </button>
-              </div>
-            </div>
-
             {/* 页面内容滚动区 */}
             <div className="min-h-0 flex-1 overflow-y-auto">
               {children}

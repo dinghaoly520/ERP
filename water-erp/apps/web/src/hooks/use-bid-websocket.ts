@@ -28,6 +28,7 @@ import {
   type OpeningConfirmedPayload,
   type OpeningDisputedPayload,
   type OpeningDisputeResolvedPayload,
+  type OpeningCompletedPayload,
 } from '@water-erp/shared';
 
 function wsUrl(): string {
@@ -52,6 +53,7 @@ export interface BidWsHandlers {
   onOpeningConfirmed?: (d: OpeningConfirmedPayload) => void;
   onOpeningDisputed?: (d: OpeningDisputedPayload) => void;
   onOpeningDisputeResolved?: (d: OpeningDisputeResolvedPayload) => void;
+  onOpeningCompleted?: (d: OpeningCompletedPayload) => void;
   /** F13：断线重连成功后触发（首连不触发）——供调用方做全量补偿刷新 */
   onReconnected?: () => void;
 }
@@ -164,6 +166,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.OPENING_CONFIRMED, h.current.onOpeningConfirmed);
     on(BID_EVENT.OPENING_DISPUTED, h.current.onOpeningDisputed);
     on(BID_EVENT.OPENING_DISPUTE_RESOLVED, h.current.onOpeningDisputeResolved);
+    on(BID_EVENT.OPENING_COMPLETED, h.current.onOpeningCompleted);
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {
