@@ -28,7 +28,7 @@ interface KbNavSidebarProps {
 
 export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
   const { knowledgeBases, selectedKbId, setSelectedKbId, setActiveTab, loading, stats, recentReviews, runningTasks, setSelectedReportTask, currentUser } = useTenderReview();
-  const { remove, create } = useKnowledgeBaseOps();
+  const { remove, create, update } = useKnowledgeBaseOps();
   const [panelState, setPanelState] = useState<PanelState>('stats');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showCreate, setShowCreate] = useState(false);
@@ -64,6 +64,14 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
       setDeleteConfirmId(null);
     } catch (err) {
       console.error('Delete KB error:', err);
+    }
+  };
+
+  const handleToggleShare = async (kb: KnowledgeBase) => {
+    try {
+      await update(kb.id, { isShared: !kb.isShared });
+    } catch {
+      // toast 已在 hook 内处理
     }
   };
 
@@ -272,6 +280,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
                 key={kb.id}
                 kb={kb}
                 canEdit={kb.ownerId === currentUser?.id || currentUser?.role === 'admin'}
+                onToggleShare={() => handleToggleShare(kb)}
                 isSelected={selectedKbId === kb.id}
                 isExpanded={expandedIds.has(kb.id)}
                 deleteConfirm={deleteConfirmId === kb.id}
@@ -301,6 +310,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
 interface KbNavItemProps {
   kb: KnowledgeBase;
   canEdit: boolean;
+  onToggleShare: () => void;
   isSelected: boolean;
   isExpanded: boolean;
   deleteConfirm: boolean;
@@ -315,6 +325,7 @@ interface KbNavItemProps {
 function KbNavItem({
   kb,
   canEdit,
+  onToggleShare,
   isSelected,
   isExpanded,
   deleteConfirm,
@@ -357,6 +368,13 @@ function KbNavItem({
           >
             {canEdit ? (
               <>
+                <button
+                  onClick={onToggleShare}
+                  className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium transition-colors
+                    bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_22%,transparent)]"
+                >
+                  {kb.isShared ? '取消共享' : '设为共享'}
+                </button>
                 <button
                   onClick={onViewFiles}
                   className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium

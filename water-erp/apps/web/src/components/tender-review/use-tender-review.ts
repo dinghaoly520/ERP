@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { useTenderReview } from './tender-review-context';
-import { createKnowledgeBase, deleteKnowledgeBase, uploadKnowledgeFile, deleteKnowledgeFile, reindexKnowledgeBase } from '@/lib/api/knowledge';
+import { createKnowledgeBase, deleteKnowledgeBase, uploadKnowledgeFile, deleteKnowledgeFile, reindexKnowledgeBase, updateKnowledgeBase } from '@/lib/api/knowledge';
 import { uploadReviewDocument, executeReview, stopReviewTask, deleteReviewTask, fetchReviewTask } from '@/lib/api/review';
 import { createRule, updateRule, deleteRule, extractRulesFromKb } from '@/lib/api/rules';
 import type { ComplianceRule } from '@/lib/types/tender-review';
@@ -78,8 +78,21 @@ export function useKnowledgeBaseOps() {
     }
   }, []);
 
+  const update = useCallback(async (id: string, data: { name?: string; description?: string; isShared?: boolean; isActive?: boolean }) => {
+    try {
+      await updateKnowledgeBase(id, data);
+      toast.success('已更新');
+      await refreshKnowledgeBases();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '更新失败';
+      toast.error(msg);
+      throw err;
+    }
+  }, [refreshKnowledgeBases]);
+
   return {
     create,
+    update,
     remove,
     uploadFile,
     deleteFile,
