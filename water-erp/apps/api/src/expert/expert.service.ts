@@ -522,8 +522,16 @@ export class ExpertService {
   /** 招标文件元信息（供前端「招标文件」卡片展示），无则 null。 */
   async getTenderDocument(userId: string, projectId: string) {
     await this.assertExpertActiveForProject(userId, projectId);
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { projectCode: true },
+    });
     const doc = await this.prisma.bidDocument.findFirst({
-      where: { bidProjectId: projectId },
+      where: {
+        OR: [
+          { bidProjectId: projectId },
+          { announcement: { relatedProjectCode: project?.projectCode ?? '' } },
+        ],
+      },
       include: { fileAsset: true },
     });
     return this.buildTenderDocumentMeta(doc, projectId);

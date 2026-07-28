@@ -20,8 +20,8 @@ import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertBidStageTransition, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
-import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
-import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
+import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
+import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { openField } from '../common/crypto/field-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
@@ -1329,6 +1329,324 @@ export class BidService {
 
       return confirmed;
     });
+  }
+
+  /**
+   * 管理员补传异常投标文件（兜底机制）。
+   * SHA-256 闸门：上传文件必须与原始标书逐字节一致（FileAsset.sha256），拒绝替换。
+   * 重新加密 → 覆盖 sealedPath/sealedKey → 重置 DANGER → 自动重解密。
+   * 仅 OPENING 阶段允许（评标开始后锁死）。
+   */
+  async reuploadBidFile(
+    projectId: string,
+    supplierId: string,
+    role: string,
+    file: Express.Multer.File,
+    actorId: string,
+  ) {
+    // ── 角色字段映射 ──
+    const ROLE_MAP = {
+      technical:   { assetIdKey: 'technicalFileAssetId',  sealedKeyKey: 'technicalSealedKey'  },
+      business:    { assetIdKey: 'businessFileAssetId',   sealedKeyKey: 'businessSealedKey'   },
+      coverLetter: { assetIdKey: 'coverLetterAssetId',    sealedKeyKey: 'coverLetterSealedKey'},
+    } as const;
+    const fields = ROLE_MAP[role as keyof typeof ROLE_MAP];
+    if (!fields) throw new BadRequestException({ error: '无效文件角色', code: 'INVALID_ROLE' });
+
+    // ── 阶段门：仅 OPENING ──
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new ForbiddenException({ error: '仅开标阶段可补传投标文件', code: 'STAGE_NOT_OPENING' });
+    }
+
+    // ── 查 BidSupplier → SupplierBidSubmission → FileAsset ──
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { projectId, id: supplierId } });
+    if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+
+    const submission = bidSupplier.supplierId
+      ? await this.prisma.supplierBidSubmission.findUnique({
+          where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
+        })
+      : null;
+    if (!submission) throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
+
+    const assetId = submission[fields.assetIdKey] as string | null;
+    if (!assetId) throw new BadRequestException({ error: `缺少${role} 文件引用`, code: 'NO_FILE_REF' });
+
+    const originalAsset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+    if (!originalAsset || !originalAsset.sha256) {
+      throw new BadRequestException({ error: '原始文件记录缺失，无法校验', code: 'FILE_RECORD_MISSING' });
+    }
+
+    // ── SHA-256 安全闸门：上传文件必须与原始标书逐字节一致 ──
+    const uploadSha = crypto.createHash('sha256').update(file.buffer).digest('hex');
+    if (uploadSha !== originalAsset.sha256) {
+      this.logger.warn(`reupload SHA-256 mismatch: supplier=${bidSupplier.supplierName} role=${role} original=${originalAsset.sha256} upload=${uploadSha} actor=${actorId}`);
+      throw new BadRequestException({
+        error: '上传文件与原始标书内容不一致（SHA-256 不匹配），疑似非原始文件，拒绝恢复',
+        code: 'FILE_HASH_MISMATCH',
+      });
+    }
+
+    // ── 重新加密（复用 submitBid 加密管线） ──
+    const { ciphertext, decryptKey } = encryptBuffer(file.buffer);
+    const wrappedKey = wrapKey(decryptKey, process.env.KMS_SECRET!);
+    const sealedPath = `reupload/${projectId}/${supplierId}/${role}-${Date.now()}.enc`;
+
+    try {
+      await minioClient.putObject(MINIO_BUCKET, sealedPath, ciphertext, ciphertext.length, {
+        'Content-Type': 'application/octet-stream',
+      });
+    } catch (err) {
+      this.logger.error(`reupload MinIO putObject failed: ${sealedPath}`, err);
+      throw new BadRequestException({ error: '文件存储失败，请重试', code: 'STORAGE_FAILED' });
+    }
+
+    // ── 事务：覆盖文件引用 + 重置 DANGER + 审计三件套 ──
+    const sealedKeyUpdate: Record<string, string> = {};
+    sealedKeyUpdate[fields.sealedKeyKey] = wrappedKey;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.fileAsset.update({
+        where: { id: assetId },
+        data: { sealedPath, encrypted: true },
+      });
+      await tx.supplierBidSubmission.update({
+        where: { supplierId_projectId: { supplierId: bidSupplier.supplierId!, projectId } },
+        data: sealedKeyUpdate as any,
+      });
+      await tx.bidSupplier.update({
+        where: { id: supplierId },
+        data: { decryptStatus: 'PENDING', decryptError: null },
+      });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
+          action: '标书补传', result: `${role} 文件已恢复（SHA-256 一致）`, riskFlag: '高风险',
+        },
+      });
+      this.gateway?.notifySupervisionLog(projectId, {
+        role: '主持人', action: '标书补传', target: bidSupplier.supplierName,
+        result: `${role} 文件已恢复（SHA-256 一致）`, riskFlag: '高风险',
+      });
+      if (actorId) {
+        await tx.auditLog.create({
+          data: {
+            userId: actorId, action: 'BID_FILE_REUPLOAD',
+            resourceType: `${bidSupplier.supplierName}:${supplierId}`,
+            details: { projectId, role, originalSha256: originalAsset.sha256, uploadSha, phase: 'recovery' },
+          },
+        });
+      }
+    });
+
+    // ── 自动重解密（事务外，窗口关了就只修复不重解） ──
+    try {
+      await this.decryptSupplier(projectId, supplierId, undefined, actorId);
+      return { recovered: true, decrypted: true, decryptStatus: 'SUCCESS' };
+    } catch (e) {
+      this.logger.warn(`reupload auto-decrypt failed (file recovered): ${(e as Error).message}`);
+      return { recovered: true, decrypted: false, message: '文件已修复，请点「重试解密」或确认解密窗口是否开启' };
+    }
+  }
+
+  /**
+   * 管理员一键重新封标（兜底机制·主路径）。
+   * 从系统内存储的原始明文（FileAsset.key，供应商上传时存入、未删除）恢复：
+   * 读取明文 → SHA-256 校验 → 重新加密（当前 KMS_SECRET）→ 覆盖 sealedPath/sealedKey → 重置 DANGER → 自动重解密。
+   * 遍历 technical/business/coverLetter 三个角色，有文件引用的都尝试恢复。
+   * 仅 OPENING 阶段允许。
+   */
+  async resealBidFiles(projectId: string, supplierId: string, actorId: string) {
+    // ── 阶段门 ──
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new ForbiddenException({ error: '仅开标阶段可重新封标', code: 'STAGE_NOT_OPENING' });
+    }
+
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { projectId, id: supplierId } });
+    if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+    const submission = bidSupplier.supplierId
+      ? await this.prisma.supplierBidSubmission.findUnique({
+          where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
+        })
+      : null;
+    if (!submission) throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
+
+    const ROLE_MAP = {
+      technical:   { assetIdKey: 'technicalFileAssetId',  sealedKeyKey: 'technicalSealedKey',  label: '技术标' },
+      business:    { assetIdKey: 'businessFileAssetId',   sealedKeyKey: 'businessSealedKey',   label: '商务标' },
+      coverLetter: { assetIdKey: 'coverLetterAssetId',    sealedKeyKey: 'coverLetterSealedKey', label: '投标函' },
+    } as const;
+
+    const recovered: string[] = [];
+    const failed: Array<{ role: string; label: string; code: string; error: string }> = [];
+
+    for (const [role, fields] of Object.entries(ROLE_MAP)) {
+      const assetId = submission[fields.assetIdKey as keyof typeof submission] as string | null;
+      if (!assetId) continue; // 该角色无文件引用，跳过
+
+      const originalAsset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+      if (!originalAsset || !originalAsset.sha256 || !originalAsset.key) {
+        failed.push({ role, label: fields.label, code: 'FILE_RECORD_MISSING', error: '原始文件记录缺失' });
+        continue;
+      }
+
+      // 从 FileAsset.key 读取原始明文（供应商上传时存入，submitBid 不删除）
+      let plaintext: Buffer;
+      try {
+        plaintext = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, originalAsset.key));
+      } catch (err) {
+        this.logger.error(`reseal getObject failed: ${originalAsset.key}`, err);
+        failed.push({ role, label: fields.label, code: 'ORIGINAL_FILE_MISSING', error: '原始文件已丢失（MinIO 对象不存在）' });
+        continue;
+      }
+
+      // SHA-256 校验原始明文完整性
+      const plaintextSha = crypto.createHash('sha256').update(plaintext).digest('hex');
+      if (plaintextSha !== originalAsset.sha256) {
+        this.logger.warn(`reseal plaintext SHA-256 mismatch: asset=${assetId} stored=${originalAsset.sha256} actual=${plaintextSha}`);
+        failed.push({ role, label: fields.label, code: 'ORIGINAL_FILE_CORRUPT', error: '原始文件已损坏（SHA-256 不匹配）' });
+        continue;
+      }
+
+      // 重新加密（用当前 KMS_SECRET）
+      const { ciphertext, decryptKey } = encryptBuffer(plaintext);
+      const wrappedKey = wrapKey(decryptKey, process.env.KMS_SECRET!);
+      const sealedPath = `reseal/${projectId}/${supplierId}/${role}-${Date.now()}.enc`;
+      await minioClient.putObject(MINIO_BUCKET, sealedPath, ciphertext, ciphertext.length, {
+        'Content-Type': 'application/octet-stream',
+      });
+
+      // 事务：覆盖文件引用 + 重置 DANGER + 审计
+      const sealedKeyUpdate: Record<string, string> = {};
+      sealedKeyUpdate[fields.sealedKeyKey] = wrappedKey;
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.fileAsset.update({ where: { id: assetId }, data: { sealedPath, encrypted: true } });
+        await tx.supplierBidSubmission.update({
+          where: { supplierId_projectId: { supplierId: bidSupplier.supplierId!, projectId } },
+          data: sealedKeyUpdate as any,
+        });
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'PENDING', decryptError: null } });
+        await tx.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
+            action: '重新封标', result: `${fields.label} 已从原始明文恢复`, riskFlag: '高风险' },
+        });
+        if (actorId) {
+          await tx.auditLog.create({
+            data: { userId: actorId, action: 'BID_FILE_RESEAL', resourceType: `${bidSupplier.supplierName}:${supplierId}`,
+              details: { projectId, role, sha256: originalAsset.sha256 } },
+          });
+        }
+      });
+      recovered.push(fields.label);
+    }
+
+    if (recovered.length > 0) {
+      this.gateway?.notifySupervisionLog(projectId, {
+        role: '主持人', action: '重新封标', target: bidSupplier.supplierName,
+        result: `${recovered.join('、')} 已恢复`, riskFlag: '高风险',
+      });
+    }
+
+    // 自动重解密
+    let decrypted = false;
+    if (recovered.length > 0) {
+      try {
+        await this.decryptSupplier(projectId, supplierId, undefined, actorId);
+        decrypted = true;
+      } catch (e) {
+        this.logger.warn(`reseal auto-decrypt failed: ${(e as Error).message}`);
+      }
+    }
+
+    return {
+      recovered, failed, decrypted,
+      message: recovered.length > 0
+        ? `${recovered.join('、')} 已恢复${decrypted ? '并重新解密成功' : ''}`
+        : '无文件可恢复',
+    };
+  }
+
+  /**
+   * 管理员重新加载招标文件（兜底机制）。
+   * 招标文件一定在系统内（开标前提），此方法：
+   * 1. 用完整 OR 条件查找（bidProjectId 或 projectCode 反查）
+   * 2. 自动修复 bidProjectId 关联（getTenderDocument 只按 bidProjectId 查）
+   * 3. 验证可解密（MinIO 密文 → unwrapKey → decryptBuffer）
+   */
+  async reloadTenderDocument(projectId: string, actorId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, projectCode: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // 用完整 OR 条件查找（与 downloadTenderDocument 一致）
+    const doc = await this.prisma.bidDocument.findFirst({
+      where: {
+        OR: [
+          { bidProjectId: projectId },
+          { announcement: { relatedProjectCode: project.projectCode ?? '' } },
+        ],
+      },
+      include: { fileAsset: true },
+    });
+
+    if (!doc?.fileAsset) {
+      return { status: 'missing' as const, message: '未找到招标文件，请确认已在 :3005 上传招标文件' };
+    }
+
+    // 如果 bidProjectId 未关联到当前项目，自动修复（getTenderDocument 只按 bidProjectId 查）
+    let bidProjectIdFixed = false;
+    if (!doc.bidProjectId) {
+      await this.prisma.bidDocument.update({
+        where: { id: doc.id },
+        data: { bidProjectId: projectId },
+      });
+      bidProjectIdFixed = true;
+    }
+
+    // 验证可解密
+    try {
+      const ciphertext = await streamToBuffer(
+        await minioClient.getObject(MINIO_BUCKET, doc.fileAsset.key),
+      );
+      const rawKey = isWrappedKey(doc.decryptKey)
+        ? unwrapKey(doc.decryptKey, process.env.KMS_SECRET!)
+        : doc.decryptKey;
+      decryptBuffer(ciphertext, rawKey);
+
+      if (actorId) {
+        await this.prisma.auditLog.create({
+          data: {
+            userId: actorId, action: 'BID_TENDER_DOC_RELOAD',
+            resourceType: `project:${projectId}`,
+            details: { fileName: doc.fileAsset.originalName, bidProjectIdFixed },
+          },
+        });
+      }
+
+      return {
+        status: 'ok' as const,
+        message: bidProjectIdFixed
+          ? `招标文件已关联并验证通过（${doc.fileAsset.originalName}）`
+          : `招标文件可正常访问（${doc.fileAsset.originalName}）`,
+      };
+    } catch (err) {
+      this.logger.warn(`reload tender document decrypt failed: ${(err as Error).message}`);
+      return {
+        status: 'decrypt_failed' as const,
+        message: `招标文件解密失败：${(err as Error).message}，请在 :3005 重新上传招标文件`,
+      };
+    }
   }
 
   async getOpeningSession(projectId: string) {

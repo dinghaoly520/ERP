@@ -54,7 +54,7 @@ export function getProjectsDashboard() {
 /* ── 开标会话组建（:3005 已确定开标后，主持人在大厅同阶段幂等写入会话）── */
 
 export function startOpening(projectId: string, body: {
-  host: string; supervisor: string;
+  host: string; supervisor?: string; // 监督人选填（法律未强制）
   decryptWindowStart: string; decryptWindowEnd: string;
 }) {
   return api.post<BidProjectDetail>(`/bid/projects/${projectId}/open`, body);
@@ -64,6 +64,47 @@ export function startOpening(projectId: string, body: {
 
 export function decryptBid(projectId: string, supplierId: string) {
   return api.post(`/bid/projects/${projectId}/decrypt/${supplierId}`, {});
+}
+
+/* ── 管理员补传异常投标文件（SHA-256 闸门校验）── */
+
+export interface ReuploadResult {
+  recovered: boolean;
+  decrypted: boolean;
+  decryptStatus?: string;
+  message?: string;
+}
+
+export function reuploadBidFile(projectId: string, supplierId: string, role: string, file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.upload<ReuploadResult>(
+    `/bid/projects/${projectId}/suppliers/${supplierId}/files/${role}/reupload`, fd,
+  );
+}
+
+/* ── 管理员一键重新封标（从系统内原始明文恢复，无需上传文件）── */
+
+export interface ResealResult {
+  recovered: string[];
+  failed: Array<{ role: string; label: string; code: string; error: string }>;
+  decrypted: boolean;
+  message: string;
+}
+
+export function resealBidFiles(projectId: string, supplierId: string) {
+  return api.post<ResealResult>(`/bid/projects/${projectId}/suppliers/${supplierId}/reseal`, {});
+}
+
+/* ── 重新加载招标文件（验证可解密 + 自动修复关联）── */
+
+export interface TenderDocReloadResult {
+  status: 'ok' | 'missing' | 'decrypt_failed';
+  message: string;
+}
+
+export function reloadTenderDocument(projectId: string) {
+  return api.post<TenderDocReloadResult>(`/bid/projects/${projectId}/tender-document/reload`, {});
 }
 
 /* ── 唱标与异议 ── */

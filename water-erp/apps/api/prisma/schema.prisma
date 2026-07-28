@@ -399,7 +399,7 @@ model BidOpeningSession {
   id                 String     @id @default(cuid())
   projectId          String     @unique
   host               String
-  supervisor         String
+  supervisor         String?
   status             String     @default("待开标")
   decryptWindowStart DateTime
   decryptWindowEnd   DateTime

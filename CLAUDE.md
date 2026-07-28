@@ -69,7 +69,7 @@ Self-service portal for suppliers. Supports registration (with enterprise info +
 
 ### 采购管理工作台 (`web`, :3005)
 
-The admin/internal staff management console for `procurement_staff` users. Key modules:
+The admin/internal staff management console for procurement users (login roles `staff`/`leader`; the `procurement_staff` schema role is NOT in `PORTAL_ROLE_PRIORITY.web`). Key modules:
 
 - **首页驾驶舱** (`/dashboard`) — operational dashboard with AI panel (水叮当 summary)
 - **信息发布中心** (`/notice`) — manage announcements (CRUD + publish)
@@ -80,7 +80,7 @@ The admin/internal staff management console for `procurement_staff` users. Key m
 - **招投标文档** (`/tender-write` · `/tender-review`) — tender-document authoring + AI review
 - **项目 / 进度 / 工作安排** (`/procurements` · `/projects` · `/progress` · `/work-arrangements`) — procurement-project lifecycle, milestones, work assignments
 
-**Access:** Requires login as `procurement_staff` role.  
+**Access:** Log in with a `staff`/`leader` account (e.g. `Swhi-CGZX-01` leader / `Swhi-CGZX-05` staff, password `<用户名>@2026`). `陈源远` resolves to `bid_host` here per `PORTAL_ROLE_PRIORITY.web` — it is NOT the procurement login.  
 **Login cookie:** `token_web`.  
 **Target audience:** Procurement administrators.
 
@@ -105,7 +105,7 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 **纯开标执行终端**（2026-07 重构）。总则：**所有流程流转归 :3005 采购管理工作台，:3007 只执行在线开标并把数据流转回 :3005**。:3007 不持有任何阶段流转调用（确定开标/启动评标/生成结果/归档触发均在 :3005 项目详情「开标确认」面板）。页面三个：
 
 - **开标任务板** (`/bid`) — 只读，按阶段分区：「开标中」（解密/唱标/确认/异议四计数）/「评标中」（专家签到·投标计数，进入工作区默认评标 tab）/「待确定开标」（截标已过的 DOWNLOAD/SUBMIT，仅提示）/「已结束」（归档·流标只读回看）；行操作进入对应项目工作区
-- **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人/监督人/解密窗口，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、开标完成后横幅【完成开标·移交】生成开标文件包（FileAsset `category=bid_opening_handover`，JSON + SHA-256 指纹，存 MinIO）并 WS 广播 `opening:completed` 回传 :3005（幂等、不改 stage、非启动评标闸门），:3005「开标进度」区块展示「资料已接收·下载」
+- **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人+解密窗口必填/监督人选填，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、开标完成后横幅【完成开标·移交】生成开标文件包（FileAsset `category=bid_opening_handover`，JSON + SHA-256 指纹，存 MinIO）并 WS 广播 `opening:completed` 回传 :3005（幂等、不改 stage、非启动评标闸门），:3005「开标进度」区块展示「资料已接收·下载」
 - **项目工作区** (`/bid/project/[id]?tab=`) — 2026-07-26 恢复：三 tab「开标大厅（嵌入大厅组件）／评标管理（只读：进度·专家状态·评分矩阵·汇总排名）／评分标准（只读：评分项+得分点）」；默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；评标管理从 OPENING 起即可查看（只读骨架，评标未开始时显示空态）；旧链接 `/bid/open?id=` 兼容重定向至此。评标**操作**（启动评标/生成结果/催促）、评分标准**编制**、澄清答疑、归档触发仍全归 :3005，工作区零操作按钮
 
 已迁回 :3005 的原 :3007 功能（:3007 仅保留只读视图）：评标管理端的编辑操作、评分标准编制、澄清答疑、归档触发与查看、项目创建/编辑/邀请/催办。
@@ -222,11 +222,13 @@ Passwords follow `<username>@2026` convention:
 | `中科院成都信息技术股份有限公司` | `supplier@2026` | supplier (approved) · 英雄项目评标第 1 名 | 供应商门户 (:3004) |
 | `四川省通信产业服务有限公司` | `supplier@2026` | supplier (approved) · 英雄项目解密异常 | 供应商门户 (:3004) |
 | `成都华西物资供应有限公司` | `supplier@2026` | supplier (approved) · 原 `huaxi` · 参与旧种子项目 | 供应商门户 (:3004) |
-| `陈源远` | `陈源远@2026` | procurement_staff | 采购管理工作台 (:3005) |
+| `Swhi-CGZX-01` | `Swhi-CGZX-01@2026` | leader · 采购中心领导 | 采购管理工作台 (:3005) |
+| `Swhi-CGZX-05` | `Swhi-CGZX-05@2026` | staff · 采购中心员工 | 采购管理工作台 (:3005) |
+| `陈源远` | `陈源远@2026` | procurement_staff · :3005 登录实际解析为 `bid_host`（见下注） | 采购管理工作台 (:3005) |
 | 专家姓名（如 `刘苡池`） | `expert@2026` | bid_expert | 专家门户 (:3006) |
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
-> **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、采购管理端→procurement_staff、开标端（专家门户 admin tab）→bid_host。详见 `auth.service.ts` 的 `PORTAL_ROLE_PRIORITY`。
+> **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` **不含 `procurement_staff`**，故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
 
 > `admin` role exists in schema/RBAC but has no seeded user. Use `陈源远` (bid_host) for bid portal access.
 

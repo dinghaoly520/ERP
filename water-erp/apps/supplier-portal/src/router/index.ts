@@ -135,7 +135,7 @@ const router = createRouter({
 })
 
 // Navigation guard
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   // 公开页（如回执 /rsvp）：登录与否都直接放行，不强制登录、也不把已登录者弹走。
@@ -149,17 +149,17 @@ router.beforeEach(async (to, _from, next) => {
   if (to.meta.guest) {
     // Public homepage quick-entry uses forceLogin=1 so users must re-enter
     // credentials even if this portal already has a cached session.
-    if (to.query.forceLogin === '1') return next()
+    if (to.query.forceLogin === '1') return true
 
     // Guest pages — redirect to dashboard if already logged in
-    if (authStore.isLoggedIn) return next('/dashboard')
-    return next()
+    if (authStore.isLoggedIn) return '/dashboard'
+    return true
   }
 
   // Protected pages — redirect to login if not authenticated
-  if (!authStore.isLoggedIn) return next('/login')
+  if (!authStore.isLoggedIn) return '/login'
 
-  next()
+  return true
 })
 
 export default router

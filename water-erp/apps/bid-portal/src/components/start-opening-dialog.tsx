@@ -18,9 +18,11 @@ function toLocalInput(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** 组建开标会话弹窗 —— 收集主持人/监督人/解密时间窗口后提交 StartOpeningDto。
+/** 组建开标会话弹窗 —— 收集主持人/监督人（选填）/解密时间窗口后提交 StartOpeningDto。
  * Phase 3 起：:3005「按时开标」只推阶段（不建会话），会话在 :3007 开标大厅
- * 由主持人组建——同阶段（OPENING→OPENING）幂等调用 /open 写入会话。 */
+ * 由主持人组建——同阶段（OPENING→OPENING）幂等调用 /open 写入会话。
+ * 监督人选填：法律未强制开标现场必须有具名监督人（《招标投标法》第35/36条），
+ * 填了则登记为监督人 / 线上监督责任人。 */
 export default function StartOpeningDialog({ open, projectId, onClose, onStarted }: Props) {
   const [host, setHost] = useState('');
   const [supervisor, setSupervisor] = useState('');
@@ -34,8 +36,8 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
 
   const handleSubmit = async () => {
     setError('');
-    if (!host.trim() || !supervisor.trim()) {
-      setError('请填写主持人与监督人');
+    if (!host.trim()) {
+      setError('请填写主持人');
       return;
     }
     const start = new Date(decryptStart);
@@ -52,7 +54,8 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
     try {
       await api.post(`/bid/projects/${projectId}/open`, {
         host: host.trim(),
-        supervisor: supervisor.trim(),
+        // 监督人选填：留空则省略字段（DTO @IsNotEmpty 不接受空串）
+        ...(supervisor.trim() ? { supervisor: supervisor.trim() } : {}),
         decryptWindowStart: start.toISOString(),
         decryptWindowEnd: end.toISOString(),
       });
@@ -85,8 +88,8 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
             <input value={host} onChange={(e) => setHost(e.target.value)} className="neu-input" placeholder="如：采购中心-李主任" autoFocus />
           </div>
           <div>
-            <label className={labelCls}>监督人 <span className="text-[var(--danger)]">*</span></label>
-            <input value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="neu-input" placeholder="如：纪检监督-周老师" />
+            <label className={labelCls}>监督人 <span className="font-normal normal-case text-[color:var(--muted-foreground)]">选填</span></label>
+            <input value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="neu-input" placeholder="如：纪检监督-周老师（可留空）" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

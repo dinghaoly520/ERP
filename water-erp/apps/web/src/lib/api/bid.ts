@@ -317,7 +317,7 @@ export function getOpeningSessionTime(bidProjectId: string) {
 export interface BidOpeningSessionInfo {
   id: string;
   host: string;
-  supervisor: string;
+  supervisor: string | null; // 选填（法律未强制）
   decryptWindowStart: string;
   decryptWindowEnd: string;
   remainingSeconds: number;

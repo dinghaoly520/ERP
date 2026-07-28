@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening } from '@/lib/api';
+import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, reloadTenderDocument } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, Eye, ExternalLink,
-  Volume2, Zap, Loader, FileText,
+  Volume2, Zap, Loader, FileText, RotateCcw,
 } from 'lucide-react';
 import { DECRYPT_LABEL } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -103,6 +103,44 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
   const [recordEntryLoading, setRecordEntryLoading] = useState(false);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
+  // ═══ DANGER 兜底：重新封标（从系统内原始明文恢复）═══
+  const [resealing, setResealing] = useState<Set<string>>(new Set());
+
+  const handleReseal = async (supplierId: string) => {
+    setResealing(prev => new Set(prev).add(supplierId));
+    try {
+      const result = await resealBidFiles(project.id, supplierId);
+      if (result.recovered.length > 0) {
+        toast.success(result.message);
+      } else if (result.failed.length > 0) {
+        toast.error(result.failed.map(f => `${f.label}: ${f.error}`).join('；'));
+      }
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err?.message || '重新封标失败');
+    }
+    setResealing(prev => { const n = new Set(prev); n.delete(supplierId); return n; });
+  };
+
+  // ═══ 招标文件重新加载（验证可解密 + 修复关联）═══
+  const [reloadingTender, setReloadingTender] = useState(false);
+
+  const handleReloadTenderDoc = async () => {
+    setReloadingTender(true);
+    try {
+      const result = await reloadTenderDocument(projectId);
+      if (result.status === 'ok') {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err?.message || '重新加载失败');
+    }
+    setReloadingTender(false);
+  };
+
   // 每秒驱动重渲染，让倒计时圆环/MM:SS 实时跳动（remaining 依赖 now 重新计算）
   const [now, setNow] = useState(() => Date.now());
 
@@ -423,6 +461,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
               </button>
             )}
+            <button type="button" onClick={handleReloadTenderDoc} disabled={reloadingTender}
+              className="neu-btn-soft disabled:opacity-50">
+              {reloadingTender ? <Loader size={13} className="animate-spin" /> : <FileText size={13} />}
+              {reloadingTender ? '加载中…' : '加载招标文件'}
+            </button>
             {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403） */}
             {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} />}
           </div>
@@ -510,6 +553,15 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           <button type="button" onClick={() => openRecordEntry(s)} disabled={recordEntryLoading}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)]">
                             <Volume2 size={12} strokeWidth={1.5} /> 唱标
+                          </button>
+                        )}
+                        {isDanger && project.stage === 'OPENING' && (
+                          <button type="button"
+                            disabled={resealing.has(s.id)}
+                            onClick={() => handleReseal(s.id)}
+                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
+                            {resealing.has(s.id) ? <Loader size={12} className="animate-spin" /> : <RotateCcw size={12} strokeWidth={1.5} />}
+                            加载标书
                           </button>
                         )}
                       </div>

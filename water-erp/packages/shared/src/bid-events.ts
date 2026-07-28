@@ -49,7 +49,7 @@ export interface SubmissionOpenedPayload {
 export interface OpeningStartedPayload {
   projectId: string;
   host: string;
-  supervisor: string;
+  supervisor: string | null; // 选填：法律未强制开标现场有具名监督人
   timestamp: number;
 }
 

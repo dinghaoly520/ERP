@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { BidService } from './bid.service';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
@@ -159,6 +160,42 @@ export class BidController {
   @ApiOperation({ summary: '解密供应商投标' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.bidService.decryptSupplier(id, supplierId, dto, userId); }
+
+  @Post('projects/:id/suppliers/:supplierId/files/:role/reupload')
+  @Roles('admin', 'bid_host')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '管理员补传异常投标文件（SHA-256 闸门校验，仅 OPENING 阶段）' })
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  reuploadBidFile(
+    @Param('id') id: string,
+    @Param('supplierId') supplierId: string,
+    @Param('role') role: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser('sub') userId: string,
+  ) {
+    if (!file) throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
+    return this.bidService.reuploadBidFile(id, supplierId, role, file, userId);
+  }
+
+  @Post('projects/:id/suppliers/:supplierId/reseal')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '管理员一键重新封标（从系统内原始明文恢复，无需上传文件）' })
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  resealBidFiles(
+    @Param('id') id: string,
+    @Param('supplierId') supplierId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.bidService.resealBidFiles(id, supplierId, userId);
+  }
+
+  @Post('projects/:id/tender-document/reload')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '重新加载招标文件（验证可解密 + 自动修复关联）' })
+  reloadTenderDocument(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.bidService.reloadTenderDocument(id, userId);
+  }
 
   @Get('projects/:id/backup-verify/:supplierId')
   @ApiOperation({ summary: '核验未解密投标文件备份（争议举证：三方哈希比对，只读，仅 admin/bid_host）' })

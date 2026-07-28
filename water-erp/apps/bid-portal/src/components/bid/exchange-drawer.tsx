@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquareQuote, X } from 'lucide-react';
+import { MessageSquareQuote, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { openingHallApi } from '@/lib/opening-hall';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
@@ -17,23 +17,26 @@ import type {
 type Msg = { id: string; senderRole: string; senderName: string; content: string; createdAt: string };
 type Session = { supplierId: string; supplierName: string; checkInAt: string | null; unread: number };
 
-/** 主持人常用语：按开标流程阶段分组，点击填入输入框（可再编辑后发送）。 */
+/** 主持人常用语：按开标流程阶段分组，点击填入输入框（可再编辑后发送）。
+ *  措辞口径：解密由开标主持人统一执行（单条/批量解密 + 解密窗口），投标人只留意结果，
+ *  故解密组均为「主持人解密」视角，不得写成「请各家完成解密」。 */
 const HOST_PHRASES: { label: string; items: string[] }[] = [
   {
     label: '开场签到',
     items: [
       '各位投标人，本项目开标会现在开始，请各家确认在线并签到。',
       '请尚未签到的投标人尽快完成签到，开标时间即将到来。',
-      '各家签到已完成，感谢准时参加，现在进入投标文件解密环节。',
+      '签到已完成，感谢各家准时参加，现在进入投标文件解密环节。',
     ],
   },
   {
     label: '文件解密',
     items: [
-      '现在进入投标文件解密环节，请各家在规定时间内完成解密。',
-      '解密窗口即将关闭，请尚未完成解密的投标人抓紧时间。',
+      '现在进入投标文件解密环节，将由主持人对各家的投标文件进行统一解密，请各家留意解密结果。',
+      '正在对各家的投标文件进行解密，请各家耐心等待并留意本公司的解密状态。',
       '全部投标文件解密完成，现在进入唱标环节。',
-      '个别投标人解密异常，请相关单位耐心等待并按系统提示操作。',
+      '个别投标人文件解密异常，工作人员正在处理，请相关单位耐心等待。',
+      '解密窗口即将关闭，请各家留意解密结果，如有疑问请及时联系工作人员。',
     ],
   },
   {
@@ -68,6 +71,12 @@ const HOST_PHRASES: { label: string; items: string[] }[] = [
   },
 ];
 
+/** 自定义常用语持久化（浏览器本地）：custom = 用户新增条目；hiddenBuiltin = 被删除的内置语原文。 */
+const PHRASES_STORAGE_KEY = 'bid-portal.host-phrases.v1';
+type CustomPhrase = { label: string; text: string };
+type PhraseStore = { custom: CustomPhrase[]; hiddenBuiltin: string[] };
+type PhraseItem = { text: string; builtin: boolean };
+
 export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: string; initialStageClosed?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
@@ -81,6 +90,11 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showPhrases, setShowPhrases] = useState(false);
+  const [customPhrases, setCustomPhrases] = useState<CustomPhrase[]>([]);
+  const [hiddenBuiltin, setHiddenBuiltin] = useState<string[]>([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newLabel, setNewLabel] = useState('自定义');
+  const [newText, setNewText] = useState('');
   const [checkins, setCheckins] = useState<Record<string, string>>({});
   // R4：stage:change 离开 OPENING 后关闭输入；Wave 5-6：初值由页面当前项目阶段同步
   // （纯事件驱动时，阶段已离 OPENING 后才开的抽屉初始仍可输入，首次发送撞 403）
@@ -211,6 +225,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
     setControl('OPEN'); // M1：避免 A 项目的 CLOSED 串到 B 项目（control 无 REST 来源，仅事件驱动）
     setInput('');
     setShowPhrases(false);
+    setShowAddForm(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在切项目时以新项目阶段初值复位；initialStageClosed 的后续变化由下方只升不降的 effect 接管
   }, [projectId]);
 
@@ -220,6 +235,54 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
   useEffect(() => {
     setStageClosed(prev => prev || (initialStageClosed ?? false));
   }, [initialStageClosed]);
+
+  // 常用语定制：首载从 localStorage 恢复（effect 仅客户端执行，SSR 阶段不触碰 localStorage）
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PHRASES_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<PhraseStore>;
+      if (Array.isArray(parsed.custom)) {
+        setCustomPhrases(parsed.custom.filter((c): c is CustomPhrase => !!c && typeof c.label === 'string' && typeof c.text === 'string'));
+      }
+      if (Array.isArray(parsed.hiddenBuiltin)) {
+        setHiddenBuiltin(parsed.hiddenBuiltin.filter((t): t is string => typeof t === 'string'));
+      }
+    } catch { /* 损坏数据跳过 */ }
+  }, []);
+
+  const persistPhrases = useCallback((custom: CustomPhrase[], hidden: string[]) => {
+    try { localStorage.setItem(PHRASES_STORAGE_KEY, JSON.stringify({ custom, hiddenBuiltin: hidden })); } catch {}
+  }, []);
+
+  function addPhrase() {
+    const text = newText.trim();
+    if (!text) return;
+    const next = [...customPhrases, { label: newLabel.trim() || '自定义', text }];
+    setCustomPhrases(next);
+    persistPhrases(next, hiddenBuiltin);
+    setNewText('');
+    setShowAddForm(false);
+  }
+
+  /** 删除常用语：内置语记入 hiddenBuiltin（下次渲染即隐藏），自定义条目直接移除；均持久化 */
+  function removePhrase(item: PhraseItem, groupLabel: string) {
+    if (item.builtin) {
+      const next = [...hiddenBuiltin, item.text];
+      setHiddenBuiltin(next);
+      persistPhrases(customPhrases, next);
+    } else {
+      const next = customPhrases.filter(c => !(c.label === groupLabel && c.text === item.text));
+      setCustomPhrases(next);
+      persistPhrases(next, hiddenBuiltin);
+    }
+  }
+
+  function restoreDefaultPhrases() {
+    setCustomPhrases([]);
+    setHiddenBuiltin([]);
+    try { localStorage.removeItem(PHRASES_STORAGE_KEY); } catch {}
+  }
 
   async function openPrivate(s: Session) {
     // 同步写 ref：消除点击到重渲染之间 activeSupplierRef 的旧值窗口
@@ -271,6 +334,22 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
       toast.error(e?.message || '操作失败');
     }
   }
+
+  // 常用语分组渲染源：内置组剔除已删除项后，并入用户自定义条目（同名分组合并追加，新分组排末尾）
+  const phraseGroups = useMemo(() => {
+    const map = new Map<string, PhraseItem[]>();
+    const order: string[] = [];
+    for (const g of HOST_PHRASES) {
+      const items = g.items.filter(t => !hiddenBuiltin.includes(t)).map(t => ({ text: t, builtin: true }));
+      if (items.length) { map.set(g.label, items); order.push(g.label); }
+    }
+    for (const c of customPhrases) {
+      if (!map.has(c.label)) { map.set(c.label, []); order.push(c.label); }
+      map.get(c.label)!.push({ text: c.text, builtin: false });
+    }
+    return order.map(label => ({ label, items: map.get(label)! }));
+  }, [customPhrases, hiddenBuiltin]);
+  const phraseDirty = customPhrases.length > 0 || hiddenBuiltin.length > 0;
 
   // 私聊 tab 归并公聊里的 SYSTEM 控制提示（交流控制变更落 PUBLIC 房）——按时间插入排序，
   // 使「主持人已开启全员禁言」等居中提示条在私聊视图同样可见，重载后与公聊视图一致
@@ -390,23 +469,75 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
 
           <div className="border-t border-[oklch(0.6_0.04_258_/_0.14)]">
             {inputHint && <div className="px-3 pt-2 text-[11px] font-medium text-[var(--warning)]">{inputHint}</div>}
-            {/* 主持人常用语：点击填入输入框（可再编辑后发送）；输入禁用（阶段结束/大厅关闭）时不展开 */}
+            {/* 主持人常用语：点击填入输入框（可再编辑后发送）；输入禁用（阶段结束/大厅关闭）时不展开。
+                「+」新增自定义常用语、「×」删除条目（内置语记隐藏、自定义移除）、「恢复默认」清空定制，均持久化 localStorage */}
             {showPhrases && !inputDisabled && (
-              <div className="max-h-52 overflow-y-auto px-3 pb-1 pt-2">
-                {HOST_PHRASES.map(g => (
-                  <div key={g.label} className="mb-2 last:mb-0">
-                    <div className="mb-1 text-[11px] font-semibold text-[color:var(--muted-foreground)]">{g.label}</div>
-                    <div className="flex flex-col gap-1">
-                      {g.items.map(p => (
-                        <button key={p} type="button"
-                          onClick={() => { setInput(p); setShowPhrases(false); inputRef.current?.focus(); }}
-                          className="rounded-lg bg-[oklch(0.985_0.006_258)] px-2.5 py-1.5 text-left text-xs leading-relaxed text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.7),1px_1px_3px_oklch(0.55_0.03_258_/_0.1),-1px_-1px_2px_oklch(1_0_0_/_0.8)] transition-colors hover:bg-[oklch(0.96_0.02_258)] hover:text-[color:var(--accent-strong)]">
-                          {p}
-                        </button>
-                      ))}
+              <div className={`flex flex-col transition-[max-height] duration-300 ease-out ${showAddForm ? 'max-h-[460px]' : 'max-h-64'}`}>
+                <div className="flex flex-none items-center justify-between px-3.5 pb-1.5 pt-2">
+                  <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">常用语管理</span>
+                  <div className="flex items-center gap-1">
+                    {phraseDirty && (
+                      <button type="button" onClick={restoreDefaultPhrases}
+                        className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-[color:var(--muted-foreground)] transition-colors hover:bg-[oklch(0.6_0.04_258_/_0.12)] hover:text-[color:var(--foreground)]">
+                        恢复默认
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setShowAddForm(s => !s)} title="新增常用语"
+                      className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-semibold transition-all ${showAddForm
+                        ? 'bg-[oklch(0.92_0.012_258)] text-[color:var(--foreground)] shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258_/_0.18)]'
+                        : 'text-[color:var(--accent-strong)] hover:bg-[oklch(0.96_0.02_258)]'}`}>
+                      <Plus size={12} />新增
+                    </button>
+                  </div>
+                </div>
+
+                {showAddForm && (
+                  <div className="flex-none border-y border-[oklch(0.6_0.04_258_/_0.14)] px-3.5 py-2.5">
+                    <div className="mb-2 flex items-center gap-2">
+                      <label className="flex-none text-[11px] font-semibold text-[color:var(--muted-foreground)]">分组</label>
+                      {/* .neu-input/.neu-btn-primary 的字号高度写在 layer 外（14px/40px），面板内统一 12px 行高须 ! 覆盖 */}
+                      <select value={newLabel} onChange={e => setNewLabel(e.target.value)} className="neu-input !h-7 min-w-0 flex-1 !text-xs">
+                        {HOST_PHRASES.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
+                        <option value="自定义">自定义</option>
+                      </select>
+                    </div>
+                    <textarea value={newText} onChange={e => setNewText(e.target.value)} rows={3}
+                      onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) addPhrase(); }}
+                      placeholder="输入常用语内容…（Ctrl+Enter 保存）"
+                      className="neu-input !h-auto w-full resize-none !py-2 !text-xs leading-relaxed" />
+                    <div className="mt-2.5 flex justify-end gap-1.5">
+                      <button type="button" onClick={() => { setShowAddForm(false); setNewText(''); }} className="neu-btn-xs">取消</button>
+                      <button type="button" onClick={addPhrase} disabled={!newText.trim()}
+                        className="neu-btn-primary !h-7 !px-3 !text-xs disabled:opacity-40">保存</button>
                     </div>
                   </div>
-                ))}
+                )}
+
+                <div className="flex-1 overflow-y-auto px-3.5 pb-2.5 pt-2">
+                  {phraseGroups.map(g => (
+                    <div key={g.label} className="mb-2 last:mb-0">
+                      <div className="mb-1 text-[11px] font-semibold text-[color:var(--muted-foreground)]">{g.label}</div>
+                      <div className="flex flex-col gap-1">
+                        {g.items.map(item => (
+                          <div key={item.text} className="group flex items-stretch gap-1">
+                            <button type="button"
+                              onClick={() => { setInput(item.text); setShowPhrases(false); inputRef.current?.focus(); }}
+                              className="flex-1 rounded-lg bg-[oklch(0.985_0.006_258)] px-2.5 py-1.5 text-left text-xs leading-relaxed text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.7),1px_1px_3px_oklch(0.55_0.03_258_/_0.1),-1px_-1px_2px_oklch(1_0_0_/_0.8)] transition-colors hover:bg-[oklch(0.96_0.02_258)] hover:text-[color:var(--accent-strong)]">
+                              {item.text}
+                            </button>
+                            <button type="button" onClick={() => removePhrase(item, g.label)} title="删除该常用语"
+                              className="flex-none self-center rounded-md px-1 text-[color:var(--muted-foreground)] opacity-0 transition-all hover:bg-[oklch(0.95_0.05_27_/_0.5)] hover:text-[var(--danger)] group-hover:opacity-100">
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {phraseGroups.length === 0 && (
+                    <div className="py-3 text-center text-xs text-[color:var(--muted-foreground)]">暂无常用语，点右上角「+新增」添加</div>
+                  )}
+                </div>
               </div>
             )}
             <div className="flex gap-2 p-3">

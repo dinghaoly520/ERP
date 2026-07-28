@@ -1310,7 +1310,7 @@ describe('ExpertService', () => {
   });
 
   describe('maybeConvertDocxToPdf（RCE / 路径穿越回归）', () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const childProcess = require('child_process');
 
     it('非 Word 文件应原样返回，不触发任何转换', () => {

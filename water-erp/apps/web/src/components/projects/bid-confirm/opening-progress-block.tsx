@@ -108,7 +108,7 @@ export function OpeningProgressBlock({ bidProjectId, detail, onConfirmOpening, o
           <AlertTriangle size={16} className="shrink-0 text-[var(--warning)]" />
           <div className="flex-1 text-xs leading-5">
             <span className="font-semibold text-[var(--foreground)]">已确定开标，等待组建开标会话。</span>
-            <span className="text-[var(--muted-foreground)]">请开标主持人与监督人前往开标大厅，填写主持人、监督人与解密窗口后即可开始解密。</span>
+            <span className="text-[var(--muted-foreground)]">请开标主持人前往开标大厅，填写主持人与解密窗口（监督人选填）后即可开始解密。</span>
           </div>
           {stage === 'OPENING' && (
             <button type="button" onClick={gotoHall} className="neu-btn-primary !h-[32px] !text-xs shrink-0">
@@ -121,7 +121,7 @@ export function OpeningProgressBlock({ bidProjectId, detail, onConfirmOpening, o
           {/* 会话信息 */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-[14px] px-3.5 py-2.5 text-xs" style={{ background: 'oklch(0.975 0.012 258 / 0.4)' }}>
             <span className="text-[var(--muted-foreground)]">主持人 <span className="ml-1 font-semibold text-[var(--foreground)]">{openingSession.host}</span></span>
-            <span className="text-[var(--muted-foreground)]">监督人 <span className="ml-1 font-semibold text-[var(--foreground)]">{openingSession.supervisor}</span></span>
+            <span className="text-[var(--muted-foreground)]">监督人 <span className="ml-1 font-semibold text-[var(--foreground)]">{openingSession.supervisor ?? '未指定'}</span></span>
             <span className="text-[var(--muted-foreground)]">
               解密窗口
               <span className="ml-1 font-semibold tabular-nums text-[var(--foreground)]">

@@ -42,6 +42,8 @@ export const api = {
     fetchApi<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   delete: <T>(path: string) =>
     fetchApi<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, formData: FormData) =>
+    fetchApi<T>(path, { method: 'POST', body: formData }),
 };
 
 export * from './api/supplier';

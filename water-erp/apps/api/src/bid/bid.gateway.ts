@@ -256,7 +256,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.SUBMISSION_OPENED, payload);
   }
 
-  notifyOpeningStarted(projectId: string, data: { host: string; supervisor: string }) {
+  notifyOpeningStarted(projectId: string, data: { host: string; supervisor: string | null }) {
     const payload: OpeningStartedPayload = { projectId, host: data.host, supervisor: data.supervisor, timestamp: Date.now() };
     this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_STARTED, payload);
   }
