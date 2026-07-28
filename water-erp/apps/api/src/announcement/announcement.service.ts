@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { BidService } from '../bid/bid.service';
+import { openField } from '../common/crypto/field-crypto';
 
 @Injectable()
 export class AnnouncementService {
@@ -372,7 +373,10 @@ export class AnnouncementService {
     const subMap = new Map(submissions.map(s => [s.supplierId, s]));
     const rows = suppliers.map(s => {
       const sub = s.supplierId ? subMap.get(s.supplierId) : null;
-      const isBidPriceVisible = project.stage === 'OPENING' || project.stage === 'EVALUATING' || project.stage === 'ARCHIVED';
+      // 收紧为解密制（原阶段制会让 OPENING 阶段未解密的报价暴露给采购管理端）：
+      // 只有该供应商 decryptStatus==='SUCCESS' 才拆封 bidPrice 返回明文；否则 null。
+      // bidPrice 入库已密封，这里 openField 拆封；旧明文行经 legacy 兼容原样返回。
+      const decrypted = s.decryptStatus === 'SUCCESS';
       return {
         supplierName: s.supplierName,
         classification: s.supplier?.classification?.name,
@@ -381,7 +385,7 @@ export class AnnouncementService {
         submitted: sub?.status === 'submitted' || (!sub && s.submitStatus === '已提交'),
         withdrawn: sub?.status === 'withdrawn',
         submittedAt: sub?.submittedAt,
-        bidPrice: isBidPriceVisible ? sub?.bidPrice : null,
+        bidPrice: decrypted && sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null,
       };
     });
     return {

@@ -31,6 +31,15 @@ jest.mock('../upload/minio.client', () => ({
 
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { minioClient } from '../upload/minio.client';
+import { openField, sealField } from '../common/crypto/field-crypto';
+
+// 提交路径 pickBidSubmissionFields 会调 sealField(plain, process.env.KMS_SECRET!)。
+// KMS_SECRET 在 jest 同进程可能被其他 spec(expert.service.spec 的招标文件解密测试)污染，
+// 此处显式自洽设置，确保密封路径稳定可复现。
+const TEST_KMS = 'test-kms-secret-from-supplier-portal-spec';
+const ORIG_KMS = process.env.KMS_SECRET;
+beforeAll(() => { process.env.KMS_SECRET = TEST_KMS; });
+afterAll(() => { if (ORIG_KMS !== undefined) process.env.KMS_SECRET = ORIG_KMS; else delete process.env.KMS_SECRET; });
 
 describe('SupplierPortalService', () => {
   let service: SupplierPortalService;
@@ -409,6 +418,51 @@ describe('SupplierPortalService', () => {
       expect(minioClient.removeObject).toHaveBeenCalledWith(
         'test-bucket', expect.stringContaining('sealed/project-1/supplier-1/'),
       );
+    });
+
+    it('密封 bidPrice 入库（v1: 前缀 + openField 可还原明文）', async () => {
+      // 提交含 bidPrice 的标书：bidPrice 入库后应以 'v1:' 密封前缀存储，
+      // 明文不可直接出现在 create/update data 中。
+      const plain = '980000';
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-1',
+        bidPrice: plain,
+      });
+
+      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledTimes(1);
+      const call = (prisma.supplierBidSubmission.create as jest.Mock).mock.calls[0][0];
+      const storedBidPrice = call.data.bidPrice;
+      expect(storedBidPrice).toMatch(/^v1:/);
+      expect(storedBidPrice).not.toBe(plain);
+      // 真实拆封验证 round-trip
+      expect(openField(storedBidPrice, TEST_KMS)).toBe(plain);
+      // 防回归：明文不应出现在 deliveryPeriod 或其他字段
+      expect(JSON.stringify(call.data)).not.toContain(`"bidPrice":"${plain}"`);
+    });
+
+    it('saveBidDraft 同样密封 bidPrice（v1: 前缀）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub-draft', status: 'draft' });
+
+      await service.saveBidDraft('supplier-1', 'project-1', { bidPrice: '12345' });
+
+      const call = (prisma.supplierBidSubmission.create as jest.Mock).mock.calls[0][0];
+      expect(call.data.bidPrice).toMatch(/^v1:/);
+      expect(openField(call.data.bidPrice, TEST_KMS)).toBe('12345');
+    });
+
+    it('密封 bidPrice 不可被缺 KMS_SECRET 的环境拆封', async () => {
+      // 防回归：如果 KMS_SECRET 缺失，sealField 应当抛错（密封路径强依赖 KMS）。
+      const orig = process.env.KMS_SECRET;
+      delete process.env.KMS_SECRET;
+      try {
+        await expect(service.submitBid('supplier-1', 'project-1', {
+          technicalFileAssetId: 'fa-1',
+          bidPrice: '999',
+        })).rejects.toThrow(/KMS_SECRET is not configured/);
+      } finally {
+        process.env.KMS_SECRET = orig;
+      }
     });
   });
 

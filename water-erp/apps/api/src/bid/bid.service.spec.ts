@@ -8,6 +8,14 @@ import { BidGateway } from './bid.gateway';
 import { ScoreStandardValidator } from './score-standard-validator.service';
 import { StorageService } from '../storage/storage.service';
 import { assertBidStageTransition } from './bid-state';
+import { sealField, openField } from '../common/crypto/field-crypto';
+
+// bid.service 多处暴露点（getWorkspace/getOpeningRecordDraft）用 openField 拆封 bidPrice。
+// KMS_SECRET 在 jest 同进程可能被其他 spec 污染，此处显式自洽设置。
+const BID_SPEC_KMS = 'test-kms-secret-from-bid-service-spec';
+const BID_SPEC_ORIG_KMS = process.env.KMS_SECRET;
+beforeAll(() => { process.env.KMS_SECRET = BID_SPEC_KMS; });
+afterAll(() => { if (BID_SPEC_ORIG_KMS !== undefined) process.env.KMS_SECRET = BID_SPEC_ORIG_KMS; else delete process.env.KMS_SECRET; });
 
 // Mock decrypt utilities and MinIO client for decryptSupplier tests
 jest.mock('./bid-submission.crypto', () => ({
@@ -282,6 +290,31 @@ describe('BidService — stage transitions', () => {
       await expect(service.startOpening('p1', { host: '主持张三' } as any)).rejects.toMatchObject({
         response: { code: 'INCOMPLETE_SESSION_FIELDS' },
       });
+    });
+
+    it('只给监督人（缺必填项）→ 400 INCOMPLETE_SESSION_FIELDS', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      await expect(service.startOpening('p1', { supervisor: '监督人A' } as any)).rejects.toMatchObject({
+        response: { code: 'INCOMPLETE_SESSION_FIELDS' },
+      });
+    });
+
+    it('省略监督人（选填）→ 仍组建会话，supervisor 落 null', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+      prisma.bidOpeningSession.create.mockResolvedValue({ id: 'sess-3' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const { supervisor: _omit, ...dtoNoSupervisor } = sessionDto;
+      const result = await service.startOpening('p1', dtoNoSupervisor);
+
+      expect(result.stage).toBe('OPENING');
+      expect(prisma.bidOpeningSession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ host: '主持人A', supervisor: null }),
+        }),
+      );
     });
 
     it('creates session on SUBMIT→OPENING with valid data', async () => {
@@ -2106,6 +2139,33 @@ describe('BidService — getOpeningRecordDraft', () => {
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', decryptStatus: 'PENDING', supplierName: '甲' });
     const draft = await service.getOpeningRecordDraft('p1', 's1');
     expect(draft.canView).toBe(false);
+  });
+
+  it('密封 bidPrice（v1: 前缀）在 OPENING+SUCCESS 时被 openField 拆封为明文', async () => {
+    // 入库后 bidPrice 是密封态；主持人查询唱标草稿时应当拿到明文。
+    const sealedPrice = sealField('980000', BID_SPEC_KMS);
+    expect(sealedPrice).toMatch(/^v1:/);
+
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: false });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: sealedPrice, deliveryPeriod: '180天', bidBondAssetId: null });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue({ bondStatus: '已缴纳' });
+
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.canView).toBe(true);
+    expect(draft.amount).toBe('980000'); // 拆封后明文
+    expect(draft.period).toBe('180天');
+  });
+
+  it('旧明文 bidPrice（无 v1: 前缀）经 openField legacy 兼容原样返回', async () => {
+    // 防回归：已存在的旧明文行不应因引入密封而被破坏。
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: false });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: '770000', deliveryPeriod: '90天', bidBondAssetId: null });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.amount).toBe('770000');
   });
 });
 

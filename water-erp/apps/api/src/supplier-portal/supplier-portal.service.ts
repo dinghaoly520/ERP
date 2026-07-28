@@ -10,6 +10,7 @@ import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
+import { sealField } from '../common/crypto/field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
@@ -43,7 +44,9 @@ type BidSubmissionData = {
  */
 function pickBidSubmissionFields(data: BidSubmissionData) {
   return {
-    bidPrice: data.bidPrice,
+    // bidPrice 入库即密封（防采购管理人员在开标解密前从 DB/工作台读到封存报价）。
+    // deliveryPeriod 不加密，但下游暴露点统一按 decryptStatus==='SUCCESS' 门控。
+    bidPrice: data.bidPrice ? sealField(data.bidPrice, process.env.KMS_SECRET!) : null,
     deliveryPeriod: data.deliveryPeriod,
     technicalFile: data.technicalFile,
     businessFile: data.businessFile,

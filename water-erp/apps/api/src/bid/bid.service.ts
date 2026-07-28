@@ -22,6 +22,7 @@ import { assertBidStageTransition, stageAtLeast, type BidStage } from './bid-sta
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
+import { openField } from '../common/crypto/field-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
 import { Prisma, ScoreCategory } from '@prisma/client';
@@ -313,6 +314,18 @@ export class BidService {
       // 单一事实来源：有 SupplierBidSubmission 以其 status 为准；否则回退到 BidSupplier.submitStatus
       const submitted = submission?.status === 'submitted' || (!submission && s.submitStatus === '已提交');
       const withdrawn = submission?.status === 'withdrawn';
+      // 报价/工期 = 密封入库；仅在解密成功后拆封返回（防采购管理人员开标解密前看到封存报价）。
+      // 前端 bid-confirm-panel.tsx 仅消费 submission.submittedAt/bidPrice，其余字段一并透传保持兼容。
+      const isUnsealed = s.decryptStatus === 'SUCCESS';
+      const safeSubmission = submission
+        ? {
+          supplierId: submission.supplierId,
+          status: submission.status,
+          submittedAt: submission.submittedAt,
+          bidPrice: isUnsealed && submission.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null,
+          deliveryPeriod: isUnsealed ? submission.deliveryPeriod : null,
+        }
+        : null;
       return {
         id: s.id,
         supplierId: s.supplierId,
@@ -322,7 +335,7 @@ export class BidService {
         submitStatus: s.submitStatus,
         decryptStatus: s.decryptStatus,
         confirmStatus: s.confirmStatus,
-        submission,
+        submission: safeSubmission,
         submitted,
         withdrawn,
       };
@@ -594,7 +607,7 @@ export class BidService {
   /** 开标文件包：开标环节全部资料（会话/供应商/开标记录/监督日志）+ 内容指纹。 */
   private async buildHandoverPackage(
     project: { id: string; projectCode: string; name: string; procurementMethod: string; openTime: Date; deadline: Date; stage: string },
-    session: { host: string; supervisor: string; decryptWindowStart: Date; decryptWindowEnd: Date; status: string },
+    session: { host: string; supervisor: string | null; decryptWindowStart: Date; decryptWindowEnd: Date; status: string },
   ) {
     const [suppliers, records, logs] = await Promise.all([
       this.prisma.bidSupplier.findMany({
@@ -750,13 +763,16 @@ export class BidService {
       });
     }
 
-    // 会话四字段要么全给（组建/更新开标会话），要么全不给（仅推进阶段）。
-    // 部分字段视为客户端错误，避免静默跳过建会话导致开标流程卡死
-    const providedCount = [dto?.host, dto?.supervisor, dto?.decryptWindowStart, dto?.decryptWindowEnd]
-      .filter(Boolean).length;
-    if (providedCount > 0 && providedCount < 4) {
+    // 会话必填三项（主持人 + 解密窗口起止）要么全给（组建/更新开标会话），要么全不给（仅推进阶段）。
+    // 监督人选填——法律未强制开标现场必须有具名监督人（《招标投标法》第35/36条开标程序不含监督人；
+    // 《水利工程建设项目招标投标行政监督暂行规定》第8条行政监督部门「可以派人」为裁量性规定），
+    // 字段保留作为监督人登记 / 线上监督责任人。
+    // 部分必填字段视为客户端错误，避免静默跳过建会话导致开标流程卡死
+    const hasRequiredSessionFields = [dto?.host, dto?.decryptWindowStart, dto?.decryptWindowEnd].every(Boolean);
+    const providedAnySessionField = Boolean(dto?.host || dto?.supervisor || dto?.decryptWindowStart || dto?.decryptWindowEnd);
+    if (providedAnySessionField && !hasRequiredSessionFields) {
       throw new BadRequestException({
-        error: '组建开标会话需同时提供主持人、监督人及解密窗口起止时间',
+        error: '组建开标会话需提供主持人与解密窗口起止时间（监督人选填）',
         code: 'INCOMPLETE_SESSION_FIELDS',
       });
     }
@@ -773,13 +789,13 @@ export class BidService {
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockAndReassertStage(tx, id, 'OPENING'); // C1: 事务内行锁后复查阶段（同阶段 OPENING→OPENING 幂等放行）
       let sessionUpserted = false;
-      if (providedCount === 4) {
+      if (hasRequiredSessionFields) {
         const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
         const decryptWindowEnd = new Date(dto!.decryptWindowEnd!);
         const remainingSeconds = Math.max(0, Math.floor((decryptWindowEnd.getTime() - Date.now()) / 1000));
         const sessionData = {
           host: dto!.host!,
-          supervisor: dto!.supervisor!,
+          supervisor: dto?.supervisor ?? null,
           decryptWindowStart: new Date(dto!.decryptWindowStart!),
           decryptWindowEnd,
           remainingSeconds,
@@ -812,9 +828,9 @@ export class BidService {
 
       this.gateway?.notifyStageChange(id, project.stage, 'OPENING', 'host');
       // 仅在真正 upsert 了会话时通知开标启动；裸推阶段（:3005 确定开标）不触发，
-      // 否则 :3007 会收到 {host:'系统'} 事件误判会话已建
-      if (sessionUpserted && dto?.host && dto?.supervisor) {
-        this.gateway?.notifyOpeningStarted(id, { host: dto.host, supervisor: dto.supervisor });
+      // 否则 :3007 会收到 {host:'系统'} 事件误判会话已建（监督人选填，不再作为触发条件）
+      if (sessionUpserted && dto?.host) {
+        this.gateway?.notifyOpeningStarted(id, { host: dto.host, supervisor: dto.supervisor ?? null });
       }
       this.gateway?.notifySupervisionLog(id, { role: dto?.host || '系统', action, target: project.name, result, riskFlag: '无' });
 
@@ -1356,7 +1372,9 @@ export class BidService {
 
     return {
       canView: true,
-      amount: submission?.bidPrice ?? null,
+      // bidPrice 入库已密封；此处 canView=true 已保证 decryptStatus==='SUCCESS'，安全拆封。
+      // 旧明文数据经 openField legacy 兼容原样返回。
+      amount: submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null,
       period: submission?.deliveryPeriod ?? null,
       qualityTarget: project.qualityRequirement,
       bondStatus: existingRecord?.bondStatus ?? null,
