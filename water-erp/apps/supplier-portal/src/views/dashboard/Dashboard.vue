@@ -166,8 +166,12 @@ const convertForm = ref({
   creditCode: '',
   contacts: [{ name: '', phone: '', email: '', position: '', isPrimary: true }] as { name: string; phone: string; email: string; position: string; isPrimary: boolean }[],
   qualifications: [] as { type: string; name: string; fileUrl: string; validFrom: string; validTo: string }[],
+  tags: ['', ''] as string[],
 })
 import { ENTERPRISE_TYPES as enterpriseTypes, QUAL_TYPE_OPTIONS as qualTypeOptions } from '@/constants/supplier'
+
+function addTag() { if (convertForm.value.tags.length < 8) convertForm.value.tags.push('') }
+function removeTag(i: number) { if (convertForm.value.tags.length > 2) convertForm.value.tags.splice(i, 1) }
 
 function addContact() { convertForm.value.contacts.push({ name: '', phone: '', email: '', position: '', isPrimary: false }) }
 function removeContact(i: number) { if (convertForm.value.contacts.length > 1) convertForm.value.contacts.splice(i, 1) }
@@ -191,6 +195,7 @@ async function openConvertDialog() {
       ? profile.contacts.map((c: any) => ({ name: c.name || '', phone: c.phone || '', email: c.email || '', position: c.position || '', isPrimary: !!c.isPrimary }))
       : [{ name: '', phone: '', email: '', isPrimary: true }]
     convertForm.value.qualifications = []
+    convertForm.value.tags = (profile.tags && profile.tags.length >= 2) ? [...profile.tags] : ['', '']
   } catch { /* 预填失败不阻塞打开弹窗 */ }
   convertDialog.value = true
 }
@@ -201,6 +206,8 @@ async function submitConvert() {
   if (f.contacts.some(c => !c.name.trim() || !c.phone.trim())) { ElMessage.warning('请填写完整联系人信息'); return }
   if (f.qualifications.length === 0) { ElMessage.warning('请至少添加一项资质材料'); return }
   if (f.qualifications.some(q => !q.type || !q.name.trim())) { ElMessage.warning('请填写完所有资质信息（类型与名称必填）'); return }
+  const filledTags = f.tags.filter(t => t.trim())
+  if (filledTags.length < 2) { ElMessage.warning('请至少填写 2 个业务标签'); return }
   convertLoading.value = true
   try {
     await supplierApi.convertToRegular({
@@ -211,6 +218,7 @@ async function submitConvert() {
       creditCode: f.creditCode.trim(),
       contacts: f.contacts.map(c => ({ name: c.name.trim(), phone: c.phone.trim(), email: c.email.trim() || undefined, position: c.position.trim() || undefined, isPrimary: c.isPrimary })),
       qualifications: f.qualifications.map(q => ({ type: q.type, name: q.name.trim(), fileUrl: q.fileUrl || undefined, validFrom: q.validFrom || undefined, validTo: q.validTo || undefined })),
+      tags: filledTags,
     })
     ElMessage.success('转正申请已提交，等待审核')
     convertDialog.value = false
@@ -448,6 +456,20 @@ async function submitConvert() {
               <el-input v-model="convertForm.businessScope" type="textarea" :rows="2" placeholder="请输入经营范围" />
             </el-form-item>
           </el-form>
+        </section>
+
+        <!-- ══ 业务标签 ══ -->
+        <section class="cv-section">
+          <div class="cv-sec-head">
+            <h3 class="cv-sec-title">业务标签</h3>
+            <span class="cv-sec-hint">使用2-8个词语简述并概括业务方向，每个单独填写</span>
+            <el-button plain size="small" :disabled="convertForm.tags.length >= 8" @click="addTag">+ 添加标签</el-button>
+          </div>
+          <div v-for="(t, i) in convertForm.tags" :key="'tag'+i" class="cv-contact-row">
+            <span class="cv-subrow-idx">{{ i + 1 }}</span>
+            <el-input v-model="convertForm.tags[i]" :placeholder="i===0?'如：办公用品':i===1?'如：钻机销售':'请输入业务标签'" maxlength="20" class="cv-ci-name" />
+            <el-button v-if="convertForm.tags.length > 2" plain size="small" type="danger" @click="removeTag(i)">删除</el-button>
+          </div>
         </section>
 
         <!-- ══ 联系人 ══ -->

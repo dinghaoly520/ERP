@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlignCenter, AlignLeft, AlignRight, Merge, Split, Plus, Minus, ArrowDown, ArrowRight } from "lucide-react";
 
 export type TableCell = {
@@ -178,6 +178,71 @@ export function createEmptyTableData(rows: number, cols: number): TableData {
   return { rows, cols, cells };
 }
 
+/** 在 cells 中查找覆盖 (r,c) 的锚点单元格（用于定位 hidden 单元所属的合并格）。 */
+function findCellAnchor(cells: TableCell[][], r: number, c: number) {
+  for (let rr = 0; rr <= r; rr++) {
+    for (let cc = 0; cc <= c; cc++) {
+      const cand = cells[rr]?.[cc];
+      if (cand && !cand.hidden && rr + cand.rowSpan > r && cc + cand.colSpan > c) {
+        return { r: rr, c: cc, cell: cand };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * 将选区矩形扩展到完整覆盖所有与其相交的合并单元格，
+ * 保证合并/选区操作不会拆碎已有的合并格。
+ */
+function normalizeSelectionRect(
+  cells: TableCell[][],
+  minR: number,
+  minC: number,
+  maxR: number,
+  maxC: number,
+) {
+  let changed = true;
+  let guard = 0;
+  while (changed && guard++ < 100) {
+    changed = false;
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        const cell = cells[r]?.[c];
+        if (!cell) continue;
+        let ar = r;
+        let ac = c;
+        let spanR = cell.rowSpan;
+        let spanC = cell.colSpan;
+        if (cell.hidden) {
+          const anchor = findCellAnchor(cells, r, c);
+          if (!anchor) continue;
+          ar = anchor.r;
+          ac = anchor.c;
+          spanR = anchor.cell.rowSpan;
+          spanC = anchor.cell.colSpan;
+        }
+        const endR = ar + spanR - 1;
+        const endC = ac + spanC - 1;
+        if (ar < minR) { minR = ar; changed = true; }
+        if (ac < minC) { minC = ac; changed = true; }
+        if (endR > maxR) { maxR = endR; changed = true; }
+        if (endC > maxC) { maxC = endC; changed = true; }
+      }
+    }
+  }
+  return { minR, minC, maxR, maxC };
+}
+
+/** 矩形区域 → 选区 key 集合。 */
+function rectToSelection(minR: number, minC: number, maxR: number, maxC: number) {
+  const set = new Set<string>();
+  for (let r = minR; r <= maxR; r++) {
+    for (let c = minC; c <= maxC; c++) set.add(`${r}-${c}`);
+  }
+  return set;
+}
+
 type QuotationTableEditorProps = {
   value: TableData;
   onChange: (data: TableData) => void;
@@ -187,8 +252,19 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ row: number; col: number } | null>(null);
-  const [dragEnd, setDragEnd] = useState<{ row: number; col: number } | null>(null);
+  /** 本轮按下期间是否已移出起始格（移出后切换为区域选择模式）。 */
+  const dragMovedRef = useRef(false);
   const tableRef = useRef<HTMLTableElement>(null);
+
+  // 鼠标在表格外释放时也结束拖动，避免下次移入继续误扩选区
+  useEffect(() => {
+    const endDrag = () => {
+      setIsDragging(false);
+      setDragStart(null);
+    };
+    window.addEventListener("mouseup", endDrag);
+    return () => window.removeEventListener("mouseup", endDrag);
+  }, []);
 
   const handleCellChange = useCallback(
     (rowIndex: number, colIndex: number, content: string) => {
@@ -223,33 +299,42 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       return { r, c };
     });
 
-    const minRow = Math.min(...positions.map((p) => p.r));
-    const maxRow = Math.max(...positions.map((p) => p.r));
-    const minCol = Math.min(...positions.map((p) => p.c));
-    const maxCol = Math.max(...positions.map((p) => p.c));
+    // 扩展到完整覆盖相交的合并格，避免拆碎已有合并
+    const { minR, minC, maxR, maxC } = normalizeSelectionRect(
+      value.cells,
+      Math.min(...positions.map((p) => p.r)),
+      Math.min(...positions.map((p) => p.c)),
+      Math.max(...positions.map((p) => p.r)),
+      Math.max(...positions.map((p) => p.c)),
+    );
 
-    const rowSpan = maxRow - minRow + 1;
-    const colSpan = maxCol - minCol + 1;
-
-    const mergedContent = positions
-      .map((p) => value.cells[p.r]?.[p.c]?.content || "")
-      .filter(Boolean)
-      .join(" ");
+    const mergedContent: string[] = [];
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        const cell = value.cells[r]?.[c];
+        if (cell && !cell.hidden && cell.content.trim()) mergedContent.push(cell.content.trim());
+      }
+    }
 
     const newCells = value.cells.map((row, r) =>
       row.map((cell, c) => {
-        if (r === minRow && c === minCol) {
-          return { ...cell, rowSpan, colSpan, content: mergedContent };
+        if (r < minR || r > maxR || c < minC || c > maxC) return cell;
+        if (r === minR && c === minC) {
+          return {
+            ...cell,
+            hidden: false,
+            rowSpan: maxR - minR + 1,
+            colSpan: maxC - minC + 1,
+            content: mergedContent.join(" "),
+          };
         }
-        if (r >= minRow && r <= maxRow && c >= minCol && c <= maxCol) {
-          return { ...cell, hidden: true };
-        }
-        return cell;
+        return { ...cell, hidden: true, rowSpan: 1, colSpan: 1, content: "" };
       })
     );
 
     onChange({ ...value, cells: newCells });
-    setSelectedCells(new Set());
+    // 保留锚点选中，合并后可直接拆分
+    setSelectedCells(new Set([`${minR}-${minC}`]));
   }, [value, onChange, selectedCells]);
 
   const handleSplitCells = useCallback(() => {
@@ -259,7 +344,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
     const [rowIndex, colIndex] = key.split("-").map(Number);
     const cell = value.cells[rowIndex]?.[colIndex];
 
-    if (!cell || cell.rowSpan === 1 && cell.colSpan === 1) return;
+    if (!cell || (cell.rowSpan === 1 && cell.colSpan === 1)) return;
 
     const newCells = value.cells.map((row, r) =>
       row.map((c, colIdx) => {
@@ -277,13 +362,12 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
     );
 
     onChange({ ...value, cells: newCells });
-    setSelectedCells(new Set());
+    setSelectedCells(new Set([`${rowIndex}-${colIndex}`]));
   }, [value, onChange, selectedCells]);
 
   const handleCellMouseDown = useCallback((rowIndex: number, colIndex: number, e: React.MouseEvent) => {
-    // Don't prevent default when clicking on input to allow text editing
-    const target = e.target as HTMLElement;
-    const isInputClick = target.tagName === 'INPUT';
+    // 仅响应鼠标左键
+    if (e.button !== 0) return;
 
     // Ctrl/Cmd+click: toggle single cell in selection
     if (e.ctrlKey || e.metaKey) {
@@ -301,64 +385,54 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       return;
     }
 
-    // Shift+click: extend selection from last selected cell
+    // Shift+click: extend selection from first selected cell (auto-expand over merged cells)
     if (e.shiftKey && selectedCells.size > 0) {
       e.preventDefault();
-      // Get the first selected cell as anchor
       const firstKey = Array.from(selectedCells)[0];
       const [anchorRow, anchorCol] = firstKey.split("-").map(Number);
-      const minRow = Math.min(anchorRow, rowIndex);
-      const maxRow = Math.max(anchorRow, rowIndex);
-      const minCol = Math.min(anchorCol, colIndex);
-      const maxCol = Math.max(anchorCol, colIndex);
-
-      const newSelection = new Set<string>();
-      for (let r = minRow; r <= maxRow; r++) {
-        for (let c = minCol; c <= maxCol; c++) {
-          newSelection.add(`${r}-${c}`);
-        }
-      }
-      setSelectedCells(newSelection);
+      const rect = normalizeSelectionRect(
+        value.cells,
+        Math.min(anchorRow, rowIndex),
+        Math.min(anchorCol, colIndex),
+        Math.max(anchorRow, rowIndex),
+        Math.max(anchorCol, colIndex),
+      );
+      setSelectedCells(rectToSelection(rect.minR, rect.minC, rect.maxR, rect.maxC));
       return;
     }
 
-    // If clicking on input, allow normal text editing
-    if (isInputClick) {
-      return;
-    }
-
-    // Start drag selection only when not clicking on input
-    e.preventDefault();
+    // 普通左键按下：不 preventDefault，保留输入框聚焦/光标定位（单击仍可编辑文字）。
+    // 开始追踪拖动——若移出当前格，mouseEnter 中切换为区域选择模式。
     setIsDragging(true);
+    dragMovedRef.current = false;
     setDragStart({ row: rowIndex, col: colIndex });
-    setDragEnd({ row: rowIndex, col: colIndex });
     setSelectedCells(new Set([`${rowIndex}-${colIndex}`]));
-  }, [selectedCells]);
+  }, [selectedCells, value.cells]);
 
   const handleCellMouseEnter = useCallback((rowIndex: number, colIndex: number) => {
     if (!isDragging || !dragStart) return;
+    if (rowIndex === dragStart.row && colIndex === dragStart.col) return;
 
-    setDragEnd({ row: rowIndex, col: colIndex });
-
-    // Update selection to cover from start to current
-    const minRow = Math.min(dragStart.row, rowIndex);
-    const maxRow = Math.max(dragStart.row, rowIndex);
-    const minCol = Math.min(dragStart.col, colIndex);
-    const maxCol = Math.max(dragStart.col, colIndex);
-
-    const newSelection = new Set<string>();
-    for (let r = minRow; r <= maxRow; r++) {
-      for (let c = minCol; c <= maxCol; c++) {
-        newSelection.add(`${r}-${c}`);
-      }
+    // 移出起始格 → 区域选择模式：失焦正在编辑的输入框，避免与文字选择冲突
+    dragMovedRef.current = true;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active.tagName === "INPUT" && tableRef.current?.contains(active)) {
+      active.blur();
     }
-    setSelectedCells(newSelection);
-  }, [isDragging, dragStart]);
+
+    const rect = normalizeSelectionRect(
+      value.cells,
+      Math.min(dragStart.row, rowIndex),
+      Math.min(dragStart.col, colIndex),
+      Math.max(dragStart.row, rowIndex),
+      Math.max(dragStart.col, colIndex),
+    );
+    setSelectedCells(rectToSelection(rect.minR, rect.minC, rect.maxR, rect.maxC));
+  }, [isDragging, dragStart, value.cells]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
     setDragStart(null);
-    setDragEnd(null);
   }, []);
 
   const handlePaste = useCallback(
@@ -392,12 +466,39 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
     [onChange]
   );
 
-  const canMerge = selectedCells.size > 1;
+  // 归一化后的选区矩形（完整覆盖相交的合并格）
+  const selectionRect = (() => {
+    if (selectedCells.size === 0) return null;
+    const positions = Array.from(selectedCells).map((key) => {
+      const [r, c] = key.split("-").map(Number);
+      return { r, c };
+    });
+    return normalizeSelectionRect(
+      value.cells,
+      Math.min(...positions.map((p) => p.r)),
+      Math.min(...positions.map((p) => p.c)),
+      Math.max(...positions.map((p) => p.r)),
+      Math.max(...positions.map((p) => p.c)),
+    );
+  })();
+
+  const canMerge = (() => {
+    if (!selectionRect) return false;
+    let visible = 0;
+    for (let r = selectionRect.minR; r <= selectionRect.maxR && visible < 2; r++) {
+      for (let c = selectionRect.minC; c <= selectionRect.maxC && visible < 2; c++) {
+        const cell = value.cells[r]?.[c];
+        if (cell && !cell.hidden) visible++;
+      }
+    }
+    return visible >= 2;
+  })();
+
   const canSplit = selectedCells.size === 1 && (() => {
     const key = Array.from(selectedCells)[0];
     const [r, c] = key.split("-").map(Number);
     const cell = value.cells[r]?.[c];
-    return cell && (cell.rowSpan > 1 || cell.colSpan > 1);
+    return !!cell && !cell.hidden && (cell.rowSpan > 1 || cell.colSpan > 1);
   })();
 
   // Get selected row/column for insert/delete operations
@@ -740,6 +841,10 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
           </tbody>
         </table>
       </div>
+
+      <p className="px-1 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+        提示：按住鼠标左键拖动可选择多个单元格，点击工具栏「合并」即可合并；点击已合并的单元格后点「拆分」可还原。Ctrl/⌘+点击加减选区，Shift+点击扩展选区。
+      </p>
     </div>
   );
 }

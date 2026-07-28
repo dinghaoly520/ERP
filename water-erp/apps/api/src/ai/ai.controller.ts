@@ -56,15 +56,17 @@ export class AiController {
   @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
   @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
   async recommendSuppliers(
-    @Body() body: { requirement?: string; classificationId?: string; maxCount?: number },
+    @Body() body: { requirement?: string; classificationId?: string; tags?: string[]; maxCount?: number },
   ) {
     const requirement = (body?.requirement ?? '').trim();
     if (!requirement) {
       throw new BadRequestException({ error: '请填写采购需求', code: 'REQUIREMENT_REQUIRED' });
     }
+    const tags = Array.isArray(body?.tags) ? body.tags.map((t) => String(t).trim()).filter(Boolean).slice(0, 20) : undefined;
     try {
       return await this.aiService.recommendSuppliers(requirement, {
         classificationId: body.classificationId,
+        tags: tags && tags.length > 0 ? tags : undefined,
         maxCount: body.maxCount,
       });
     } catch (e: any) {
@@ -188,9 +190,9 @@ export class AiController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI供应商综合画像分析' })
   @Roles('admin', 'bid_expert', 'leader', 'staff')
-  async getSupplierPortraitAnalysis(@Body() payload: { supplierId: string }) {
+  async getSupplierPortraitAnalysis(@Body() payload: { supplierId: string; bypassCache?: boolean }) {
     if (!payload.supplierId) throw new BadRequestException('请提供 supplierId');
-    return this.supplierPortraitAnalysis.analyze(payload.supplierId);
+    return this.supplierPortraitAnalysis.analyze(payload.supplierId, !!payload.bypassCache);
   }
 
   // ── C8 履约违约风险预测 ──

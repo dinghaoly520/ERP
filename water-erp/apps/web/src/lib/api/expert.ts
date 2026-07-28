@@ -125,6 +125,32 @@ export function confirmExtraction(data: { projectId: string; experts: { userId: 
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }
 
+/** 自定义抽取：分析已上传文件，AI 从项目背景推断所需专业/人数 */
+export interface ExtractionFileAnalysis {
+  suggestedName: string;
+  projectBackground: string;
+  procurementType: string;
+  requiredSpecialties: { specialty: string; count: number; reason: string }[];
+  totalExperts: number;
+  analysis: string;
+  engine: 'ai' | 'rules';
+}
+export function analyzeExtractionFiles(fileIds: string[]) {
+  return api.post<ExtractionFileAnalysis>('/expert-admin/extract/analyze-files', { fileIds });
+}
+
+/** 自定义抽取：创建影子项目（仅承载抽取/通知/确认，不进项目管理列表） */
+export function createCustomProject(data: { name: string; procurementMethod?: string; background?: string; openTime?: string; deadline?: string }) {
+  return api.post<{ projectId: string; projectCode: string; name: string; openTime: string }>('/expert-admin/extract/custom-project', data);
+}
+
+/** 自定义抽取：上传项目文件（PDF/Word/图片），返回 FileAsset 元数据 */
+export function uploadExtractionFile(file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.postForm<{ id: string; key: string; url: string; originalName: string; size: number; mimeType: string }>(`/upload?category=bid_document`, fd);
+}
+
 export function generateNotification(data: {
   projectName: string; expertName: string; isLead: boolean;
   totalExperts: number; extractMode: string; openTime: string;

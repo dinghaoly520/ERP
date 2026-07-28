@@ -64,8 +64,8 @@ export class BidService {
       totalAnnouncements,
       recentLogs,
     ] = await Promise.all([
-      this.prisma.bidProject.count(),
-      this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT'] } } }),
+      this.prisma.bidProject.count({ where: { isExtractionOnly: false } }),
+      this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT'] }, isExtractionOnly: false } }),
       this.prisma.supplier.count(),
       this.prisma.supplier.count({ where: { status: 'APPROVED' } }),
       this.prisma.bidExpert.groupBy({ by: ['expertName'], _count: true }),
@@ -78,6 +78,7 @@ export class BidService {
 
     const stageCounts = await this.prisma.bidProject.groupBy({
       by: ['stage'],
+      where: { isExtractionOnly: false },
       _count: { stage: true },
     });
 
@@ -98,8 +99,8 @@ export class BidService {
 
   listProjects(stages?: string[]) {
     const where = stages && stages.length > 0
-      ? { stage: { in: stages as BidStage[] } }
-      : {};
+      ? { stage: { in: stages as BidStage[] }, isExtractionOnly: false }
+      : { isExtractionOnly: false };
 
     // 当按阶段筛选时返回精简字段（用于搜索选择器）
     // 无筛选时返回完整字段（用于归档/仪表盘等向后兼容）
@@ -129,6 +130,7 @@ export class BidService {
    */
   async getProjectsDashboard() {
     const projects = await this.prisma.bidProject.findMany({
+      where: { isExtractionOnly: false },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { suppliers: true, experts: true } },

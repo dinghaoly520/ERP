@@ -8996,13 +8996,14 @@ select.workbench-input {
     inset 1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.14),
     inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5);
 }
-/* 激活 — 内凹（与凸起 tab 形成层次）*/
+/* 激活 — 内凹 + 品牌淡底填充（与凸起 tab 形成强对比）*/
 .neu-tab.is-active {
   color: var(--accent-strong);
-  background: transparent;
+  background: color-mix(in oklch, var(--accent) 10%, var(--neu-raised-bg));
   box-shadow:
     inset 1.5px 1.5px 4px oklch(0.55 0.03 258 / 0.14),
-    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5);
+    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5),
+    inset 0 0 0 1.5px oklch(0.56 0.153 251 / 0.18);
 }
 .neu-tab-count {
   font-size: 11px;
@@ -10130,5 +10131,220 @@ select.workbench-input {
   .neu-drop:hover {
     transition: none;
     transform: none;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ── 步骤轨道 .step-track — 流程向导步骤指示器 ──
+   设计理念：水流管道式步骤——凹槽通道 + 浮起节点 + 流光填充
+   ══════════════════════════════════════════════════════════════════════ */
+
+.step-track {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 1.25rem 1.5rem 1rem;
+  border-radius: 20px;
+  background:
+    linear-gradient(105deg,
+      oklch(1 0 0 / 0.92) 0%,
+      oklch(0.99 0.003 258 / 0.62) 35%,
+      oklch(1 0 0 / 0.14) 70%
+    );
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2px 3px 8px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 8px oklch(1 0 0 / 0.88);
+}
+
+/* 底部凹槽通道 */
+.step-track::before {
+  content: '';
+  position: absolute;
+  top: calc(1.25rem + 15px);
+  left: calc(1.5rem + 16px);
+  right: calc(1.5rem + 16px);
+  height: 4px;
+  border-radius: 2px;
+  background: oklch(0.6 0.02 258 / 0.12);
+  box-shadow:
+    inset 1px 1px 2px oklch(0.55 0.03 258 / 0.15),
+    inset -1px -1px 2px oklch(1 0 0 / 0.4);
+}
+
+/* 流光填充进度 */
+.step-track__progress {
+  position: absolute;
+  top: calc(1.25rem + 15px);
+  left: calc(1.5rem + 16px);
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    oklch(0.62 0.14 175 / 0.8),
+    oklch(0.56 0.153 251 / 0.9)
+  );
+  box-shadow: 0 0 8px oklch(0.56 0.153 251 / 0.3);
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.step-track__progress::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    oklch(1 0 0 / 0.4) 50%,
+    transparent 100%
+  );
+  animation: step-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes step-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+/* 单个步骤节点容器 */
+.step-node {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+  background: none;
+  border: none;
+  padding: 0;
+  outline: none;
+}
+
+.step-node--clickable {
+  cursor: pointer;
+}
+
+.step-node--clickable:hover .step-node__circle {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    3px 4px 8px oklch(0.55 0.03 258 / 0.16),
+    -2px -2px 6px oklch(1 0 0 / 0.92);
+}
+
+.step-node--clickable:active .step-node__circle {
+  transform: translateY(0);
+  box-shadow:
+    inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12),
+    inset -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+
+/* 圆形节点 */
+.step-node__circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 未来步骤 — 暗色凹槽 */
+.step-node--future .step-node__circle {
+  background: oklch(0.92 0.008 258);
+  color: oklch(0.6 0.02 258 / 0.5);
+  box-shadow:
+    inset 1px 1px 3px oklch(0.55 0.03 258 / 0.12),
+    inset -1px -1px 2px oklch(1 0 0 / 0.5);
+}
+
+/* 当前步骤 — 品牌色浮起 + 脉冲光晕 */
+.step-node--active .step-node__circle {
+  background: linear-gradient(135deg, oklch(0.56 0.153 251), oklch(0.48 0.14 251));
+  color: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    0 2px 8px oklch(0.56 0.153 251 / 0.4),
+    0 0 0 4px oklch(0.56 0.153 251 / 0.12);
+  animation: step-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes step-pulse {
+  0%, 100% { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), 0 2px 8px oklch(0.56 0.153 251 / 0.4), 0 0 0 4px oklch(0.56 0.153 251 / 0.12); }
+  50% { box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), 0 3px 12px oklch(0.56 0.153 251 / 0.5), 0 0 0 6px oklch(0.56 0.153 251 / 0.08); }
+}
+
+/* 已完成步骤 — 成功色浮起 */
+.step-node--done .step-node__circle {
+  background: linear-gradient(135deg, oklch(0.68 0.14 155), oklch(0.58 0.12 155));
+  color: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    2px 2px 5px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.7);
+}
+
+/* 步骤标签 */
+.step-node__label {
+  text-align: center;
+  max-width: 80px;
+}
+
+.step-node__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  transition: color 0.3s ease;
+}
+
+.step-node--active .step-node__title {
+  color: oklch(0.42 0.14 251);
+}
+
+.step-node--done .step-node__title {
+  color: oklch(0.45 0.1 155);
+}
+
+.step-node--future .step-node__title {
+  color: oklch(0.6 0.02 258 / 0.5);
+}
+
+.step-node__desc {
+  font-size: 9px;
+  line-height: 1.3;
+  margin-top: 2px;
+  color: oklch(0.55 0.02 258 / 0.6);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.step-node--active .step-node__desc {
+  color: oklch(0.5 0.08 251 / 0.7);
+}
+
+/* reduced-motion 降级 */
+@media (prefers-reduced-motion: reduce) {
+  .step-node__circle,
+  .step-node--clickable:hover .step-node__circle,
+  .step-node--clickable:active .step-node__circle {
+    transition: none;
+    transform: none;
+    animation: none;
+  }
+  .step-track__progress {
+    transition: none;
+  }
+  .step-track__progress::after {
+    animation: none;
   }
 }

@@ -8,6 +8,8 @@ import {
   IsIn,
   IsObject,
   IsEmail,
+  IsDateString,
+  ArrayMaxSize,
 } from 'class-validator';
 
 /**
@@ -78,4 +80,20 @@ export class OcrIntakeDto {
 export class AiSuggestEvaluationDto {
   @IsString() @IsNotEmpty()
   expertUserId!: string;
+}
+
+/** 自定义抽取：分析已上传文件，AI 推断项目背景与所需专业/人数 */
+export class AnalyzeExtractionFilesDto {
+  @IsArray() @IsString({ each: true }) @ArrayMaxSize(10)
+  fileIds!: string[];
+}
+
+/** 自定义抽取：创建影子项目（仅承载抽取/通知/确认，不进项目管理列表） */
+export class CreateCustomProjectDto {
+  @IsString() @IsNotEmpty()
+  name!: string;
+  @IsOptional() @IsString() procurementMethod?: string;
+  @IsOptional() @IsString() background?: string;
+  @IsOptional() @IsDateString() openTime?: string;
+  @IsOptional() @IsDateString() deadline?: string;
 }

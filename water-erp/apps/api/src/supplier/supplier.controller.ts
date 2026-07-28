@@ -108,6 +108,23 @@ export class SupplierController {
     return this.supplierService.getStats();
   }
 
+  // ── 业务标签：词表（选取/邀请页多选） + 全量回填（规则引擎，写 tags）──
+  @Get('tag-vocabulary')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '业务标签词表（按频次降序，供选取/邀请页标签多选）' })
+  async getTagVocabulary(@Query('limit') limit?: string) {
+    return this.supplierService.getTagVocabulary(limit ? Number(limit) : undefined);
+  }
+
+  @Post('backfill-tags')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '业务标签全量回填（规则引擎；默认仅填空标签，force=true 全量重算）' })
+  async backfillTags(@Query('force') force?: string, @Request() req?: any) {
+    return this.supplierService.backfillBusinessTags({ force: force === 'true', userId: req?.user?.sub });
+  }
+
   @Get('list')
   @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff', 'supplier') // 补角色白名单：杜绝 bid_expert/mall 拖全库+PII；supplier 由 service 的 scopeUserId 收敛到本企业
@@ -458,6 +475,14 @@ export class SupplierController {
   @ApiOperation({ summary: '供应商生命周期时间线' })
   async getTimeline(@Param('id') id: string) {
     return this.supplierService.getSupplierTimeline(id);
+  }
+
+  @Patch(':id/tags')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '管理员修改供应商业务标签（直接生效，不走变更审批）' })
+  async updateTags(@Param('id') id: string, @Body() body: { tags: string[] }, @Request() req: any) {
+    return this.supplierService.updateTags(id, body.tags, req.user?.sub);
   }
 
   @Post(':id/favorite')

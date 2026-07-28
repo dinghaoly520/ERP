@@ -54,6 +54,8 @@ export interface SupplierRecommendation {
   reason: string;
   legalPerson?: string;
   enterpriseType?: string;
+  /** 业务标签（取自 Supplier.tags），供前端展示匹配维度 + 提升选取可解释性。 */
+  tags?: string[];
   contacts?: { name: string; phone: string; isPrimary: boolean }[];
   evaluation?: { finalGrade: string; count: number };
   activeProjects: number;

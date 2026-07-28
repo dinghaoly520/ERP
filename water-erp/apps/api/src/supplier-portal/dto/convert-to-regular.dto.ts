@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MaxLength, IsArray, ValidateNested, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, IsArray, ValidateNested, IsOptional, IsBoolean, ArrayMinSize, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class ConvertContactDto {
@@ -56,4 +56,7 @@ export class ConvertToRegularDto {
 
   @IsArray() @ValidateNested({ each: true }) @Type(() => ConvertQualificationDto)
   qualifications: ConvertQualificationDto[];
+
+  @IsArray() @ArrayMinSize(2) @ArrayMaxSize(8) @IsString({ each: true }) @MaxLength(20, { each: true })
+  tags: string[];
 }

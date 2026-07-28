@@ -389,38 +389,73 @@ export class ProjectManagementService {
    * 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime。
    * 用于上传时解析失败、用户手动触发重新提取的场景。
    */
-  async extractTenderFields(itemId: string) {
-    const stage = await this.prisma.projectManagementStage.findFirst({
-      where: { projectManagementItemId: itemId, stageKey: 'TENDER_DOCUMENT' },
-      include: { attachments: true },
-    });
-    if (!stage) throw new NotFoundException({ error: '未找到采购文件阶段', code: 'NOT_FOUND' });
+  async extractTenderFields(itemId: string, field?: string) {
+    const cachePath = this.getTenderTextCachePath(itemId);
+    let text: string;
+    try {
+      text = await readFile(cachePath, 'utf8');
+      if (!text || text.length < 50) throw new Error('empty cache');
+    } catch {
+      const stage = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: itemId, stageKey: 'TENDER_DOCUMENT' },
+        include: { attachments: true },
+      });
+      if (!stage) throw new NotFoundException({ error: '未找到采购文件阶段', code: 'NOT_FOUND' });
 
-    const tenderFile = stage.attachments.find(
-      (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
-    );
-    if (!tenderFile) throw new BadRequestException({ error: '未找到采购文件，请先上传', code: 'NO_TENDER_FILE' });
+      const tenderFile = stage.attachments.find(
+        (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
+      );
+      if (!tenderFile) throw new BadRequestException({ error: '未找到采购文件，请先上传', code: 'NO_TENDER_FILE' });
 
-    const buffer = await this.storage.download(tenderFile.objectKey);
-    const text = await this.documentParser.parse(buffer, tenderFile.mimeType, tenderFile.fileName);
-    this.logger.log(`[extractTenderFields] ${tenderFile.fileName}: ${text.length} chars`);
+      try {
+        const buffer = await this.storage.download(tenderFile.objectKey);
+        text = await this.documentParser.parse(buffer, tenderFile.mimeType, tenderFile.fileName);
+        try { await writeFile(cachePath, text, 'utf8'); } catch {}
+      } catch (e) {
+        this.logger.warn(`[extractTenderFields] 文件读取失败，回退 DB: ${(e as Error)?.message}`);
+        const item = await this.prisma.projectManagementItem.findUnique({
+          where: { id: itemId },
+          select: { projectOverview: true, bidOpeningTime: true, documentAcquireTime: true },
+        });
+        const fallback: Record<string, string | null> = {
+          projectOverview: item?.projectOverview ?? null,
+          bidOpeningTime: item?.bidOpeningTime ?? null,
+          documentAcquireTime: item?.documentAcquireTime ?? null,
+        };
+        return field ? { [field]: fallback[field] ?? null } : fallback;
+      }
+    }
+    this.logger.log(`[extractTenderFields] ${text.length} chars, field=${field ?? 'all'}`);
 
-    const rawOverview = this.extractProjectOverviewFromText(text);
-    const projectOverview = rawOverview ? await this.aiMinimalPolish(rawOverview) : null;
-    const rawBidTime = this.extractBidOpeningTimeFromText(text);
-    const bidOpeningTime = rawBidTime ? await this.aiNormalizeBidOpeningTime(rawBidTime) : null;
-    const rawAcquireTime = this.extractDocumentAcquireTimeFromText(text);
-    const documentAcquireTime = rawAcquireTime ? await this.aiNormalizeDocumentAcquireTime(rawAcquireTime) : null;
-
+    // 只提取指定字段（或全部）
+    const wants = (f: string) => !field || field === f;
     const updateData: Record<string, string> = {};
-    if (projectOverview) updateData.projectOverview = projectOverview;
-    if (bidOpeningTime) updateData.bidOpeningTime = bidOpeningTime;
-    if (documentAcquireTime) updateData.documentAcquireTime = documentAcquireTime;
+    const result: Record<string, string | null> = {};
+
+    if (wants('projectOverview')) {
+      const raw = this.extractProjectOverviewFromText(text);
+      const val = raw ? await this.aiMinimalPolish(raw) : null;
+      if (val) updateData.projectOverview = val;
+      result.projectOverview = val;
+    }
+    if (wants('bidOpeningTime')) {
+      const raw = this.extractBidOpeningTimeFromText(text);
+      const val = raw ? await this.aiNormalizeBidOpeningTime(raw) : null;
+      if (val) updateData.bidOpeningTime = val;
+      result.bidOpeningTime = val;
+    }
+    if (wants('documentAcquireTime')) {
+      let raw = this.extractDocumentAcquireTimeFromText(text);
+      if (!raw) raw = await this.aiExtractDocumentAcquireTime(text);
+      const val = raw ? await this.aiNormalizeDocumentAcquireTime(raw) : null;
+      if (val) updateData.documentAcquireTime = val;
+      result.documentAcquireTime = val;
+    }
+
     if (Object.keys(updateData).length > 0) {
       await this.prisma.projectManagementItem.update({ where: { id: itemId }, data: updateData });
     }
-
-    return { projectOverview, bidOpeningTime, documentAcquireTime };
+    return field ? { [field]: result[field] ?? null } : result;
   }
 
   async createFromInitiation(dto: CreateProjectFromInitiationDto) {
@@ -803,6 +838,14 @@ export class ProjectManagementService {
             where: { id: projectId },
             data: { documentAcquireTime },
           });
+        }
+
+        // 缓存 mammoth 文本供 AI 提取按钮复用（绕过 MinIO）
+        try {
+          await mkdir('/tmp/project-management-cache', { recursive: true });
+          await writeFile(join('/tmp/project-management-cache', `tender-text-${projectId}.txt`), text, 'utf8');
+        } catch (e) {
+          this.logger.warn(`[TENDER_DOCUMENT] 缓存文本失败: ${(e as Error)?.message}`);
         }
       } catch (err) {
         this.logger.warn(`Failed to extract info from tender document: ${err}`);
@@ -1776,7 +1819,6 @@ export class ProjectManagementService {
         '采购内容明细',
       ]);
       isAnnualBudget =
-        this.extractInlineValue(normalizedText, '是否属于年度预算') === '是' ||
         annualBudgetSection.some((line) => line === '是') ||
         this.findAnnualBudgetFlag(lines);
     }
@@ -4353,7 +4395,40 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return values;
   }
 
-  private extractInlineValue(text: string, label: string) {
+  private extractDocumentAcquireTimeFromText(text: string): string | null {
+    // 策略1：找"采购文件获取"/"文件获取"章节标题 → 后续 300 字内找 "时 间：日期区间"
+    const sectionLabels = ['采购文件获取', '文件获取', '获取采购文件', '获取招标文件'];
+    for (const label of sectionLabels) {
+      const idx = text.indexOf(label);
+      if (idx < 0) continue;
+      const window = text.slice(idx, idx + 300);
+      // 1a. "时 间：日期区间"（mammoth 可能拆分"时 间"）
+      const timeTagMatch = window.match(
+        /时\s*间\s*[：:]\s*((?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2})\s*[-~至到]\s*(?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2}))/,
+      );
+      if (timeTagMatch) return timeTagMatch[1].replace(/\s+/g, ' ').trim();
+
+      // 1b. 窗口内直接的日期+时分区间（无"时间"标签）
+      const directMatch = window.match(
+        /((?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)\s*\d{1,2}[：:]\d{2}\s*[-~至到]\s*(?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)\s*\d{1,2}[：:]\d{2})/,
+      );
+      if (directMatch) return directMatch[1].replace(/\s+/g, ' ').trim();
+
+      // 1c. 窗口内的日期区间（无时分）
+      const dateRangeMatch = window.match(
+        /((?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)\s*[-~至到]\s*(?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日))/,
+      );
+      if (dateRangeMatch) return dateRangeMatch[1].replace(/\s+/g, ' ').trim();
+    }
+
+    // 策略2：全文搜索 "时 间：日期区间" 或含时分的日期区间（兜底）
+    const fullTextMatch = text.match(
+      /时\s*间\s*[：:]\s*((?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2})\s*[-~至到]\s*(?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2}))/,
+    );
+    if (fullTextMatch) return fullTextMatch[1].replace(/\s+/g, ' ').trim();
+
+    return null;
+  }actInlineValue(text: string, label: string) {
     const match = text.match(new RegExp(`${label}[：:]\\s*([^\n]+)`));
     return match?.[1]?.trim() ?? '';
   }
@@ -5279,38 +5354,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * 常见表述：采购文件获取时间 / 文件获取时间 / 领取时间 / 报名及文件获取，
    * 取值通常是日期或日期区间（如"2026年8月1日至8月5日"）。精确匹配失败时回退到标签附近窗口。
    */
-  private extractDocumentAcquireTimeFromText(text: string): string | null {
-    const labels = [
-      '采购文件获取时间', '文件获取时间', '文件获取期限', '文件获取',
-      '领取时间', '文件领取时间', '报名及文件获取', '获取时间',
-      '采购文件发售时间', '文件发售时间', '获取采购文件', '文件获取截止',
-      '获取期限', '领取期限', '采购文件领取时间', '发售时间', '文件发布时间',
-      '采购文件下载时间', '下载截止', '采购文件下载', '文件下载时间',
-      '报名时间', '文件递交', '发售日期', '获取日期',
-    ];
-    // Wider fallback: search for date ranges near "报名/文件/获取/下载" contexts
-    const ctxPattern = /(?:报名|文件获取|采购文件|文件下载|获取|发售).{0,30}\d{4}\s*[年.\-/]\s*\d{1,2}\s*[月.\-/]\s*\d{1,2}\s*日?/;
-    const ctxMatch = text.match(ctxPattern);
-    if (ctxMatch) return ctxMatch[0].trim().slice(0, 80);
-
-    for (const label of labels) {
-      // 精确"标签：值"，值含年份才采用
-      const re = new RegExp(`${label}\\s*[：:）)]\\s*([^。\\n；;]{2,80})`);
-      const m = text.match(re);
-      if (m?.[1] && /\d{4}/.test(m[1])) {
-        return m[1].trim();
-      }
-      // 标签后窗口含日期则返回，交由 AI 规范化
-      const idx = text.indexOf(label);
-      if (idx >= 0) {
-        const win = text.slice(idx, idx + 100).replace(/\s+/g, ' ');
-        if (/\d{4}\s*[年.-/]\s*\d{1,2}/.test(win)) {
-          return win.slice(0, 80).trim();
-        }
-      }
-    }
-    return null;
-  }
 
   /** 最小限度优化：仅修正标点符号和语言不一致，不改变内容、不改编句子结构。 */
   private async aiMinimalPolish(text: string): Promise<string> {
@@ -5369,7 +5412,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '示例：输入"2026年03月23日09:00至2026年03月26日15:00"→"2026年3月23日9:00-2026年3月26日15:00"；' +
         '输入"2026年8月1日至2026年8月5日"→"2026年8月1日-2026年8月5日"；' +
         '输入"自发布之日起至2026.8.5"→"2026年8月5日"。';
-      const result = await this.aiService.chat(systemPrompt, text, 0.2);
+      const result = await this.aiService.chat(systemPrompt, text, 0.0);
       const cleaned = result?.trim().replace(/^["'"，。.\s]+|["'"，。.\s]+$/g, '');
       if (cleaned && /\d{4}年\d{1,2}月\d{1,2}日/.test(cleaned)) {
         return cleaned;
@@ -5384,8 +5427,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
   private async aiExtractDocumentAcquireTime(text: string): Promise<string | null> {
     try {
       const systemPrompt =
-        '从以下采购文件文本中提取"采购文件获取时间"（供应商可获取/下载/领取采购文件的时间段或截止时间）。' +
-        '只输出时间（如"2026年3月20日至2026年3月25日"或"2026年3月25日前"），不要其他说明。' +
+        '从以下采购文件文本中提取"采购文件获取时间"（供应商可获取/下载/领取采购文件的时间段或截止时间），' +
+        '必须保留时分（如09:00、15:00）。只输出时间（如"2026年3月23日9:00-2026年3月26日15:00"或"2026年3月25日17:00前"），不要其他说明。' +
         '如果文本中没有获取时间信息，输出"无"。';
       const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1);
       const cleaned = result?.trim();
@@ -5398,6 +5441,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
   }
 
+
+  private getTenderTextCachePath(projectId: string): string {
+    // /tmp 始终可写，避免 uploads/project-management 目录不存在
+    const dir = join('/tmp', 'project-management-cache');
+    mkdir(dir, { recursive: true }).catch(() => {});
+    return join(dir, `tender-text-${projectId}.txt`);
+  }
   private isLabelLine(line: string) {
     return [
       '需求申请人',

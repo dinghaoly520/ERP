@@ -291,6 +291,7 @@ model BidProject {
   encryptionKeyId          String? // Track C: 项目数据密钥引用
   projectManagementItemId  String? // 多轮采购：所属项目管理项
   round                    Int                        @default(1) // 采购轮次（再次采购递增）
+  isExtractionOnly         Boolean                    @default(false) // 自定义抽取影子项目：仅承载专家抽取/通知/确认，不出现在项目管理列表
   suppliers                BidSupplier[]
   openingSession           BidOpeningSession?
   openingRecords           BidOpeningRecord[]
@@ -345,6 +346,32 @@ model BidSupplier {
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
+}
+
+// ── 采购邀请回执（RSVP）：AI 通知内嵌无登录签名链接，供应商点击确认/拒绝参加，结果记入此表 ──
+// token 为 AES-GCM 加密的自包含载荷（sid/pid/iid/供应商名/摘要/过期）+ HMAC 完整性，URL 不泄露任何 id。
+model InvitationRsvp {
+  id           String    @id @default(cuid())
+  token        String    @unique // 加密签名 token（即链接 ?t= 的值）
+  invitationId String    // 一次通知批次 = 一个 cuid，聚合本批回执
+  projectId    String?   // 关联招标项目（无项目时为 null，仅记录意向）
+  supplierId   String
+  supplierName String    // 冗余：链接页展示「本回执致：XX 公司」并防误点
+  title        String    // 链接页标题快照（项目名/采购主题）
+  summary      String    // 链接页关键信息快照（采购方式/预算/截止/邀请方…，JSON 文本）
+  status       String    @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  note         String?   // 供应商回执备注（如「档期冲突」）
+  respondedAt  DateTime?
+  responseIp   String?   // 回执存证
+  responseUa   String?   // 回执存证
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([invitationId, supplierId]) // 每家每批次一条；改主意走 update
+  @@index([supplierId])
+  @@index([projectId])
+  @@index([token])
 }
 
 model BidInvalidBid {
@@ -767,6 +794,7 @@ model Supplier {
   // ── 临时供应商（凭邀请码注册，有效期由邀请码绑定）──
   isTemporary        Boolean        @default(false)
   temporaryExpiresAt DateTime?
+  tags              String[]       @default([])
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 

@@ -4,15 +4,15 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  getSupplierList, getSupplierStats, getClassifications,
-  updateSupplierStatus, createClassification, updateClassification, deleteClassification,
+  getSupplierList, getSupplierStats,
+  updateSupplierStatus,
   toggleFavorite, getFavorites,
   listInvitations, createInvitation, revokeInvitation,
 } from '@/lib/api/supplier';
-import type { Supplier, SupplierClassification, SupplierListResponse } from '@/lib/types';
+import type { Supplier, SupplierListResponse } from '@/lib/types';
 import type { SupplierInvitation } from '@/lib/api/supplier';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
-import { Building2, Layers, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban } from 'lucide-react';
+import { Building2, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
@@ -21,7 +21,6 @@ export default function SupplierRepositoryPage() {
   const router = useRouter();
   const [data, setData] = useState<SupplierListResponse>({ total: 0, page: 1, pageSize: 20, items: [] });
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, disabled: 0, blacklist: 0, returned: 0, temporaryApproved: 0 });
-  const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
@@ -30,7 +29,6 @@ export default function SupplierRepositoryPage() {
   const [filterStatus, setFilterStatus] = useState('APPROVED');
   // 临时供应商子视图：与 filterStatus='APPROVED' 叠加，仅看凭邀请码注册的临时入库供应商。
   const [filterIsTemporary, setFilterIsTemporary] = useState(false);
-  const [filterClassification, setFilterClassification] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -88,14 +86,6 @@ export default function SupplierRepositoryPage() {
   const [statusReason, setStatusReason] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
 
-  // 分类管理弹窗
-  const [classMgrOpen, setClassMgrOpen] = useState(false);
-  const [classEdit, setClassEdit] = useState<Partial<SupplierClassification> | null>(null);
-  const [classForm, setClassForm] = useState({ name: '', code: '', description: '' });
-  const [classSaving, setClassSaving] = useState(false);
-  const [classDelete, setClassDelete] = useState<SupplierClassification | null>(null);
-  const [classDeleting, setClassDeleting] = useState(false);
-
   // ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）──
   const [invitations, setInvitations] = useState<SupplierInvitation[]>([]);
   const [invLoading, setInvLoading] = useState(false);
@@ -141,7 +131,6 @@ export default function SupplierRepositoryPage() {
     try {
       const params: any = {
         status: effectiveStatus || undefined,
-        classificationId: filterClassification || undefined,
         search: search || undefined, page, pageSize, sort: sortMode,
       };
       if (filterIsTemporary) params.isTemporary = true;
@@ -157,11 +146,10 @@ export default function SupplierRepositoryPage() {
       setError(e?.message || '供应商列表加载失败');
     }
     setLoading(false);
-  }, [effectiveStatus, filterStatus, filterIsTemporary, filterClassification, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus]);
+  }, [effectiveStatus, filterStatus, filterIsTemporary, search, page, pageSize, sortMode, advEnterpriseTypes, advDateFrom, advDateTo, advEvalLevel, advQualStatus]);
 
   const refreshMeta = useCallback(() => {
     getSupplierStats().then(setStats).catch(() => {});
-    getClassifications().then(setClassifications).catch(() => {});
     getFavorites().then(fs => setFavIds(new Set(fs.map(f => f.supplierId)))).catch(() => {});
   }, []);
 
@@ -180,28 +168,6 @@ export default function SupplierRepositoryPage() {
     setStatusLoading(false);
   };
 
-  const openClassEdit = (c?: SupplierClassification) => {
-    setClassEdit(c || null);
-    setClassForm(c ? { name: c.name, code: c.code, description: c.description || '' } : { name: '', code: '', description: '' });
-  };
-  const saveClass = async () => {
-    if (!classForm.name.trim() || !classForm.code.trim()) { toast.error('请填写分类名称和代码'); return; }
-    setClassSaving(true);
-    try {
-      if (classEdit?.id) { await updateClassification(classEdit.id, classForm); toast.success('分类已更新'); }
-      else { await createClassification(classForm); toast.success('分类已创建'); }
-      setClassEdit(null); refreshMeta();
-    } catch (e: any) { toast.error(e?.message || '保存失败'); }
-    setClassSaving(false);
-  };
-  const confirmDeleteClass = async () => {
-    if (!classDelete) return;
-    setClassDeleting(true);
-    try { await deleteClassification(classDelete.id); toast.success(`已删除分类「${classDelete.name}」`); setClassDelete(null); refreshMeta(); }
-    catch (e: any) { toast.error(e?.message || '删除失败'); }
-    setClassDeleting(false);
-  };
-
   return (
     <div className="flex flex-col gap-5">
       {/* ══════ page-hero ══════ */}
@@ -211,7 +177,7 @@ export default function SupplierRepositoryPage() {
             <div className="page-hero__icon"><Building2 size={17} /></div>
             <div>
               <div className="page-hero__title">供应商库</div>
-              <div className="page-hero__sub">全量供应商目录、分类管理与状态维护</div>
+              <div className="page-hero__sub">全量供应商目录与状态维护</div>
             </div>
           </div>
           <div className="page-hero__right">
@@ -320,81 +286,6 @@ export default function SupplierRepositoryPage() {
         </Modal>
       )}
 
-      {/* ══════ 分类管理弹窗 ══════ */}
-      {classMgrOpen && (
-        <Modal
-          open
-          onClose={() => setClassMgrOpen(false)}
-          title="业务分类管理"
-          size="lg"
-          footer={
-            <div className="flex items-center justify-between w-full">
-              <span className="text-xs text-[var(--muted-foreground)]">{classifications.length} 个分类</span>
-              <button onClick={() => { setClassMgrOpen(false); }} className="neu-btn-soft">关闭</button>
-            </div>
-          }
-        >
-          <button onClick={() => openClassEdit()} className="neu-btn-soft"><Plus size={13} />新增分类</button>
-          <div className="grid grid-cols-2 gap-3">
-            {classifications.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)] py-8 text-center col-span-2">暂无分类，点击上方按钮创建</p>
-            ) : classifications.map(c => (
-              <div key={c.id} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-[var(--foreground)]">{c.name}</span>
-                  <span className="neu-tab-count">{c._count?.suppliers ?? 0}</span>
-                </div>
-                <span className="font-mono text-[10px] text-[var(--muted-foreground)]">{c.code}</span>
-                {c.description && <span className="text-[10px] text-[var(--muted-foreground)] line-clamp-2">{c.description}</span>}
-                <div className="mt-1 flex gap-2">
-                  <button onClick={() => openClassEdit(c)} className="neu-btn-xs">编辑</button>
-                  <button onClick={() => setClassDelete(c)} className="neu-btn-xs is-danger">删除</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Modal>
-      )}
-
-      {/* ══════ 分类新增/编辑弹窗 ══════ */}
-      {classEdit !== null && (
-        <Modal
-          open
-          onClose={() => setClassEdit(null)}
-          title={classEdit?.id ? '编辑分类' : '新增分类'}
-          footer={
-            <>
-              <button onClick={() => setClassEdit(null)} className="neu-btn-soft">取消</button>
-              <button onClick={saveClass} disabled={classSaving} className="neu-btn-primary">
-                {classSaving ? '保存中...' : '保存'}
-              </button>
-            </>
-          }
-        >
-          <input value={classForm.name} onChange={e => setClassForm({ ...classForm, name: e.target.value })} placeholder="分类名称" className="neu-input text-sm" />
-          <input value={classForm.code} onChange={e => setClassForm({ ...classForm, code: e.target.value })} placeholder="分类代码" className="neu-input text-sm font-mono" />
-          <input value={classForm.description} onChange={e => setClassForm({ ...classForm, description: e.target.value })} placeholder="描述（可选）" className="neu-input text-sm" />
-        </Modal>
-      )}
-
-      {/* ══════ 分类删除确认弹窗 ══════ */}
-      {classDelete && (
-        <Modal
-          open
-          onClose={() => setClassDelete(null)}
-          title="确认删除分类"
-          description={<>将删除分类「<strong className="text-[var(--foreground)]">{classDelete.name}</strong>」{classDelete._count?.suppliers ? `（当前关联 ${classDelete._count.suppliers} 家供应商）` : ''}，删除后关联供应商将变为未分类。</>}
-          footer={
-            <>
-              <button onClick={() => setClassDelete(null)} className="neu-btn-soft">取消</button>
-              <button onClick={confirmDeleteClass} disabled={classDeleting} className="neu-btn-soft is-danger">
-                {classDeleting ? '删除中...' : '确认删除'}
-              </button>
-            </>
-          }
-        />
-      )}
-
       {/* B13 错误态：接口失败时明确提示+重试，避免与「真空」混淆 */}
       {error && !loading && (
         <div className="neu-card-static !rounded-2xl p-4 flex items-center gap-3" style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
@@ -423,14 +314,9 @@ export default function SupplierRepositoryPage() {
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索企业名称 / 信用代码" className="neu-input !pl-9" />
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
         </div>
-        <select value={filterClassification} onChange={e => { setFilterClassification(e.target.value); setPage(1); }} className="workbench-input !w-auto min-w-[110px]">
-          <option value="">全部分类</option>
-          {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <button onClick={() => { setSearch(''); setFilterClassification(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
+        <button onClick={() => { setSearch(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
 
         <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
-        <button onClick={() => setClassMgrOpen(true)} className="neu-btn-xs gap-1">分类管理</button>
         <button onClick={() => exportSuppliersToExcel(data.items)} title="仅导出当前筛选结果（当前页数据）" className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
       </div>
 
@@ -480,16 +366,15 @@ export default function SupplierRepositoryPage() {
                 <th style={{ width: 140 }}>企业类型</th>
                 <th className="text-center" style={{ width: 100 }}>状态</th>
                 <th className="text-center" style={{ width: 112 }}>评价等级</th>
-                <th className="text-center" style={{ width: 200 }}>分类</th>
                 <th className="text-center" style={{ width: 96 }}>入库时间</th>
                 <th className="text-center" style={{ width: 200 }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={9} rows={5} />
+                <TableSkeleton cols={8} rows={5} />
               ) : data.items.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-16">
+                <tr><td colSpan={8} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
@@ -525,7 +410,6 @@ export default function SupplierRepositoryPage() {
                         <span className="text-sm text-[var(--muted-foreground)]">—</span>
                       )}
                     </td>
-                    <td className="text-center text-sm text-[var(--muted-foreground)] max-w-[200px] truncate" title={s.classification?.name || ''}>{s.classification?.name || '—'}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">

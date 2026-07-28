@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
@@ -404,7 +404,8 @@ export function ProjectDetailPanel({
   const [summaryRefreshing, setSummaryRefreshing] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [tenderWriteStageAction, setTenderWriteStageAction] = useState<string | null>(null);
-  const [aiExtracting, setAiExtracting] = useState(false);
+  const [aiExtracting, setAiExtracting] = useState<string | null>(null);
+  const [aiResult, setAiResult] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid'>('procurement_document');
@@ -430,6 +431,18 @@ export function ProjectDetailPanel({
   // 自动触发步骤检查：阶段切换时优先使用缓存，缓存未命中时请求 API
   // 未开始的阶段（NOT_STARTED）不触发步骤检查
   const runComplianceAudit = useCallback((force = false) => {
+    // 缓存 key 含 round，避免多轮采购时不同轮次同一 stageKey 冲突
+    const cacheKey = `${item.id}:${selectedStage.stageKey}:${selectedRound}`;
+    // 优先使用缓存（非强制模式下命中即直接展示）——切换步骤时立即显示已有结果
+    if (!force) {
+      const cached = complianceCache.current.get(cacheKey);
+      if (cached) {
+        setComplianceAudit(cached);
+        setComplianceError(null);
+        setComplianceLoading(false);
+        return;
+      }
+    }
     if (stageLocked) {
       setComplianceAudit(null);
       setComplianceError(null);
@@ -442,15 +455,8 @@ export function ProjectDetailPanel({
       setComplianceLoading(false);
       return;
     }
-    const cacheKey = `${item.id}:${selectedStage.stageKey}`;
-    if (!force) {
-      const cached = complianceCache.current.get(cacheKey);
-      if (cached) {
-        setComplianceAudit(cached);
-        setComplianceError(null);
-        return;
-      }
-    }
+    // AI loading：清空旧值避免展示上一步骤结果
+    setComplianceAudit(null);
     setComplianceLoading(true);
     setComplianceError(null);
     auditStageCompliance(item.id, selectedStage.stageKey, force)
@@ -655,7 +661,7 @@ export function ProjectDetailPanel({
       }
 
       // 3. 上传文件后刷新当前阶段的步骤检查
-      complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}`);
+      complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}:${selectedRound}`);
       runComplianceAudit(true);
 
     } catch (error) {
@@ -768,29 +774,29 @@ export function ProjectDetailPanel({
     }
   };
 
-  const handleAiExtractTender = async () => {
-    // 前置检查：TENDER_DOCUMENT 阶段是否有采购文件
+  const handleAiExtractTender = async (field: string) => {
     const tenderStage = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT');
     const hasTenderFile = tenderStage?.attachments?.some(
       (a) => /采购文件|招标文件/.test(a.fileName) && !/审批表|公告|合同|通知书|需求|立项/.test(a.fileName),
     );
     if (!hasTenderFile) {
-      setErrorMessage('该步骤暂无采购文件，请先上传后再进行AI提取');
+      setAiResult({ type: 'warning', message: '请先在「采购文件」步骤上传采购文件后再使用 AI 提取' });
       return;
     }
-    setAiExtracting(true);
-    setErrorMessage(null);
+    setAiExtracting(field);
     try {
-      const result = await extractTenderFields(item.id);
-      if (result.projectOverview || result.bidOpeningTime || result.documentAcquireTime) {
+      const result = await extractTenderFields(item.id, field);
+      const val = result[field];
+      if (val) {
+        // 成功：静默更新左侧，不弹窗
         await onUpdated();
       } else {
-        setErrorMessage('未能从采购文件中提取到信息，请检查文件内容');
+        setAiResult({ type: 'error', message: '未能提取到该字段信息，请检查采购文件内容。' });
       }
     } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : 'AI提取失败');
+      setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取失败' });
     } finally {
-      setAiExtracting(false);
+      setAiExtracting(null);
     }
   };
 
@@ -831,7 +837,7 @@ export function ProjectDetailPanel({
           .then((next) => setAnalysis(next))
           .catch((e) => setAnalysisError(e instanceof Error ? e.message : 'AI 分析暂不可用。'))
           .finally(() => setAnalysisLoading(false));
-        complianceCache.current.delete(`${item.id}:${stageKey}`);
+        complianceCache.current.delete(`${item.id}:${stageKey}:${selectedRound}`);
         runComplianceAudit(true);
       }
     },
@@ -1207,43 +1213,43 @@ export function ProjectDetailPanel({
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span><button type="button" onClick={() => void handleAiExtractTender()} disabled={aiExtracting} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span><button type="button" onClick={() => void handleAiExtractTender('projectOverview')} disabled={aiExtracting === 'projectOverview'} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'projectOverview' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'projectOverview' ? (
                       <div className="mt-1 flex items-start gap-2">
                         <textarea value={editValues.projectOverview} onChange={(e) => setEditValues((prev) => ({ ...prev, projectOverview: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[60px]" autoFocus />
                         <button type="button" onClick={() => void handleSaveField('projectOverview')} className="neu-btn-xs mt-1"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('projectOverview', extractedInfoOverride?.projectOverview ?? item.projectOverview ?? null)} className="group mt-1 block w-full text-left">
-                        <span className={`text-sm leading-6 ${(extractedInfoOverride?.projectOverview ?? item.projectOverview) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.projectOverview ?? item.projectOverview) || '待补充'}</span>
+                      <button type="button" onClick={() => handleStartEdit('projectOverview', extractedInfoOverride?.projectOverview ?? localItem.projectOverview ?? null)} className="group mt-1 block w-full text-left">
+                        <span className={`text-sm leading-6 ${(extractedInfoOverride?.projectOverview ?? localItem.projectOverview) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.projectOverview ?? localItem.projectOverview) || '待补充'}</span>
                         <Pencil size={10} className="inline opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)] ml-1" />
                       </button>
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span><button type="button" onClick={() => void handleAiExtractTender()} disabled={aiExtracting} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span><button type="button" onClick={() => void handleAiExtractTender('bidOpeningTime')} disabled={aiExtracting === 'bidOpeningTime'} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'bidOpeningTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="text" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年8月15日" autoFocus />
                         <button type="button" onClick={() => void handleSaveField('bidOpeningTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('bidOpeningTime', extractedInfoOverride?.bidOpeningTime ?? item.bidOpeningTime ?? null)} className="group mt-0.5 flex items-center gap-1">
-                        <span className={`text-sm ${(extractedInfoOverride?.bidOpeningTime ?? item.bidOpeningTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.bidOpeningTime ?? item.bidOpeningTime) || '待补充'}</span>
+                      <button type="button" onClick={() => handleStartEdit('bidOpeningTime', extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime ?? null)} className="group mt-0.5 flex items-center gap-1">
+                        <span className={`text-sm ${(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.bidOpeningTime ?? localItem.bidOpeningTime) || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
                       </button>
                     )}
                   </div>
                   <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span><button type="button" onClick={() => void handleAiExtractTender()} disabled={aiExtracting} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
+                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span><button type="button" onClick={() => void handleAiExtractTender('documentAcquireTime')} disabled={aiExtracting === 'documentAcquireTime'} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'documentAcquireTime' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'documentAcquireTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
                         <input type="text" value={editValues.documentAcquireTime} onChange={(e) => setEditValues((prev) => ({ ...prev, documentAcquireTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs" placeholder="如 2026年3月23日9:00-3月26日15:00" autoFocus />
                         <button type="button" onClick={() => void handleSaveField('documentAcquireTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('documentAcquireTime', extractedInfoOverride?.documentAcquireTime ?? item.documentAcquireTime ?? null)} className="group mt-0.5 flex items-center gap-1">
-                        <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? item.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.documentAcquireTime ?? item.documentAcquireTime) || '待补充'}</span>
+                      <button type="button" onClick={() => handleStartEdit('documentAcquireTime', extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime ?? null)} className="group mt-0.5 flex items-center gap-1">
+                        <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
                       </button>
                     )}
@@ -1437,6 +1443,12 @@ export function ProjectDetailPanel({
                       documentAcquireTime: null,
                       evaluationMethod: null,
                     } : prev);
+                    setExtractedInfoOverride((prev) => prev ? {
+                      ...prev,
+                      projectOverview: null,
+                      bidOpeningTime: null,
+                      documentAcquireTime: null,
+                    } : null);
                     setAnalysis(null);
                     setComplianceAudit(null);
                     setComplianceError(null);
@@ -1448,7 +1460,7 @@ export function ProjectDetailPanel({
                     setAnalysis({ ...analysis, fileAnalyses: analysis.fileAnalyses.filter((fa) => fa.objectKey !== deletedObjectKey) });
                   }
                   // 删除文件后刷新步骤检查（采购文件已清空，不重跑）
-                  complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}`);
+                  complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}:${selectedRound}`);
                   if (!isTenderDoc) runComplianceAudit(true);
                 }}
                 onEdit={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: selectedStage.stageKey })}
@@ -1560,15 +1572,15 @@ export function ProjectDetailPanel({
               </div>
               <button
                 type="button"
-                disabled={complianceLoading || stageLocked || !hasStageFiles}
+                disabled={complianceLoading || stageProcessing || stageLocked || !hasStageFiles}
                 onClick={() => {
-                  complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}`);
+                  complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}:${selectedRound}`);
                   runComplianceAudit(true);
                 }}
                 className="neu-btn-xs is-info"
               >
-                {complianceLoading ? (
-                  <><Loader2 size={12} className="animate-spin" />审查中...</>
+                {complianceLoading || stageProcessing ? (
+                  <><Loader2 size={12} className="animate-spin" />{complianceLoading ? '审查中...' : '处理中...'}</>
                 ) : (
                   <><Shield size={12} />重新检查</>
                 )}
@@ -1748,6 +1760,30 @@ export function ProjectDetailPanel({
         project={item}
         onPublished={onUpdated}
       />
+
+      {/* AI 提取结果弹窗（cgzxui Modal） */}
+      {aiResult && (
+        <div className="fixed inset-0 z-[550] flex items-center justify-center">
+          <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} onClick={() => setAiResult(null)} />
+          <div className="relative z-10 mx-5 w-full max-w-[420px] rounded-[22px] p-6" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]" style={{ background: aiResult.type === 'success' ? 'color-mix(in oklch, var(--success) 14%, transparent)' : aiResult.type === 'warning' ? 'color-mix(in oklch, var(--warning) 14%, transparent)' : 'color-mix(in oklch, var(--danger) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}>
+                  {aiResult.type === 'success' ? <CheckCircle2 size={16} style={{ color: 'var(--success)' }} /> : aiResult.type === 'warning' ? <AlertTriangle size={16} style={{ color: 'var(--warning)' }} /> : <X size={16} style={{ color: 'var(--danger)' }} />}
+                </div>
+                <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                  {aiResult.type === 'success' ? '提取完成' : aiResult.type === 'warning' ? '提示' : '提取失败'}
+                </span>
+              </div>
+              <button type="button" onClick={() => setAiResult(null)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            <p className="mt-3 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">{aiResult.message}</p>
+            <div className="mt-5 flex justify-end">
+              <button type="button" onClick={() => setAiResult(null)} className="neu-btn-primary !h-[36px] !text-xs">知道了</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

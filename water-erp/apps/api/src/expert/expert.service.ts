@@ -210,6 +210,31 @@ export class ExpertService {
     });
   }
 
+  /** 我的评审邀请（邀请确认链接落地页用）：返回项目基础信息 + 本人邀请状态 */
+  async getMyInvitation(userId: string, projectId: string) {
+    const record = await this.prisma.bidExpert.findFirst({
+      where: { userId, projectId },
+      include: {
+        project: {
+          select: { id: true, name: true, projectCode: true, procurementMethod: true, openTime: true, deadline: true, stage: true, isExtractionOnly: true },
+        },
+      },
+    });
+    if (!record) throw new NotFoundException('未找到该项目的评审邀请');
+    return {
+      projectId: record.projectId,
+      projectName: record.project.name,
+      projectCode: record.project.projectCode,
+      procurementMethod: record.project.procurementMethod,
+      openTime: record.project.openTime,
+      deadline: record.project.deadline,
+      stage: record.project.stage,
+      expertRole: record.expertRole,
+      invitationStatus: record.invitationStatus,
+      signedIn: record.signedIn,
+    };
+  }
+
   async getProject(userId: string, projectId: string) {
     const expertRecord = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },

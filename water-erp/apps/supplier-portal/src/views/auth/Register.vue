@@ -33,6 +33,8 @@ const companyForm = reactive({
 })
 
 // Step 3: Contacts & Qualifications
+// 业务标签（第2步：企业的第 2 部分，2-8 个独立标签）
+const tags = ref<string[]>(['', ''])
 const contacts = ref<any[]>([
   { name: '', phone: '', email: '', position: '', isPrimary: true },
 ])
@@ -48,6 +50,7 @@ const draftSource = computed(() => ({
   companyForm: { ...companyForm },
   contacts: contacts.value.map(c => ({ ...c })),
   qualifications: qualifications.value.map(q => ({ ...q })),
+  tags: [...tags.value],
 }))
 const draft = useAutoSave('register', draftSource)
 const draftTimeLabel = computed(() => draft.storedAt.value ? dayjs(draft.storedAt.value).format('MM月DD日 HH:mm') : '')
@@ -100,6 +103,9 @@ const steps = [
   { title: '提交审核', icon: 'CircleCheck' },
 ]
 
+function addTag() { if (tags.value.length < 8) tags.value.push('') }
+function removeTag(index: number) { if (tags.value.length > 2) tags.value.splice(index, 1) }
+
 function addContact() {
   contacts.value.push({ name: '', phone: '', email: '', position: '', isPrimary: false })
 }
@@ -146,6 +152,8 @@ async function nextStep() {
   if (currentStep.value === 1) {
     const valid = await companyFormRef.value?.validate().catch(() => false)
     if (!valid) return
+    const filledTags = tags.value.filter(t => t.trim())
+    if (filledTags.length < 2) { ElMessage.warning('请至少填写 2 个业务标签'); return }
   }
   if (currentStep.value === 2) {
     // P0：第 3 步（联系人/资质）此前零校验，可一路空白进入提交——补：至少 1 个含手机号的联系人 + 至少 1 份含 fileUrl 的资质。
@@ -189,6 +197,7 @@ async function submitRegister() {
         validFrom: q.validFrom || undefined,
         validTo: q.validTo || undefined,
       })),
+      tags: tags.value.filter(t => t.trim()),
     }
     const ok = await authStore.register(data)
     draft.clearDraft()
@@ -346,6 +355,32 @@ async function submitRegister() {
                 <el-input v-model="companyForm.businessScope" type="textarea" :rows="3" placeholder="请输入经营范围" />
               </el-form-item>
             </el-form>
+
+            <!-- 业务标签 -->
+            <section class="reg-block" style="margin-top:18px">
+              <div class="reg-block-head">
+                <h2 class="reg-block-title">业务标签</h2>
+                <span class="reg-hint">使用2-8个词语简述并概括业务方向，每个单独填写</span>
+                <button class="reg-btn reg-btn--ghost-sm" :disabled="tags.length >= 8" @click="addTag">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14" /><line x1="2" y1="8" x2="14" y2="8" /></svg>
+                  添加标签
+                </button>
+              </div>
+              <div v-for="(t, i) in tags" :key="i" class="reg-row">
+                <span class="reg-row-idx">{{ i + 1 }}</span>
+                <div class="reg-row-fields">
+                  <el-input v-model="tags[i]" :placeholder="i===0?'如：办公用品':i===1?'如：钻机销售':'请输入业务标签'" maxlength="20" size="large" class="reg-row-input" />
+                </div>
+                <button
+                  class="reg-row-remove"
+                  :disabled="tags.length <= 2"
+                  @click="removeTag(i)"
+                  aria-label="删除标签"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="4" y1="8" x2="12" y2="8" /></svg>
+                </button>
+              </div>
+            </section>
           </div>
 
           <!-- Step 3: Contacts & Qualifications -->
@@ -477,6 +512,13 @@ async function submitRegister() {
                   <dd>{{ companyForm.businessScope || '—' }}</dd>
                 </div>
               </dl>
+            </section>
+
+            <section v-if="tags.filter(t=>t.trim()).length > 0" class="reg-block">
+              <h2 class="reg-block-title" style="margin-bottom:16px">业务标签</h2>
+              <div class="reg-tags">
+                <span v-for="t in tags.filter(t=>t.trim())" :key="t" class="reg-tag-chip">{{ t }}</span>
+              </div>
             </section>
 
             <section v-if="contacts.length > 0" class="reg-block">

@@ -357,6 +357,8 @@ export interface Supplier {
   _count?: { evaluations: number };
   /** 平均评价等级（取该供应商历史评价 finalGrade 的众数，A/B/C/D/E）；无评价时为 null。由 supplier.service attachAvgScores 附带。 */
   _avgGrade?: string | null;
+  /** 业务标签（2~8 个，由规则引擎回填 / 人工维护），用于智能选取匹配与可解释性。 */
+  tags?: string[];
 }
 
 export interface SupplierContact {

@@ -3,11 +3,12 @@
 import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, createCustomProject, uploadExtractionFile, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
+import { StepTrack } from '@/components/step-track';
 import { STAGE_LABEL } from '@water-erp/shared';
-import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, Columns2, ClipboardList } from 'lucide-react';
+import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, Columns2, ClipboardList, Upload, Loader2, Brain } from 'lucide-react';
 
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 interface SpecialtyQuota { specialty: string; count: number; }
@@ -98,6 +99,16 @@ export function ExpertExtractPage({
   const [retrospect, setRetrospect] = useState<{ loading: boolean; data: Awaited<ReturnType<typeof retrospectExtraction>> | null } | null>(null);
   // 专家确认状态
   const [invitationData, setInvitationData] = useState<Awaited<ReturnType<typeof getProjectInvitations>> | null>(null);
+  // 自定义项目（文件上传 + AI 分析 + 影子项目）
+  const [projectSource, setProjectSource] = useState<'existing' | 'custom'>('existing');
+  const [customFiles, setCustomFiles] = useState<{ id: string; name: string; size: number }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<ExtractionFileAnalysis | null>(null);
+  const [customName, setCustomName] = useState('');
+  const [customMethod, setCustomMethod] = useState('');
+  const [creatingProject, setCreatingProject] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const autoAnalyzedRef = useRef(false);
   // 会话恢复标记：本次 pid 由 sessionStorage 恢复写入时记录，[pid] effect 对该 pid 跳过一次重置
   const restoredPidRef = useRef('');
@@ -323,7 +334,15 @@ export function ExpertExtractPage({
   };
   const removeManualExpert = (userId: string) => setManualExperts(prev => prev.filter(x => x.userId !== userId));
 
-  const sel = useMemo(() => projects.find(p => p.id === pid), [projects, pid]);
+  const sel = useMemo<BidProjectOption | undefined>(() => {
+    const found = projects.find(p => p.id === pid);
+    if (found) return found;
+    // 影子项目（自定义抽取创建）被列表过滤掉，用按 id 加载的详情 pd 兜底
+    if (pd && pd.id === pid) {
+      return { id: pd.id, name: pd.name, projectCode: pd.projectCode, stage: pd.stage, procurementMethod: pd.procurementMethod, deadline: pd.deadline, _count: { suppliers: pd.suppliers?.length ?? 0 } };
+    }
+    return undefined;
+  }, [projects, pid, pd]);
   const addQ = () => setQuotas(p => [...p, { specialty: '', count: 1 }]);
   const rmQ = (i: number) => { if (quotas.length <= 1) return; setQuotas(p => p.filter((_, x) => x !== i)); };
   const upQ = (i: number, f: keyof SpecialtyQuota, v: string | number) => setQuotas(p => p.map((q, x) => x === i ? { ...q, [f]: v } : q));
@@ -345,6 +364,79 @@ export function ExpertExtractPage({
       c.specialty.includes(replaceSearch.trim())
     ),
   [availablePool, replaceSearch]);
+
+  // ── 自定义项目：上传文件 / AI 分析 / 创建影子项目并进入抽取 ──
+  const handleUploadFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    let okCount = 0;
+    for (const f of Array.from(files)) {
+      try {
+        const res = await uploadExtractionFile(f);
+        setCustomFiles(prev => [...prev, { id: res.id, name: res.originalName, size: res.size }]);
+        okCount++;
+      } catch (e: any) {
+        toast.error(`「${f.name}」上传失败：${e?.message || '未知错误'}`);
+      }
+    }
+    if (okCount > 0) toast.success(`已上传 ${okCount} 个文件`);
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleAnalyze = async () => {
+    if (customFiles.length === 0) { setError('请先上传项目文件'); return; }
+    setError(''); setAnalyzing(true); setAnalysis(null);
+    try {
+      const res = await analyzeExtractionFiles(customFiles.map(f => f.id));
+      setAnalysis(res);
+      setCustomName(res.suggestedName || '');
+      setCustomMethod(res.procurementType || '公开招标');
+      toast.success(res.engine === 'ai' ? 'AI 分析完成，请核对推断结果' : '已给出默认推断（AI 暂不可用），请手动调整');
+    } catch (e: any) {
+      setError(e?.message || 'AI 分析失败');
+      toast.error(e?.message || 'AI 分析失败');
+    }
+    setAnalyzing(false);
+  };
+
+  const handleCreateCustomAndProceed = async () => {
+    if (!analysis) { setError('请先点击「AI 分析文件」'); return; }
+    if (!customName.trim()) { setError('请填写项目名称'); return; }
+    setCreatingProject(true); setError('');
+    try {
+      const res = await createCustomProject({
+        name: customName.trim(),
+        procurementMethod: customMethod.trim() || '公开招标',
+        background: analysis.projectBackground || analysis.analysis || '',
+      });
+      // 预填抽取配置：专业配额 + 总人数 + 专业匹配模式
+      // AI 推断的专业先向库内专业对齐（精确→包含匹配），无匹配则保留原词，保证步骤2可见可编辑
+      const matchSpec = (sp: string): string => {
+        const t = sp.trim();
+        if (!t) return '';
+        if (specs.includes(t)) return t;
+        return specs.find(x => x.includes(t) || t.includes(x)) || t;
+      };
+      const merged = new Map<string, number>();
+      for (const s of analysis.requiredSpecialties) {
+        const key = matchSpec(s.specialty);
+        if (!key) continue;
+        merged.set(key, (merged.get(key) ?? 0) + Math.max(1, s.count));
+      }
+      const q = Array.from(merged.entries()).map(([specialty, count]) => ({ specialty, count }));
+      setQuotas(q.length ? q : [{ specialty: '', count: 2 }]);
+      setTn(Math.max(analysis.totalExperts || 3, 1));
+      setExtractMode('specialty_match');
+      setPid(res.projectId); // 触发 [pid] effect 加载影子项目详情
+      setStep(2);
+      toast.success('已根据 AI 推断预填专业配额，可在下一步微调');
+    } catch (e: any) {
+      setError(e?.message || '创建项目失败');
+      toast.error(e?.message || '创建项目失败');
+    }
+    setCreatingProject(false);
+  };
 
   const run = async () => {
     if (!pid) { setError('请选择采购项目'); return; }
@@ -787,32 +879,19 @@ export function ExpertExtractPage({
       </div>
       )}
 
-      {/* ══ 向导步骤指示器 ══ */}
-      <div className="neu-table-card p-0">
-        <div className="flex">
-          {[
-            { num: 1, label: '选择项目', desc: '选定采购项目并查看信息' },
-            { num: 2, label: '配置抽取', desc: '选择抽取模式、专业配额与预排除' },
-            { num: 3, label: '审核调整', desc: '查看 AI 推荐结果，手动调整专家组' },
-            { num: 4, label: '确认通知', desc: '确定组长、发送通知给专家' },
-            { num: 5, label: '专家确认', desc: '查看专家回复，自动递补候补' },
-          ].map((s) => (
-            <button
-              key={s.num}
-              onClick={() => { if (s.num <= step || (s.num === 3 && preview)) setStep(s.num); }}
-              className={`flex-1 flex items-center gap-3 px-4 py-3 text-left transition-colors ${step === s.num ? 'bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]' : ''} ${s.num > 1 && 'border-l border-[var(--muted)]/15'}`}
-            >
-              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-extrabold transition-colors ${step === s.num ? 'bg-[var(--accent)] text-white' : step > s.num ? 'bg-[var(--success)]/30 text-[var(--success)]' : 'bg-[var(--muted)]/25 text-[var(--muted-foreground)]'}`}>
-                {step > s.num ? '✓' : s.num}
-              </span>
-              <div className="min-w-0">
-                <div className={`text-[13px] font-bold ${step === s.num ? 'text-[var(--foreground)]' : step > s.num ? 'text-[var(--muted-foreground)]' : 'text-[var(--muted-foreground)]/50'}`}>{s.label}</div>
-                <div className="text-[10px] text-[var(--muted-foreground)]/60 leading-tight truncate hidden md:block">{s.desc}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* ══ 步骤轨道 ══ */}
+      <StepTrack
+        steps={[
+          { num: 1, label: '选择项目', desc: '选定采购项目并查看信息' },
+          { num: 2, label: '配置抽取', desc: '选择抽取模式、专业配额与预排除' },
+          { num: 3, label: '审核调整', desc: '查看 AI 推荐结果，手动调整专家组' },
+          { num: 4, label: '确认通知', desc: '确定组长、发送通知给专家' },
+          { num: 5, label: '专家确认', desc: '查看专家回复，自动递补候补' },
+        ]}
+        current={step}
+        onStepClick={(s) => setStep(s)}
+        reachable={(s) => s <= step || (s === 3 && !!preview)}
+      />
 
       {error && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
 
@@ -822,27 +901,122 @@ export function ExpertExtractPage({
           <div className="neu-table-card p-5 space-y-4">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">1</span>
-              <span className="text-sm font-bold text-[var(--foreground)]">选择采购项目</span>
+              <span className="text-sm font-bold text-[var(--foreground)]">选择项目来源</span>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">采购项目 *</label>
-              {defaultProjectTitle ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-[var(--foreground)] truncate">{defaultProjectTitle}</span>
-                  {sel && <span className="text-[11px] text-[var(--muted-foreground)]">（{sel.projectCode}）</span>}
+
+            {/* 来源切换（嵌入固定项目时不显示） */}
+            {!defaultProjectTitle && (
+              <div className="neu-tab-bar inline-flex p-1">
+                {(['existing', 'custom'] as const).map(src => (
+                  <button key={src} type="button" onClick={() => { setProjectSource(src); setError(''); }}
+                    className={`neu-tab px-4 py-1.5 text-xs font-bold ${projectSource === src ? 'is-active' : ''}`}>
+                    {src === 'existing' ? '已有项目' : '自定义项目'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* ── 已有项目 ── */}
+            {(defaultProjectTitle || projectSource === 'existing') && (
+              <>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">采购项目 *</label>
+                  {defaultProjectTitle ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-[var(--foreground)] truncate">{defaultProjectTitle}</span>
+                      {sel && <span className="text-[11px] text-[var(--muted-foreground)]">（{sel.projectCode}）</span>}
+                    </div>
+                  ) : projects.length === 0 ? (
+                    <div className="neu-input text-sm w-full flex items-center justify-center py-3 text-[var(--muted-foreground)]">暂无采购项目，请先在开评标管理端创建，或切换到「自定义项目」</div>
+                  ) : (
+                    <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm max-w-[600px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
+                  )}
                 </div>
-              ) : projects.length === 0 ? (
-                <div className="neu-input text-sm w-full flex items-center justify-center py-3 text-[var(--muted-foreground)]">暂无采购项目，请先在开评标管理端创建</div>
-              ) : (
-                <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm max-w-[600px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
-              )}
-            </div>
-            {sel && pd && (
-              <div className="flex flex-wrap gap-2 text-xs">
-                <span className="rounded-lg bg-[var(--surface)] px-2 py-1 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">采购方式：{sel.procurementMethod}</span>
-                <span className="rounded-lg bg-[var(--surface)] px-2 py-1 text-[var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">阶段：{STAGE_LABEL[sel.stage] || sel.stage}</span>
-                {pd.suppliers?.length > 0 && <span className="w-full rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--warning)]">参与供应商（将自动回避）：{pd.suppliers.map(s => s.supplierName).join('、')}</span>}
-                {pd.experts?.length > 0 && <span className="w-full rounded-lg bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-3 py-2 text-xs text-[var(--success)]">已分配专家：{pd.experts.map(e => `${e.expertName}（${e.major}）`).join('、')}</span>}
+                {sel && pd && (
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2.5 py-1 font-semibold text-[var(--accent-strong)]">采购方式：{sel.procurementMethod}</span>
+                    <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2.5 py-1 font-semibold text-[var(--accent-strong)]">阶段：{STAGE_LABEL[sel.stage] || sel.stage}</span>
+                    {pd.suppliers?.length > 0 && <span className="w-full rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">⚠ 参与供应商（将自动回避）：{pd.suppliers.map(s => s.supplierName).join('、')}</span>}
+                    {pd.experts?.length > 0 && <span className="w-full rounded-lg bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--success)]">✓ 已分配专家：{pd.experts.map(e => `${e.expertName}（${e.major}）`).join('、')}</span>}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── 自定义项目：上传文件 + AI 分析 ── */}
+            {!defaultProjectTitle && projectSource === 'custom' && (
+              <div className="space-y-4">
+                {/* 上传区 */}
+                <div>
+                  <label className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">上传项目相关文件 *（招标公告/采购需求/项目背景等，支持 PDF/Word/图片，可多选）</label>
+                  <input ref={fileInputRef} type="file" multiple accept=".pdf,.doc,.docx,image/*,.txt" className="hidden" onChange={e => handleUploadFiles(e.target.files)} />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                    className="neu-drop-zone w-full">
+                    {uploading ? <Loader2 size={20} className="animate-spin" /> : <Upload size={20} />}
+                    <span className="text-xs font-semibold">{uploading ? '上传中...' : '点击选择文件上传'}</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)]">PDF / Word / 图片 / TXT，可多选</span>
+                  </button>
+                  {customFiles.length > 0 && (
+                    <div className="mt-2 space-y-1.5">
+                      {customFiles.map(f => (
+                        <div key={f.id} className="neu-attachment-item flex items-center gap-2 px-3 py-2 text-xs">
+                          <FileText size={13} className="shrink-0 text-[var(--accent)]" />
+                          <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{f.name}</span>
+                          <span className="shrink-0 text-[var(--muted-foreground)] tabular-nums">{(f.size / 1024).toFixed(0)} KB</span>
+                          <button type="button" onClick={() => setCustomFiles(prev => prev.filter(x => x.id !== f.id))} className="neu-btn-xs is-danger shrink-0 !h-5 !w-5 !p-0 justify-center"><X size={11} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* AI 分析按钮 */}
+                <button type="button" onClick={handleAnalyze} disabled={analyzing || customFiles.length === 0}
+                  className="neu-btn-soft is-info">
+                  {analyzing ? <Loader2 size={13} className="animate-spin" /> : <Brain size={13} />}
+                  {analyzing ? 'AI 正在读取文件并推断需求...' : analysis ? '重新分析' : 'AI 分析文件'}
+                </button>
+
+                {/* AI 分析结果卡片 */}
+                {analysis && (
+                  <div className="space-y-3 rounded-xl bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] p-4 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[var(--accent)]">
+                      <Sparkles size={13} /> {analysis.engine === 'ai' ? 'AI 推断结果（请核对后可编辑）' : '默认推断（AI 暂不可用，请手动调整）'}
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1">项目名称 *</label>
+                        <input value={customName} onChange={e => setCustomName(e.target.value)} className="neu-input text-sm w-full" placeholder="项目名称" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1">采购方式</label>
+                        <input value={customMethod} onChange={e => setCustomMethod(e.target.value)} className="neu-input text-sm w-full" placeholder="如：公开招标" />
+                      </div>
+                    </div>
+                    {analysis.projectBackground && (
+                      <div>
+                        <span className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1">项目背景</span>
+                        <p className="rounded-lg bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground)]">{analysis.projectBackground}</p>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-[11px] font-semibold text-[var(--muted-foreground)] block mb-1">推断所需专业（将预填到抽取配置，可在下一步调整）</span>
+                      <div className="space-y-1">
+                        {analysis.requiredSpecialties.map((s, i) => (
+                          <div key={i} className="flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-3 py-1.5 text-xs">
+                            <span className="font-bold text-[var(--foreground)]">{s.specialty}</span>
+                            <span className="rounded bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-1.5 py-0.5 font-bold text-[var(--accent)]">{s.count} 人</span>
+                            {s.reason && <span className="min-w-0 flex-1 truncate text-[var(--muted-foreground)]">{s.reason}</span>}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">建议评审专家总数：<span className="font-bold text-[var(--foreground)]">{analysis.totalExperts} 人</span></p>
+                    </div>
+                    {analysis.analysis && (
+                      <p className="rounded-lg bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-3 py-2 text-[11px] leading-relaxed text-[var(--muted-foreground)]">推断依据：{analysis.analysis}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -873,14 +1047,21 @@ export function ExpertExtractPage({
             {excludedExpertIds.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {excludedExpertIds.map(id => { const info = excludedExpertMap.get(id); if (!info) return null; return (
-                  <span key={id} className="inline-flex items-center gap-1 rounded-lg bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">{info.name}<span className="text-[var(--muted-foreground)]">{info.specialty}</span><button onClick={() => { setExcludedExpertIds(prev => prev.filter(x => x !== id)); setExcludedExpertMap(prev => { const m = new Map(prev); m.delete(id); return m; }); }} className="ml-0.5"><X size={11} /></button></span>
+                  <span key={id} className="inline-flex items-center gap-1.5 rounded-lg bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-2.5 py-1 text-xs font-semibold text-[var(--danger)]">{info.name}<span className="font-normal text-[var(--muted-foreground)]">{info.specialty}</span><button onClick={() => { setExcludedExpertIds(prev => prev.filter(x => x !== id)); setExcludedExpertMap(prev => { const m = new Map(prev); m.delete(id); return m; }); }} className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity"><X size={11} /></button></span>
                 );})}
               </div>
             )}
           </div>
 
           <div className="flex justify-end pr-4">
-            <button onClick={() => { if (!pid) { setError('请先选择采购项目'); return; } setError(''); setStep(2); }} disabled={!pid} className="neu-btn-soft is-info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg> 下一步：配置抽取</button>
+            {projectSource === 'custom' && !defaultProjectTitle ? (
+              <button onClick={handleCreateCustomAndProceed} disabled={!analysis || creatingProject || !customName.trim()} className="neu-btn-soft is-info">
+                {creatingProject ? <Loader2 size={13} className="animate-spin" /> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>}
+                {creatingProject ? '创建项目并进入抽取...' : '创建项目并配置抽取'}
+              </button>
+            ) : (
+              <button onClick={() => { if (!pid) { setError('请先选择采购项目'); return; } setError(''); setStep(2); }} disabled={!pid} className="neu-btn-soft is-info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg> 下一步：配置抽取</button>
+            )}
           </div>
         </div>
       )}
@@ -895,7 +1076,7 @@ export function ExpertExtractPage({
             </div>
 
             {/* 项目摘要 */}
-            {sel && <div className="text-xs text-[var(--muted-foreground)] rounded-lg bg-[var(--surface)] px-3 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]"><strong className="text-[var(--foreground)]">{sel.name}</strong>（{sel.projectCode}）· {sel.procurementMethod} · {STAGE_LABEL[sel.stage] || sel.stage}</div>}
+            {sel && <div className="text-xs text-[var(--muted-foreground)] rounded-lg bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-3 py-2 font-medium"><strong className="text-[var(--foreground)]">{sel.name}</strong>（{sel.projectCode}）· {sel.procurementMethod} · {STAGE_LABEL[sel.stage] || sel.stage}</div>}
 
             {/* 抽取模式 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -955,7 +1136,7 @@ export function ExpertExtractPage({
                 <div className="flex items-center justify-between mb-3"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业配额（正选合计 {qt} 人）</span><button onClick={addQ} className="neu-btn-xs"><Plus size={12} />添加专业</button></div>
                 {quotas.map((q, i) => (
                   <div key={i} className="flex items-center gap-2 mb-2">
-                    <select value={q.specialty} onChange={e => upQ(i, 'specialty', e.target.value)} className="neu-input text-sm flex-1"><option value="">选择专业</option>{specs.map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
+                    <select value={q.specialty} onChange={e => upQ(i, 'specialty', e.target.value)} className="neu-input text-sm flex-1"><option value="">选择专业</option>{q.specialty && !specs.includes(q.specialty) && <option value={q.specialty}>{q.specialty}（AI推断）</option>}{specs.map(s => <option key={s} value={s}>{s}{pool.has(s) ? `（${pool.get(s)}人·库内）` : ''}</option>)}</select>
                     <div className="flex items-center gap-1"><button onClick={() => upQ(i, 'count', Math.max(1, q.count - 1))} className="neu-btn-xs">−</button><span className="w-6 text-center text-sm font-extrabold tabular-nums text-[var(--foreground)]">{q.count}</span><button onClick={() => upQ(i, 'count', q.count + 1)} className="neu-btn-xs">+</button></div>
                     <button onClick={() => rmQ(i)} disabled={quotas.length <= 1} className="neu-btn-xs is-danger">×</button>
                   </div>

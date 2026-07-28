@@ -4,7 +4,8 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { recommendSuppliers, getClassifications, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList } from '@/lib/api/supplier';
+import { recommendSuppliers, getClassifications, getTagVocabulary, polishRequirement, inviteSuppliers, shareShortlist, updateSelectionShortlist, notifySuppliers, generateNotificationContent, getSupplierList } from '@/lib/api/supplier';
+import type { TagVocabularyItem } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/supplier';
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
@@ -19,6 +20,7 @@ import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
 import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
+import { StepTrack } from '@/components/step-track';
 
 const scoreVar = (s: number): string => (s >= 85 ? 'var(--success)' : s >= 70 ? 'var(--accent)' : s >= 55 ? 'var(--warning)' : 'var(--danger)');
 const scoreLabel = (s: number) => (s >= 85 ? '强匹配' : s >= 70 ? '较匹配' : s >= 55 ? '可考虑' : '弱匹配');
@@ -67,6 +69,11 @@ export function SupplierSelectionPage({
   const [projectDetail, setProjectDetail] = useState<BidProjectDetail | null>(null);
   const [requirement, setRequirement] = useState('');
   const [classificationId, setClassificationId] = useState('');
+  // 业务标签多选：与分类并列的「适应性」维度。许多供应商无正式分类但有标签，
+  // 选中后既收敛候选池（后端 tags hasSome），又作为匹配提示喂给 AI/规则引擎。
+  const [tagVocab, setTagVocab] = useState<TagVocabularyItem[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const toggleTag = (t: string) => setSelectedTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
   const [maxCount, setMaxCount] = useState(10);
   const [loading, setLoading] = useState(false);
   const [polishing, setPolishing] = useState(false);
@@ -121,7 +128,7 @@ export function SupplierSelectionPage({
     setDetailLoading(false);
   };
 
-  useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); listBidProjects().then(setProjects).catch(() => {}); }, []);
+  useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); listBidProjects().then(setProjects).catch(() => {}); getTagVocabulary(60).then(r => setTagVocab(r.items)).catch(() => {}); }, []);
 
   // 恢复上次会话状态（从详情页返回时不丢失），按项目 ID 分桶
   const sessionKey = `supplier-selection-state${project?.id ? `:${project.id}` : ''}`;
@@ -135,6 +142,7 @@ export function SupplierSelectionPage({
         const state = JSON.parse(saved);
         if (state.requirement) setRequirement(state.requirement);
         if (state.classificationId) setClassificationId(state.classificationId);
+        if (Array.isArray(state.selectedTags)) setSelectedTags(state.selectedTags);
         if (state.projectId) setProjectId(state.projectId);
         if (state.maxCount) setMaxCount(state.maxCount);
         if (state.result) setResult(state.result);
@@ -164,7 +172,7 @@ export function SupplierSelectionPage({
   useEffect(() => {
     try {
       sessionStorage.setItem(sessionKey, JSON.stringify({
-        requirement, classificationId, projectId, maxCount, step,
+        requirement, classificationId, selectedTags, projectId, maxCount, step,
         result: result ? { ...result, recommendations: result.recommendations.slice(0, 20) } : null,
         shortlistArr: [...shortlist.entries()],
         notified, notifyNotFound, completed,
@@ -173,7 +181,7 @@ export function SupplierSelectionPage({
         manualSearch, manualSuppliers, manualTotal,
       }));
     } catch {}
-  }, [requirement, classificationId, projectId, maxCount, step, result, shortlist, notified, notifyNotFound, completed, confirmations, selectionMode, manualSearch, manualSuppliers, manualTotal]);
+  }, [requirement, classificationId, selectedTags, projectId, maxCount, step, result, shortlist, notified, notifyNotFound, completed, confirmations, selectionMode, manualSearch, manualSuppliers, manualTotal]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
 
   // 加载项目文件分析上下文（用于 AI 润色）
@@ -226,7 +234,7 @@ export function SupplierSelectionPage({
         const ctx = [`关联项目：${selectedProject.name}（${selectedProject.projectCode}）`,`采购方式：${METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}`,`项目阶段：${STAGE_LABELS[selectedProject.stage] || selectedProject.stage}`,projectDetail.suppliers?.length ? `已有参与供应商：${projectDetail.suppliers.map(s => s.supplierName).join('、')}` : ''].filter(Boolean).join('；');
         fullReq = `${ctx}\n${fullReq}`;
       }
-      const res = await recommendSuppliers({ requirement: fullReq, classificationId: classificationId || undefined, maxCount });
+      const res = await recommendSuppliers({ requirement: fullReq, classificationId: classificationId || undefined, tags: selectedTags.length ? selectedTags : undefined, maxCount });
       setResult(res);
       setShortlist(new Map());
       setStep(3); // 自动跳转到审核候选步骤
@@ -442,6 +450,7 @@ export function SupplierSelectionPage({
         const cls = classifications.find(c => c.id === classificationId);
         if (cls) lines.push(`  供应商分类：${cls.name}`);
       }
+      if (selectedTags.length) lines.push(`  业务标签：${selectedTags.join('、')}`);
       if (result) {
         lines.push(`  候选池规模：${result.candidatePool} 家`);
         lines.push(`  匹配度区间：≥85 强匹配 / ≥70 较匹配 / ≥55 可考虑 / 弱匹配`);
@@ -636,40 +645,13 @@ export function SupplierSelectionPage({
         </div>
       )}
 
-      {/* ══ 步骤指示器 ══ */}
-      <div className="neu-tab-bar flex gap-0 p-1">
-        {STEPS.map((s, i) => {
-          const isCurrent = step === s.num;
-          const isPast = step > s.num;
-          const isFuture = step < s.num;
-          const reachable = s.num <= step || (s.num === 3 && !!result);
-          return (
-            <React.Fragment key={s.num}>
-              {i > 0 && (
-                <div className="flex items-center shrink-0 px-0.5">
-                  <div className="w-5 h-[2px] rounded-full transition-colors duration-500"
-                    style={{ background: isPast ? 'var(--success)' : isCurrent ? 'color-mix(in oklch, var(--accent) 50%, transparent)' : 'oklch(0.6 0.04 258 / 0.15)' }} />
-                </div>
-              )}
-              <button
-                onClick={() => { if (reachable) setStep(s.num); }}
-                disabled={!reachable}
-                className={`neu-tab flex-1 flex items-center gap-2.5 px-3 py-2 ${isCurrent ? 'is-active' : ''}`}
-              >
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold leading-none transition-all duration-300
-                  ${isCurrent ? 'text-white' : isPast ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]/40'}`}
-                  style={isCurrent ? { background: 'linear-gradient(135deg, oklch(0.54 0.18 258), oklch(0.44 0.14 258))', boxShadow: '0 2px 8px oklch(0.5 0.16 258 / 0.35)' } : isPast ? { background: 'color-mix(in oklch, var(--success) 20%, transparent)' } : { background: 'oklch(0.6 0.02 258 / 0.1)' }}>
-                  {isPast ? <Check size={11} strokeWidth={2.5} /> : s.num}
-                </span>
-                <div className="min-w-0 hidden sm:block text-left">
-                  <div className={`text-[11px] font-bold leading-tight ${isCurrent ? 'text-[var(--accent-strong)]' : isPast ? 'text-[var(--muted-foreground)]' : 'text-[var(--muted-foreground)]/40'}`}>{s.label}</div>
-                  <div className={`text-[9px] leading-tight truncate ${isCurrent ? 'text-[var(--accent)]/70' : 'text-[var(--muted-foreground)]/50'}`}>{s.desc}</div>
-                </div>
-              </button>
-            </React.Fragment>
-          );
-        })}
-      </div>
+      {/* ══ 步骤轨道 ══ */}
+      <StepTrack
+        steps={STEPS}
+        current={step}
+        onStepClick={(s) => setStep(s)}
+        reachable={(s) => s <= step || (s === 3 && !!result)}
+      />
 
       {error && step !== 3 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-4 py-3 text-sm font-semibold text-[var(--danger)] shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">{error}</div>}
 
@@ -744,6 +726,32 @@ export function SupplierSelectionPage({
                   <option value="">全部分类</option>
                   {classifications.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">业务标签<span className="ml-1 normal-case font-medium text-[var(--muted-foreground)]/70">（可多选，缩小候选范围）</span></label>
+                  {selectedTags.length > 0 && (
+                    <button type="button" onClick={() => setSelectedTags([])} className="text-[10px] font-semibold text-[var(--accent)] hover:underline">清空</button>
+                  )}
+                </div>
+                {tagVocab.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tagVocab.map(t => {
+                      const on = selectedTags.includes(t.tag);
+                      return (
+                        <button key={t.tag} type="button" onClick={() => toggleTag(t.tag)} title={`${t.count} 家供应商`}
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${on ? 'text-white' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'}`}
+                          style={on
+                            ? { background: 'linear-gradient(135deg, oklch(0.54 0.18 258), oklch(0.44 0.14 258))', boxShadow: '0 1px 4px oklch(0.5 0.16 258 / 0.35)' }
+                            : { background: 'color-mix(in oklch, var(--muted-foreground) 8%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                          {t.tag}<span className={`tabular-nums ${on ? 'text-white/70' : 'text-[var(--muted-foreground)]/60'}`}>{t.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[var(--muted-foreground)]">暂无业务标签（可先在供应商库回填标签）</p>
+                )}
               </div>
             </div>
           </div>
@@ -875,6 +883,14 @@ export function SupplierSelectionPage({
                             )}
                             {inList && <span className="text-[10px] font-bold text-[var(--success)]">✓ 已入选</span>}
                           </div>
+                          {r.tags && r.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {r.tags.slice(0, 6).map(tg => (
+                                <span key={tg} className="inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]"
+                                  style={{ background: 'color-mix(in oklch, var(--accent) 9%, transparent)' }}>{tg}</span>
+                              ))}
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 mb-2">
                             <div className="flex-1 h-1.5 rounded-full overflow-hidden max-w-[200px]" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>
                               <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${r.matchScore}%`, background: scoreVar(r.matchScore) }} />
@@ -954,6 +970,14 @@ export function SupplierSelectionPage({
                               {(s as any).enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType((s as any).enterpriseType)}</span>}
                               {inList && <span className="text-[10px] font-bold text-[var(--success)]">✓ 已加入</span>}
                             </div>
+                            {s.tags && s.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {s.tags.slice(0, 5).map(tg => (
+                                  <span key={tg} className="inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]"
+                                    style={{ background: 'color-mix(in oklch, var(--accent) 9%, transparent)' }}>{tg}</span>
+                                ))}
+                              </div>
+                            )}
                             {contact && <div className="text-xs text-[var(--muted-foreground)] mt-0.5">联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}</div>}
                           </div>
                           <button onClick={() => toggleManualSupplier(s)} className={`neu-btn-xs flex-shrink-0 ${inList ? 'is-danger' : 'is-success'}`}>

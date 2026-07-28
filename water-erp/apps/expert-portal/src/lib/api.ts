@@ -74,6 +74,35 @@ export async function verifyScoreReview(
   );
 }
 
+// ── 评审邀请确认（通知链接落地页）──
+export interface MyInvitation {
+  projectId: string;
+  projectName: string;
+  projectCode: string;
+  procurementMethod: string;
+  openTime: string;
+  deadline: string;
+  stage: string;
+  expertRole: string;
+  invitationStatus: string;
+  signedIn: boolean;
+}
+export function getMyInvitation(projectId: string) {
+  return api.get<MyInvitation>(`/expert/projects/${projectId}/invitation`);
+}
+export function confirmMyInvitation(projectId: string) {
+  return api.post<{ success: boolean; status: string }>(
+    `/expert/projects/${projectId}/invitation/confirm`,
+    {},
+  );
+}
+export function declineMyInvitation(projectId: string) {
+  return api.post<{ success: boolean; status: string; promoted?: { userId: string; expertName: string; major: string } | null }>(
+    `/expert/projects/${projectId}/invitation/decline`,
+    {},
+  );
+}
+
 // ── Expert memo (手写备忘) ──
 
 export async function listMemos(

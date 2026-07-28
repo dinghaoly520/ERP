@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateContactDto } from './create-contact.dto';
 import { CreateQualificationDto } from './create-qualification.dto';
@@ -39,4 +39,7 @@ export class RegisterSupplierDto {
 
   @IsArray() @ValidateNested({ each: true }) @Type(() => CreateQualificationDto)
   qualifications: CreateQualificationDto[];
+
+  @IsArray() @ArrayMinSize(2) @ArrayMaxSize(8) @IsString({ each: true }) @MaxLength(20, { each: true })
+  tags: string[];
 }

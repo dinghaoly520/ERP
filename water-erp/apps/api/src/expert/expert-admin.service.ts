@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
 import { OcrService } from '../local-ai/ocr.service';
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { processFile } from '../ai-bid-analysis/utils/file-processor';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
 import type { LlmSpecialtyQuota, ExpertExtractionLlmResult, ExtractMode } from './expert-extraction-ai.service';
 import type { CreateExpertDto } from './dto/create-expert.dto';
@@ -816,13 +818,20 @@ export class ExpertAdminService {
       select: { id: true, displayName: true, expertProfile: { select: { phone: true } } },
     });
 
+    // 专家邀请确认链接：指向专家门户确认页（projectId 在路径中，专家凭登录态确认本人邀请）
+    const expertPortalUrl = (process.env.EXPERT_PORTAL_URL || 'http://localhost:3006').replace(/\/+$/, '');
+    const confirmUrl = `${expertPortalUrl}/invitation/${projectId}`;
+    const body = message || `您已被选为「${project.name}（${project.projectCode}）」评审专家，请登录专家门户查看详情。`;
+    // 内容末尾附确认链接，供短信/邮件等文本渠道携带（站内信另由 link 字段承载跳转）
+    const contentWithLink = `${body}\n\n请点击链接确认是否参加评审：${confirmUrl}`;
+
     const results = await Promise.all(
       experts.map(expert =>
         this.notification.sendToUser(expert.id, channels, {
           type: 'EXPERT_ASSIGNED',
           title: `评审任务通知 - ${project.name}`,
-          content: message || `您已被选为「${project.name}（${project.projectCode}）」评审专家，请登录专家门户查看详情。`,
-          link: '/',
+          content: contentWithLink,
+          link: confirmUrl,
         }),
       ),
     );
@@ -1672,6 +1681,106 @@ export class ExpertAdminService {
       new Logger(ExpertAdminService.name).warn(`OCR 结构化降级（LLM 不可用），返回原始文本: ${(err as Error)?.message ?? err}`);
     }
     return { rawText: text.slice(0, 2000), fields };
+  }
+
+  /* ── 自定义抽取：文件分析 + 影子项目 ── */
+
+  /** 读取已上传文件 → 文本（含 OCR），供 AI 推断项目需求 */
+  private async readAssetText(assetId: string): Promise<string> {
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+    if (!asset) throw new BadRequestException({ error: `文件不存在：${assetId}`, code: 'FILE_NOT_FOUND' });
+    const stream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(chunk as Buffer);
+    const buffer = Buffer.concat(chunks);
+    const processed = await processFile(this.ocr, buffer, asset.originalName);
+    return processed.text ?? '';
+  }
+
+  /** 自定义抽取：分析上传文件，AI 从项目背景推断所需专业/人数（文件未必含现成字段，靠 AI 理解推理） */
+  async analyzeExtractionFiles(fileIds: string[]) {
+    if (!fileIds?.length) throw new BadRequestException({ error: '请先上传文件', code: 'NO_FILES' });
+
+    const texts: string[] = [];
+    for (const id of fileIds.slice(0, 10)) {
+      try {
+        const t = await this.readAssetText(id);
+        if (t?.trim()) texts.push(t.trim());
+      } catch (err) {
+        new Logger(ExpertAdminService.name).warn(`文件 ${id} 读取/识别失败: ${(err as Error)?.message ?? err}`);
+      }
+    }
+    const combined = texts.join('\n\n---\n\n').slice(0, 12000);
+    if (!combined || combined.trim().length < 10) {
+      throw new BadRequestException({ error: '未能从上传文件中识别到有效内容，请确认文件清晰（支持 PDF/Word/扫描件图片）', code: 'NO_TEXT' });
+    }
+
+    const fallback = () => ({
+      suggestedName: '自定义抽取项目',
+      projectBackground: combined.slice(0, 300),
+      procurementType: '公开招标',
+      requiredSpecialties: [{ specialty: '水利工程', count: 2, reason: '未能从文件明确推断，给出通用默认，请手动调整' }],
+      totalExperts: 3,
+      analysis: 'AI 暂不可用，已给出默认专业与人数，请手动调整后再抽取。',
+      engine: 'rules' as const,
+    });
+
+    try {
+      const raw = await this.llm.chat(
+        '你是招标采购评审专家抽取助手。用户会提供一份或多份项目相关文件（可能是招标公告、采购需求、项目背景等）。你需要【理解项目背景与采购内容】，推断该项目评审需要哪些专业的专家、各专业建议人数，以及评审专家总数。文件里未必直接写明专业和人数，你要根据项目性质、采购内容、技术要求自行推理。专业请用水发/水利采购常见表述（如水利工程、机电设备及安装、造价咨询、工程造价、信息技术、法律、财务等）。',
+        `请阅读以下项目文件内容，推断评审专家抽取需求。严格以 JSON 返回（不要 markdown 包裹，直接输出纯 JSON 对象）：
+{"suggestedName":"建议的项目名称(简短)","projectBackground":"项目背景与采购内容概述(100字内)","procurementType":"推断的采购方式(如公开招标/邀请招标/竞争性谈判等)","requiredSpecialties":[{"specialty":"专业名","count":建议人数,"reason":"为何需要该专业(30字内)"}],"totalExperts":评审专家总数,"analysis":"推断依据说明(100字内)"}
+
+文件内容：
+${combined}`,
+        0.2,
+      );
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return fallback();
+      const parsed = JSON.parse(jsonMatch[0]);
+      const specialties = Array.isArray(parsed.requiredSpecialties) && parsed.requiredSpecialties.length
+        ? parsed.requiredSpecialties.map((s: any) => ({
+            specialty: String(s.specialty || '水利工程'),
+            count: Math.max(1, Math.min(10, Number(s.count) || 1)),
+            reason: String(s.reason || ''),
+          }))
+        : fallback().requiredSpecialties;
+      const totalExperts = Math.max(1, Math.min(20, Number(parsed.totalExperts) || specialties.reduce((a: number, s: any) => a + s.count, 0) || 3));
+      return {
+        suggestedName: String(parsed.suggestedName || '自定义抽取项目').slice(0, 60),
+        projectBackground: String(parsed.projectBackground || '').slice(0, 500),
+        procurementType: String(parsed.procurementType || '公开招标').slice(0, 30),
+        requiredSpecialties: specialties,
+        totalExperts,
+        analysis: String(parsed.analysis || '').slice(0, 500),
+        engine: 'ai' as const,
+      };
+    } catch (err) {
+      new Logger(ExpertAdminService.name).warn(`自定义抽取文件分析降级（LLM 不可用）: ${(err as Error)?.message ?? err}`);
+      return fallback();
+    }
+  }
+
+  /** 自定义抽取：创建影子项目（isExtractionOnly=true，仅承载抽取/通知/确认，不进项目管理列表） */
+  async createCustomExtractionProject(dto: { name: string; procurementMethod?: string; background?: string; openTime?: string; deadline?: string }) {
+    if (!dto.name?.trim()) throw new BadRequestException({ error: '请填写项目名称', code: 'NO_NAME' });
+    const now = Date.now();
+    const openTime = dto.openTime ? new Date(dto.openTime) : new Date(now + 14 * 24 * 3600 * 1000);
+    const deadline = dto.deadline ? new Date(dto.deadline) : new Date(now + 7 * 24 * 3600 * 1000);
+    const projectCode = `CUS-${now.toString(36)}-${randomInt(0, 1_000_000).toString(36)}`;
+    const project = await this.prisma.bidProject.create({
+      data: {
+        projectCode,
+        name: dto.name.trim(),
+        procurementMethod: dto.procurementMethod?.trim() || '公开招标',
+        openTime,
+        deadline,
+        scope: dto.background?.trim() || null,
+        isExtractionOnly: true,
+      },
+      select: { id: true, projectCode: true, name: true, openTime: true },
+    });
+    return { projectId: project.id, projectCode: project.projectCode, name: project.name, openTime: project.openTime.toISOString() };
   }
 
   /** 评标风险预警：融合评分偏离度 + 履职评价 + 违规记录，生成专家级风险简报（规则简报为底，LLM 增强）。 */

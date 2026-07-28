@@ -23,7 +23,11 @@ async function copyCreditCode() {
 const statusText: Record<string,string> = {PENDING:'待审核',APPROVED:'已入库',REJECTED:'不通过',RETURNED:'退回补正',DISABLED:'已停用',BLACKLIST:'黑名单'}
 const profileRows = computed(() => {
   const p = supplierStore.profile; if (!p) return []
-  return [{label:'统一社会信用代码',value:p.creditCode},{label:'企业类型',value:p.enterpriseType},{label:'法定代表人',value:p.legalPerson},{label:'注册时间',value:dayjs(p.createdAt).format('YYYY-MM-DD')},{label:'注册地址',value:p.registeredAddress,wide:true},{label:'经营范围',value:p.businessScope,wide:true},{label:'供应商分类',value:p.classification?.name||'未分类'},{label:'更新时间',value:dayjs(p.updatedAt).format('YYYY-MM-DD HH:mm')}]
+  return [{label:'统一社会信用代码',value:p.creditCode},{label:'企业类型',value:p.enterpriseType},{label:'法定代表人',value:p.legalPerson},{label:'注册时间',value:dayjs(p.createdAt).format('YYYY-MM-DD')},{label:'注册地址',value:p.registeredAddress,wide:true},{label:'经营范围',value:p.businessScope,wide:true},{label:'更新时间',value:dayjs(p.updatedAt).format('YYYY-MM-DD HH:mm')}]
+})
+const profileTags = computed(() => {
+  const tags = (supplierStore.profile as any)?.tags
+  return (Array.isArray(tags) && tags.length > 0) ? tags : []
 })
 
 // ═══════════════════ 资质与证照 ═══════════════════
@@ -99,18 +103,32 @@ const CR_FIELDS = ['name','enterpriseType','legalPerson','registeredAddress','bu
 const crForm = reactive<Record<string,string>>({})
 const crOrig = reactive<Record<string,string>>({})
 const crReason = ref('')
+// 业务标签（独立于普通字段，数组形式）
+const crTags = ref<string[]>([])
+const crTagsDeleted = ref<string[]>([])
+const crTagsAdded = ref<string[]>([])
+function crAddTag() { if (crTags.value.length < 8) crTags.value.push('') }
+function crRemoveTag(i: number) { if (crTags.value.length > 2) crTags.value.splice(i, 1) }
+const crHasTagsChanges = computed(() => {
+  const filled = crTags.value.filter(t => t.trim())
+  const orig = (supplierStore.profile?.tags as string[]) || []
+  if (filled.length !== orig.length) return true
+  return filled.some((t, i) => t !== orig[i])
+})
 const crFieldChanged = computed(()=> CR_FIELDS.filter(k=> (crForm[k]??'')!==(crOrig[k]??'') && (crForm[k]??'').trim()!==''))
-const crHasBasicChanges = computed(()=> crFieldChanged.value.length>0)
+const crHasBasicChanges = computed(()=> crFieldChanged.value.length>0 || crHasTagsChanges.value)
 const crHasQualChanges = computed(()=> supplierStore.qualifications.length !== crOrigQualCount.value)
 const crHasContactChanges = computed(()=> supplierStore.contacts.length !== crOrigContactCount.value)
 const crHasChanges = computed(() => crMode.value==='basic' ? crHasBasicChanges.value : crMode.value==='quals' ? crHasQualChanges.value : crHasContactChanges.value)
-const crFieldLabels: Record<string,string> = {name:'企业名称',enterpriseType:'企业类型',legalPerson:'法定代表人',registeredAddress:'注册地址',businessScope:'经营范围'}
+const crFieldLabels: Record<string,string> = {name:'企业名称',enterpriseType:'企业类型',legalPerson:'法定代表人',registeredAddress:'注册地址',businessScope:'经营范围',tags:'业务标签'}
 async function openCrDlg(){
   crDlg.value=true; crMode.value='basic'
   if(!crProfileLoaded.value){ try{await supplierStore.fetchProfile()}catch{ElMessage.error('加载企业资料失败');return}; crProfileLoaded.value=true }
   const p=supplierStore.profile; if(!p)return
   CR_FIELDS.forEach(k=>{const v=(p[k] as string)??''; crForm[k]=v; crOrig[k]=v})
   crReason.value=''
+  const ptags = (p as any).tags
+  crTags.value = (Array.isArray(ptags) && ptags.length >= 2) ? [...ptags] : ['', '']
   crOrigQualCount.value=supplierStore.qualifications.length; crOrigContactCount.value=supplierStore.contacts.length
   crQualSnapshotDone=false; crContactSnapshotDone=false
 }
@@ -122,10 +140,16 @@ async function crSubmit(){
     if(!crReason.value.trim()){ElMessage.warning('请填写变更原因');return}
     // P0-5：用户输入拼进 dangerouslyUseHTMLString 弹窗，须 HTML 转义防存储型 XSS（与 ChangeRequest.vue 的 esc 一致）。
     const esc=(s:any)=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-    const ls=crFieldChanged.value.map(k=>`<div style="margin:6px 0"><b>${crFieldLabels[k]}</b><br/><span style="color:#94a3b8;text-decoration:line-through">${esc(crOrig[k])||'（空）'}</span> → <span style="color:#059669;font-weight:600">${esc(crForm[k])}</span></div>`).join('')
-    try{await ElMessageBox.confirm(`<div style="font-size:13px;line-height:1.6">将提交 <b>${crFieldChanged.value.length}</b> 项变更：${ls}<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.06);color:#64748b">变更原因：${esc(crReason.value)}</div></div>`,'确认提交变更',{confirmButtonText:'确认提交',cancelButtonText:'取消',type:'warning',dangerouslyUseHTMLString:true})}catch{return}
+    let ls=crFieldChanged.value.map(k=>`<div style="margin:6px 0"><b>${crFieldLabels[k]}</b><br/><span style="color:#94a3b8;text-decoration:line-through">${esc(crOrig[k])||'（空）'}</span> → <span style="color:#059669;font-weight:600">${esc(crForm[k])}</span></div>`).join('')
+    if (crHasTagsChanges.value) ls+=`<div style="margin:6px 0"><b>业务标签</b><br/><span style="color:#059669;font-weight:600">${esc(crTags.value.filter(t=>t.trim()).join('、'))}</span></div>`
+    const changeCount = crFieldChanged.value.length + (crHasTagsChanges.value ? 1 : 0)
+    try{await ElMessageBox.confirm(`<div style="font-size:13px;line-height:1.6">将提交 <b>${changeCount}</b> 项变更：${ls}<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(0,0,0,0.06);color:#64748b">变更原因：${esc(crReason.value)}</div></div>`,'确认提交变更',{confirmButtonText:'确认提交',cancelButtonText:'取消',type:'warning',dangerouslyUseHTMLString:true})}catch{return}
     crSub.value=true; let ok=0,fail=0
     for(const k of crFieldChanged.value){ try{await supplierStore.createChangeRequest({fieldName:k,fieldLabel:crFieldLabels[k],oldValue:crOrig[k]||'',newValue:crForm[k],reason:crReason.value.trim()});ok++}catch{fail++} }
+    if (crHasTagsChanges.value) {
+      const filled = crTags.value.filter(t => t.trim())
+      try { await supplierStore.createChangeRequest({ fieldName: 'tags', fieldLabel: '业务标签', oldValue: JSON.stringify((supplierStore.profile as any)?.tags || []), newValue: JSON.stringify(filled), reason: crReason.value.trim() }); ok++ } catch { fail++ }
+    }
     crSub.value=false
     if(ok>0&&fail===0){ElMessage.success(`已提交 ${ok} 项变更申请`);crDlg.value=false}
     else if(ok>0){ElMessage.warning(`部分成功：${ok} 项成功`);crDlg.value=false}
@@ -179,6 +203,13 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
         </div>
         <div class="info-grid">
           <div v-for="row in profileRows" :key="row.label" class="info-item" :class="{wide:row.wide}"><span>{{ row.label }}</span><strong>{{ row.value||'-' }}</strong></div>
+        </div>
+        <div class="info-tags">
+          <span class="info-tags-label">业务标签</span>
+          <div v-if="profileTags.length > 0" class="info-tags-list">
+            <span v-for="t in profileTags" :key="t" class="info-tag-chip">{{ t }}</span>
+          </div>
+          <span v-else class="info-tags-empty">暂无业务标签，可点「申请资料变更」补充</span>
         </div>
         <div v-if="supplierStore.profile.rejectReason" class="reason-card error"><strong>审核不通过原因</strong>{{ supplierStore.profile.rejectReason }}</div>
         <div v-if="supplierStore.profile.returnReason" class="reason-card warning"><strong>退回补正原因</strong>{{ supplierStore.profile.returnReason }}</div>
@@ -274,13 +305,26 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
             <button class="neu-tab" :class="{active:crMode==='contacts','is-active':crMode==='contacts'}" @click="crSwitch('contacts')">联系人</button>
           </div>
           <div v-if="crMode==='basic'">
-            <div v-if="crHasChanges" class="crp-cnt"><span class="crp-cnt-n">{{ crFieldChanged.length }}</span><span>项修改</span></div>
+            <div v-if="crHasChanges" class="crp-cnt"><span class="crp-cnt-n">{{ crFieldChanged.length + (crHasTagsChanges ? 1 : 0) }}</span><span>项修改</span></div>
             <div class="crp-fs"><div v-for="k in CR_FIELDS" :key="k" class="crp-f" :class="{dirty:crForm[k]!==crOrig[k]}">
               <div class="crp-fh"><label>{{ crFieldLabels[k] }}</label><span v-if="crForm[k]!==crOrig[k]" class="crp-tag">已修改</span></div>
               <div v-if="crForm[k]!==crOrig[k] && crOrig[k]" class="crp-ov"><span class="crp-ovl">原值</span><span class="crp-ovv">{{ crOrig[k] }}</span><button class="neu-btn-xs" @click="crReset(k)">还原</button></div>
               <textarea v-if="k==='registeredAddress'||k==='businessScope'" class="neu-input" v-model="crForm[k]" :rows="k==='businessScope'?3:2" />
               <input v-else class="neu-input" v-model="crForm[k]" />
             </div></div>
+            <!-- 业务标签 -->
+            <div class="crp-f" style="margin-bottom:17px">
+              <div class="crp-fh">
+                <label>业务标签</label>
+                <span class="crp-n">{{ crTags.filter(t=>t.trim()).length }}/8</span>
+                <button type="button" class="neu-btn-xs" :disabled="crTags.length >= 8" @click="crAddTag" style="margin-left:auto">+ 添加</button>
+              </div>
+              <div v-for="(t, i) in crTags" :key="'crtag'+i" style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                <span class="crp-fh" style="min-width:24px;font-size:12px;color:var(--muted-foreground);font-weight:700">{{ i+1 }}.</span>
+                <input class="neu-input" v-model="crTags[i]" :placeholder="i===0?'如：办公用品':i===1?'如：钻机销售':'标签'+(i+1)" maxlength="20" style="flex:1" :class="{ dirty: crTags[i].trim() && (!(supplierStore.profile as any)?.tags?.[i] || crTags[i] !== (supplierStore.profile as any).tags[i]) }" />
+                <button v-if="crTags.length > 2" class="neu-btn-xs is-danger" @click="crRemoveTag(i)">删除</button>
+              </div>
+            </div>
             <div class="crp-f"><label>变更原因</label><span class="crp-n">{{ crReason.length }}/200</span><textarea class="neu-input" v-model="crReason" :rows="3" maxlength="200" placeholder="请说明本次变更的原因" /></div>
           </div>
           <div v-if="crMode==='quals'" v-loading="qualsLoading">
@@ -316,6 +360,11 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
 .info-item.wide { grid-column: 1/-1; }
 .info-item span { display: block; color: var(--muted-foreground); font-size: 12px; }
 .info-item strong { display: block; margin-top: 6px; color: var(--foreground); font-size: 14px; line-height: 1.6; }
+.info-tags { margin-top: 18px; padding: 14px 18px; border-radius: 12px; background: oklch(0.985 0.005 258); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.10), -2px -2px 5px oklch(1 0 0 / 0.9); }
+.info-tags-label { display: block; color: var(--muted-foreground); font-size: 12px; margin-bottom: 8px; }
+.info-tags-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.info-tag-chip { display: inline-flex; align-items: center; padding: 4px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, transparent); border: 1px solid color-mix(in oklab, var(--brand) 18%, transparent); }
+.info-tags-empty { color: var(--muted-foreground); font-size: 13px; }
 .reason-card { margin-top: 16px; padding: 14px 16px; border-radius: 12px; }
 .reason-card strong { margin-right: 8px; }
 .reason-card.error { color: var(--danger); background: color-mix(in oklab, var(--danger) 8%, transparent); }

@@ -1425,9 +1425,8 @@ export class SupplierPortalService {
     }
     missing.push(...qualMissing);
 
-    // Classification (10 points)
-    let classScore = 0;
-    if (supplier.classificationId) classScore = 10; else { classScore = 0; missing.push('供应商分类'); }
+    // Classification 已下线：不再作为完整度考核项，默认满分，不计入缺失。
+    const classScore = 10;
 
     const score = basicScore + contactScore + qualScore + classScore;
 
@@ -1476,6 +1475,7 @@ export class SupplierPortalService {
           creditCode: dto.creditCode,
           contacts: dto.contacts,
           qualifications: dto.qualifications,
+          tags: dto.tags,
         }),
         status: 'PENDING',
       },

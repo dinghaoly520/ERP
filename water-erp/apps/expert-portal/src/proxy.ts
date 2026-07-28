@@ -83,6 +83,11 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(LOGIN_URL));
   }
 
+  // 邀请确认页（通知链接落地）：通过鉴权后任意设备直接渲染，不参与桌面/平板分流
+  if (pathname.startsWith('/invitation')) {
+    return NextResponse.next();
+  }
+
   // ── 设备模式判断（手动覆盖 > cookie > UA 检测）──
   const DEVICE_COOKIE = 'device_mode';
   const queryDevice = request.nextUrl.searchParams.get('device'); // ?device=tablet|desktop

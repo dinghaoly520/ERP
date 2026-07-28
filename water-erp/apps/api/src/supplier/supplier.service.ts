@@ -13,6 +13,7 @@ import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-c
 import { isSupplierChangeAllowedField } from './supplier-change-fields';
 import { shouldAutoDisable, aggregatePerformance } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
+import { generateBusinessTags, TAG_MIN } from './business-tags';
 
 // 等级→数值映射（与 expert-admin.service.ts 共享语义，ExpertLevel: A=5 B=4 C=3 D=2 E=1）
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -93,6 +94,7 @@ export class SupplierService {
           legalPerson: dto.legalPerson,
           registeredAddress: dto.registeredAddress,
           businessScope: dto.businessScope,
+          tags: dto.tags,
           contacts: {
             create: dto.contacts.map(c => ({
               name: c.name,
@@ -891,6 +893,18 @@ export class SupplierService {
         }
       }
 
+      if (change.fieldName === 'tags') {
+        try {
+          const parsed = JSON.parse(change.newValue || '[]');
+          if (!Array.isArray(parsed)) throw new Error();
+          data.tags = parsed.filter((t: any) => typeof t === 'string' && t.trim()).slice(0, 8);
+          if (data.tags.length < 2) throw new BadRequestException({ error: '业务标签至少保留 2 个', code: 'INVALID_TAGS' });
+        } catch (e) {
+          if (e instanceof BadRequestException) throw e;
+          throw new BadRequestException({ error: '业务标签格式不正确', code: 'INVALID_TAGS' });
+        }
+      }
+
       await tx.supplier.update({ where: { id: change.supplierId }, data });
     });
 
@@ -911,7 +925,7 @@ export class SupplierService {
     } catch {
       throw new BadRequestException({ error: '转正资料解析失败', code: 'INVALID_PAYLOAD' });
     }
-    const { enterpriseType, legalPerson, registeredAddress, businessScope, creditCode, contacts = [], qualifications = [] } = payload;
+    const { enterpriseType, legalPerson, registeredAddress, businessScope, creditCode, contacts = [], qualifications = [], tags = [] } = payload;
     if (![enterpriseType, legalPerson, registeredAddress, businessScope].every((v: any) => v && String(v).trim())) {
       throw new BadRequestException({ error: '转正资料不完整，无法通过审批', code: 'INCOMPLETE_DATA' });
     }
@@ -949,6 +963,7 @@ export class SupplierService {
           ...(creditCode ? { creditCode: String(creditCode) } : {}),
           isTemporary: false,
           temporaryExpiresAt: null,
+          ...(Array.isArray(tags) && tags.length >= 2 ? { tags: tags.filter((t: any) => typeof t === 'string' && t.trim()).slice(0, 8) } : {}),
         },
       });
 
@@ -1213,8 +1228,6 @@ export class SupplierService {
       }),
     ]);
 
-    // 逐项目查中标结果（recommended）以判定是否中标。
-    // 注意 BidEvaluationResult.supplierId 引用的是 BidSupplier.id（投标记录 id），非 Supplier.id。
     const participations: Array<{ won: boolean }> = [];
     for (const bs of bidSuppliers) {
       const result = await this.prisma.bidEvaluationResult.findFirst({
@@ -1344,11 +1357,22 @@ export class SupplierService {
   }
 
   /* ── 供应商生命周期时间线 ── */
+  /** 管理员直接修改供应商业务标签（不走变更审批流程） */
+  async updateTags(supplierId: string, tags: string[], reviewerId: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { id: true, name: true, tags: true } });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    const cleaned = tags.filter(t => typeof t === 'string' && t.trim()).slice(0, 8);
+    if (cleaned.length < 2) throw new BadRequestException({ error: '业务标签至少保留 2 个', code: 'INVALID_TAGS' });
+    await this.prisma.supplier.update({ where: { id: supplierId }, data: { tags: cleaned } });
+    await this.audit(reviewerId, 'SUPPLIER_TAGS_UPDATED', supplierId, { before: supplier.tags, after: cleaned });
+    return { tags: cleaned };
+  }
+
   async getSupplierTimeline(supplierId: string) {
-    const [supplier, auditLogs, evaluations, bidSuppliers] = await Promise.all([
+    const [supplier, auditLogs, evaluations, bidSuppliers, catalogApps, contractPrices] = await Promise.all([
       this.prisma.supplier.findUnique({
         where: { id: supplierId },
-        select: { id: true, name: true, status: true, createdAt: true, updatedAt: true, classification: { select: { name: true } } },
+        select: { id: true, name: true, status: true, createdAt: true, updatedAt: true, isTemporary: true, classification: { select: { name: true } } },
       }),
       this.prisma.auditLog.findMany({
         where: { resourceType: 'supplier', resourceId: supplierId },
@@ -1362,31 +1386,89 @@ export class SupplierService {
       }),
       this.prisma.bidSupplier.findMany({
         where: { supplierId },
-        select: { project: { select: { name: true, projectCode: true } }, createdAt: true },
+        select: { project: { select: { name: true, projectCode: true } }, submitStatus: true, createdAt: true },
         orderBy: { createdAt: 'asc' },
-        take: 10,
+      }),
+      this.prisma.supplierCatalogApplication.findMany({
+        where: { supplierId },
+        select: { catalogItem: { select: { name: true } }, proposedName: true, status: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.contractPrice.findMany({
+        where: { supplierId },
+        select: { catalogItem: { select: { name: true } }, agreedPrice: true, contractNo: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
       }),
     ]);
     if (!supplier) throw new NotFoundException('供应商不存在');
 
     const events: Array<{ type: string; label: string; detail: string; at: string }> = [];
-    events.push({ type: 'register', label: '注册提交', detail: `${supplier.name} 提交注册申请`, at: supplier.createdAt.toISOString() });
 
+    // #1 注册
+    const regLabel = supplier.isTemporary ? '临时注册' : '注册提交';
+    events.push({ type: 'register', label: regLabel, detail: `${supplier.name} 提交${supplier.isTemporary ? '临时' : ''}注册申请`, at: supplier.createdAt.toISOString() });
+
+    // #2 审核日志（注册审批、变更审批、状态变更、转正等）
     for (const log of auditLogs) {
       const labelMap: Record<string, string> = {
-        SUPPLIER_APPROVED: '审核通过', SUPPLIER_REJECTED: '审核不通过', SUPPLIER_RETURNED: '退回补正',
-        SUPPLIER_DISABLED: '停用', SUPPLIER_BLACKLIST: '黑名单', SUPPLIER_ELIMINATED: '淘汰',
+        SUPPLIER_APPROVED: '审核通过',
+        SUPPLIER_REJECTED: '审核不通过',
+        SUPPLIER_RETURNED: '退回补正',
+        SUPPLIER_DISABLED: '停用',
+        SUPPLIER_BLACKLIST: '拉黑',
+        SUPPLIER_ELIMINATED: '淘汰',
+        SUPPLIER_RESTORED: '恢复',
+        SUPPLIER_RESUBMITTED: '重新提交',
+        SUPPLIER_REACTIVATED: '重新激活',
+        SUPPLIER_CHANGE_APPROVED: '资料变更通过',
+        SUPPLIER_CHANGE_REJECTED: '资料变更驳回',
+        SUPPLIER_CONVERTED_REGULAR: '转为正式供应商',
+        SUPPLIER_TAGS_UPDATED: '业务标签更新',
+        SUPPLIER_EVALUATION_CREATED: '绩效评价',
       };
-      const detail = log.details && (log.details as any).reason ? `${labelMap[log.action] || log.action}：${(log.details as any).reason}` : (labelMap[log.action] || log.action);
-      events.push({ type: log.action, label: labelMap[log.action] || log.action, detail, at: log.createdAt.toISOString() });
+      const label = labelMap[log.action];
+      if (!label) continue; // 跳过无标签的审计事件
+      let detail = label;
+      const deets = log.details as any;
+      if (deets?.field) {
+        const fieldLabels: Record<string, string> = { name: '企业名称', enterpriseType: '企业类型', legalPerson: '法定代表人', registeredAddress: '注册地址', businessScope: '经营范围', tags: '业务标签' };
+        detail = `${label}：${fieldLabels[deets.field] || deets.field}`;
+      }
+      if (deets?.reason) detail += `（${deets.reason}）`;
+      if (deets?.finalGrade) detail = `绩效评价：${deets.finalGrade} 级`;
+      if (deets?.from) detail = `从「${deets.from}」恢复`;
+      if (deets?.before && deets?.after) {
+        const before = Array.isArray(deets.before) ? deets.before.join('、') || '（空）' : '';
+        const after = Array.isArray(deets.after) ? deets.after.join('、') : '';
+        detail = `${label}：${before} → ${after}`;
+      }
+      events.push({ type: log.action, label, detail, at: log.createdAt.toISOString() });
     }
 
+    // #3 绩效评价（扣除 auditLog 中已覆盖的，补充遗漏的）
+    const auditEvalAts = new Set(auditLogs.filter(l => l.action === 'SUPPLIER_EVALUATION_CREATED').map(l => l.createdAt.getTime()));
     for (const e of evaluations) {
+      if (auditEvalAts.has(e.createdAt.getTime())) continue;
       events.push({ type: 'evaluation', label: '绩效评价', detail: `${e.finalGrade} 级 · 评价人：${e.evaluator?.displayName || '—'}`, at: e.createdAt.toISOString() });
     }
 
+    // #4 参与项目（投标/合作）
     for (const bs of bidSuppliers) {
-      events.push({ type: 'bid_invited', label: '参与项目', detail: `${bs.project.name}（${bs.project.projectCode}）`, at: bs.createdAt.toISOString() });
+      const statusText = bs.submitStatus === '已提交' ? ' · 已投标' : bs.submitStatus !== '待提交' ? ` · ${bs.submitStatus}` : '';
+      const detail = `${bs.project.name}（${bs.project.projectCode}）${statusText}`;
+      events.push({ type: 'bid', label: '参与项目', detail, at: bs.createdAt.toISOString() });
+    }
+
+    // #5 供货申请
+    const catalogStatusLabel: Record<string, string> = { APPROVED: '已通过', REJECTED: '未通过', PENDING: '审核中', COUNTERED: '已议价', RETURNED: '退回' };
+    for (const ca of catalogApps) {
+      const itemName = ca.catalogItem?.name || ca.proposedName || '未知品类';
+      events.push({ type: 'catalog_apply', label: '供货申请', detail: `${itemName}（${catalogStatusLabel[ca.status] || ca.status}）`, at: ca.createdAt.toISOString() });
+    }
+
+    // #6 合同/报价
+    for (const cp of contractPrices) {
+      events.push({ type: 'contract', label: '合同报价', detail: `${cp.catalogItem?.name || '未知品类'} · ¥${cp.agreedPrice.toFixed(2)}${cp.contractNo ? ' · ' + cp.contractNo : ''}`, at: cp.createdAt.toISOString() });
     }
 
     events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
@@ -1437,6 +1519,52 @@ export class SupplierService {
     ]);
 
     return { total, pending, approved, disabled, blacklist, returned, temporaryApproved };
+  }
+
+  /** 业务标签词表：聚合已入库供应商 tags 的出现频次，供选取/邀请页的标签多选控件。
+   *  tags 是 String[]，Prisma 无法 groupBy 数组元素，故拉 tags 列在内存 tally（已入库 ~500 行，开销可忽略）。 */
+  async getTagVocabulary(limit = 80) {
+    const rows = await this.prisma.supplier.findMany({
+      where: { status: 'APPROVED' },
+      select: { tags: true },
+    });
+    const counts = new Map<string, number>();
+    for (const r of rows) for (const t of r.tags || []) {
+      const k = t.trim();
+      if (k) counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    const items = [...counts.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh'))
+      .slice(0, Math.max(1, limit));
+    return { items, totalDistinct: counts.size };
+  }
+
+  /** 业务标签全量回填：规则引擎为每个供应商生成 2~8 个标签写入 tags。
+   *  默认仅填空标签（幂等，不覆盖人工/AI 已写的标签）；force=true 则全量重算。
+   *  纯 CPU/字符串运算 + 逐行 update，无网络调用，500+ 行可同步完成，无超时风险。 */
+  async backfillBusinessTags(opts: { force?: boolean; userId?: string } = {}) {
+    const rows = await this.prisma.supplier.findMany({
+      select: { id: true, name: true, businessScope: true, tags: true, classification: { select: { name: true } } },
+    });
+    let processed = 0, updated = 0, skipped = 0, belowMin = 0;
+    const sample: Array<{ name: string; tags: string[] }> = [];
+    for (const r of rows) {
+      processed++;
+      const hasTags = Array.isArray(r.tags) && r.tags.length > 0;
+      if (hasTags && !opts.force) { skipped++; continue; }
+      const tags = generateBusinessTags({ name: r.name, businessScope: r.businessScope, classificationName: r.classification?.name });
+      if (tags.length < TAG_MIN) belowMin++; // 仅统计，便于核对覆盖率；极端稀疏数据不强造标签
+      // 标签未变化则不写库（force 模式下也跳过无变化的，减少无效写与审计噪声）。
+      if (hasTags && JSON.stringify(tags) === JSON.stringify(r.tags)) { skipped++; continue; }
+      await this.prisma.supplier.update({ where: { id: r.id }, data: { tags } });
+      updated++;
+      if (sample.length < 6) sample.push({ name: r.name, tags });
+    }
+    if (opts.userId) {
+      await this.audit(opts.userId, 'SUPPLIER_TAGS_BACKFILL', 'batch', { processed, updated, skipped, belowMin, force: !!opts.force });
+    }
+    return { processed, updated, skipped, belowMin, sample };
   }
 
   /** P0-14：企业类型分布后端聚合——替代看板拉 1000 条客户端计数（>1000 家偏少 + 首页开销大）。 */

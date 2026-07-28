@@ -20,6 +20,7 @@ export interface SupplierRecommendation {
   reason: string;
   legalPerson?: string;
   enterpriseType?: string;
+  tags?: string[];
   contacts?: { name: string; phone: string; isPrimary: boolean }[];
   evaluation?: { level: string; count: number };
   activeProjects: number;
@@ -89,7 +90,7 @@ export function getSupplierStats() {
 }
 
 // AI 智能推荐供应商（按采购需求）
-export function recommendSuppliers(data: { requirement: string; classificationId?: string; maxCount?: number }) {
+export function recommendSuppliers(data: { requirement: string; classificationId?: string; tags?: string[]; maxCount?: number }) {
   return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
 }
 
@@ -234,6 +235,12 @@ export function getClassifications() {
   return api.get<SupplierClassification[]>('/supplier/classifications');
 }
 
+// 业务标签词表（按频次降序；供选取/邀请页标签多选）
+export interface TagVocabularyItem { tag: string; count: number; }
+export function getTagVocabulary(limit = 60) {
+  return api.get<{ items: TagVocabularyItem[]; totalDistinct: number }>(`/supplier/tag-vocabulary?limit=${limit}`);
+}
+
 // 创建分类
 export function createClassification(data: { name: string; code: string; description?: string }) {
   return api.post<SupplierClassification>('/supplier/classifications', data);
@@ -308,6 +315,11 @@ export function setSupplierClassifications(supplierId: string, classificationIds
   return api.put<SupplierClassificationLink[]>(`/supplier/${supplierId}/classifications`, { classificationIds });
 }
 
+/** 管理员直接修改供应商业务标签（2-8 个，不走审批） */
+export function updateSupplierTags(supplierId: string, tags: string[]) {
+  return api.patch<{ tags: string[] }>(`/supplier/${supplierId}/tags`, { tags });
+}
+
 // ── 收藏 ──
 export function toggleFavorite(supplierId: string) {
   return api.post<{ favorited: boolean }>(`/supplier/${supplierId}/favorite`, {});
@@ -330,8 +342,8 @@ export interface SupplierPortraitAnalysis {
   overview: string; strengths: string[]; risks: string[]; suggestions: string[];
   metrics: PortraitInsight[]; historySummary: string; suitableFor: string[];
 }
-export function getSupplierPortraitAnalysis(supplierId: string) {
-  return api.post<SupplierPortraitAnalysis>('/ai/supplier-portrait-analysis', { supplierId });
+export function getSupplierPortraitAnalysis(supplierId: string, bypassCache = false) {
+  return api.post<SupplierPortraitAnalysis>('/ai/supplier-portrait-analysis', { supplierId, bypassCache });
 }
 
 // ── AI 评价维度分析 ──

@@ -816,14 +816,16 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
   async recommendSuppliers(
     requirement: string,
-    opts: { classificationId?: string; maxCount?: number },
+    opts: { classificationId?: string; tags?: string[]; maxCount?: number },
   ): Promise<SupplierSelectionResult> {
     const maxCount = Math.min(Math.max(opts.maxCount ?? 10, 1), 30);
     const reqGrams = this.tokenize(requirement);
 
-    // 1. 检索：已入库供应商，可选分类过滤
+    // 1. 检索：已入库供应商，可选分类 / 业务标签过滤
     const where: any = { status: 'APPROVED' };
     if (opts.classificationId) where.classificationId = opts.classificationId;
+    // 业务标签多选：候选池收敛到「命中任一标签」的供应商，使标签缺失者不再淹没匹配。
+    if (opts.tags && opts.tags.length > 0) where.tags = { hasSome: opts.tags };
     const suppliers = await this.prisma.supplier.findMany({
       where,
       include: {
@@ -865,6 +867,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       name: s.name,
       classification: s.classification?.name,
       businessScope: s.businessScope || '',
+      tags: (s.tags || []) as string[],
       qualificationText: (s.qualifications || []).map((q) => q.name).join('；'),
       enterpriseType: s.enterpriseType,
       legalPerson: s.legalPerson,
@@ -927,6 +930,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       s.classification?.name,
       s.enterpriseType,
       s.businessScope,
+      (s.tags || []).join(' '), // 业务标签纳入 n-gram 重叠评分：标签是浓缩关键词，显著提升规则阶段命中。
       (s.qualifications || []).map((q: any) => q.name).join(' '),
     ]
       .filter(Boolean)
@@ -969,6 +973,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       reason,
       legalPerson: s.legalPerson,
       enterpriseType: s.enterpriseType,
+      tags: (s.tags || []) as string[],
       contacts: (s.contacts || []).map((c: any) => ({ name: c.name, phone: c.phone, isPrimary: c.isPrimary })),
       evaluation: enrichment?.evalMap.get(id),
       activeProjects: enrichment?.activeMap.get(id) ?? 0,
@@ -984,6 +989,8 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
   private fallbackReason(s: any, overlap: number): string {
     const parts: string[] = [];
     if (s.classification?.name) parts.push(`属「${s.classification.name}」分类`);
+    const tags: string[] = (s.tags || []).slice(0, 3);
+    if (tags.length > 0) parts.push(`业务标签含「${tags.join('、')}」`);
     if (overlap > 0.3) parts.push('经营范围与需求高度相关');
     else if (overlap > 0.1) parts.push('经营范围部分匹配采购需求');
     else parts.push('可纳入候选比较');
@@ -2223,17 +2230,16 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       '',
       '# 角色设定',
       '你是一位在国有企业采购管理领域有15年经验的合规审计专家，现转型为 AI 审查助手。你的审查风格：',
-      '- 严格依据法规条款逐项审查，不得凭主观印象判断。',
-      '- 每项审查必须有明确的通过/不通过结论，并引用具体证据。',
-      '- 发现违规或风险点必须明确指出违规性质和整改建议。',
-      '- 实事求是，如果信息不足以作出判断，应说明"信息不足，无法判断"。',
+      '- 以"善意推断"为原则：信息不足或未提及的内容，默认视为已满足要求（判"通过"），除非有明确证据表明不满足。',
+      '- 不要因为信息缺失就判"警告"——只有在发现明确不完善、矛盾或缺失关键要素时才降级。',
+      '- 仅当文件内容或项目信息中存在明确违反法规要求的证据时，才判"违规"。',
       '',
       '# 审查方法',
       '你需要对照审查要点（checkpoints），逐一分析项目信息和文件内容，给出每项审查结论。',
-      '审查结论分为三种：',
-      '- "通过"：项目信息/文件内容符合审查要点中列出的法规要求。',
-      '- "警告"：信息不足以完全确认合规性，但未发现明显违规，或存在轻微不完善之处。',
-      '- "违规"：明确违反法规要求，或文件内容与审查要点的要求明显不符。',
+      '审查结论分为三种（注意：默认倾向"通过"）：',
+      '- "通过"：项目信息/文件内容符合要求，或当前信息不足以否定合规性（善意推定）。大部分检查项应属于此类。',
+      '- "警告"：存在轻微不完善之处、信息模糊或部分关键要素缺失，但未达到严重违规程度。仅在有具体证据支持时使用。',
+      '- "违规"：明确违反法规要求，或文件内容与审查要点存在严重冲突。必须引用具体证据，一般不会超过 1-2 项。',
       '',
       '# 输出格式',
       '严格返回 JSON（不要任何其他文本、代码块标记或解释）：',

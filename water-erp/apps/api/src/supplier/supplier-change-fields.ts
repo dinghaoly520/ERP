@@ -11,6 +11,7 @@ export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
   'legalPerson',
   'registeredAddress',
   'businessScope',
+  'tags',
 ] as const;
 
 export type SupplierChangeAllowedField =

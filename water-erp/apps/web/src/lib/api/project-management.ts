@@ -124,12 +124,13 @@ export async function reprocProject(projectId: string) {
 }
 
 /** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */
-export async function extractTenderFields(projectId: string) {
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields`, {
+export async function extractTenderFields(projectId: string, field?: string) {
+  const qs = field ? `?field=${field}` : '';
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/extract-tender-fields${qs}`, {
     method: 'POST',
     credentials: 'include',
   });
-  return parseJsonResponse<{ projectOverview: string | null; bidOpeningTime: string | null; documentAcquireTime: string | null }>(response);
+  return parseJsonResponse<Record<string, string | null>>(response);
 }
 
 export async function extractInitiationFields(file: File) {

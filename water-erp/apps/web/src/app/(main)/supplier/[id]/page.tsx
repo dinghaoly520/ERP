@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getClassifications, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, getSupplierClassifications, setSupplierClassifications, uploadSupplierFile } from '@/lib/api/supplier';
-import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification, SupplierClassification } from '@/lib/types';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile } from '@/lib/api/supplier';
+import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
 import { AlertBanner, type AlertSeverity, Breadcrumb, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
@@ -51,12 +51,10 @@ export default function SupplierDetailPage() {
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // 分类分配弹窗（多选）
-  const [classModal, setClassModal] = useState(false);
-  const [classifications, setClassifications] = useState<SupplierClassification[]>([]);
-  const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(new Set());
-  const [classLoading, setClassLoading] = useState(false);
-  const [classLinks, setClassLinks] = useState<{ classificationId: string; classification: SupplierClassification }[]>([]);
+  // 业务标签编辑弹窗
+  const [tagsModal, setTagsModal] = useState(false);
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [tagsSaving, setTagsSaving] = useState(false);
 
   const [barCollapsed, setBarCollapsed] = useState(false);
   const closeApproval = () => { setApprovalMode(null); setApprovalReason(''); };
@@ -64,18 +62,16 @@ export default function SupplierDetailPage() {
   const loadAll = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [s, q, e, c, cl] = await Promise.all([
+    const [s, q, e, c] = await Promise.all([
       getSupplier(id).catch(() => null),
       getQualifications(id).catch(() => []),
       getSupplierEvaluations(id).catch(() => []),
       getSupplierChanges(id).catch(() => []),
-      getSupplierClassifications(id).catch(() => []),
     ]);
     setSupplier(s);
     setQualifications(q);
     setEvaluations(e);
     setChanges(c);
-    setClassLinks(cl);
     setLoading(false);
   }, [id]);
 
@@ -89,7 +85,6 @@ export default function SupplierDetailPage() {
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
 
   useEffect(() => { loadAll(); }, [loadAll]);
-  useEffect(() => { getClassifications().then(setClassifications).catch(() => {}); }, []);
   useEffect(() => {
     if (activeTab === 'communications' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
     if (activeTab === 'documents' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
@@ -162,15 +157,17 @@ export default function SupplierDetailPage() {
     setActionLoading(false);
   };
 
-  // ── 分类分配（多选） ──
-  const handleAssignClass = async () => {
+  // ── 业务标签编辑 ──
+  const handleSaveTags = async () => {
     if (!supplier) return;
-    setClassLoading(true);
+    const filled = editTags.filter(t => t.trim());
+    if (filled.length < 2) { toast.warning('请至少保留 2 个业务标签'); return; }
+    setTagsSaving(true);
     try {
-      await setSupplierClassifications(supplier.id, [...selectedClassIds]);
-      toast.success('分类已更新'); setClassModal(false); loadAll();
-    } catch (e: any) { toast.error(e?.message || '分类更新失败'); }
-    setClassLoading(false);
+      await updateSupplierTags(supplier.id, filled);
+      toast.success('业务标签已更新'); setTagsModal(false); loadAll();
+    } catch (e: any) { toast.error(e?.response?.data?.error || e?.message || '更新失败'); }
+    setTagsSaving(false);
   };
 
   if (loading) return (
@@ -255,7 +252,6 @@ export default function SupplierDetailPage() {
             </div>
             <p className="mt-1.5 text-sm text-[var(--muted-foreground)] flex flex-wrap items-center gap-x-3 gap-y-0.5">
               <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
-              {classLinks.length > 0 && <><span className="opacity-40">·</span><span className="flex items-center gap-1">{classLinks.map(l => <span key={l.classificationId} className="rounded-md bg-[var(--accent)]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{l.classification.name}</span>)}</span></>}
               {mostCommonGrade && <><span className="opacity-40">·</span><span className="inline-flex items-center gap-1">评价等级 <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[mostCommonGrade] }}>{mostCommonGrade}</span></span></>}
               <span className="opacity-40">·</span><span>注册 {daysSinceReg} 天</span>
             </p>
@@ -284,12 +280,11 @@ export default function SupplierDetailPage() {
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             {supplier.status === 'APPROVED' && (
               <>
-                <button onClick={async () => {
-                  getClassifications().then(setClassifications).catch(() => {});
-                  const links = await getSupplierClassifications(supplier.id).catch(() => []);
-                  setSelectedClassIds(new Set(links.map(l => l.classificationId)));
-                  setClassModal(true);
-                }} className="neu-btn-xs">分配分类</button>
+                <button onClick={() => {
+                  const currentTags = (supplier as any).tags || [];
+                  setEditTags(currentTags.length >= 2 ? [...currentTags] : ['', '']);
+                  setTagsModal(true);
+                }} className="neu-btn-xs">业务标签修改</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="neu-btn-xs is-warning">停用</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
               </>
@@ -427,27 +422,6 @@ export default function SupplierDetailPage() {
                     ['法定代表人', supplier.legalPerson],
                     ['注册地址', supplier.registeredAddress || '—'],
                     ['经营范围', supplier.businessScope || '—'],
-                    ['供应商分类', classLinks.length > 0 ? classLinks.map(l => l.classification.name).join('、') : '未分类'],
-                  ].map(([label, value]) => (
-                    <div key={label as string}>
-                      <p className="text-[11px] text-[var(--muted-foreground)] mb-0.5">{label}</p>
-                      <p className="text-[13px] font-semibold text-[var(--foreground)]">{value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 账户信息分组 */}
-              <div className="border-t border-[var(--border)] pt-6">
-                <h3 className="text-[11px] font-extrabold text-[var(--muted-foreground)] uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <User size={13} />账户信息
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
-                  {[
-                    ['用户名', supplier.user?.username || '—'],
-                    ['显示名', supplier.user?.displayName || '—'],
-                    ['注册邮箱', supplier.user?.email || '—'],
-                    ['账户状态', supplier.user?.isActive ? '已激活' : '未激活'],
                     ['注册时间', new Date(supplier.createdAt).toLocaleDateString('zh-CN')],
                     ['最后更新', new Date(supplier.updatedAt).toLocaleDateString('zh-CN')],
                   ].map(([label, value]) => (
@@ -456,6 +430,22 @@ export default function SupplierDetailPage() {
                       <p className="text-[13px] font-semibold text-[var(--foreground)]">{value}</p>
                     </div>
                   ))}
+                </div>
+
+                {/* 业务标签（与 :3004 企业信息页对齐——始终展示，空态引导） */}
+                <div className="mt-5 pt-4 border-t border-[var(--border)]">
+                  <p className="text-[11px] text-[var(--muted-foreground)] mb-2">业务标签</p>
+                  {(supplier as any).tags?.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {(supplier as any).tags.map((tag: string, i: number) => (
+                        <span key={i} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[color-mix(in_oklab,var(--brand)_10%,transparent)] text-[var(--brand)] border border-[color-mix(in_oklab,var(--brand)_18%,transparent)]">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[12px] text-[var(--muted-foreground)]">暂无业务标签，供应商可通过变更申请补充</p>
+                  )}
                 </div>
               </div>
 
@@ -943,39 +933,45 @@ export default function SupplierDetailPage() {
         </Modal>
       )}
 
-      {/* ═══ 分类分配弹窗 ═══ */}
-      {classModal && (
+      {/* ═══ 业务标签编辑弹窗 ═══ */}
+      {tagsModal && (
         <Modal
           open
-          onClose={() => setClassModal(false)}
-          title="分配供应商分类"
-          description="将供应商归入业务分类，便于选取与统计"
+          onClose={() => setTagsModal(false)}
+          title="编辑业务标签"
+          description="使用 2-8 个词语简述业务方向，每个单独填写，保存后立即生效"
           footer={
             <>
-              <button onClick={() => setClassModal(false)} className="neu-btn-soft">取消</button>
-              <button onClick={handleAssignClass} disabled={classLoading} className="neu-btn-primary">
-                {classLoading ? '保存中...' : '保存'}
+              <button onClick={() => setTagsModal(false)} className="neu-btn-soft">取消</button>
+              <button onClick={handleSaveTags} disabled={tagsSaving} className="neu-btn-primary">
+                {tagsSaving ? '保存中...' : '保存'}
               </button>
             </>
           }
         >
-          <div className="flex flex-wrap gap-1.5">
-            {classifications.map(c => {
-              const active = selectedClassIds.has(c.id);
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedClassIds(prev => {
-                    const n = new Set(prev);
-                    active ? n.delete(c.id) : n.add(c.id);
-                    return n;
-                  })}
-                  className={`neu-tab text-[11px] !px-2.5 !py-1.5 ${active ? 'is-active' : ''}`}
-                >
-                  {c.name}
-                </button>
-              );
-            })}
+          <div className="space-y-2 max-h-[420px] overflow-y-auto">
+            {editTags.map((tag, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-[var(--muted-foreground)] min-w-[18px]">{i + 1}.</span>
+                <input
+                  value={tag}
+                  onChange={e => setEditTags(prev => { const n = [...prev]; n[i] = e.target.value; return n; })}
+                  placeholder={i === 0 ? '如：办公用品' : i === 1 ? '如：钻机销售' : '请输入业务标签'}
+                  maxLength={20}
+                  className="neu-input flex-1 text-sm h-9"
+                />
+                {editTags.length > 2 && (
+                  <button onClick={() => setEditTags(prev => prev.filter((_, j) => j !== i))} className="text-[var(--muted-foreground)] hover:text-[var(--danger)] transition-colors">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="8" x2="20" y2="8"/></svg>
+                  </button>
+                )}
+              </div>
+            ))}
+            {editTags.length < 8 && (
+              <button onClick={() => setEditTags(prev => [...prev, ''])} className="neu-btn-xs w-full justify-center py-1.5 text-[11px] !text-[var(--muted-foreground)]">
+                + 添加标签（{editTags.length}/8）
+              </button>
+            )}
           </div>
         </Modal>
       )}

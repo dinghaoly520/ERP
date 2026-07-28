@@ -62,6 +62,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
         if (typeof obj.code === 'string' && typeof obj.error === 'string') {
           code = obj.code;
           message = obj.error;
+        // NestJS nests custom objects into message: { message: { code, error }, error: 'Bad Request' }
+        } else if (typeof obj.message === 'object' && obj.message !== null) {
+          const nested = obj.message as Record<string, unknown>;
+          if (typeof nested.code === 'string' && typeof nested.error === 'string') {
+            code = nested.code;
+            message = nested.error;
+          } else {
+            message = exception.message;
+            code = (obj.error as string) || code;
+          }
         } else {
           // NestJS convention: { message: '...', error: 'ErrorName' }
           message = (obj.message as string) || exception.message;

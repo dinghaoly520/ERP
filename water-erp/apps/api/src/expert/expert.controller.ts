@@ -17,6 +17,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ExpertService } from './expert.service';
+import { ExpertAdminService } from './expert-admin.service';
 import { ExpertMemoService } from './expert-memo.service';
 import { BatchScoreDto } from './dto/batch-score.dto';
 import { UpdateExpertProfileDto } from './dto/update-profile.dto';
@@ -35,6 +36,7 @@ import { UpdateMemoDto } from './dto/update-memo.dto';
 export class ExpertController {
   constructor(
     private expertService: ExpertService,
+    private expertAdminService: ExpertAdminService,
     private memoService: ExpertMemoService,
   ) {}
 
@@ -69,6 +71,22 @@ export class ExpertController {
   @Get('projects')
   listProjects(@CurrentUser('sub') userId: string) {
     return this.expertService.listProjects(userId);
+  }
+
+  /* ── 评审邀请确认（通知链接落地页用，专家操作本人邀请）── */
+  @Get('projects/:projectId/invitation')
+  getMyInvitation(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.getMyInvitation(userId, projectId);
+  }
+
+  @Post('projects/:projectId/invitation/confirm')
+  confirmMyInvitation(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertAdminService.confirmInvitation(projectId, userId);
+  }
+
+  @Post('projects/:projectId/invitation/decline')
+  declineMyInvitation(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertAdminService.declineInvitation(projectId, userId);
   }
 
   @Get('projects/:projectId')

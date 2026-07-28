@@ -8,10 +8,9 @@ const router = useRouter()
 
 // Enterprise evaluation dimensions
 const DIMENSIONS = [
-  { key: 'basic', label: '企业资质', weight: 40, gradient: ['#1a56db', '#2563EB'], items: ['企业名称', '统一社会信用代码', '企业类型', '法定代表人', '注册地址', '经营范围'] },
+  { key: 'basic', label: '企业资质', weight: 45, gradient: ['#1a56db', '#2563EB'], items: ['企业名称', '统一社会信用代码', '企业类型', '法定代表人', '注册地址', '经营范围'] },
   { key: 'contacts', label: '履约能力', weight: 20, gradient: ['#0e7490', '#0891b2'], items: ['联系人', '主要联系人'] },
-  { key: 'qualifications', label: '专业资质', weight: 30, gradient: ['#047857', '#059669'], items: ['资质材料', '营业执照'] },
-  { key: 'classify', label: '信用评价', weight: 10, gradient: ['#6d28d9', '#7c3aed'], items: ['供应商分类'] },
+  { key: 'qualifications', label: '专业资质', weight: 35, gradient: ['#047857', '#059669'], items: ['资质材料', '营业执照'] },
 ] as const
 
 const dimensions = computed(() => {
