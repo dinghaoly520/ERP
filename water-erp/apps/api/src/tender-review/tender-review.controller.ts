@@ -191,6 +191,26 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     private reportGenerator: ReportGeneratorService,
   ) {}
 
+  // ── 知识库属主校验（rules / execute 复用）──
+  private async assertKbVisible(kbId: string, user: AuthenticatedUser | undefined) {
+    const kb = await this.prisma.knowledgeBase.findUnique({
+      where: { id: kbId },
+      select: { ownerId: true, isShared: true },
+    });
+    if (!kb) throw new NotFoundException('知识库不存在');
+    if (!user || (kb.ownerId !== user.sub && !kb.isShared && user.role !== 'admin'))
+      throw new ForbiddenException('无权访问该知识库');
+  }
+  private async assertKbEditable(kbId: string, user: AuthenticatedUser | undefined) {
+    const kb = await this.prisma.knowledgeBase.findUnique({
+      where: { id: kbId },
+      select: { ownerId: true },
+    });
+    if (!kb) throw new NotFoundException('知识库不存在');
+    if (!user || (kb.ownerId !== user.sub && user.role !== 'admin'))
+      throw new ForbiddenException('无权维护该知识库（仅创建者或管理员）');
+  }
+
   // ── Rule Management ──
 
   @Post('rules/extract')
@@ -199,7 +219,11 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     summary:
       'AI-assisted rule extraction from knowledge base (async)',
   })
-  async extractRules(@Body() dto: ExtractRulesDto) {
+  async extractRules(
+    @Body() dto: ExtractRulesDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    await this.assertKbEditable(dto.knowledgeBaseId, user);
     const task = await this.prisma.extractionTask.create({
       data: {
         knowledgeBaseId: dto.knowledgeBaseId,
@@ -240,16 +264,38 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   @Post('rules')
   @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Create compliance rule' })
-  async createRule(@Body() dto: CreateRuleDto) {
+  async createRule(
+    @Body() dto: CreateRuleDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    await this.assertKbEditable(dto.knowledgeBaseId, user);
     return this.prisma.complianceRule.create({ data: dto as any });
   }
 
   @Get('rules')
   @ApiOperation({ summary: 'List compliance rules' })
-  async listRules(@Query('knowledgeBaseId') knowledgeBaseId?: string) {
-    const where = knowledgeBaseId
-      ? { knowledgeBaseId, isActive: true }
-      : { isActive: true };
+  async listRules(
+    @Query('knowledgeBaseId') knowledgeBaseId?: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    let where;
+    if (knowledgeBaseId) {
+      await this.assertKbVisible(knowledgeBaseId, user);
+      where = { knowledgeBaseId, isActive: true };
+    } else {
+      // 仅返回当前用户可见 KB（自己创建的 + 共享的；admin 全部）的规则
+      const visible = await this.prisma.knowledgeBase.findMany({
+        where:
+          user?.role === 'admin'
+            ? {}
+            : { OR: [{ ownerId: user?.sub }, { isShared: true }] },
+        select: { id: true },
+      });
+      where = {
+        knowledgeBaseId: { in: visible.map((k) => k.id) },
+        isActive: true,
+      };
+    }
     return this.prisma.complianceRule.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -259,7 +305,16 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   @Put('rules/:id')
   @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Update compliance rule' })
-  async updateRule(@Param('id') id: string, @Body() dto: UpdateRuleDto) {
+  async updateRule(
+    @Param('id') id: string,
+    @Body() dto: UpdateRuleDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    const existing = await this.prisma.complianceRule.findUnique({
+      where: { id },
+      select: { knowledgeBaseId: true },
+    });
+    if (existing) await this.assertKbEditable(existing.knowledgeBaseId, user);
     return this.prisma.complianceRule.update({
       where: { id },
       data: dto as any,
@@ -269,7 +324,15 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   @Delete('rules/:id')
   @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Delete compliance rule' })
-  async deleteRule(@Param('id') id: string) {
+  async deleteRule(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    const existing = await this.prisma.complianceRule.findUnique({
+      where: { id },
+      select: { knowledgeBaseId: true },
+    });
+    if (existing) await this.assertKbEditable(existing.knowledgeBaseId, user);
     return this.prisma.complianceRule.delete({ where: { id } });
   }
 
@@ -345,6 +408,10 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     });
     if (!kb) {
       throw new BadRequestException('所选知识库不存在，请刷新页面后重试');
+    }
+    // 可见性：创建者 或 共享 或 admin（跑审查属于「使用」）
+    if (!user || (kb.ownerId !== user.sub && !kb.isShared && user.role !== 'admin')) {
+      throw new ForbiddenException('无权使用该知识库');
     }
 
     const task = await this.prisma.reviewTask.create({

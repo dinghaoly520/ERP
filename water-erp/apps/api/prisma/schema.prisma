@@ -2271,6 +2271,8 @@ model KnowledgeBase {
   id          String           @id @default(cuid())
   name        String
   description String?
+  ownerId     String           // 创建者；私有的按 ownerId 隔离，isShared=true 则全员可用
+  isShared    Boolean          @default(false)  // 共享：全员可「使用」，维护仅创建者(+admin)
   isActive    Boolean          @default(true)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt

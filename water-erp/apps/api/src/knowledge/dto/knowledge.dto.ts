@@ -10,6 +10,11 @@ export class CreateKnowledgeBaseDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({ description: '是否共享（共享后全员可用，维护仅创建者 + admin）' })
+  @IsOptional()
+  @IsBoolean()
+  isShared?: boolean;
 }
 
 export class UpdateKnowledgeBaseDto {
@@ -27,4 +32,9 @@ export class UpdateKnowledgeBaseDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: '切换共享（共享后全员可用，维护仅创建者 + admin）' })
+  @IsOptional()
+  @IsBoolean()
+  isShared?: boolean;
 }

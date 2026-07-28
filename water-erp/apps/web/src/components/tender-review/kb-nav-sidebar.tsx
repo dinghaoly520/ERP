@@ -27,13 +27,14 @@ interface KbNavSidebarProps {
 }
 
 export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
-  const { knowledgeBases, selectedKbId, setSelectedKbId, setActiveTab, loading, stats, recentReviews, runningTasks, setSelectedReportTask } = useTenderReview();
+  const { knowledgeBases, selectedKbId, setSelectedKbId, setActiveTab, loading, stats, recentReviews, runningTasks, setSelectedReportTask, currentUser } = useTenderReview();
   const { remove, create } = useKnowledgeBaseOps();
   const [panelState, setPanelState] = useState<PanelState>('stats');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [newShared, setNewShared] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -43,11 +44,12 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const kb = await create(newName.trim(), newDesc.trim() || undefined);
+      const kb = await create(newName.trim(), newDesc.trim() || undefined, newShared);
       setSelectedKbId(kb.id);
       setShowCreate(false);
       setNewName('');
       setNewDesc('');
+      setNewShared(false);
     } catch (err) {
       // Error already handled in hook
       console.error('Create KB error:', err);
@@ -228,6 +230,10 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
                 rows={1}
                 className="neu-input w-full !min-h-[36px] !text-xs !p-1.5 resize-none"
               />
+              <label className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] cursor-pointer select-none">
+                <input type="checkbox" checked={newShared} onChange={(e) => setNewShared(e.target.checked)} className="h-3 w-3 accent-[var(--accent)]" />
+                共享给所有人（他人可使用、不可编辑）
+              </label>
               <div className="flex gap-1.5">
                 <button
                   onClick={handleCreate}
@@ -265,6 +271,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
               <KbNavItem
                 key={kb.id}
                 kb={kb}
+                canEdit={kb.ownerId === currentUser?.id || currentUser?.role === 'admin'}
                 isSelected={selectedKbId === kb.id}
                 isExpanded={expandedIds.has(kb.id)}
                 deleteConfirm={deleteConfirmId === kb.id}
@@ -293,6 +300,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
 
 interface KbNavItemProps {
   kb: KnowledgeBase;
+  canEdit: boolean;
   isSelected: boolean;
   isExpanded: boolean;
   deleteConfirm: boolean;
@@ -306,6 +314,7 @@ interface KbNavItemProps {
 
 function KbNavItem({
   kb,
+  canEdit,
   isSelected,
   isExpanded,
   deleteConfirm,
@@ -327,6 +336,7 @@ function KbNavItem({
         <div className="min-w-0 flex-1">
           <span className={`text-xs truncate block ${isSelected ? 'text-[var(--foreground)] font-medium' : 'text-[var(--foreground)]'}`}>
             {kb.name}
+            {kb.isShared && <span className="ml-1 inline-block px-1 py-px rounded-full text-[9px] bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] text-[var(--accent)] align-middle">共享</span>}
           </span>
           <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-[var(--muted-foreground)]">
             <span>{kb._count.files} 文件</span>
@@ -345,30 +355,36 @@ function KbNavItem({
             exit={{ opacity: 0, height: 0 }}
             className="px-2.5 pb-2 space-y-1"
           >
-            <button
-              onClick={onViewFiles}
-              className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
-                bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
-            >
-              <FileText className="h-3 w-3" />
-              文件管理
-            </button>
-            <button
-              onClick={onViewRules}
-              className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
-                bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_35%,transparent)] transition-colors"
-            >
-              <Shield className="h-3 w-3" />
-              规则管理
-            </button>
-            <button
-              onClick={onDelete}
-              className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
-                bg-[rgba(230,129,102,0.12)] text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.2)] transition-colors"
-            >
-              <Trash2 className="h-3 w-3" />
-              删除知识库
-            </button>
+            {canEdit ? (
+              <>
+                <button
+                  onClick={onViewFiles}
+                  className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
+                    bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
+                >
+                  <FileText className="h-3 w-3" />
+                  文件管理
+                </button>
+                <button
+                  onClick={onViewRules}
+                  className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
+                    bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_35%,transparent)] transition-colors"
+                >
+                  <Shield className="h-3 w-3" />
+                  规则管理
+                </button>
+                <button
+                  onClick={onDelete}
+                  className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
+                    bg-[rgba(230,129,102,0.12)] text-[rgba(230,129,102,1)] hover:bg-[rgba(230,129,102,0.2)] transition-colors"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  删除知识库
+                </button>
+              </>
+            ) : (
+              <div className="text-center text-[10px] text-[var(--muted-foreground)] py-1.5">只读 · 他人共享的知识库</div>
+            )}
             {deleteConfirm && (
               <motion.div
                 initial={{ opacity: 0 }}

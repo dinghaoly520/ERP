@@ -1,11 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { DocumentParserService } from './services/document-parser.service';
 import { TextSplitterService, type TextChunk } from './services/text-splitter.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { VectorSearchService } from './services/vector-search.service';
-import { CreateKnowledgeBaseDto } from './dto/knowledge.dto';
+import { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from './dto/knowledge.dto';
+import type { AuthenticatedUser } from '../auth/auth.types';
+
+type User = AuthenticatedUser | undefined;
 
 @Injectable()
 export class KnowledgeService {
@@ -18,15 +21,47 @@ export class KnowledgeService {
     private vectorSearch: VectorSearchService,
   ) {}
 
-  async create(dto: CreateKnowledgeBaseDto) {
+  // ── 权限：可见 = 创建者 或 共享 或 admin；可维护 = 创建者 或 admin ──
+  private canUse(kb: { ownerId: string; isShared: boolean }, user: User): boolean {
+    return !!user && (kb.ownerId === user.sub || kb.isShared || user.role === 'admin');
+  }
+  private canEdit(kb: { ownerId: string }, user: User): boolean {
+    return !!user && (kb.ownerId === user.sub || user.role === 'admin');
+  }
+
+  /** 抛 404/403；返回 KB（不含关联）。供外部模块（tender-review）复用。 */
+  async assertVisible(kbId: string, user: User) {
+    const kb = await this.prisma.knowledgeBase.findUnique({ where: { id: kbId } });
+    if (!kb) throw new NotFoundException(`Knowledge base ${kbId} not found`);
+    if (!this.canUse(kb, user)) throw new ForbiddenException('无权访问该知识库');
+    return kb;
+  }
+  async assertEditable(kbId: string, user: User) {
+    const kb = await this.prisma.knowledgeBase.findUnique({ where: { id: kbId } });
+    if (!kb) throw new NotFoundException(`Knowledge base ${kbId} not found`);
+    if (!this.canEdit(kb, user)) throw new ForbiddenException('无权维护该知识库（仅创建者或管理员）');
+    return kb;
+  }
+
+  async create(dto: CreateKnowledgeBaseDto, user: User) {
+    if (!user) throw new ForbiddenException('未登录');
     return this.prisma.knowledgeBase.create({
-      data: { name: dto.name, description: dto.description },
+      data: {
+        name: dto.name,
+        description: dto.description,
+        ownerId: user.sub,
+        isShared: dto.isShared ?? false,
+      },
     });
   }
 
-  async findAll() {
+  async findAll(user: User) {
+    const where =
+      user?.role === 'admin'
+        ? { isActive: true }
+        : { isActive: true, OR: [{ ownerId: user?.sub }, { isShared: true }] };
     return this.prisma.knowledgeBase.findMany({
-      where: { isActive: true },
+      where,
       include: {
         _count: { select: { files: true, rules: true } },
         files: { orderBy: { createdAt: 'desc' } },
@@ -35,17 +70,28 @@ export class KnowledgeService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user: User) {
     const kb = await this.prisma.knowledgeBase.findUnique({
       where: { id },
       include: { files: { orderBy: { createdAt: 'desc' } } },
     });
     if (!kb) throw new NotFoundException(`Knowledge base ${id} not found`);
+    if (!this.canUse(kb, user)) throw new ForbiddenException('无权访问该知识库');
     return kb;
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateKnowledgeBaseDto, user: User) {
+    await this.assertEditable(id, user);
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.isShared !== undefined) data.isShared = dto.isShared;
+    if (dto.isActive !== undefined) data.isActive = dto.isActive;
+    return this.prisma.knowledgeBase.update({ where: { id }, data });
+  }
+
+  async remove(id: string, user: User) {
+    await this.assertEditable(id, user);
     try {
       await this.vectorSearch.deleteByCollection(id);
     } catch (err) {
@@ -55,8 +101,8 @@ export class KnowledgeService {
     return this.prisma.knowledgeBase.delete({ where: { id } });
   }
 
-  async uploadFile(kbId: string, file: Express.Multer.File) {
-    await this.findOne(kbId);
+  async uploadFile(kbId: string, file: Express.Multer.File, user: User) {
+    await this.assertEditable(kbId, user);
 
     const objectKey = `knowledge/${kbId}/${Date.now()}_${file.originalname}`;
     try {
@@ -138,7 +184,8 @@ export class KnowledgeService {
     return kbFile;
   }
 
-  async deleteFile(kbId: string, fileId: string) {
+  async deleteFile(kbId: string, fileId: string, user: User) {
+    await this.assertEditable(kbId, user);
     const file = await this.prisma.knowledgeFile.findFirst({
       where: { id: fileId, knowledgeBaseId: kbId },
     });
@@ -163,8 +210,13 @@ export class KnowledgeService {
     return { deleted: true };
   }
 
-  async reindex(kbId: string) {
-    const kb = await this.findOne(kbId);
+  async reindex(kbId: string, user: User) {
+    await this.assertEditable(kbId, user);
+    const kb = await this.prisma.knowledgeBase.findUnique({
+      where: { id: kbId },
+      include: { files: { orderBy: { createdAt: 'desc' } } },
+    });
+    if (!kb) throw new NotFoundException(`Knowledge base ${kbId} not found`);
 
     await this.vectorSearch.deleteByCollection(kbId);
 

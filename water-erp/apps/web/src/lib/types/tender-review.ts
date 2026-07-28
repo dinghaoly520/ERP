@@ -2,6 +2,8 @@ export interface KnowledgeBase {
   id: string;
   name: string;
   description: string | null;
+  ownerId: string;
+  isShared: boolean;
   isActive: boolean;
   _count: { files: number; rules: number };
   files?: KnowledgeFile[];

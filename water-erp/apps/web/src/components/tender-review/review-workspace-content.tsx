@@ -17,7 +17,7 @@ import {
   FolderOpen,
   ChevronDown,
 } from 'lucide-react';
-import type { ReviewMode } from '@/lib/types/tender-review';
+import type { ReviewMode, KnowledgeBase } from '@/lib/types/tender-review';
 
 export default function ReviewWorkspaceContent() {
   const { selectedKbId, activeTab, setActiveTab, knowledgeBases, runningTasks } = useTenderReview();
@@ -304,7 +304,10 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
   );
 }
 
-function RulesTab({ selectedKbId, selectedKb }: { selectedKbId: string | null; selectedKb: { id: string; name: string; _count: { files: number; rules: number } } | undefined }) {
+function RulesTab({ selectedKbId, selectedKb }: { selectedKbId: string | null; selectedKb: KnowledgeBase | undefined }) {
+  const { currentUser } = useTenderReview();
+  // 仅创建者或 admin 可维护规则；其他人只读（共享 KB 的「使用」边界）
+  const canEdit = !!selectedKb && (currentUser?.role === 'admin' || selectedKb.ownerId === currentUser?.id);
   if (!selectedKbId) {
     return (
       <div className="text-center py-8 text-[var(--muted-foreground)] text-sm">
@@ -318,6 +321,7 @@ function RulesTab({ selectedKbId, selectedKb }: { selectedKbId: string | null; s
     <RulesPanelCompact
       knowledgeBaseId={selectedKbId}
       knowledgeBaseName={selectedKb?.name || ''}
+      canEdit={canEdit}
     />
   );
 }

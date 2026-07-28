@@ -12,6 +12,7 @@ export async function fetchKnowledgeBases(): Promise<KnowledgeBase[]> {
 export async function createKnowledgeBase(data: {
   name: string;
   description?: string;
+  isShared?: boolean;
 }): Promise<KnowledgeBase> {
   const res = await fetch(`${API_BASE}/knowledge`, {
     method: 'POST',
@@ -23,6 +24,23 @@ export async function createKnowledgeBase(data: {
     const errorData = await res.json().catch(() => ({}));
     console.error('Create knowledge base error:', res.status, errorData);
     throw new Error(errorData.message || 'Failed to create knowledge base');
+  }
+  return res.json();
+}
+
+export async function updateKnowledgeBase(
+  id: string,
+  data: { name?: string; description?: string; isShared?: boolean; isActive?: boolean },
+): Promise<KnowledgeBase> {
+  const res = await fetch(`${API_BASE}/knowledge/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to update knowledge base');
   }
   return res.json();
 }

@@ -17,9 +17,11 @@ import { Modal } from '@/components/workbench';
 interface RulesPanelCompactProps {
   knowledgeBaseId: string;
   knowledgeBaseName: string;
+  /** 是否可维护（创建者/admin）。false=只读，隐藏 提取/增删改。默认 true 兼容旧调用。 */
+  canEdit?: boolean;
 }
 
-export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName }: RulesPanelCompactProps) {
+export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, canEdit = true }: RulesPanelCompactProps) {
   const [rules, setRules] = useState<ComplianceRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [extracting, setExtracting] = useState(false);
@@ -233,27 +235,31 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName }
         <span className="text-xs text-[var(--muted-foreground)]">
           {rules.length} 条规则
         </span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExtract}
-            disabled={extracting}
-            className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium
-              bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors
-              disabled:opacity-40"
-          >
-            <Loader2 className={`h-3 w-3 ${extracting ? 'animate-spin' : ''}`} />
-            {extracting ? 'AI 提取中' : 'AI 提取'}
-          </button>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium
-              border border-[var(--accent)]/30 bg-[var(--accent)]/5 text-[var(--accent)]
-              hover:bg-[var(--accent)]/10 transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            新增
-          </button>
-        </div>
+        {canEdit ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExtract}
+              disabled={extracting}
+              className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium
+                bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors
+                disabled:opacity-40"
+            >
+              <Loader2 className={`h-3 w-3 ${extracting ? 'animate-spin' : ''}`} />
+              {extracting ? 'AI 提取中' : 'AI 提取'}
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium
+                border border-[var(--accent)]/30 bg-[var(--accent)]/5 text-[var(--accent)]
+                hover:bg-[var(--accent)]/10 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+              新增
+            </button>
+          </div>
+        ) : (
+          <span className="text-[10px] text-[var(--muted-foreground)]">只读（他人共享）</span>
+        )}
       </div>
 
       {/* Loading */}
@@ -268,7 +274,7 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName }
         <div className="text-center py-8 text-[var(--muted-foreground)] text-xs shrink-0">
           <Shield className="h-8 w-8 mx-auto mb-2 opacity-30" />
           <p>暂无规则</p>
-          <p className="mt-1">点击"AI 提取"自动生成</p>
+          {canEdit && <p className="mt-1">点击"AI 提取"自动生成</p>}
         </div>
       )}
 
@@ -309,20 +315,22 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName }
                   {rule.name}
                 </div>
               </div>
-              <div className="flex items-center gap-0.5 shrink-0">
-                <button
-                  onClick={() => setEditingRule({ ...rule, logicExpression: { ...rule.logicExpression } })}
-                  className="p-1 text-[var(--muted-foreground)] hover:text-[var(--accent)] transition-colors"
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-                <button
-                  onClick={() => handleDelete(rule.id)}
-                  className="p-1 text-[var(--muted-foreground)] hover:text-[rgba(230,129,102,1)] transition-colors"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
+              {canEdit && (
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => setEditingRule({ ...rule, logicExpression: { ...rule.logicExpression } })}
+                    className="p-1 text-[var(--muted-foreground)] hover:text-[var(--accent)] transition-colors"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(rule.id)}
+                    className="p-1 text-[var(--muted-foreground)] hover:text-[rgba(230,129,102,1)] transition-colors"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

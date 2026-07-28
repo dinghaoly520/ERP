@@ -15,9 +15,9 @@ export { useTenderReview } from './tender-review-context';
 export function useKnowledgeBaseOps() {
   const { refreshKnowledgeBases, selectedKbId, setSelectedKbId } = useTenderReview();
 
-  const create = useCallback(async (name: string, description?: string) => {
+  const create = useCallback(async (name: string, description?: string, isShared?: boolean) => {
     try {
-      const kb = await createKnowledgeBase({ name, description });
+      const kb = await createKnowledgeBase({ name, description, isShared });
       toast.success('知识库创建成功');
       await refreshKnowledgeBases();
       setSelectedKbId(kb.id);

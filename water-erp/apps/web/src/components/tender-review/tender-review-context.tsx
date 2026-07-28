@@ -39,6 +39,9 @@ export interface TenderReviewContextValue {
   loading: TenderReviewLoadingState;
   error: TenderReviewErrorState;
 
+  /** 当前登录用户（用于知识库属主判断：ownerId === currentUser.id 或 role==='admin' 可维护） */
+  currentUser: { id: string; role: string } | null;
+
   /** 项目管理流程回调：当审查中所有问题确认后，点击「审查结束」时触发。 */
   onReviewComplete: ((task: ReviewTask) => Promise<void>) | null;
 }

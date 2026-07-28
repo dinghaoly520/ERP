@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
 import { TenderReviewContext, type TenderReviewContextValue, type TenderReviewTab, type TenderReviewLoadingState, type TenderReviewErrorState } from './tender-review-context';
 import { fetchKnowledgeBases } from '@/lib/api/knowledge';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import { fetchReviewTasks, fetchTodayStats, type TodayStats } from '@/lib/api/review';
 import type { KnowledgeBase, ReviewTask } from '@/lib/types/tender-review';
 
@@ -20,6 +21,7 @@ export function TenderReviewProvider({ children, onReviewComplete }: Props) {
   const [tasks, setTasks] = useState<ReviewTask[]>([]);
   const [stats, setStats] = useState<TodayStats>({ totalReviews: 0, passedCount: 0, failedCount: 0, warningCount: 0 });
   const [selectedReportTask, setSelectedReportTask] = useState<ReviewTask | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
 
   // Loading states
   const [loading, setLoading] = useState<TenderReviewLoadingState>({
@@ -125,8 +127,16 @@ export function TenderReviewProvider({ children, onReviewComplete }: Props) {
     };
   }, [runningTasks.length, refreshTasks, refreshStats]);
 
+  // 当前用户（知识库属主判断用）
+  useEffect(() => {
+    fetchCurrentUser()
+      .then((u) => setCurrentUser({ id: u.id, role: u.role }))
+      .catch(() => setCurrentUser(null));
+  }, []);
+
   const value: TenderReviewContextValue = {
     selectedKbId,
+    currentUser,
     activeTab,
     knowledgeBases,
     runningTasks,
