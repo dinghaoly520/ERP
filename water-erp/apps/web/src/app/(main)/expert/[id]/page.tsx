@@ -366,9 +366,9 @@ export default function ExpertDetailPage() {
           timelineEvents.push({
             time: ev.createdAt,
             type: '履职评价',
-            title: `${LEVEL_LABEL[ev.level] || ev.level}级`,
+            title: `${LEVEL_LABEL[ev.overallGrade] || ev.overallGrade}级`,
             detail: `出勤${ev.attendanceGrade || '—'}/质量${ev.qualityGrade || '—'}/廉洁${ev.disciplineGrade || '—'} · 评价人:${ev.evaluator?.displayName || '—'}${ev.comment ? ' · ' + ev.comment : ''}`,
-            tone: ev.level === 'A' ? 'green' : ev.level === 'B' ? 'accent' : ev.level === 'E' ? 'red' : ev.level === 'D' ? 'orange' : 'orange',
+            tone: ev.overallGrade === 'A' ? 'green' : ev.overallGrade === 'B' ? 'accent' : ev.overallGrade === 'E' ? 'red' : ev.overallGrade === 'D' ? 'orange' : 'orange',
           });
         }
 
@@ -422,7 +422,6 @@ export default function ExpertDetailPage() {
               ['常委资格', portrait.isStandingExpert ? '是' : '否'],
               ['评分偏离度', portrait.meanDeviation != null ? `${portrait.meanDeviation > 0 ? '+' : ''}${portrait.meanDeviation}` : '—'],
               ['偏离样本', `${portrait.deviationSamples} 条`],
-              ['评价均分', portrait.evalAvg != null ? `${portrait.evalAvg} 分` : '—'],
               ['获评次数', `${portrait.evalCount} 次`],
             ].map(([label, value]) => (
               <div key={label} className="kpi-card flex flex-col gap-1 p-3">
@@ -519,7 +518,7 @@ export default function ExpertDetailPage() {
                       <td className="text-center"><StatusBadge tone={levelTone[ev.qualityGrade] || 'gray'}>{ev.qualityGrade || '—'}</StatusBadge></td>
                       <td className="text-center"><StatusBadge tone={levelTone[ev.disciplineGrade] || 'gray'}>{ev.disciplineGrade || '—'}</StatusBadge></td>
                       <td className="text-center"><StatusBadge tone={levelTone[ev.overallGrade] || 'gray'}>{ev.overallGrade || '—'}</StatusBadge></td>
-                      <td className="text-center"><StatusBadge tone={levelTone[ev.level] || 'gray'}>{LEVEL_LABEL[ev.level]}</StatusBadge></td>
+                      <td className="text-center"><StatusBadge tone={levelTone[ev.overallGrade] || 'gray'}>{LEVEL_LABEL[ev.overallGrade] || ev.overallGrade || '—'}</StatusBadge></td>
                       <td className="text-xs text-[var(--muted-foreground)]">{ev.evaluator?.displayName || '—'}</td>
                       <td className="text-xs text-[var(--muted-foreground)] max-w-[160px] truncate">{ev.comment || '—'}</td>
                     </tr>

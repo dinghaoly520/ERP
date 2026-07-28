@@ -39,7 +39,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
   });
 
   describe('getExpertPortrait', () => {
-    it('聚合参与、完成率、均分、偏离度', async () => {
+    it('聚合参与、完成率、等级分布、偏离度', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王某国', role: 'bid_expert' });
       prisma.bidExpert.findMany.mockResolvedValue([
         { progress: 100, totalScore: 90 },
@@ -48,16 +48,18 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       prisma.bidScoreRecord.findMany.mockResolvedValue([
         { score: 90, scoreItemId: 'si1', supplierId: 'sup1', expert: { userId: 'u1' } },
       ]);
+      // 与 service 的 select 一致：仅 overallGrade + createdAt
       prisma.expertEvaluation.findMany.mockResolvedValue([
-        { level: 'A', overallScore: 92, createdAt: new Date('2026-06-14') },
+        { overallGrade: 'A', createdAt: new Date('2026-06-14') },
       ]);
 
       const p = await service.getExpertPortrait('u1');
       expect(p.participationCount).toBe(2);
       expect(p.completedCount).toBe(2);
       expect(p.completionRate).toBe(1);
-      expect(p.averageScore).toBe(85);
-      expect(p.evalAvg).toBe(92);
+      expect(p.evalCount).toBe(1);
+      expect(p.gradeCounts).toEqual({ A: 1 });
+      expect(p.recentLevels).toEqual(['A']);
     });
 
     it('专家不存在时抛 NotFoundException', async () => {
@@ -67,26 +69,41 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
   });
 
   describe('reviewRetirementCandidates', () => {
-    it('标记连续 D 级专家为候选，但不改 availability', async () => {
+    it('标记连续 E 级专家为候选，但不改 availability', async () => {
       prisma.user.findMany.mockResolvedValue([
         { id: 'u1', displayName: '差专家', expertProfile: { specialty: '水利' } },
       ]);
-      // 最近 2 次都是 D
+      // 最近 2 次都是 E（shouldDeactivateExpert 现在看连续 E 级）
+      // 与 service 的 select 一致：仅 expertUserId + overallGrade + createdAt
       prisma.expertEvaluation.findMany.mockResolvedValue([
-        { expertUserId: 'u1', level: 'D', createdAt: new Date() },
-        { expertUserId: 'u1', level: 'D', createdAt: new Date() },
+        { expertUserId: 'u1', overallGrade: 'E', createdAt: new Date() },
+        { expertUserId: 'u1', overallGrade: 'E', createdAt: new Date() },
       ]);
-      // 近期有分配（仍因连续 D 级进候选）
+      // 近期有分配（仍因连续 E 级进候选）
       prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', id: 'r1' }]);
 
       const candidates = await service.reviewRetirementCandidates();
 
       expect(candidates).toHaveLength(1);
       expect(candidates[0].userId).toBe('u1');
-      expect(candidates[0].reason).toContain('D');
+      expect(candidates[0].reason).toContain('E');
       // 预警只通知，不改状态
       expect(prisma.expertProfile.updateMany).not.toHaveBeenCalled();
       expect(notification.sendToRole).toHaveBeenCalled();
+    });
+
+    it('连续 D 级不再触发退库预警（阈值已收紧为连续 E 级）', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', displayName: '待改进专家', expertProfile: { specialty: '水利' } },
+      ]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([
+        { expertUserId: 'u1', overallGrade: 'D', createdAt: new Date() },
+        { expertUserId: 'u1', overallGrade: 'D', createdAt: new Date() },
+      ]);
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u1', id: 'r1' }]); // 近期有分配
+
+      const candidates = await service.reviewRetirementCandidates();
+      expect(candidates).toHaveLength(0);
     });
 
     it('评价正常的专家不进候选', async () => {
@@ -94,7 +111,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
         { id: 'u2', displayName: '好专家', expertProfile: { specialty: '水利' } },
       ]);
       prisma.expertEvaluation.findMany.mockResolvedValue([
-        { expertUserId: 'u2', level: 'A', createdAt: new Date() },
+        { expertUserId: 'u2', overallGrade: 'A', createdAt: new Date() },
       ]);
       prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u2', id: 'recent' }]); // 近期有分配
 
@@ -107,7 +124,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
         { id: 'u3', displayName: '闲置专家', expertProfile: { specialty: '水利' } },
       ]);
       prisma.expertEvaluation.findMany.mockResolvedValue([
-        { expertUserId: 'u3', level: 'B', createdAt: new Date() },
+        { expertUserId: 'u3', overallGrade: 'B', createdAt: new Date() },
       ]); // 评价正常
       prisma.bidExpert.findMany.mockResolvedValue([]); // 近期无分配
 

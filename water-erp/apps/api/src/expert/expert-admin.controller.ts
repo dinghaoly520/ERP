@@ -93,14 +93,14 @@ export class ExpertAdminController {
 
   @Post('extract/analyze-files')
   @ApiOperation({ summary: '自定义抽取：分析已上传文件，AI 从项目背景推断所需专业/人数' })
-  analyzeExtractionFiles(@Body() dto: AnalyzeExtractionFilesDto) {
-    return this.expertAdminService.analyzeExtractionFiles(dto.fileIds);
+  analyzeExtractionFiles(@Body() dto: AnalyzeExtractionFilesDto, @Request() req: any) {
+    return this.expertAdminService.analyzeExtractionFiles(dto.fileIds, req.user?.sub);
   }
 
   @Post('extract/custom-project')
   @ApiOperation({ summary: '自定义抽取：创建影子项目（仅承载抽取/通知/确认，不进项目管理列表）' })
-  createCustomProject(@Body() dto: CreateCustomProjectDto) {
-    return this.expertAdminService.createCustomExtractionProject(dto);
+  createCustomProject(@Body() dto: CreateCustomProjectDto, @Request() req: any) {
+    return this.expertAdminService.createCustomExtractionProject(dto, req.user?.sub);
   }
 
   @Get('extract/history')

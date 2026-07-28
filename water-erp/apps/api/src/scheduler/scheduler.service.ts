@@ -44,6 +44,20 @@ export class SchedulerService {
     }).catch(() => {});
   }
 
+  /** 每日 03:00 清理过期的自定义抽取影子项目：仅删 isExtractionOnly 且停留在 DOWNLOAD（从未真正开评标）、
+   *  创建超过保留期（默认 90 天）的项目，避免 BidProject 表与各类计数持续膨胀。级联删除其 BidExpert/通知等。 */
+  @Cron('0 3 * * *')
+  async cleanupStaleExtractionProjects() {
+    const retentionDays = Number(process.env.EXTRACTION_PROJECT_RETENTION_DAYS ?? 90);
+    const cutoff = new Date(Date.now() - retentionDays * 86400000);
+    const result = await this.prisma.bidProject.deleteMany({
+      where: { isExtractionOnly: true, stage: 'DOWNLOAD', createdAt: { lt: cutoff } },
+    });
+    if (result.count > 0) {
+      this.logger.log(`[影子项目清理] 已删除 ${result.count} 个超过 ${retentionDays} 天的自定义抽取影子项目`);
+    }
+  }
+
   /** 每日 09:00 扫描未来 N 天内到期且未通知的资质，向供应商发站内信（经多渠道分发）。 */
   @Cron('0 9 * * *')
   async scanExpiringQualifications() {

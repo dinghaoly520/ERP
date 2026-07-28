@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsArray, ArrayMinSize, ArrayMaxSize, IsIn, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, ArrayMinSize, ArrayMaxSize, IsIn, MaxLength } from 'class-validator';
 
 /** B4：通知供应商入参校验——此前为内联 body，channels/数组无校验，可被滥用批量短信轰炸。 */
 export class NotifySuppliersDto {
@@ -16,4 +16,8 @@ export class NotifySuppliersDto {
 
   @IsString() @IsNotEmpty() @MaxLength(2000)
   content: string;
+
+  // 可选回执链接（RSVP）：逐家发送时填入该供应商专属签名链接，使站内信可点击直达回执页。
+  @IsOptional() @IsString() @MaxLength(2000)
+  link?: string;
 }

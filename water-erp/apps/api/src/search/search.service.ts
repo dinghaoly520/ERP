@@ -16,7 +16,7 @@ export class SearchService {
         take: 5,
       }),
       this.prisma.bidProject.findMany({
-        where: { OR: [{ name: { contains: query, mode: 'insensitive' } }, { projectCode: { contains: query } }] },
+        where: { isExtractionOnly: false, OR: [{ name: { contains: query, mode: 'insensitive' } }, { projectCode: { contains: query } }] },
         select: { id: true, name: true, projectCode: true },
         take: 5,
       }),

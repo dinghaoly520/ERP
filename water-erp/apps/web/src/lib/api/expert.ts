@@ -225,7 +225,7 @@ export function getBidProjectDetail(id: string) {
 export interface ExpertPortrait {
   userId: string; displayName: string; participationCount: number; completedCount: number;
   completionRate: number; gradeCounts: Record<string, number> | null; meanDeviation: number | null;
-  deviationSamples: number; evalAvg: number | null; evalCount: number;
+  deviationSamples: number; evalCount: number;
   recentLevels: string[]; isStandingExpert: boolean;
 }
 export function getExpertPortrait(id: string) {

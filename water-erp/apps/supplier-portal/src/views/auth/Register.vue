@@ -1169,6 +1169,50 @@ async function submitRegister() {
   letter-spacing: 0.02em;
 }
 
+.reg-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+/* 高级感业务标签：oklch 渐变填充 + 顶缘内高光 + 菱形品牌标记符 */
+.reg-tag-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 12px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  color: var(--brand-deep);
+  background: linear-gradient(140deg,
+    color-mix(in oklab, var(--brand) 15%, oklch(1 0 0)) 0%,
+    color-mix(in oklab, var(--brand) 6%, oklch(1 0 0)) 100%);
+  border: 1px solid color-mix(in oklab, var(--brand) 24%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    0 1px 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease;
+}
+.reg-tag-chip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: linear-gradient(140deg, var(--brand), var(--brand-deep));
+  box-shadow: 0 0 0 2.5px color-mix(in oklab, var(--brand) 16%, transparent);
+  flex-shrink: 0;
+}
+.reg-tag-chip:hover {
+  transform: translateY(-1.5px);
+  border-color: color-mix(in oklab, var(--brand) 38%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    0 7px 16px color-mix(in oklab, var(--brand) 20%, transparent);
+}
+
 .reg-notice {
   display: flex;
   align-items: flex-start;

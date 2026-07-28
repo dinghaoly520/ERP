@@ -361,9 +361,46 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
 .info-item span { display: block; color: var(--muted-foreground); font-size: 12px; }
 .info-item strong { display: block; margin-top: 6px; color: var(--foreground); font-size: 14px; line-height: 1.6; }
 .info-tags { margin-top: 18px; padding: 14px 18px; border-radius: 12px; background: oklch(0.985 0.005 258); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.10), -2px -2px 5px oklch(1 0 0 / 0.9); }
-.info-tags-label { display: block; color: var(--muted-foreground); font-size: 12px; margin-bottom: 8px; }
-.info-tags-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.info-tag-chip { display: inline-flex; align-items: center; padding: 4px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, transparent); border: 1px solid color-mix(in oklab, var(--brand) 18%, transparent); }
+.info-tags-label { display: block; color: var(--muted-foreground); font-size: 12px; margin-bottom: 10px; }
+.info-tags-list { display: flex; flex-wrap: wrap; gap: 10px; }
+/* 高级感业务标签：oklch 渐变填充 + 顶缘内高光 + 菱形品牌标记符，不用 neumorphic 双影（标签属文字级小元素） */
+.info-tag-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 12px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  color: var(--brand-deep);
+  background: linear-gradient(140deg,
+    color-mix(in oklab, var(--brand) 15%, oklch(1 0 0)) 0%,
+    color-mix(in oklab, var(--brand) 6%, oklch(1 0 0)) 100%);
+  border: 1px solid color-mix(in oklab, var(--brand) 24%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    0 1px 3px color-mix(in oklab, var(--brand) 12%, transparent);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease;
+}
+.info-tag-chip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: linear-gradient(140deg, var(--brand), var(--brand-deep));
+  box-shadow: 0 0 0 2.5px color-mix(in oklab, var(--brand) 16%, transparent);
+  flex-shrink: 0;
+}
+.info-tag-chip:hover {
+  transform: translateY(-1.5px);
+  border-color: color-mix(in oklab, var(--brand) 38%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    0 7px 16px color-mix(in oklab, var(--brand) 20%, transparent);
+}
 .info-tags-empty { color: var(--muted-foreground); font-size: 13px; }
 .reason-card { margin-top: 16px; padding: 14px 16px; border-radius: 12px; }
 .reason-card strong { margin-right: 8px; }
@@ -548,7 +585,7 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
 
 /* ═══ Responsive ═══ */
 @media (max-width: 768px) { .company-identity { flex-direction: column; align-items: stretch; } .info-grid { grid-template-columns: 1fr; } .qual-health-dashboard { flex-direction: column; align-items: flex-start; } .add-panel-row { grid-template-columns: 1fr; } .ct-panel-row { grid-template-columns: 1fr; } }
-@media (prefers-reduced-motion: reduce) { .qual-card,.qual-timeline-fill,.qual-file-cta,.add-panel-close,.add-panel-upload-btn,.add-panel-btn-cancel,.add-panel-btn-submit,.ct-panel-close,.ct-panel-btn-cancel,.ct-panel-btn-submit,.ct-toggle,.ct-toggle-knob { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .qual-card,.qual-timeline-fill,.qual-file-cta,.add-panel-close,.add-panel-upload-btn,.add-panel-btn-cancel,.add-panel-btn-submit,.ct-panel-close,.ct-panel-btn-cancel,.ct-panel-btn-submit,.ct-toggle,.ct-toggle-knob,.info-tag-chip { transition: none; } .info-tag-chip:hover { transform: none; } }
 
 /* ═══ Change request dialog ═══ */
 .crp-overlay { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 32px; background: oklch(0.35 0.06 258 / 0.28); }

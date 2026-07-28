@@ -133,30 +133,34 @@ describe('ExpertAdminService', () => {
     });
   });
 
-  describe('getRanking（排名 id 错位回归）', () => {
+  describe('getRanking（排名 id 错位回归 · 按 A 级数降序）', () => {
     it('排序后 expertUserId 必须与对应行一致，不张冠李戴', async () => {
       prisma.expertEvaluation.findMany.mockResolvedValue([
-        { expertUserId: 'userA', overallScore: 60, level: 'C', expertUser: { displayName: '专家甲', expertProfile: { specialty: '施工' } } },
-        { expertUserId: 'userB', overallScore: 95, level: 'A', expertUser: { displayName: '专家乙', expertProfile: { specialty: '地质' } } },
+        { expertUserId: 'userA', overallGrade: 'C', expertUser: { displayName: '专家甲', expertProfile: { specialty: '施工' } } },
+        { expertUserId: 'userB', overallGrade: 'A', expertUser: { displayName: '专家乙', expertProfile: { specialty: '地质' } } },
       ]);
       const rows = await service.getRanking('all');
       expect(rows[0].rank).toBe(1);
-      expect(rows[0].expertUserId).toBe('userB'); // 高分者居首且 id 对齐
+      expect(rows[0].expertUserId).toBe('userB'); // A 级数多者居首且 id 对齐
       expect(rows[0].displayName).toBe('专家乙');
-      expect(rows[0].avgScore).toBe(95); // 行内分数与 id 同源，杜绝张冠李戴
+      expect(rows[0].aCount).toBe(1); // 行内等级统计与 id 同源，杜绝张冠李戴
+      expect(rows[0].gradeCounts).toEqual({ A: 1, B: 0, C: 0, D: 0, E: 0 });
       expect(rows[1].expertUserId).toBe('userA');
       expect(rows[1].displayName).toBe('专家甲');
-      expect(rows[1].avgScore).toBe(60);
+      expect(rows[1].aCount).toBe(0);
+      expect(rows[1].gradeCounts).toEqual({ A: 0, B: 0, C: 1, D: 0, E: 0 });
     });
 
     it('完全并列应共享名次（竞赛排名 1,1）', async () => {
       prisma.expertEvaluation.findMany.mockResolvedValue([
-        { expertUserId: 'uX', overallScore: 88, level: 'B', expertUser: { displayName: 'X', expertProfile: { specialty: '施工' } } },
-        { expertUserId: 'uY', overallScore: 88, level: 'B', expertUser: { displayName: 'Y', expertProfile: { specialty: '地质' } } },
+        { expertUserId: 'uX', overallGrade: 'B', expertUser: { displayName: 'X', expertProfile: { specialty: '施工' } } },
+        { expertUserId: 'uY', overallGrade: 'B', expertUser: { displayName: 'Y', expertProfile: { specialty: '地质' } } },
       ]);
       const rows = await service.getRanking('all');
       expect(rows[0].rank).toBe(1);
       expect(rows[1].rank).toBe(1);
+      expect(rows[0].aCount).toBe(0); // 并列键 = aCount|evalCount，两者均为 0|1
+      expect(rows[0].evalCount).toBe(1);
     });
   });
 
@@ -271,9 +275,9 @@ describe('ExpertAdminService', () => {
     });
   });
 
-  describe('createEvaluation（项目归属校验 + 去重防刷 + 定级阈值）', () => {
+  describe('createEvaluation（项目归属校验 + 去重防刷 + 综合等级计算）', () => {
     const evalDto = (over: any = {}) =>
-      ({ expertUserId: 'u1', attendanceScore: 90, qualityScore: 90, disciplineScore: 90, ...over }) as any;
+      ({ expertUserId: 'u1', attendanceGrade: 'A', qualityGrade: 'A', disciplineGrade: 'A', ...over }) as any;
 
     it('projectId 指向不存在的项目应拒绝', async () => {
       prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
@@ -288,23 +292,48 @@ describe('ExpertAdminService', () => {
       await expect(service.createEvaluation('op1', evalDto({ projectId: 'p1' }))).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('等级阈值：90→A / 89→B / 60→C / 59→D', async () => {
+    it('综合等级：三维同等级直接映射（A/B/C/D/E → overallGrade 同级）', async () => {
       prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
       prisma.expertEvaluation.findFirst.mockResolvedValue(null);
       prisma.expertEvaluation.create.mockImplementation(async ({ data }: any) => ({ ...data, evaluator: { id: 'op1', displayName: '评' } }));
-      const mk = (s: number) => service.createEvaluation('op1', evalDto({ attendanceScore: s, qualityScore: s, disciplineScore: s }));
-      expect((await mk(90)).level).toBe('A');
-      expect((await mk(89)).level).toBe('B');
-      expect((await mk(60)).level).toBe('C');
-      expect((await mk(59)).level).toBe('D');
+      const mk = (g: string) => service.createEvaluation('op1', evalDto({ attendanceGrade: g, qualityGrade: g, disciplineGrade: g }));
+      expect((await mk('A')).overallGrade).toBe('A');
+      expect((await mk('B')).overallGrade).toBe('B');
+      expect((await mk('C')).overallGrade).toBe('C');
+      expect((await mk('D')).overallGrade).toBe('D');
+      expect((await mk('E')).overallGrade).toBe('E');
     });
 
-    it('同一评价者对同一专家重复评价应更新而非新增（防刷 D 级）', async () => {
+    it('综合等级：加权 quality×0.5 + discipline×0.3 + attendance×0.2（四舍五入映射回等级）', async () => {
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
+      prisma.expertEvaluation.findFirst.mockResolvedValue(null);
+      prisma.expertEvaluation.create.mockImplementation(async ({ data }: any) => ({ ...data, evaluator: { id: 'op1', displayName: '评' } }));
+      const mk = (q: string, d: string, a: string) =>
+        service.createEvaluation('op1', evalDto({ qualityGrade: q, disciplineGrade: d, attendanceGrade: a }));
+      // 5×0.5 + 4×0.3 + 3×0.2 = 4.3 → round 4 → B
+      expect((await mk('A', 'B', 'C')).overallGrade).toBe('B');
+      // 5×0.5 + 4×0.3 + 4×0.2 = 4.5 → round 5 → A（0.5 进位）
+      expect((await mk('A', 'B', 'B')).overallGrade).toBe('A');
+      // 4×0.5 + 3×0.3 + 2×0.2 = 3.3 → round 3 → C
+      expect((await mk('B', 'C', 'D')).overallGrade).toBe('C');
+      // 1×0.5 + 1×0.3 + 2×0.2 = 1.2 → round 1 → E
+      expect((await mk('E', 'E', 'D')).overallGrade).toBe('E');
+    });
+
+    it('同一评价者对同一专家重复评价应更新而非新增（防刷 E 级）', async () => {
       prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
       prisma.expertEvaluation.findFirst.mockResolvedValue({ id: 'ev1' });
-      prisma.expertEvaluation.update.mockResolvedValue({ id: 'ev1', level: 'A' });
-      await service.createEvaluation('op1', evalDto({ attendanceScore: 95, qualityScore: 95, disciplineScore: 95 }));
-      expect(prisma.expertEvaluation.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'ev1' } }));
+      prisma.expertEvaluation.update.mockResolvedValue({ id: 'ev1', overallGrade: 'A' });
+      await service.createEvaluation('op1', evalDto({ attendanceGrade: 'A', qualityGrade: 'A', disciplineGrade: 'A' }));
+      expect(prisma.expertEvaluation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'ev1' },
+          // 三维等级与综合等级一并落库
+          data: expect.objectContaining({
+            attendanceGrade: 'A', qualityGrade: 'A', disciplineGrade: 'A', overallGrade: 'A',
+          }),
+        }),
+      );
       expect(prisma.expertEvaluation.create).not.toHaveBeenCalled();
     });
   });

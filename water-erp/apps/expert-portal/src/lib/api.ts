@@ -83,6 +83,7 @@ export interface MyInvitation {
   openTime: string;
   deadline: string;
   stage: string;
+  isExtractionOnly?: boolean;
   expertRole: string;
   invitationStatus: string;
   signedIn: boolean;

@@ -188,11 +188,11 @@ const toneMap: Record<PortfolioInsight['type'], { color: string; bar: string }> 
 
 /* ─────────────── 评价等级 + 五维等级分布 + 企业类型 ─────────────── */
 const DIM_META: [keyof Omit<DimensionStats, 'total'>, string][] = [
-  ['completenessGrades', '资料完整性'],
-  ['responsivenessGrades', '响应及时性'],
-  ['cooperationGrades', '配合协作'],
-  ['complianceGrades', '合规守信'],
-  ['comprehensiveGrades', '综合评价'],
+  ['completeness', '资料完整性'],
+  ['responsiveness', '响应及时性'],
+  ['cooperation', '配合协作'],
+  ['compliance', '合规守信'],
+  ['comprehensive', '综合评价'],
 ];
 const GRADES = ['A', 'B', 'C', 'D', 'E'] as const;
 const GRADE_COLORS: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };

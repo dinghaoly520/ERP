@@ -1,8 +1,11 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createId } from '@paralleldrive/cuid2';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
 import { NotificationService } from '../notification/notification.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
+import { signRsvpToken } from '../supplier/rsvp-token.util';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import type {
   ComplianceItem,
@@ -27,6 +30,7 @@ export class AiService {
     private selectionAi: SupplierSelectionAiService,
     private llm: LlmService,
     private notificationService: NotificationService,
+    private config: ConfigService,
   ) {}
 
   /** 便捷方法 —— 直接调用 LLM chatJson，兼容旧代码 */
@@ -37,6 +41,62 @@ export class AiService {
   /** 便捷方法 —— 直接调用 LLM chat（纯文本输出） */
   async chat(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<string> {
     return this.llm.chat(systemPrompt, userPrompt, temperature);
+  }
+
+  /**
+   * 业务标签预选 —— 给定采购项目上下文，从既有标签词表中挑选最相关的子集。
+   * 仅返回词表中真实存在的标签（与 vocabulary 求交），杜绝 LLM 自造标签。
+   * 用于供应商选取页：选项目后 / 文件分析后自动预填业务标签，用户可再删减补充。
+   */
+  async suggestBusinessTags(input: {
+    projectName?: string;
+    projectCode?: string;
+    procurementMethod?: string;
+    stage?: string;
+    requirement?: string;
+    fileSummary?: string;
+    vocabulary: string[];
+  }): Promise<string[]> {
+    const vocab = Array.from(new Set((input.vocabulary || []).map((t) => String(t).trim()).filter(Boolean)));
+    if (vocab.length === 0) return [];
+
+    const system = [
+      '你是采购业务标签匹配助手。任务：根据采购项目上下文，从给定的「业务标签词表」中选出与该项目采购内容最相关的标签子集，作为候选供应商的初筛维度。',
+      '规则：',
+      '1. 只能从词表中选择，严禁自造或改写标签名称。',
+      '2. 选择 0 至 8 个最相关标签；若上下文与词表无明显关联，返回空数组。',
+      '3. 优先选择能直接刻画采购标的 / 工程类别 / 专业领域的标签。',
+      '4. 仅输出严格 JSON：{"tags":["标签A","标签B"]}，不得包含任何其它文字或解释。',
+    ].join('\n');
+
+    const user = JSON.stringify({
+      project: {
+        name: input.projectName || '',
+        code: input.projectCode || '',
+        method: input.procurementMethod || '',
+        stage: input.stage || '',
+      },
+      requirement: input.requirement || '',
+      fileSummary: input.fileSummary || '',
+      vocabulary: vocab,
+    });
+
+    try {
+      const res = await this.llm.chatJson<{ tags?: unknown }>(system, user, 0);
+      const raw = Array.isArray(res?.tags) ? (res!.tags as unknown[]).map((t) => String(t).trim()) : [];
+      const vocabSet = new Set(vocab);
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const t of raw) {
+        if (t && vocabSet.has(t) && !seen.has(t)) {
+          seen.add(t);
+          out.push(t);
+        }
+      }
+      return out.slice(0, 8);
+    } catch {
+      return [];
+    }
   }
 
   /** 润色采购需求描述 —— AI 优化表达，使需求更精准 */
@@ -144,18 +204,24 @@ export class AiService {
     return { polished: polished.trim() || text };
   }
 
-  /** 生成通知供应商的文案（标题+正文），基于项目信息 */
-  /** 生成通知候选供应商的文案（逐供应商填入真实名称，无需模板占位符） */
+  /** 生成通知供应商的文案（标题+正文），并可选地为每家候选生成无登录回执链接（RSVP）。
+   *  传入 supplierIds 时：建 InvitationRsvp(PENDING) 行 + 签发加密签名 token，返回 rsvpTokens；
+   *  正文要求 AI 含占位符 {rsvpLink}（前端逐家替换为 rsvpTokens[sid] 的完整 URL）。 */
   async generateNotificationContent(context: {
     projectName?: string; projectCode?: string;
     supplierNames: string[];
+    supplierIds?: string[];        // 用于签发逐家回执链接；与 supplierNames 同序/同集合
+    projectId?: string | null;     // 关联招标项目（接受回执时纳入项目）
+    deadline?: string;             // 回执/响应截止（展示在链接页 + 文案）
     procurementMethod?: string;
     procurementCategory?: string;
     budgetAmount?: string;
     requesterDepartment?: string;
+    requesterName?: string;        // 邀请方/联系人（链接页展示）
     projectReason?: string;
     fileAnalysisContext?: string;
-  }): Promise<{ title: string; body: string }> {
+    validityDays?: number;         // 回执链接有效期（天），默认 14
+  }): Promise<{ title: string; body: string; rsvpTokens: Record<string, string> }> {
     const ctxParts: string[] = [];
     if (context.projectName) ctxParts.push(`项目名称：${context.projectName}`);
     if (context.projectCode) ctxParts.push(`项目编号：${context.projectCode}`);
@@ -163,6 +229,7 @@ export class AiService {
     if (context.procurementCategory) ctxParts.push(`采购类别：${context.procurementCategory}`);
     if (context.budgetAmount) ctxParts.push(`预算金额：${context.budgetAmount} 元`);
     if (context.requesterDepartment) ctxParts.push(`申请部门：${context.requesterDepartment}`);
+    if (context.deadline) ctxParts.push(`响应截止：${context.deadline}`);
     if (context.projectReason) ctxParts.push(`立项事由：${context.projectReason.slice(0, 500)}`);
 
     const filesBlock = context.fileAnalysisContext?.trim()
@@ -173,16 +240,48 @@ export class AiService {
       ? `候选供应商（${context.supplierNames.length} 家）：\n${context.supplierNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}`
       : '';
 
+    // ── 回执链接：建 PENDING 行 + 签发 token（仅当提供 supplierIds）──
+    const rsvpTokens: Record<string, string> = {};
+    const ids = (context.supplierIds || []).filter(Boolean);
+    if (ids.length > 0) {
+      const nameById = new Map<string, string>();
+      const rows = await this.prisma.supplier.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+      for (const r of rows) nameById.set(r.id, r.name);
+      const invitationId = createId();
+      const validityDays = Math.min(Math.max(context.validityDays ?? 14, 1), 365);
+      const expiresAt = new Date(Date.now() + validityDays * 86400_000);
+      const summary = JSON.stringify({
+        项目名称: context.projectName || '', 项目编号: context.projectCode || '',
+        采购方式: context.procurementMethod || '', 采购类别: context.procurementCategory || '',
+        预算金额: context.budgetAmount ? `${context.budgetAmount} 元` : '',
+        响应截止: context.deadline || '', 邀请方: context.requesterName || context.requesterDepartment || '四川水发集团',
+      });
+      const title0 = context.projectName ? `采购邀请 · ${context.projectName}` : '采购邀请回执';
+      const base = (this.config.get<string>('PUBLIC_PORTAL_URL') || 'http://localhost:3004').replace(/\/$/, '');
+      const createMany: any[] = [];
+      for (const sid of ids) {
+        const sname = nameById.get(sid) || '';
+        const rid = createId();
+        const token = signRsvpToken({ rid, sid, pid: context.projectId || null, iid: invitationId, name: sname, summary, exp: expiresAt.getTime() });
+        rsvpTokens[sid] = `${base}/rsvp?t=${encodeURIComponent(token)}`;
+        createMany.push({ id: rid, token, invitationId, projectId: context.projectId || null, supplierId: sid, supplierName: sname, title: title0, summary, expiresAt });
+      }
+      // 跳过已存在的（同 invitationId+supplierId 唯一）；批次 id 新生成故一般全插入。
+      await this.prisma.invitationRsvp.createMany({ data: createMany, skipDuplicates: true });
+    }
+    const hasRsvp = Object.keys(rsvpTokens).length > 0;
+
     const system = `你是四川水发集团的正式通知撰写人。请为候选供应商撰写通知正文段落。
 
 要求：
 - 正文是通知的主体段落，不含抬头称呼和落款（抬头和落款由系统自动附加）
-- 正式友好、信息完整，150 字以内
+- 正式友好、信息完整，180 字以内
 - 内容必须全部来源于输入数据，不得编造任何未提供的信息
 - 自称使用"四川水发集团"，禁止使用"我中心""政府采购中心""本中心""我院"等任何其他自称
 - ★ 项目编号必须使用输入数据中的真实值；若输入数据中未提供则不得出现项目编号（禁止编造如"GZ2024-001"等示例编号）
 - ★ 所有数字（金额、数量、日期等）必须来自输入数据，不得凭空创造
-- 禁用 Markdown，纯文本`.trim();
+- 禁用 Markdown，纯文本
+${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}（原样保留花括号与英文，不要替换、不要加引号、不要拆字）。请用它写一句回执引导，例如："请于响应截止前点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知。"` : ''}`.trim();
 
     const userPrompt = [
       `请基于以下信息撰写通知正文（系统会自动在正文前拼接供应商名称和问候语，在正文后附加落款，请仅输出正文段落）：`,
@@ -194,7 +293,8 @@ export class AiService {
       '',
       `正文要求：`,
       `- 通知对象：${context.supplierNames.slice(0, 3).join('、')}${context.supplierNames.length > 3 ? `等 ${context.supplierNames.length} 家供应商` : ''}`,
-      `- 告知已被纳入候选名单、项目背景简述、提醒关注后续正式采购邀请`,
+      `- 告知已被纳入候选名单、项目背景简述`,
+      hasRsvp ? `- 必须含一句回执引导，且原样包含占位符 {rsvpLink}（系统会逐家替换为各供应商专属回执链接，供其点击确认是否参加）` : `- 提醒关注后续正式采购邀请`,
       `- 自称使用"四川水发集团"`,
       `- 严格禁止编造未提供的信息`,
       `- 不要输出抬头和落款`,
@@ -202,14 +302,30 @@ export class AiService {
       `输出纯 JSON：{"title": "通知标题", "body": "正文段落（不含抬头和落款）"}`,
     ].join('\n');
 
+    const ensureRsvpCta = (body: string): string => {
+      if (!hasRsvp) return body;
+      if (body.includes('{rsvpLink}')) return body;
+      const cta = context.deadline
+        ? `\n\n请于 ${context.deadline} 前点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。`
+        : `\n\n请点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。`;
+      return body.trimEnd() + cta;
+    };
+
     try {
       const result = await this.llm.chatJson<{ title: string; body: string }>(system, userPrompt, 0.3);
-      return { title: result.title || '项目候选通知', body: result.body || '' };
+      return { title: result.title || '项目候选通知', body: ensureRsvpCta(result.body || ''), rsvpTokens };
     } catch {
       const names = context.supplierNames.slice(0, 3).join('、') + (context.supplierNames.length > 3 ? `等 ${context.supplierNames.length} 家` : '');
+      const base2 = `${names} 您好！\n\n您已被初步筛选为「${context.projectName || '相关项目'}」（${context.procurementMethod || '采购'}）的候选供应商。`;
+      const cta2 = hasRsvp
+        ? (context.deadline
+          ? `\n\n请于 ${context.deadline} 前点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。`
+          : `\n\n请点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。`)
+        : `\n\n请留意后续正式采购邀请及招标文件。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。`;
       return {
         title: `「${context.projectName || '采购项目'}」候选供应商通知`,
-        body: `${names} 您好！\n\n您已被初步筛选为「${context.projectName || '相关项目'}」（${context.procurementMethod || '采购'}）的候选供应商。请留意后续正式采购邀请及招标文件。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。\n\n四川水发集团\n${new Date().toLocaleDateString('zh-CN')}`,
+        body: `${base2}${cta2}\n\n四川水发集团\n${new Date().toLocaleDateString('zh-CN')}`,
+        rsvpTokens,
       };
     }
   }
@@ -1290,7 +1406,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       this.prisma.procurementProject.aggregate({ _sum: { budget: true }, _count: true }),
       this.prisma.procurementProject.aggregate({ _sum: { budget: true }, where: { status: 'CONTRACTED' } }),
       this.prisma.bidProject.findMany({
-        where: { stage: { in: ['OPENING', 'EVALUATING'] } },
+        where: { stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false },
         select: { id: true, name: true, stage: true, budget: true,
           _count: { select: { suppliers: true } } },
         orderBy: { openTime: 'desc' }, take: 8,
@@ -1320,6 +1436,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       // NEW: 项目阶段停滞（超过7天未更新）
       this.prisma.bidProject.findMany({
         where: { stage: { in: ['SUBMIT', 'OPENING', 'EVALUATING'] },
+          isExtractionOnly: false,
           updatedAt: { lt: new Date(Date.now() - 7 * 86400000) } },
         select: { name: true, stage: true, updatedAt: true },
         take: 5,

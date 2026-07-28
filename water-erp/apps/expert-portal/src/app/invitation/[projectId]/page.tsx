@@ -97,7 +97,12 @@ export default function InvitationConfirmPage() {
             <div className="neu-card-static space-y-3 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold text-[var(--foreground)]">{inv.projectName}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-[var(--foreground)]">{inv.projectName}</h2>
+                    {inv.isExtractionOnly && (
+                      <span className="exp-pill shrink-0" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>抽取预演</span>
+                    )}
+                  </div>
                   <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">项目编号：{inv.projectCode}</p>
                 </div>
                 <span className="exp-pill shrink-0" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>

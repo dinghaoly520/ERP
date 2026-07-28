@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { randomInt } from 'node:crypto';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { randomInt, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
@@ -691,8 +691,9 @@ export class ExpertAdminService {
       (project?.suppliers ?? []).map(s => s.supplier?.name || s.supplierName).filter(Boolean) as string[],
     );
 
+    // 候补候选：已确认(confirmed)与待确认(pending)都纳入，优先从已确认者中递补（他们已同意参加）
     const candidates = await this.prisma.bidExpert.findMany({
-      where: { projectId, expertRole: '候补', invitationStatus: 'pending' },
+      where: { projectId, expertRole: '候补', invitationStatus: { in: ['confirmed', 'pending'] } },
       include: {
         user: {
           include: {
@@ -752,7 +753,13 @@ export class ExpertAdminService {
         }),
       };
     });
-    scored.sort((a, b) => b.score - a.score);
+    // 排序：已确认参加的候补优先（无需再等回复），其次按择优评分
+    scored.sort((a, b) => {
+      const ac = a.c.invitationStatus === 'confirmed' ? 1 : 0;
+      const bc = b.c.invitationStatus === 'confirmed' ? 1 : 0;
+      if (ac !== bc) return bc - ac;
+      return b.score - a.score;
+    });
     const best = scored[0].c;
 
     await this.prisma.bidExpert.update({
@@ -762,23 +769,31 @@ export class ExpertAdminService {
     return { userId: best.userId, expertName: best.expertName, major: best.major };
   }
 
-  /** 标记专家已拒绝参与评审，并自动递补候补 */
-  async declineInvitation(projectId: string, userId: string) {
-    const result = await this.prisma.bidExpert.updateMany({
-      where: { projectId, userId, invitationStatus: 'pending' },
-      data: { invitationStatus: 'declined' },
-    });
-    if (result.count === 0) throw new NotFoundException('未找到该项目的待确认邀请记录');
+  /** 邀请操作阶段门控：已归档/已废标项目禁止确认/拒绝（防脏数据 + 误递补） */
+  private async assertInvitationActionable(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project) throw new NotFoundException('项目不存在');
+    if (project.stage === 'ARCHIVED' || project.stage === 'ABORTED') {
+      throw new ConflictException({ error: '项目已结束，无法操作邀请', code: 'PROJECT_CLOSED' });
+    }
+  }
 
-    // 检查是否是正选拒绝，如果是则自动递补候补
-    const declinedExpert = await this.prisma.bidExpert.findFirst({
-      where: { projectId, userId },
-    });
+  /** 标记专家已拒绝参与评审，并自动递补候补（幂等 + 阶段门控） */
+  async declineInvitation(projectId: string, userId: string) {
+    await this.assertInvitationActionable(projectId);
+    const record = await this.prisma.bidExpert.findFirst({ where: { projectId, userId } });
+    if (!record) throw new NotFoundException('未找到该项目的邀请记录');
+    if (record.invitationStatus === 'declined') return { success: true, status: 'declined', promoted: null }; // 幂等：重复婉拒直接成功
+    if (record.invitationStatus === 'confirmed') {
+      throw new ConflictException({ error: '您已确认参加，如需变更请联系采购方', code: 'ALREADY_CONFIRMED' });
+    }
+    await this.prisma.bidExpert.update({ where: { id: record.id }, data: { invitationStatus: 'declined' } });
+
+    // 正选拒绝 → 自动递补候补
     let promoted: { userId: string; expertName: string; major: string } | null = null;
-    if (declinedExpert?.expertRole === '正选') {
+    if (record.expertRole === '正选') {
       promoted = await this.autoPromoteCandidate(projectId);
     }
-
     return { success: true, status: 'declined', promoted };
   }
   async generateNotificationAi(params: {
@@ -790,13 +805,16 @@ export class ExpertAdminService {
     return { success: true, generated: false, content: null };
   }
 
-  /** 标记专家已确认参与评审（管理员手动确认或回调触发） */
+  /** 标记专家已确认参与评审（管理员手动确认或专家点链接自助确认；幂等 + 阶段门控） */
   async confirmInvitation(projectId: string, userId: string) {
-    const result = await this.prisma.bidExpert.updateMany({
-      where: { projectId, userId, invitationStatus: 'pending' },
-      data: { invitationStatus: 'confirmed' },
-    });
-    if (result.count === 0) throw new NotFoundException('未找到该项目的待确认邀请记录');
+    await this.assertInvitationActionable(projectId);
+    const record = await this.prisma.bidExpert.findFirst({ where: { projectId, userId } });
+    if (!record) throw new NotFoundException('未找到该项目的邀请记录');
+    if (record.invitationStatus === 'confirmed') return { success: true, status: 'confirmed' }; // 幂等：重复确认直接成功
+    if (record.invitationStatus === 'declined') {
+      throw new ConflictException({ error: '您已婉拒该邀请，如需参加请联系采购方', code: 'ALREADY_DECLINED' });
+    }
+    await this.prisma.bidExpert.update({ where: { id: record.id }, data: { invitationStatus: 'confirmed' } });
     return { success: true, status: 'confirmed' };
   }
 
@@ -1115,7 +1133,7 @@ export class ExpertAdminService {
       include: { evaluator: { select: { id: true, displayName: true } } },
     });
 
-    // 决策 #3：不自动停用。连续 D 级由 reviewRetirementCandidates()（cron + 人工）产出预警，
+    // 决策 #3：不自动停用。连续 E 级由 reviewRetirementCandidates()（cron + 人工）产出预警，
     // 实际退库须经 admin 调 confirmRetire() 确认。此处仅返回评价结果。
     return created;
   }
@@ -1247,7 +1265,7 @@ export class ExpertAdminService {
 
   /* ── 退库预警 + 人工确认（决策 #3：只预警，不自动改状态） ── */
 
-  /** 扫描退库候选（连续 D 级 或 近 12 个月无分配），通知管理员；不修改 availability。 */
+  /** 扫描退库候选（连续 E 级 或 近 12 个月无分配），通知管理员；不修改 availability。 */
   async reviewRetirementCandidates() {
     const experts = await this.prisma.user.findMany({
       where: { role: 'bid_expert', isActive: true, expertProfile: { availability: { not: '停用' } } },
@@ -1288,7 +1306,7 @@ export class ExpertAdminService {
       const recent = evalsByExpert.get(e.id) || [];
       let reason: string | null = null;
       if (shouldDeactivateExpert(recent)) {
-        reason = '最近 2 次履职评价均为 D 级';
+        reason = '最近 2 次履职评价均为 E 级';
       } else if (!hasRecentAssign.has(e.id)) {
         reason = '近 12 个月无评标分配';
       }
@@ -1685,10 +1703,14 @@ export class ExpertAdminService {
 
   /* ── 自定义抽取：文件分析 + 影子项目 ── */
 
-  /** 读取已上传文件 → 文本（含 OCR），供 AI 推断项目需求 */
-  private async readAssetText(assetId: string): Promise<string> {
+  /** 读取已上传文件 → 文本（含 OCR），供 AI 推断项目需求。
+   *  访问控制：仅允许读取操作者本人上传的文件，避免越权读取开标前投标文件/资质 PII 并外发 LLM。 */
+  private async readAssetText(assetId: string, operatorId: string): Promise<string> {
     const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
     if (!asset) throw new BadRequestException({ error: `文件不存在：${assetId}`, code: 'FILE_NOT_FOUND' });
+    if (asset.uploaderId !== operatorId) {
+      throw new ForbiddenException({ error: '无权分析该文件（仅限本人上传的文件）', code: 'FILE_FORBIDDEN' });
+    }
     const stream = await minioClient.getObject(MINIO_BUCKET, asset.key);
     const chunks: Buffer[] = [];
     for await (const chunk of stream) chunks.push(chunk as Buffer);
@@ -1698,19 +1720,23 @@ export class ExpertAdminService {
   }
 
   /** 自定义抽取：分析上传文件，AI 从项目背景推断所需专业/人数（文件未必含现成字段，靠 AI 理解推理） */
-  async analyzeExtractionFiles(fileIds: string[]) {
+  async analyzeExtractionFiles(fileIds: string[], operatorId: string) {
     if (!fileIds?.length) throw new BadRequestException({ error: '请先上传文件', code: 'NO_FILES' });
+    if (!operatorId) throw new BadRequestException({ error: '缺少操作人身份', code: 'NO_OPERATOR' });
 
     const texts: string[] = [];
     for (const id of fileIds.slice(0, 10)) {
       try {
-        const t = await this.readAssetText(id);
-        if (t?.trim()) texts.push(t.trim());
+        const t = await this.readAssetText(id, operatorId);
+        // 每文件先截断，避免首个大文件占满上下文导致其余文件对 LLM 不可见
+        if (t?.trim()) texts.push(t.trim().slice(0, 2500));
       } catch (err) {
+        // 越权访问不静默吞掉，直接抛出；其余识别失败 per-file 跳过
+        if (err instanceof ForbiddenException) throw err;
         new Logger(ExpertAdminService.name).warn(`文件 ${id} 读取/识别失败: ${(err as Error)?.message ?? err}`);
       }
     }
-    const combined = texts.join('\n\n---\n\n').slice(0, 12000);
+    const combined = texts.join('\n\n---\n\n').slice(0, 15000);
     if (!combined || combined.trim().length < 10) {
       throw new BadRequestException({ error: '未能从上传文件中识别到有效内容，请确认文件清晰（支持 PDF/Word/扫描件图片）', code: 'NO_TEXT' });
     }
@@ -1762,12 +1788,16 @@ ${combined}`,
   }
 
   /** 自定义抽取：创建影子项目（isExtractionOnly=true，仅承载抽取/通知/确认，不进项目管理列表） */
-  async createCustomExtractionProject(dto: { name: string; procurementMethod?: string; background?: string; openTime?: string; deadline?: string }) {
+  async createCustomExtractionProject(dto: { name: string; procurementMethod?: string; background?: string; openTime?: string; deadline?: string }, operatorId?: string) {
     if (!dto.name?.trim()) throw new BadRequestException({ error: '请填写项目名称', code: 'NO_NAME' });
     const now = Date.now();
     const openTime = dto.openTime ? new Date(dto.openTime) : new Date(now + 14 * 24 * 3600 * 1000);
     const deadline = dto.deadline ? new Date(dto.deadline) : new Date(now + 7 * 24 * 3600 * 1000);
-    const projectCode = `CUS-${now.toString(36)}-${randomInt(0, 1_000_000).toString(36)}`;
+    if (deadline.getTime() >= openTime.getTime()) {
+      throw new BadRequestException({ error: '投标截止时间须早于开标时间', code: 'INVALID_TIME_RANGE' });
+    }
+    // 48 位随机十六进制 + 时间戳，practically 杜绝 projectCode 唯一约束冲突
+    const projectCode = `CUS-${now.toString(36)}-${randomBytes(6).toString('hex')}`;
     const project = await this.prisma.bidProject.create({
       data: {
         projectCode,
@@ -1780,6 +1810,18 @@ ${combined}`,
       },
       select: { id: true, projectCode: true, name: true, openTime: true },
     });
+    // 审计留痕：自定义抽取创建影子项目（与抽取链路其它操作一致，可溯源）
+    if (operatorId) {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: operatorId,
+          action: 'CUSTOM_EXTRACTION_PROJECT_CREATED',
+          resourceType: 'BidProject',
+          resourceId: project.id,
+          details: { projectName: project.name, projectCode: project.projectCode, isExtractionOnly: true },
+        },
+      }).catch((err: any) => new Logger(ExpertAdminService.name).warn(`影子项目审计写入失败: ${err?.message ?? err}`));
+    }
     return { projectId: project.id, projectCode: project.projectCode, name: project.name, openTime: project.openTime.toISOString() };
   }
 

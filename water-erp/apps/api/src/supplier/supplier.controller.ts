@@ -245,7 +245,7 @@ export class SupplierController {
   async notifySuppliers(
     @Body() dto: NotifySuppliersDto,
   ) {
-    return this.supplierService.notifySuppliers(dto.supplierIds, dto.channels, { type: dto.type, title: dto.title, content: dto.content });
+    return this.supplierService.notifySuppliers(dto.supplierIds, dto.channels, { type: dto.type, title: dto.title, content: dto.content, link: dto.link });
   }
 
   @Get('eliminate-candidates')

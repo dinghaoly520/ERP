@@ -12,6 +12,7 @@ function tryPdfTextLayer(buffer: Buffer): string | null {
     const out = execFileSync('pdftotext', ['-layout', '-', '-'], {
       input: buffer,
       maxBuffer: 32 * 1024 * 1024,
+      timeout: 60_000, // 加密/损坏 PDF 交 poppler 可能卡死，限时强制返回降级 OCR
     });
     const text = out.toString('utf8');
     return text && text.trim().length > 500 ? text : null;
@@ -29,8 +30,14 @@ export async function processFile(
 ) {
   const ext = fileName?.toLowerCase().split('.').pop();
 
-  // DOCX — extract text directly (no OCR needed)
-  if (ext === 'docx' || ext === 'doc') {
+  // 纯文本类（txt/md/csv）— 直接按 UTF-8 读取，无需 OCR
+  if (ext === 'txt' || ext === 'md' || ext === 'csv') {
+    const text = buffer.toString('utf8');
+    return { text, pages: [{ page: 1, text }], pageCount: 1 };
+  }
+
+  // DOCX — extract text directly (no OCR needed)。注意 mammoth 仅支持 docx，旧二进制 .doc 会抛错由调用方捕获。
+  if (ext === 'docx') {
     const result = await mammoth.extractRawText({ buffer });
     return {
       text: result.value,

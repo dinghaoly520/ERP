@@ -35,8 +35,10 @@ export default function ExpertLoginPage() {
     const r = searchParams.get('redirect');
     return r && r.startsWith('/') && !r.startsWith('//') ? r : '/';
   })();
-  const [tab, setTab] = useState<Tab>('admin');
-  const [form, setForm] = useState({ ...DEMO_ACCOUNTS.admin });
+  // 从邀请确认链接（/invitation）进入时默认专家登录 tab，避免专家看到管理员登录表单
+  const fromInvitation = returnTo.startsWith('/invitation');
+  const [tab, setTab] = useState<Tab>(fromInvitation ? 'expert' : 'admin');
+  const [form, setForm] = useState(fromInvitation ? { ...DEMO_ACCOUNTS.expert } : { ...DEMO_ACCOUNTS.admin });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -79,8 +81,11 @@ export default function ExpertLoginPage() {
       const { role } = (await res.json()) as { role: string };
       if (tab === 'expert') {
         if (role === 'bid_expert') {
-          // 平板设备 → 写 cookie + 整页跳转 tablet（SPA 导航不会触发 beforeInteractive 脚本）
-          if (isTabletDevice()) {
+          // 邀请确认页（/invitation）已豁免桌面/平板分流，优先回跳，保证通知链接在平板上可用
+          if (returnTo.startsWith('/invitation')) {
+            window.location.replace(returnTo);
+          } else if (isTabletDevice()) {
+            // 平板设备 → 写 cookie + 整页跳转 tablet（SPA 导航不会触发 beforeInteractive 脚本）
             document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
             window.location.replace('/tablet');
           } else {

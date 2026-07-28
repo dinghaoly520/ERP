@@ -72,10 +72,8 @@ const kpiCells = computed<KpiCell[]>(() => {
   const s = stats.value; if (!s) return []
   return [
     { key:'submissions',  value:s.submissionCount,          label:'投标记录', path:'/my-bids' },
-    { key:'quals',        value:s.qualificationCount,       label:'资质证照', path:'/qualifications' },
     { key:'changes',      value:s.pendingChanges,           label:'待审变更', path:'/change-records' },
     { key:'expiring',     value:s.expiringQualifications,   label:'到期风险', path:'/qualifications', tone:'var(--danger)' },
-    { key:'completeness', value:s.profileCompleteness?.score??0, label:'资料完整度',path:'/profile', tone:'var(--brand)' },
     { key:'unread',       value:s.unreadNotifications,      label:'未读消息', path:'/notifications', tone:'var(--water)' },
   ]
 })
@@ -120,6 +118,7 @@ const NOTIF_COLORS: Record<string, { dot: string; glow: string }> = {
   SUPPLIER_REJECTED:      { dot: '#dc2626', glow: 'rgba(220,38,38,0.18)' },
   SUPPLIER_RETURNED:      { dot: '#d97706', glow: 'rgba(217,119,6,0.18)' },
   BID_PUBLISHED:          { dot: '#2563eb', glow: 'rgba(37,99,235,0.18)' },
+  BID_INVITED:            { dot: '#db2777', glow: 'rgba(219,39,119,0.18)' },
   BID_REMINDER:          { dot: '#ea580c', glow: 'rgba(234,88,12,0.18)' },
   BID_OPENING:            { dot: '#0891b2', glow: 'rgba(8,145,178,0.18)' },
   BID_EVALUATION_RESULT:  { dot: '#7c3aed', glow: 'rgba(124,58,237,0.18)' },
@@ -127,10 +126,18 @@ const NOTIF_COLORS: Record<string, { dot: string; glow: string }> = {
   SYSTEM:                 { dot: '#475569', glow: 'rgba(71,85,105,0.18)' },
 }
 const notifFeed = computed(() =>
-  notifStore.notifications.slice(0, 4).map((n: any) => ({
-    ...n,
-    color: NOTIF_COLORS[n.type] || NOTIF_COLORS.SYSTEM,
-  }))
+  [...notifStore.notifications]
+    .sort((a: any, b: any) => {
+      // 未读置顶；同组内按时间倒序（新→旧）
+      const ru = a.isRead ? 1 : 0, rb = b.isRead ? 1 : 0
+      if (ru !== rb) return ru - rb
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+    .slice(0, 4)
+    .map((n: any) => ({
+      ...n,
+      color: NOTIF_COLORS[n.type] || NOTIF_COLORS.SYSTEM,
+    }))
 )
 
 // ── Days since registration ──
@@ -269,7 +276,7 @@ async function submitConvert() {
                 <span v-if="daysSinceReg" class="db-hero-meta">入驻 {{ daysSinceReg }} 天</span>
                 <template v-if="statusInfo.status === 'APPROVED'">
                   <span class="db-hero-div">·</span>
-                  <span class="db-hero-stat"><strong>{{ evalStats?.avgScore ? evalStats.avgScore.toFixed(1) : '--' }}</strong> 分</span>
+                  <span class="db-hero-stat"><strong>{{ evalStats?.excellentRatio ?? '--' }}</strong>{{ evalStats?.excellentRatio != null ? '%' : '' }} 优良率</span>
                   <span class="db-hero-stat"><strong>{{ evalStats?.total ?? 0 }}</strong> 次评价</span>
                 </template>
                 <template v-else-if="statusInfo.status === 'PENDING'">
@@ -290,11 +297,6 @@ async function submitConvert() {
               <button class="neu-btn-soft" @click="openConvertDialog">转为正式供应商</button>
             </div>
           </div>
-          <div v-else class="page-hero__right db-hero-right">
-            <span class="page-hero__stat page-hero__stat--info" style="cursor:pointer" @click="router.push('/notifications')">
-              未读消息 <strong style="font-size:14px">{{ notifStore.unreadCount }}</strong>
-            </span>
-          </div>
         </div>
       </div>
 
@@ -305,7 +307,6 @@ async function submitConvert() {
           :key="cell.key"
           :label="cell.label"
           :value="cell.value"
-          :suffix="cell.key === 'completeness' ? '%' : undefined"
           :to="cell.path"
           :tone="cell.tone"
         />
@@ -316,12 +317,12 @@ async function submitConvert() {
         <!-- LEFT: bid projects -->
         <section class="sp-module db-panel-left">
           <div class="sp-module-header">
-            <h2 class="sp-module-title">招标项目</h2>
+            <h2 class="sp-module-title">采购项目</h2>
             <button class="neu-btn-xs" @click="router.push('/bids')">全部<el-icon style="font-size:12px"><ArrowRight /></el-icon></button>
           </div>
           <div v-if="projectRows.length === 0" class="sp-empty" style="padding:32px 0">
             <div class="sp-empty-icon"><el-icon :size="20"><Folder /></el-icon></div>
-            <div class="sp-empty-text">暂无招标项目</div>
+            <div class="sp-empty-text">暂无采购项目</div>
           </div>
           <div v-else class="db-list">
             <div
@@ -617,16 +618,20 @@ async function submitConvert() {
 
 /* ── RIGHT BOTTOM: Notifications ── */
 .db-msg-list { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
-.db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease); }
+.db-msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 8px; border-radius: 8px; border-bottom: 1px solid var(--hairline); cursor: pointer; transition: background var(--sp-duration-fast, .15s) var(--sp-ease, ease), box-shadow 0.2s ease; }
 .db-msg-row.is-last { border-bottom: none; }
-.db-msg-row:hover { background: oklch(0.985 0.01 258 / 0.5); border-radius: 8px; }
-.db-msg-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--c); transition: box-shadow 0.2s ease; }
-.db-msg-row.unread .db-msg-dot { box-shadow: 0 0 0 3px var(--g); }
+.db-msg-row:hover { background: oklch(0.985 0.01 258 / 0.6); }
+/* 未读 — 品牌色高亮：色块底 + 左侧品牌色标 + 深蓝标题 + 强调圆点，与已读的灰调形成鲜明区分 */
+.db-msg-row.unread { background: color-mix(in oklab, var(--brand) 7%, transparent); box-shadow: inset 2.5px 0 0 0 var(--brand); }
+.db-msg-row.unread:hover { background: color-mix(in oklab, var(--brand) 11%, transparent); }
+.db-msg-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--c); transition: box-shadow 0.2s ease, transform 0.2s ease; }
+.db-msg-row.unread .db-msg-dot { box-shadow: 0 0 0 3px var(--g); transform: scale(1.2); }
 .db-msg-body { flex: 1; min-width: 0; }
 .db-msg-title { display: block; font-size: 12px; font-weight: 600; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-msg-title.unread { font-weight: 700; }
+.db-msg-title.unread { font-weight: 800; color: var(--brand-deep); }
 .db-msg-ct { display: block; margin-top: 1px; font-size: 11px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-msg-time { font-size: 10px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; flex-shrink: 0; margin-top: 2px; }
+.db-msg-row.unread .db-msg-time { color: var(--brand-soft); font-weight: 700; }
 
 /* ═══════════════ Responsive ═══════════════ */
 @media (max-width: 1100px) {
@@ -636,6 +641,7 @@ async function submitConvert() {
 }
 @media (prefers-reduced-motion: reduce) {
   .db-comp-bar-fill { transition: none; }
+  .db-msg-row, .db-msg-dot { transition: none; }
 }
 
 /* 转正弹窗 */

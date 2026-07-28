@@ -4,20 +4,22 @@ import { useSupplierStore } from '@/stores/supplier'
 import SpPageHero from '@/components/SpPageHero.vue'
 import SpKpi from '@/components/SpKpi.vue'
 import { Gauge, AlertTriangle } from 'lucide-vue-next'
+import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared'
 import dayjs from 'dayjs'
 
 const supplierStore = useSupplierStore(); const loading = ref(true); const firstLoad = ref(true); const error = ref(false); const expandedId = ref<string|null>(null)
 onMounted(async () => { try { await Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]) } catch { error.value = true } finally { loading.value = false; firstLoad.value = false } })
 function retryLoad() { error.value = false; loading.value = true; Promise.all([supplierStore.fetchEvaluations(),supplierStore.fetchEvaluationStats()]).catch(() => { error.value = true }).finally(() => { loading.value = false }) }
 const stats = computed(() => supplierStore.evaluationStats)
-const levelColorMap: Record<string,string> = {A:'#059669',B:'#064ea2',C:'#d97706',D:'#dc2626'}
-const levelLabel: Record<string,string> = {A:'优秀',B:'良好',C:'合格',D:'不合格'}
-const scoreDimensions = [{key:'completenessScore',label:'完整度',max:20},{key:'responsivenessScore',label:'响应度',max:20},{key:'cooperationScore',label:'合作度',max:20},{key:'complianceScore',label:'合规度',max:20},{key:'overallScore',label:'综合',max:20}]
-function getScorePercent(e:any,key:string,max:number) { return Math.round((Number(e[key]||0)/max)*100) }
-function getScoreColor(percent:number) { if (percent>=80) return '#059669'; if (percent>=60) return '#064ea2'; if (percent>=40) return '#d97706'; return '#dc2626' }
+/* 等级制（A-E）：复用 @water-erp/shared 的 LEVEL_COLOR / LEVEL_LABEL（A=优秀 B=良好 C=合格 D=待改进 E=不合格） */
+const gradeDimensions = [{key:'completenessGrade',label:'完整度'},{key:'responsivenessGrade',label:'响应度'},{key:'cooperationGrade',label:'合作度'},{key:'complianceGrade',label:'合规度'},{key:'comprehensiveGrade',label:'综合'}]
+const gradePoint: Record<string,number> = {A:5,B:4,C:3,D:2,E:1}
+const pointGrades = ['E','D','C','B','A']
+function pointToGrade(p:number) { return pointGrades[Math.max(0,Math.min(4,Math.round(p)))] }
+function gradePercent(g:string) { return Math.round(((gradePoint[g]||0)/5)*100) }
 function toggleExpand(id:string) { expandedId.value = expandedId.value===id?null:id }
-const growthDims = [{key:'completenessScore',label:'完整度',max:20},{key:'responsivenessScore',label:'响应度',max:20},{key:'cooperationScore',label:'合作度',max:20},{key:'complianceScore',label:'合规度',max:20}]
-const dimensionAverages = computed(() => { const evals = supplierStore.evaluations as any[]; if (!evals.length) return []; return growthDims.map(d => { const sum = evals.reduce((acc:number,e:any)=>acc+Number(e[d.key]||0),0); const avg=sum/evals.length; return {...d,avg:Math.round(avg*10)/10,pct:Math.round((avg/d.max)*100)} }).sort((a,b)=>a.avg-b.avg) })
+const growthDims = [{key:'completenessGrade',label:'完整度'},{key:'responsivenessGrade',label:'响应度'},{key:'cooperationGrade',label:'合作度'},{key:'complianceGrade',label:'合规度'}]
+const dimensionAverages = computed(() => { const evals = supplierStore.evaluations as any[]; if (!evals.length) return []; return growthDims.map(d => { const sum = evals.reduce((acc:number,e:any)=>acc+(gradePoint[e[d.key]]||0),0); const avg=sum/evals.length; const grade=pointToGrade(avg); return {...d,avg:Math.round(avg*10)/10,pct:gradePercent(grade),grade} }).sort((a,b)=>a.avg-b.avg) })
 const weakest = computed(()=>dimensionAverages.value[0]); const strongest = computed(()=>dimensionAverages.value[dimensionAverages.value.length-1])
 </script>
 
@@ -40,7 +42,7 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
 
     <div class="kpi-grid eval-kpi" v-if="stats">
       <SpKpi label="评价总次数" :value="stats.total" />
-      <SpKpi label="平均得分" :value="stats.avgScore" tone="var(--brand)" />
+      <SpKpi label="优良率" :value="stats.excellentRatio ?? 0" suffix="%" tone="var(--brand)" />
       <SpKpi label="A 级评价" :value="stats.levelCounts?.A||0" />
       <SpKpi label="B 级及以上" :value="(stats.levelCounts?.A||0)+(stats.levelCounts?.B||0)" />
     </div>
@@ -53,19 +55,20 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
       <div class="growth-content">
         <div class="growth-insight" v-if="weakest">
           <span class="growth-tag weak">薄弱项</span>
-          <span>{{ weakest.label }} 平均仅 {{ weakest.avg }} / {{ weakest.max }} 分，建议重点提升</span>
+          <span>{{ weakest.label }} 平均等级仅 <strong class="growth-grade-text" :style="{ color: LEVEL_COLOR[weakest.grade] }">{{ weakest.grade }}（{{ LEVEL_LABEL[weakest.grade] }}）</strong>，建议重点提升</span>
         </div>
         <div class="growth-insight" v-if="strongest">
           <span class="growth-tag strong">优势项</span>
-          <span>{{ strongest.label }} 表现最佳，平均 {{ strongest.avg }} / {{ strongest.max }} 分，继续保持</span>
+          <span>{{ strongest.label }} 表现最佳，平均等级 <strong class="growth-grade-text" :style="{ color: LEVEL_COLOR[strongest.grade] }">{{ strongest.grade }}（{{ LEVEL_LABEL[strongest.grade] }}）</strong>，继续保持</span>
         </div>
         <div class="growth-bars">
           <div v-for="dim in dimensionAverages" :key="dim.key" class="growth-bar-row">
             <span class="growth-bar-label">{{ dim.label }}</span>
             <div class="growth-bar-track">
-              <div class="growth-bar-fill" :style="{ width: dim.pct+'%', '--c': dim.pct>=80?'#059669':dim.pct>=60?'#064ea2':dim.pct>=40?'#d97706':'#dc2626' } as any"></div>
+              <div class="growth-bar-fill" :style="{ width: dim.pct+'%', '--c': LEVEL_COLOR[dim.grade]||'#94a3b8' } as any"></div>
             </div>
-            <span class="growth-bar-value">{{ dim.avg }}<span class="growth-bar-max">/{{ dim.max }}</span></span>
+            <span class="level-badge sm" :style="{ '--c': LEVEL_COLOR[dim.grade]||'#94a3b8' } as any">{{ dim.grade }}</span>
+            <span class="growth-bar-value">{{ dim.avg }}<span class="growth-bar-max">/5</span></span>
           </div>
         </div>
       </div>
@@ -74,9 +77,9 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
     <div class="sp-module" v-if="stats&&stats.total>0">
       <div class="sp-module-header"><span class="sp-module-title">等级分布</span></div>
       <div class="level-bars">
-        <div v-for="key in ['A','B','C','D']" :key="key" class="level-bar-row">
-          <div class="level-bar-label"><span class="level-badge" :style="{ '--c': levelColorMap[key] } as any">{{ key }}</span><span class="level-name">{{ levelLabel[key] }}</span></div>
-          <div class="level-bar-track"><div class="level-bar-fill" :style="{ width: stats.total>0?`${(stats.levelCounts?.[key]||0)/stats.total*100}%`:'0%', '--c': levelColorMap[key] } as any"></div></div>
+        <div v-for="key in ['A','B','C','D','E']" :key="key" class="level-bar-row">
+          <div class="level-bar-label"><span class="level-badge" :style="{ '--c': LEVEL_COLOR[key] } as any">{{ key }}</span><span class="level-name">{{ LEVEL_LABEL[key] }}</span></div>
+          <div class="level-bar-track"><div class="level-bar-fill" :style="{ width: stats.total>0?`${(stats.levelCounts?.[key]||0)/stats.total*100}%`:'0%', '--c': LEVEL_COLOR[key] } as any"></div></div>
           <div class="level-bar-count">{{ stats.levelCounts?.[key]||0 }}</div>
         </div>
       </div>
@@ -87,11 +90,11 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
       <div v-if="supplierStore.evaluations.length>0">
         <div v-for="e in supplierStore.evaluations" :key="e.id" class="eval-card" :class="{expanded:expandedId===e.id}">
           <div class="eval-summary" @click="toggleExpand(e.id)">
-            <div class="eval-left"><div class="eval-level" :style="{ '--c': levelColorMap[e.level]||'#64748b' } as any">{{ e.level }}</div><div class="eval-info"><div class="eval-score">综合评分：<strong>{{ Number(e.overallScore).toFixed(1) }}</strong> 分</div><div class="eval-evaluator">评价人：{{ e.evaluator?.displayName||'-' }}</div></div></div>
+            <div class="eval-left"><div class="eval-level" :style="{ '--c': LEVEL_COLOR[e.finalGrade]||'#64748b' } as any">{{ e.finalGrade||'-' }}</div><div class="eval-info"><div class="eval-score">综合等级：<strong :style="{ color: LEVEL_COLOR[e.finalGrade] }">{{ e.finalGrade||'-' }}</strong><span class="eval-grade-name">{{ LEVEL_LABEL[e.finalGrade]||'-' }}</span></div><div class="eval-evaluator">评价人：{{ e.evaluator?.displayName||'-' }}</div></div></div>
             <div class="eval-right"><div class="eval-date">{{ dayjs(e.createdAt).format('YYYY-MM-DD') }}</div><el-icon class="expand-icon" :class="{rotated:expandedId===e.id}"><ArrowDown /></el-icon></div>
           </div>
           <transition name="expand"><div v-if="expandedId===e.id" class="eval-detail">
-            <div class="score-breakdown"><div v-for="dim in scoreDimensions" :key="dim.key" class="score-bar-row"><span class="score-bar-label">{{ dim.label }}</span><div class="score-bar-track"><div class="score-bar-fill" :style="{ width: getScorePercent(e,dim.key,dim.max)+'%', '--c': getScoreColor(getScorePercent(e,dim.key,dim.max)) } as any"></div></div><span class="score-bar-value">{{ Number(e[dim.key]||0).toFixed(1) }}</span></div></div>
+            <div class="score-breakdown"><div v-for="dim in gradeDimensions" :key="dim.key" class="score-bar-row"><span class="score-bar-label">{{ dim.label }}</span><div class="score-bar-track"><div class="score-bar-fill" :style="{ width: gradePercent(e[dim.key])+'%', '--c': LEVEL_COLOR[e[dim.key]]||'#94a3b8' } as any"></div></div><span class="level-badge sm" :style="{ '--c': LEVEL_COLOR[e[dim.key]]||'#94a3b8' } as any">{{ e[dim.key]||'-' }}</span><span class="score-bar-value">{{ LEVEL_LABEL[e[dim.key]]||'-' }}</span></div></div>
             <div v-if="e.comment" class="eval-comment"><el-icon><ChatLineSquare /></el-icon><span>{{ e.comment }}</span></div>
           </div></transition>
         </div>
@@ -132,7 +135,8 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
 .level-bars { display: flex; flex-direction: column; gap: 12px; }
 .level-bar-row { display: flex; align-items: center; gap: 12px; }
 .level-bar-label { display: flex; align-items: center; gap: 8px; width: 80px; flex-shrink: 0; }
-.level-badge { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: #fff; background: var(--c); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3); }
+.level-badge { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; color: #fff; background: var(--c); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3); flex-shrink: 0; }
+.level-badge.sm { width: 24px; height: 24px; border-radius: 7px; font-size: 12px; }
 .level-name { font-size: 13px; color: var(--muted-foreground); }
 .level-bar-track { flex: 1; height: 12px; border-radius: 6px; overflow: hidden; background: oklch(0.96 0.008 258); box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 4px oklch(1 0 0 / 0.8); }
 .level-bar-fill { height: 100%; border-radius: 6px; background: var(--c); transition: width 0.6s cubic-bezier(.4,0,.2,1); }
@@ -158,7 +162,8 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
 .eval-level { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 900; color: #fff; flex-shrink: 0; background: var(--c); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3); }
 .eval-info { flex: 1; min-width: 0; }
 .eval-score { font-size: 15px; color: var(--foreground); margin-bottom: 2px; }
-.eval-score strong { font-weight: 900; font-variant-numeric: tabular-nums; }
+.eval-score strong { font-weight: 900; font-variant-numeric: tabular-nums; margin-right: 6px; }
+.eval-grade-name { font-size: 13px; font-weight: 600; color: var(--muted-foreground); }
 .eval-evaluator { font-size: 13px; color: var(--muted-foreground); }
 .eval-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .eval-date { font-size: 13px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
@@ -170,7 +175,8 @@ const weakest = computed(()=>dimensionAverages.value[0]); const strongest = comp
 .score-bar-label { width: 48px; font-size: 12px; color: var(--muted-foreground); font-weight: 600; flex-shrink: 0; }
 .score-bar-track { flex: 1; height: 8px; border-radius: 4px; overflow: hidden; background: oklch(0.96 0.008 258); box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 4px oklch(1 0 0 / 0.8); }
 .score-bar-fill { height: 100%; border-radius: 4px; background: var(--c); transition: width 0.5s cubic-bezier(.4,0,.2,1); }
-.score-bar-value { width: 36px; text-align: right; font-size: 13px; font-weight: 700; color: var(--foreground); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.score-bar-value { width: 46px; text-align: right; font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex-shrink: 0; }
+.growth-grade-text { font-weight: 800; font-variant-numeric: tabular-nums; }
 .eval-comment { display: flex; align-items: flex-start; gap: 8px; margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 13px; color: var(--muted-foreground); line-height: 1.6; background: var(--surface); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7); }
 .eval-comment .el-icon { flex-shrink: 0; margin-top: 2px; color: var(--muted-foreground); }
 .expand-enter-active,.expand-leave-active { transition: all 0.25s ease; overflow: hidden; }

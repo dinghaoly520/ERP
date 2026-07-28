@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException, ConflictException, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, ConflictException, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
@@ -302,6 +302,7 @@ export class SupplierPortalService {
     const kw = filters.search?.trim();
     const baseWhere: any = {
       deadline: { gt: now }, // 仅展示截止时间未到的项目
+      isExtractionOnly: false, // 排除自定义抽取的影子项目（不进供应商投标机会列表）
     };
     if (kw) {
       baseWhere.OR = [
@@ -373,7 +374,7 @@ export class SupplierPortalService {
     // 保证"全部"=所有未到期项目数，与 total 一致；公告/受邀按 BidDocument 归因。
     const allProjectIds = (
       await this.prisma.bidProject.findMany({
-        where: { deadline: { gt: now } },
+        where: { deadline: { gt: now }, isExtractionOnly: false },
         select: { id: true },
       })
     ).map(p => p.id);
@@ -411,6 +412,7 @@ export class SupplierPortalService {
         downloadDeadline: true,
         stage: true,
         riskNote: true,
+        isExtractionOnly: true,
         bondRequired: true,
         bondAmount: true,
         scope: true,
@@ -425,6 +427,10 @@ export class SupplierPortalService {
         _count: { select: { suppliers: true } },
       },
     });
+    // 影子项目（自定义抽取）不对供应商可见
+    if (project?.isExtractionOnly) {
+      throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    }
     if (project) {
       // 脱敏：供应商提问(type=question)的 issuer 含竞对企业名，开标前属保密信息（防串标/围标）；
       // 管理端发起的澄清/通知(type=clarification 等)保留 issuer。

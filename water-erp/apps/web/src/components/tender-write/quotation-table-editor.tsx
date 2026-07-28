@@ -517,12 +517,12 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       newCells[r] = [];
       for (let c = 0; c < value.cols; c++) {
         if (r < selectedRow) {
-          newCells[r][c] = value.cells[r]?.[c] || { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          newCells[r][c] = value.cells[r]?.[c] || { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         } else if (r === selectedRow) {
-          // New empty row
-          newCells[r][c] = { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          // New empty row — 默认居中
+          newCells[r][c] = { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         } else {
-          newCells[r][c] = value.cells[r - 1]?.[c] || { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          newCells[r][c] = value.cells[r - 1]?.[c] || { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         }
       }
     }
@@ -539,12 +539,12 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       newCells[r] = [];
       for (let c = 0; c < value.cols; c++) {
         if (r < insertIndex) {
-          newCells[r][c] = value.cells[r]?.[c] || { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          newCells[r][c] = value.cells[r]?.[c] || { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         } else if (r === insertIndex) {
-          // New empty row
-          newCells[r][c] = { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          // New empty row — 默认居中
+          newCells[r][c] = { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         } else {
-          newCells[r][c] = value.cells[r - 1]?.[c] || { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          newCells[r][c] = value.cells[r - 1]?.[c] || { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         }
       }
     }
@@ -570,12 +570,12 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       const newRow: TableCell[] = [];
       for (let c = 0; c <= value.cols; c++) {
         if (c < selectedCol) {
-          newRow[c] = row[c] || { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          newRow[c] = row[c] || { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         } else if (c === selectedCol) {
-          // New empty column
-          newRow[c] = { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          // New empty column — 默认居中
+          newRow[c] = { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         } else {
-          newRow[c] = row[c - 1] || { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          newRow[c] = row[c - 1] || { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         }
       }
       return newRow;
@@ -592,12 +592,12 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
       const newRow: TableCell[] = [];
       for (let c = 0; c <= value.cols; c++) {
         if (c < insertIndex) {
-          newRow[c] = row[c] || { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          newRow[c] = row[c] || { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         } else if (c === insertIndex) {
-          // New empty column
-          newRow[c] = { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          // New empty column — 默认居中
+          newRow[c] = { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         } else {
-          newRow[c] = row[c - 1] || { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+          newRow[c] = row[c - 1] || { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
         }
       }
       return newRow;
@@ -758,7 +758,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
                       content: "",
                       rowSpan: 1,
                       colSpan: 1,
-                      align: "left" as const,
+                      align: "center" as const,
                     };
                   }
                 }
@@ -779,7 +779,7 @@ export function QuotationTableEditor({ value, onChange }: QuotationTableEditorPr
                 const newCells: TableCell[][] = value.cells.map((row) => {
                   const newRow = [...row];
                   for (let c = newRow.length; c < cols; c++) {
-                    newRow[c] = { content: "", rowSpan: 1, colSpan: 1, align: "left" as const };
+                    newRow[c] = { content: "", rowSpan: 1, colSpan: 1, align: "center" as const };
                   }
                   return newRow.slice(0, cols);
                 });

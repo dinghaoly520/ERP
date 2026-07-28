@@ -25,7 +25,7 @@ export class GlobalOverviewTool implements AssistantTool {
       announcementCount,
     ] = await Promise.all([
       this.prisma.procurementProject.count(),
-      this.prisma.bidProject.count(),
+      this.prisma.bidProject.count({ where: { isExtractionOnly: false } }),
       this.prisma.supplier.count(),
       this.prisma.expertProfile.count(),
       this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
@@ -45,6 +45,7 @@ export class GlobalOverviewTool implements AssistantTool {
 
     const bidByStage = await this.prisma.bidProject.groupBy({
       by: ['stage'],
+      where: { isExtractionOnly: false },
       _count: true,
     });
 
@@ -58,7 +59,7 @@ export class GlobalOverviewTool implements AssistantTool {
       where: { status: 'PENDING' },
     });
     const activeBids = await this.prisma.bidProject.count({
-      where: { stage: { in: ['OPENING', 'EVALUATING'] } },
+      where: { stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false },
     });
 
     return {

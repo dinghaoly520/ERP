@@ -585,8 +585,8 @@ ${toolList}
     ] = await Promise.all([
       this.prisma.procurementProject.count(),
       this.prisma.procurementProject.count({ where: { status: 'PENDING_REVIEW' } }),
-      this.prisma.bidProject.count(),
-      this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING'] } } }),
+      this.prisma.bidProject.count({ where: { isExtractionOnly: false } }),
+      this.prisma.bidProject.count({ where: { stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false } }),
       this.prisma.supplier.count(),
       this.prisma.supplier.count({ where: { status: 'APPROVED' } }),
       this.prisma.supplier.count({ where: { status: 'PENDING' } }),

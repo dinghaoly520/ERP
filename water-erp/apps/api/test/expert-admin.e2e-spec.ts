@@ -81,6 +81,7 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
   afterAll(async () => {
     if (testExpertId) {
       await prisma.expertEvaluation.deleteMany({ where: { expertUserId: testExpertId } });
+      await prisma.bidExpert.deleteMany({ where: { userId: testExpertId } }); // 评价用例创建的评审分配
       await prisma.expertProfile.deleteMany({ where: { userId: testExpertId } });
     }
     await prisma.user.deleteMany({ where: { username: { in: [E2E_ADMIN, E2E_EXPERT] } } });
@@ -113,7 +114,7 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
     expect(typeof res.body.totalExperts).toBe('number');
   });
 
-  it('GET /expert-admin/ranking 排名单调且分数降序（错位/乱序回归）', async () => {
+  it('GET /expert-admin/ranking 排名单调且 A 级数降序（错位/乱序回归）', async () => {
     const res = await authGet('/api/expert-admin/ranking?period=all');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
@@ -122,9 +123,11 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
       for (let i = 0; i < res.body.length; i++) {
         const row = res.body[i];
         expect(row.expertUserId).toBeTruthy();
-        expect(Number.isFinite(row.avgScore)).toBe(true);
+        expect(Number.isFinite(row.aCount)).toBe(true); // 按 A 级评价数排序，不再有 avgScore
+        expect(Number.isFinite(row.evalCount)).toBe(true);
+        expect(row.gradeCounts).toBeTruthy(); // 等级分布 {A,B,C,D,E}
         if (i > 0) {
-          expect(row.avgScore).toBeLessThanOrEqual(res.body[i - 1].avgScore); // 分数降序
+          expect(row.aCount).toBeLessThanOrEqual(res.body[i - 1].aCount); // A 级数降序
           expect(row.rank).toBeGreaterThanOrEqual(res.body[i - 1].rank); // 名次单调
         }
       }
@@ -161,12 +164,32 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
 
   it('履职评价：对录入的专家发起评价应成功并正确定级', async () => {
     if (!testExpertId) throw new Error('前置失败：测试专家未创建');
+    // DTO 要求评价必须关联真实项目（projectId 必填），且该专家须在项目中任评审：
+    // 自建最小项目并把测试专家分配为 BidExpert，再发起评价
+    const project = await prisma.bidProject.create({
+      data: {
+        projectCode: `E2E-EVAL-${Date.now()}`,
+        name: 'E2E评价测试项目',
+        procurementMethod: '公开招标',
+        openTime: new Date(Date.now() + 7 * 864e5),
+        deadline: new Date(Date.now() + 14 * 864e5),
+        scope: '水利枢纽施工',
+      },
+    });
+    createdProjectIds.push(project.id);
+    await prisma.bidExpert.create({
+      data: { projectId: project.id, userId: testExpertId, expertName: 'E2E测试专家', major: '水利工程' },
+    });
     const res = await authPost('/api/expert-admin/evaluations').send({
-      expertUserId: testExpertId, attendanceScore: 90, qualityScore: 88, disciplineScore: 92, comment: 'e2e 评价',
+      expertUserId: testExpertId, projectId: project.id,
+      attendanceGrade: 'A', qualityGrade: 'A', disciplineGrade: 'A', comment: 'e2e 评价',
     });
     expect([200, 201]).toContain(res.status);
-    expect(res.body.overallScore).toBe(90);
-    expect(res.body.level).toBe('A');
+    // 三维全 A → 综合等级 A（quality×0.5 + discipline×0.3 + attendance×0.2 = 5 → A）
+    expect(res.body.overallGrade).toBe('A');
+    expect(res.body.attendanceGrade).toBe('A');
+    expect(res.body.qualityGrade).toBe('A');
+    expect(res.body.disciplineGrade).toBe('A');
   });
 
   it('抽取预览：AI 不可用时确定性降级规则引擎（engine=rules，无 500 逃生门）', async () => {

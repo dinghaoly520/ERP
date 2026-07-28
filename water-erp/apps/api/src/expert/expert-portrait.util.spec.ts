@@ -1,6 +1,6 @@
 import { buildExpertPortrait } from './expert-portrait.util';
 
-describe('buildExpertPortrait', () => {
+describe('buildExpertPortrait（A-E 等级制）', () => {
   it('无分配时返回零值且非常委', () => {
     const p = buildExpertPortrait({
       userId: 'u1',
@@ -12,13 +12,14 @@ describe('buildExpertPortrait', () => {
     expect(p.participationCount).toBe(0);
     expect(p.completedCount).toBe(0);
     expect(p.completionRate).toBe(0);
-    expect(p.averageScore).toBeNull();
+    expect(p.gradeCounts).toBeNull(); // 无评价 → 无等级分布
+    expect(p.evalCount).toBe(0);
+    expect(p.recentLevels).toEqual([]);
     expect(p.meanDeviation).toBeNull();
-    expect(p.evalAvg).toBeNull();
     expect(p.isStandingExpert).toBe(false);
   });
 
-  it('统计参与次数、完成率与平均分', () => {
+  it('统计参与次数、完成率与偏离度', () => {
     const p = buildExpertPortrait({
       userId: 'u1',
       displayName: '王某国',
@@ -33,7 +34,7 @@ describe('buildExpertPortrait', () => {
     expect(p.participationCount).toBe(3);
     expect(p.completedCount).toBe(2);
     expect(p.completionRate).toBeCloseTo(0.667, 2);
-    expect(p.averageScore).toBe(70); // (90+80+40)/3
+    expect(p.gradeCounts).toBeNull();
     expect(p.meanDeviation).toBe(5.5);
     expect(p.deviationSamples).toBe(8);
   });
@@ -51,7 +52,7 @@ describe('buildExpertPortrait', () => {
     expect(p.isStandingExpert).toBe(true);
   });
 
-  it('汇总最近评价均分与等级序列', () => {
+  it('汇总最近评价等级分布与等级序列', () => {
     const now = new Date('2026-06-14');
     const p = buildExpertPortrait({
       userId: 'u1',
@@ -59,12 +60,13 @@ describe('buildExpertPortrait', () => {
       assignments: [],
       deviation: null,
       recentEvals: [
-        { level: 'A', overallScore: 92, createdAt: now },
-        { level: 'B', overallScore: 84, createdAt: now },
+        { level: 'A', overallGrade: 'A', createdAt: now },
+        { level: 'B', overallGrade: 'B', createdAt: now },
+        { level: 'A', overallGrade: 'A', createdAt: now },
       ],
     });
-    expect(p.evalAvg).toBe(88);
-    expect(p.evalCount).toBe(2);
-    expect(p.recentLevels).toEqual(['A', 'B']);
+    expect(p.gradeCounts).toEqual({ A: 2, B: 1 });
+    expect(p.evalCount).toBe(3);
+    expect(p.recentLevels).toEqual(['A', 'B', 'A']);
   });
 });

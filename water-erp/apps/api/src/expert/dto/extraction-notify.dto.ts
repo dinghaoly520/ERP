@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsArray, ArrayMinSize } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, IsIn, ArrayMinSize } from 'class-validator';
 
 export class ExtractionNotifyDto {
   @IsString() @IsNotEmpty()
@@ -7,8 +7,8 @@ export class ExtractionNotifyDto {
   @IsArray() @ArrayMinSize(1) @IsString({ each: true })
   expertIds!: string[];
 
-  @IsArray() @ArrayMinSize(1) @IsString({ each: true })
-  channels!: string[]; // 'in_app' | 'sms' | 'phone'
+  @IsArray() @ArrayMinSize(1) @IsIn(['in_app', 'sms', 'phone', 'email'], { each: true })
+  channels!: string[]; // 'in_app' | 'sms' | 'phone' | 'email'
 
   @IsString() @IsNotEmpty()
   message!: string;

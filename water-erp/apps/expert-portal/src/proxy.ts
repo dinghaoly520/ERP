@@ -68,19 +68,25 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // token 失效/角色不符时回登录页，保留 redirect 以便登录后回到原页面（如邀请确认页）
+  const loginWithRedirect = () => {
+    const u = new URL(LOGIN_URL);
+    u.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(u);
+  };
   try {
     const res = await fetch(portalURL('api', '/api/auth/me'), {
       headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
     });
     if (!res.ok) {
-      return NextResponse.redirect(new URL(LOGIN_URL));
+      return loginWithRedirect();
     }
     const me = await res.json();
     if (me?.role !== 'bid_expert') {
-      return NextResponse.redirect(new URL(LOGIN_URL));
+      return loginWithRedirect();
     }
   } catch {
-    return NextResponse.redirect(new URL(LOGIN_URL));
+    return loginWithRedirect();
   }
 
   // 邀请确认页（通知链接落地）：通过鉴权后任意设备直接渲染，不参与桌面/平板分流

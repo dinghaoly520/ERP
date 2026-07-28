@@ -9066,6 +9066,77 @@ select.workbench-input {
   color: var(--accent-strong);
 }
 
+/* ── 标签胶囊（供应商选取等业务标签多选；遵循 cgzxui：凸起→悬停抬升→按下内凹，选中=内凹+品牌淡底+内光环）── */
+.neu-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--muted-foreground);
+  background: var(--neu-raised-bg);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    1px 1px 2px oklch(0.55 0.03 258 / 0.1),
+    -1px -1px 2px oklch(1 0 0 / 0.85);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+.neu-tag:hover {
+  color: var(--foreground);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    2px 2px 4px oklch(0.55 0.03 258 / 0.14),
+    -1px -1px 3px oklch(1 0 0 / 0.9);
+}
+.neu-tag:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.14),
+    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5);
+}
+.neu-tag.is-on {
+  color: var(--accent-strong);
+  background: color-mix(in oklch, var(--accent) 12%, var(--neu-raised-bg));
+  box-shadow:
+    inset 1.5px 1.5px 3px oklch(0.55 0.03 258 / 0.13),
+    inset -1.5px -1.5px 3px oklch(1 0 0 / 0.5),
+    inset 0 0 0 1.5px oklch(0.56 0.153 251 / 0.22);
+}
+.neu-tag.is-on:hover { transform: translateY(-1px); color: var(--accent-strong); }
+.neu-tag__count {
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklch, var(--muted-foreground) 72%, transparent);
+}
+.neu-tag.is-on .neu-tag__count { color: color-mix(in oklch, var(--accent-strong) 72%, transparent); }
+.neu-tag__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 1px;
+  padding: 1px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklch, var(--accent-strong) 62%, transparent);
+  cursor: pointer;
+  line-height: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.neu-tag__x:hover { background: oklch(0.56 0.153 251 / 0.16); color: var(--accent-strong); }
+@media (prefers-reduced-motion: reduce) {
+  .neu-tag { transition: box-shadow 0.2s ease, color 0.2s ease, background-color 0.2s ease; }
+  .neu-tag:hover, .neu-tag.is-on:hover { transform: none; }
+}
+
 /* ══════════════════════════════════════════════════════════════════
    工具栏卡片 — .wb-toolbar
    半透明玻璃面板：淡蓝底色 + 毛玻璃模糊，让页面 flow-glow 水彩光晕透出
@@ -10347,4 +10418,47 @@ select.workbench-input {
   .step-track__progress::after {
     animation: none;
   }
+}
+
+/* ══ 业务标签 chip — 高级感（oklch 渐变 + 顶缘内高光 + 菱形标记符；标签属文字级小元素，不用 neumorphic 双影）══ */
+.biz-tag {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 12px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  color: var(--accent-strong);
+  background: linear-gradient(140deg,
+    color-mix(in oklab, var(--accent) 15%, oklch(1 0 0)) 0%,
+    color-mix(in oklab, var(--accent) 6%, oklch(1 0 0)) 100%);
+  border: 1px solid color-mix(in oklab, var(--accent) 24%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    0 1px 3px color-mix(in oklab, var(--accent) 12%, transparent);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.28s ease;
+}
+.biz-tag::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: linear-gradient(140deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 0 0 2.5px color-mix(in oklab, var(--accent) 16%, transparent);
+  flex-shrink: 0;
+}
+.biz-tag:hover {
+  transform: translateY(-1.5px);
+  border-color: color-mix(in oklab, var(--accent) 38%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    0 7px 16px color-mix(in oklab, var(--accent) 20%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .biz-tag { transition: none; }
+  .biz-tag:hover { transform: none; }
 }

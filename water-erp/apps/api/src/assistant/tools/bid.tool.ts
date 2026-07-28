@@ -35,7 +35,7 @@ export class BidTool implements AssistantTool {
         action === 'active'
           ? { in: ['OPENING', 'EVALUATING'] }
           : undefined;
-      const where: any = stageFilter ? { stage: stageFilter } : {};
+      const where: any = stageFilter ? { stage: stageFilter, isExtractionOnly: false } : { isExtractionOnly: false };
       const projects = await this.prisma.bidProject.findMany({
         where,
         take: limit,
@@ -74,6 +74,7 @@ export class BidTool implements AssistantTool {
     if (action === 'monthly') {
       // Get projects grouped by month for trend chart
       const projects = await this.prisma.bidProject.findMany({
+        where: { isExtractionOnly: false },
         select: { createdAt: true },
         orderBy: { createdAt: 'asc' },
       });
@@ -100,7 +101,7 @@ export class BidTool implements AssistantTool {
 
     if (action === 'stats') {
       const byStage = await this.prisma.bidProject.groupBy({
-        by: ['stage'], _count: true,
+        by: ['stage'], where: { isExtractionOnly: false }, _count: true,
       });
       byStage.sort((a, b) => b._count - a._count);
       const bidTotal = byStage.reduce((s, r) => s + r._count, 0);
@@ -124,7 +125,7 @@ export class BidTool implements AssistantTool {
     }
 
     // default: list
-    const where: any = stage ? { stage: stage } : {};
+    const where: any = stage ? { stage: stage, isExtractionOnly: false } : { isExtractionOnly: false };
     const projects = await this.prisma.bidProject.findMany({
       where, take: limit, orderBy: { createdAt: 'desc' },
       select: {

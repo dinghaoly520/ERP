@@ -245,6 +245,7 @@ export class BidService {
 
     const stageCounts = await this.prisma.bidProject.groupBy({
       by: ['stage'],
+      where: { isExtractionOnly: false },
       _count: { stage: true },
     });
     const stageDistribution: Record<string, number> = {};
@@ -371,7 +372,7 @@ export class BidService {
 
     await this.notificationService.sendToRole('bid_host', {
       type: 'BID_PUBLISHED',
-      title: `新招标项目：${project.name}`,
+      title: `新采购项目发布：${project.name}`,
       content: `项目编号 ${project.projectCode} 已创建，采购方式：${project.procurementMethod}。`,
       link: `/bid?id=${project.id}`,
     });
@@ -3138,8 +3139,8 @@ export class BidService {
       toInvite.map(s => s.userId).filter((u): u is string => !!u),
       {
         type: 'BID_INVITED',
-        title: `招标邀请：${project.name}`,
-        content: `您已被邀请参与招标项目 ${project.projectCode}（${project.name}），请尽快登录供应商门户查看招标文件并投标。`,
+        title: `新采购项目邀请：${project.name}`,
+        content: `您已被邀请参与采购项目 ${project.projectCode}（${project.name}），请尽快登录供应商门户查看采购文件并投标。`,
         link: '/dashboard',
       },
     );

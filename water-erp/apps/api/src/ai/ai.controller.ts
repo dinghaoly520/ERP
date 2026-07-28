@@ -74,6 +74,40 @@ export class AiController {
     }
   }
 
+  @Post('suggest-tags')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'AI 按项目上下文从词表预选业务标签（供应商选取页预填）' })
+  @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
+  async suggestBusinessTags(
+    @Body() body: {
+      projectName?: string;
+      projectCode?: string;
+      procurementMethod?: string;
+      stage?: string;
+      requirement?: string;
+      fileSummary?: string;
+      vocabulary?: string[];
+    },
+  ) {
+    const vocabulary = Array.isArray(body?.vocabulary)
+      ? body.vocabulary.map((t) => String(t).trim()).filter(Boolean).slice(0, 200)
+      : [];
+    try {
+      const tags = await this.aiService.suggestBusinessTags({
+        projectName: body?.projectName,
+        projectCode: body?.projectCode,
+        procurementMethod: body?.procurementMethod,
+        stage: body?.stage,
+        requirement: body?.requirement,
+        fileSummary: body?.fileSummary,
+        vocabulary,
+      });
+      return { tags };
+    } catch (e: any) {
+      throw new BadRequestException({ error: e?.message || '标签预选服务暂时不可用', code: 'SUGGEST_TAGS_FAILED' });
+    }
+  }
+
   @Post('dashboard-summary')
   @ApiOperation({ summary: 'AI采购运营总览摘要' })
   @Roles('admin', 'leader', 'staff')
@@ -130,9 +164,10 @@ export class AiController {
   async generateNotificationContent(
     @Body() payload: {
       projectName?: string; projectCode?: string; supplierNames: string[];
+      supplierIds?: string[]; projectId?: string | null; deadline?: string;
       procurementMethod?: string; procurementCategory?: string;
-      budgetAmount?: string; requesterDepartment?: string;
-      projectReason?: string; fileAnalysisContext?: string;
+      budgetAmount?: string; requesterDepartment?: string; requesterName?: string;
+      projectReason?: string; fileAnalysisContext?: string; validityDays?: number;
     },
   ) {
     return this.aiService.generateNotificationContent(payload);

@@ -23,6 +23,13 @@ const router = createRouter({
       meta: { guest: true },
     },
     {
+      // 采购邀请回执（RSVP）：公开页，登录与否均可访问（供应商常从短信/邮件点开，未必登录）。
+      path: '/rsvp',
+      name: 'Rsvp',
+      component: () => import('@/views/rsvp/Rsvp.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
       redirect: '/dashboard',
@@ -130,6 +137,9 @@ const router = createRouter({
 // Navigation guard
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
+
+  // 公开页（如回执 /rsvp）：登录与否都直接放行，不强制登录、也不把已登录者弹走。
+  if (to.meta.public) return next()
 
   // Initialize auth state on first navigation
   if (!authStore.user && localStorage.getItem('supplier_user')) {

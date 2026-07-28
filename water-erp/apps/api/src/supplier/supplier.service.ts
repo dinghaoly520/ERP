@@ -342,7 +342,7 @@ export class SupplierService {
       if (params.dateTo) where.createdAt.lte = new Date(params.dateTo + 'T23:59:59.999Z');
     }
     if (params.evalLevel) {
-      where.evaluations = { some: { level: params.evalLevel } };
+      where.evaluations = { some: { finalGrade: params.evalLevel } };
     }
     if (params.qualificationStatus) {
       where.qualifications = { some: { status: params.qualificationStatus } };
@@ -1501,7 +1501,7 @@ export class SupplierService {
     };
 
     const excellentRatio = evaluations.length > 0
-      ? (levelCounts.A + levelCounts.B) / evaluations.length
+      ? Math.round(((levelCounts.A + levelCounts.B) / evaluations.length) * 1000) / 10
       : 0;
 
     return { levelCounts, excellentRatio, total: evaluations.length };
@@ -1743,7 +1743,7 @@ export class SupplierService {
   async notifySuppliers(
     supplierIds: string[],
     channels: string[],
-    payload: { type: string; title: string; content: string },
+    payload: { type: string; title: string; content: string; link?: string },
   ) {
     const suppliers = await this.prisma.supplier.findMany({
       where: { id: { in: supplierIds } },
@@ -1756,7 +1756,8 @@ export class SupplierService {
       // 占位符替换：{供应商名称} / {name} / {supplierName} → 实际供应商名称
       const title = payload.title.replace(/\{(供应商名称|name|supplierName)\}/g, s.name);
       const content = payload.content.replace(/\{(供应商名称|name|supplierName)\}/g, s.name);
-      const r = await this.notificationService.sendToUser(s.userId, channels, { type: payload.type, title, content });
+      // link 透传：逐家发送时由调用方填入该供应商专属回执链接，使站内信可点击直达回执页。
+      const r = await this.notificationService.sendToUser(s.userId, channels, { type: payload.type, title, content, link: payload.link ?? null });
       results.push({ supplierId: s.id, supplierName: s.name, userId: s.userId, channels: r.results });
     }
 

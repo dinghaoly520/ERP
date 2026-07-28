@@ -229,6 +229,7 @@ export class ExpertService {
       openTime: record.project.openTime,
       deadline: record.project.deadline,
       stage: record.project.stage,
+      isExtractionOnly: record.project.isExtractionOnly,
       expertRole: record.expertRole,
       invitationStatus: record.invitationStatus,
       signedIn: record.signedIn,

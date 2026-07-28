@@ -94,19 +94,33 @@ export function recommendSuppliers(data: { requirement: string; classificationId
   return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
 }
 
+// AI 按项目上下文从词表预选业务标签（供应商选取页预填；用户可删减补充）
+export function suggestBusinessTags(data: {
+  projectName?: string;
+  projectCode?: string;
+  procurementMethod?: string;
+  stage?: string;
+  requirement?: string;
+  fileSummary?: string;
+  vocabulary: string[];
+}) {
+  return api.post<{ tags: string[] }>('/ai/suggest-tags', data);
+}
+
 // AI 润色采购需求描述
 export function polishRequirement(data: { text: string; projectName?: string; procurementMethod?: string; deadline?: string; additionalContext?: string }) {
   return api.post<{ polished: string }>('/ai/polish-requirement', data);
 }
 
-// ── AI 生成通知文案 ──
+// ── AI 生成通知文案（含逐家无登录回执链接 RSVP）──
 export function generateNotificationContent(data: {
   projectName?: string; projectCode?: string; supplierNames: string[];
+  supplierIds?: string[]; projectId?: string | null; deadline?: string;
   procurementMethod?: string; procurementCategory?: string;
-  budgetAmount?: string; requesterDepartment?: string;
-  projectReason?: string; fileAnalysisContext?: string;
+  budgetAmount?: string; requesterDepartment?: string; requesterName?: string;
+  projectReason?: string; fileAnalysisContext?: string; validityDays?: number;
 }) {
-  return api.post<{ title: string; body: string }>('/ai/generate-notification', data);
+  return api.post<{ title: string; body: string; rsvpTokens: Record<string, string> }>('/ai/generate-notification', data);
 }
 
 // ── 选取历史 ──
@@ -147,8 +161,18 @@ export interface NotifySuppliersResult {
   totalTargets: number; sent: number; notFound: number;
   results: { supplierId: string; supplierName: string; channels: Record<string, string> }[];
 }
-export function notifySuppliers(data: { supplierIds: string[]; channels: string[]; type: string; title: string; content: string }) {
+export function notifySuppliers(data: { supplierIds: string[]; channels: string[]; type: string; title: string; content: string; link?: string }) {
   return api.post<NotifySuppliersResult>('/supplier/notify', data);
+}
+
+// ── 邀请回执看板（采购端）──
+export interface RsvpListItem { rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED'; note: string | null; respondedAt: string | null; expired: boolean; }
+export interface RsvpListResult { total: number; counts: { ACCEPTED: number; DECLINED: number; PENDING: number }; items: RsvpListItem[]; }
+export function getRsvpList(params: { projectId?: string; invitationId?: string }) {
+  const q = new URLSearchParams();
+  if (params.projectId) q.set('projectId', params.projectId);
+  if (params.invitationId) q.set('invitationId', params.invitationId);
+  return api.get<RsvpListResult>(`/supplier/rsvp/list?${q.toString()}`);
 }
 
 // ── 邀请供应商到招标项目 ──

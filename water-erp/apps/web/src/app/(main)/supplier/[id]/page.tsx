@@ -436,11 +436,9 @@ export default function SupplierDetailPage() {
                 <div className="mt-5 pt-4 border-t border-[var(--border)]">
                   <p className="text-[11px] text-[var(--muted-foreground)] mb-2">业务标签</p>
                   {(supplier as any).tags?.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2.5">
                       {(supplier as any).tags.map((tag: string, i: number) => (
-                        <span key={i} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[color-mix(in_oklab,var(--brand)_10%,transparent)] text-[var(--brand)] border border-[color-mix(in_oklab,var(--brand)_18%,transparent)]">
-                          {tag}
-                        </span>
+                        <span key={i} className="biz-tag">{tag}</span>
                       ))}
                     </div>
                   ) : (

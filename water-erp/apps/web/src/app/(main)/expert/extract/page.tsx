@@ -684,7 +684,7 @@ export function ExpertExtractPage({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-[var(--foreground)] truncate">{c.name}</span>
-                    {c.evaluationLevel && <StatusBadge tone={c.evaluationLevel === 'A' ? 'green' : c.evaluationLevel === 'B' ? 'blue' : c.evaluationLevel === 'D' ? 'red' : 'gray'}>{c.evaluationLevel}</StatusBadge>}
+                    {c.evaluationLevel && <StatusBadge tone={c.evaluationLevel === 'A' ? 'green' : c.evaluationLevel === 'B' ? 'blue' : c.evaluationLevel === 'D' ? 'orange' : c.evaluationLevel === 'E' ? 'red' : 'gray'}>{c.evaluationLevel}</StatusBadge>}
                     {c.currentLoadStatus && <span className="text-[10px] text-[var(--muted-foreground)]">{c.currentLoadStatus}</span>}
                   </div>
                   <div className="text-xs text-[var(--muted-foreground)] truncate">{c.specialty}{c.title ? ` · ${c.title}` : ''}</div>
