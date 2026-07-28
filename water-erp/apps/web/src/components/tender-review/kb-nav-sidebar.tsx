@@ -219,14 +219,14 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="知识库名称"
-                className="workbench-input !h-[32px] !text-xs"
+                className="workbench-input w-full !h-[32px] !text-xs"
               />
               <textarea
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
                 placeholder="描述（可选）"
                 rows={1}
-                className="neu-input !min-h-[36px] !text-xs !p-1.5 resize-none"
+                className="neu-input w-full !min-h-[36px] !text-xs !p-1.5 resize-none"
               />
               <div className="flex gap-1.5">
                 <button
