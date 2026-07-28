@@ -18,5 +18,15 @@
     "notificationPrefs": null,
     "createdAt": "2026-07-22T04:00:50.411Z",
     "updatedAt": "2026-07-22T04:00:50.411Z"
+  },
+  {
+    "id": "cms1irca40006uucs8m3bi7el",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "theme": "system",
+    "defaultHomePage": "work-arrangements",
+    "compactMode": false,
+    "notificationPrefs": null,
+    "createdAt": "2026-07-26T08:11:30.413Z",
+    "updatedAt": "2026-07-26T08:11:30.413Z"
   }
 ]

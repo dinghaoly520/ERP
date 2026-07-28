@@ -1,1 +1,107 @@
-[]
+[
+  {
+    "id": "cms31khtz0006uurj9blmsxog",
+    "knowledgeBaseId": "cms30on3i004ouus67iy0ru9k",
+    "status": "completed",
+    "extractedCount": 230,
+    "processedFiles": [
+      "76号-关于印发《采购管理办法（修订）》的通知.docx",
+      "《采购管理办法（修订）》(征求意见稿）.docx",
+      "川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf",
+      "川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx",
+      "关于进一步明确采购各部门职责的通知.docx",
+      "关于明确小额采购流程的通知.docx",
+      "国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf"
+    ],
+    "error": null,
+    "createdAt": "2026-07-27T09:45:49.896Z"
+  },
+  {
+    "id": "cms2z6676000euus6vyipvjhe",
+    "knowledgeBaseId": "cms2vsndm00kzuuuyk7mm4x8f",
+    "status": "completed",
+    "extractedCount": 17,
+    "processedFiles": [
+      "采购管理制度样本.txt"
+    ],
+    "error": null,
+    "createdAt": "2026-07-27T08:38:42.402Z"
+  },
+  {
+    "id": "cms31bbx80000uurjvnt7kk9t",
+    "knowledgeBaseId": "cms2vsndm00kzuuuyk7mm4x8f",
+    "status": "completed",
+    "extractedCount": 0,
+    "processedFiles": [],
+    "error": null,
+    "createdAt": "2026-07-27T09:38:42.333Z"
+  },
+  {
+    "id": "cms330b4700b0uurjqzzo8h2n",
+    "knowledgeBaseId": "cms32zerg00a0uurjmrwqteq9",
+    "status": "completed",
+    "extractedCount": 44,
+    "processedFiles": [
+      "76号-关于印发《采购管理办法（修订）》的通知.docx",
+      "《采购管理办法（修订）》(征求意见稿）.docx",
+      "川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf",
+      "川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx",
+      "关于进一步明确采购各部门职责的通知.docx",
+      "关于明确小额采购流程的通知.docx",
+      "国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf"
+    ],
+    "error": null,
+    "createdAt": "2026-07-27T10:26:07.304Z"
+  },
+  {
+    "id": "cms4ao7rp0174uumtp6u75amy",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "status": "completed",
+    "extractedCount": 0,
+    "processedFiles": [
+      "76号-关于印发《采购管理办法（修订）》的通知.docx",
+      "《采购管理办法（修订）》(征求意见稿）.docx",
+      "川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf",
+      "川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx",
+      "关于进一步明确采购各部门职责的通知.docx",
+      "关于明确小额采购流程的通知.docx",
+      "国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf"
+    ],
+    "error": null,
+    "createdAt": "2026-07-28T06:48:26.198Z"
+  },
+  {
+    "id": "cms33tf1k002uuuv9xm6nfc74",
+    "knowledgeBaseId": "cms32zerg00a0uurjmrwqteq9",
+    "status": "completed",
+    "extractedCount": 175,
+    "processedFiles": [
+      "76号-关于印发《采购管理办法（修订）》的通知.docx",
+      "《采购管理办法（修订）》(征求意见稿）.docx",
+      "川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf",
+      "川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx",
+      "关于进一步明确采购各部门职责的通知.docx",
+      "关于明确小额采购流程的通知.docx",
+      "国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf"
+    ],
+    "error": null,
+    "createdAt": "2026-07-27T10:48:45.416Z"
+  },
+  {
+    "id": "cms49d2oj002iuumtealdm711",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "status": "completed",
+    "extractedCount": 195,
+    "processedFiles": [
+      "76号-关于印发《采购管理办法（修订）》的通知.docx",
+      "《采购管理办法（修订）》(征求意见稿）.docx",
+      "川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf",
+      "川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx",
+      "关于进一步明确采购各部门职责的通知.docx",
+      "关于明确小额采购流程的通知.docx",
+      "国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf"
+    ],
+    "error": null,
+    "createdAt": "2026-07-28T06:11:46.772Z"
+  }
+]

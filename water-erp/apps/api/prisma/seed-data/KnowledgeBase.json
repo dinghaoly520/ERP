@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "id": "cms48o9hx00equuhx4cixdfb9",
+    "name": "采购知识库",
+    "description": null,
+    "ownerId": "cmrmvzupb0000kozb2ijyav4o",
+    "isShared": true,
+    "isActive": true,
+    "createdAt": "2026-07-28T05:52:29.206Z",
+    "updatedAt": "2026-07-28T05:52:29.206Z"
+  }
+]

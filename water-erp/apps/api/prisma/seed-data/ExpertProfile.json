@@ -14,6 +14,7 @@
     "notes": "编号: A000912, 性别: 男, 出生年份: 1983, 职称类型: 会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -32,6 +33,7 @@
     "notes": "编号: A001736, 性别: 女, 出生年份: 1990, 职称类型: 注册会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -50,6 +52,7 @@
     "notes": "编号: A001737, 性别: 女, 出生年份: 1992, 职称类型: 注册会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -68,6 +71,7 @@
     "notes": "编号: A000918, 性别: 女, 出生年份: 1992, 职称类型: 会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -86,6 +90,7 @@
     "notes": "编号: A000917, 性别: 女, 出生年份: 1993, 职称类型: 会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -104,6 +109,7 @@
     "notes": "编号: A000915, 性别: 女, 出生年份: 1991, 职称类型: 会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -122,6 +128,7 @@
     "notes": "编号: A000916, 性别: 女, 出生年份: 1990, 职称类型: 会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -140,6 +147,7 @@
     "notes": "编号: A000911, 性别: 女, 出生年份: 1972, 职称类型: 会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -158,6 +166,7 @@
     "notes": "编号: A000922, 性别: 男, 出生年份: 1994, 职称类型: 会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -176,6 +185,7 @@
     "notes": "编号: A001559, 性别: 女, 出生年份: 1971, 职称类型: 会计师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -194,6 +204,7 @@
     "notes": "编号: A001271, 性别: 男, 出生年份: 1969, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -212,6 +223,7 @@
     "notes": "编号: A001272, 性别: 男, 出生年份: 1975, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -230,6 +242,7 @@
     "notes": "编号: A001273, 性别: 男, 出生年份: 1982, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -248,6 +261,7 @@
     "notes": "编号: A001274, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -266,6 +280,7 @@
     "notes": "编号: A001289, 性别: 男, 出生年份: 1985, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -284,6 +299,7 @@
     "notes": "编号: A001293, 性别: 女, 出生年份: 1992, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -302,6 +318,7 @@
     "notes": "编号: A001290, 性别: 女, 出生年份: 1991, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -320,6 +337,7 @@
     "notes": "编号: A001280, 性别: 女, 出生年份: 1990, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -338,6 +356,7 @@
     "notes": "编号: A001283, 性别: 女, 出生年份: 1992, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -356,6 +375,7 @@
     "notes": "编号: A001282, 性别: 女, 出生年份: 1988, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -374,6 +394,7 @@
     "notes": "编号: A001288, 性别: 女, 出生年份: 1988, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -392,6 +413,7 @@
     "notes": "编号: A001292, 性别: 女, 出生年份: 1993, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -410,6 +432,7 @@
     "notes": "编号: A001279, 性别: 女, 出生年份: 1988, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -428,6 +451,7 @@
     "notes": "编号: A001284, 性别: 女, 出生年份: 1991, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -446,6 +470,7 @@
     "notes": "编号: A001285, 性别: 男, 出生年份: 1991, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -464,6 +489,7 @@
     "notes": "编号: A001286, 性别: 女, 出生年份: 1993, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -482,6 +508,7 @@
     "notes": "编号: A001287, 性别: 女, 出生年份: 1990, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -500,6 +527,7 @@
     "notes": "编号: A001275, 性别: 女, 出生年份: 1984, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -518,6 +546,7 @@
     "notes": "编号: A000951, 性别: 男, 出生年份: 1967, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -536,6 +565,7 @@
     "notes": "编号: A000944, 性别: 男, 出生年份: 1966, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -554,6 +584,7 @@
     "notes": "编号: A000941, 性别: 男, 出生年份: 1971, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -572,6 +603,7 @@
     "notes": "编号: A000945, 性别: 男, 出生年份: 1967, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -590,6 +622,7 @@
     "notes": "编号: A000950, 性别: 男, 出生年份: 1966, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -608,24 +641,7 @@
     "notes": "编号: A001033, 性别: 男, 出生年份: 1976, 职称类型: 水工专业正高",
     "retiredAt": null,
     "retireReason": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-18T06:51:51.890Z"
-  },
-  {
-    "id": "c9ee3f6153854e18906665f",
-    "userId": "c1bf8a97b47aed2477b465b",
-    "specialty": "工程设计",
-    "title": "正高级工程师",
-    "employer": "工程设计院",
-    "phone": "19141372646",
-    "idNumber": null,
-    "ethnicity": null,
-    "education": "大学本科",
-    "licenseNo": null,
-    "availability": "可用",
-    "notes": "编号: A001034, 性别: 男, 出生年份: 1977, 职称类型: 水工专业正高",
-    "retiredAt": null,
-    "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -644,6 +660,7 @@
     "notes": "编号: A001035, 性别: 男, 出生年份: 1972, 职称类型: 水工专业正高",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -662,6 +679,7 @@
     "notes": "编号: A001036, 性别: 男, 出生年份: 1972, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -680,6 +698,7 @@
     "notes": "编号: A001041, 性别: 女, 出生年份: 1980, 职称类型: 水工专业正高",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -698,6 +717,7 @@
     "notes": "编号: A001046, 性别: 男, 出生年份: 1979, 职称类型: 水工专业正高",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -716,6 +736,7 @@
     "notes": "编号: A001037, 性别: 男, 出生年份: 1976, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -734,6 +755,7 @@
     "notes": "编号: A001040, 性别: 男, 出生年份: 1979, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -752,6 +774,7 @@
     "notes": "编号: A001049, 性别: 男, 出生年份: 1981, 职称类型: 水工专业正高",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -770,6 +793,7 @@
     "notes": "编号: A001048, 性别: 男, 出生年份: 1981, 职称类型: 水工专业正高",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -788,6 +812,7 @@
     "notes": "编号: A001050, 性别: 男, 出生年份: 1982, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -806,6 +831,7 @@
     "notes": "编号: A001044, 性别: 男, 出生年份: 1970, 职称类型: 建筑高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -824,6 +850,7 @@
     "notes": "编号: A001101, 性别: 女, 出生年份: 1988, 职称类型: 建筑工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -842,6 +869,7 @@
     "notes": "编号: A001054, 性别: 男, 出生年份: 1986, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -860,24 +888,7 @@
     "notes": "编号: A001056, 性别: 男, 出生年份: 1987, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
-    "createdAt": "2026-06-18T06:51:51.890Z",
-    "updatedAt": "2026-06-18T06:51:51.890Z"
-  },
-  {
-    "id": "c2a5f5fa7ca4cdd5442283f",
-    "userId": "cc3a5d3472487a36a145a66",
-    "specialty": "工程设计",
-    "title": "高级工程师",
-    "employer": "川西分公司",
-    "phone": "13408596534",
-    "idNumber": null,
-    "ethnicity": null,
-    "education": "大学本科",
-    "licenseNo": null,
-    "availability": "可用",
-    "notes": "编号: A001053, 性别: 男, 出生年份: 1986, 职称类型: 水工专业高工",
-    "retiredAt": null,
-    "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -896,6 +907,7 @@
     "notes": "编号: A001052, 性别: 男, 出生年份: 1986, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -914,6 +926,7 @@
     "notes": "编号: A001058, 性别: 男, 出生年份: 1986, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -932,6 +945,7 @@
     "notes": "编号: A001051, 性别: 男, 出生年份: 1980, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -950,6 +964,7 @@
     "notes": "编号: A001077, 性别: 男, 出生年份: 1989, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -968,6 +983,7 @@
     "notes": "编号: A001076, 性别: 男, 出生年份: 1988, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -986,6 +1002,7 @@
     "notes": "编号: A001045, 性别: 男, 出生年份: 1984, 职称类型: 建筑专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1004,6 +1021,7 @@
     "notes": "编号: A001038, 性别: 男, 出生年份: 1977, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1022,6 +1040,7 @@
     "notes": "编号: A001109, 性别: 女, 出生年份: 1987, 职称类型: 水工专业高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1040,6 +1059,7 @@
     "notes": "编号: A001140, 性别: 女, 出生年份: 1989, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1058,6 +1078,7 @@
     "notes": "编号: A001142, 性别: 男, 出生年份: 1985, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1076,6 +1097,7 @@
     "notes": "编号: A001141, 性别: 男, 出生年份: 1987, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1094,6 +1116,7 @@
     "notes": "编号: A001143, 性别: 男, 出生年份: 1991, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1112,6 +1135,7 @@
     "notes": "编号: A001191, 性别: 男, 出生年份: 1987, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1130,8 +1154,28 @@
     "notes": "编号: A001145, 性别: 男, 出生年份: 1987, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
+  },
+  {
+    "id": "c2a5f5fa7ca4cdd5442283f",
+    "userId": "cc3a5d3472487a36a145a66",
+    "specialty": "工程设计",
+    "title": "高级工程师",
+    "employer": "川西分公司",
+    "phone": "13408596534",
+    "idNumber": null,
+    "ethnicity": null,
+    "education": "大学本科",
+    "licenseNo": null,
+    "availability": "可用",
+    "notes": "编号: A001053, 性别: 男, 出生年份: 1986, 职称类型: 水工专业高工",
+    "retiredAt": null,
+    "retireReason": null,
+    "contactConfirmedAt": "2026-07-28T05:57:25.720Z",
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-07-28T05:57:25.721Z"
   },
   {
     "id": "cacd37b99c2d5ce2777d62d",
@@ -1148,6 +1192,7 @@
     "notes": "编号: A001156, 性别: 男, 出生年份: 1991, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1166,6 +1211,7 @@
     "notes": "编号: A001128, 性别: 男, 出生年份: 1981, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1184,6 +1230,7 @@
     "notes": "编号: A001167, 性别: 男, 出生年份: 1995, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1202,6 +1249,7 @@
     "notes": "编号: A001144, 性别: 男, 出生年份: 1992, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1220,6 +1268,7 @@
     "notes": "编号: A001169, 性别: 男, 出生年份: 1987, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1238,6 +1287,7 @@
     "notes": "编号: A001118, 性别: 男, 出生年份: 1979, 职称类型: 正高",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1256,6 +1306,7 @@
     "notes": "编号: A001151, 性别: 男, 出生年份: 1989, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1274,6 +1325,7 @@
     "notes": "编号: A001139, 性别: 男, 出生年份: 1970, 职称类型: 高工",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1292,6 +1344,7 @@
     "notes": "编号: A001414, 性别: 男, 出生年份: 1965, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1310,6 +1363,7 @@
     "notes": "编号: A001415, 性别: 男, 出生年份: 1969, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1328,6 +1382,7 @@
     "notes": "编号: A001418, 性别: 男, 出生年份: 1978, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1346,6 +1401,7 @@
     "notes": "编号: A001420, 性别: 男, 出生年份: 1976, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1364,6 +1420,7 @@
     "notes": "编号: A001421, 性别: 男, 出生年份: 1977, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1382,6 +1439,7 @@
     "notes": "编号: A001422, 性别: 男, 出生年份: 1980, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1400,6 +1458,7 @@
     "notes": "编号: A001423, 性别: 男, 出生年份: 1978, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1418,6 +1477,7 @@
     "notes": "编号: A001424, 性别: 男, 出生年份: 1978, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1436,6 +1496,7 @@
     "notes": "编号: A001426, 性别: 男, 出生年份: 1980, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1454,6 +1515,7 @@
     "notes": "编号: A001429, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1472,6 +1534,7 @@
     "notes": "编号: A001431, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1490,6 +1553,7 @@
     "notes": "编号: A001433, 性别: 男, 出生年份: 1984, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1508,6 +1572,7 @@
     "notes": "编号: A001434, 性别: 男, 出生年份: 1986, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1526,6 +1591,7 @@
     "notes": "编号: A001435, 性别: 男, 出生年份: 1987, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1544,6 +1610,7 @@
     "notes": "编号: A001436, 性别: 男, 出生年份: 1986, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1562,6 +1629,7 @@
     "notes": "编号: A001437, 性别: 男, 出生年份: 1986, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1580,6 +1648,7 @@
     "notes": "编号: A001445, 性别: 男, 出生年份: 1987, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1598,6 +1667,7 @@
     "notes": "编号: A001446, 性别: 男, 出生年份: 1988, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1616,6 +1686,7 @@
     "notes": "编号: A001447, 性别: 男, 出生年份: 1988, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1634,6 +1705,7 @@
     "notes": "编号: A001448, 性别: 男, 出生年份: 1990, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1652,6 +1724,7 @@
     "notes": "编号: A001449, 性别: 男, 出生年份: 1990, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1670,6 +1743,7 @@
     "notes": "编号: A001454, 性别: 男, 出生年份: 1989, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1688,6 +1762,7 @@
     "notes": "编号: A001457, 性别: 男, 出生年份: 1986, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1706,6 +1781,7 @@
     "notes": "编号: A001464, 性别: 男, 出生年份: 1993, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1724,6 +1800,7 @@
     "notes": "编号: A001466, 性别: 男, 出生年份: 1990, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1742,6 +1819,7 @@
     "notes": "编号: A001468, 性别: 男, 出生年份: 1989, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1760,6 +1838,7 @@
     "notes": "编号: A001475, 性别: 男, 出生年份: 1985, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1778,6 +1857,7 @@
     "notes": "编号: A001485, 性别: 女, 出生年份: 1988, 职称类型: 岩土工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1796,6 +1876,7 @@
     "notes": "编号: A001450, 性别: 男, 出生年份: 1986, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1814,6 +1895,7 @@
     "notes": "编号: A001452, 性别: 男, 出生年份: 1989, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1832,6 +1914,7 @@
     "notes": "编号: A001456, 性别: 男, 出生年份: 1993, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1850,6 +1933,7 @@
     "notes": "编号: A001459, 性别: 男, 出生年份: 1989, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1868,6 +1952,7 @@
     "notes": "编号: A001460, 性别: 男, 出生年份: 1992, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1886,6 +1971,7 @@
     "notes": "编号: A001472, 性别: 男, 出生年份: 1993, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1904,6 +1990,7 @@
     "notes": "编号: A001476, 性别: 男, 出生年份: 1987, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1922,6 +2009,7 @@
     "notes": "编号: A001031, 性别: 女, 出生年份: 1982, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1940,6 +2028,7 @@
     "notes": "编号: A001023, 性别: 男, 出生年份: 1987, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1958,6 +2047,7 @@
     "notes": "编号: A001022, 性别: 男, 出生年份: 1984, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1976,6 +2066,7 @@
     "notes": "编号: A001018, 性别: 男, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -1994,6 +2085,7 @@
     "notes": "编号: A001019, 性别: 男, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2012,6 +2104,7 @@
     "notes": "编号: A001024, 性别: 男, 出生年份: 1991, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2030,6 +2123,7 @@
     "notes": "编号: A001027, 性别: 男, 出生年份: 1990, 职称类型: 中级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2048,6 +2142,7 @@
     "notes": "编号: A001025, 性别: 男, 出生年份: 1990, 职称类型: 中级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2066,6 +2161,7 @@
     "notes": "编号: A001028, 性别: 男, 出生年份: 1987, 职称类型: 中级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2084,6 +2180,7 @@
     "notes": "编号: A001379, 性别: 男, 出生年份: 1973, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2102,6 +2199,7 @@
     "notes": "编号: A001376, 性别: 男, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2120,6 +2218,7 @@
     "notes": "编号: A001404, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2138,6 +2237,7 @@
     "notes": "编号: A001393, 性别: 男, 出生年份: 1986, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2156,6 +2256,7 @@
     "notes": "编号: A001385, 性别: 男, 出生年份: 1989, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2174,6 +2275,7 @@
     "notes": "编号: A001389, 性别: 男, 出生年份: 1993, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2192,6 +2294,7 @@
     "notes": "编号: A001394, 性别: 男, 出生年份: 1993, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2210,6 +2313,7 @@
     "notes": "编号: A001388, 性别: 男, 出生年份: 1994, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2228,6 +2332,7 @@
     "notes": "编号: A001397, 性别: 女, 出生年份: 1992, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2246,6 +2351,7 @@
     "notes": "编号: A001309, 性别: 男, 出生年份: 1972, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2264,6 +2370,7 @@
     "notes": "编号: A001313, 性别: 男, 出生年份: 1987, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2282,6 +2389,7 @@
     "notes": "编号: A001315, 性别: 男, 出生年份: 1990, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2300,6 +2408,7 @@
     "notes": "编号: A001310, 性别: 男, 出生年份: 1977, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2318,6 +2427,7 @@
     "notes": "编号: A001314, 性别: 男, 出生年份: 1989, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2336,6 +2446,7 @@
     "notes": "编号: A001770, 性别: 女, 出生年份: 1987, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2354,6 +2465,7 @@
     "notes": "编号: A001771, 性别: 女, 出生年份: 1991, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2372,6 +2484,7 @@
     "notes": "编号: A001312, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2390,6 +2503,7 @@
     "notes": "编号: A001318, 性别: 男, 出生年份: 1991, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2408,6 +2522,7 @@
     "notes": "编号: A001311, 性别: 男, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2426,6 +2541,7 @@
     "notes": "编号: A001277, 性别: 女, 出生年份: 1990, 职称类型: 经济师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2444,6 +2560,7 @@
     "notes": "编号: A001177, 性别: 女, 出生年份: 1989, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2462,6 +2579,7 @@
     "notes": "编号: A000954, 性别: 男, 出生年份: 1982, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2480,6 +2598,7 @@
     "notes": "编号: A001188, 性别: 男, 出生年份: 1996, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2498,6 +2617,7 @@
     "notes": "编号: A001258, 性别: 男, 出生年份: 1986, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2516,6 +2636,7 @@
     "notes": "编号: A001262, 性别: 男, 出生年份: 1988, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2534,6 +2655,7 @@
     "notes": "编号: A001252, 性别: 女, 出生年份: 1979, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2552,6 +2674,7 @@
     "notes": "编号: A001251, 性别: 女, 出生年份: 1982, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2570,6 +2693,7 @@
     "notes": "编号: A001253, 性别: 男, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2588,6 +2712,7 @@
     "notes": "编号: A001255, 性别: 男, 出生年份: 1986, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2606,6 +2731,7 @@
     "notes": "编号: A001250, 性别: 男, 出生年份: 1980, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2624,6 +2750,7 @@
     "notes": "编号: A001257, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2642,6 +2769,7 @@
     "notes": "编号: A001242, 性别: 女, 出生年份: 1977, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2660,6 +2788,7 @@
     "notes": "编号: A001244, 性别: 男, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2678,6 +2807,7 @@
     "notes": "编号: A001514, 性别: 男, 出生年份: 1972, 职称类型: 正高",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2696,6 +2826,7 @@
     "notes": "编号: A001517, 性别: 男, 出生年份: 1980, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2714,6 +2845,7 @@
     "notes": "编号: A001525, 性别: 男, 出生年份: 1988, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2732,6 +2864,7 @@
     "notes": "编号: A001518, 性别: 男, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2750,6 +2883,7 @@
     "notes": "编号: A001515, 性别: 女, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2768,6 +2902,7 @@
     "notes": "编号: A001520, 性别: 男, 出生年份: 1982, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2786,6 +2921,7 @@
     "notes": "编号: A001203, 性别: 男, 出生年份: 1971, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2804,6 +2940,7 @@
     "notes": "编号: A001204, 性别: 男, 出生年份: 1967, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2822,6 +2959,7 @@
     "notes": "编号: A001210, 性别: 男, 出生年份: 1966, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2840,6 +2978,7 @@
     "notes": "编号: A001209, 性别: 男, 出生年份: 1979, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2858,6 +2997,7 @@
     "notes": "编号: A001214, 性别: 男, 出生年份: 1964, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2876,6 +3016,7 @@
     "notes": "编号: A001205, 性别: 男, 出生年份: 1966, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2894,6 +3035,7 @@
     "notes": "编号: A001222, 性别: 男, 出生年份: 1980, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2912,6 +3054,7 @@
     "notes": "编号: A001227, 性别: 男, 出生年份: 1982, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2930,6 +3073,7 @@
     "notes": "编号: A001208, 性别: 男, 出生年份: 1981, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2948,6 +3092,7 @@
     "notes": "编号: A001206, 性别: 男, 出生年份: 1974, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2966,6 +3111,7 @@
     "notes": "编号: A001207, 性别: 男, 出生年份: 1976, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -2984,6 +3130,7 @@
     "notes": "编号: A001215, 性别: 男, 出生年份: 1985, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3002,6 +3149,7 @@
     "notes": "编号: A001213, 性别: 男, 出生年份: 1986, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3020,6 +3168,7 @@
     "notes": "编号: A001212, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3038,6 +3187,7 @@
     "notes": "编号: A001218, 性别: 男, 出生年份: 1989, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3056,6 +3206,7 @@
     "notes": "编号: A001219, 性别: 男, 出生年份: 1987, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3074,6 +3225,7 @@
     "notes": "编号: A001329, 性别: 男, 出生年份: 1975, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3092,6 +3244,7 @@
     "notes": "编号: A001332, 性别: 男, 出生年份: 1982, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3110,6 +3263,7 @@
     "notes": "编号: A001330, 性别: 女, 出生年份: 1982, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3128,6 +3282,7 @@
     "notes": "编号: A001334, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3146,6 +3301,7 @@
     "notes": "编号: A001363, 性别: 男, 出生年份: 1984, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3164,6 +3320,7 @@
     "notes": "编号: A001349, 性别: 男, 出生年份: 1990, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3182,6 +3339,7 @@
     "notes": "编号: A001347, 性别: 男, 出生年份: 1990, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3200,6 +3358,7 @@
     "notes": "编号: A001348, 性别: 男, 出生年份: 1989, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3218,6 +3377,7 @@
     "notes": "编号: A001352, 性别: 男, 出生年份: 1993, 职称类型: 工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3236,6 +3396,7 @@
     "notes": "编号: A001303, 性别: 男, 出生年份: 1998, 职称类型: 助理工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3254,6 +3415,7 @@
     "notes": "编号: A001295, 性别: 男, 出生年份: 1968, 职称类型: 正高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3272,6 +3434,7 @@
     "notes": "编号: A001296, 性别: 男, 出生年份: 1983, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3290,6 +3453,7 @@
     "notes": "编号: A001304, 性别: 男, 出生年份: 1984, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3308,6 +3472,7 @@
     "notes": "编号: A001299, 性别: 男, 出生年份: 1998, 职称类型: 助理工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3326,6 +3491,7 @@
     "notes": "编号: A001300, 性别: 男, 出生年份: 1988, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
   },
@@ -3344,7 +3510,27 @@
     "notes": "编号: A001305, 性别: 男, 出生年份: 1982, 职称类型: 高级工程师",
     "retiredAt": null,
     "retireReason": null,
+    "contactConfirmedAt": null,
     "createdAt": "2026-06-18T06:51:51.890Z",
     "updatedAt": "2026-06-18T06:51:51.890Z"
+  },
+  {
+    "id": "c9ee3f6153854e18906665f",
+    "userId": "c1bf8a97b47aed2477b465b",
+    "specialty": "工程设计",
+    "title": "正高级工程师",
+    "employer": "工程设计院",
+    "phone": "19141372646",
+    "idNumber": null,
+    "ethnicity": null,
+    "education": "大学本科",
+    "licenseNo": null,
+    "availability": "可用",
+    "notes": "编号: A001034, 性别: 男, 出生年份: 1977, 职称类型: 水工专业正高",
+    "retiredAt": null,
+    "retireReason": null,
+    "contactConfirmedAt": "2026-07-26T06:36:23.352Z",
+    "createdAt": "2026-06-18T06:51:51.890Z",
+    "updatedAt": "2026-07-26T06:36:23.353Z"
   }
 ]

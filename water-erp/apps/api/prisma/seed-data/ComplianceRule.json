@@ -1,1 +1,5579 @@
-[]
+[
+  {
+    "id": "cms49ds8m002vuumtv6ftrqxg",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额小于50万的立项由分管领导审批",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": "<",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:19.894Z",
+    "updatedAt": "2026-07-28T06:12:19.894Z"
+  },
+  {
+    "id": "cms49ds8m002wuumtcygr5zty",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额50万至100万的立项由总经理审批",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于50万（含）小于100万元的立项申请，由总经理审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:19.894Z",
+    "updatedAt": "2026-07-28T06:12:19.894Z"
+  },
+  {
+    "id": "cms49ds8m002xuumt9yqk1f5w",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额100万以上的立项由董事长审批",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": ">=",
+      "threshold": 1000000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:19.894Z",
+    "updatedAt": "2026-07-28T06:12:19.894Z"
+  },
+  {
+    "id": "cms49ds8m002yuumtgryiuxl4",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "100万以上预算外或500万以上预算内立项需集体决策",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "100万元（含）以上年度预算外的正常生产经营活动类采购事项、大宗物资设备采购事项，500万元（含）以上年度预算范围内采购事项的立项审批工作，需按照公司“三重一大”制度进行集体决策"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:19.894Z",
+    "updatedAt": "2026-07-28T06:12:19.894Z"
+  },
+  {
+    "id": "cms49ds8m002zuumtiighadm2",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额小于20万的定标由分管领导审批",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": "<",
+      "threshold": 200000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:19.894Z",
+    "updatedAt": "2026-07-28T06:12:19.894Z"
+  },
+  {
+    "id": "cms49ds8m0030uumtxpj32np0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额20万至50万的定标由总经理审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于20万（含）小于50万元的定标（供方确认），由总经理审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:19.894Z",
+    "updatedAt": "2026-07-28T06:12:19.894Z"
+  },
+  {
+    "id": "cms49ds8m0031uumtbbpl25tb",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额50万以上的定标由董事长审批",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": ">=",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:19.894Z",
+    "updatedAt": "2026-07-28T06:12:19.894Z"
+  },
+  {
+    "id": "cms49eaas0045uumtnc97jqte",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "邀请招标必须邀请三家及以上供应商",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "invitedSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49eaas0046uumtr69tajxh",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "内部竞标采购金额下限50万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">=",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49eaas0047uumt9vc13b77",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "内部竞标必须邀请三家及以上供应商",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "invitedSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49eaas0048uumt8kmns4bf",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "竞争性谈判采购金额下限10万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">=",
+      "threshold": 100000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49eaas0049uumteoptbj35",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "竞争性谈判采购金额上限50万元（不含）",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": "<",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49eaas004auumtea0audgt",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "竞争性谈判必须邀请三家及以上供应商",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "invitedSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49eaas004buumt69wndvzz",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价采购金额下限5万元（不含）",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">",
+      "threshold": 50000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49eaas004cuumt9hjzrdy2",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价采购金额上限10万元（不含）",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": "<",
+      "threshold": 100000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49eaas004duumtx6dcndha",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价采购必须邀请三家及以上供应商",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "invitedSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:12:43.300Z",
+    "updatedAt": "2026-07-28T06:12:43.300Z"
+  },
+  {
+    "id": "cms49epo4004uuumtesbafjjd",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单源直接采购条件无明确可检查规则",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "单源直接采购需满足特定条件，但条件均为定性描述，无法自动检查。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49epo4004vuumt9zdd93bd",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "直接委托采购条件无明确可检查规则",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "直接委托采购需满足特定条件，但条件均为定性描述，无法自动检查。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49epo4004wuumtwuet4nv1",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "续约次数不超过3次",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "count",
+      "field": "renewalCount",
+      "operator": "<=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49epo4004xuumtetv57w8e",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "每次续约期限不超过2年",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "years",
+      "field": "renewalPeriod",
+      "operator": "<=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49epo4004yuumt4d29sssl",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "小额采购预算不超过5000元需经需求部门负责人批准",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": "<=",
+      "threshold": 5000
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49epo4004zuumt8vc9nkte",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "预算大于5000元的项目需经需求部门负责人审核和分管领导批准",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": ">",
+      "threshold": 5000
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49epo40050uumtygxlrvfx",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "预算不超过5万元的采购项目需经需求部门负责人审核和分管领导批准",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": "<=",
+      "threshold": 50000
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49epo40051uumt3aijympr",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "框架协议需评选至少两家合格供应商",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "qualifiedSupplierCount",
+      "operator": ">=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49epo40052uumtjcg95yeu",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "框架协议服务期限最长为2年",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "years",
+      "field": "servicePeriod",
+      "operator": "<=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:03.220Z",
+    "updatedAt": "2026-07-28T06:13:03.220Z"
+  },
+  {
+    "id": "cms49fead005luumt2rs7jvrd",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "不得规避公开招标",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "检查是否将应当公开招标的项目化整为零或规避公开招标"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005muumt1vrn84w5",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购立项需填写申请表",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "采购立项申请表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005nuumtopswn40d",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（一）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购文件需有审批表",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "采购文件审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005ouumtii73l1r0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（二）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标文件编制时间不少于3日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "bidPreparationDays",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005puumtja6n616v",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（三）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "开标需按采购文件确定的时间和地点公开进行",
+    "ruleType": "semantic",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "description": "开标应与采购文件规定的时间地点一致并公开进行"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005quumt437ddt8f",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（四）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "评标委员会人数不少于5人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "count",
+      "field": "committeeMemberCount",
+      "operator": ">=",
+      "threshold": 5
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005ruumt91j56sae",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（四）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "评标委员会人数须为单数",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "评标委员会成员人数须为单数"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005suumtkpjt0pl0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（五）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "评标结束后1个工作日内提交评标报告",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "reportSubmissionDays",
+      "operator": "<=",
+      "threshold": 1
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005tuumt81kza64a",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（五）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "需填写定标（供方确认）审批表",
+    "ruleType": "existence_check",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "keywords": [
+        "定标（供方确认）审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005uuumtiun94h85",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（六）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购结果公示时间不少于1个工作日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "publicityDays",
+      "operator": ">=",
+      "threshold": 1
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49fead005vuumt9m10k7ok",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（六）（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "公示内容需包含中标单位、数量、金额",
+    "ruleType": "existence_check",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "keywords": [
+        "中标单位",
+        "中标数量",
+        "中标金额"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:13:35.126Z",
+    "updatedAt": "2026-07-28T06:13:35.126Z"
+  },
+  {
+    "id": "cms49g8hz0069uumt69du4nlw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "竞争性谈判小组人数至少5人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "谈判小组人数",
+      "operator": ">=",
+      "threshold": 5
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006auumtwbkcowae",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购需求部门代表占比不超过1/5",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "采购需求部门代表占比",
+      "operator": "<=",
+      "threshold": 0.2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006buumts6cs0hac",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "参加谈判供应商数量至少3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "参与谈判供应商数量",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006cuumt51ufplkj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "谈判轮次至少2轮",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "谈判轮次",
+      "operator": ">=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006duumtpfr509g9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "竞争性谈判需有采购文件审批表",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "采购文件审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006euumt14m2cng3",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "续约谈判小组人数至少3人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "谈判小组人数",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006fuumtim8k1zp7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "续约采购需求部门代表占比不超过1/3",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "采购需求部门代表占比",
+      "operator": "<=",
+      "threshold": 0.333
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006guumtk72om61x",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "立项文件应包含续约必要性说明",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "续约必要性说明"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006huumt1wk092bt",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "立项文件应包含供应商续约申请",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "供应商续约申请"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006iuumtxqgbs21p",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "续约需提供询价商务谈判备忘录",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "询价商务谈判备忘录"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006juumt6ev0xtrp",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价小组人数至少3人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "询价小组人数",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006kuumtpldi5xah",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价采购需求部门代表占比不超过1/3",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "采购需求部门代表占比",
+      "operator": "<=",
+      "threshold": 0.333
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006luumtit2xjamb",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "参加报价供应商数量至少3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "参与报价供应商数量",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006muumtg9gvchtx",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价需提供询价商务谈判备忘录",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "询价商务谈判备忘录"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006nuumtovo4b537",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单源直接采购公示时间不少于5个工作日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "公示时间",
+      "operator": ">=",
+      "threshold": 5
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006ouumt37r1jop7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单源直接采购谈判小组人数至少3人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "谈判小组人数",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006puumth0kpcx5g",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单源直接采购需求部门代表占比不超过1/3",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "采购需求部门代表占比",
+      "operator": "<=",
+      "threshold": 0.333
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006quumtve36c7oy",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "公示内容应包含必要信息",
+    "ruleType": "existence_check",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "keywords": [
+        "采购人",
+        "采购项目名称",
+        "拟采购的货物或者服务的说明",
+        "采用单源直接采购方式的原因和说明",
+        "拟定的唯一供应商名称",
+        "地址",
+        "论证意见",
+        "公示的期限",
+        "联系地址",
+        "联系人",
+        "联系电话"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006ruumteviqy528",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "费用超过100万的项目职工代表占比至少1/3",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "单个服务项目或单笔服务费用在100万以上的项目，应当邀请职工代表参加谈判小组，且职工代表的人数至少为谈判小组总人数的1/3"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49g8hz006suumtjfs56mzm",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单源直接采购需提供商务谈判备忘录和中标通知书",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "商务谈判备忘录",
+        "中标通知书"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:14.279Z",
+    "updatedAt": "2026-07-28T06:14:14.279Z"
+  },
+  {
+    "id": "cms49gtn70073uumtox6n7v40",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额小于50万必须经采购管理会审批",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "singlePurchaseAmount",
+      "operator": "<",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn70074uumtsde6f02t",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额50万至100万必须经总经会审批",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于50万（含）小于100万元时，审批记录应包含公司总经会审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn70075uumt5tlolgye",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "单次采购金额100万及以上必须经党委会审批",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "singlePurchaseAmount",
+      "operator": ">=",
+      "threshold": 1000000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn70076uumt1jkc5bzh",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "必须填写《采购立项申请表》",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "采购立项申请表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn70077uumtd2306mu9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十一条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "项目变更必须填写《采购事项变更审批表》并提供详细书面材料",
+    "ruleType": "existence_check",
+    "checkTarget": "变更书面材料",
+    "logicExpression": {
+      "keywords": [
+        "采购事项变更审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn70078uumt4s16qxqs",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标文件未经单位盖章或负责人签字应否决",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "盖章",
+        "签字"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn70079uumtvd6ymbzh",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标联合体必须提交联合体投标协议",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "联合体投标协议"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn7007auumtr3to6n44",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标人应符合招标文件资格条件",
+    "ruleType": "semantic",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "description": "投标文件应满足招标文件规定的资格条件"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn7007buumt2x5xujd5",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "同一投标人不得提交两个以上不同投标文件或报价",
+    "ruleType": "semantic",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "description": "同一投标人不得提交两个以上不同的投标文件或投标报价"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn7007cuumt4ulkfqe0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标文件应对实质性要求和条件作出响应",
+    "ruleType": "semantic",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "description": "投标文件应当对招标文件的实质性要求和条件作出响应"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn7007duumtfri9mhwm",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标人不得有串通、弄虚作假、行贿等违法行为",
+    "ruleType": "semantic",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "description": "投标人不得有串通投标、弄虚作假、行贿等违法行为"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn7007euumt7uxryroe",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "否决投标后必须重新组织采购（除取消项目）",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "否决投标后，除采购项目取消情形外，必须重新组织采购"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49gtn7007fuumt617oycyc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "流标时需填写《定标（供方确认）审批表》终止流程",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "定标（供方确认）审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:41.683Z",
+    "updatedAt": "2026-07-28T06:14:41.683Z"
+  },
+  {
+    "id": "cms49h6ml007luumtg186b7fs",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "补充合同金额不得超过原合同金额的10%",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "additionalContractAmountRatio",
+      "operator": "<=",
+      "threshold": 0.1
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:58.510Z",
+    "updatedAt": "2026-07-28T06:14:58.510Z"
+  },
+  {
+    "id": "cms49h6ml007muumtrc4c0k54",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "补充合同最多一次",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "count",
+      "field": "additionalContractCount",
+      "operator": "<=",
+      "threshold": 1
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:58.510Z",
+    "updatedAt": "2026-07-28T06:14:58.510Z"
+  },
+  {
+    "id": "cms49h6ml007nuumtto45jtyz",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "必须提供采购项目验收记录",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "采购项目验收记录"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:14:58.510Z",
+    "updatedAt": "2026-07-28T06:14:58.510Z"
+  },
+  {
+    "id": "cms49ifom009cuumtsaqy6y5n",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额小于50万的立项申请需由采购分管领导审批",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "单次采购金额小于50万的立项申请，需由采购分管领导审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:15:56.902Z",
+    "updatedAt": "2026-07-28T06:15:56.902Z"
+  },
+  {
+    "id": "cms49ifom009duumtke6ypeh8",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额在50万至100万之间的立项申请需由总经理审批",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "单次采购金额在50万（含）至100万之间的立项申请，需由总经理审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:15:56.902Z",
+    "updatedAt": "2026-07-28T06:15:56.902Z"
+  },
+  {
+    "id": "cms49ifom009euumteiaki9w7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额不低于100万的立项申请需由董事长审批",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "单次采购金额不低于100万（含）的立项申请，需由董事长审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:15:56.902Z",
+    "updatedAt": "2026-07-28T06:15:56.902Z"
+  },
+  {
+    "id": "cms49ifom009fuumt92ji0bew",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "符合三重一大条件的采购事项需经集体决策",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "100万元（含）以上年度预算外的正常生产经营活动类采购事项、大宗物资设备采购事项，500万元（含）以上年度预算范围内采购事项的立项审批工作，需按照公司“三重一大”制度进行集体决策"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:15:56.902Z",
+    "updatedAt": "2026-07-28T06:15:56.902Z"
+  },
+  {
+    "id": "cms49ifom009guumtlhdgt83m",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额小于20万的定标需由采购分管领导审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次采购金额小于20万的定标（供方确认），需由采购分管领导审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:15:56.902Z",
+    "updatedAt": "2026-07-28T06:15:56.902Z"
+  },
+  {
+    "id": "cms49ifom009huumtz306h71j",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额在20万至50万之间的定标需由总经理审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次采购金额在20万（含）至50万之间的定标（供方确认），需由总经理审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:15:56.902Z",
+    "updatedAt": "2026-07-28T06:15:56.902Z"
+  },
+  {
+    "id": "cms49ifom009iuumtxqznm26z",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额不低于50万的定标需由董事长审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次采购金额不低于50万的定标（供方确认），需由董事长审批"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:15:56.902Z",
+    "updatedAt": "2026-07-28T06:15:56.902Z"
+  },
+  {
+    "id": "cms49iooq009tuumtnf0r0okc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第六条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "采购方式分类定义",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "采购方式分为依法必须招标和非依法必须招标两大类，具体方式包括招标、询比、竞价、谈判、直接采购、框架协议采购等"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49iooq009uuumtxytp4drz",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第七条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "依法必须招标项目须在指定平台发布信息并进场交易",
+    "ruleType": "semantic",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "description": "依法必须招标项目应当严格执行招标投标法规，在规定的平台发布招标信息和进场交易"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49iooq009vuumtgn63xndf",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第八条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "本办法适用于非依法必须招标采购",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "本办法主要适用于非依法必须招标采购，依法必须招标项目应遵循相应法律法规"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49iooq009wuumt9l5cjktj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第九条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "询比采购供应商数量不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49iooq009xuumtepaufu8x",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第九条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "询比采购单次金额应高于5万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ten_thousand_cny",
+      "field": "budgetAmount",
+      "operator": ">",
+      "threshold": 5
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49iooq009yuumtguzcbio2",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第九条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "询比采购单次金额应低于10万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ten_thousand_cny",
+      "field": "budgetAmount",
+      "operator": "<",
+      "threshold": 10
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49iooq009zuumttmpljcwc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "谈判采购供应商数量不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49iooq00a0uumteuyziov4",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "谈判采购单次金额应不低于10万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ten_thousand_cny",
+      "field": "budgetAmount",
+      "operator": ">=",
+      "threshold": 10
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49iooq00a1uumtpdzvfabf",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "谈判采购单次金额应低于50万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ten_thousand_cny",
+      "field": "budgetAmount",
+      "operator": "<",
+      "threshold": 50
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:08.570Z",
+    "updatedAt": "2026-07-28T06:16:08.570Z"
+  },
+  {
+    "id": "cms49j0js00a7uumtdj1wbn7q",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十一条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "竞价采购邀请供应商至少3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "invitedSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0js00a8uumt3a2d4sy4",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十一条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "竞价采购适用于50万元及以上项目",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">=",
+      "threshold": 500000
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0js00a9uumtl7nmeg0n",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十二条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次续约期限不超过2年",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "years",
+      "field": "renewalTerm",
+      "operator": "<=",
+      "threshold": 2
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0js00aauumtq58fhyvb",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十二条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "小额采购预算不超过5000元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": "<=",
+      "threshold": 5000
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0js00abuumttbtnk5e3",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十二条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "小额采购预算5000-50000元需分管领导批准",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": "<=",
+      "threshold": 50000
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0js00acuumto0q71kvw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十二条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "零散采购月金额小于5000元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "monthlyAmount",
+      "operator": "<",
+      "threshold": 5000
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0js00aduumtg7484b5r",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十二条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "直接委托采购须经集体研究",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "集体研究"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0js00aeuumt9uwpgs1r",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十三条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "垄断性项目须经立项审批后签订合同",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "立项审批"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0js00afuumtddd16sim",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "框架协议供应商至少2家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49j0jt00aguumt77ky35vf",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "框架协议服务期限最长2年",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "years",
+      "field": "contractTerm",
+      "operator": "<=",
+      "threshold": 2
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:23.945Z",
+    "updatedAt": "2026-07-28T06:16:23.945Z"
+  },
+  {
+    "id": "cms49jwip00b8uumt53rrl1zj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十条 采取谈判采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "谈判小组人数不少于5人且为单数",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "谈判小组人数",
+      "operator": ">=",
+      "threshold": 5
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwip00b9uumtj44a0yzx",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十条 采取谈判采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "采购需求部门代表不超过谈判小组成员总数的1/5",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "需求部门代表比例",
+      "operator": "<=",
+      "threshold": 0.2
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwip00bauumt8gn6o1vw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十条 采取谈判采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "参加谈判的供应商不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "参与谈判供应商数量",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwip00bbuumtdgw4qjjr",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十条 采取谈判采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "谈判不少于2轮",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "谈判轮数",
+      "operator": ">=",
+      "threshold": 2
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwip00bcuumt2dcf7cxg",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条 采用询比方式采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "询价小组人数不少于3人且为单数",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "询价小组人数",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwip00bduumtksx1391c",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条 采用询比方式采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "采购需求部门代表不超过询价小组成员总数的1/3",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "需求部门代表比例",
+      "operator": "<=",
+      "threshold": 0.3333
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwip00beuumtonrpumh5",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条 采用询比方式采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "被询价供应商不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "被询价供应商数量",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwiq00bfuumt7rjzpvui",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条 采用询比方式采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "供应商一次报出不得更改的价格",
+    "ruleType": "semantic",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "description": "供应商报价应一次报出且不得更改"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49j8lh00akuumt75yi12j0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "选取潜在供应商数量不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "potentialSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:34.374Z",
+    "updatedAt": "2026-07-28T06:16:34.374Z"
+  },
+  {
+    "id": "cms49j8lh00aluumtlsb5yit9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "采购响应文件编制时间不得少于3日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "responsePreparationDays",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:34.374Z",
+    "updatedAt": "2026-07-28T06:16:34.374Z"
+  },
+  {
+    "id": "cms49j8lh00amuumtj2t9ymbc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "评审委员会人数不少于5人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "count",
+      "field": "reviewCommitteeCount",
+      "operator": ">=",
+      "threshold": 5
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:34.374Z",
+    "updatedAt": "2026-07-28T06:16:34.374Z"
+  },
+  {
+    "id": "cms49j8lh00anuumtefi52wbt",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "公示时间不少于1个工作日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "publicityDays",
+      "operator": ">=",
+      "threshold": 1
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:16:34.374Z",
+    "updatedAt": "2026-07-28T06:16:34.374Z"
+  },
+  {
+    "id": "cms49jwiq00bguumtnnkyk2t9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条 采用直接采购中单源直接采购方式的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "公示时间不少于5个工作日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "公示时间",
+      "operator": ">=",
+      "threshold": 5
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwiq00bhuumtwfh7rcd0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条 采用直接采购中单源直接采购方式的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "谈判小组人数不少于3人且为单数",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "谈判小组人数",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwiq00biuumtevusgs8u",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条 采用直接采购中单源直接采购方式的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单个服务项目费用100万以上时需邀请职工代表且比例至少1/3",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "单个服务项目或单笔服务费用在100万以上的项目，应当邀请职工代表参加谈判小组，且职工代表人数至少为谈判小组总人数的1/3"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49jwiq00bjuumt4e7ivd7s",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十三条 采用直接委托方式采购的，要遵循以下程序：（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "编制直接委托原因说明",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "直接委托原因说明"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:05.378Z",
+    "updatedAt": "2026-07-28T06:17:05.378Z"
+  },
+  {
+    "id": "cms49kvy500bzuumto71euybr",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "直接委托采购金额小于50万应提请采购管理工作会审批",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": "<",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c0uumt6enif7xm",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "直接委托采购金额50万至100万应提请总经会审批（下限）",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">=",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c1uumto2c7gnb6",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "直接委托采购金额100万及以上应提请党委会审批",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">=",
+      "threshold": 1000000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c2uumtlc6qi5un",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "询比采购和谈判性采购评审指标只能包含价格",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "询比采购和谈判性采购的评审指标仅限于价格因素"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c3uumt7nmmgm1n",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "供应商无异议后应签署投标无异议表",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "投标无异议表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c4uumti1kyez4f",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "投标文件应包含单位盖章",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "盖章"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c5uumtj19knuy7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "投标文件应包含单位负责人签字",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "签字"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c6uumtj15qsrwd",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "联合体投标应包含联合体投标协议",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "联合体投标协议"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c7uumt8yqsry5d",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "同一投标人提交的采购文件数量不应超过1份",
+    "ruleType": "numeric_compare",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "submissionCount",
+      "operator": "<=",
+      "threshold": 1
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c8uumt5hc49waz",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "询比/谈判/竞价采购中购买文件及提交响应的供应商数量应不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500c9uumt1ivv56ip",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "评审过程中满足要求的供应商数量应不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "count",
+      "field": "qualifiedSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49kvy500cauumt4lrv1n8h",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "连续2次采购失败应报分管领导",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "failureCount",
+      "operator": ">=",
+      "threshold": 2
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:17:51.293Z",
+    "updatedAt": "2026-07-28T06:17:51.293Z"
+  },
+  {
+    "id": "cms49ljy700cluumtmk0w2zh9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第二十八条 否决采购后，除采购项目取消情形外，要重新组织采购。当评审结果为流标时，采购中心应按程序填写《定标（供方确认）审批表》（附录3）填写原因及意见即可终止该项采购流程。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "否决采购后重新组织采购",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "否决采购后，除采购项目取消情形外，应重新组织采购。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700cmuumtgtbow2mr",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第二十八条 否决采购后，除采购项目取消情形外，要重新组织采购。当评审结果为流标时，采购中心应按程序填写《定标（供方确认）审批表》（附录3）填写原因及意见即可终止该项采购流程。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "流标时填写审批表",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "keywords": [
+        "定标（供方确认）审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700cnuumt23mty9cd",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第二十九条 质疑投诉受理。投标人或供应商对招标结果有异议的，应当在结果发布之日起2个工作日内，以书面形式向公司采购中心提出投诉。采购中心在收到投标人或供应商书面投诉后，要对投诉进行调查，作出处理。对重大投诉事项，采购中心要报公司研究后提出处理意见。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "投诉时限为2个工作日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "unit": "days",
+      "field": "complaintDays",
+      "operator": "<=",
+      "threshold": 2
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700couumtiddwfq2t",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第二十九条 质疑投诉受理。投标人或供应商对招标结果有异议的，应当在结果发布之日起2个工作日内，以书面形式向公司采购中心提出投诉。采购中心在收到投标人或供应商书面投诉后，要对投诉进行调查，作出处理。对重大投诉事项，采购中心要报公司研究后提出处理意见。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "投诉应以书面形式提出",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "keywords": [
+        "书面形式"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700cpuumtqq741dik",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第二十九条 质疑投诉受理。投标人或供应商对招标结果有异议的，应当在结果发布之日起2个工作日内，以书面形式向公司采购中心提出投诉。采购中心在收到投标人或供应商书面投诉后，要对投诉进行调查，作出处理。对重大投诉事项，采购中心要报公司研究后提出处理意见。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "对投诉进行调查处理",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "采购中心在收到书面投诉后，要对投诉进行调查并作出处理。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700cquumtdolve5yc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第二十九条 质疑投诉受理。投标人或供应商对招标结果有异议的，应当在结果发布之日起2个工作日内，以书面形式向公司采购中心提出投诉。采购中心在收到投标人或供应商书面投诉后，要对投诉进行调查，作出处理。对重大投诉事项，采购中心要报公司研究后提出处理意见。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "重大投诉事项报公司研究",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "对重大投诉事项，采购中心要报公司研究后提出处理意见。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700cruumthn5cffjg",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第三十条 因工作需要，确需变更采购项目的，由采购中心填写《采购事项变更审批表》（附录12），按程序完善手续后予以变更。变更的具体内容要由采购中心提供详细的书面材料，按程序报公司负责人审批，金额达到“三重一大”事项标准的按公司决策程序办理。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "变更项目需填写审批表",
+    "ruleType": "existence_check",
+    "checkTarget": "变更书面材料",
+    "logicExpression": {
+      "keywords": [
+        "采购事项变更审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700csuumt6abchndj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第三十条 因工作需要，确需变更采购项目的，由采购中心填写《采购事项变更审批表》（附录12），按程序完善手续后予以变更。变更的具体内容要由采购中心提供详细的书面材料，按程序报公司负责人审批，金额达到“三重一大”事项标准的按公司决策程序办理。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "变更需提供详细书面材料",
+    "ruleType": "existence_check",
+    "checkTarget": "变更书面材料",
+    "logicExpression": {
+      "keywords": [
+        "书面材料"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700ctuumty978ux1m",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第三十条 因工作需要，确需变更采购项目的，由采购中心填写《采购事项变更审批表》（附录12），按程序完善手续后予以变更。变更的具体内容要由采购中心提供详细的书面材料，按程序报公司负责人审批，金额达到“三重一大”事项标准的按公司决策程序办理。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "金额达三重一大标准需按决策程序",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "金额达到三重一大事项标准时，需按公司决策程序办理。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700cuuumtb42p63ci",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第三十一条 采购中心负责组织需求部门进行合同文本的起草，由采采购中心根据《四川水发勘测设计研究有限公司合同管理办法（试行）》（川水发设计发〔2023〕49 号）组织合同评审，发起合同审核、会签流程，并负责采购立卷归档、管理。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "合同评审依据管理办法",
+    "ruleType": "semantic",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "description": "合同评审应依据《四川水发勘测设计研究有限公司合同管理办法（试行）》。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700cvuumta0ewjhfv",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第三十二条 采购合同签订后，在合同有效期内需求部门依据合同约定，提供支付申请、验收依据和成果等内容；由采购中心统一按照资金审批程序办理款项支付手续。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "需求部门需提供支付申请、验收依据和成果",
+    "ruleType": "existence_check",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "keywords": [
+        "支付申请",
+        "验收依据",
+        "成果"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49ljy700cwuumtcoipqsmv",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第三十二条 采购合同签订后，在合同有效期内需求部门依据合同约定，提供支付申请、验收依据和成果等内容；由采购中心统一按照资金审批程序办理款项支付手续。]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "采购中心按资金审批程序支付",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "采购中心应按照资金审批程序办理款项支付手续。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:22.399Z",
+    "updatedAt": "2026-07-28T06:18:22.399Z"
+  },
+  {
+    "id": "cms49lvkh00dbuumt2xfkctsn",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十三条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "补充合同最多只能签订一次",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplementCount",
+      "operator": "<=",
+      "threshold": 1
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:37.457Z",
+    "updatedAt": "2026-07-28T06:18:37.457Z"
+  },
+  {
+    "id": "cms49lvkh00dcuumtdnpo3mc2",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十三条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "变更需填写《采购事项变更审批表》",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "采购事项变更审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:37.457Z",
+    "updatedAt": "2026-07-28T06:18:37.457Z"
+  },
+  {
+    "id": "cms49lvkh00dduumt8b0vgvg8",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十四条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "应提供《采购项目验收记录》",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "采购项目验收记录"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:37.457Z",
+    "updatedAt": "2026-07-28T06:18:37.457Z"
+  },
+  {
+    "id": "cms49lvkh00deuumtdzgexsyf",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十五条（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "采购项目需按一项一卷归档",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "一项一卷"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:18:37.457Z",
+    "updatedAt": "2026-07-28T06:18:37.457Z"
+  },
+  {
+    "id": "cms49mnz800druumtp5kceg4g",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "需组织供应商后评价",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:14.276Z",
+    "updatedAt": "2026-07-28T06:19:14.276Z"
+  },
+  {
+    "id": "cms49mnz800dsuumtsl6rx20k",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "采购预算价需经造价中心审查",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:14.276Z",
+    "updatedAt": "2026-07-28T06:19:14.276Z"
+  },
+  {
+    "id": "cms49mnz800dtuumtvftcl1sq",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "技术服务类采购需求审批需经生技部会同市场部负责分管副总工程师",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:14.276Z",
+    "updatedAt": "2026-07-28T06:19:14.276Z"
+  },
+  {
+    "id": "cms49mnz800duuumt4g8xqxgw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "科技类采购需求审批需经科创部",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:14.276Z",
+    "updatedAt": "2026-07-28T06:19:14.276Z"
+  },
+  {
+    "id": "cms49mnz800dvuumt2phw7qya",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "开标时需检查投标文件密封情况",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:14.276Z",
+    "updatedAt": "2026-07-28T06:19:14.276Z"
+  },
+  {
+    "id": "cms49mnz800dwuumtdv32bhjo",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "验收人员需在验收书上签字",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:14.276Z",
+    "updatedAt": "2026-07-28T06:19:14.276Z"
+  },
+  {
+    "id": "cms49mnz800dxuumte171xpln",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "框架协议供应商发生重大投诉或满意度较差时应立即解除合同",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:14.276Z",
+    "updatedAt": "2026-07-28T06:19:14.276Z"
+  },
+  {
+    "id": "cms49mnz800dyuumt2oguct85",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "不得以不合理的条件对供应商实行差别待遇或者歧视待遇",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:14.276Z",
+    "updatedAt": "2026-07-28T06:19:14.276Z"
+  },
+  {
+    "id": "cms49nikv00eduumtk2i9i23a",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 强化招标人主体地位（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "定标方式不得使用抽签、摇号",
+    "ruleType": "existence_check",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "keywords": [
+        "抽签",
+        "摇号"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:53.935Z",
+    "updatedAt": "2026-07-28T06:19:53.935Z"
+  },
+  {
+    "id": "cms49nikv00eeuumtfgnj0oeb",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 强化招标人主体地位（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "招标人代表若为代理机构人员需社保满6个月",
+    "ruleType": "numeric_compare",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "unit": "months",
+      "field": "socialInsuranceMonths",
+      "operator": ">=",
+      "threshold": 6
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:53.935Z",
+    "updatedAt": "2026-07-28T06:19:53.935Z"
+  },
+  {
+    "id": "cms49nikv00efuumtszbmn8h1",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 强化招标人主体地位（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "招标人代表若委托外部专家需书面同意函",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "书面同意函"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:53.935Z",
+    "updatedAt": "2026-07-28T06:19:53.935Z"
+  },
+  {
+    "id": "cms49nikv00eguumtjqackouz",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 创新评标专家管理和评标机制（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "评标委员会不得以细微偏差否决投标",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "检查评标报告中是否存在以格式、体例、字数等细微偏差否决投标的情况"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:19:53.935Z",
+    "updatedAt": "2026-07-28T06:19:53.935Z"
+  },
+  {
+    "id": "cms49o5fi00ekuumtwqv1bb3y",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[五 强化行业自律约束]（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "不得选择公告期内的企业和人员",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "国家机关、事业单位、团体组织招标的工程建设项目确定招标代理机构、招标人代表、中标人，不得选择公告期内的企业和人员"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:20:23.549Z",
+    "updatedAt": "2026-07-28T06:20:23.549Z"
+  },
+  {
+    "id": "cms49o5fi00eluumtzl1c1b91",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[六 提升公共资源交易平台管理服务]（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "应当使用电子保函保险替代现金保证金",
+    "ruleType": "semantic",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "description": "全面推行电子保函保险替代现金保证金"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:20:23.549Z",
+    "updatedAt": "2026-07-28T06:20:23.549Z"
+  },
+  {
+    "id": "cms49o5fi00emuumtan2nb1mw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[七 提升招标投标政策效能]（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "首台套已投保不得收取质量保证金",
+    "ruleType": "semantic",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "description": "对已投保的首台（套）重大技术装备一般不再收取质量保证金"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:20:23.549Z",
+    "updatedAt": "2026-07-28T06:20:23.549Z"
+  },
+  {
+    "id": "cms49o5fi00enuumt0ojn7m1m",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[七 提升招标投标政策效能]（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "招标控制价3000万元以下施工项目应面向中小企业",
+    "ruleType": "numeric_compare",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "unit": "ten_thousand_cny",
+      "field": "controlPrice",
+      "operator": "<=",
+      "threshold": 3000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:20:23.549Z",
+    "updatedAt": "2026-07-28T06:20:23.549Z"
+  },
+  {
+    "id": "cms49o5fi00eouumtdl259wvk",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[七 提升招标投标政策效能]（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "招标控制价3000万元以下施工项目应有中小企业条款",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "中小企业",
+        "建筑业中小企业"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:20:23.549Z",
+    "updatedAt": "2026-07-28T06:20:23.549Z"
+  },
+  {
+    "id": "cms49o5fi00epuumtszvrnalb",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[七 提升招标投标政策效能]（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "政府采购工程项目应落实促进中小企业发展政策",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "促进中小企业发展"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:20:23.549Z",
+    "updatedAt": "2026-07-28T06:20:23.549Z"
+  },
+  {
+    "id": "cms49pwny00hfuumtl4jsoxtb",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 实施分类采购管理（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "询比采购供应商不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hguumt4m8st9q6",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 实施分类采购管理（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "竞价采购供应商不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hhuumtxvc7fu44",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 实施分类采购管理（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "谈判采购供应商不少于2家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hiuumttaykuq1n",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "招标项目采购文件发售期不少于5日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "days",
+      "field": "salePeriod",
+      "operator": ">=",
+      "threshold": 5
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hjuumtpt0dz5oy",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "招标项目候选人公示期不少于3日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "candidatePublicityPeriod",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hkuumt9eqbh19d",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "非招标项目采购文件发售期不少于3日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "days",
+      "field": "salePeriod",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hluumtv25k9u55",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "非招标项目候选人公示期不少于1日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "candidatePublicityPeriod",
+      "operator": ">=",
+      "threshold": 1
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hmuumtfcvi38o9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "成交通知书发出后30日内签订采购合同",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "days",
+      "field": "contractSignDelay",
+      "operator": "<=",
+      "threshold": 30
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hnuumtxyomkg1i",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "采购档案保存时间不少于15年",
+    "ruleType": "numeric_compare",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "unit": "years",
+      "field": "archiveRetentionPeriod",
+      "operator": ">=",
+      "threshold": 15
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00houumtzwbnaubn",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "重大采购项目应履行可行性研究、立项审批程序",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "可行性研究",
+        "立项审批"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hpuumtxlbkdljv",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "直接采购应在采购前公示项目情况",
+    "ruleType": "existence_check",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "keywords": [
+        "直接采购公示"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hquumt158kzljo",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 抓好采购重点环节（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "严禁通过抽签、摇号等方式定标",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "检查评标报告中是否出现抽签、摇号等排除有效竞争的定标方式"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49qo7u00ihuumtuq9g152e",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落5（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "立项批复日期应在2026年3月1日之前",
+    "ruleType": "numeric_compare",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "unit": "none",
+      "field": "approvalDate",
+      "operator": "<",
+      "threshold": 20260301
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:22:21.210Z",
+    "updatedAt": "2026-07-28T06:22:21.210Z"
+  },
+  {
+    "id": "cms49suqx012auumtelnyzlmo",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[段落3]（关于明确小额采购流程的通知.docx）",
+    "name": "预算金额≤5000元的年度预算内项目需经需求部门负责人批准",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "对于年度预算内且采购预算金额低于5000元（含）的小额采购，需经需求部门负责人批准后方可实施"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:02.985Z",
+    "updatedAt": "2026-07-28T06:24:02.985Z"
+  },
+  {
+    "id": "cms49suqx012buumt88hx35hr",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[段落3]（关于明确小额采购流程的通知.docx）",
+    "name": "预算金额5000-50000元的年度预算内项目需经双重批准",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "对于年度预算内且采购预算金额大于5000元且低于5万元（含）的全部项目，需经需求部门负责人审核、分管领导批准后方可实施"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:02.985Z",
+    "updatedAt": "2026-07-28T06:24:02.985Z"
+  },
+  {
+    "id": "cms49suqx012cuumt9o69gceq",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[段落3]（关于明确小额采购流程的通知.docx）",
+    "name": "年度预算外小额采购项目需经双重批准",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "年度预算外的小额采购项目（采购金额低于5万元）都需经需求部门负责人审核、分管领导批准后方可实施"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:02.985Z",
+    "updatedAt": "2026-07-28T06:24:02.985Z"
+  },
+  {
+    "id": "cms49suqx012duumt4vxppive",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[段落3]（关于明确小额采购流程的通知.docx）",
+    "name": "3月1日后需使用采购需求申请表",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "在3月1日以后，采购需求申请表代替原小额采购立项申请表"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:02.985Z",
+    "updatedAt": "2026-07-28T06:24:02.985Z"
+  },
+  {
+    "id": "cms49t8sx012euumtzh6v73wm",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第四条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标活动应落实国家政策目标",
+    "ruleType": "semantic",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "description": "招标文件中应包含落实支持科技创新、节约能源资源、保护生态环境、促进中小企业发展等有利于实现国家经济和社会发展政策目标的要求"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:21.201Z",
+    "updatedAt": "2026-07-28T06:24:21.201Z"
+  },
+  {
+    "id": "cms49t8sx012fuumtl6fjrnd0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第七条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "属于必须招标范围的项目应通过招标方式",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "对属于《必须招标的工程项目规定》范围和标准的项目，除法定例外情形外，应通过招标方式选择工程承包方或有关货物、服务的供应商"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:21.201Z",
+    "updatedAt": "2026-07-28T06:24:21.201Z"
+  },
+  {
+    "id": "cms49te1x012guumtt9bdf21a",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十二条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "不得以内设机构或临时机构名义招标",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "内设机构",
+        "临时机构"
+      ],
+      "checkType": "keyword",
+      "sectionName": ""
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:28.005Z",
+    "updatedAt": "2026-07-28T06:24:28.005Z"
+  },
+  {
+    "id": "cms49tp7d012huumt2ehtzxpr",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十三条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标文件应包含技术要求、资格审查标准等关键内容",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "技术要求",
+        "资格审查标准",
+        "投标报价要求",
+        "评标标准",
+        "定标方式",
+        "拟签订合同的主要条款"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:42.457Z",
+    "updatedAt": "2026-07-28T06:24:42.457Z"
+  },
+  {
+    "id": "cms49tp7d012iuumtat7fpknc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十五条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标文件应明确重点核查的异常投标情形",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "串通投标",
+        "投标文件异常一致",
+        "投标活动异常关联",
+        "受让租借挂靠资质"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:42.457Z",
+    "updatedAt": "2026-07-28T06:24:42.457Z"
+  },
+  {
+    "id": "cms49tp7d012juumt585gxjqi",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十七条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "委托代理合同应明确代理机构权限、范围、行为规范及解约违约责任",
+    "ruleType": "existence_check",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "keywords": [
+        "开展业务权限",
+        "范围",
+        "行为规范",
+        "解约条件",
+        "违约责任"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:42.457Z",
+    "updatedAt": "2026-07-28T06:24:42.457Z"
+  },
+  {
+    "id": "cms49tvo3012kuumt1m8qwirm",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标人应对异议进行核实处理",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "checkType": "section",
+      "sectionName": "异议处理记录"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:50.835Z",
+    "updatedAt": "2026-07-28T06:24:50.835Z"
+  },
+  {
+    "id": "cms49tvo3012luumtk7zo41y9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "开标过程必须全程记录并签字确认",
+    "ruleType": "existence_check",
+    "checkTarget": "开标记录",
+    "logicExpression": {
+      "keywords": [
+        "开标记录",
+        "签字"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:24:50.835Z",
+    "updatedAt": "2026-07-28T06:24:50.835Z"
+  },
+  {
+    "id": "cms49ucbg012wuumto24zimmz",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "中标人必须在评标委员会推荐的中标候选人范围内",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "检查最终确定的中标人是否在评标委员会推荐的中标候选人名单中"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:25:12.412Z",
+    "updatedAt": "2026-07-28T06:25:12.412Z"
+  },
+  {
+    "id": "cms49ucbg012xuumtbrmcrgur",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "定标活动应有全过程记录",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "定标记录",
+        "全过程记录"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:25:12.412Z",
+    "updatedAt": "2026-07-28T06:25:12.412Z"
+  },
+  {
+    "id": "cms49uvsl0149uumtp327loql",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第二十八条]（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "异议处理应当书面答复",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "keywords": [
+        "书面答复"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:25:37.653Z",
+    "updatedAt": "2026-07-28T06:25:37.653Z"
+  },
+  {
+    "id": "cms49uvsl014auumt5e8118gv",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第二十九条]（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "定标环节应提交公平性自查书面报告",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "招标投标情况书面报告"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:25:37.653Z",
+    "updatedAt": "2026-07-28T06:25:37.653Z"
+  },
+  {
+    "id": "cms49vdbq014iuumtqkdozkrt",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "合同金额变更超过10%需审核",
+    "ruleType": "numeric_compare",
+    "checkTarget": "变更书面材料",
+    "logicExpression": {
+      "unit": "percent",
+      "field": "changeAmountRatio",
+      "operator": ">",
+      "threshold": 10
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:26:00.374Z",
+    "updatedAt": "2026-07-28T06:26:00.374Z"
+  },
+  {
+    "id": "cms49vdbq014juumtgcx5jqdt",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "分包金额超过约定10%需审核",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "percent",
+      "field": "subcontractAmountRatio",
+      "operator": ">",
+      "threshold": 10
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:26:00.374Z",
+    "updatedAt": "2026-07-28T06:26:00.374Z"
+  },
+  {
+    "id": "cms49vdbq014kuumtexg1rxv2",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十四条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标投标资料保存不少于15年",
+    "ruleType": "numeric_compare",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "unit": "years",
+      "field": "retentionPeriod",
+      "operator": ">=",
+      "threshold": 15
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:26:00.374Z",
+    "updatedAt": "2026-07-28T06:26:00.374Z"
+  },
+  {
+    "id": "cms49vpvo014luumtrp5tdu7q",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十五条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "建立供应商考核评价机制时应在招标文件中说明考核评价内容",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "考核评价",
+        "供应商"
+      ],
+      "checkType": "keyword",
+      "sectionName": ""
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:26:16.644Z",
+    "updatedAt": "2026-07-28T06:26:16.644Z"
+  },
+  {
+    "id": "cms49vpvo014muumtshqrxaq7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十六条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标文件应约定不予退还投标保证金的情形",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "不予退还",
+        "投标保证金"
+      ],
+      "checkType": "keyword",
+      "sectionName": ""
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:26:16.644Z",
+    "updatedAt": "2026-07-28T06:26:16.644Z"
+  },
+  {
+    "id": "cms49vpvo014nuumtlqn26gwp",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十七条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "合同签订后30日内完成招标后评价",
+    "ruleType": "numeric_compare",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "unit": "days",
+      "field": "postEvaluationDays",
+      "operator": "<=",
+      "threshold": 30
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:26:16.644Z",
+    "updatedAt": "2026-07-28T06:26:16.644Z"
+  },
+  {
+    "id": "cms4aoadf0177uumtd0ye2tgp",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落6（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "无规则",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "印发通知，无具体检查规则"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:48:29.571Z",
+    "updatedAt": "2026-07-28T06:48:29.571Z"
+  },
+  {
+    "id": "cms4ap0vn018guumt8h6yft1g",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条 审批权限（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "立项审批：单次采购金额<50万需采购分管领导审批",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "单次（项）采购金额小于50万元的采购立项申请，应由采购分管领导审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:03.923Z",
+    "updatedAt": "2026-07-28T06:49:03.923Z"
+  },
+  {
+    "id": "cms4ap0vn018huumtn7fiquwe",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条 审批权限（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "立项审批：50万≤单次采购金额<100万需总经理审批",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于50万（含）小于100万元的采购立项申请，应由总经理审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:03.923Z",
+    "updatedAt": "2026-07-28T06:49:03.923Z"
+  },
+  {
+    "id": "cms4ap0vn018iuumt03zejvbj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条 审批权限（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "立项审批：单次采购金额≥100万需董事长审批",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于100万（含）的采购立项申请，应由董事长审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:03.923Z",
+    "updatedAt": "2026-07-28T06:49:03.923Z"
+  },
+  {
+    "id": "cms4ap0vn018juumth5j9qvvi",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条 审批权限（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "立项审批：特定情况需集体决策",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "100万元（含）以上年度预算外的正常生产经营活动类采购事项、大宗物资设备采购事项，500万元（含）以上年度预算范围内采购事项的立项审批，需按照公司“三重一大”制度进行集体决策。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:03.923Z",
+    "updatedAt": "2026-07-28T06:49:03.923Z"
+  },
+  {
+    "id": "cms4ap0vn018kuumt8jlewp0f",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条 审批权限（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "定标审批：单次采购金额<20万需采购分管领导审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次（项）采购金额小于20万的采购事项定标（供方确认），应由采购分管领导审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:03.923Z",
+    "updatedAt": "2026-07-28T06:49:03.923Z"
+  },
+  {
+    "id": "cms4ap0vn018luumtdx4n9jbq",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条 审批权限（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "定标审批：20万≤单次采购金额<50万需总经理审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于20万（含）小于50万元的采购事项定标（供方确认），应由总经理审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:03.923Z",
+    "updatedAt": "2026-07-28T06:49:03.923Z"
+  },
+  {
+    "id": "cms4ap0vn018muumt8miua95i",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条 审批权限（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "定标审批：单次采购金额≥50万需董事长审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于50万的采购事项定标（供方确认），应由董事长审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:03.923Z",
+    "updatedAt": "2026-07-28T06:49:03.923Z"
+  },
+  {
+    "id": "cms4apknf0196uumta2yee2rl",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "依法必须公开招标的项目须采用公开招标",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "检查项目是否属于依法必须公开招标的项目并采用公开招标方式"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apknf0197uumtt37mdb4z",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "邀请招标须邀请三家及以上供应商",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "invitedSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apknf0198uumtxo9cp3dl",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "内部竞标须邀请三家及以上供应商",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "invitedSupplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apknf0199uumtom1f5phs",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "内部竞标单次采购金额须不低于50万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">=",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apknf019auumttzjhem1g",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "竞争性谈判要求采购金额不低于10万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">=",
+      "threshold": 100000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apknf019buumt1gh4yowj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "竞争性谈判要求采购金额低于50万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": "<",
+      "threshold": 500000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apknf019cuumtbrm4idni",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价采购要求供应商不少于3家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apknf019duumtu9b3djtj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价采购要求采购金额高于5万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": ">",
+      "threshold": 50000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apknf019euumtp167sp9l",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价采购要求采购金额低于10万元",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "procurementAmount",
+      "operator": "<",
+      "threshold": 100000
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
+  },
+  {
+    "id": "cms4apx13019kuumtplhheoxw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "直接委托采购必须经过集体研究",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "集体研究",
+        "集体决策"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019luumtl1lw8pxc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "续约必须由供应商在原合同有效期内提出申请",
+    "ruleType": "existence_check",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "keywords": [
+        "续约申请"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019muumtxzhd2ifx",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "续约不超过三次",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "count",
+      "field": "续约次数",
+      "operator": "<=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019nuumtvs9wpamu",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "每次续约不超过两年",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "years",
+      "field": "续约期限",
+      "operator": "<=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019ouumt0ujajjuw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "续约必须完成立项审批并报采购办备案",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "立项审批",
+        "采购办备案"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019puumtq5nhrwal",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "年度预算内小额采购金额≤5000元需需求部门负责人批准",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": "<=",
+      "threshold": 5000
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019quumtxviv43zj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "审批记录需包含需求部门负责人批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "需求部门负责人批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019ruumtw0opb6v8",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "预算金额>5000元且≤5万元需需求部门负责人审核+分管领导批准",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "cny",
+      "field": "budgetAmount",
+      "operator": ">=",
+      "threshold": 5000
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019suumtpiav7er7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "审批记录需包含分管领导批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "分管领导批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019tuumthastlo0m",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "年度预算外小额采购需需求部门负责人审核+分管领导批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "预算外",
+        "需求部门负责人审核",
+        "分管领导批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019uuumtvov2dxkl",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "业务外包类小额采购须报生产技术部立项审查",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "生产技术部",
+        "立项审查"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019vuumtbe8f1hvm",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "小额采购购买固定资产须及时登记备案",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "固定资产",
+        "登记备案"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019wuumttxs3fblw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "不得将采购项目拆分包化整为零",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "分包",
+        "拆分"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019xuumtqappzj6s",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "框架协议至少评选两家中标供应商",
+    "ruleType": "numeric_compare",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": ">=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019yuumtc34ln1y7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "框架协议采购须通过指定方式之一评选",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "公开招标",
+        "邀请招标",
+        "内部竞标",
+        "竞争性谈判",
+        "询价"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx13019zuumtmjl62od5",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "供应商须具备独立承担民事责任的能力",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "独立承担民事责任"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx1301a0uumtprydhdbi",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "供应商须具有良好的商业信誉和健全的财务会计制度",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "商业信誉",
+        "财务会计制度"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx1301a1uumt962vxdop",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "供应商须具有履行合同所必需的设备和专业技术能力",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "履行合同",
+        "设备",
+        "专业技术能力"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx1301a2uumt9y3o0l90",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "供应商须有依法缴纳税收和社会保障资金的良好记录",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "缴纳税收",
+        "社会保障资金"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4apx1301a3uumthc5ktjxo",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "供应商参加采购活动前3年内无重大违法记录",
+    "ruleType": "numeric_compare",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "unit": "years",
+      "field": "无重大违法记录年限",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:45.591Z",
+    "updatedAt": "2026-07-28T06:49:45.591Z"
+  },
+  {
+    "id": "cms4aq7kq01a5uumtauevpn43",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "不得化整为零规避公开招标",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "检查是否存在将应当公开招标的项目拆分为多个小项目以规避公开招标的行为"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:59.258Z",
+    "updatedAt": "2026-07-28T06:49:59.258Z"
+  },
+  {
+    "id": "cms4aq7kq01a6uumtkwm8dyy6",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十一条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购立项需填写申请表并完成审批",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "采购立项申请表",
+        "审批"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:59.258Z",
+    "updatedAt": "2026-07-28T06:49:59.258Z"
+  },
+  {
+    "id": "cms4aq7kq01a7uumtat507iop",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十四条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购文件需填写审批表并审批",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "采购文件审批表",
+        "审批"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:49:59.258Z",
+    "updatedAt": "2026-07-28T06:49:59.258Z"
+  },
+  {
+    "id": "cms4ar0jd01a8uumtgx57unlp",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "谈判小组人数不少于5人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "teamSize",
+      "operator": ">=",
+      "threshold": 5
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0jd01a9uumtvdpdsw1j",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购需求部门代表不超过成员总数1/5",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "demandDeptRatio",
+      "operator": "<=",
+      "threshold": 0.2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0jd01aauumtcoqcudht",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "谈判轮数不少于2轮",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "negotiationRounds",
+      "operator": ">=",
+      "threshold": 2
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0jd01abuumtmuz6xx8c",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购文件应包含《采购文件审批表》",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "采购文件审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0jd01acuumti5epkjhl",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "谈判小组人数不少于3人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "teamSize",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0jd01aduumtlpantv93",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购需求部门代表不超过成员总数1/3",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "ratio",
+      "field": "demandDeptRatio",
+      "operator": "<=",
+      "threshold": 0.3333
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0jd01aeuumtm136nx8r",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十六条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "应提供《询价商务谈判备忘录》",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "询价商务谈判备忘录"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0je01afuumtp9ufy8fh",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十七条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "询价小组人数不少于3人",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "teamSize",
+      "operator": ">=",
+      "threshold": 3
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0je01aguumt71brgkjm",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "公示内容应包含完整要素",
+    "ruleType": "semantic",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "description": "公示内容应当包括采购人、项目名称和内容、拟采购货物或服务说明、采用单源直接采购方式的原因、拟定唯一供应商名称地址、论证意见、公示期限、联系地址、联系人、联系电话"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0je01ahuumtek8fn0kk",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "纪检监察部派人监督",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "纪检监察部"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0je01aiuumt16h2zczh",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "金额100万以上项目应邀请职工代表且占比至少1/3",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "单个服务项目或单笔服务费用在100万以上的，应当邀请职工代表参加谈判小组，且职工代表人数至少为谈判小组总人数的1/3"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0je01ajuumttrp2hchy",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "应形成项目商务谈判备忘录",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "商务谈判备忘录"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0je01akuumte5qn23b5",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "应填写《中标通知书》",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "中标通知书"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0je01aluumtz4s4wapk",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十八条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "应报采购办成员签署审查意见",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "项目商务谈判备忘录和《中标通知书》应报采购办成员签署审查意见后备案"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4ar0je01amuumtwtdy10od",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第二十九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "立项文件应包含直接委托原因说明",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "直接委托原因说明"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:50:36.793Z",
+    "updatedAt": "2026-07-28T06:50:36.793Z"
+  },
+  {
+    "id": "cms4arnzk01aouumtf3iv3rc3",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "采购立项必须填写申请表并集体决策",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "《采购立项申请表》",
+        "集体决策审批"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzk01apuumtsu5r4n3k",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "直接委托采购金额小于50万需经采购管理工作会审批",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "单次采购金额小于50万元的直接委托采购，审批记录中应包含采购管理工作会（由采购委员会组织）的审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzk01aquumty54yytkd",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "直接委托采购金额50万至100万需经总经会审批",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "单次采购金额大于等于50万且小于100万元的直接委托采购，审批记录中应包含公司总经会的审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01aruumtrkxrqapw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第五条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "直接委托采购金额100万及以上需经党委会审批",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "单次采购金额大于等于100万元的直接委托采购，审批记录中应包含公司党委会的审批。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01asuumtm5ug3ybb",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "质疑须在结果发布后2个工作日内提出",
+    "ruleType": "numeric_compare",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "unit": "days",
+      "field": "质疑提出时间与结果发布时间差",
+      "operator": "<=",
+      "threshold": 2
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01atuumtj9q32lyg",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "质疑须以书面形式提出",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "keywords": [
+        "书面质疑"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01auuumt0l4tqnkn",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十一条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "变更采购项目需填写《采购事项变更审批表》",
+    "ruleType": "existence_check",
+    "checkTarget": "变更书面材料",
+    "logicExpression": {
+      "keywords": [
+        "采购事项变更审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01avuumtaa9cf49w",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标文件须经投标单位盖章",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "盖章"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01awuumtlzsphu4w",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标文件须经单位负责人签字",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "签字"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01axuumtvzvhux0g",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "联合体投标须提交联合体投标协议",
+    "ruleType": "existence_check",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "keywords": [
+        "联合体投标协议"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01ayuumt47pv8oaf",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "同一投标人不得提交多个投标文件",
+    "ruleType": "semantic",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "description": "同一投标人不得提交两个以上不同的投标文件或投标报价，除非招标文件允许提交备选投标。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01azuumt2a3hj83r",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标文件须对实质性要求作出响应",
+    "ruleType": "semantic",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "description": "投标文件必须对招标文件的实质性要求和条件作出响应。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01b0uumtjtary072",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十二条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "投标人不得有串通投标等违法行为",
+    "ruleType": "semantic",
+    "checkTarget": "投标文件",
+    "logicExpression": {
+      "description": "投标人不得有串通投标、弄虚作假、行贿等违法行为。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01b1uumtf1z3pmzb",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "流标须填写《定标（供方确认）审批表》并说明原因",
+    "ruleType": "existence_check",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "keywords": [
+        "定标（供方确认）审批表"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4arnzl01b2uumt74wnf768",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十三条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "否决投标后非取消情形须重新采购",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "否决投标后，除采购项目取消情形外，必须重新组织采购。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:07.185Z",
+    "updatedAt": "2026-07-28T06:51:07.185Z"
+  },
+  {
+    "id": "cms4aryk901b3uumtqqndt347",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第三十四条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "无自动检查规则",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "keywords": [],
+      "checkType": "keyword"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:51:20.889Z",
+    "updatedAt": "2026-07-28T06:51:20.889Z"
+  },
+  {
+    "id": "cms4au6oo0000uut844dkmc2q",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额小于50万的立项由采购分管领导审批",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "单次（项）采购金额小于50万的采购事项立项申请，由采购分管领导审批。"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:04.728Z",
+    "updatedAt": "2026-07-28T06:53:04.728Z"
+  },
+  {
+    "id": "cms4au6oo0001uut8zz76g0wj",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额100万及以上的立项由董事长审批",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于100万（含）的采购事项立项申请，由董事长审批。"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:04.728Z",
+    "updatedAt": "2026-07-28T06:53:04.728Z"
+  },
+  {
+    "id": "cms4au6oo0002uut8b5u2229b",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "100万及以上预算外正常生产经营或大宗物资采购需集体决策",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "100万元（含）以上年度预算外的正常生产经营活动类采购事项、大宗物资设备采购事项的立项审批工作，需按照公司“三重一大”制度进行集体决策。"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:04.728Z",
+    "updatedAt": "2026-07-28T06:53:04.728Z"
+  },
+  {
+    "id": "cms4au6oo0003uut81qtpjcvk",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "500万及以上预算内采购需集体决策",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "500万元（含）以上年度预算范围内采购事项的立项审批工作，需按照公司“三重一大”制度进行集体决策。"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:04.728Z",
+    "updatedAt": "2026-07-28T06:53:04.728Z"
+  },
+  {
+    "id": "cms4ay35t000auuvp1uhroxbk",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 抓好采购重点环节（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "不得排斥或限制潜在供应商",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "采购活动中不得排斥或限制潜在供应商"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4au6oo0004uut83q9g9np7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额小于20万的定标由采购分管领导审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次（项）采购金额小于20万的采购事项定标（供方确认），由采购分管领导审批。"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:04.728Z",
+    "updatedAt": "2026-07-28T06:53:04.728Z"
+  },
+  {
+    "id": "cms4au6oo0005uut81o5wst48",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[第五条 审批权限]（《采购管理办法（修订）》(征求意见稿）.docx）",
+    "name": "单次采购金额50万及以上的定标由董事长审批",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "单次（项）采购金额高于50万的采购事项定标（供方确认），由董事长审批。"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:04.728Z",
+    "updatedAt": "2026-07-28T06:53:04.728Z"
+  },
+  {
+    "id": "cms4autfp0000uu7jouvw7anp",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 强化招标人主体地位（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "委托代理机构人员需缴纳社保满6个月",
+    "ruleType": "numeric_compare",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "unit": "months",
+      "field": "socialInsuranceMonths",
+      "operator": ">=",
+      "threshold": 6
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:34.213Z",
+    "updatedAt": "2026-07-28T06:53:34.213Z"
+  },
+  {
+    "id": "cms4autfp0001uu7j5dust51h",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 强化招标人主体地位（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "外部专家书面同意函和社保证明应归档",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "书面同意函",
+        "社保证明"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:34.213Z",
+    "updatedAt": "2026-07-28T06:53:34.213Z"
+  },
+  {
+    "id": "cms4autfp0002uu7j862uxyx0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 创新评标专家管理和评标机制（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "远程异地评标项目比例不低于50%",
+    "ruleType": "numeric_compare",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "unit": "percent",
+      "field": "remoteBidEvalRatio",
+      "operator": ">=",
+      "threshold": 50
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:34.213Z",
+    "updatedAt": "2026-07-28T06:53:34.213Z"
+  },
+  {
+    "id": "cms4autfp0003uu7jh80qd8b5",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 创新评标专家管理和评标机制（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "不得以细微偏差否决投标",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "评标委员会不得简单以格式、体例、字（页）数等细微偏差否决投标"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:34.213Z",
+    "updatedAt": "2026-07-28T06:53:34.213Z"
+  },
+  {
+    "id": "cms4autfp0004uu7jof87bcc4",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 强化招标人主体地位（川办规（2025）8号关于深化改革创新促进招标投标市场规范健康发展的意见.pdf）",
+    "name": "严禁抽签摇号定标",
+    "ruleType": "semantic",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "description": "招标人定标不得通过抽签、摇号等排除有效竞争的方式"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:53:34.213Z",
+    "updatedAt": "2026-07-28T06:53:34.213Z"
+  },
+  {
+    "id": "cms4axbom0000uuvi69xsjtwq",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "二 实施分类采购管理（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "直接采购有效供应商有且仅有1家",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "unit": "count",
+      "field": "supplierCount",
+      "operator": "==",
+      "threshold": 1
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:55:31.174Z",
+    "updatedAt": "2026-07-28T06:55:31.174Z"
+  },
+  {
+    "id": "cms4axbom0001uuvi5r5l1m3a",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "中标后30日内签订采购合同",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "days",
+      "field": "contractSignDays",
+      "operator": "<=",
+      "threshold": 30
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:55:31.174Z",
+    "updatedAt": "2026-07-28T06:55:31.174Z"
+  },
+  {
+    "id": "cms4ay35t0000uuvpznviv2lu",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "重大采购项目应归档可行性研究和立项审批文件",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "可行性研究",
+        "立项审批"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0001uuvpv5txwer2",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "重大计划外、超预算采购项目应归档内部审核程序",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "内部审核程序"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0002uuvpmvcauhqc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "采购活动应留存合规审查等记录",
+    "ruleType": "existence_check",
+    "checkTarget": "归档文件",
+    "logicExpression": {
+      "keywords": [
+        "采购文件合规审查",
+        "供应商资格审查",
+        "评审报告审查",
+        "成交供应商核验"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0003uuvp2muavi3a",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "限额以上公开采购项目应发布公告",
+    "ruleType": "existence_check",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "keywords": [
+        "企业自建电子采购平台",
+        "天府阳光采购服务平台"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0004uuvpcf8m47ta",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "公开招标项目应在省级及以上媒介发布公告",
+    "ruleType": "existence_check",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "keywords": [
+        "省公共资源交易网",
+        "中国招标投标公共服务平台"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0005uuvpf3s29xqc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "采购结果应在原公告媒介上公示",
+    "ruleType": "semantic",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "description": "采购结果公示媒介应与采购公告媒介一致"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0006uuvpeec15haa",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "直接采购公开项目应进行采购前公示",
+    "ruleType": "existence_check",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "keywords": [
+        "采购前公示"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0007uuvplyr62kpe",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "成交通知书发出后30日内签订合同",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "days",
+      "field": "contractSignDays",
+      "operator": "<=",
+      "threshold": 30
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0008uuvpt648y074",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 抓好采购重点环节（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "不得以未纳入高风险供应商名单作为资格条件",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "采购文件中不得将未纳入高风险供应商名单作为参与采购的基本资格条件"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t0009uuvpgfxdn7z3",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 抓好采购重点环节（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "不得将有纠纷诉求的合规供应商纳入高风险名单",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "不得将有解决纠纷诉求的合规供应商纳入高风险供应商名单管理"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t000buuvphx4oqat0",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 抓好采购重点环节（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "依法必须招标工程建设项目原则上采用评定分离机制",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "依法必须招标的工程建设项目原则上使用中标候选人评定分离机制确定中标人"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t000cuuvp8rowv0vi",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 抓好采购重点环节（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "禁止通过抽签、摇号等方式定标",
+    "ruleType": "semantic",
+    "checkTarget": "评标报告",
+    "logicExpression": {
+      "description": "严禁通过抽签、摇号等排除有效竞争的方式定标"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t000duuvplfgvpwyu",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 抓好采购重点环节（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "电子商城应通过竞争性方式确定铺货供应商",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "电子商城应当通过竞争性方式依法合规确定铺货供应商"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t000euuvpae0o30n7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "四 抓好采购重点环节（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "电子商城应具备比质比价功能",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "电子商城应当具备比质比价功能"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t000fuuvpu1f9wrvt",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "五 加大政策性扶持（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "不得对首台套等创新产品设置歧视性评审标准",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "首台（套）装备、首批次材料、首版次软件参与采购活动时，不得设置歧视性评审标准"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t000guuvpnr936bfl",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "五 加大政策性扶持（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "不得违法限定条件排斥中小企业",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "不得违法限定供应商所在地、所有制形式、组织形式、注册资本、股权结构、经营年限等，或者设定其他不合理的条件排斥、限制中小企业参与采购活动"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t000huuvpdf45e856",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "五 加大政策性扶持（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "预留份额优先采购特定地区产品",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "预留一定份额采购预算，同等条件下优先采购脱贫地区、革命老区、民族地区和盆周山区产品"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ay35t000iuuvp1vkpr8md",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "六 加强监督管理（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "依法必须招标项目代理机构应在指定平台选择或登记",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "省公共资源交易信息网招标代理机构比选平台"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:06.786Z",
+    "updatedAt": "2026-07-28T06:56:06.786Z"
+  },
+  {
+    "id": "cms4ayow2000juuvp9qkquhyd",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落1（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "标题段落，无检查规则",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "标题段落，不包含可检查的规则"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:34.946Z",
+    "updatedAt": "2026-07-28T06:56:34.946Z"
+  },
+  {
+    "id": "cms4ayow2000kuuvps3mpyg5s",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落2（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "称呼段落，无检查规则",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "称呼段落，不包含可检查的规则"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:34.946Z",
+    "updatedAt": "2026-07-28T06:56:34.946Z"
+  },
+  {
+    "id": "cms4ayow2000luuvpzatunz8c",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落3（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "背景说明段落，无检查规则",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "背景说明段落，不包含可检查的规则"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:34.946Z",
+    "updatedAt": "2026-07-28T06:56:34.946Z"
+  },
+  {
+    "id": "cms4ayow2000muuvpfpdl8s21",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落4（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "采购经办部门调整，无检查规则",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "采购经办部门由原办公室、生产技术部和科技创新部调整为采购中心。该条款不包含可自动检查的规则。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:34.946Z",
+    "updatedAt": "2026-07-28T06:56:34.946Z"
+  },
+  {
+    "id": "cms4ayow2000nuuvpeemlskgl",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落5（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "过渡条款，无检查规则",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "在2026年3月1日之前已立项申请批复完成的采购项目，按原管理办法执行。该条款不包含可自动检查的规则。"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:34.946Z",
+    "updatedAt": "2026-07-28T06:56:34.946Z"
+  },
+  {
+    "id": "cms4az5ub000ouuvpr6qawqid",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落31（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "需求部门经办人字段无规则",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "keywords": [],
+      "checkType": "keyword"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:56.915Z",
+    "updatedAt": "2026-07-28T06:56:56.915Z"
+  },
+  {
+    "id": "cms4az7gg000auuvivbe32wko",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[段落58]（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "确认是否列入年度预算",
+    "ruleType": "semantic",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "description": "检查是否列入年度预算"
+    },
+    "severity": "info",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:56:59.009Z",
+    "updatedAt": "2026-07-28T06:56:59.009Z"
+  },
+  {
+    "id": "cms4az8s3000puuvp7lonzqmx",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "[段落36]（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "技术服务类项目需市场部审核是否属合同范畴",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "若为技术服务类项目，需检查是否由市场部审核确认属于项目合同约定范畴"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:00.723Z",
+    "updatedAt": "2026-07-28T06:57:00.723Z"
+  },
+  {
+    "id": "cms4azzk7000quuvpbfpupyc7",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落1（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "采购需求论证必须完成附录1《采购需求申请表》",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:35.431Z",
+    "updatedAt": "2026-07-28T06:57:35.431Z"
+  },
+  {
+    "id": "cms4azzk7000ruuvp8r26yxqw",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落1（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "外委类采购必须经市场营销部合规性评价",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:35.431Z",
+    "updatedAt": "2026-07-28T06:57:35.431Z"
+  },
+  {
+    "id": "cms4azzk7000suuvp52l1xde3",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落1（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "勘察设计咨询类采购需求必须经生产技术部审批",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:35.431Z",
+    "updatedAt": "2026-07-28T06:57:35.431Z"
+  },
+  {
+    "id": "cms4azzk7000tuuvpk1njo6nm",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落1（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "公共事务类采购需求应由采购中心发起",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:35.431Z",
+    "updatedAt": "2026-07-28T06:57:35.431Z"
+  },
+  {
+    "id": "cms4azzk7000uuuvp5m25je5r",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落1（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "采购资金支付需经财务资产部审核",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:35.431Z",
+    "updatedAt": "2026-07-28T06:57:35.431Z"
+  },
+  {
+    "id": "cms4azzk7000vuuvpcsbnjwj1",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落1（关于进一步明确采购各部门职责的通知.docx）",
+    "name": "重大合同谈判需审计法务部参与",
+    "ruleType": "existence_check",
+    "checkTarget": "全部",
+    "logicExpression": {},
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:35.431Z",
+    "updatedAt": "2026-07-28T06:57:35.431Z"
+  },
+  {
+    "id": "cms4b0chd000puuvikqcyfhgl",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落3（关于明确小额采购流程的通知.docx）",
+    "name": "年度预算内金额低于5000元小额采购需经需求部门负责人批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "需求部门负责人批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:52.178Z",
+    "updatedAt": "2026-07-28T06:57:52.178Z"
+  },
+  {
+    "id": "cms4b0chd000quuvit6dtovpt",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落3（关于明确小额采购流程的通知.docx）",
+    "name": "年度预算内金额5000-50000元小额采购需经需求部门负责人审核和分管领导批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "需求部门负责人审核",
+        "分管领导批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:52.178Z",
+    "updatedAt": "2026-07-28T06:57:52.178Z"
+  },
+  {
+    "id": "cms4b0chd000ruuvi3c1v0vi9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落3（关于明确小额采购流程的通知.docx）",
+    "name": "年度预算外小额采购需经需求部门负责人审核和分管领导批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "需求部门负责人审核",
+        "分管领导批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:52.178Z",
+    "updatedAt": "2026-07-28T06:57:52.178Z"
+  },
+  {
+    "id": "cms4b0gnl000wuuvp85sj8njt",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落3（关于明确小额采购流程的通知.docx）",
+    "name": "年度预算内且预算金额≤5000元需部门负责人批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "部门负责人批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:57.585Z",
+    "updatedAt": "2026-07-28T06:57:57.585Z"
+  },
+  {
+    "id": "cms4b0gnl000xuuvpwj6lsqqd",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落3（关于明确小额采购流程的通知.docx）",
+    "name": "年度预算内且预算金额在5000元至5万元之间需部门负责人审核和分管领导批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "部门负责人审核",
+        "分管领导批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:57.585Z",
+    "updatedAt": "2026-07-28T06:57:57.585Z"
+  },
+  {
+    "id": "cms4b0gnl000yuuvpa15wjw92",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "段落3（关于明确小额采购流程的通知.docx）",
+    "name": "年度预算外小额采购需部门负责人审核和分管领导批准",
+    "ruleType": "existence_check",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "keywords": [
+        "部门负责人审核",
+        "分管领导批准"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:57:57.585Z",
+    "updatedAt": "2026-07-28T06:57:57.585Z"
+  },
+  {
+    "id": "cms4b0n04000yuuvica9z3rwc",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第七条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "属于必须招标范围和标准的项目必须招标",
+    "ruleType": "semantic",
+    "checkTarget": "采购文件",
+    "logicExpression": {
+      "description": "检查项目是否属于《必须招标的工程项目规定》范围和标准，并确认采用招标方式"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:58:05.812Z",
+    "updatedAt": "2026-07-28T06:58:05.812Z"
+  },
+  {
+    "id": "cms4b0pjh000zuuvpzzeffpxg",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第七条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "属于必须招标范围和标准的项目应采用招标方式",
+    "ruleType": "semantic",
+    "checkTarget": "全部",
+    "logicExpression": {
+      "description": "对属于《必须招标的工程项目规定》范围和标准的项目，除符合法定例外情形，应通过招标方式选择承包方或供应商。"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:58:09.101Z",
+    "updatedAt": "2026-07-28T06:58:09.101Z"
+  },
+  {
+    "id": "cms4b0ugl0018uuvidugginsh",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第八条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "必须招标项目不招标时需在立项文件中说明",
+    "ruleType": "existence_check",
+    "checkTarget": "立项文件",
+    "logicExpression": {
+      "keywords": [
+        "不招标的具体范围和事由"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:58:15.477Z",
+    "updatedAt": "2026-07-28T06:58:15.477Z"
+  },
+  {
+    "id": "cms4b0ugl0019uuvizfzgcri4",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十二条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "禁止以内部机构名义开展招标活动",
+    "ruleType": "semantic",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "description": "招标人不得以内设机构、临时机构的名义对外开展招标活动，招标文件中的招标人应具有独立法人资格"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:58:15.477Z",
+    "updatedAt": "2026-07-28T06:58:15.477Z"
+  },
+  {
+    "id": "cms4b0x6f0010uuvpkq5hlmir",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十二条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标人不得以内设或临时机构名义招标",
+    "ruleType": "existence_check",
+    "checkTarget": "招标公告",
+    "logicExpression": {
+      "keywords": [
+        "内设机构",
+        "临时机构"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "critical",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:58:18.999Z",
+    "updatedAt": "2026-07-28T06:58:18.999Z"
+  },
+  {
+    "id": "cms4b14mj001kuuvi3lt6fztx",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十四条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标文件需明确异常低价投标标准和处理程序",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "异常低价投标"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:58:28.651Z",
+    "updatedAt": "2026-07-28T06:58:28.651Z"
+  },
+  {
+    "id": "cms4b14mj001luuvi9k9orp53",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十五条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "招标文件需明确重点核查的异常投标情形",
+    "ruleType": "existence_check",
+    "checkTarget": "招标文件",
+    "logicExpression": {
+      "keywords": [
+        "串通投标"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:58:28.651Z",
+    "updatedAt": "2026-07-28T06:58:28.651Z"
+  },
+  {
+    "id": "cms4b14mj001muuvigtddtpm1",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "第十七条（国家发展改革委等部门关于印发《招标人主体责任履行指引》的通知（发改法规〔2025〕1358号）.pdf）",
+    "name": "委托代理合同需包含违约责任和解约条件",
+    "ruleType": "existence_check",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "keywords": [
+        "违约责任",
+        "解约条件"
+      ],
+      "checkType": "keyword"
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:58:28.651Z",
+    "updatedAt": "2026-07-28T06:58:28.651Z"
+  }
+]

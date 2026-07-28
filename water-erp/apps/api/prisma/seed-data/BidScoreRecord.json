@@ -7,7 +7,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-qual-sr02",
@@ -17,7 +18,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-qual-sr03",
@@ -27,7 +29,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-resp-sr01",
@@ -37,7 +40,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-resp-sr02",
@@ -47,7 +51,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-20T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-resp-sr03",
@@ -57,7 +62,8 @@
     "score": "0",
     "passed": false,
     "reason": "投标文件响应性条款缺失",
-    "createdAt": "2026-06-20T06:00:00.000Z"
+    "createdAt": "2026-06-20T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-qual-0",
@@ -67,7 +73,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-qual-1",
@@ -77,7 +84,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-resp-0",
@@ -87,7 +95,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-resp-1",
@@ -97,7 +106,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-1-0-BUSINESS",
@@ -107,7 +117,8 @@
     "score": "17",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-1-0-TECHNICAL",
@@ -117,7 +128,8 @@
     "score": "42.5",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-1-0-PRICE",
@@ -127,7 +139,8 @@
     "score": "25.5",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-1-1-BUSINESS",
@@ -137,7 +150,8 @@
     "score": "17",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-1-1-TECHNICAL",
@@ -147,7 +161,8 @@
     "score": "42.5",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-1-1-PRICE",
@@ -157,7 +172,8 @@
     "score": "25.5",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-2-0-BUSINESS",
@@ -167,7 +183,8 @@
     "score": "17.2",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-2-0-TECHNICAL",
@@ -177,7 +194,8 @@
     "score": "43",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-2-0-PRICE",
@@ -187,7 +205,8 @@
     "score": "25.8",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-2-1-BUSINESS",
@@ -197,7 +216,8 @@
     "score": "16.8",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-2-1-TECHNICAL",
@@ -207,7 +227,8 @@
     "score": "42",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-2-1-PRICE",
@@ -217,7 +238,8 @@
     "score": "25.2",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-3-0-BUSINESS",
@@ -227,7 +249,8 @@
     "score": "16.8",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-3-0-TECHNICAL",
@@ -237,7 +260,8 @@
     "score": "42",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-3-0-PRICE",
@@ -247,7 +271,8 @@
     "score": "25.2",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-3-1-BUSINESS",
@@ -257,7 +282,8 @@
     "score": "16.8",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-3-1-TECHNICAL",
@@ -267,7 +293,8 @@
     "score": "42",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-1781-sr-3-1-PRICE",
@@ -277,7 +304,8 @@
     "score": "25.2",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-08T06:00:00.000Z"
+    "createdAt": "2026-06-08T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-qual-0",
@@ -287,7 +315,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-qual-1",
@@ -297,7 +326,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-resp-0",
@@ -307,7 +337,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-resp-1",
@@ -317,7 +348,8 @@
     "score": "0",
     "passed": true,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-1-0-BUSINESS",
@@ -327,7 +359,8 @@
     "score": "17.4",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-1-0-TECHNICAL",
@@ -337,7 +370,8 @@
     "score": "43.5",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-1-0-PRICE",
@@ -347,7 +381,8 @@
     "score": "26.1",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-1-1-BUSINESS",
@@ -357,7 +392,8 @@
     "score": "16.6",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-1-1-TECHNICAL",
@@ -367,7 +403,8 @@
     "score": "41.5",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-1-1-PRICE",
@@ -377,7 +414,8 @@
     "score": "24.9",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-2-0-BUSINESS",
@@ -387,7 +425,8 @@
     "score": "17.2",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-2-0-TECHNICAL",
@@ -397,7 +436,8 @@
     "score": "43",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-2-0-PRICE",
@@ -407,7 +447,8 @@
     "score": "25.8",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-2-1-BUSINESS",
@@ -417,7 +458,8 @@
     "score": "16.4",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-2-1-TECHNICAL",
@@ -427,7 +469,8 @@
     "score": "41",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-2-1-PRICE",
@@ -437,7 +480,8 @@
     "score": "24.6",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-3-0-BUSINESS",
@@ -447,7 +491,8 @@
     "score": "17.4",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-3-0-TECHNICAL",
@@ -457,7 +502,8 @@
     "score": "43.5",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-3-0-PRICE",
@@ -467,7 +513,8 @@
     "score": "26.1",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-3-1-BUSINESS",
@@ -477,7 +524,8 @@
     "score": "16.6",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-3-1-TECHNICAL",
@@ -487,7 +535,8 @@
     "score": "41.5",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqfix-0618-sr-3-1-PRICE",
@@ -497,7 +546,8 @@
     "score": "24.9",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-06-21T06:00:00.000Z"
+    "createdAt": "2026-06-21T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr01",
@@ -507,7 +557,8 @@
     "score": "82",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr02",
@@ -517,7 +568,8 @@
     "score": "88",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr03",
@@ -527,7 +579,8 @@
     "score": "85",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr04",
@@ -537,7 +590,8 @@
     "score": "90",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr05",
@@ -547,7 +601,8 @@
     "score": "92",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr06",
@@ -557,7 +612,8 @@
     "score": "78",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr07",
@@ -567,7 +623,8 @@
     "score": "85",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr08",
@@ -577,7 +634,8 @@
     "score": "80",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr09",
@@ -587,7 +645,8 @@
     "score": "90",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr10",
@@ -597,7 +656,8 @@
     "score": "85",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr11",
@@ -607,7 +667,8 @@
     "score": "85",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr12",
@@ -617,7 +678,8 @@
     "score": "82",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr13",
@@ -627,7 +689,8 @@
     "score": "88",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr14",
@@ -637,7 +700,8 @@
     "score": "90",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr15",
@@ -647,7 +711,8 @@
     "score": "80",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr16",
@@ -657,7 +722,8 @@
     "score": "82",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr17",
@@ -667,7 +733,8 @@
     "score": "78",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr18",
@@ -677,7 +744,8 @@
     "score": "88",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr19",
@@ -687,7 +755,8 @@
     "score": "80",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr20",
@@ -697,7 +766,8 @@
     "score": "86",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr21",
@@ -707,7 +777,8 @@
     "score": "88",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr22",
@@ -717,7 +788,8 @@
     "score": "92",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr23",
@@ -727,7 +799,8 @@
     "score": "88",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
   },
   {
     "id": "cmqhero-sr24",
@@ -737,6 +810,997 @@
     "score": "75",
     "passed": null,
     "reason": null,
-    "createdAt": "2026-07-03T06:00:00.000Z"
+    "createdAt": "2026-07-03T06:00:00.000Z",
+    "updatedAt": "2026-07-26T02:57:43.386Z"
+  },
+  {
+    "id": "cms41qluj0008uuhx5rby6nrf",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:21.212Z",
+    "updatedAt": "2026-07-28T02:38:21.212Z"
+  },
+  {
+    "id": "cms41qluk000auuhxdv2lv5sk",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:21.212Z",
+    "updatedAt": "2026-07-28T02:38:21.212Z"
+  },
+  {
+    "id": "cms41qluk000cuuhxumz41otv",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "18",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:21.213Z",
+    "updatedAt": "2026-07-28T02:38:21.213Z"
+  },
+  {
+    "id": "cms41qlul000euuhx93pj53qb",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "45",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:21.213Z",
+    "updatedAt": "2026-07-28T02:38:21.213Z"
+  },
+  {
+    "id": "cms41qlul000guuhxy49eheta",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "28",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:21.214Z",
+    "updatedAt": "2026-07-28T02:38:21.214Z"
+  },
+  {
+    "id": "cms41r3ft000tuuhxq9styr3n",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.009Z",
+    "updatedAt": "2026-07-28T02:38:44.009Z"
+  },
+  {
+    "id": "cms41r3fu000vuuhxjcynprml",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.010Z",
+    "updatedAt": "2026-07-28T02:38:44.010Z"
+  },
+  {
+    "id": "cms41r3fu000xuuhxerd8tp9j",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "16",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.011Z",
+    "updatedAt": "2026-07-28T02:38:44.011Z"
+  },
+  {
+    "id": "cms41r3fv000zuuhxjfk75cx5",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "42",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.011Z",
+    "updatedAt": "2026-07-28T02:38:44.011Z"
+  },
+  {
+    "id": "cms41r3fv0011uuhx6227hhdf",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "25",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.011Z",
+    "updatedAt": "2026-07-28T02:38:44.011Z"
+  },
+  {
+    "id": "cms41r3h4001euuhxvvoyuipm",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.057Z",
+    "updatedAt": "2026-07-28T02:38:44.057Z"
+  },
+  {
+    "id": "cms41r3h6001guuhxw3q06roi",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.058Z",
+    "updatedAt": "2026-07-28T02:38:44.058Z"
+  },
+  {
+    "id": "cms41r3h7001iuuhxu0e38t74",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "17",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.059Z",
+    "updatedAt": "2026-07-28T02:38:44.059Z"
+  },
+  {
+    "id": "cms41r3h8001kuuhx6uzzx22p",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "40",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.060Z",
+    "updatedAt": "2026-07-28T02:38:44.060Z"
+  },
+  {
+    "id": "cms41r3h9001muuhxkcm68s3t",
+    "expertId": "cms40wl0q00wauuv9tx30wd3n",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "27",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.061Z",
+    "updatedAt": "2026-07-28T02:38:44.061Z"
+  },
+  {
+    "id": "cms41r3ic001zuuhxfnrsly01",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.101Z",
+    "updatedAt": "2026-07-28T02:38:44.101Z"
+  },
+  {
+    "id": "cms41r3id0021uuhxtc2qt4rx",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.101Z",
+    "updatedAt": "2026-07-28T02:38:44.101Z"
+  },
+  {
+    "id": "cms41r3id0023uuhxkysi6z9z",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "18",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.102Z",
+    "updatedAt": "2026-07-28T02:38:44.102Z"
+  },
+  {
+    "id": "cms41r3ie0025uuhxkg35vnx2",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "45",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.102Z",
+    "updatedAt": "2026-07-28T02:38:44.102Z"
+  },
+  {
+    "id": "cms41r3ie0027uuhxrjf5ryle",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "28",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.103Z",
+    "updatedAt": "2026-07-28T02:38:44.103Z"
+  },
+  {
+    "id": "cms41r3jf002kuuhxi04fky0c",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.139Z",
+    "updatedAt": "2026-07-28T02:38:44.139Z"
+  },
+  {
+    "id": "cms41r3jg002muuhxip4zdp9g",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.140Z",
+    "updatedAt": "2026-07-28T02:38:44.140Z"
+  },
+  {
+    "id": "cms41r3jg002ouuhxhuwrxcpu",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "16",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.141Z",
+    "updatedAt": "2026-07-28T02:38:44.141Z"
+  },
+  {
+    "id": "cms41r3jh002quuhx36a2jln5",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "42",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.141Z",
+    "updatedAt": "2026-07-28T02:38:44.141Z"
+  },
+  {
+    "id": "cms41r3jh002suuhx50ptr16e",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "25",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.142Z",
+    "updatedAt": "2026-07-28T02:38:44.142Z"
+  },
+  {
+    "id": "cms41r3kh0035uuhx0jxvjbg2",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.177Z",
+    "updatedAt": "2026-07-28T02:38:44.177Z"
+  },
+  {
+    "id": "cms41r3ki0037uuhx314nbmvp",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.178Z",
+    "updatedAt": "2026-07-28T02:38:44.178Z"
+  },
+  {
+    "id": "cms41r3ki0039uuhxflx18joc",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "17",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.179Z",
+    "updatedAt": "2026-07-28T02:38:44.179Z"
+  },
+  {
+    "id": "cms41r3kj003buuhxj5weuv3t",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "40",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.179Z",
+    "updatedAt": "2026-07-28T02:38:44.179Z"
+  },
+  {
+    "id": "cms41r3kk003duuhx190hl9l1",
+    "expertId": "cms40wl0r00wcuuv9ghauaea4",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "27",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.181Z",
+    "updatedAt": "2026-07-28T02:38:44.181Z"
+  },
+  {
+    "id": "cms41r3ll003quuhxbqf8hba3",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.217Z",
+    "updatedAt": "2026-07-28T02:38:44.217Z"
+  },
+  {
+    "id": "cms41r3ll003suuhxp0xjqoih",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.217Z",
+    "updatedAt": "2026-07-28T02:38:44.217Z"
+  },
+  {
+    "id": "cms41r3lm003uuuhxmgsfh8uq",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "18",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.218Z",
+    "updatedAt": "2026-07-28T02:38:44.218Z"
+  },
+  {
+    "id": "cms41r3lm003wuuhxm06vo8fk",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "45",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.218Z",
+    "updatedAt": "2026-07-28T02:38:44.218Z"
+  },
+  {
+    "id": "cms41r3lm003yuuhx2siy4mua",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o5uuv9s6ndh0s3",
+    "score": "28",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.219Z",
+    "updatedAt": "2026-07-28T02:38:44.219Z"
+  },
+  {
+    "id": "cms41r3ns004wuuhxjfhjoumo",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.296Z",
+    "updatedAt": "2026-07-28T02:38:44.296Z"
+  },
+  {
+    "id": "cms41r3ns004yuuhxv7ib86yv",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.297Z",
+    "updatedAt": "2026-07-28T02:38:44.297Z"
+  },
+  {
+    "id": "cms41r3nt0050uuhx7dsdoriz",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "17",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.297Z",
+    "updatedAt": "2026-07-28T02:38:44.297Z"
+  },
+  {
+    "id": "cms41r3nt0052uuhxuekmwmlh",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "40",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.298Z",
+    "updatedAt": "2026-07-28T02:38:44.298Z"
+  },
+  {
+    "id": "cms41r3nu0054uuhxmum2nn6h",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o7uuv974k8803q",
+    "score": "27",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.298Z",
+    "updatedAt": "2026-07-28T02:38:44.298Z"
+  },
+  {
+    "id": "cms41r3mn004buuhxdja7qhbc",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vbuuv9no6hetou",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.256Z",
+    "updatedAt": "2026-07-28T02:38:44.256Z"
+  },
+  {
+    "id": "cms41r3mo004duuhx2keritzh",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vcuuv9jx9jhyxs",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "0",
+    "passed": true,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.256Z",
+    "updatedAt": "2026-07-28T02:38:44.256Z"
+  },
+  {
+    "id": "cms41r3mo004fuuhxi2jfr7l7",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vduuv9w3dsrq45",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "16",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.257Z",
+    "updatedAt": "2026-07-28T02:38:44.257Z"
+  },
+  {
+    "id": "cms41r3mp004huuhxv5lhn14h",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00veuuv9byk863xd",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "42",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.257Z",
+    "updatedAt": "2026-07-28T02:38:44.257Z"
+  },
+  {
+    "id": "cms41r3mp004juuhxwqz5unlr",
+    "expertId": "cms40wl0u00weuuv9qgz98t6p",
+    "scoreItemId": "cms40rlxk00vfuuv9z24xj3ny",
+    "supplierId": "cms40gwj800o6uuv9j847b6s0",
+    "score": "25",
+    "passed": null,
+    "reason": "ok",
+    "createdAt": "2026-07-28T02:38:44.258Z",
+    "updatedAt": "2026-07-28T02:38:44.258Z"
+  },
+  {
+    "id": "cms49rhy000kauumtzk2mb5ag",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.736Z",
+    "updatedAt": "2026-07-28T06:22:59.736Z"
+  },
+  {
+    "id": "cms49rhy100kcuumtexr5xchm",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.738Z",
+    "updatedAt": "2026-07-28T06:22:59.738Z"
+  },
+  {
+    "id": "cms49rhy200keuumt13w78rf5",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "17",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.738Z",
+    "updatedAt": "2026-07-28T06:22:59.738Z"
+  },
+  {
+    "id": "cms49rhy200kguumt4q323eur",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "42",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.739Z",
+    "updatedAt": "2026-07-28T06:22:59.739Z"
+  },
+  {
+    "id": "cms49rhy300kiuumtbud8qal5",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "30",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.739Z",
+    "updatedAt": "2026-07-28T06:22:59.739Z"
+  },
+  {
+    "id": "cms49rhzb00mfuumtvrb0k3le",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.783Z",
+    "updatedAt": "2026-07-28T06:22:59.783Z"
+  },
+  {
+    "id": "cms49rhzb00mhuumt7mp6n1wj",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.784Z",
+    "updatedAt": "2026-07-28T06:22:59.784Z"
+  },
+  {
+    "id": "cms49rhzc00mjuumt7jvzefl9",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "15",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.784Z",
+    "updatedAt": "2026-07-28T06:22:59.784Z"
+  },
+  {
+    "id": "cms49rhzd00mluumt397psdhz",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "38",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.786Z",
+    "updatedAt": "2026-07-28T06:22:59.786Z"
+  },
+  {
+    "id": "cms49rhze00mnuumtrxjzpt11",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "29",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.786Z",
+    "updatedAt": "2026-07-28T06:22:59.786Z"
+  },
+  {
+    "id": "cms49ri0s00okuumtw4u38d67",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.837Z",
+    "updatedAt": "2026-07-28T06:22:59.837Z"
+  },
+  {
+    "id": "cms49ri0t00omuumt9gih2jbe",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.837Z",
+    "updatedAt": "2026-07-28T06:22:59.837Z"
+  },
+  {
+    "id": "cms49ri0t00oouumtn4zaf073",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "13",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.838Z",
+    "updatedAt": "2026-07-28T06:22:59.838Z"
+  },
+  {
+    "id": "cms49ri0u00oquumtkv4jdko6",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "35",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.838Z",
+    "updatedAt": "2026-07-28T06:22:59.838Z"
+  },
+  {
+    "id": "cms49ri0u00osuumt1lmlute7",
+    "expertId": "cms49pv1i00gvuumtrtws9or3",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "28",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.839Z",
+    "updatedAt": "2026-07-28T06:22:59.839Z"
+  },
+  {
+    "id": "cms49ri2h00qpuumtyhycyun0",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.898Z",
+    "updatedAt": "2026-07-28T06:22:59.898Z"
+  },
+  {
+    "id": "cms49ri2i00qruumtlp6yue1o",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.898Z",
+    "updatedAt": "2026-07-28T06:22:59.898Z"
+  },
+  {
+    "id": "cms49ri2i00qtuumtmid8683f",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "17",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.899Z",
+    "updatedAt": "2026-07-28T06:22:59.899Z"
+  },
+  {
+    "id": "cms49ri2j00qvuumtezbggq12",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "42",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.900Z",
+    "updatedAt": "2026-07-28T06:22:59.900Z"
+  },
+  {
+    "id": "cms49ri2k00qxuumt3xwqqa3w",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "30",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.900Z",
+    "updatedAt": "2026-07-28T06:22:59.900Z"
+  },
+  {
+    "id": "cms49ri3t00suuumtwv7rpfuv",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.946Z",
+    "updatedAt": "2026-07-28T06:22:59.946Z"
+  },
+  {
+    "id": "cms49ri3u00swuumtkaxya22c",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.946Z",
+    "updatedAt": "2026-07-28T06:22:59.946Z"
+  },
+  {
+    "id": "cms49ri3u00syuumtg3k6shlf",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "15",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.947Z",
+    "updatedAt": "2026-07-28T06:22:59.947Z"
+  },
+  {
+    "id": "cms49ri3v00t0uumtm09ah2wd",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "38",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.947Z",
+    "updatedAt": "2026-07-28T06:22:59.947Z"
+  },
+  {
+    "id": "cms49ri3v00t2uumt6lqoqzjf",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "29",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.948Z",
+    "updatedAt": "2026-07-28T06:22:59.948Z"
+  },
+  {
+    "id": "cms49ri5700uzuumt422g0kwe",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.996Z",
+    "updatedAt": "2026-07-28T06:22:59.996Z"
+  },
+  {
+    "id": "cms49ri5800v1uumtrj3auh94",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.996Z",
+    "updatedAt": "2026-07-28T06:22:59.996Z"
+  },
+  {
+    "id": "cms49ri5800v3uumtnk2waw50",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "13",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.997Z",
+    "updatedAt": "2026-07-28T06:22:59.997Z"
+  },
+  {
+    "id": "cms49ri5900v5uumtdl2lday6",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "35",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.997Z",
+    "updatedAt": "2026-07-28T06:22:59.997Z"
+  },
+  {
+    "id": "cms49ri5900v7uumtu07vey70",
+    "expertId": "cms49pv1k00gxuumt4fjkbahn",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "28",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:22:59.998Z",
+    "updatedAt": "2026-07-28T06:22:59.998Z"
+  },
+  {
+    "id": "cms49ri6i00x4uumt738dm9fg",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.042Z",
+    "updatedAt": "2026-07-28T06:23:00.042Z"
+  },
+  {
+    "id": "cms49ri6j00x6uumtalhnd7rl",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.044Z",
+    "updatedAt": "2026-07-28T06:23:00.044Z"
+  },
+  {
+    "id": "cms49ri6k00x8uumtzdd0bbbv",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "17",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.044Z",
+    "updatedAt": "2026-07-28T06:23:00.044Z"
+  },
+  {
+    "id": "cms49ri6k00xauumtdy02eoq4",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "42",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.045Z",
+    "updatedAt": "2026-07-28T06:23:00.045Z"
+  },
+  {
+    "id": "cms49ri6l00xcuumttkwe994g",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003cuumtxhe9hvbn",
+    "score": "30",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.045Z",
+    "updatedAt": "2026-07-28T06:23:00.045Z"
+  },
+  {
+    "id": "cms49ri7u00z9uumthmxcisj6",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.090Z",
+    "updatedAt": "2026-07-28T06:23:00.090Z"
+  },
+  {
+    "id": "cms49ri7u00zbuumty4gmwuey",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.091Z",
+    "updatedAt": "2026-07-28T06:23:00.091Z"
+  },
+  {
+    "id": "cms49ri7v00zduumt714ynjmi",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "15",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.091Z",
+    "updatedAt": "2026-07-28T06:23:00.091Z"
+  },
+  {
+    "id": "cms49ri7v00zfuumt2vxixrmz",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "38",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.092Z",
+    "updatedAt": "2026-07-28T06:23:00.092Z"
+  },
+  {
+    "id": "cms49ri7w00zhuumtrejqhyin",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003euumttwnjmzpj",
+    "score": "29",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.092Z",
+    "updatedAt": "2026-07-28T06:23:00.092Z"
+  },
+  {
+    "id": "cms49ri9d011euumtee04cpuj",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004guumtbxodhdsq",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.146Z",
+    "updatedAt": "2026-07-28T06:23:00.146Z"
+  },
+  {
+    "id": "cms49ri9e011guumt3ppgx3hn",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004huumtjvbhgdgo",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "0",
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.146Z",
+    "updatedAt": "2026-07-28T06:23:00.146Z"
+  },
+  {
+    "id": "cms49ri9e011iuumthi1fhlm0",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004iuumtew9jphzj",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "13",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.147Z",
+    "updatedAt": "2026-07-28T06:23:00.147Z"
+  },
+  {
+    "id": "cms49ri9f011kuumtroure3t8",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004juumtxnbjrjnz",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "35",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.147Z",
+    "updatedAt": "2026-07-28T06:23:00.147Z"
+  },
+  {
+    "id": "cms49ri9f011muumtkgzdd4ki",
+    "expertId": "cms49pv1l00gzuumtf7evpohe",
+    "scoreItemId": "cms49ec7g004kuumtq6yfo7al",
+    "supplierId": "cms49e2e9003duumtj05upmu1",
+    "score": "28",
+    "passed": null,
+    "reason": null,
+    "createdAt": "2026-07-28T06:23:00.148Z",
+    "updatedAt": "2026-07-28T06:23:00.148Z"
   }
 ]

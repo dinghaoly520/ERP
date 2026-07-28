@@ -544,5 +544,31 @@
     "expertInfo": null,
     "biddingUnits": null,
     "procurementProjectId": null
+  },
+  {
+    "id": "cms49imho009quumtw4fjxrmm",
+    "projectId": "cms49imhl009ouumtm5c5uxjn",
+    "roundNo": 1,
+    "procurementDate": null,
+    "procurementMethod": "竞价采购",
+    "departmentId": "seeddept009",
+    "budgetAmount": "500000",
+    "controlAmount": null,
+    "awardedSupplierId": null,
+    "awardAmount": null,
+    "resultStatus": "PENDING",
+    "resultText": null,
+    "sourceType": "MANUAL",
+    "supplierText": null,
+    "importBatchId": null,
+    "isRecycled": false,
+    "createdById": "cmrai35g90004koddpllpmrp4",
+    "updatedById": null,
+    "createdAt": "2026-07-28T06:16:05.725Z",
+    "updatedAt": "2026-07-28T06:16:05.725Z",
+    "awardedSupplierName": null,
+    "expertInfo": null,
+    "biddingUnits": null,
+    "procurementProjectId": null
   }
 ]

@@ -5,6 +5,7 @@
     "name": "赵总",
     "phone": "13900139001",
     "email": "zhao@huaxi.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"
@@ -15,6 +16,7 @@
     "name": "高翔",
     "phone": "15528379427",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.636Z",
     "updatedAt": "2026-06-13T11:02:25.636Z"
@@ -25,6 +27,7 @@
     "name": "向家聪",
     "phone": "13281339335",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.641Z",
     "updatedAt": "2026-06-13T11:02:25.641Z"
@@ -35,6 +38,7 @@
     "name": "王蓉",
     "phone": "17780731890",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.645Z",
     "updatedAt": "2026-06-13T11:02:25.645Z"
@@ -45,6 +49,7 @@
     "name": "何晶",
     "phone": "19960355309",
     "email": null,
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-13T11:02:25.645Z",
     "updatedAt": "2026-06-13T11:02:25.645Z"
@@ -55,6 +60,7 @@
     "name": "朱冰洁",
     "phone": "18011312543",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.649Z",
     "updatedAt": "2026-06-13T11:02:25.649Z"
@@ -65,6 +71,7 @@
     "name": "李诚",
     "phone": "13088012821",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.653Z",
     "updatedAt": "2026-06-13T11:02:25.653Z"
@@ -75,6 +82,7 @@
     "name": "都勇",
     "phone": "15280999327",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.656Z",
     "updatedAt": "2026-06-13T11:02:25.656Z"
@@ -85,6 +93,7 @@
     "name": "刘宗其",
     "phone": "13980464252",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.659Z",
     "updatedAt": "2026-06-13T11:02:25.659Z"
@@ -95,6 +104,7 @@
     "name": "李洋",
     "phone": "15928191217",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.662Z",
     "updatedAt": "2026-06-13T11:02:25.662Z"
@@ -105,6 +115,7 @@
     "name": "兰小军",
     "phone": "18683932719",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.665Z",
     "updatedAt": "2026-06-13T11:02:25.665Z"
@@ -115,6 +126,7 @@
     "name": "蔡世翠",
     "phone": "15208214108",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.669Z",
     "updatedAt": "2026-06-13T11:02:25.669Z"
@@ -125,6 +137,7 @@
     "name": "雷鸿",
     "phone": "18981769159",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.671Z",
     "updatedAt": "2026-06-13T11:02:25.671Z"
@@ -135,6 +148,7 @@
     "name": "杨勇",
     "phone": "13541305250",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.674Z",
     "updatedAt": "2026-06-13T11:02:25.674Z"
@@ -145,6 +159,7 @@
     "name": "王迪迪",
     "phone": "13111899819",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.680Z",
     "updatedAt": "2026-06-13T11:02:25.680Z"
@@ -155,6 +170,7 @@
     "name": "陈虹",
     "phone": "17396262156",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.683Z",
     "updatedAt": "2026-06-13T11:02:25.683Z"
@@ -165,6 +181,7 @@
     "name": "王灿",
     "phone": "17345949392",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.686Z",
     "updatedAt": "2026-06-13T11:02:25.686Z"
@@ -175,6 +192,7 @@
     "name": "王美月",
     "phone": "13618220199",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.688Z",
     "updatedAt": "2026-06-13T11:02:25.688Z"
@@ -185,6 +203,7 @@
     "name": "祝丹梅",
     "phone": "13058147313",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.691Z",
     "updatedAt": "2026-06-13T11:02:25.691Z"
@@ -195,6 +214,7 @@
     "name": "侯龙",
     "phone": "15208123393",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.694Z",
     "updatedAt": "2026-06-13T11:02:25.694Z"
@@ -205,6 +225,7 @@
     "name": "邓莉竣",
     "phone": "18328377520",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.697Z",
     "updatedAt": "2026-06-13T11:02:25.697Z"
@@ -215,6 +236,7 @@
     "name": "刘雁月",
     "phone": "18583380465",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.700Z",
     "updatedAt": "2026-06-13T11:02:25.700Z"
@@ -225,6 +247,7 @@
     "name": "周严",
     "phone": "15881118185",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.703Z",
     "updatedAt": "2026-06-13T11:02:25.703Z"
@@ -235,6 +258,7 @@
     "name": "向涛",
     "phone": "18684015006",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.706Z",
     "updatedAt": "2026-06-13T11:02:25.706Z"
@@ -245,6 +269,7 @@
     "name": "陈吉剑",
     "phone": "13551585643",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.708Z",
     "updatedAt": "2026-06-13T11:02:25.708Z"
@@ -255,6 +280,7 @@
     "name": "刘春梅",
     "phone": "—",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.711Z",
     "updatedAt": "2026-06-13T11:02:25.711Z"
@@ -265,6 +291,7 @@
     "name": "罗楷",
     "phone": "13350422989",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.713Z",
     "updatedAt": "2026-06-13T11:02:25.713Z"
@@ -275,6 +302,7 @@
     "name": "刘宜兰",
     "phone": "17790262236",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.716Z",
     "updatedAt": "2026-06-13T11:02:25.716Z"
@@ -285,6 +313,7 @@
     "name": "余刚",
     "phone": "18982091981",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.719Z",
     "updatedAt": "2026-06-13T11:02:25.719Z"
@@ -295,6 +324,7 @@
     "name": "黄超",
     "phone": "15196649611",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.721Z",
     "updatedAt": "2026-06-13T11:02:25.721Z"
@@ -305,6 +335,7 @@
     "name": "王雅菡",
     "phone": "13668299024",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.726Z",
     "updatedAt": "2026-06-13T11:02:25.726Z"
@@ -315,6 +346,7 @@
     "name": "刘丽英",
     "phone": "15882192396",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.729Z",
     "updatedAt": "2026-06-13T11:02:25.729Z"
@@ -325,6 +357,7 @@
     "name": "雪梅",
     "phone": "15883275163",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.732Z",
     "updatedAt": "2026-06-13T11:02:25.732Z"
@@ -335,6 +368,7 @@
     "name": "何庆",
     "phone": "1592322614",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.735Z",
     "updatedAt": "2026-06-13T11:02:25.735Z"
@@ -345,6 +379,7 @@
     "name": "张黎维",
     "phone": "13666207822",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.738Z",
     "updatedAt": "2026-06-13T11:02:25.738Z"
@@ -355,6 +390,7 @@
     "name": "江佳雯",
     "phone": "19130850450",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.741Z",
     "updatedAt": "2026-06-13T11:02:25.741Z"
@@ -365,6 +401,7 @@
     "name": "冯文军",
     "phone": "18980072693",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.743Z",
     "updatedAt": "2026-06-13T11:02:25.743Z"
@@ -375,6 +412,7 @@
     "name": "钟怡",
     "phone": "13880231891",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.746Z",
     "updatedAt": "2026-06-13T11:02:25.746Z"
@@ -385,6 +423,7 @@
     "name": "刘芸",
     "phone": "15528781165",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.749Z",
     "updatedAt": "2026-06-13T11:02:25.749Z"
@@ -395,6 +434,7 @@
     "name": "宋艳阳",
     "phone": "18782670524",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.752Z",
     "updatedAt": "2026-06-13T11:02:25.752Z"
@@ -405,6 +445,7 @@
     "name": "黄英",
     "phone": "13550616641",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.755Z",
     "updatedAt": "2026-06-13T11:02:25.755Z"
@@ -415,6 +456,7 @@
     "name": "张亚菲",
     "phone": "18990280081",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.757Z",
     "updatedAt": "2026-06-13T11:02:25.757Z"
@@ -425,6 +467,7 @@
     "name": "王新宇",
     "phone": "18141333999",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.760Z",
     "updatedAt": "2026-06-13T11:02:25.760Z"
@@ -435,6 +478,7 @@
     "name": "倪丹",
     "phone": "13981988829",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.763Z",
     "updatedAt": "2026-06-13T11:02:25.763Z"
@@ -445,6 +489,7 @@
     "name": "李棚",
     "phone": "13518444441",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.766Z",
     "updatedAt": "2026-06-13T11:02:25.766Z"
@@ -455,6 +500,7 @@
     "name": "王平",
     "phone": "13882040569",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.768Z",
     "updatedAt": "2026-06-13T11:02:25.768Z"
@@ -465,6 +511,7 @@
     "name": "付凤杰",
     "phone": "15882160545",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.771Z",
     "updatedAt": "2026-06-13T11:02:25.771Z"
@@ -475,6 +522,7 @@
     "name": "李江华",
     "phone": "13350069687",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.774Z",
     "updatedAt": "2026-06-13T11:02:25.774Z"
@@ -485,6 +533,7 @@
     "name": "唐丹",
     "phone": "17311445572",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.779Z",
     "updatedAt": "2026-06-13T11:02:25.779Z"
@@ -495,6 +544,7 @@
     "name": "费小云",
     "phone": "13551089033",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.784Z",
     "updatedAt": "2026-06-13T11:02:25.784Z"
@@ -505,6 +555,7 @@
     "name": "李裕详",
     "phone": "18280099481",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.786Z",
     "updatedAt": "2026-06-13T11:02:25.786Z"
@@ -515,6 +566,7 @@
     "name": "贾凤春",
     "phone": "18398965680",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.789Z",
     "updatedAt": "2026-06-13T11:02:25.789Z"
@@ -525,6 +577,7 @@
     "name": "张林",
     "phone": "13198208882",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.792Z",
     "updatedAt": "2026-06-13T11:02:25.792Z"
@@ -535,6 +588,7 @@
     "name": "黎安俊",
     "phone": "13880871860",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.795Z",
     "updatedAt": "2026-06-13T11:02:25.795Z"
@@ -545,6 +599,7 @@
     "name": "杨莹钰",
     "phone": "13668144664",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.797Z",
     "updatedAt": "2026-06-13T11:02:25.797Z"
@@ -555,6 +610,7 @@
     "name": "余龙",
     "phone": "18980516574",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.800Z",
     "updatedAt": "2026-06-13T11:02:25.800Z"
@@ -565,6 +621,7 @@
     "name": "汪桃",
     "phone": "18080166239",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.803Z",
     "updatedAt": "2026-06-13T11:02:25.803Z"
@@ -575,6 +632,7 @@
     "name": "陈俊",
     "phone": "13072835666",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.806Z",
     "updatedAt": "2026-06-13T11:02:25.806Z"
@@ -585,6 +643,7 @@
     "name": "柯茜岚",
     "phone": "13541363085",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.809Z",
     "updatedAt": "2026-06-13T11:02:25.809Z"
@@ -595,6 +654,7 @@
     "name": "柯茜岚",
     "phone": "13541363085",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.811Z",
     "updatedAt": "2026-06-13T11:02:25.811Z"
@@ -605,6 +665,7 @@
     "name": "王璐",
     "phone": "15908105036",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.814Z",
     "updatedAt": "2026-06-13T11:02:25.814Z"
@@ -615,6 +676,7 @@
     "name": "罗广",
     "phone": "17742846752",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.817Z",
     "updatedAt": "2026-06-13T11:02:25.817Z"
@@ -625,6 +687,7 @@
     "name": "罗建",
     "phone": "19182145163",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.820Z",
     "updatedAt": "2026-06-13T11:02:25.820Z"
@@ -635,6 +698,7 @@
     "name": "张璇",
     "phone": "18981839299",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.822Z",
     "updatedAt": "2026-06-13T11:02:25.822Z"
@@ -645,6 +709,7 @@
     "name": "孔灵",
     "phone": "17313012512",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.825Z",
     "updatedAt": "2026-06-13T11:02:25.825Z"
@@ -655,6 +720,7 @@
     "name": "文经理",
     "phone": "17780689149",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.828Z",
     "updatedAt": "2026-06-13T11:02:25.828Z"
@@ -665,6 +731,7 @@
     "name": "周婷",
     "phone": "17360079394",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.831Z",
     "updatedAt": "2026-06-13T11:02:25.831Z"
@@ -675,6 +742,7 @@
     "name": "牟伟",
     "phone": "133980990297",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.834Z",
     "updatedAt": "2026-06-13T11:02:25.834Z"
@@ -685,6 +753,7 @@
     "name": "金灿波",
     "phone": "13688435784",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.842Z",
     "updatedAt": "2026-06-13T11:02:25.842Z"
@@ -695,6 +764,7 @@
     "name": "潘莉莉",
     "phone": "18981747726",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.844Z",
     "updatedAt": "2026-06-13T11:02:25.844Z"
@@ -705,6 +775,7 @@
     "name": "张明伟",
     "phone": "028-86384332",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.847Z",
     "updatedAt": "2026-06-13T11:02:25.847Z"
@@ -715,6 +786,7 @@
     "name": "刘登位",
     "phone": "13980574308",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.850Z",
     "updatedAt": "2026-06-13T11:02:25.850Z"
@@ -725,6 +797,7 @@
     "name": "李强",
     "phone": "18280055755",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.853Z",
     "updatedAt": "2026-06-13T11:02:25.853Z"
@@ -735,6 +808,7 @@
     "name": "廖进超",
     "phone": "17628181256",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.855Z",
     "updatedAt": "2026-06-13T11:02:25.855Z"
@@ -745,6 +819,7 @@
     "name": "陈道敏",
     "phone": "18981766706",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.858Z",
     "updatedAt": "2026-06-13T11:02:25.858Z"
@@ -755,6 +830,7 @@
     "name": "马波",
     "phone": "18981766906",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.861Z",
     "updatedAt": "2026-06-13T11:02:25.861Z"
@@ -765,6 +841,7 @@
     "name": "帅文华",
     "phone": "13908075722",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.864Z",
     "updatedAt": "2026-06-13T11:02:25.864Z"
@@ -775,6 +852,7 @@
     "name": "潘玲玲",
     "phone": "13551354270",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.866Z",
     "updatedAt": "2026-06-13T11:02:25.866Z"
@@ -785,6 +863,7 @@
     "name": "胡雪芹",
     "phone": "18628330797",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.869Z",
     "updatedAt": "2026-06-13T11:02:25.869Z"
@@ -795,6 +874,7 @@
     "name": "冯庆裕",
     "phone": "13308215558",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.872Z",
     "updatedAt": "2026-06-13T11:02:25.872Z"
@@ -805,6 +885,7 @@
     "name": "喻莉",
     "phone": "18980681134",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.874Z",
     "updatedAt": "2026-06-13T11:02:25.874Z"
@@ -815,6 +896,7 @@
     "name": "李佳",
     "phone": "15882007626",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.877Z",
     "updatedAt": "2026-06-13T11:02:25.877Z"
@@ -825,6 +907,7 @@
     "name": "陈洪",
     "phone": "15802888831",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.880Z",
     "updatedAt": "2026-06-13T11:02:25.880Z"
@@ -835,6 +918,7 @@
     "name": "陈川",
     "phone": "13688362822",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.883Z",
     "updatedAt": "2026-06-13T11:02:25.883Z"
@@ -845,6 +929,7 @@
     "name": "尧有龙",
     "phone": "13668153767",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.885Z",
     "updatedAt": "2026-06-13T11:02:25.885Z"
@@ -855,6 +940,7 @@
     "name": "贺祥军",
     "phone": "13551374738",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.888Z",
     "updatedAt": "2026-06-13T11:02:25.888Z"
@@ -865,6 +951,7 @@
     "name": "白敏",
     "phone": "13146409703",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.891Z",
     "updatedAt": "2026-06-13T11:02:25.891Z"
@@ -875,6 +962,7 @@
     "name": "陈新裕",
     "phone": "13666111087",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.893Z",
     "updatedAt": "2026-06-13T11:02:25.893Z"
@@ -885,6 +973,7 @@
     "name": "彭启洪",
     "phone": "18483685793",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.897Z",
     "updatedAt": "2026-06-13T11:02:25.897Z"
@@ -895,6 +984,7 @@
     "name": "熊伟伟",
     "phone": "13908044345",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.901Z",
     "updatedAt": "2026-06-13T11:02:25.901Z"
@@ -905,6 +995,7 @@
     "name": "雷芹",
     "phone": "18382370050",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.905Z",
     "updatedAt": "2026-06-13T11:02:25.905Z"
@@ -915,6 +1006,7 @@
     "name": "李金源",
     "phone": "15208444250",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.908Z",
     "updatedAt": "2026-06-13T11:02:25.908Z"
@@ -925,6 +1017,7 @@
     "name": "潘化珍",
     "phone": "18382288828",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.912Z",
     "updatedAt": "2026-06-13T11:02:25.912Z"
@@ -935,6 +1028,7 @@
     "name": "徐兴财",
     "phone": "15184491158",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.916Z",
     "updatedAt": "2026-06-13T11:02:25.916Z"
@@ -945,6 +1039,7 @@
     "name": "张安虎",
     "phone": "13551088370",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.919Z",
     "updatedAt": "2026-06-13T11:02:25.919Z"
@@ -955,6 +1050,7 @@
     "name": "李兰",
     "phone": "15198056733",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.922Z",
     "updatedAt": "2026-06-13T11:02:25.922Z"
@@ -965,6 +1061,7 @@
     "name": "王仕彬",
     "phone": "15882385328",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.926Z",
     "updatedAt": "2026-06-13T11:02:25.926Z"
@@ -975,6 +1072,7 @@
     "name": "程刚",
     "phone": "15202821898",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.929Z",
     "updatedAt": "2026-06-13T11:02:25.929Z"
@@ -985,6 +1083,7 @@
     "name": "袁波",
     "phone": "18782277598",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.933Z",
     "updatedAt": "2026-06-13T11:02:25.933Z"
@@ -995,6 +1094,7 @@
     "name": "陈梦玲",
     "phone": "18628268703",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.936Z",
     "updatedAt": "2026-06-13T11:02:25.936Z"
@@ -1005,6 +1105,7 @@
     "name": "母浩江",
     "phone": "15182315026",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.940Z",
     "updatedAt": "2026-06-13T11:02:25.940Z"
@@ -1015,6 +1116,7 @@
     "name": "符雅雯",
     "phone": "18200294547",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.943Z",
     "updatedAt": "2026-06-13T11:02:25.943Z"
@@ -1025,6 +1127,7 @@
     "name": "翁司量",
     "phone": "13699466712",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.946Z",
     "updatedAt": "2026-06-13T11:02:25.946Z"
@@ -1035,6 +1138,7 @@
     "name": "解立",
     "phone": "17844586506",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.950Z",
     "updatedAt": "2026-06-13T11:02:25.950Z"
@@ -1045,6 +1149,7 @@
     "name": "李忠联",
     "phone": "028-86638288",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.954Z",
     "updatedAt": "2026-06-13T11:02:25.954Z"
@@ -1055,6 +1160,7 @@
     "name": "周杰",
     "phone": "13880188520",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.957Z",
     "updatedAt": "2026-06-13T11:02:25.957Z"
@@ -1065,6 +1171,7 @@
     "name": "吕世明",
     "phone": "15828342623",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.961Z",
     "updatedAt": "2026-06-13T11:02:25.961Z"
@@ -1075,6 +1182,7 @@
     "name": "刘长勇",
     "phone": "18583609494",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.964Z",
     "updatedAt": "2026-06-13T11:02:25.964Z"
@@ -1085,6 +1193,7 @@
     "name": "赵亮",
     "phone": "13608187898",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.967Z",
     "updatedAt": "2026-06-13T11:02:25.967Z"
@@ -1095,6 +1204,7 @@
     "name": "范文英",
     "phone": "13308005701",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.971Z",
     "updatedAt": "2026-06-13T11:02:25.971Z"
@@ -1105,6 +1215,7 @@
     "name": "许磊",
     "phone": "18908237007",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.974Z",
     "updatedAt": "2026-06-13T11:02:25.974Z"
@@ -1115,6 +1226,7 @@
     "name": "王海燕",
     "phone": "15528148999",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.978Z",
     "updatedAt": "2026-06-13T11:02:25.978Z"
@@ -1125,6 +1237,7 @@
     "name": "武强",
     "phone": "13980896218",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.981Z",
     "updatedAt": "2026-06-13T11:02:25.981Z"
@@ -1135,6 +1248,7 @@
     "name": "郑文武",
     "phone": "13881813273",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.984Z",
     "updatedAt": "2026-06-13T11:02:25.984Z"
@@ -1145,6 +1259,7 @@
     "name": "王汉虎",
     "phone": "13980068963",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.988Z",
     "updatedAt": "2026-06-13T11:02:25.988Z"
@@ -1155,6 +1270,7 @@
     "name": "赵志强",
     "phone": "13980682250",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.991Z",
     "updatedAt": "2026-06-13T11:02:25.991Z"
@@ -1165,6 +1281,7 @@
     "name": "秦珂",
     "phone": "13548111072",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.994Z",
     "updatedAt": "2026-06-13T11:02:25.994Z"
@@ -1175,6 +1292,7 @@
     "name": "王珺",
     "phone": "18328375019",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:25.998Z",
     "updatedAt": "2026-06-13T11:02:25.998Z"
@@ -1185,6 +1303,7 @@
     "name": "祝信全",
     "phone": "028-58654977",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.001Z",
     "updatedAt": "2026-06-13T11:02:26.001Z"
@@ -1195,6 +1314,7 @@
     "name": "黄涛",
     "phone": "13330942372",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.004Z",
     "updatedAt": "2026-06-13T11:02:26.004Z"
@@ -1205,6 +1325,7 @@
     "name": "王洪",
     "phone": "028-86381266-904",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.007Z",
     "updatedAt": "2026-06-13T11:02:26.007Z"
@@ -1215,6 +1336,7 @@
     "name": "莫冬",
     "phone": "13568876620",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.010Z",
     "updatedAt": "2026-06-13T11:02:26.010Z"
@@ -1225,6 +1347,7 @@
     "name": "牛伟旭",
     "phone": "13880764285",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.014Z",
     "updatedAt": "2026-06-13T11:02:26.014Z"
@@ -1235,6 +1358,7 @@
     "name": "皮远姝",
     "phone": "15282484640",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.017Z",
     "updatedAt": "2026-06-13T11:02:26.017Z"
@@ -1245,6 +1369,7 @@
     "name": "周文杰",
     "phone": "19827111777",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.021Z",
     "updatedAt": "2026-06-13T11:02:26.021Z"
@@ -1255,6 +1380,7 @@
     "name": "王凤娇",
     "phone": "028-81505229",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.024Z",
     "updatedAt": "2026-06-13T11:02:26.024Z"
@@ -1265,6 +1391,7 @@
     "name": "晏亮",
     "phone": "17313162675",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.027Z",
     "updatedAt": "2026-06-13T11:02:26.027Z"
@@ -1275,6 +1402,7 @@
     "name": "赵璐",
     "phone": "15231177877",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.031Z",
     "updatedAt": "2026-06-13T11:02:26.031Z"
@@ -1285,6 +1413,7 @@
     "name": "潘超超",
     "phone": "13191869820",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.034Z",
     "updatedAt": "2026-06-13T11:02:26.034Z"
@@ -1295,6 +1424,7 @@
     "name": "田永盛",
     "phone": "15833398608",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.038Z",
     "updatedAt": "2026-06-13T11:02:26.038Z"
@@ -1305,6 +1435,7 @@
     "name": "李明",
     "phone": "15175723560",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.041Z",
     "updatedAt": "2026-06-13T11:02:26.041Z"
@@ -1315,6 +1446,7 @@
     "name": "陈侨",
     "phone": "15831963616",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.044Z",
     "updatedAt": "2026-06-13T11:02:26.044Z"
@@ -1325,6 +1457,7 @@
     "name": "姜哓昆",
     "phone": "15131339096",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.048Z",
     "updatedAt": "2026-06-13T11:02:26.048Z"
@@ -1335,6 +1468,7 @@
     "name": "刘晓东",
     "phone": "18631137899",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.051Z",
     "updatedAt": "2026-06-13T11:02:26.051Z"
@@ -1345,6 +1479,7 @@
     "name": "钟伟",
     "phone": "13308130350",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.054Z",
     "updatedAt": "2026-06-13T11:02:26.054Z"
@@ -1355,6 +1490,7 @@
     "name": "田珊",
     "phone": "0813-8229125",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.057Z",
     "updatedAt": "2026-06-13T11:02:26.057Z"
@@ -1365,6 +1501,7 @@
     "name": "刘娇龙",
     "phone": "18708157002",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.061Z",
     "updatedAt": "2026-06-13T11:02:26.061Z"
@@ -1375,6 +1512,7 @@
     "name": "陈建武",
     "phone": "18380281001",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.064Z",
     "updatedAt": "2026-06-13T11:02:26.064Z"
@@ -1385,6 +1523,7 @@
     "name": "李泽发",
     "phone": "13669990751",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.067Z",
     "updatedAt": "2026-06-13T11:02:26.067Z"
@@ -1395,6 +1534,7 @@
     "name": "李智",
     "phone": "13990338230",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.071Z",
     "updatedAt": "2026-06-13T11:02:26.071Z"
@@ -1405,6 +1545,7 @@
     "name": "罗云海",
     "phone": "18782182102",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.074Z",
     "updatedAt": "2026-06-13T11:02:26.074Z"
@@ -1415,6 +1556,7 @@
     "name": "张莉",
     "phone": "18908175110",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.077Z",
     "updatedAt": "2026-06-13T11:02:26.077Z"
@@ -1425,6 +1567,7 @@
     "name": "付志雄",
     "phone": "15215020620",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.081Z",
     "updatedAt": "2026-06-13T11:02:26.081Z"
@@ -1435,6 +1578,7 @@
     "name": "薛军平",
     "phone": "15116458002",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.084Z",
     "updatedAt": "2026-06-13T11:02:26.084Z"
@@ -1445,6 +1589,7 @@
     "name": "王桂林",
     "phone": "13881755305",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.087Z",
     "updatedAt": "2026-06-13T11:02:26.087Z"
@@ -1455,6 +1600,7 @@
     "name": "宋毅伦",
     "phone": "13438462293",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.090Z",
     "updatedAt": "2026-06-13T11:02:26.090Z"
@@ -1465,6 +1611,7 @@
     "name": "何姗姗",
     "phone": "13762238052",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.094Z",
     "updatedAt": "2026-06-13T11:02:26.094Z"
@@ -1475,6 +1622,7 @@
     "name": "安志元",
     "phone": "17810281167",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.097Z",
     "updatedAt": "2026-06-13T11:02:26.097Z"
@@ -1485,6 +1633,7 @@
     "name": "熊龙忠",
     "phone": "13666221207",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.100Z",
     "updatedAt": "2026-06-13T11:02:26.100Z"
@@ -1495,6 +1644,7 @@
     "name": "杨仕君",
     "phone": "18908014809",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.104Z",
     "updatedAt": "2026-06-13T11:02:26.104Z"
@@ -1505,6 +1655,7 @@
     "name": "张晔",
     "phone": "18781944785",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.107Z",
     "updatedAt": "2026-06-13T11:02:26.107Z"
@@ -1515,6 +1666,7 @@
     "name": "张浩",
     "phone": "13618029095",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.110Z",
     "updatedAt": "2026-06-13T11:02:26.110Z"
@@ -1525,6 +1677,7 @@
     "name": "李亮",
     "phone": "13882238606",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.114Z",
     "updatedAt": "2026-06-13T11:02:26.114Z"
@@ -1535,6 +1688,7 @@
     "name": "齐金磊",
     "phone": "18981710357",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.117Z",
     "updatedAt": "2026-06-13T11:02:26.117Z"
@@ -1545,6 +1699,7 @@
     "name": "姜孝玫",
     "phone": "15108246560",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.120Z",
     "updatedAt": "2026-06-13T11:02:26.120Z"
@@ -1555,6 +1710,7 @@
     "name": "谢丽",
     "phone": "13880002153",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.124Z",
     "updatedAt": "2026-06-13T11:02:26.124Z"
@@ -1565,6 +1721,7 @@
     "name": "宋海军",
     "phone": "13964141791",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.127Z",
     "updatedAt": "2026-06-13T11:02:26.127Z"
@@ -1575,6 +1732,7 @@
     "name": "张宇婷",
     "phone": "18644966325",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.130Z",
     "updatedAt": "2026-06-13T11:02:26.130Z"
@@ -1585,6 +1743,7 @@
     "name": "廖娟",
     "phone": "18328584540",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.134Z",
     "updatedAt": "2026-06-13T11:02:26.134Z"
@@ -1595,6 +1754,7 @@
     "name": "刘敏",
     "phone": "13881887436",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.137Z",
     "updatedAt": "2026-06-13T11:02:26.137Z"
@@ -1605,6 +1765,7 @@
     "name": "孟鹏宇",
     "phone": "13547881956",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.140Z",
     "updatedAt": "2026-06-13T11:02:26.140Z"
@@ -1615,6 +1776,7 @@
     "name": "刘海兵",
     "phone": "17302396112",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.143Z",
     "updatedAt": "2026-06-13T11:02:26.143Z"
@@ -1625,6 +1787,7 @@
     "name": "王路平",
     "phone": "13194995867",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.147Z",
     "updatedAt": "2026-06-13T11:02:26.147Z"
@@ -1635,6 +1798,7 @@
     "name": "寇文军",
     "phone": "13438833845",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.150Z",
     "updatedAt": "2026-06-13T11:02:26.150Z"
@@ -1645,6 +1809,7 @@
     "name": "杨猛",
     "phone": "13608189899",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.153Z",
     "updatedAt": "2026-06-13T11:02:26.153Z"
@@ -1655,6 +1820,7 @@
     "name": "楚海强",
     "phone": "18010631986",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.157Z",
     "updatedAt": "2026-06-13T11:02:26.157Z"
@@ -1665,6 +1831,7 @@
     "name": "李强",
     "phone": "17723317273",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.160Z",
     "updatedAt": "2026-06-13T11:02:26.160Z"
@@ -1675,6 +1842,7 @@
     "name": "韩东子",
     "phone": "13981916780",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.164Z",
     "updatedAt": "2026-06-13T11:02:26.164Z"
@@ -1685,6 +1853,7 @@
     "name": "肖巍",
     "phone": "18186496370",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.167Z",
     "updatedAt": "2026-06-13T11:02:26.167Z"
@@ -1695,6 +1864,7 @@
     "name": "王林",
     "phone": "18308461733",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.171Z",
     "updatedAt": "2026-06-13T11:02:26.171Z"
@@ -1705,6 +1875,7 @@
     "name": "李花",
     "phone": "15828554812",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.174Z",
     "updatedAt": "2026-06-13T11:02:26.174Z"
@@ -1715,6 +1886,7 @@
     "name": "罗雪梅",
     "phone": "18328422992",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.177Z",
     "updatedAt": "2026-06-13T11:02:26.177Z"
@@ -1725,6 +1897,7 @@
     "name": "董飞",
     "phone": "13438850258",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.181Z",
     "updatedAt": "2026-06-13T11:02:26.181Z"
@@ -1735,6 +1908,7 @@
     "name": "李焕英",
     "phone": "13808215227",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.184Z",
     "updatedAt": "2026-06-13T11:02:26.184Z"
@@ -1745,6 +1919,7 @@
     "name": "高正波",
     "phone": "13880280241",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.188Z",
     "updatedAt": "2026-06-13T11:02:26.188Z"
@@ -1755,6 +1930,7 @@
     "name": "孟庆华",
     "phone": "18192823770",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.191Z",
     "updatedAt": "2026-06-13T11:02:26.191Z"
@@ -1765,6 +1941,7 @@
     "name": "徐明明",
     "phone": "18605511101",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.194Z",
     "updatedAt": "2026-06-13T11:02:26.194Z"
@@ -1775,6 +1952,7 @@
     "name": "周光建",
     "phone": "13874886797",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.198Z",
     "updatedAt": "2026-06-13T11:02:26.198Z"
@@ -1785,6 +1963,7 @@
     "name": "贺欣",
     "phone": "18673069228",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.201Z",
     "updatedAt": "2026-06-13T11:02:26.201Z"
@@ -1795,6 +1974,7 @@
     "name": "陈秀秀",
     "phone": "13880358531",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.204Z",
     "updatedAt": "2026-06-13T11:02:26.204Z"
@@ -1805,6 +1985,7 @@
     "name": "段小东",
     "phone": "18382777760",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.208Z",
     "updatedAt": "2026-06-13T11:02:26.208Z"
@@ -1815,6 +1996,7 @@
     "name": "詹霞",
     "phone": "13658321725",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.211Z",
     "updatedAt": "2026-06-13T11:02:26.211Z"
@@ -1825,6 +2007,7 @@
     "name": "刘静",
     "phone": "13568891269",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.215Z",
     "updatedAt": "2026-06-13T11:02:26.215Z"
@@ -1835,6 +2018,7 @@
     "name": "魏勇",
     "phone": "18090606016",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.218Z",
     "updatedAt": "2026-06-13T11:02:26.218Z"
@@ -1845,6 +2029,7 @@
     "name": "林存芬",
     "phone": "18950208851",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.221Z",
     "updatedAt": "2026-06-13T11:02:26.221Z"
@@ -1855,6 +2040,7 @@
     "name": "卓建兴",
     "phone": "0838-2905561",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.225Z",
     "updatedAt": "2026-06-13T11:02:26.225Z"
@@ -1865,6 +2051,7 @@
     "name": "葛宝",
     "phone": "13541160448",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.228Z",
     "updatedAt": "2026-06-13T11:02:26.228Z"
@@ -1875,6 +2062,7 @@
     "name": "杨承",
     "phone": "13708260784",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.232Z",
     "updatedAt": "2026-06-13T11:02:26.232Z"
@@ -1885,6 +2073,7 @@
     "name": "陈梅",
     "phone": "18398035618",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.235Z",
     "updatedAt": "2026-06-13T11:02:26.235Z"
@@ -1895,6 +2084,7 @@
     "name": "欧宜财",
     "phone": "13808225176",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.238Z",
     "updatedAt": "2026-06-13T11:02:26.238Z"
@@ -1905,6 +2095,7 @@
     "name": "尹强",
     "phone": "18981783667",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.242Z",
     "updatedAt": "2026-06-13T11:02:26.242Z"
@@ -1915,6 +2106,7 @@
     "name": "张建平",
     "phone": "19909000079",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.245Z",
     "updatedAt": "2026-06-13T11:02:26.245Z"
@@ -1925,6 +2117,7 @@
     "name": "尹强",
     "phone": "18981783667",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.248Z",
     "updatedAt": "2026-06-13T11:02:26.248Z"
@@ -1935,6 +2128,7 @@
     "name": "朱春梅",
     "phone": "15982339312",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.252Z",
     "updatedAt": "2026-06-13T11:02:26.252Z"
@@ -1945,6 +2139,7 @@
     "name": "郝建龙",
     "phone": "15528097716",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.255Z",
     "updatedAt": "2026-06-13T11:02:26.255Z"
@@ -1955,6 +2150,7 @@
     "name": "张俊宇",
     "phone": "18349679690",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.258Z",
     "updatedAt": "2026-06-13T11:02:26.258Z"
@@ -1965,6 +2161,7 @@
     "name": "康竹丹",
     "phone": "028-85410138",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.262Z",
     "updatedAt": "2026-06-13T11:02:26.262Z"
@@ -1975,6 +2172,7 @@
     "name": "阚路",
     "phone": "18981392816",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.265Z",
     "updatedAt": "2026-06-13T11:02:26.265Z"
@@ -1985,6 +2183,7 @@
     "name": "邓棋文",
     "phone": "18280820235",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.269Z",
     "updatedAt": "2026-06-13T11:02:26.269Z"
@@ -1995,6 +2194,7 @@
     "name": "龚钰晓",
     "phone": "15925996974",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.272Z",
     "updatedAt": "2026-06-13T11:02:26.272Z"
@@ -2005,6 +2205,7 @@
     "name": "宋晓娟",
     "phone": "15881490418",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.275Z",
     "updatedAt": "2026-06-13T11:02:26.275Z"
@@ -2015,6 +2216,7 @@
     "name": "李秀秀",
     "phone": "13689023698",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.278Z",
     "updatedAt": "2026-06-13T11:02:26.278Z"
@@ -2025,6 +2227,7 @@
     "name": "贾梦梦",
     "phone": "13269790794",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.282Z",
     "updatedAt": "2026-06-13T11:02:26.282Z"
@@ -2035,6 +2238,7 @@
     "name": "王松",
     "phone": "15881130756",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.285Z",
     "updatedAt": "2026-06-13T11:02:26.285Z"
@@ -2045,6 +2249,7 @@
     "name": "邓丽",
     "phone": "13578015220",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.288Z",
     "updatedAt": "2026-06-13T11:02:26.288Z"
@@ -2055,6 +2260,7 @@
     "name": "苏玉峰",
     "phone": "18172082685",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.291Z",
     "updatedAt": "2026-06-13T11:02:26.291Z"
@@ -2065,6 +2271,7 @@
     "name": "陆子洁",
     "phone": "18607714344",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.294Z",
     "updatedAt": "2026-06-13T11:02:26.294Z"
@@ -2075,6 +2282,7 @@
     "name": "吴畏男",
     "phone": "18502205994",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.298Z",
     "updatedAt": "2026-06-13T11:02:26.298Z"
@@ -2085,6 +2293,7 @@
     "name": "李凤",
     "phone": "18482150317",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.304Z",
     "updatedAt": "2026-06-13T11:02:26.304Z"
@@ -2095,6 +2304,7 @@
     "name": "刘大伟",
     "phone": "18618324620",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.308Z",
     "updatedAt": "2026-06-13T11:02:26.308Z"
@@ -2105,6 +2315,7 @@
     "name": "晏琪",
     "phone": "15184419703",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.311Z",
     "updatedAt": "2026-06-13T11:02:26.311Z"
@@ -2115,6 +2326,7 @@
     "name": "石翼恺",
     "phone": "13739475666",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.314Z",
     "updatedAt": "2026-06-13T11:02:26.314Z"
@@ -2125,6 +2337,7 @@
     "name": "谢婧",
     "phone": "13730694457",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.318Z",
     "updatedAt": "2026-06-13T11:02:26.318Z"
@@ -2135,6 +2348,7 @@
     "name": "邓蓉芳",
     "phone": "15555435766",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.321Z",
     "updatedAt": "2026-06-13T11:02:26.321Z"
@@ -2145,6 +2359,7 @@
     "name": "杨海艳",
     "phone": "13880518825",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.324Z",
     "updatedAt": "2026-06-13T11:02:26.324Z"
@@ -2155,6 +2370,7 @@
     "name": "周紫琼",
     "phone": "18825029253",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.327Z",
     "updatedAt": "2026-06-13T11:02:26.327Z"
@@ -2165,6 +2381,7 @@
     "name": "黎萍典",
     "phone": "028-62810215",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.330Z",
     "updatedAt": "2026-06-13T11:02:26.330Z"
@@ -2175,6 +2392,7 @@
     "name": "卓尕梅朵",
     "phone": "18628275728",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.334Z",
     "updatedAt": "2026-06-13T11:02:26.334Z"
@@ -2185,6 +2403,7 @@
     "name": "易芮全",
     "phone": "18108232516",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.337Z",
     "updatedAt": "2026-06-13T11:02:26.337Z"
@@ -2195,6 +2414,7 @@
     "name": "刘帅",
     "phone": "18783409229",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.340Z",
     "updatedAt": "2026-06-13T11:02:26.340Z"
@@ -2205,6 +2425,7 @@
     "name": "黄可仪",
     "phone": "17883658703",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.344Z",
     "updatedAt": "2026-06-13T11:02:26.344Z"
@@ -2215,6 +2436,7 @@
     "name": "张恒",
     "phone": "13666220823",
     "email": null,
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T11:02:26.347Z",
     "updatedAt": "2026-06-13T11:02:26.347Z"
@@ -2225,6 +2447,7 @@
     "name": "陈建国",
     "phone": "13880003001",
     "email": "chenjianguo@shugong.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2235,6 +2458,7 @@
     "name": "李小红",
     "phone": "13880003002",
     "email": "lixiaohong@shugong.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2245,6 +2469,7 @@
     "name": "王志强",
     "phone": "13980004001",
     "email": "wangzhiqiang@jincheng-ep.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2255,6 +2480,7 @@
     "name": "赵敏",
     "phone": "13980004002",
     "email": "zhaomin@jincheng-ep.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2265,6 +2491,7 @@
     "name": "刘伟华",
     "phone": "13780005001",
     "email": "liuweihua@chuanneng.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2275,6 +2502,7 @@
     "name": "周磊",
     "phone": "13780005002",
     "email": "zhoulei@chuanneng.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2285,6 +2513,7 @@
     "name": "杨光明",
     "phone": "13680006001",
     "email": "yangguangming@chenguang-it.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2295,6 +2524,7 @@
     "name": "陈静",
     "phone": "13680006002",
     "email": "chenjing@chenguang-it.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2305,6 +2535,7 @@
     "name": "钱学明",
     "phone": "13580007001",
     "email": "qianxueming@huayu-water.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2315,6 +2546,7 @@
     "name": "黄丽",
     "phone": "13580007002",
     "email": "huangli@huayu-water.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-17T02:48:19.361Z",
     "updatedAt": "2026-06-17T02:48:19.361Z"
@@ -2325,6 +2557,7 @@
     "name": "王仁平",
     "phone": "15826027212",
     "email": "wangrenping@cqshutong.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2024-11-08T09:00:00.000Z",
     "updatedAt": "2024-11-08T09:00:00.000Z"
@@ -2335,6 +2568,7 @@
     "name": "刘岩",
     "phone": "15826027213",
     "email": "liuyan@cqshutong.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2024-11-08T09:00:00.000Z",
     "updatedAt": "2024-11-08T09:00:00.000Z"
@@ -2345,6 +2579,7 @@
     "name": "王建国",
     "phone": "13902810001",
     "email": "wangjg@sfjs.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"
@@ -2355,6 +2590,7 @@
     "name": "李慧敏",
     "phone": "13902810002",
     "email": "lihm@sfjs.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"
@@ -2365,6 +2601,7 @@
     "name": "罗良元",
     "phone": "13541161609 / 13902820001",
     "email": "luoly@zkcdit.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"
@@ -2375,6 +2612,7 @@
     "name": "张文博",
     "phone": "13902820002",
     "email": "zhangwb@zkcdit.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"
@@ -2385,6 +2623,7 @@
     "name": "张坤森",
     "phone": "13568994492 / 13902830001",
     "email": "zhangks@scct.com",
+    "position": null,
     "isPrimary": true,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"
@@ -2395,6 +2634,7 @@
     "name": "陈思远",
     "phone": "13902830002",
     "email": "chensy@scct.com",
+    "position": null,
     "isPrimary": false,
     "createdAt": "2026-06-13T06:18:29.742Z",
     "updatedAt": "2026-06-13T06:18:29.742Z"

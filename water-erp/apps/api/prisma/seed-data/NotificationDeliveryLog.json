@@ -1,1 +1,2081 @@
-[]
+[
+  {
+    "id": "cms17k9sh0009uu35gb6qdyk9",
+    "notificationId": "cms17k9sc0008uu351falifty",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T02:58:04.818Z"
+  },
+  {
+    "id": "cms17k9vf000suu35d8frwqw4",
+    "notificationId": "cms17k9ve000ruu35jmz0rsm5",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T02:58:04.924Z"
+  },
+  {
+    "id": "cms17k9vk0009uu3slp1j8vwk",
+    "notificationId": "cms17k9vi0008uu3scqkbxaij",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T02:58:04.928Z"
+  },
+  {
+    "id": "cms17k9zy001xuu35bdc26iyx",
+    "notificationId": "cms17k9zw001wuu35a9ejm5v8",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T02:58:05.086Z"
+  },
+  {
+    "id": "cms1nct3d0009uur3omauq007",
+    "notificationId": "cms1nct3b0008uur3tewg3g5i",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.441Z"
+  },
+  {
+    "id": "cms1nct4t000suur3zpxrm91t",
+    "notificationId": "cms1nct4q000ruur39thuoo47",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.494Z"
+  },
+  {
+    "id": "cms1nct77001xuur35djghsw8",
+    "notificationId": "cms1nct76001wuur3oe4wm5yn",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.579Z"
+  },
+  {
+    "id": "cms1nctby003yuur3dvay3154",
+    "notificationId": "cms1nctbx003xuur3fnci2xcg",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.751Z"
+  },
+  {
+    "id": "cms1nctdh004vuur3zd76j67s",
+    "notificationId": "cms1nctd8004muur30dt6mtee",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.806Z"
+  },
+  {
+    "id": "cms1nctdi0050uur3t23sq6xv",
+    "notificationId": "cms1nctdg004uuur3l00sdk4w",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.806Z"
+  },
+  {
+    "id": "cms1nctdh004wuur3dapk8qy3",
+    "notificationId": "cms1nctd8004kuur387fdptae",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.806Z"
+  },
+  {
+    "id": "cms1nctdi004zuur3xzqu2lcg",
+    "notificationId": "cms1nctdg004suur3bamtiytx",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.806Z"
+  },
+  {
+    "id": "cms1nctdh004xuur3uh2lvrx6",
+    "notificationId": "cms1nctd8004ouur3i6hkjott",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.806Z"
+  },
+  {
+    "id": "cms1nctdh004yuur3xxfxrgpe",
+    "notificationId": "cms1nctd8004quur35ewv84om",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.806Z"
+  },
+  {
+    "id": "cms1ncte3005fuur359hzf17l",
+    "notificationId": "cms1nctdt0056uur3p3ele395",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.827Z"
+  },
+  {
+    "id": "cms1ncte3005duur3kc6i0txa",
+    "notificationId": "cms1nctdt0053uur3ja5f6oiy",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.827Z"
+  },
+  {
+    "id": "cms1ncte3005guur3ohm5x2qq",
+    "notificationId": "cms1ncte0005cuur3erblblyq",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.827Z"
+  },
+  {
+    "id": "cms1ncte3005huur3bh5sh600",
+    "notificationId": "cms1nctdy005auur346o1a0bv",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.827Z"
+  },
+  {
+    "id": "cms1ncte3005iuur39415k7mn",
+    "notificationId": "cms1nctdt0058uur37p0i3bxw",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.827Z"
+  },
+  {
+    "id": "cms1ncte3005euur382w35s4o",
+    "notificationId": "cms1nctdt0054uur3ka53ozuq",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:20:10.827Z"
+  },
+  {
+    "id": "cms1netbx0009uubmgv2ajqtf",
+    "notificationId": "cms1netbw0008uubm9cd1b0p5",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.062Z"
+  },
+  {
+    "id": "cms1netdn000suubmwclxy1yd",
+    "notificationId": "cms1netdl000ruubmjs7tft36",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.123Z"
+  },
+  {
+    "id": "cms1netgj0026uubm8kb4b55a",
+    "notificationId": "cms1netgi0025uubmn8eyz9y0",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.227Z"
+  },
+  {
+    "id": "cms1netky0047uubmqrf1e7l9",
+    "notificationId": "cms1netkx0046uubmm5acux8f",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.387Z"
+  },
+  {
+    "id": "cms1netm80059uubmaovanl7h",
+    "notificationId": "cms1netm70053uubmyj63j3df",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.433Z"
+  },
+  {
+    "id": "cms1netm80054uubmw7vxre7q",
+    "notificationId": "cms1netlz004vuubmpf0l8j1z",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.433Z"
+  },
+  {
+    "id": "cms1netm80056uubm7jol6lb8",
+    "notificationId": "cms1netlz004zuubm0ls9e1gh",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.433Z"
+  },
+  {
+    "id": "cms1netm80055uubm14cgb7gw",
+    "notificationId": "cms1netlz004uuubmwjw45rq7",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.433Z"
+  },
+  {
+    "id": "cms1netm80057uubmuw913p1f",
+    "notificationId": "cms1netlz004yuubmx6c8lq0e",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.433Z"
+  },
+  {
+    "id": "cms1netm80058uubm98zg4vsj",
+    "notificationId": "cms1netm50051uubm3ga92vdk",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.433Z"
+  },
+  {
+    "id": "cms1netmh005nuubm6x07x780",
+    "notificationId": "cms1netmf005iuubmiqbbz0ie",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.442Z"
+  },
+  {
+    "id": "cms1netmh005muubmbcya9d6o",
+    "notificationId": "cms1netmf005cuubmmhk844ki",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.442Z"
+  },
+  {
+    "id": "cms1netmh005ruubmd6a2cnpz",
+    "notificationId": "cms1netmf005guubmqier1if8",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.442Z"
+  },
+  {
+    "id": "cms1netmh005quubm0z5s7olc",
+    "notificationId": "cms1netmf005luubmx3xb4jdf",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.442Z"
+  },
+  {
+    "id": "cms1netmh005ouubmsend7eo1",
+    "notificationId": "cms1netmf005fuubmmx4peflv",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.442Z"
+  },
+  {
+    "id": "cms1netmh005puubmd3afhrv6",
+    "notificationId": "cms1netmf005kuubmvow9hyyb",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:21:44.442Z"
+  },
+  {
+    "id": "cms1nfc510009uun2ms2jfsbg",
+    "notificationId": "cms1nfc500008uun2urvsc9q9",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.438Z"
+  },
+  {
+    "id": "cms1nfc6e000suun20mqkxp38",
+    "notificationId": "cms1nfc6d000ruun2bj3oj70c",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.486Z"
+  },
+  {
+    "id": "cms1nfc8w0026uun2qa06e1ms",
+    "notificationId": "cms1nfc8v0025uun2ydqjj7gf",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.577Z"
+  },
+  {
+    "id": "cms1nfcdi0047uun2g85ht8hx",
+    "notificationId": "cms1nfcdh0046uun2u6ohnoi7",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.743Z"
+  },
+  {
+    "id": "cms1nfceq0056uun20hj02kbn",
+    "notificationId": "cms1nfcef004xuun2wxovchgs",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.787Z"
+  },
+  {
+    "id": "cms1nfceq0055uun2bvnird15",
+    "notificationId": "cms1nfcen0051uun2gga6fd0e",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.787Z"
+  },
+  {
+    "id": "cms1nfceq0058uun2zr42jy7x",
+    "notificationId": "cms1nfcen0053uun21k87k1be",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.787Z"
+  },
+  {
+    "id": "cms1nfceq0057uun2twpdggs0",
+    "notificationId": "cms1nfcef004vuun2ag3otttl",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.787Z"
+  },
+  {
+    "id": "cms1nfceq0059uun2g8z7filu",
+    "notificationId": "cms1nfceg004zuun22fr8gxec",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.787Z"
+  },
+  {
+    "id": "cms1nfceq0054uun2ybwebks2",
+    "notificationId": "cms1nfcef004tuun2vmweitof",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.787Z"
+  },
+  {
+    "id": "cms1nfcf4005quun2cuwz1s5s",
+    "notificationId": "cms1nfcf2005luun2pw41hk1n",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.800Z"
+  },
+  {
+    "id": "cms1nfcf4005muun2qta7kp0z",
+    "notificationId": "cms1nfcex005cuun2nd99hnp9",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.800Z"
+  },
+  {
+    "id": "cms1nfcf4005ouun2fu92ihzu",
+    "notificationId": "cms1nfcex005juun2yi1g44tk",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.800Z"
+  },
+  {
+    "id": "cms1nfcf4005nuun2835qrdsh",
+    "notificationId": "cms1nfcex005duun2to9565nx",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.800Z"
+  },
+  {
+    "id": "cms1nfcf4005puun20afuqtq3",
+    "notificationId": "cms1nfcex005fuun2yhnvap8o",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.800Z"
+  },
+  {
+    "id": "cms1nfcf4005ruun2wps5l6f0",
+    "notificationId": "cms1nfcex005huun24bbz0tyl",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:08.800Z"
+  },
+  {
+    "id": "cms1nfm2p0009uuej9tod7r3i",
+    "notificationId": "cms1nfm2m0008uuej9co9snke",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.313Z"
+  },
+  {
+    "id": "cms1nfm4e000suuejtvkr175u",
+    "notificationId": "cms1nfm4d000ruuejup2saiva",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.374Z"
+  },
+  {
+    "id": "cms1nfm7d0026uuej8llfwnw6",
+    "notificationId": "cms1nfm7c0025uuejgqnxdgr5",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.482Z"
+  },
+  {
+    "id": "cms1nfmc10047uuejf20ass6b",
+    "notificationId": "cms1nfmc00046uuejx3i5ga6z",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.650Z"
+  },
+  {
+    "id": "cms1nfmdc0057uuejqxd7akke",
+    "notificationId": "cms1nfmd3004tuuejr7rbcjc5",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.696Z"
+  },
+  {
+    "id": "cms1nfmdc0056uuejyu209f4m",
+    "notificationId": "cms1nfmd3004vuuejvbfhscia",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.696Z"
+  },
+  {
+    "id": "cms1nfmdc0054uuejwsr8x9df",
+    "notificationId": "cms1nfmdb0053uuej7wk7jvmx",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.696Z"
+  },
+  {
+    "id": "cms1nfmdc0055uuejy8tuv866",
+    "notificationId": "cms1nfmd3004xuuej1q2g0itz",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.696Z"
+  },
+  {
+    "id": "cms1nfmdc0058uuejd0uokinj",
+    "notificationId": "cms1nfmd80051uuej1n6e2ivt",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.696Z"
+  },
+  {
+    "id": "cms1nfmdc0059uuej7jw5gffe",
+    "notificationId": "cms1nfmd3004zuuejdypp1tvv",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.696Z"
+  },
+  {
+    "id": "cms1nfmdk005ouuej7ppaahus",
+    "notificationId": "cms1nfmdi005luuejbpk9u2kl",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.704Z"
+  },
+  {
+    "id": "cms1ng1qm0055uuahvu80nt6o",
+    "notificationId": "cms1ng1qd004vuuahf5y848s1",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.614Z"
+  },
+  {
+    "id": "cms1ng1r3005puuah8l60mkh1",
+    "notificationId": "cms1ng1qu005huuah6zgnfwax",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.631Z"
+  },
+  {
+    "id": "cms1nfmdk005muuej7z7bg65r",
+    "notificationId": "cms1nfmdi005guuejtvdrhluz",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.704Z"
+  },
+  {
+    "id": "cms1ng1qm0059uuahj3x9hwrf",
+    "notificationId": "cms1ng1qd004zuuahvue27cfa",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.614Z"
+  },
+  {
+    "id": "cms1nfmdk005puuej24dxv7wm",
+    "notificationId": "cms1nfmdi005juuejyhkrkj2v",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.704Z"
+  },
+  {
+    "id": "cms1ng1r3005quuahr6l6n354",
+    "notificationId": "cms1ng1qu005luuahkr9ewwc5",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.631Z"
+  },
+  {
+    "id": "cms1nfmdk005nuuejnvxn4aqp",
+    "notificationId": "cms1nfmdi005iuuej6h4q38cx",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.704Z"
+  },
+  {
+    "id": "cms1ng1i7000suuahowce7era",
+    "notificationId": "cms1ng1i6000ruuahqt5tkwqa",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.311Z"
+  },
+  {
+    "id": "cms1ng1qm0058uuahlm4a3iuj",
+    "notificationId": "cms1ng1ql0053uuahbsuvou2u",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.614Z"
+  },
+  {
+    "id": "cms1ng1r3005nuuahcqmlgtq7",
+    "notificationId": "cms1ng1qt005fuuahw7byi6q2",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.631Z"
+  },
+  {
+    "id": "cms1nfmdk005ruuej1gw1qqtm",
+    "notificationId": "cms1nfmdi005huuejnk19cqxb",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.704Z"
+  },
+  {
+    "id": "cms1ng1qm0056uuahdypiy0n6",
+    "notificationId": "cms1ng1qd004xuuah1w8xbvhj",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.614Z"
+  },
+  {
+    "id": "cms1ng1r3005ruuah3i3ikgtz",
+    "notificationId": "cms1ng1qt005buuahp5ozav5v",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.631Z"
+  },
+  {
+    "id": "cms1nfmdk005quuejbdhhg129",
+    "notificationId": "cms1nfmdi005duuejx7eq60v0",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:21.704Z"
+  },
+  {
+    "id": "cms1ng1pe0047uuahuhpf469k",
+    "notificationId": "cms1ng1pd0046uuah9gns8x2o",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.570Z"
+  },
+  {
+    "id": "cms1ng1qm0057uuah7g1zrb01",
+    "notificationId": "cms1ng1qj0051uuahmvem1ov8",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.614Z"
+  },
+  {
+    "id": "cms1ng1r3005muuah3q7p2dif",
+    "notificationId": "cms1ng1qt005duuahjr69wazw",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.631Z"
+  },
+  {
+    "id": "cms1ng1gz0009uuahoqkds8w7",
+    "notificationId": "cms1ng1gx0008uuahiazl8d9q",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.267Z"
+  },
+  {
+    "id": "cms1ng1l30026uuah8xkt1bg4",
+    "notificationId": "cms1ng1l20025uuahaacp3srj",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.416Z"
+  },
+  {
+    "id": "cms1ng1qm0054uuahe1fd03y9",
+    "notificationId": "cms1ng1qd004tuuahpr8wnp9k",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.614Z"
+  },
+  {
+    "id": "cms1ng1r3005ouuaha98v5r5e",
+    "notificationId": "cms1ng1qu005juuahwrvx85j6",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:22:41.631Z"
+  },
+  {
+    "id": "cms1nhmyj0009uuxuf569ckrb",
+    "notificationId": "cms1nhmyh0008uuxuwurxsh6k",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:55.771Z"
+  },
+  {
+    "id": "cms1nhmzz000suuxunxa395f9",
+    "notificationId": "cms1nhmzw000ruuxuhvszpef6",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:55.824Z"
+  },
+  {
+    "id": "cms1nhn2m0026uuxu2iza45l1",
+    "notificationId": "cms1nhn2i0025uuxuen0gct1o",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:55.918Z"
+  },
+  {
+    "id": "cms1nhn6t0047uuxum82ai0q7",
+    "notificationId": "cms1nhn6s0046uuxuwn2n7a23",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.070Z"
+  },
+  {
+    "id": "cms1nhn880054uuxu22m6ppel",
+    "notificationId": "cms1nhn7y004vuuxugslq1b9e",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.121Z"
+  },
+  {
+    "id": "cms1nhn880058uuxu1i49v0c9",
+    "notificationId": "cms1nhn870053uuxupmtdftoh",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.121Z"
+  },
+  {
+    "id": "cms1nhn880056uuxu7si5n6hk",
+    "notificationId": "cms1nhn7z004zuuxu5k0q7pc1",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.121Z"
+  },
+  {
+    "id": "cms1nhn880057uuxuhbk5erzz",
+    "notificationId": "cms1nhn7y004yuuxuckfqh6a3",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.121Z"
+  },
+  {
+    "id": "cms1nhn880055uuxuiqxedimb",
+    "notificationId": "cms1nhn7y004wuuxua3697db0",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.121Z"
+  },
+  {
+    "id": "cms1nhn880059uuxu51j0bve8",
+    "notificationId": "cms1nhn830051uuxu9jkbt0nz",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.121Z"
+  },
+  {
+    "id": "cms1nhn8h005nuuxuxedsfd8s",
+    "notificationId": "cms1nhn8f005cuuxuyp3gllvl",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.130Z"
+  },
+  {
+    "id": "cms1nhn8h005muuxutw4mzpji",
+    "notificationId": "cms1nhn8f005duuxutfgup4j5",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.130Z"
+  },
+  {
+    "id": "cms1nhn8h005suuxuml9zpb9l",
+    "notificationId": "cms1nhn8f005juuxuioqfgln9",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.130Z"
+  },
+  {
+    "id": "cms1nhn8h005ouuxuxadrek31",
+    "notificationId": "cms1nhn8f005fuuxuue0w0p2i",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.130Z"
+  },
+  {
+    "id": "cms1nhn8h005puuxuinplhaxa",
+    "notificationId": "cms1nhn8f005huuxu82s4roz3",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.130Z"
+  },
+  {
+    "id": "cms1nhn8h005quuxujrsifmrp",
+    "notificationId": "cms1nhn8f005luuxurtz0fqeg",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:23:56.130Z"
+  },
+  {
+    "id": "cms1ni17w0009uuyduk8bh38c",
+    "notificationId": "cms1ni17t0008uuydvu3bwpov",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.252Z"
+  },
+  {
+    "id": "cms1ni195000suuydj711d4aa",
+    "notificationId": "cms1ni194000ruuydpw9w1rsi",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.298Z"
+  },
+  {
+    "id": "cms1ni1d70026uuydv9uw1sye",
+    "notificationId": "cms1ni1d50025uuyd6qk271bu",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.443Z"
+  },
+  {
+    "id": "cms1ni1hu0047uuydj4tr0fj9",
+    "notificationId": "cms1ni1ht0046uuydm13xm0uz",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.610Z"
+  },
+  {
+    "id": "cms1ni1j10055uuyd1th7phck",
+    "notificationId": "cms1ni1ir004zuuydk8qrrwjc",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.653Z"
+  },
+  {
+    "id": "cms1ni1j10056uuydekutur8d",
+    "notificationId": "cms1ni1ir004xuuydl7kti3st",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.653Z"
+  },
+  {
+    "id": "cms1ni1j10058uuydxsuxppmx",
+    "notificationId": "cms1ni1iy0051uuydquvehle0",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.653Z"
+  },
+  {
+    "id": "cms1ni1j10054uuyd887qhwdc",
+    "notificationId": "cms1ni1ir004tuuyd4gj4en7y",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.653Z"
+  },
+  {
+    "id": "cms1ni1j10057uuydx6okk5j8",
+    "notificationId": "cms1ni1iz0053uuydio7s4wxt",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.653Z"
+  },
+  {
+    "id": "cms1ni1jb005huuydj8hzwu1l",
+    "notificationId": "cms1ni1ir004vuuydsbz3658w",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.653Z"
+  },
+  {
+    "id": "cms1ni1jg005puuyddf3eb6fi",
+    "notificationId": "cms1ni1jb005juuyd642sp9at",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.668Z"
+  },
+  {
+    "id": "cms1ni1jg005nuuydvzrum5vq",
+    "notificationId": "cms1ni1j4005auuyd7rikwhtk",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.668Z"
+  },
+  {
+    "id": "cms1ni1jg005ruuydn284n8zd",
+    "notificationId": "cms1ni1j4005euuyddgg09p9m",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.668Z"
+  },
+  {
+    "id": "cms1ni1jg005ouuydgk83yt6s",
+    "notificationId": "cms1ni1jb005guuyd8cykuzo1",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.668Z"
+  },
+  {
+    "id": "cms1ni1jg005quuydfsrg6o10",
+    "notificationId": "cms1ni1je005luuyduubd3b8x",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.668Z"
+  },
+  {
+    "id": "cms1ni1jg005muuydpfgs84lf",
+    "notificationId": "cms1ni1j4005cuuydoyb8v5eu",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:14.668Z"
+  },
+  {
+    "id": "cms1niftw0009uuyx8mbp9f70",
+    "notificationId": "cms1niftt0008uuyx3kbi1e0c",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.188Z"
+  },
+  {
+    "id": "cms1nifv7000suuyx707qw9z3",
+    "notificationId": "cms1nifv6000ruuyxtho5yl7q",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.236Z"
+  },
+  {
+    "id": "cms1nifxo0026uuyxa0ulkdh7",
+    "notificationId": "cms1nifxm0025uuyxi89qutkp",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.324Z"
+  },
+  {
+    "id": "cms1nig250047uuyxn8g3oknl",
+    "notificationId": "cms1nig230046uuyxmoycclk8",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.486Z"
+  },
+  {
+    "id": "cms1nig3i0055uuyxdvmsiaow",
+    "notificationId": "cms1nig37004tuuyx57kyuqnt",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.534Z"
+  },
+  {
+    "id": "cms1nig3i0054uuyx923b30n7",
+    "notificationId": "cms1nig37004vuuyxmaznysyr",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.534Z"
+  },
+  {
+    "id": "cms1nig3i0057uuyx3g80gkgu",
+    "notificationId": "cms1nig37004xuuyxeobmjx9r",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.534Z"
+  },
+  {
+    "id": "cms1nig3i0056uuyxbb6r7lpl",
+    "notificationId": "cms1nig3f0052uuyx2lnbe8r8",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.534Z"
+  },
+  {
+    "id": "cms1nig3i0058uuyx9udoimfb",
+    "notificationId": "cms1nig3f0053uuyxnnw0fqrb",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.534Z"
+  },
+  {
+    "id": "cms1nig3i0059uuyxvv07lbm0",
+    "notificationId": "cms1nig37004zuuyxc7d3zioy",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.534Z"
+  },
+  {
+    "id": "cms1nig3w005muuyxtdqmkft3",
+    "notificationId": "cms1nig3p005kuuyx1hoc03di",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.548Z"
+  },
+  {
+    "id": "cms1nig3w005nuuyx007sxfyn",
+    "notificationId": "cms1nig3o005cuuyx1fn4jc4n",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.548Z"
+  },
+  {
+    "id": "cms1nig3w005puuyxfh3rp9ai",
+    "notificationId": "cms1nig3p005guuyx2sjvt9cy",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.548Z"
+  },
+  {
+    "id": "cms1nig3w005ouuyxugpbb0z4",
+    "notificationId": "cms1nig3p005iuuyxd1lbqc0y",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.548Z"
+  },
+  {
+    "id": "cms1nig3w005ruuyxpeiqdtso",
+    "notificationId": "cms1nig3p005luuyxm91a9xx6",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.548Z"
+  },
+  {
+    "id": "cms1nig3w005quuyx3apwscz4",
+    "notificationId": "cms1nig3p005huuyxhkbz370n",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T10:24:33.548Z"
+  },
+  {
+    "id": "cms21mzkx0004uuuy1av3roiq",
+    "notificationId": "cms21mzku0001uuuymbcgaup7",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.034Z"
+  },
+  {
+    "id": "cms21mzky0005uuuyjp6tjldn",
+    "notificationId": "cms21mzkv0003uuuyrfeboqhs",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.034Z"
+  },
+  {
+    "id": "cms21mzo90004uuzelfhw6ak8",
+    "notificationId": "cms21mzo10001uuzeoin0canx",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.153Z"
+  },
+  {
+    "id": "cms21mzob0004uuyrqd4mv3z4",
+    "notificationId": "cms21mzo60001uuyrbgzs4y1b",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.156Z"
+  },
+  {
+    "id": "cms21mzob0005uuzeh494lcze",
+    "notificationId": "cms21mzo50003uuzeuefgzync",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.156Z"
+  },
+  {
+    "id": "cms21mzof0005uuuzgww4g0y5",
+    "notificationId": "cms21mzo60003uuuzqaech89f",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.159Z"
+  },
+  {
+    "id": "cms21mzog0004uuysky1jkcl9",
+    "notificationId": "cms21mzoa0003uuysc1mka826",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.160Z"
+  },
+  {
+    "id": "cms21mzog0004uuzn9gu1cdrv",
+    "notificationId": "cms21mzo60003uuznutrvd2cq",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.160Z"
+  },
+  {
+    "id": "cms21mzoe0004uuuz8nwmmnkw",
+    "notificationId": "cms21mzo40001uuuz06ubndpv",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.159Z"
+  },
+  {
+    "id": "cms21mzoh0005uuznsxjpml5r",
+    "notificationId": "cms21mzo50001uuznqdwa45iz",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.161Z"
+  },
+  {
+    "id": "cms21mzon0005uuys4qzz4oyw",
+    "notificationId": "cms21mzo90001uuysvyz7et5d",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.168Z"
+  },
+  {
+    "id": "cms21mzoo0005uuyraxof1cov",
+    "notificationId": "cms21mzo90003uuyrde8iufvl",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-26T17:00:00.169Z"
+  },
+  {
+    "id": "cms2is9t10008uuuy06mtwyxp",
+    "notificationId": "cms2is9sz0007uuuyk6zpjd3n",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.038Z"
+  },
+  {
+    "id": "cms2is9t4000buuuysrzei3m5",
+    "notificationId": "cms2is9sz0007uuuyk6zpjd3n",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.040Z"
+  },
+  {
+    "id": "cms2is9t5000cuuuyaxri65qt",
+    "notificationId": "cms2is9t2000auuuy798me812",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.041Z"
+  },
+  {
+    "id": "cms2is9t6000duuuyb4eolqni",
+    "notificationId": "cms2is9t2000auuuy798me812",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.043Z"
+  },
+  {
+    "id": "cms2is9v40008uuzecqt8sgae",
+    "notificationId": "cms2is9un0007uuzeyu3347sm",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.112Z"
+  },
+  {
+    "id": "cms2is9v40008uuyrmhqhvh1s",
+    "notificationId": "cms2is9ut0007uuyroczo6svp",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.112Z"
+  },
+  {
+    "id": "cms2is9v40008uuzn3tso0ile",
+    "notificationId": "cms2is9uq0007uuznza7pom1z",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.112Z"
+  },
+  {
+    "id": "cms2is9v50008uuuzfreby2pt",
+    "notificationId": "cms2is9uy0007uuuzgdk6rtx5",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.113Z"
+  },
+  {
+    "id": "cms2is9v50008uuys6o7o7vny",
+    "notificationId": "cms2is9ux0007uuysnbtozsu0",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.113Z"
+  },
+  {
+    "id": "cms2is9v6000buuzeuzw3i3w3",
+    "notificationId": "cms2is9un0007uuzeyu3347sm",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.115Z"
+  },
+  {
+    "id": "cms2is9v7000cuuzek3uk7bk4",
+    "notificationId": "cms2is9v5000auuzetk8gvj6c",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.115Z"
+  },
+  {
+    "id": "cms2is9v7000buuzno5amuost",
+    "notificationId": "cms2is9uq0007uuznza7pom1z",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.115Z"
+  },
+  {
+    "id": "cms2is9v8000buuysdvubzsj4",
+    "notificationId": "cms2is9ux0007uuysnbtozsu0",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.116Z"
+  },
+  {
+    "id": "cms2is9v7000buuyrarxpy1j5",
+    "notificationId": "cms2is9ut0007uuyroczo6svp",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.116Z"
+  },
+  {
+    "id": "cms2is9v7000cuuyr8xillgn7",
+    "notificationId": "cms2is9v6000auuyro262l95e",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.116Z"
+  },
+  {
+    "id": "cms2is9va000cuuznuteqva4g",
+    "notificationId": "cms2is9v6000auuzn8kf4lt7y",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.118Z"
+  },
+  {
+    "id": "cms2is9va000buuuz0006zyi4",
+    "notificationId": "cms2is9v6000auuuzbhy1llk0",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.118Z"
+  },
+  {
+    "id": "cms2is9va000cuuysa685c9ut",
+    "notificationId": "cms2is9v6000auuys0z3h8zb4",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:00:00.119Z"
+  },
+  {
+    "id": "cms2is9va000cuuuz19kyqtr2",
+    "notificationId": "cms2is9uy0007uuuzgdk6rtx5",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.119Z"
+  },
+  {
+    "id": "cms2is9ve000duuyr6snldzyv",
+    "notificationId": "cms2is9v6000auuyro262l95e",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.122Z"
+  },
+  {
+    "id": "cms2is9ve000duuuzwumlojlo",
+    "notificationId": "cms2is9v6000auuuzbhy1llk0",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.123Z"
+  },
+  {
+    "id": "cms2is9ve000duuzeou665qmn",
+    "notificationId": "cms2is9v5000auuzetk8gvj6c",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.122Z"
+  },
+  {
+    "id": "cms2is9vf000duuys6cly61ae",
+    "notificationId": "cms2is9v6000auuys0z3h8zb4",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.123Z"
+  },
+  {
+    "id": "cms2is9vf000duuzn1iefn1nt",
+    "notificationId": "cms2is9v6000auuzn8kf4lt7y",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-27T01:00:00.123Z"
+  },
+  {
+    "id": "cms2jrd9j002duuuyms28yztd",
+    "notificationId": "cms2jrd9b0027uuuykcw7634c",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.479Z"
+  },
+  {
+    "id": "cms2jrd9i002buuuyop92jmvh",
+    "notificationId": "cms2jrd920021uuuysrjgik7c",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.479Z"
+  },
+  {
+    "id": "cms2jrd9i002auuuylc1m4mlh",
+    "notificationId": "cms2jrd92001zuuuyjbwi8hlv",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.479Z"
+  },
+  {
+    "id": "cms2jrd9j002cuuuyw13a58cr",
+    "notificationId": "cms2jrd9d0029uuuyryoe2y6g",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.479Z"
+  },
+  {
+    "id": "cms2jrd9j002euuuyzjz9iz99",
+    "notificationId": "cms2jrd920023uuuy0ztgx6st",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.479Z"
+  },
+  {
+    "id": "cms2jrd9j002fuuuyhyplezgq",
+    "notificationId": "cms2jrd9b0026uuuyl6nnb3wi",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.479Z"
+  },
+  {
+    "id": "cms2jrd9x002uuuuys5tipsja",
+    "notificationId": "cms2jrd9u002juuuy0r1vfrn1",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.493Z"
+  },
+  {
+    "id": "cms2jrd9x002yuuuywjra0cwo",
+    "notificationId": "cms2jrd9u002muuuytqdic0ka",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.493Z"
+  },
+  {
+    "id": "cms2jrd9x002wuuuyc8akosmm",
+    "notificationId": "cms2jrd9u002ruuuyopwzejm9",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.493Z"
+  },
+  {
+    "id": "cms2jrd9x002vuuuybhs8jls2",
+    "notificationId": "cms2jrd9u002quuuyehh74wd1",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.493Z"
+  },
+  {
+    "id": "cms2jrd9x002xuuuy946zaisf",
+    "notificationId": "cms2jrd9u002puuuylzkjw5pm",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.493Z"
+  },
+  {
+    "id": "cms2jrd9x002tuuuy606v758r",
+    "notificationId": "cms2jrd9u002suuuypvn6kql2",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T01:27:17.493Z"
+  },
+  {
+    "id": "cms2m878g008uuuuygh0lnk7y",
+    "notificationId": "cms2m878d008muuuy2i5supya",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.049Z"
+  },
+  {
+    "id": "cms2m878h008vuuuyqn3xfxkg",
+    "notificationId": "cms2m878d008luuuy6hgiipiy",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.049Z"
+  },
+  {
+    "id": "cms2m878h008yuuuyw5azs9cx",
+    "notificationId": "cms2m878d008suuuyeqyx9e88",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.049Z"
+  },
+  {
+    "id": "cms2m878h008xuuuywzdiz6pv",
+    "notificationId": "cms2m878d008ouuuyi8t2cngg",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.049Z"
+  },
+  {
+    "id": "cms2m878g008tuuuyg27bjii9",
+    "notificationId": "cms2m878d008iuuuyhlf8o5qg",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.049Z"
+  },
+  {
+    "id": "cms2m878h008wuuuy233zoifl",
+    "notificationId": "cms2m878d008quuuynzoomi6v",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.049Z"
+  },
+  {
+    "id": "cms2m878v009guuuytw59nnr7",
+    "notificationId": "cms2m878q009auuuyh8m6l1ez",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.063Z"
+  },
+  {
+    "id": "cms2m878v009fuuuyn8mswpcc",
+    "notificationId": "cms2m878q0098uuuyemo44gob",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.063Z"
+  },
+  {
+    "id": "cms2m878v009cuuuyrvb48867",
+    "notificationId": "cms2m878i0092uuuymiw8xdbz",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.063Z"
+  },
+  {
+    "id": "cms2m878v009euuuy0ne8wict",
+    "notificationId": "cms2m878j0096uuuyv3wenc4d",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.063Z"
+  },
+  {
+    "id": "cms2m878v009duuuy1yd08u6q",
+    "notificationId": "cms2m878j0095uuuyzqd9b2im",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.063Z"
+  },
+  {
+    "id": "cms2m878v009buuuyzvijc02m",
+    "notificationId": "cms2m878i0091uuuyplnsd973",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-27T02:36:22.063Z"
+  },
+  {
+    "id": "cms3y84gp00guuuv9q59x9sox",
+    "notificationId": "cms3y84gg00gtuuv9l24dpwcy",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T01:00:00.025Z"
+  },
+  {
+    "id": "cms3y84gs00gyuuv9g9fmmrg9",
+    "notificationId": "cms3y84gr00gwuuv9j6mkaz4l",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T01:00:00.028Z"
+  },
+  {
+    "id": "cms3y84gs00gxuuv9v41mohf6",
+    "notificationId": "cms3y84gg00gtuuv9l24dpwcy",
+    "userId": "c4f5b9037502f86dc65aee9",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-28T01:00:00.028Z"
+  },
+  {
+    "id": "cms3y84gt00gzuuv9chd3oofy",
+    "notificationId": "cms3y84gr00gwuuv9j6mkaz4l",
+    "userId": "c456f34af9e5ca11387a838",
+    "channel": "email",
+    "status": "skipped",
+    "error": "SMTP 未配置",
+    "createdAt": "2026-07-28T01:00:00.030Z"
+  },
+  {
+    "id": "cms40gjds00o3uuv9at8mrbre",
+    "notificationId": "cms40gjdr00o2uuv9nh9xfuiq",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:02:31.841Z"
+  },
+  {
+    "id": "cms40gwjg00oeuuv9sayudd45",
+    "notificationId": "cms40gwjb00o9uuv9nwoh5wac",
+    "userId": "cmqc8r6ka01k0koeku05sobkz",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:02:48.892Z"
+  },
+  {
+    "id": "cms40gwjg00ofuuv9eio3zxde",
+    "notificationId": "cms40gwjc00obuuv9fdlgtf5w",
+    "userId": "cmqc8r6kb01k3koekavhkpbei",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:02:48.892Z"
+  },
+  {
+    "id": "cms40gwjg00oguuv9449geqg1",
+    "notificationId": "cms40gwjc00oduuv9erl7acbc",
+    "userId": "cmqc8r6jy01jfkoekswui0ach",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:02:48.893Z"
+  },
+  {
+    "id": "cms40orcx00sruuv9pncjq7ph",
+    "notificationId": "cms40orcv00squuv9jvm74xhe",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:08:55.426Z"
+  },
+  {
+    "id": "cms40qmei00ukuuv98cl80kjk",
+    "notificationId": "cms40qme900u9uuv9c7fsrqt9",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.315Z"
+  },
+  {
+    "id": "cms40qmei00umuuv935vvl81x",
+    "notificationId": "cms40qmef00ujuuv9hv2c71fh",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.315Z"
+  },
+  {
+    "id": "cms40qmej00upuuv9stgb8gz9",
+    "notificationId": "cms40qme900ubuuv9ceka3qbg",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.315Z"
+  },
+  {
+    "id": "cms40qmei00uluuv9v7plmv7c",
+    "notificationId": "cms40qme900uduuv9kygh2ttj",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.315Z"
+  },
+  {
+    "id": "cms40qmei00uouuv9aszslxbh",
+    "notificationId": "cms40qme900ufuuv9kmiv3w28",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.315Z"
+  },
+  {
+    "id": "cms40qmei00unuuv9zpn54t73",
+    "notificationId": "cms40qme900uhuuv9x59zn51i",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.315Z"
+  },
+  {
+    "id": "cms40qmeu00v6uuv9pxbjvpif",
+    "notificationId": "cms40qmes00v1uuv9vgy1vvuv",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.326Z"
+  },
+  {
+    "id": "cms40qmeu00v2uuv92pcu934s",
+    "notificationId": "cms40qmek00uruuv9j7vkwfnl",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.326Z"
+  },
+  {
+    "id": "cms40qmeu00v5uuv98vtdy2tv",
+    "notificationId": "cms40qmel00uxuuv987ve6bib",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.326Z"
+  },
+  {
+    "id": "cms40qmeu00v7uuv9p51dkvy3",
+    "notificationId": "cms40qmel00utuuv94wwjqlt9",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.326Z"
+  },
+  {
+    "id": "cms40qmeu00v3uuv9ni3oj5ys",
+    "notificationId": "cms40qmel00uzuuv9ldgn6fwa",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.326Z"
+  },
+  {
+    "id": "cms40qmeu00v4uuv95poh56uo",
+    "notificationId": "cms40qmel00uvuuv958xdn633",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T02:10:22.326Z"
+  },
+  {
+    "id": "cms49e2d9003auumtdlrtg3zx",
+    "notificationId": "cms49e2d70039uumt4ioqtt9y",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:12:33.022Z"
+  },
+  {
+    "id": "cms49e2ee003luumt5gc7yt0j",
+    "notificationId": "cms49e2ec003iuumtpnrjfexv",
+    "userId": "cmqc8r6kb01k3koekavhkpbei",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:12:33.062Z"
+  },
+  {
+    "id": "cms49e2ee003muumtyfrl1uqp",
+    "notificationId": "cms49e2ec003juumtuxjij6p2",
+    "userId": "cmqc8r6jy01jfkoekswui0ach",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:12:33.063Z"
+  },
+  {
+    "id": "cms49e2ee003nuumt09wqpfyl",
+    "notificationId": "cms49e2ec003kuumtf7j1g7cu",
+    "userId": "cmqc8r6ka01k0koeku05sobkz",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:12:33.063Z"
+  },
+  {
+    "id": "cms49e2fi0040uumtd2v4ga9z",
+    "notificationId": "cms49e2fh003zuumtd29oz4bh",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:12:33.103Z"
+  },
+  {
+    "id": "cms49pgc600fiuumtd6xmjzl0",
+    "notificationId": "cms49pgc500fhuumtfwwwysae",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:24.342Z"
+  },
+  {
+    "id": "cms49pv0i00g6uumtlve5e6m1",
+    "notificationId": "cms49pv0800fuuumtuj18n32a",
+    "userId": "cmrai35fx0001koddsw3fw8d1",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.363Z"
+  },
+  {
+    "id": "cms49pv0i00g9uumtgm5d9wqg",
+    "notificationId": "cms49pv0900g2uumth0kn39zn",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.363Z"
+  },
+  {
+    "id": "cms49pv0i00g5uumtf1iy26df",
+    "notificationId": "cms49pv0g00g4uumtp6crbptc",
+    "userId": "cmraijvv90000ko3d2qdq1bja",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.362Z"
+  },
+  {
+    "id": "cms49pv0i00g7uumt3s4paemn",
+    "notificationId": "cms49pv0800fyuumtdbwmgijj",
+    "userId": "cmrai35g60003koddkho5a5dl",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.363Z"
+  },
+  {
+    "id": "cms49pv0i00g8uumtby9f0wuz",
+    "notificationId": "cms49pv0800fwuumt0dl1zy6p",
+    "userId": "cmrai35g20002koddze5ow5o5",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.363Z"
+  },
+  {
+    "id": "cms49pv0i00gauumtlulcb591",
+    "notificationId": "cms49pv0900g1uumteqdcw28m",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.363Z"
+  },
+  {
+    "id": "cms49pv1300gquumt829l679q",
+    "notificationId": "cms49pv0s00giuumty2ks4xoz",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.383Z"
+  },
+  {
+    "id": "cms49pv1300gouumtssiu0h08",
+    "notificationId": "cms49pv0s00geuumtrtl4zu9q",
+    "userId": "cmrai35gd0005kodd4qjrs98e",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.383Z"
+  },
+  {
+    "id": "cms49pv1300gnuumtbd39hkz6",
+    "notificationId": "cms49pv0s00gcuumtran1k8g3",
+    "userId": "cmrai35gp0009koddyh5conyi",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.383Z"
+  },
+  {
+    "id": "cms49pv1300gruumtipdbcn4x",
+    "notificationId": "cms49pv1000gkuumtvysd2gzv",
+    "userId": "cmrai35gm0008koddrxc3g158",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.383Z"
+  },
+  {
+    "id": "cms49pv1300gpuumt1q38nym2",
+    "notificationId": "cms49pv0s00gguumtsr6bvmeu",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.383Z"
+  },
+  {
+    "id": "cms49pv1300gsuumt3fczfuo6",
+    "notificationId": "cms49pv1000gmuumtkgd9fvaf",
+    "userId": "cmrai35gx000bkodddegbe2hc",
+    "channel": "in_app",
+    "status": "sent",
+    "error": null,
+    "createdAt": "2026-07-28T06:21:43.383Z"
+  }
+]

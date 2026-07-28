@@ -962,5 +962,3923 @@
     "ipAddress": null,
     "userAgent": null,
     "createdAt": "2026-07-22T02:55:53.074Z"
+  },
+  {
+    "id": "cms17k9q40001uu35a777ynxt",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.733Z"
+  },
+  {
+    "id": "cms17k9qw0001uu3jn2q70xoi",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.760Z"
+  },
+  {
+    "id": "cms17k9re0001uu4efkkt116i",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.778Z"
+  },
+  {
+    "id": "cms17k9rr0004uu35knozxzde",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.792Z"
+  },
+  {
+    "id": "cms17k9t50001uu3stl6qreso",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.842Z"
+  },
+  {
+    "id": "cms17k9te0004uu3jzgtykxmr",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.851Z"
+  },
+  {
+    "id": "cms17k9tx000guu35896tugri",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms17k9s70006uu35ydjpgous",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.870Z"
+  },
+  {
+    "id": "cms17k9uc000luu35yv9d5su0",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms17k9s70006uu35ydjpgous",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.885Z"
+  },
+  {
+    "id": "cms17k9ul0005uu3kj7707tlo",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.894Z"
+  },
+  {
+    "id": "cms17k9ul0004uu3sn76us9va",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.894Z"
+  },
+  {
+    "id": "cms17k9ur0007uu3jy9848bpf",
+    "userId": "cmqbysdm30027koh1sndhzsbb",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdm30027koh1sndhzsbb",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.900Z"
+  },
+  {
+    "id": "cms17k9v40001uu348s8mzq5i",
+    "userId": "cf3c3f729cab20fd02db3f2",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cf3c3f729cab20fd02db3f2",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.912Z"
+  },
+  {
+    "id": "cms17k9v60001uu42ritjm05d",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.914Z"
+  },
+  {
+    "id": "cms17k9vv000xuu35f4w5cuu8",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms17k9va000puu35if21i1jd",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T01:58:04.915Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.940Z"
+  },
+  {
+    "id": "cms17k9vz0001uu48qg0znjpt",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.944Z"
+  },
+  {
+    "id": "cms17k9wh000auu3j9ddh7sw8",
+    "userId": "c01930f0eb4b5e9a0e39dc3",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c01930f0eb4b5e9a0e39dc3",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:04.962Z"
+  },
+  {
+    "id": "cms17k9xk000muu3set65wb73",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_BACKUP_VERIFY",
+    "resourceType": "sealed-bid-backup",
+    "resourceId": "cms17k9vd0006uu3sqhgmw75w:cmqbysdkb001lkoh1lif07y1g",
+    "details": {
+      "overall": "consistent",
+      "perFile": [
+        {
+          "role": "technical",
+          "status": "consistent"
+        }
+      ]
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.000Z"
+  },
+  {
+    "id": "cms17k9xl0004uu484dnqk1f1",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.002Z"
+  },
+  {
+    "id": "cms17k9xq001auu35bnlvp6ki",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms17k9s70006uu35ydjpgous",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T01:58:04.989Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.007Z"
+  },
+  {
+    "id": "cms17k9xz0009uu3knpmce911",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.015Z"
+  },
+  {
+    "id": "cms17k9y0000duu3j5s5mn7dm",
+    "userId": "cf3c3f729cab20fd02db3f2",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cf3c3f729cab20fd02db3f2",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.017Z"
+  },
+  {
+    "id": "cms17k9y9001fuu355hlbhhfe",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms17k9x00012uu357vrls7gu",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms17k9s70006uu35ydjpgous"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.026Z"
+  },
+  {
+    "id": "cms17k9yb000puu3smrd005bo",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_BACKUP_VERIFY",
+    "resourceType": "sealed-bid-backup",
+    "resourceId": "cms17k9vd0006uu3sqhgmw75w:cmqbysdkb001lkoh1lif07y1g",
+    "details": {
+      "overall": "tampered",
+      "perFile": [
+        {
+          "role": "technical",
+          "status": "tampered"
+        }
+      ]
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.027Z"
+  },
+  {
+    "id": "cms17k9yc000cuu3k1ducl07w",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.028Z"
+  },
+  {
+    "id": "cms17k9zy000fuu3k3r2iomxx",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.087Z"
+  },
+  {
+    "id": "cms17ka1a0024uu351xl954n8",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms17k9zt001uuu354uvn9hhp",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.135Z"
+  },
+  {
+    "id": "cms17ka1k002buu35mtxsqx0w",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms17k9zt001uuu354uvn9hhp",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T01:58:05.078Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.145Z"
+  },
+  {
+    "id": "cms17ka1n000juu3k8k310cfv",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.147Z"
+  },
+  {
+    "id": "cms17ka1n0001uu3g8phkq5fh",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.148Z"
+  },
+  {
+    "id": "cms17ka23002guu35rfakkpqb",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms17k9zt001uuu354uvn9hhp",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T01:58:05.078Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.163Z"
+  },
+  {
+    "id": "cms17ka37000nuu3k4bqwpb98",
+    "userId": "c01930f0eb4b5e9a0e39dc3",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c01930f0eb4b5e9a0e39dc3",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.203Z"
+  },
+  {
+    "id": "cms17ka390004uu3g1u9c58qw",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.206Z"
+  },
+  {
+    "id": "cms17ka4n000ruu3k5jm3wnem",
+    "userId": "c01930f0eb4b5e9a0e39dc3",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c01930f0eb4b5e9a0e39dc3",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.255Z"
+  },
+  {
+    "id": "cms17ka5w0005uu34ktvvqnnz",
+    "userId": "cf3c3f729cab20fd02db3f2",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cf3c3f729cab20fd02db3f2",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:05.301Z"
+  },
+  {
+    "id": "cms17katw0031uu3jnks7v5rt",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DISPUTE_RESOLVE",
+    "resourceType": "BidOpeningRecord:cms17ka1m000quu3jywajhdob",
+    "resourceId": null,
+    "details": {
+      "result": "复核无误",
+      "confirm": true,
+      "projectId": "cms17ka1e000luu3jz66lbrk6"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:06.164Z"
+  },
+  {
+    "id": "cms17kbhe003ouu3jz3qvmpbb",
+    "userId": "cmrai35fr0001koddvbs7wm0a",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0001koddvbs7wm0a",
+    "details": {
+      "role": "mall"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T02:58:07.011Z"
+  },
+  {
+    "id": "cms17yvpl002yuu86wh6dxd3u",
+    "userId": "cmqbysdm30027koh1sndhzsbb",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdm30027koh1sndhzsbb",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T03:09:26.409Z"
+  },
+  {
+    "id": "cms1fce4n000guu2ody4afuui",
+    "userId": "cmqbysdm30027koh1sndhzsbb",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdm30027koh1sndhzsbb",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T06:35:54.119Z"
+  },
+  {
+    "id": "cms1fcgcp000juu2o13y2icc9",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T06:35:57.001Z"
+  },
+  {
+    "id": "cms1fcmit000zuu2o7izg6knp",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T06:36:04.998Z"
+  },
+  {
+    "id": "cms1fczbq0017uu2o5wzmi87h",
+    "userId": "c1bf8a97b47aed2477b465b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c1bf8a97b47aed2477b465b",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T06:36:21.590Z"
+  },
+  {
+    "id": "cms1gfb0v002xuu2ord0ysqp3",
+    "userId": "c1bf8a97b47aed2477b465b",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "c1bf8a97b47aed2477b465b",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T07:06:09.679Z"
+  },
+  {
+    "id": "cms1gfcx00030uu2o1ye9rphl",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T07:06:12.132Z"
+  },
+  {
+    "id": "cms1glnuw003huu2o3nfs8c96",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T07:11:06.249Z"
+  },
+  {
+    "id": "cms1glp9k003luu2otnl7v00o",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T07:11:08.072Z"
+  },
+  {
+    "id": "cms1glzqk0046uu2o9j37n3yr",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T07:11:21.645Z"
+  },
+  {
+    "id": "cms1gm17x004auu2okadt3fi6",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T07:11:23.566Z"
+  },
+  {
+    "id": "cms1h7ey1004suu2oexbg0otn",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-26T07:28:01.129Z"
+  },
+  {
+    "id": "cms1h9s1r004vuu2od72l9mvy",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-26T07:29:51.423Z"
+  },
+  {
+    "id": "cms1hazra004yuu2onxngoakx",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-26T07:30:48.071Z"
+  },
+  {
+    "id": "cms1haztc0051uu2otnzf7k20",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35g90004koddpllpmrp4",
+    "details": {
+      "role": "staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-26T07:30:48.145Z"
+  },
+  {
+    "id": "cms1hckiu0054uu2orii9yiuh",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T07:32:01.638Z"
+  },
+  {
+    "id": "cms1i9n5n008xuu2osnolrw3h",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-26T07:57:44.699Z"
+  },
+  {
+    "id": "cms1jix4f004uuucsg6xw3348",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35g90004koddpllpmrp4",
+    "details": {
+      "role": "staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-26T08:32:57.135Z"
+  },
+  {
+    "id": "cms1nct1d0001uur3zlgddqzz",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.370Z"
+  },
+  {
+    "id": "cms1nct1h0001uur4neuotutl",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.374Z"
+  },
+  {
+    "id": "cms1nct2v0004uur3h4lvby6p",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.424Z"
+  },
+  {
+    "id": "cms1nct350004uur438d3tqm2",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.434Z"
+  },
+  {
+    "id": "cms1nct42000guur3s2f2x5eh",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nct340006uur3gt2qz6pu",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.466Z"
+  },
+  {
+    "id": "cms1nct49000luur3l6xc4c39",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nct340006uur3gt2qz6pu",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.473Z"
+  },
+  {
+    "id": "cms1nct53000xuur3p5vi89x6",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nct4p000puur3q6ayblzh",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:20:10.486Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.504Z"
+  },
+  {
+    "id": "cms1nct63001auur3hoew0pra",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nct340006uur3gt2qz6pu",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:20:10.529Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.540Z"
+  },
+  {
+    "id": "cms1nct6i001fuur3x0j93c77",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms1nct5o0012uur3wgh0e8sv",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms1nct340006uur3gt2qz6pu"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.555Z"
+  },
+  {
+    "id": "cms1nct7n0024uur3h10dg1mx",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nct74001uuur3nchz2hav",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.596Z"
+  },
+  {
+    "id": "cms1nct7u002buur3ydhykwb1",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nct74001uuur3nchz2hav",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:20:10.574Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.603Z"
+  },
+  {
+    "id": "cms1nct80002guur30d4bhxn6",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nct74001uuur3nchz2hav",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:20:10.574Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.609Z"
+  },
+  {
+    "id": "cms1nctc40043uur3myw8icdv",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nctbu003vuur37cymwvjc",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:20:10.743Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.757Z"
+  },
+  {
+    "id": "cms1nctci004buur367e8vaxy",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nctbu003vuur37cymwvjc",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "host": "测试主持",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:20:10.743Z",
+      "supervisor": "测试监督"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.770Z"
+  },
+  {
+    "id": "cms1nctd4004iuur3unfiu7fs",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms1nctbu003vuur37cymwvjc",
+    "resourceId": null,
+    "details": {
+      "sha256": "03f63523f4f9fe97b977286f7ebab27fa8fd91ef623c459ccfeda54ad2670f11",
+      "assetId": "cms1nctd3004euur3pappnyzb"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:20:10.793Z"
+  },
+  {
+    "id": "cms1nesak0001uubnqexc3f8s",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:42.716Z"
+  },
+  {
+    "id": "cms1nesc30004uubntax9wrrk",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:42.772Z"
+  },
+  {
+    "id": "cms1neta10001uubmsj25v3sd",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:43.993Z"
+  },
+  {
+    "id": "cms1netbk0004uubmdgalqxl4",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.048Z"
+  },
+  {
+    "id": "cms1netcr000guubmpfua56p2",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netbu0006uubm39jeme14",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.091Z"
+  },
+  {
+    "id": "cms1netd4000luubmfhf05kvr",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netbu0006uubm39jeme14",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.105Z"
+  },
+  {
+    "id": "cms1netdu000xuubmj4zz5suj",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netdj000puubmevv20j39",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:21:44.117Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.130Z"
+  },
+  {
+    "id": "cms1netep001auubmiq45ml16",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netbu0006uubm39jeme14",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:21:44.151Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.161Z"
+  },
+  {
+    "id": "cms1netf0001fuubmfncv8xvu",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms1nete90012uubmsbhlhe79",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms1netbu0006uubm39jeme14"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.172Z"
+  },
+  {
+    "id": "cms1netfq001uuubmsk6mcnfh",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netbu0006uubm39jeme14",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.198Z"
+  },
+  {
+    "id": "cms1netgy002duubm27aop17q",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netgf0023uubmtsw616my",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.242Z"
+  },
+  {
+    "id": "cms1neth4002kuubmqq6bvgx9",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netgf0023uubmtsw616my",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:21:44.220Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.249Z"
+  },
+  {
+    "id": "cms1nethb002puubmdthm49kq",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netgf0023uubmtsw616my",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:21:44.220Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.255Z"
+  },
+  {
+    "id": "cms1netl5004cuubmdr0r3mwt",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netkv0044uubmbatv17vi",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:21:44.381Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.393Z"
+  },
+  {
+    "id": "cms1netlh004kuubmp5k2ufet",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1netkv0044uubmbatv17vi",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "host": "测试主持",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:21:44.381Z",
+      "supervisor": "测试监督"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.405Z"
+  },
+  {
+    "id": "cms1netlw004ruubmrnpysnpw",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms1netkv0044uubmbatv17vi",
+    "resourceId": null,
+    "details": {
+      "sha256": "d34a33497973f290dc61e889a6071090c54666d43c04ca72a829187619505aed",
+      "assetId": "cms1netlt004nuubm24ghvbs8"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:21:44.420Z"
+  },
+  {
+    "id": "cms1nfc0z0001uun38k4de3sb",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.292Z"
+  },
+  {
+    "id": "cms1nfc2i0004uun3f5i32sn8",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.346Z"
+  },
+  {
+    "id": "cms1nfc300001uun2g9348wej",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.364Z"
+  },
+  {
+    "id": "cms1nfc4p0004uun2sfttj31u",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.425Z"
+  },
+  {
+    "id": "cms1nfc5r000guun2dos9b6ue",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfc4x0006uun2r1hmxnfe",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.464Z"
+  },
+  {
+    "id": "cms1nfc5y000luun2hqtiebti",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfc4x0006uun2r1hmxnfe",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.470Z"
+  },
+  {
+    "id": "cms1nfc6k000xuun2dqjxa6g1",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfc6a000puun2ohc7aohv",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:08.480Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.493Z"
+  },
+  {
+    "id": "cms1nfc7e001auun23cwx4735",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfc4x0006uun2r1hmxnfe",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:08.514Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.523Z"
+  },
+  {
+    "id": "cms1nfc7n001fuun26btwpxx0",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms1nfc710012uun2k8kn0n58",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms1nfc4x0006uun2r1hmxnfe"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.532Z"
+  },
+  {
+    "id": "cms1nfc85001uuun2yynd8mmp",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfc4x0006uun2r1hmxnfe",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.549Z"
+  },
+  {
+    "id": "cms1nfc9d002duun20wvr88om",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfc8q0023uun25bvxcnmv",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.593Z"
+  },
+  {
+    "id": "cms1nfc9k002kuun2tnw4p6hm",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfc8q0023uun25bvxcnmv",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:08.567Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.600Z"
+  },
+  {
+    "id": "cms1nfc9p002puun2ssgdx1af",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfc8q0023uun25bvxcnmv",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:08.567Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.606Z"
+  },
+  {
+    "id": "cms1nfcdn004cuun2hybr4ldh",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfcdg0044uun2jngwwf0w",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:22:08.738Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.747Z"
+  },
+  {
+    "id": "cms1nfce1004kuun2yflplehv",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfcdg0044uun2jngwwf0w",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "host": "测试主持",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:22:08.738Z",
+      "supervisor": "测试监督"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.762Z"
+  },
+  {
+    "id": "cms1nfced004ruun27ku4smw7",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms1nfcdg0044uun2jngwwf0w",
+    "resourceId": null,
+    "details": {
+      "sha256": "1e45bc6c73c88c076961bd2720d702e77ab53f009b46174b6c413afa10d96454",
+      "assetId": "cms1nfcec004nuun20im9n313"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:08.774Z"
+  },
+  {
+    "id": "cms1nfm000001uuekstwm1jil",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.216Z"
+  },
+  {
+    "id": "cms1nfm0p0001uuejtbtmat9q",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.241Z"
+  },
+  {
+    "id": "cms1nfm1f0004uuekeqv0xnny",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.268Z"
+  },
+  {
+    "id": "cms1nfm2a0004uuejdlyx7t98",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.299Z"
+  },
+  {
+    "id": "cms1nfm3k000guuejh9xxwpa4",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfm2j0006uuejnza8sg2l",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.344Z"
+  },
+  {
+    "id": "cms1nfm3y000luuejllw96bpk",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfm2j0006uuejnza8sg2l",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.358Z"
+  },
+  {
+    "id": "cms1nfm4j000xuuejcdkfsm5y",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfm4b000puuejk0zaj095",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:21.368Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.379Z"
+  },
+  {
+    "id": "cms1nfm5k001auuej250fm3za",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfm2j0006uuejnza8sg2l",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:21.407Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.417Z"
+  },
+  {
+    "id": "cms1nfm5u001fuuejfv2upqj5",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms1nfm550012uuejsz5r1boe",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms1nfm2j0006uuejnza8sg2l"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.426Z"
+  },
+  {
+    "id": "cms1nfm6j001uuuej87rmq119",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfm2j0006uuejnza8sg2l",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.451Z"
+  },
+  {
+    "id": "cms1nfm7v002duueju9iiinf4",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfm7a0023uuejobacknnv",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.499Z"
+  },
+  {
+    "id": "cms1nfm81002kuuej646rrieq",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfm7a0023uuejobacknnv",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:21.476Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.505Z"
+  },
+  {
+    "id": "cms1nfm86002puuej3rr1vdgr",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfm7a0023uuejobacknnv",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:21.476Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.510Z"
+  },
+  {
+    "id": "cms1nfmc9004cuuejc4n4jhtg",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfmbx0044uuejzluoxp8a",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:22:21.643Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.658Z"
+  },
+  {
+    "id": "cms1nfmcl004kuuejj56jnqly",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nfmbx0044uuejzluoxp8a",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "host": "测试主持",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:22:21.643Z",
+      "supervisor": "测试监督"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.670Z"
+  },
+  {
+    "id": "cms1nfmd1004ruuejq4hz7m7c",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms1nfmbx0044uuejzluoxp8a",
+    "resourceId": null,
+    "details": {
+      "sha256": "7a8e30498490971f086ffb680575ded702ac10770f179bf21aae961354e43c6b",
+      "assetId": "cms1nfmcx004nuuejmddlzqmh"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:21.685Z"
+  },
+  {
+    "id": "cms1ng1eu0001uuaiy00eb4dq",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.191Z"
+  },
+  {
+    "id": "cms1ng1ew0001uuahz5rfw7dj",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.192Z"
+  },
+  {
+    "id": "cms1ng1gb0004uuaixd9s71lo",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.243Z"
+  },
+  {
+    "id": "cms1ng1gd0004uuahzsn5qsx0",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.245Z"
+  },
+  {
+    "id": "cms1ng1hl000guuahqb95s4yt",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1gq0006uuah9lzz2bx3",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.290Z"
+  },
+  {
+    "id": "cms1ng1hu000luuahksw8ze6n",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1gq0006uuah9lzz2bx3",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.298Z"
+  },
+  {
+    "id": "cms1ng1id000xuuah51z3vst8",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1i4000puuahnljliip0",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:41.306Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.317Z"
+  },
+  {
+    "id": "cms1ng1jc001auuah1l7pm7jf",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1gq0006uuah9lzz2bx3",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:41.344Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.352Z"
+  },
+  {
+    "id": "cms1ng1jn001fuuahcwi76xap",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms1ng1iy0012uuahv7aqaibw",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms1ng1gq0006uuah9lzz2bx3"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.363Z"
+  },
+  {
+    "id": "cms1ng1kg001uuuahgr5xhxd0",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1gq0006uuah9lzz2bx3",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.392Z"
+  },
+  {
+    "id": "cms1ng1lm002duuahgut6v19h",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1kz0023uuahhwxwp5jm",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.435Z"
+  },
+  {
+    "id": "cms1ng1lt002kuuahmhqx8odh",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1kz0023uuahhwxwp5jm",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:41.409Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.442Z"
+  },
+  {
+    "id": "cms1ng1m0002puuahmbj95jlk",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1kz0023uuahhwxwp5jm",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:22:41.409Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.449Z"
+  },
+  {
+    "id": "cms1ng1pk004cuuahu206mlwf",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1pb0044uuah6ifkl3hi",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:22:41.566Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.576Z"
+  },
+  {
+    "id": "cms1ng1pw004kuuahfyj2iuk7",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ng1pb0044uuah6ifkl3hi",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "host": "测试主持",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:22:41.566Z",
+      "supervisor": "测试监督"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.589Z"
+  },
+  {
+    "id": "cms1ng1qb004ruuahwlhbt5s7",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms1ng1pb0044uuah6ifkl3hi",
+    "resourceId": null,
+    "details": {
+      "sha256": "59a5b4dc7de50cc79a4e34af91468ab07adc6a5c822d6cb8b6c510ae398bd10e",
+      "assetId": "cms1ng1q9004nuuahagpj4rzv"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:22:41.603Z"
+  },
+  {
+    "id": "cms1nhmvo0001uuxv1k7fg5ib",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.668Z"
+  },
+  {
+    "id": "cms1nhmwo0001uuxu15y828xk",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.704Z"
+  },
+  {
+    "id": "cms1nhmxf0004uuxvo4ps10cc",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.732Z"
+  },
+  {
+    "id": "cms1nhmz8000guuxub3amit5p",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhmyf0006uuxua7d92wye",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.796Z"
+  },
+  {
+    "id": "cms1nhmzg000luuxu75z0sf1e",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhmyf0006uuxua7d92wye",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.804Z"
+  },
+  {
+    "id": "cms1nhn1v001uuuxur29dt4mk",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhmyf0006uuxua7d92wye",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.891Z"
+  },
+  {
+    "id": "cms1nhn36002kuuxuxqyskvje",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhn2e0023uuxucp72h6h1",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:23:55.907Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.939Z"
+  },
+  {
+    "id": "cms1nhn3b002puuxuy80x8zvv",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhn2e0023uuxucp72h6h1",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:23:55.907Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.943Z"
+  },
+  {
+    "id": "cms1nhn7w004ruuxuzaer3cnj",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms1nhn6q0044uuxuxfx27dna",
+    "resourceId": null,
+    "details": {
+      "sha256": "a428a31e882cef3b921e7f4f97e7a2a14571bb2baa26a4681ceb8f9e0819b9c8",
+      "assetId": "cms1nhn7u004nuuxueivktjci"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:56.108Z"
+  },
+  {
+    "id": "cms1nifpi0001uuyy2o4r2dxo",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.031Z"
+  },
+  {
+    "id": "cms1nifra0004uuyy4kpohk40",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.095Z"
+  },
+  {
+    "id": "cms1nifrs0001uuyx6ji7yfxe",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.113Z"
+  },
+  {
+    "id": "cms1nifuk000guuyxm3ddltvd",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1niftp0006uuyx81woffm7",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.213Z"
+  },
+  {
+    "id": "cms1nifus000luuyxpai4xnu2",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1niftp0006uuyx81woffm7",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.221Z"
+  },
+  {
+    "id": "cms1nifx0001uuuyxcud6rdeq",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1niftp0006uuyx81woffm7",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.301Z"
+  },
+  {
+    "id": "cms1nig2f004cuuyxypfj2r62",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nig220044uuyxecjtfb6m",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:24:33.480Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.496Z"
+  },
+  {
+    "id": "cms1nig2q004kuuyxvcrv6efh",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nig220044uuyxecjtfb6m",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "host": "测试主持",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:24:33.480Z",
+      "supervisor": "测试监督"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.507Z"
+  },
+  {
+    "id": "cms1nhmy70004uuxuuw0mgxpk",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.760Z"
+  },
+  {
+    "id": "cms1nhn06000xuuxuzhx5hq27",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhmzr000puuxut21v1yhn",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:23:55.813Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.830Z"
+  },
+  {
+    "id": "cms1nhn0z001auuxu3bea4l5b",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhmyf0006uuxua7d92wye",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:23:55.852Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.860Z"
+  },
+  {
+    "id": "cms1nhn1a001fuuxuzvhanfmk",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms1nhn0m0012uuxuffpgkh3a",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms1nhmyf0006uuxua7d92wye"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.870Z"
+  },
+  {
+    "id": "cms1nhn30002duuxutyo4rvc5",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhn2e0023uuxucp72h6h1",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:55.933Z"
+  },
+  {
+    "id": "cms1nhn70004cuuxu3fkx8by7",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhn6q0044uuxuxfx27dna",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:23:56.064Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:56.076Z"
+  },
+  {
+    "id": "cms1nhn7c004kuuxueux7wn5d",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nhn6q0044uuxuxfx27dna",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "host": "测试主持",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:23:56.064Z",
+      "supervisor": "测试监督"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:23:56.088Z"
+  },
+  {
+    "id": "cms1ni1i0004cuuyd6up2iinr",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni1hr0044uuydh4elv9zk",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:24:14.605Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.616Z"
+  },
+  {
+    "id": "cms1ni1ic004kuuydkcjlosvw",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni1hr0044uuydh4elv9zk",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "host": "测试主持",
+      "stage": "OPENING",
+      "deadline": "2026-07-25T10:24:14.605Z",
+      "supervisor": "测试监督"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.629Z"
+  },
+  {
+    "id": "cms1ni1470001uuyeoh3mkzpc",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.120Z"
+  },
+  {
+    "id": "cms1ni15v0001uuydiv2rbqa4",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.179Z"
+  },
+  {
+    "id": "cms1ni1600004uuyec345oy52",
+    "userId": "c446548f5d4a7ba4714f33d",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c446548f5d4a7ba4714f33d",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.184Z"
+  },
+  {
+    "id": "cms1ni17h0004uuyd8l2wliad",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.238Z"
+  },
+  {
+    "id": "cms1ni18k000guuydh3zy7l6k",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni17q0006uuydvcz4vx65",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.276Z"
+  },
+  {
+    "id": "cms1ni18s000luuydtr0uwx1h",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni17q0006uuydvcz4vx65",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "SUBMIT",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.285Z"
+  },
+  {
+    "id": "cms1ni19b000xuuydqfk9twm4",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni193000puuyd4rtsxu99",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:24:14.293Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.304Z"
+  },
+  {
+    "id": "cms1ni1br001auuyduy9y2y8o",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni17q0006uuydvcz4vx65",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:24:14.383Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.392Z"
+  },
+  {
+    "id": "cms1ni1bz001fuuydz7vnuxqk",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms1ni19y0012uuydmkaxnyp9",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms1ni17q0006uuydvcz4vx65"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.400Z"
+  },
+  {
+    "id": "cms1ni1ck001uuuydmk7klojc",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni17q0006uuydvcz4vx65",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.420Z"
+  },
+  {
+    "id": "cms1ni1do002duuydcr5mjezq",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni1d30023uuydmdwe9ogs",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.461Z"
+  },
+  {
+    "id": "cms1ni1dv002kuuyd65wbsei1",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni1d30023uuydmdwe9ogs",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:24:14.437Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.468Z"
+  },
+  {
+    "id": "cms1ni1e1002puuyds1o8c6sf",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1ni1d30023uuydmdwe9ogs",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:24:14.437Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.474Z"
+  },
+  {
+    "id": "cms1ni1ip004ruuydtl4hpyv2",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms1ni1hr0044uuydh4elv9zk",
+    "resourceId": null,
+    "details": {
+      "sha256": "1dfaa3f80ee9dc4b105b4000fb0432022a6486b317adbff024bc4037b40225ed",
+      "assetId": "cms1ni1io004nuuydctq333oj"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:14.642Z"
+  },
+  {
+    "id": "cms1niftc0004uuyxp83ia27t",
+    "userId": "cmqbysdk0001gkoh1gx2342d6",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqbysdk0001gkoh1gx2342d6",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.169Z"
+  },
+  {
+    "id": "cms1nifvc000xuuyxj6iwjfcp",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nifv4000puuyxa2kz4ba5",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:24:33.229Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.241Z"
+  },
+  {
+    "id": "cms1nifw7001auuyx213vgtu1",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1niftp0006uuyx81woffm7",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:24:33.263Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.271Z"
+  },
+  {
+    "id": "cms1nifwg001fuuyxnoi8jxr3",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "重庆蜀通岩土工程有限公司:cms1nifvs0012uuyxb585l3pn",
+    "resourceId": null,
+    "details": {
+      "phase": "no_files",
+      "reason": "投标文件引用缺失（未上传技术/商务/报价文件）",
+      "outcome": "DANGER",
+      "projectId": "cms1niftp0006uuyx81woffm7"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.280Z"
+  },
+  {
+    "id": "cms1nify3002duuyx42duv3p8",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nifxk0023uuyxh62pewc1",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.339Z"
+  },
+  {
+    "id": "cms1nifyb002kuuyxldggwa8i",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nifxk0023uuyxh62pewc1",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "主持人",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:24:33.317Z",
+      "supervisor": "监督员"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.347Z"
+  },
+  {
+    "id": "cms1nifyi002puuyxt5b88nie",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms1nifxk0023uuyxh62pewc1",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "OPENING",
+      "stage": "OPENING",
+      "deadline": "2026-07-26T09:24:33.317Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.354Z"
+  },
+  {
+    "id": "cms1nig35004ruuyxn48tjlel",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms1nig220044uuyxecjtfb6m",
+    "resourceId": null,
+    "details": {
+      "sha256": "187b411e44e4a5cd3ffd45b6536650cad899b389c26fe09bbd4469699b3ab3dc",
+      "assetId": "cms1nig33004nuuyx1hjefniv"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-26T10:24:33.521Z"
+  },
+  {
+    "id": "cms2jkdwx000juuuyikdvc2c6",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T01:21:51.729Z"
+  },
+  {
+    "id": "cms2jrd8v001xuuuyf6kbt4xr",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cmqseed-open-proj01",
+    "resourceId": null,
+    "details": {
+      "sha256": "7132828d99c6deab15c582194071514ff3cd2ae23fd95aa332b730e0a290e366",
+      "assetId": "cms2jrd8p001tuuuy9e2bov30"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-27T01:27:17.456Z"
+  },
+  {
+    "id": "cms2m5qq0004suuuybumb9q9k",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T02:34:27.336Z"
+  },
+  {
+    "id": "cms2m66e9005fuuuy7q6pqo1u",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T02:34:47.650Z"
+  },
+  {
+    "id": "cms2m67ff005juuuyjf5mpia2",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T02:34:48.988Z"
+  },
+  {
+    "id": "cms2m8786008guuuyro2zddah",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cmqseed-open-proj01",
+    "resourceId": null,
+    "details": {
+      "sha256": "3e4c322991271d1b57f527089469f215f54420b593315615549d68cca54c3a9b",
+      "assetId": "cms2m8783008cuuuy6zdorjxb"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-27T02:36:22.039Z"
+  },
+  {
+    "id": "cms2n032o00avuuuycnxziut1",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T02:58:03.024Z"
+  },
+  {
+    "id": "cms2nqb3u00d3uuuywpdfmrcz",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T03:18:26.491Z"
+  },
+  {
+    "id": "cms2tstui00ftuuuysiswvj0f",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T06:08:21.786Z"
+  },
+  {
+    "id": "cms2va8su00hjuuuy7ls0ka87",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T06:49:53.935Z"
+  },
+  {
+    "id": "cms2vnr2z00i8uuuyvmpni4th",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T07:00:24.155Z"
+  },
+  {
+    "id": "cms2vnvdg00ibuuuyv9508iqt",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T07:00:29.717Z"
+  },
+  {
+    "id": "cms2vp5ys00j1uuuyuozi11lf",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T07:01:30.101Z"
+  },
+  {
+    "id": "cms2xmq5w00lluuuymakmkula",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T07:55:35.540Z"
+  },
+  {
+    "id": "cms2y43d900nuuuuypvkg1rxc",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T08:09:05.806Z"
+  },
+  {
+    "id": "cms2y88sa00p6uuuy5635qi5g",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T08:12:19.451Z"
+  },
+  {
+    "id": "cms2y8b4z00p9uuuy6hooq850",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T08:12:22.500Z"
+  },
+  {
+    "id": "cms2yytjf0001uus6jeymm2fs",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-27T08:32:59.403Z"
+  },
+  {
+    "id": "cms2z5opi000cuus684df65mt",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-27T08:38:19.735Z"
+  },
+  {
+    "id": "cms2zaslt001cuus6m4niw4nt",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T08:42:18.065Z"
+  },
+  {
+    "id": "cms30o12d003muus6l6v5z55d",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T09:20:35.173Z"
+  },
+  {
+    "id": "cms32vo4a006uuurjjxxcon5f",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T10:22:30.875Z"
+  },
+  {
+    "id": "cms32ysg8008vuurj6f3f93hz",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T10:24:56.456Z"
+  },
+  {
+    "id": "cms33j6t00024uuv9y9jnnwe0",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T10:40:48.181Z"
+  },
+  {
+    "id": "cms33j9lf0029uuv97tb2xbo0",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T10:40:51.796Z"
+  },
+  {
+    "id": "cms34gnq300ctuuv9vz2phf1p",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T11:06:49.756Z"
+  },
+  {
+    "id": "cms34gq7800cwuuv9044o0llb",
+    "userId": "cmqc8r69y0116koekhly4zbd4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r69y0116koekhly4zbd4",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T11:06:52.964Z"
+  },
+  {
+    "id": "cms3508gv00dfuuv98irceaok",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-27T11:22:03.103Z"
+  },
+  {
+    "id": "cms3ymwl300inuuv9ax5mnm58",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T01:11:29.655Z"
+  },
+  {
+    "id": "cms3zag8l00mbuuv9a15f6jot",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T01:29:48.213Z"
+  },
+  {
+    "id": "cms40fht100nyuuv9ls996n4o",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35g90004koddpllpmrp4",
+    "details": {
+      "role": "staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:01:43.142Z"
+  },
+  {
+    "id": "cms40gwji00oiuuv9cjhbqlfr",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "BID_INVITE_SUPPLIERS",
+    "resourceType": "BID-1785204151836",
+    "resourceId": null,
+    "details": {
+      "added": 3,
+      "skipped": 0,
+      "projectId": "cms40gjdo00o0uuv9i4yzd3km"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:02:48.894Z"
+  },
+  {
+    "id": "cms40ihl600opuuv9lfo4zt9f",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35g90004koddpllpmrp4",
+    "details": {
+      "role": "staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:04:02.827Z"
+  },
+  {
+    "id": "cms40j7cn00p5uuv96ansczci",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms40gjdo00o0uuv9i4yzd3km",
+    "resourceId": null,
+    "details": {
+      "to": "SUBMIT",
+      "from": "DOWNLOAD",
+      "stage": "SUBMIT"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:04:36.215Z"
+  },
+  {
+    "id": "cms40kqy900p8uuv9t534qa9v",
+    "userId": "cmqc8r6jy01jfkoekswui0ach",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r6jy01jfkoekswui0ach",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:05:48.274Z"
+  },
+  {
+    "id": "cms40krn500pjuuv9jw4rgt0x",
+    "userId": "cmqc8r6ka01k0koeku05sobkz",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r6ka01k0koeku05sobkz",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:05:49.169Z"
+  },
+  {
+    "id": "cms40ks2u00puuuv93er5krk6",
+    "userId": "cmqc8r6kb01k3koekavhkpbei",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r6kb01k3koekavhkpbei",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:05:49.734Z"
+  },
+  {
+    "id": "cms40lw8p00qauuv950zirpy1",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T02:06:41.785Z"
+  },
+  {
+    "id": "cms40oc1000rfuuv93csssaor",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T02:08:35.557Z"
+  },
+  {
+    "id": "cms40oe6t00scuuv91j3e3aag",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35fr0002koddvbs7wm1b",
+    "details": {
+      "role": "bid_host"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:08:38.357Z"
+  },
+  {
+    "id": "cms40orcr00souuv9lc7lltgp",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms40gjdo00o0uuv9i4yzd3km",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "陈源远",
+      "stage": "OPENING",
+      "deadline": "2026-07-27T17:00:00.000Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:08:55.419Z"
+  },
+  {
+    "id": "cms40oxje00swuuv9yj566nqe",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "成都华建地质工程科技有限公司:cms40gwj800o5uuv9s6ndh0s3",
+    "resourceId": null,
+    "details": {
+      "outcome": "SUCCESS",
+      "projectId": "cms40gjdo00o0uuv9i4yzd3km"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:09:03.434Z"
+  },
+  {
+    "id": "cms40oxlv00t0uuv9nzllrgrb",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "四川省第十二地质大队:cms40gwj800o6uuv9j847b6s0",
+    "resourceId": null,
+    "details": {
+      "outcome": "SUCCESS",
+      "projectId": "cms40gjdo00o0uuv9i4yzd3km"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:09:03.524Z"
+  },
+  {
+    "id": "cms40oxp300t4uuv9dyb1trkm",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_DECRYPT",
+    "resourceType": "四川省第四地质大队:cms40gwj800o7uuv974k8803q",
+    "resourceId": null,
+    "details": {
+      "outcome": "SUCCESS",
+      "projectId": "cms40gjdo00o0uuv9i4yzd3km"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:09:03.640Z"
+  },
+  {
+    "id": "cms40qme400u7uuv9i5jaraka",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms40gjdo00o0uuv9i4yzd3km",
+    "resourceId": null,
+    "details": {
+      "sha256": "aee1cb731ac93d67718311edc79fa2c178b82b6e5bdd9165181b6f16572e853a",
+      "assetId": "cms40qme200u3uuv9deph4fqp"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:10:22.300Z"
+  },
+  {
+    "id": "cms40wl0v00wguuv9gpi6emik",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "EXPERT_EXTRACTION_CONFIRMED",
+    "resourceType": "BidProject",
+    "resourceId": "cms40gjdo00o0uuv9i4yzd3km",
+    "details": {
+      "experts": [
+        {
+          "name": "李军",
+          "major": "工程设计",
+          "isLead": true,
+          "userId": "cc3a5d3472487a36a145a66"
+        },
+        {
+          "name": "刘苡池",
+          "major": "环水保",
+          "isLead": false,
+          "userId": "c01930f0eb4b5e9a0e39dc3"
+        },
+        {
+          "name": "钱荣兵",
+          "major": "工程设计",
+          "isLead": false,
+          "userId": "c216edc8542d89c1d15df8c"
+        }
+      ],
+      "expertCount": 3,
+      "projectName": "引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务内部竞标（竞价）采购公告"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:15:00.463Z"
+  },
+  {
+    "id": "cms40wym000wluuv96sf1xr6e",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms40gjdo00o0uuv9i4yzd3km",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T02:15:18.072Z"
+  },
+  {
+    "id": "cms4193lk0009uul3jy12zzw0",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T02:24:44.408Z"
+  },
+  {
+    "id": "cms41kqil0001uu6bzzza7zij",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:33:47.326Z"
+  },
+  {
+    "id": "cms41kqnn0007uu6bjg6l2kr9",
+    "userId": "c01930f0eb4b5e9a0e39dc3",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c01930f0eb4b5e9a0e39dc3",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:33:47.507Z"
+  },
+  {
+    "id": "cms41kqri000duu6bd3mllgdo",
+    "userId": "c216edc8542d89c1d15df8c",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c216edc8542d89c1d15df8c",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:33:47.647Z"
+  },
+  {
+    "id": "cms41s23b005buuhxstgs0xvm",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:39:28.919Z"
+  },
+  {
+    "id": "cms41s24p005euuhxga4bwwnp",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35g90004koddpllpmrp4",
+    "details": {
+      "role": "staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:39:28.970Z"
+  },
+  {
+    "id": "cms41s264005huuhxxobik6g0",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T02:39:29.021Z"
+  },
+  {
+    "id": "cms43bqh9006duuhxfs19xnp5",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T03:22:46.605Z"
+  },
+  {
+    "id": "cms44ycj20085uuhxftg1in99",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T04:08:21.231Z"
+  },
+  {
+    "id": "cms48hngd008wuuhxhup4tpq7",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T05:47:20.701Z"
+  },
+  {
+    "id": "cms48kt1x00bbuuhxa0035a53",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35g90004koddpllpmrp4",
+    "details": {
+      "role": "staff"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T05:49:47.923Z"
+  },
+  {
+    "id": "cms48n9zz00d5uuhxn1h4zr69",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T05:51:43.199Z"
+  },
+  {
+    "id": "cms48tw7g0001uueazuwqig99",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T05:56:51.917Z"
+  },
+  {
+    "id": "cms48u36t000duueam33cu35n",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T05:57:00.966Z"
+  },
+  {
+    "id": "cms48ukxf000quueatlbjnvxu",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T05:57:23.955Z"
+  },
+  {
+    "id": "cms49bh1c0005uumtdls6ocou",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T06:10:32.065Z"
+  },
+  {
+    "id": "cms49e2eg003puumtlsq8sotu",
+    "userId": "cmrai35g90004koddpllpmrp4",
+    "action": "BID_INVITE_SUPPLIERS",
+    "resourceType": "BID-1785219153016",
+    "resourceId": null,
+    "details": {
+      "added": 3,
+      "skipped": 0,
+      "projectId": "cms49e2d40037uumtdse2ef7l"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T06:12:33.065Z"
+  },
+  {
+    "id": "cms49e2fe003xuumthdthxpli",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms49e2d40037uumtdse2ef7l",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "DOWNLOAD",
+      "host": "陈源远",
+      "stage": "OPENING",
+      "deadline": "2026-07-27T17:00:00.000Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T06:12:33.099Z"
+  },
+  {
+    "id": "cms49olj600exuumt9ai4h074",
+    "userId": "cmqc8r6jy01jfkoekswui0ach",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r6jy01jfkoekswui0ach",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T06:20:44.418Z"
+  },
+  {
+    "id": "cms49ollx00f2uumtbbjj6h0n",
+    "userId": "cmqc8r6ka01k0koeku05sobkz",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r6ka01k0koeku05sobkz",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T06:20:44.518Z"
+  },
+  {
+    "id": "cms49oloh00f7uumt7mcuvvy2",
+    "userId": "cmqc8r6kb01k3koekavhkpbei",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmqc8r6kb01k3koekavhkpbei",
+    "details": {
+      "role": "supplier"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T06:20:44.609Z"
+  },
+  {
+    "id": "cms49pgc100ffuumtekf4t5w1",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms49e2d40037uumtdse2ef7l",
+    "resourceId": null,
+    "details": {
+      "to": "OPENING",
+      "from": "SUBMIT",
+      "host": "陈源远",
+      "stage": "OPENING",
+      "deadline": "2026-07-27T17:00:00.000Z"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T06:21:24.338Z"
+  },
+  {
+    "id": "cms49pv0600fsuumt5tyccrk8",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_OPENING_HANDOVER",
+    "resourceType": "BidProject:cms49e2d40037uumtdse2ef7l",
+    "resourceId": null,
+    "details": {
+      "sha256": "4c9be0037f5b8a672c5226ff03bfd0baa2f28884c6d8fd61ab48689a9aebb045",
+      "assetId": "cms49pv0500fouumtgh6qws5y"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T06:21:43.351Z"
+  },
+  {
+    "id": "cms49pv1n00h1uumttiqto89i",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "EXPERT_EXTRACTION_CONFIRMED",
+    "resourceType": "BidProject",
+    "resourceId": "cms49e2d40037uumtdse2ef7l",
+    "details": {
+      "experts": [
+        {
+          "name": "李军",
+          "major": "工程设计",
+          "isLead": true,
+          "userId": "cc3a5d3472487a36a145a66"
+        },
+        {
+          "name": "刘苡池",
+          "major": "环水保",
+          "isLead": false,
+          "userId": "c01930f0eb4b5e9a0e39dc3"
+        },
+        {
+          "name": "钱荣兵",
+          "major": "工程设计",
+          "isLead": false,
+          "userId": "c216edc8542d89c1d15df8c"
+        }
+      ],
+      "expertCount": 3,
+      "projectName": "引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T06:21:43.403Z"
+  },
+  {
+    "id": "cms49pv2e00h6uumtzpsnqrpr",
+    "userId": "cmrai35fr0002koddvbs7wm1b",
+    "action": "BID_STAGE_CHANGE",
+    "resourceType": "BidProject:cms49e2d40037uumtdse2ef7l",
+    "resourceId": null,
+    "details": {
+      "to": "EVALUATING",
+      "from": "OPENING",
+      "stage": "EVALUATING"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T06:21:43.430Z"
+  },
+  {
+    "id": "cms49qec400htuumt9gp6y1t5",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T06:22:08.404Z"
+  },
+  {
+    "id": "cms49qeh600i1uumtwp8uj9s0",
+    "userId": "c01930f0eb4b5e9a0e39dc3",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c01930f0eb4b5e9a0e39dc3",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T06:22:08.587Z"
+  },
+  {
+    "id": "cms49qems00i9uumtx1xev8el",
+    "userId": "c216edc8542d89c1d15df8c",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c216edc8542d89c1d15df8c",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "curl/7.81.0",
+    "createdAt": "2026-07-28T06:22:08.788Z"
+  },
+  {
+    "id": "cms49urjt0135uumt9z9e1xdi",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T06:25:32.154Z"
+  },
+  {
+    "id": "cms4a85et0159uumt9ea4j8bd",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrmvzupb0000kozb2ijyav4o",
+    "details": {
+      "role": "leader"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T06:35:56.645Z"
+  },
+  {
+    "id": "cms4aiypq016zuumtf618cljs",
+    "userId": "cmrmvzupb0000kozb2ijyav4o",
+    "action": "BID_NUDGE_EXPERTS",
+    "resourceType": "BID-1785219153016",
+    "resourceId": null,
+    "details": {
+      "reason": "signin",
+      "reached": 0,
+      "projectId": "cms49e2d40037uumtdse2ef7l"
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T06:44:21.182Z"
+  },
+  {
+    "id": "cms4aola8017luumtstanv65a",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T06:48:43.712Z"
+  },
+  {
+    "id": "cms4aoodr017puumtym5d38dn",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T06:48:47.727Z"
+  },
+  {
+    "id": "cms4asgan01b5uumtr7di0u2m",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T06:51:43.871Z"
+  },
+  {
+    "id": "cms4b0b14000luuvi199mrrob",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T06:57:50.297Z"
+  },
+  {
+    "id": "cms4b0rqd0012uuvi44h3z90w",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T06:58:11.941Z"
+  },
+  {
+    "id": "cms4dmvsv0006uugbiefr82v5",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T08:11:22.880Z"
+  },
+  {
+    "id": "cms4duhbd001uuugbkymrnroh",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T08:17:17.353Z"
+  },
+  {
+    "id": "cms4dumux001yuugboamjsb4w",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T08:17:24.538Z"
+  },
+  {
+    "id": "cms4egox40001uu566rmu0h7h",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T08:34:33.641Z"
+  },
+  {
+    "id": "cms4ejj080017uu56g645du2b",
+    "userId": "cc3a5d3472487a36a145a66",
+    "action": "LOGOUT",
+    "resourceType": "auth",
+    "resourceId": "cc3a5d3472487a36a145a66",
+    "details": {},
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T08:36:45.944Z"
+  },
+  {
+    "id": "cms4ejnfp001auu56o84wrq9m",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T08:36:51.685Z"
+  },
+  {
+    "id": "cms4ek2na001puu56298btgzg",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "BID_TENDER_DOC_RELOAD",
+    "resourceType": "project:cms49e2d40037uumtdse2ef7l",
+    "resourceId": null,
+    "details": {
+      "fileName": "2026.1.27勘察分院-引大济岷工程千ZK10和千隧ZK12两个钻孔施工技术服务内部竞标（竞价）采购文件.pdf",
+      "bidProjectIdFixed": true
+    },
+    "ipAddress": null,
+    "userAgent": null,
+    "createdAt": "2026-07-28T08:37:11.399Z"
+  },
+  {
+    "id": "cms4emw5h0006uui7zx49i6v7",
+    "userId": "cmrai35gu000akodd8gzem912",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "cmrai35gu000akodd8gzem912",
+    "details": {
+      "role": "admin"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T08:39:22.950Z"
+  },
+  {
+    "id": "cms4f4l03000zuui769ikr2vx",
+    "userId": "c1bf8a97b47aed2477b465b",
+    "action": "LOGIN",
+    "resourceType": "auth",
+    "resourceId": "c1bf8a97b47aed2477b465b",
+    "details": {
+      "role": "bid_expert"
+    },
+    "ipAddress": "127.0.0.1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+    "createdAt": "2026-07-28T08:53:08.307Z"
   }
 ]

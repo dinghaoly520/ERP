@@ -13,7 +13,10 @@
     "createdAt": "2026-06-16T08:45:46.002Z",
     "updatedAt": "2026-06-16T08:47:32.852Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqgedbr3000zvkr46arzzmi9",
@@ -29,7 +32,10 @@
     "createdAt": "2026-06-16T08:45:46.048Z",
     "updatedAt": "2026-06-16T08:47:32.885Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqhf0kkd0007vk18ikuf9mwu",
@@ -45,7 +51,10 @@
     "createdAt": "2026-06-17T01:51:36.734Z",
     "updatedAt": "2026-06-17T01:51:36.734Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqhf0kkh0009vk18sblw0e1k",
@@ -61,7 +70,10 @@
     "createdAt": "2026-06-17T01:51:36.737Z",
     "updatedAt": "2026-06-17T01:51:36.737Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqseed-submit-bs01",
@@ -77,7 +89,10 @@
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqseed-submit-bs02",
@@ -93,7 +108,10 @@
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqseed-open-bs01",
@@ -109,23 +127,10 @@
     "createdAt": "2026-06-17T02:00:00.000Z",
     "updatedAt": "2026-06-17T02:40:00.000Z",
     "decryptError": null,
-    "bidValidity": null
-  },
-  {
-    "id": "cmqseed-open-bs02",
-    "projectId": "cmqseed-open-proj01",
-    "supplierId": "cmqbysdm50029koh18g2n7p54",
-    "supplierName": "成都华西物资供应有限公司",
-    "downloadStatus": "已下载",
-    "submitStatus": "已提交",
-    "encryptStatus": "密文已校验",
-    "receiptNo": "TB-20260617-902",
-    "decryptStatus": "DANGER",
-    "confirmStatus": "PENDING",
-    "createdAt": "2026-06-17T02:00:00.000Z",
-    "updatedAt": "2026-06-17T02:40:00.000Z",
-    "decryptError": "解密校验失败：文件完整性校验不通过",
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-sfjs1",
@@ -141,7 +146,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-21T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-sfjs2",
@@ -157,7 +165,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-22T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-sfjs3",
@@ -173,7 +184,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-23T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-zk1",
@@ -189,7 +203,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-24T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-zk2",
@@ -205,7 +222,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-25T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-zk3",
@@ -221,7 +241,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-26T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-tx1",
@@ -237,7 +260,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-27T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-tx2",
@@ -253,7 +279,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-28T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqrich-bs-tx3",
@@ -269,7 +298,10 @@
     "createdAt": "2026-06-15T08:00:00.000Z",
     "updatedAt": "2026-06-20T06:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqhero-bs01",
@@ -285,7 +317,10 @@
     "createdAt": "2026-06-10T08:00:00.000Z",
     "updatedAt": "2026-07-01T03:00:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqhero-bs02",
@@ -301,7 +336,10 @@
     "createdAt": "2026-06-12T02:00:00.000Z",
     "updatedAt": "2026-07-01T03:05:00.000Z",
     "decryptError": null,
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   },
   {
     "id": "cmqhero-bs03",
@@ -317,6 +355,180 @@
     "createdAt": "2026-06-14T06:00:00.000Z",
     "updatedAt": "2026-07-01T03:10:00.000Z",
     "decryptError": "解密校验失败：文件完整性校验不通过，可能存在篡改风险",
-    "bidValidity": null
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
+  },
+  {
+    "id": "cms1nct8q002ouur35jnax57v",
+    "projectId": "cms1nct8k002kuur3ngu7c37q",
+    "supplierId": null,
+    "supplierName": "残缺测试供应商",
+    "downloadStatus": "待下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "待校验",
+    "receiptNo": null,
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "PENDING",
+    "createdAt": "2026-07-26T10:20:10.634Z",
+    "updatedAt": "2026-07-26T10:20:10.634Z",
+    "decryptError": null,
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
+  },
+  {
+    "id": "cms17ka35002ouu359j7y9dz6",
+    "projectId": "cms17ka31002kuu35x97ljk93",
+    "supplierId": null,
+    "supplierName": "残缺测试供应商",
+    "downloadStatus": "待下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "待校验",
+    "receiptNo": null,
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "PENDING",
+    "createdAt": "2026-07-26T02:58:05.201Z",
+    "updatedAt": "2026-07-26T02:58:05.201Z",
+    "decryptError": null,
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
+  },
+  {
+    "id": "cmqseed-open-bs02",
+    "projectId": "cmqseed-open-proj01",
+    "supplierId": "cmqbysdm50029koh18g2n7p54",
+    "supplierName": "成都华西物资供应有限公司",
+    "downloadStatus": "已下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "密文已校验",
+    "receiptNo": "TB-20260617-902",
+    "decryptStatus": "DANGER",
+    "confirmStatus": "PENDING",
+    "createdAt": "2026-06-17T02:00:00.000Z",
+    "updatedAt": "2026-07-26T03:19:35.799Z",
+    "decryptError": "解密校验失败：文件完整性校验不通过",
+    "bidValidity": null,
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": "2026-07-26T03:19:35.799Z"
+  },
+  {
+    "id": "cms49e2e9003duumtj05upmu1",
+    "projectId": "cms49e2d40037uumtdse2ef7l",
+    "supplierId": "cmqc8r6ka01k2koekckl6mvxb",
+    "supplierName": "四川省第十二地质大队",
+    "downloadStatus": "待下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "密文已校验",
+    "receiptNo": null,
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "CONFIRMED",
+    "createdAt": "2026-07-28T06:12:33.057Z",
+    "updatedAt": "2026-07-28T06:23:00.156Z",
+    "decryptError": null,
+    "bidValidity": "valid",
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
+  },
+  {
+    "id": "cms40gwj800o5uuv9s6ndh0s3",
+    "projectId": "cms40gjdo00o0uuv9i4yzd3km",
+    "supplierId": "cmqc8r6jy01jhkoekd0lrcnh6",
+    "supplierName": "成都华建地质工程科技有限公司",
+    "downloadStatus": "待下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "密文已校验",
+    "receiptNo": null,
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "CONFIRMED",
+    "createdAt": "2026-07-28T02:02:48.884Z",
+    "updatedAt": "2026-07-28T02:38:44.227Z",
+    "decryptError": null,
+    "bidValidity": "valid",
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
+  },
+  {
+    "id": "cms40gwj800o6uuv9j847b6s0",
+    "projectId": "cms40gjdo00o0uuv9i4yzd3km",
+    "supplierId": "cmqc8r6ka01k2koekckl6mvxb",
+    "supplierName": "四川省第十二地质大队",
+    "downloadStatus": "待下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "密文已校验",
+    "receiptNo": null,
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "CONFIRMED",
+    "createdAt": "2026-07-28T02:02:48.884Z",
+    "updatedAt": "2026-07-28T02:38:44.266Z",
+    "decryptError": null,
+    "bidValidity": "valid",
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
+  },
+  {
+    "id": "cms40gwj800o7uuv974k8803q",
+    "projectId": "cms40gjdo00o0uuv9i4yzd3km",
+    "supplierId": "cmqc8r6kc01k5koeknr6zdv0r",
+    "supplierName": "四川省第四地质大队",
+    "downloadStatus": "待下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "密文已校验",
+    "receiptNo": null,
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "CONFIRMED",
+    "createdAt": "2026-07-28T02:02:48.884Z",
+    "updatedAt": "2026-07-28T02:38:44.306Z",
+    "decryptError": null,
+    "bidValidity": "valid",
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
+  },
+  {
+    "id": "cms49e2e9003cuumtxhe9hvbn",
+    "projectId": "cms49e2d40037uumtdse2ef7l",
+    "supplierId": "cmqc8r6jy01jhkoekd0lrcnh6",
+    "supplierName": "成都华建地质工程科技有限公司",
+    "downloadStatus": "待下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "密文已校验",
+    "receiptNo": null,
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "CONFIRMED",
+    "createdAt": "2026-07-28T06:12:33.057Z",
+    "updatedAt": "2026-07-28T06:23:00.054Z",
+    "decryptError": null,
+    "bidValidity": "valid",
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
+  },
+  {
+    "id": "cms49e2e9003euumttwnjmzpj",
+    "projectId": "cms49e2d40037uumtdse2ef7l",
+    "supplierId": "cmqc8r6kc01k5koeknr6zdv0r",
+    "supplierName": "四川省第四地质大队",
+    "downloadStatus": "待下载",
+    "submitStatus": "已提交",
+    "encryptStatus": "密文已校验",
+    "receiptNo": null,
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "CONFIRMED",
+    "createdAt": "2026-07-28T06:12:33.057Z",
+    "updatedAt": "2026-07-28T06:23:00.105Z",
+    "decryptError": null,
+    "bidValidity": "valid",
+    "checkInAt": null,
+    "checkInMeta": null,
+    "lastSeenAt": null
   }
 ]
