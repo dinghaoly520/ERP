@@ -1385,6 +1385,22 @@ export class BidService {
     const uploadSha = crypto.createHash('sha256').update(file.buffer).digest('hex');
     if (uploadSha !== originalAsset.sha256) {
       this.logger.warn(`reupload SHA-256 mismatch: supplier=${bidSupplier.supplierName} role=${role} original=${originalAsset.sha256} upload=${uploadSha} actor=${actorId}`);
+      // 安全事件审计：疑似标书替换尝试，通知监督端
+      this.prisma.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
+          action: '标书补传拦截', result: `${role} 文件 SHA-256 不匹配，拒绝恢复（疑似替换尝试）`, riskFlag: '高风险' },
+      }).catch(() => {});
+      this.gateway?.notifyAnomaly(projectId, {
+        type: 'tamper_attempt', supplierId, supplierName: bidSupplier.supplierName,
+        detail: `${role} 文件补传被拦截：上传文件与原始标书不一致（SHA-256 不匹配）`, severity: 'danger',
+      });
+      if (actorId) {
+        this.prisma.auditLog.create({
+          data: { userId: actorId, action: 'BID_FILE_REUPLOAD_REJECTED',
+            resourceType: `${bidSupplier.supplierName}:${supplierId}`,
+            details: { projectId, role, originalSha256: originalAsset.sha256, uploadSha } },
+        }).catch(() => {});
+      }
       throw new BadRequestException({
         error: '上传文件与原始标书内容不一致（SHA-256 不匹配），疑似非原始文件，拒绝恢复',
         code: 'FILE_HASH_MISMATCH',
@@ -1554,6 +1570,53 @@ export class BidService {
         role: '主持人', action: '重新封标', target: bidSupplier.supplierName,
         result: `${recovered.join('、')} 已恢复`, riskFlag: '高风险',
       });
+    }
+
+    // 文件校验失败（损坏/篡改/丢失）：安全事件，通知监督端并审计
+    if (failed.length > 0) {
+      const failDetail = failed.map(f => `${f.label}: ${f.error}`).join('；');
+      // 全部失败时标记投标无效 + 更新 decryptError：前端据此隐藏「重试」按钮，改为显示"文件损坏"
+      if (recovered.length === 0) {
+        const invalidReason = `投标文件损坏无法恢复：${failDetail}。该供应商投标视为无效，将自动排除出评标`;
+        await this.prisma.bidSupplier.update({
+          where: { id: supplierId },
+          data: { decryptError: `重新封标失败：${failDetail}`, bidValidity: 'invalid' },
+        });
+        // 监督日志 + 异常事件中明确呈现无效原因
+        await this.prisma.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
+            action: '投标无效', result: invalidReason, riskFlag: '高风险' },
+        });
+        this.gateway?.notifySupervisionLog(projectId, {
+          role: '主持人', action: '投标无效', target: bidSupplier.supplierName,
+          result: invalidReason, riskFlag: '高风险',
+        });
+        this.gateway?.notifyAnomaly(projectId, {
+          type: 'file_corruption', supplierId, supplierName: bidSupplier.supplierName,
+          detail: invalidReason, severity: 'danger',
+        });
+      } else {
+        // 部分失败：仅记录异常，不标记无效（仍有部分文件可用）
+        await this.prisma.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
+            action: '重新封标异常', result: failDetail, riskFlag: '高风险' },
+        });
+        this.gateway?.notifySupervisionLog(projectId, {
+          role: '主持人', action: '重新封标异常', target: bidSupplier.supplierName,
+          result: failDetail, riskFlag: '高风险',
+        });
+        this.gateway?.notifyAnomaly(projectId, {
+          type: 'file_corruption', supplierId, supplierName: bidSupplier.supplierName,
+          detail: failDetail, severity: 'danger',
+        });
+      }
+      if (actorId) {
+        await this.prisma.auditLog.create({
+          data: { userId: actorId, action: 'BID_FILE_RESEAL_FAILED',
+            resourceType: `${bidSupplier.supplierName}:${supplierId}`,
+            details: { projectId, failed } },
+        });
+      }
     }
 
     // 自动重解密

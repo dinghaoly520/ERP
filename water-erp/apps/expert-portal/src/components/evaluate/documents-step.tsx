@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, RotateCcw, Loader } from 'lucide-react';
 import type { ExpertProjectDetail, DecryptedDocuments } from '@/lib/types';
 import { DECRYPT_LABEL } from '@water-erp/shared';
 import { formatBytes } from '@/lib/utils';
@@ -8,11 +8,22 @@ import { formatBytes } from '@/lib/utils';
 interface DocumentsStepProps {
   project: ExpertProjectDetail;
   documents: Record<string, DecryptedDocuments | null>;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
-export function DocumentsStep({ project, documents }: DocumentsStepProps) {
+export function DocumentsStep({ project, documents, onRefresh, refreshing }: DocumentsStepProps) {
   return (
     <div className="p-6 pt-4">
+      {onRefresh && (
+        <div className="mb-4 flex items-center justify-end">
+          <button type="button" onClick={onRefresh} disabled={refreshing}
+            className="neu-btn-soft disabled:opacity-50">
+            {refreshing ? <Loader size={13} className="animate-spin" /> : <RotateCcw size={13} strokeWidth={1.5} />}
+            {refreshing ? '刷新中…' : '刷新'}
+          </button>
+        </div>
+      )}
       {/* 招标文件（项目级，专家独立核对原文 ★号实质性条款）*/}
       <div className="neu-card-static mb-5 overflow-hidden">
         <div className="flex items-center gap-2.5 px-4 py-3">

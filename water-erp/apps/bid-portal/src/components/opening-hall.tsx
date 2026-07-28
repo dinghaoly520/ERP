@@ -487,6 +487,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 const isRunning = s.decryptStatus === 'RUNNING';
                 const isSuccess = s.decryptStatus === 'SUCCESS';
                 const isDanger = s.decryptStatus === 'DANGER';
+                const resealFailed = isDanger && !!s.decryptError?.includes('重新封标失败');
                 const isDecrypting = decrypting.has(s.id);
                 return (
                   <tr key={s.id} className={`transition-all ${
@@ -531,7 +532,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             <Volume2 size={12} strokeWidth={1.5} /> 唱标
                           </button>
                         )}
-                        {isDanger && project.stage === 'OPENING' && (
+                        {isDanger && project.stage === 'OPENING' && !resealFailed && (
                           <button type="button"
                             disabled={resealing.has(s.id)}
                             onClick={() => handleReseal(s.id)}
@@ -539,6 +540,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             {resealing.has(s.id) ? <Loader size={12} className="animate-spin" /> : <RotateCcw size={12} strokeWidth={1.5} />}
                             重试
                           </button>
+                        )}
+                        {resealFailed && (
+                          <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--danger)]">
+                            <AlertTriangle size={12} strokeWidth={1.5} /> 文件已损坏
+                          </span>
                         )}
                       </div>
                     </td>

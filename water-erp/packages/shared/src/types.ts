@@ -89,6 +89,7 @@ export interface BidSupplier {
   encryptStatus: string;
   receiptNo?: string;
   decryptStatus: string;
+  decryptError?: string | null;
   confirmStatus: string;
   bidValidity?: string; // P2：废标有效性（'valid' | 'invalid'），后端 BidSupplier.bidValidity
 }

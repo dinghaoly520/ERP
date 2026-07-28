@@ -130,6 +130,7 @@ export default function ExpertEvaluatePage() {
   });
 
   const [documents, setDocuments] = useState<Record<string, DecryptedDocuments | null>>({});
+  const [refreshingDocs, setRefreshingDocs] = useState(false);
   const [assistData, setAssistData] = useState<AssistData | null>(null);
   const [assistLoading, setAssistLoading] = useState(false);
   // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
@@ -458,6 +459,26 @@ export default function ExpertEvaluatePage() {
     const batchSeq = ++docSeqRef.current;
     setDocuments({});
     await Promise.all(project.suppliers.map(s => loadDocuments(s.id, batchSeq)));
+  };
+
+  const handleRefreshDocuments = async () => {
+    if (!projectId) return;
+    setRefreshingDocs(true);
+    try {
+      // 刷新招标文件 + 供应商列表（只更新这两个字段，不扰动 scores 等状态）
+      const data = await api.get<ExpertProjectDetail>(`/expert/projects/${projectId}`);
+      setProject(prev => prev ? { ...prev, tenderDocument: data.tenderDocument, suppliers: data.suppliers } : prev);
+      // 刷新投标文件
+      const batchSeq = ++docSeqRef.current;
+      setDocuments({});
+      await Promise.all(data.suppliers.map(s => loadDocuments(s.id, batchSeq)));
+      if (!data.tenderDocument) {
+        toast.message('招标文件可能未上传，请联系管理员');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || '刷新失败');
+    }
+    setRefreshingDocs(false);
   };
 
   const loadClarifications = async () => {
@@ -1183,7 +1204,7 @@ export default function ExpertEvaluatePage() {
 
           {/* ====== 标书获取 ====== */}
           {step === 'documents' && (
-            <DocumentsStep project={project} documents={documents} />
+            <DocumentsStep project={project} documents={documents} onRefresh={handleRefreshDocuments} refreshing={refreshingDocs} />
           )}
 
           {/* ====== 辅助评标（AI引擎驱动） ====== */}
