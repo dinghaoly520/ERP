@@ -818,8 +818,10 @@ export default function ExpertEvaluatePage() {
         </div>
       </div>
 
-      {/* 主内容区：供应商侧边栏 + 内容（wb-panel 渐变底板，无外侧框线） */}
-      <div className="wb-panel flex min-h-0 flex-1 overflow-hidden">
+      {/* 主内容区：供应商侧边栏 + 内容（wb-panel 渐变底板，无外侧框线）
+          — wb-panel 默认 flex-direction:column（globals.css 未分层，优先级高于 Tailwind 工具类），
+            此处需左右分栏，故用 !flex-row 强制行向；否则供应商侧栏会竖向堆叠把正文向下挤 */}
+      <div className="wb-panel flex !flex-row min-h-0 flex-1 overflow-hidden">
         {/* 供应商侧边栏 — 辅助评标 / 条款响应核对 / 专家打分步骤显示 */}
         {(step === 'assist' || step === 'compare' || step === 'scoring' || step === 'verify-score') && (
           <SupplierSidebar
