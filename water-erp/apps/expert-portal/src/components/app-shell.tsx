@@ -93,8 +93,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem('expert-shell:sidebar-hidden', sidebarHidden ? '1' : '0');
   }, [sidebarHidden]);
 
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  const logout = () => {
+    // 退出不等 API 响应 —— fire-and-forget 销毁服务端会话，立即跳转登录页
+    fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'X-Portal': 'expert' },
+      credentials: 'include',
+    }).catch(() => {});
     router.replace(LOGIN_URL);
   };
 

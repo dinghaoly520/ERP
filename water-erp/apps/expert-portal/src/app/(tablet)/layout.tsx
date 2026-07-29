@@ -28,7 +28,7 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
 
   const checkAuth = () => {
     setAuthRetrying(true);
-    fetch('/api/auth/me', { credentials: 'include' })
+    fetch('/api/auth/me', { headers: { 'X-Portal': 'expert' }, credentials: 'include' })
       .then(r => {
         if (r.status === 401) { router.replace(LOGIN_URL); return null; }
         // P2：非 401 的失败（如瞬时 500）抛错走重试分支，不当作登出
@@ -54,8 +54,14 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => { checkAuth(); }, []);
 
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  const logout = () => {
+    // 退出不等 API 响应 —— fire-and-forget 销毁服务端会话，
+    // 立即跳转登录页，避免请求挂起导致用户卡在「退出中…」
+    fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'X-Portal': 'expert' },
+      credentials: 'include',
+    }).catch(() => {});
     router.replace(LOGIN_URL);
   };
 

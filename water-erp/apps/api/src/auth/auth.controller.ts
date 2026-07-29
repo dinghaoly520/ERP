@@ -21,7 +21,9 @@ const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: IS_PRODUCTION,
-  domain: IS_PRODUCTION ? undefined : 'localhost',
+  // 不设 domain：cookie 自动限定为当前请求来源 host。
+  // 开发环境可通过 localhost 或 192.168.x.x 访问，各端口 cookie 天然共享（RFC 6265 不区分端口）。
+  // 若指定 domain='localhost'，平板通过 192.168.1.111 访问时浏览器会拒绝存储 cookie。
   path: '/',
   maxAge: 7 * 24 * 3600 * 1000,
 };
