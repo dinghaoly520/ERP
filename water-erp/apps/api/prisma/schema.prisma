@@ -396,20 +396,26 @@ model BidInvalidBid {
 }
 
 model BidOpeningSession {
-  id                 String     @id @default(cuid())
-  projectId          String     @unique
-  host               String
-  supervisor         String?
-  status             String     @default("待开标")
-  decryptWindowStart DateTime
-  decryptWindowEnd   DateTime
-  remainingSeconds   Int        @default(0)
-  exchangeControl  String     @default("OPEN") // OPEN 允许群聊 | MUTED 仅主持人可发言 | CLOSED 关闭互动
-  handoverAssetId    String?    // 开标文件包 FileAsset 引用（完成开标·移交后写入）
-  handoverAt         DateTime?  // 移交时间
-  project            BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  id                   String     @id @default(cuid())
+  projectId            String     @unique
+  host                 String
+  supervisor           String?
+  status               String     @default("待开标")
+  decryptWindowStart   DateTime
+  decryptWindowEnd     DateTime
+  remainingSeconds     Int        @default(0)
+  exchangeControl      String     @default("OPEN") // OPEN 允许群聊 | MUTED 仅主持人可发言 | CLOSED 关闭互动
+  handoverAssetId      String?    // 开标文件包 FileAsset 引用（完成开标·移交后写入）
+  handoverAt           DateTime?  // 移交时间
+  disputeTimeoutMinutes Int?      // 异议超时分钟数（null=不限）
+  disputedSince        DateTime?  // 首个异议提出时间（全部解决后清零）
+  activeHostId         String?    // 当前操作者 userId（并发检测）
+  activeHostName       String?    // 当前操作者显示名
+  pausedAt             DateTime?  // 暂停时刻（正在暂停则为当前时间）
+  totalPausedMs        Int        @default(0) // 累计暂停毫秒数（用于补偿解密窗口）
+  project              BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 }
 
 model BidOpeningRecord {
@@ -1137,6 +1143,7 @@ model SupplierBidSubmission {
   signedAt             DateTime? // 签名时间
   status               String    @default("draft") // draft, submitted, withdrawn
   submittedAt          DateTime?
+  serverSubmittedAt    DateTime? // 服务端权威提交时间（审计信任锚点）
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BidService } from './bid.service';
+import { verifyKmsHealth } from '../common/crypto/envelope-crypto';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -38,6 +39,10 @@ export class BidController {
   @Get('dashboard-stats')
   @ApiOperation({ summary: '驾驶舱统计' })
   getDashboardStats() { return this.bidService.getDashboardStats(); }
+
+  @Get('crypto-health')
+  @ApiOperation({ summary: 'KMS 加密封装健康检查' })
+  cryptoHealth() { return verifyKmsHealth(process.env.KMS_SECRET!); }
 
   @Get('projects')
   @ApiOperation({ summary: '项目列表（可选阶段过滤）' })
@@ -101,6 +106,21 @@ export class BidController {
   @ApiOperation({ summary: '流标（SUBMIT/OPENING→ABORTED）' })
   abortBidProject(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.abortBidProject(id, userId); }
 
+  @Post('projects/:id/reopen')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: '从流标项目重启（创建新项目，复制基础信息，递增轮次）' })
+  reopenBidProject(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.reopenFromAborted(id, userId); }
+
+  @Post('projects/:id/pause')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '暂停开标（冻结解密窗口，拒绝解密操作）' })
+  pauseOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.pauseOpening(id, userId); }
+
+  @Post('projects/:id/resume')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '恢复开标（解冻窗口，补偿暂停时长）' })
+  resumeOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.resumeOpening(id, userId); }
+
   @Post('projects/:id/start-evaluation')
   @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
   startEvaluation(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.startEvaluation(id, userId); }
@@ -113,6 +133,7 @@ export class BidController {
 
   @Post('projects/:id/decrypt-all')
   @ApiOperation({ summary: '一键解密窗口内待解密供应商（4.4）' })
+  @Throttle({ default: { ttl: 60000, limit: 2 } })
   decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.decryptAllSuppliers(id, userId); }
 
   @Post('projects/:id/rerun-ai-analysis')
@@ -228,6 +249,25 @@ export class BidController {
     @Body() dto: ResolveOpeningDisputeDto,
     @CurrentUser('sub') userId: string,
   ) { return this.bidService.resolveOpeningDispute(id, recordId, dto, userId); }
+
+  @Post('projects/:id/suppliers/:supplierId/override-dispute')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: '强制裁决异议（监督人应急通道，DISPUTED→EXCEPTION）' })
+  overrideDispute(
+    @Param('id') id: string,
+    @Param('supplierId') supplierId: string,
+    @Body() dto: { reason: string },
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.overrideDispute(id, supplierId, dto.reason, userId); }
+
+  @Post('projects/:id/suppliers/:supplierId/accept-danger')
+  @ApiOperation({ summary: '主持人确认接受供应商解密失败（不可恢复）' })
+  acceptSupplierDanger(
+    @Param('id') id: string,
+    @Param('supplierId') supplierId: string,
+    @Body() dto: { reason: string },
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.acceptSupplierDanger(id, supplierId, dto.reason, userId); }
 
   @Get('projects/:id/experts')
   @ApiOperation({ summary: '评标专家列表' })
@@ -433,6 +473,10 @@ export class BidController {
   @ApiOperation({ summary: '归档资料' })
   listArchives(@Param('id') id: string) { return this.bidService.listArchives(id); }
 
+  @Get('projects/:id/archives/verify')
+  @ApiOperation({ summary: '独立验证归档哈希链完整性' })
+  verifyArchiveIntegrity(@Param('id') id: string) { return this.bidService.verifyArchiveIntegrity(id); }
+
   @Post('projects/:id/archive-all')
   @ApiOperation({ summary: '一键归档（scope=opening 仅归档开标文件，不要求评标结果；full 完整归档）' })
   archiveAll(@Param('id') id: string, @Body() dto: ArchiveAllDto, @CurrentUser('sub') userId: string) {
@@ -461,6 +505,22 @@ export class BidController {
     return this.bidService.listSupervisionAnnotations(id);
   }
 
+  @Post('projects/:id/claim-host')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '声明主持操作者身份（并发检测）' })
+  claimActiveHost(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('username') userName: string,
+  ) { return this.bidService.claimActiveHost(id, userId, userName); }
+
+  @Post('projects/:id/release-host')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '释放主持操作者身份' })
+  releaseActiveHost(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.bidService.releaseActiveHost(id, userId);
+  }
+
   @Get('projects/:id/opening-session/time')
   @ApiOperation({ summary: '获取服务器当前时间及解密窗口剩余秒数' })
   async getSessionTime(@Param('id') id: string) {
@@ -472,15 +532,16 @@ export class BidController {
   }
 
   @Get('projects/:id/archive-package/export')
-  @ApiOperation({ summary: '导出归档包（JSON 或 CSV 格式，含哈希链）' })
+  @ApiOperation({ summary: '导出归档包（JSON/CSV，可选 scope=summary|full，含哈希链）' })
   async exportArchivePackage(
     @Param('id') id: string,
     @Query('format') format?: string,
+    @Query('scope') scope?: string,
     // passthrough：JSON 分支依赖 Nest 自动发送返回值；非 passthrough 的 @Res
     // 会使返回值被丢弃、请求永久挂起（预存 bug，验收 Phase 2 时发现）
     @Res({ passthrough: true }) res?: any,
   ) {
-    const data = await this.bidService.exportArchivePackage(id, (format === 'csv' ? 'csv' : 'json'));
+    const data = await this.bidService.exportArchivePackage(id, (format === 'csv' ? 'csv' : 'json'), (scope === 'summary' ? 'summary' : 'full'));
     if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="archive-${id.slice(-12)}.csv"`);

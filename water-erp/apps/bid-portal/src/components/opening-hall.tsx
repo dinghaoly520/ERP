@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles } from '@/lib/api';
+import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
@@ -103,6 +103,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
   const [recordEntryLoading, setRecordEntryLoading] = useState(false);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
+  const [pausing, setPausing] = useState(false);
+  const [resuming, setResuming] = useState(false);
   // ═══ DANGER 兜底：重新封标（从系统内原始明文恢复）═══
   const [resealing, setResealing] = useState<Set<string>>(new Set());
 
@@ -423,6 +425,56 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{session.status}</div>
             </div>
             {remaining > 0 && <RingCountdown remaining={remaining} big={bigScreen} />}
+            {session && remaining > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="neu-btn-soft text-xs"
+                  onClick={async () => {
+                    const newEnd = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+                    try {
+                      await startOpening(projectId, {
+                        host: session.host,
+                        decryptWindowStart: session.decryptWindowStart,
+                        decryptWindowEnd: newEnd,
+                        supervisor: session.supervisor ?? undefined,
+                      });
+                      toast.success('解密窗口已延长 15 分钟');
+                      onRefresh();
+                    } catch (e: any) { toast.error(e?.message || '延长失败'); }
+                  }}
+                ><Clock size={13} className="mr-1 inline" />延长 +15分钟</button>
+                {!session.pausedAt ? (
+                  <button
+                    type="button" disabled={pausing}
+                    className="neu-btn-soft text-xs text-[var(--warning)]"
+                    onClick={async () => {
+                      setPausing(true);
+                      try { await pauseOpening(projectId); toast.success('开标已暂停'); onRefresh(); }
+                      catch (e: any) { toast.error(e?.message || '暂停失败'); }
+                      finally { setPausing(false); }
+                    }}
+                  ><AlertTriangle size={13} className="mr-1 inline" />暂停开标</button>
+                ) : (
+                  <button
+                    type="button" disabled={resuming}
+                    className="neu-btn-soft text-xs text-[var(--success)]"
+                    onClick={async () => {
+                      setResuming(true);
+                      try { await resumeOpening(projectId); toast.success('开标已恢复，窗口已补偿'); onRefresh(); }
+                      catch (e: any) { toast.error(e?.message || '恢复失败'); }
+                      finally { setResuming(false); }
+                    }}
+                  ><CheckCircle size={13} className="mr-1 inline" />恢复开标</button>
+                )}
+              </div>
+            )}
+            {session?.pausedAt && (
+              <div className="mt-2 flex items-center gap-2 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] px-3 py-1.5 text-xs font-bold text-[oklch(0.46_0.11_65)]">
+                <AlertTriangle size={14} className="animate-pulse" />
+                开标已暂停 — 解密操作被禁止，窗口计时已冻结
+              </div>
+            )}
           </div>
           <StageStepper step={stageStep} />
         </div>
@@ -437,9 +489,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <div className="flex items-center gap-2">
             {/* 阶段流转（开放投递/确定开标）已归 :3005 采购管理工作台，本页仅执行开标 */}
             {!!session && project.stage === 'OPENING' && decryptProgress.total > 0 && decryptProgress.pending > 0 && (
-              <button type="button" onClick={handleBulkDecrypt} disabled={bulkDecrypting}
+              <button type="button" onClick={handleBulkDecrypt} disabled={bulkDecrypting || !!session.pausedAt}
                 className="neu-btn-soft is-warning disabled:opacity-50">
-                <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : `全部解密 (${decryptProgress.pending})`}
+                <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : session.pausedAt ? '开标已暂停' : `全部解密 (${decryptProgress.pending})`}
               </button>
             )}
             {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403） */}
@@ -520,10 +572,10 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         {!!session && project.stage === 'OPENING' && !isSuccess && !isDanger && (
-                          <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting}
+                          <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting || !!session.pausedAt}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
                             {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
-                            {isDecrypting ? '解密中...' : '解密'}
+                            {isDecrypting ? '解密中...' : session.pausedAt ? '已暂停' : '解密'}
                           </button>
                         )}
                         {isSuccess && project.stage === 'OPENING' && (
@@ -533,13 +585,28 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           </button>
                         )}
                         {isDanger && project.stage === 'OPENING' && !resealFailed && (
-                          <button type="button"
-                            disabled={resealing.has(s.id)}
-                            onClick={() => handleReseal(s.id)}
-                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
-                            {resealing.has(s.id) ? <Loader size={12} className="animate-spin" /> : <RotateCcw size={12} strokeWidth={1.5} />}
-                            重试
-                          </button>
+                          <>
+                            <button type="button"
+                              disabled={resealing.has(s.id)}
+                              onClick={() => handleReseal(s.id)}
+                              className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
+                              {resealing.has(s.id) ? <Loader size={12} className="animate-spin" /> : <RotateCcw size={12} strokeWidth={1.5} />}
+                              重试
+                            </button>
+                            <button type="button"
+                              onClick={async () => {
+                                const reason = prompt('请填写确认接受解密失败的原因：');
+                                if (!reason) return;
+                                try {
+                                  await acceptSupplierDanger(project.id, s.id, reason);
+                                  toast.success('已确认接受解密失败');
+                                  onRefresh();
+                                } catch (e: any) { toast.error(e?.message || '操作失败'); }
+                              }}
+                              className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]">
+                              <AlertTriangle size={12} strokeWidth={1.5} /> 接受
+                            </button>
+                          </>
                         )}
                         {resealFailed && (
                           <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--danger)]">

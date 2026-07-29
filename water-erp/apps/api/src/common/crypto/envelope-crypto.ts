@@ -84,3 +84,21 @@ export function isWrappedKey(value: string | null | undefined): boolean {
   // 包裹后格式: base64（含 A-Za-z0-9+/=）
   return /^[A-Za-z0-9+/=]+$/.test(value) && !/^[0-9a-f:]+$/.test(value);
 }
+
+/**
+ * KMS 密钥健康检查：wrap→unwrap 往返验证。
+ * 用于启动检测和 /health 端点——若返回 false，说明 KMS_SECRET 已变更或损坏，
+ * 所有已包裹的密封密钥将无法解开。
+ */
+export function verifyKmsHealth(kmsSecret: string): { ok: boolean; error?: string } {
+  if (!kmsSecret) return { ok: false, error: 'KMS_SECRET is not configured' };
+  try {
+    const testDek = `a`.repeat(32) + `:` + `b`.repeat(32) + `:` + `c`.repeat(32);
+    const wrapped = wrapKey(testDek, kmsSecret);
+    const unwrapped = unwrapKey(wrapped, kmsSecret);
+    if (unwrapped !== testDek) return { ok: false, error: 'KMS wrap/unwrap mismatch — key may have been rotated' };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: `KMS health check failed: ${(e as Error).message}` };
+  }
+}

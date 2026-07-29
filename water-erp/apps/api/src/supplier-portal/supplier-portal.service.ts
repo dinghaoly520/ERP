@@ -722,6 +722,7 @@ export class SupplierPortalService {
               ...pickBidSubmissionFields(data),
               status: 'submitted',
               submittedAt: now,
+              serverSubmittedAt: now,
               technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
               businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
               coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
@@ -735,6 +736,7 @@ export class SupplierPortalService {
               ...pickBidSubmissionFields(data),
               status: 'submitted',
               submittedAt: now,
+              serverSubmittedAt: now,
               technicalSealedKey: data.technicalFileAssetId ? sealedKeys[data.technicalFileAssetId] ?? null : null,
               businessSealedKey: data.businessFileAssetId ? sealedKeys[data.businessFileAssetId] ?? null : null,
               coverLetterSealedKey: data.coverLetterAssetId ? sealedKeys[data.coverLetterAssetId] ?? null : null,
@@ -882,8 +884,11 @@ export class SupplierPortalService {
       throw new BadRequestException({ error: '项目已进入开标或后续阶段，无法撤回', code: 'PROJECT_ALREADY_OPENING' });
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.supplierBidSubmission.update({
+    // 收集密封文件路径供事务后异步清理
+    const assetIds = [submission.technicalFileAssetId, submission.businessFileAssetId, submission.coverLetterAssetId].filter(Boolean) as string[];
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.supplierBidSubmission.update({
         where: { id: submissionId },
         data: { status: 'withdrawn' },
       });
@@ -905,8 +910,23 @@ export class SupplierPortalService {
         },
       });
 
-      return updated;
+      return result;
     });
+
+    // 事务后异步清理 MinIO 密封文件（best-effort，不阻塞）
+    if (assetIds.length > 0) {
+      const assets = await this.prisma.fileAsset.findMany({
+        where: { id: { in: assetIds } },
+        select: { sealedPath: true },
+      }).catch(() => [] as { sealedPath: string | null }[]);
+      for (const a of assets) {
+        if (a.sealedPath) {
+          try { await minioClient.removeObject(MINIO_BUCKET, a.sealedPath); } catch (_) { /* best-effort */ }
+        }
+      }
+    }
+
+    return updated;
   }
 
   // ─── 开标确认（供应商侧）───
@@ -991,6 +1011,11 @@ export class SupplierPortalService {
         data: { confirmStatus: '供应商提出异议', objectionReason: reason },
       });
       await tx.bidSupplier.update({ where: { id: bidSupplier.id }, data: { confirmStatus: 'DISPUTED' } });
+      // 首笔异议记录 disputedSince（供超时检测）
+      const session = await tx.bidOpeningSession.findUnique({ where: { projectId }, select: { disputedSince: true } });
+      if (!session?.disputedSince) {
+        await tx.bidOpeningSession.update({ where: { projectId }, data: { disputedSince: new Date() } });
+      }
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,

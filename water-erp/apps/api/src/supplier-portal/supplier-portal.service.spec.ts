@@ -82,6 +82,7 @@ describe('SupplierPortalService', () => {
         create: jest.fn(),
       },
       bidOpeningRecord: { findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
+      bidOpeningSession: { findUnique: jest.fn(), update: jest.fn() },
       fileAsset: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       supplierChangeRecord: { count: jest.fn() },
@@ -507,6 +508,8 @@ describe('SupplierPortalService', () => {
       prisma.bidOpeningRecord.updateMany.mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue(decryptedSupplier);
       prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue(null);
+      prisma.bidOpeningSession.update = jest.fn().mockResolvedValue({});
       prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
 
       const result = await service.disputeOpening('supplier-1', 'project-1', '报价与提交不一致');

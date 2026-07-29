@@ -4,6 +4,7 @@ import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-annou
 import { AnnouncementAiService } from './announcement-ai.service';
 import { BidService } from '../bid/bid.service';
 import { openField } from '../common/crypto/field-crypto';
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 @Injectable()
 export class AnnouncementService {
@@ -248,6 +249,8 @@ export class AnnouncementService {
         })
       : null;
 
+    let sealedPathsToClean: string[] = [];
+
     try {
       await this.prisma.$transaction(async (tx) => {
         // Cleanup linked project before delete — reset to DOWNLOAD if progressed
@@ -294,6 +297,27 @@ export class AnnouncementService {
             where: { announcementId: id },
             data: { bidProjectId: null },
           });
+
+          // 收集密封文件路径（供事务后异步清理 MinIO 孤儿对象）
+          if (stageReset) {
+            const submissions = await tx.supplierBidSubmission.findMany({
+              where: { projectId: project.id },
+              select: { technicalFileAssetId: true, businessFileAssetId: true, coverLetterAssetId: true },
+            });
+            const assetIds = new Set<string>();
+            for (const s of submissions) {
+              if (s.technicalFileAssetId) assetIds.add(s.technicalFileAssetId);
+              if (s.businessFileAssetId) assetIds.add(s.businessFileAssetId);
+              if (s.coverLetterAssetId) assetIds.add(s.coverLetterAssetId);
+            }
+            if (assetIds.size > 0) {
+              const fileAssets = await tx.fileAsset.findMany({
+                where: { id: { in: [...assetIds] } },
+                select: { sealedPath: true },
+              });
+              sealedPathsToClean = fileAssets.map(f => f.sealedPath).filter(Boolean) as string[];
+            }
+          }
         }
 
         await tx.announcement.delete({ where: { id } });
@@ -303,6 +327,14 @@ export class AnnouncementService {
         `公告删除事务失败 (announcementId=${id}): ${(e as Error).message}`,
       );
       throw e; // re-throw so caller knows delete failed
+    }
+
+    // 事务成功后异步清理 MinIO 密封文件（best-effort，不阻塞）
+    if (sealedPathsToClean.length > 0) {
+      for (const path of sealedPathsToClean) {
+        try { await minioClient.removeObject(MINIO_BUCKET, path); } catch (_) { /* best-effort */ }
+      }
+      this.logger.log(`公告删除清理 MinIO 密封文件 ${sealedPathsToClean.length} 个 (project=${relatedProjectCode})`);
     }
 
     if (project) {

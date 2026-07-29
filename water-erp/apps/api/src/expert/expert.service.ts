@@ -448,12 +448,22 @@ export class ExpertService {
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
+      // 审计：专家核验未完成即尝试访问
+      this.prisma.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+          action: '尝试查看投标文件（被拒：核验未完成）', result: `signedIn=${expert.signedIn} avoidanceConfirmed=${expert.avoidanceConfirmed} aiConsentConfirmed=${expert.aiConsentConfirmed}`, riskFlag: '无' },
+      }).catch(() => {});
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
     }
 
     // 回避名单检查：与 downloadBidDocument / getAssistData 保持一致，避免向冲突专家泄露投标文件元数据
     const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
     if (conflictedIds.includes(supplierId)) {
+      // 审计：回避冲突访问
+      this.prisma.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+          action: '尝试查看投标文件（被拒：回避冲突）', result: `supplierId=${supplierId}`, riskFlag: '中风险' },
+      }).catch(() => {});
       throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
     }
 

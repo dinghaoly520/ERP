@@ -176,6 +176,18 @@ export function completeOpening(projectId: string) {
   return api.post<HandoverResult>(`/bid/projects/${projectId}/complete-opening`, {});
 }
 
+export function acceptSupplierDanger(projectId: string, supplierId: string, reason: string) {
+  return api.post(`/bid/projects/${projectId}/suppliers/${supplierId}/accept-danger`, { reason });
+}
+
+export function pauseOpening(projectId: string) {
+  return api.post(`/bid/projects/${projectId}/pause`, {});
+}
+
+export function resumeOpening(projectId: string) {
+  return api.post(`/bid/projects/${projectId}/resume`, {});
+}
+
 /* ── 工作区·评标管理（只读）：评标结果汇总 ── */
 
 export interface EvaluationResultRow {

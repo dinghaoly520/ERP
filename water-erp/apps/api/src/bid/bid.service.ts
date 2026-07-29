@@ -742,6 +742,71 @@ export class BidService {
     return updated;
   }
 
+  /**
+   * 从流标项目创建新采购项目（重新招标）。
+   * 复制基础信息（名称/采购方式/预算/范围/资质等），重置阶段为 DOWNLOAD，递增轮次。
+   * 原项目 riskNote 追加重启记录。
+   */
+  async reopenFromAborted(id: string, actorId?: string) {
+    const original = await this.prisma.bidProject.findUnique({
+      where: { id },
+      select: {
+        stage: true, name: true, projectCode: true, procurementMethod: true, budget: true,
+        scope: true, qualification: true, contact: true, qualityRequirement: true,
+        bondRequired: true, bondAmount: true, riskNote: true, round: true,
+        projectManagementItemId: true, openTime: true, deadline: true, downloadDeadline: true,
+      },
+    });
+    if (!original) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (original.stage !== 'ABORTED') {
+      throw new BadRequestException({ error: '仅流标项目可重启', code: 'PROJECT_NOT_ABORTED' });
+    }
+
+    const newCode = `BID-${Date.now()}`;
+    const now = new Date();
+    const newProject = await this.prisma.bidProject.create({
+      data: {
+        name: original.name,
+        projectCode: newCode,
+        procurementMethod: original.procurementMethod,
+        openTime: original.openTime,
+        deadline: original.deadline,
+        downloadDeadline: original.downloadDeadline,
+        budget: original.budget,
+        scope: original.scope,
+        qualification: original.qualification,
+        contact: original.contact,
+        qualityRequirement: original.qualityRequirement,
+        bondRequired: original.bondRequired,
+        bondAmount: original.bondAmount,
+        round: (original.round ?? 1) + 1,
+        projectManagementItemId: original.projectManagementItemId,
+        stage: 'DOWNLOAD',
+        riskNote: `（从流标项目 ${original.name} 重启，原项目编号 ${original.projectCode ?? id}，操作时间 ${now.toISOString()}${actorId ? `，操作人 ${actorId}` : ''}）`,
+      },
+    });
+
+    // 原项目 riskNote 追加重启记录
+    await this.prisma.bidProject.update({
+      where: { id },
+      data: { riskNote: `${original.riskNote || ''}｜已于 ${now.toISOString()} 由 ${actorId || '系统'} 重启为新项目 ${newCode}` },
+    });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId: id, time: now, role: '系统', target: original.name,
+        action: '流标项目重启', result: `创建新项目 ${newCode}（第 ${(original.round ?? 1) + 1} 轮）`, riskFlag: '无' },
+    });
+
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: { userId: actorId, action: 'BID_PROJECT_REOPEN', resourceType: `BidProject:${id}`, details: { newProjectId: newProject.id, newCode, round: (original.round ?? 1) + 1 } },
+      }).catch(() => {});
+    }
+
+    this.logger.log(`流标项目重启: ${original.name} → ${newCode} (round ${(original.round ?? 1) + 1})`);
+    return newProject;
+  }
+
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
@@ -1053,6 +1118,23 @@ export class BidService {
       }
     }
 
+    // 通知所有分配专家评标已启动（fire-and-forget，不阻塞）
+    try {
+      const experts = await this.prisma.bidExpert.findMany({
+        where: { projectId: id },
+        select: { userId: true, expertName: true },
+      });
+      for (const expert of experts) {
+        if (!expert.userId) continue;
+        await this.notificationService.sendToUser(expert.userId, ['in_app'], {
+          type: 'BID_EVALUATION_STARTED',
+          title: `项目${project.name}已启动评标`,
+          content: `您被指派的评标项目「${project.name}」已启动，请登录专家门户查看投标文件并完成独立评分。`,
+          link: `/evaluate/${id}`,
+        }).catch(() => {});
+      }
+    } catch { /* 通知失败不阻塞评标启动 */ }
+
     return updated;
   }
 
@@ -1181,10 +1263,13 @@ export class BidService {
         throw new BadRequestException({ error: '项目不在开标阶段，无法解密', code: 'PROJECT_NOT_OPENING' });
       }
 
-      // P0: 解密窗口校验 — 开标未启动或窗口未开启/已关闭时拒绝解密
+      // P0: 解密窗口校验 — 开标未启动或窗口未开启/已关闭/暂停中时拒绝解密
       const session = await tx.bidOpeningSession.findUnique({ where: { projectId } });
       if (!session) {
         throw new BadRequestException({ error: '开标尚未启动，无法解密', code: 'OPENING_NOT_STARTED' });
+      }
+      if (session.pausedAt) {
+        throw new BadRequestException({ error: '开标已暂停，解密操作暂时禁止', code: 'OPENING_PAUSED' });
       }
       const now = new Date();
       if (now < session.decryptWindowStart) {
@@ -1228,7 +1313,7 @@ export class BidService {
         const reason = submission
           ? '投标文件引用缺失（未上传技术/商务/报价文件）'
           : (bidSupplier.supplierId ? '供应商未提交投标文件' : '供应商未关联系统账户，无法查询投标记录');
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', decryptError: reason } });
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: reason } });
         this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'DANGER');
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
@@ -1236,6 +1321,8 @@ export class BidService {
         this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
         this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
         if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'DANGER', reason, phase: 'no_files' } } });
+        // 通知供应商解密失败（fire-and-forget，不阻塞主流程）
+        this.notifySupplierDecryptFailure(bidSupplier.supplierId, bidSupplier.supplierName, projectId, reason);
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
@@ -1283,7 +1370,7 @@ export class BidService {
 
       if (outcome === 'DANGER') {
         const reason = errorMsg || '标书文件校验失败：签名不匹配或文件损坏';
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', decryptError: reason } });
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: reason } });
         this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'DANGER');
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
@@ -1291,6 +1378,8 @@ export class BidService {
         this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
         this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
         if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'DANGER', reason, phase: 'decrypt_verify' } } });
+        // 通知供应商解密失败（fire-and-forget，不阻塞主流程）
+        this.notifySupplierDecryptFailure(bidSupplier.supplierId, bidSupplier.supplierName, projectId, reason);
         return tx.bidSupplier.findUnique({ where: { id: supplierId } });
       }
 
@@ -1329,6 +1418,81 @@ export class BidService {
 
       return confirmed;
     });
+  }
+
+  /**
+   * 向供应商发送解密失败通知（fire-and-forget，不阻塞解密主流程）。
+   */
+  private async notifySupplierDecryptFailure(
+    supplierId: string | null,
+    supplierName: string,
+    projectId: string,
+    reason: string,
+  ) {
+    if (!supplierId) return;
+    try {
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { id: supplierId },
+        select: { userId: true, name: true },
+      });
+      if (supplier?.userId) {
+        await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
+          type: 'BID_DECRYPT_FAILED',
+          title: `投标文件解密异常：${supplierName}`,
+          content: `您在项目中的投标文件解密失败：${reason}。请联系开标主持人处理或等待重新解密。`,
+          link: `/supplier/bid/${projectId}`,
+        });
+      }
+    } catch {
+      /* 通知失败不阻塞解密流程 */
+    }
+  }
+
+  /**
+   * 主持人显式确认接受供应商解密失败（不可恢复），将供应商标记为 EXCEPTION 终局态。
+   * 仅 OPENING 阶段、decryptStatus=DANGER 时可调用。
+   */
+  async acceptSupplierDanger(projectId: string, supplierId: string, reason: string, actorId?: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '仅开标阶段可操作', code: 'PROJECT_NOT_OPENING' });
+    }
+
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, id: supplierId },
+    });
+    if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+    if (bidSupplier.decryptStatus !== 'DANGER') {
+      throw new BadRequestException({ error: '仅解密异常（DANGER）状态的供应商可确认接受', code: 'NOT_DANGER' });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidSupplier.update({
+        where: { id: supplierId },
+        data: { confirmStatus: 'EXCEPTION', decryptError: bidSupplier.decryptError || reason },
+      });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName,
+          action: '确认接受解密失败', result: reason, riskFlag: '高风险',
+        },
+      });
+      if (actorId) {
+        await tx.auditLog.create({
+          data: { userId: actorId, action: 'BID_ACCEPT_DANGER', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, reason } },
+        });
+      }
+    });
+
+    this.gateway?.notifySupervisionLog(projectId, {
+      role: '开标主持人', action: '确认接受解密失败', target: bidSupplier.supplierName,
+      result: reason, riskFlag: '高风险',
+    });
+
+    return { accepted: true, supplierId, supplierName: bidSupplier.supplierName };
   }
 
   /**
@@ -1596,7 +1760,11 @@ export class BidService {
           detail: invalidReason, severity: 'danger',
         });
       } else {
-        // 部分失败：仅记录异常，不标记无效（仍有部分文件可用）
+        // 部分失败：记录异常 + 标记 bidValidity=invalid（部分文件不可恢复则整体不可评）
+        await this.prisma.bidSupplier.update({
+          where: { id: supplierId },
+          data: { decryptError: `重新封标部分失败：${failDetail}`, bidValidity: 'invalid', confirmStatus: 'EXCEPTION' },
+        });
         await this.prisma.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
             action: '重新封标异常', result: failDetail, riskFlag: '高风险' },
@@ -1714,6 +1882,106 @@ export class BidService {
 
   async getOpeningSession(projectId: string) {
     return this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
+  }
+
+  /** 注册主持人为当前操作者（并发检测）。返回是否已有其他主持人在操作。 */
+  async claimActiveHost(projectId: string, userId: string, userName: string): Promise<{ claimed: boolean; existingHost?: string }> {
+    const session = await this.prisma.bidOpeningSession.findUnique({
+      where: { projectId }, select: { activeHostId: true, activeHostName: true },
+    });
+    if (session?.activeHostId && session.activeHostId !== userId) {
+      return { claimed: false, existingHost: session.activeHostName ?? session.activeHostId };
+    }
+    await this.prisma.bidOpeningSession.update({
+      where: { projectId },
+      data: { activeHostId: userId, activeHostName: userName },
+    });
+    return { claimed: true };
+  }
+
+  /** 释放主持人操作者身份。仅当调用者是当前 activeHost 时才清除。 */
+  async releaseActiveHost(projectId: string, userId: string): Promise<void> {
+    await this.prisma.bidOpeningSession.updateMany({
+      where: { projectId, activeHostId: userId },
+      data: { activeHostId: null, activeHostName: null },
+    });
+  }
+
+  /** 暂停开标：冻结解密窗口倒计时，暂停期间拒绝解密。 */
+  async pauseOpening(projectId: string, actorId?: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '仅开标阶段可暂停', code: 'PROJECT_NOT_OPENING' });
+    }
+
+    const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
+    if (!session) throw new BadRequestException({ error: '开标会话不存在', code: 'SESSION_NOT_FOUND' });
+    if (session.pausedAt) throw new BadRequestException({ error: '开标已处于暂停状态', code: 'ALREADY_PAUSED' });
+
+    const now = new Date();
+    await this.prisma.bidOpeningSession.update({
+      where: { projectId },
+      data: { pausedAt: now },
+    });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: now, role: '开标主持人', target: project.name,
+        action: '暂停开标', result: '解密窗口倒计时已冻结，解密操作被禁止', riskFlag: '中风险' },
+    }).catch(() => {});
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: { userId: actorId, action: 'BID_OPENING_PAUSED', resourceType: `BidProject:${projectId}`, details: { pausedAt: now.toISOString() } },
+      }).catch(() => {});
+    }
+
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '暂停开标', target: project.name, result: '解密窗口倒计时已冻结', riskFlag: '中风险' });
+    return { paused: true, pausedAt: now.toISOString() };
+  }
+
+  /** 恢复开标：解冻解密窗口，补偿暂停时长到 decryptWindowEnd。 */
+  async resumeOpening(projectId: string, actorId?: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '仅开标阶段可恢复', code: 'PROJECT_NOT_OPENING' });
+    }
+
+    const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
+    if (!session) throw new BadRequestException({ error: '开标会话不存在', code: 'SESSION_NOT_FOUND' });
+    if (!session.pausedAt) throw new BadRequestException({ error: '开标未处于暂停状态', code: 'NOT_PAUSED' });
+
+    const now = new Date();
+    const pausedMs = now.getTime() - new Date(session.pausedAt).getTime();
+    const newTotalPausedMs = (session.totalPausedMs ?? 0) + pausedMs;
+    const newEnd = new Date(session.decryptWindowEnd.getTime() + pausedMs);
+
+    await this.prisma.bidOpeningSession.update({
+      where: { projectId },
+      data: {
+        pausedAt: null,
+        totalPausedMs: newTotalPausedMs,
+        decryptWindowEnd: newEnd,
+        remainingSeconds: Math.max(0, Math.floor((newEnd.getTime() - now.getTime()) / 1000)),
+      },
+    });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: now, role: '开标主持人', target: project.name,
+        action: '恢复开标', result: `暂停时长 ${Math.round(pausedMs / 1000)} 秒，窗口已补偿延长`, riskFlag: '中风险' },
+    }).catch(() => {});
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: { userId: actorId, action: 'BID_OPENING_RESUMED', resourceType: `BidProject:${projectId}`, details: { pausedMs, totalPausedMs: newTotalPausedMs } },
+      }).catch(() => {});
+    }
+
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '恢复开标', target: project.name, result: `暂停 ${Math.round(pausedMs / 1000)}s，窗口已补偿延长`, riskFlag: '中风险' });
+    return { resumed: true, pausedMs, totalPausedMs: newTotalPausedMs, newDecryptWindowEnd: newEnd.toISOString() };
   }
 
   listOpeningRecords(projectId: string) {
@@ -1875,6 +2143,13 @@ export class BidService {
           data: { confirmStatus: dto.confirm ? 'CONFIRMED' : 'EXCEPTION' },
         });
       }
+      // 全清 DISPUTED → 清除 disputedSince
+      const remainingDisputed = await tx.bidSupplier.count({
+        where: { projectId, confirmStatus: 'DISPUTED', submitStatus: { not: '已撤回' } },
+      });
+      if (remainingDisputed === 0) {
+        await tx.bidOpeningSession.update({ where: { projectId }, data: { disputedSince: null } });
+      }
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: now, role: '开标主持人', target: record.supplierName,
@@ -1900,9 +2175,92 @@ export class BidService {
           projectId, supplierId: bs.supplierId, supplierName: record.supplierName,
           recordId, confirm: dto.confirm, result: dto.result, timestamp: Date.now(),
         });
+        // 发送站内信通知供应商异议处理结果（fire-and-forget）
+        try {
+          const supplier = await this.prisma.supplier.findUnique({
+            where: { id: bs.supplierId }, select: { userId: true },
+          });
+          if (supplier?.userId) {
+            await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
+              type: 'BID_DISPUTE_RESOLVED',
+              title: `开标异议已处理：${record.supplierName}`,
+              content: dto.confirm
+                ? `您的异议已确认受理：${dto.result}`
+                : `您的异议已处理（退回）：${dto.result}`,
+              link: `/supplier/bid/${projectId}`,
+            });
+          }
+        } catch { /* 通知失败不阻塞异议处理 */ }
       }
     }
     return this.prisma.bidOpeningRecord.findUnique({ where: { id: recordId } });
+  }
+
+  /**
+   * 强制裁决异议（监督人应急通道）。
+   * 当供应商 DISPUTED 导致项目永久卡死时，leader/admin 可直接覆盖 DISPUTED→EXCEPTION。
+   * 要求提供书面理由（入 audit log），写高风险监督日志。
+   */
+  async overrideDispute(projectId: string, supplierId: string, reason: string, actorId?: string) {
+    if (!reason?.trim()) throw new BadRequestException({ error: '请填写强制裁决理由', code: 'MISSING_REASON' });
+
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '项目不在开标阶段', code: 'PROJECT_NOT_OPENING' });
+    }
+
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, id: supplierId },
+      select: { id: true, supplierName: true, confirmStatus: true, decryptStatus: true },
+    });
+    if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+    if (bidSupplier.confirmStatus !== 'DISPUTED') {
+      throw new BadRequestException({ error: '仅异议中（DISPUTED）的供应商可被强制裁决', code: 'NOT_DISPUTED' });
+    }
+
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      // 将关联的开标记录同步更新（如有）
+      const record = await tx.bidOpeningRecord.findFirst({
+        where: { projectId, bidSupplierId: supplierId },
+      });
+      if (record && record.confirmStatus === '供应商提出异议') {
+        await tx.bidOpeningRecord.update({
+          where: { id: record.id },
+          data: { confirmStatus: '异议已处理-退回', handleResult: `[强制裁决] ${reason}`, handledAt: now, handledBy: actorId ?? null },
+        });
+      }
+      await tx.bidSupplier.update({
+        where: { id: supplierId },
+        data: { confirmStatus: 'EXCEPTION' },
+      });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: now, role: '监督人', target: bidSupplier.supplierName,
+          action: '强制裁决异议', result: `DISPUTED→EXCEPTION：${reason}`, riskFlag: '高风险',
+        },
+      });
+      if (actorId) {
+        await tx.auditLog.create({
+          data: { userId: actorId, action: 'BID_DISPUTE_OVERRIDE', resourceType: `BidSupplier:${supplierId}`, details: { projectId, reason } },
+        });
+      }
+      // 全清 DISPUTED → 清除 disputedSince
+      const remaining = await tx.bidSupplier.count({ where: { projectId, confirmStatus: 'DISPUTED', submitStatus: { not: '已撤回' } } });
+      if (remaining === 0) {
+        await tx.bidOpeningSession.update({ where: { projectId }, data: { disputedSince: null } });
+      }
+    });
+
+    this.gateway?.notifySupervisionLog(projectId, {
+      role: '监督人', action: '强制裁决异议', target: bidSupplier.supplierName,
+      result: `DISPUTED→EXCEPTION：${reason}`, riskFlag: '高风险',
+    });
+
+    return { overridden: true, supplierId, supplierName: bidSupplier.supplierName };
   }
 
   listExperts(projectId: string) {
@@ -2354,6 +2712,60 @@ export class BidService {
     return this.prisma.bidArchiveItem.findMany({ where: { projectId } });
   }
 
+  /** 独立验证归档哈希链完整性（只读）。对比存储 hashDigest 与重算值，返回逐项比对结果。 */
+  async verifyArchiveIntegrity(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectCode: true, name: true, stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'ARCHIVED') {
+      throw new BadRequestException({ error: '项目未归档，无法验证', code: 'PROJECT_NOT_ARCHIVED' });
+    }
+
+    const archiveItems = await this.prisma.bidArchiveItem.findMany({
+      where: { projectId, status: 'ARCHIVED' },
+    });
+    if (archiveItems.length === 0) {
+      return { valid: true, checkedAt: new Date().toISOString(), totalItems: 0, mismatches: [] };
+    }
+
+    // 重算哈希链（与 archiveAll 同口径：status 视为 ARCHIVED）
+    const chain = computeArchiveChain(
+      { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
+      archiveItems.map(i => ({ ...i, status: 'ARCHIVED' as const })),
+    );
+
+    const mismatches: Array<{ itemId: string; itemName: string; stored: string; computed: string }> = [];
+    for (const item of archiveItems) {
+      const computed = chain.get(item.id);
+      if (computed && computed !== item.hashDigest) {
+        mismatches.push({
+          itemId: item.id,
+          itemName: item.name,
+          stored: item.hashDigest ?? '',
+          computed,
+        });
+      }
+    }
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '系统', target: project.name,
+        action: '验证归档哈希链',
+        result: mismatches.length === 0 ? `全部通过（${archiveItems.length} 项）` : `${mismatches.length}/${archiveItems.length} 项不匹配`,
+        riskFlag: mismatches.length > 0 ? '高风险' : '无',
+      },
+    }).catch(() => {});
+
+    return {
+      valid: mismatches.length === 0,
+      checkedAt: new Date().toISOString(),
+      totalItems: archiveItems.length,
+      mismatches,
+    };
+  }
+
   /** 一键归档前自动补齐标准归档材料清单（幂等：已存在则跳过） */
   /**
    * Ensure standard archive items exist for a project.
@@ -2510,6 +2922,18 @@ export class BidService {
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
       await this.lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
+      // 开标归档必须已完成移交（生成开标文件包），否则归档材料不完整
+      if (scope === 'opening') {
+        const session = await tx.bidOpeningSession.findUnique({
+          where: { projectId: id }, select: { handoverAssetId: true },
+        });
+        if (!session?.handoverAssetId) {
+          throw new ConflictException({
+            error: '请先执行「完成开标·资料移交」后再归档',
+            code: 'OPENING_HANDOVER_REQUIRED',
+          });
+        }
+      }
       // 防止”跳过评标”归档：存在已确认的可评供应商但未生成评标结果时阻断
       // G5: 已确认可评供应商必须有对应开标记录（主持人已补录唱标信息），保证归档材料完整
       // 合并 confirmableCount 与 confirmableSuppliers 为一次 findMany 查询（R1 去冗余）
@@ -2666,7 +3090,7 @@ export class BidService {
     });
   }
 
-  async exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json') {
+  async exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json', scope: 'full' | 'summary' = 'full') {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       include: {
@@ -2813,13 +3237,14 @@ export class BidService {
     }
 
     // JSON format
-    return {
+    const base = {
       manifest: {
         exportedAt: new Date().toISOString(),
         projectId: project.id,
         projectCode: project.projectCode,
-        format: 'application/json',
+        format: 'application/json' as const,
         version: '1.0',
+        scope,
       },
       projectInfo: {
         projectCode: project.projectCode,
@@ -2831,6 +3256,50 @@ export class BidService {
         contact: project.contact,
         stage: project.stage,
       },
+      hashChain: {
+        algorithm: 'SHA-256' as const,
+        genesisHash: genesis,
+        chain: Array.from(chain.entries()).map(([itemId, hash]) => {
+          const item = project.archiveItems.find(a => a.id === itemId);
+          return { itemId, name: item?.name, hash };
+        }),
+        sectionDigests,
+        sectionsRoot,
+      },
+    };
+
+    if (scope === 'summary') {
+      return {
+        ...base,
+        verifierHtml: buildArchiveVerifierHtml(project.name, project.projectCode, genesis, Array.from(chain.entries()).map(([itemId, hash]) => {
+          const item = project.archiveItems.find(a => a.id === itemId);
+          return { itemId, name: item?.name ?? itemId, hash };
+        })),
+        evaluationSummary: project.evaluationResults.length > 0
+          ? {
+              totalCandidates: project.evaluationResults.length,
+              recommendedCount: project.evaluationResults.filter(r => r.recommended).length,
+              topSupplier: project.evaluationResults[0]?.supplierName ?? null,
+              results: project.evaluationResults.map(r => ({
+                rank: r.rank, supplierName: r.supplierName,
+                totalScore: r.totalScore, averageScore: r.averageScore,
+                recommended: r.recommended, disqualified: r.disqualified,
+              })),
+            }
+          : null,
+        archiveSummary: {
+          totalItems: project.archiveItems.length,
+          archivedItems: project.archiveItems.filter(i => i.status === 'ARCHIVED').length,
+        },
+      };
+    }
+
+    return {
+      ...base,
+      verifierHtml: buildArchiveVerifierHtml(project.name, project.projectCode, genesis, Array.from(chain.entries()).map(([itemId, hash]) => {
+        const item = project.archiveItems.find(a => a.id === itemId);
+        return { itemId, name: item?.name ?? itemId, hash };
+      })),
       sections: {
         suppliers: project.suppliers.map(s => ({ supplierName: s.supplierName, downloadStatus: s.downloadStatus, submitStatus: s.submitStatus, encryptStatus: s.encryptStatus, decryptStatus: s.decryptStatus, confirmStatus: s.confirmStatus })),
         openingRecords: project.openingRecords,
@@ -2838,19 +3307,8 @@ export class BidService {
         evaluationResults: project.evaluationResults,
         supervisionLogs: project.supervisionLogs,
         clarifications: project.clarifications,
-        hallMessages: hallSection, // S2：与 sectionDigests.hallMessages 同引用，保证摘要可复算
+        hallMessages: hallSection,
         confirmationRecords: project.suppliers.filter(s => s.confirmStatus !== 'PENDING').map(s => ({ supplierName: s.supplierName, status: s.confirmStatus, error: s.decryptError })),
-      },
-      hashChain: {
-        algorithm: 'SHA-256',
-        genesisHash: genesis,
-        chain: Array.from(chain.entries()).map(([itemId, hash]) => {
-          const item = project.archiveItems.find(a => a.id === itemId);
-          return { itemId, name: item?.name, hash };
-        }),
-        // S2：存证 sections 逐段摘要 + 根摘要（信任模型见上方注释：导出包内防局部篡改）
-        sectionDigests,
-        sectionsRoot,
       },
       ...(aiUsage ? { aiUsage } : {}),
     };
@@ -3612,4 +4070,74 @@ export class BidService {
 
     return { revoked: true };
   }
+}
+
+/** 构建归档哈希链自验证 HTML 页面（base64 编码，自包含） */
+function buildArchiveVerifierHtml(
+  projectName: string,
+  projectCode: string,
+  genesisHash: string,
+  chainEntries: Array<{ itemId: string; name: string; hash: string }>,
+): string {
+  const chainJson = JSON.stringify(chainEntries);
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>归档验证 - ${projectCode}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#f5f7fa;color:#1a1a2e;padding:24px;max-width:960px;margin:0 auto}
+  h1{font-size:20px;margin-bottom:4px} .code{font-family:monospace;font-size:12px;color:#666}
+  .card{background:#fff;border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .pass{border-left:3px solid #22c55e} .fail{border-left:3px solid #ef4444}
+  .hash{font-family:monospace;font-size:11px;word-break:break-all;background:#f0f0f5;padding:4px 8px;border-radius:6px;margin:4px 0}
+  .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}
+  .badge-ok{background:#dcfce7;color:#166534} .badge-fail{background:#fef2f2;color:#991b1b}
+  button{padding:8px 20px;border:none;border-radius:8px;font-size:14px;cursor:pointer;background:#2563eb;color:#fff;margin-top:8px}
+  button:hover{background:#1d4ed8}
+</style></head>
+<body>
+<h1>归档哈希链验证报告</h1>
+<p class="code">项目：${projectName}（${projectCode}）｜验证时间：<span id="time"></span></p>
+<div class="card">
+  <h3>创世哈希</h3>
+  <div class="hash" id="genesis">${genesisHash}</div>
+</div>
+<div id="results"></div>
+<div id="summary" style="margin-top:16px;font-weight:600"></div>
+<button onclick="verify()">重新验证</button>
+<script>
+const chainData = ${chainJson};
+const GENESIS = "${genesisHash}";
+async function sha256(text) {
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+async function verify() {
+  document.getElementById("time").textContent = new Date().toISOString();
+  let prev = GENESIS;
+  let pass = 0, fail = 0;
+  const container = document.getElementById("results");
+  container.innerHTML = "";
+  for (const item of chainData) {
+    const payload = JSON.stringify({prevHash:prev,id:item.itemId,name:item.name,ownerRole:"",status:"ARCHIVED"});
+    const computed = "sha256:" + await sha256(payload);
+    const ok = computed === item.hash;
+    const card = document.createElement("div");
+    card.className = "card " + (ok ? "pass" : "fail");
+    card.innerHTML = '<strong>' + item.name + '</strong>' +
+      '<span class="badge ' + (ok ? "badge-ok" : "badge-fail") + '" style="margin-left:8px">' + (ok ? "✓ 通过" : "✗ 不匹配") + '</span>' +
+      '<div class="hash">存储：' + item.hash + '</div>' +
+      '<div class="hash">重算：' + computed + '</div>';
+    container.appendChild(card);
+    if (ok) pass++; else fail++;
+    prev = computed.replace("sha256:","");
+  }
+  document.getElementById("summary").innerHTML = fail === 0
+    ? '<span class="badge badge-ok">全部通过 ✓</span> 共 ' + pass + ' 项'
+    : '<span class="badge badge-fail">' + fail + '/' + (pass+fail) + ' 项不匹配 ✗</span>';
+}
+verify();
+</script></body></html>`;
+  return Buffer.from(html, 'utf-8').toString('base64');
 }

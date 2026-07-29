@@ -954,10 +954,10 @@ describe('BidService — stage transitions', () => {
       await expect(service.archiveAll('p1'))
         .rejects.toMatchObject({ response: { code: 'EVALUATION_RESULTS_REQUIRED' } });
 
-      // opening → 阶段下限通过（EVALUATING ≥ OPENING）、跳过评标守卫，落到开标记录守卫
-      prisma.bidOpeningRecord.findMany.mockResolvedValue([]);
+      // opening → 阶段下限通过（EVALUATING ≥ OPENING）、跳过评标守卫，但必须先完成移交
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: null });
       await expect(service.archiveAll('p1', undefined, 'opening'))
-        .rejects.toMatchObject({ response: { code: 'OPENING_RECORDS_MISSING' } });
+        .rejects.toMatchObject({ response: { code: 'OPENING_HANDOVER_REQUIRED' } });
     });
 
     it('F3 阶段下限：DOWNLOAD + scope=opening → 409 ARCHIVE_NOT_OPENED', async () => {
@@ -980,6 +980,7 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目', projectManagementItemId: 'pm1', round: 1 });
       prisma.bidSupplier.findMany.mockResolvedValue([]);
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: 'asset-1' });
       prisma.bidArchiveItem.findMany
         .mockResolvedValueOnce([]) // ensureArchiveItems
         .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]); // non-archived
