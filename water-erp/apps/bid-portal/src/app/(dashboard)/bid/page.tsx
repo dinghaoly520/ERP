@@ -8,9 +8,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { RefreshCw, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ExternalLink, ChevronRight } from 'lucide-react';
-import { portalURL } from '@water-erp/config';
+import { RefreshCw, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ChevronRight } from 'lucide-react';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
 
 function fmt(iso: string): string {
@@ -150,18 +148,6 @@ export default function BidTaskBoard() {
               </div>
             )}
           </section>
-
-
-
-          {/* ── 跨端入口 ── */}
-          <div className="neu-card-static flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
-            <p className="text-[12px] text-[color:var(--muted-foreground)]">
-              已归档项目请前往<Link href="/bid/archive" className="font-semibold text-[color:var(--accent-strong)] underline underline-offset-2">归档端</Link>查看 · 评标管理 / 评分标准可在此只读查看；澄清答疑 / 评标操作 / 归档 → 在采购管理工作台的项目「开标确认」面板中操作
-            </p>
-            <a href={portalURL('web', '/projects')} target="_blank" rel="noopener" className="neu-btn-soft">
-              <ExternalLink size={13} /> 前往采购管理工作台
-            </a>
-          </div>
         </>
       )}
     </div>
