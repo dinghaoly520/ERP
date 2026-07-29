@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef, Su
 import { useParams, useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
-import { addRecentProject, removeRecentProject } from '@/lib/storage';
 
 export interface BidProjectContextValue {
   projectId: string | null;
@@ -52,16 +51,9 @@ function BidProjectProviderInner({ children }: { children: React.ReactNode }) {
     try {
       const data = await api.get<BidProjectDetail>(`/bid/projects/${projectId}`);
       setProject(data);
-      // 写入最近项目
-      addRecentProject({
-        id: data.id,
-        projectCode: data.projectCode || '',
-        name: data.name,
-      });
     } catch (e: any) {
       if (e?.status === 404) {
         setError('项目不存在或已被删除');
-        removeRecentProject(projectId);
       } else {
         setError(e?.message || '加载项目失败');
       }

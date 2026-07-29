@@ -8,9 +8,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ChevronRight, History, X } from 'lucide-react';
+import { RefreshCw, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ChevronRight } from 'lucide-react';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
-import { getRecentProjects, removeRecentProject, type RecentProject } from '@/lib/storage';
 
 function fmt(iso: string): string {
   const d = new Date(iso);
@@ -38,7 +37,6 @@ export default function BidTaskBoard() {
   const router = useRouter();
   const [projects, setProjects] = useState<DashboardProject[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [recent, setRecent] = useState<RecentProject[]>([]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -49,7 +47,6 @@ export default function BidTaskBoard() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setRecent(getRecentProjects()); }, []);
 
   const opening = (projects ?? []).filter(p => p.stage === 'OPENING');
   // 评标中 / 已结束：dashboard 已返回全阶段项目，前端分组渲染为可进入工作区的入口
@@ -151,39 +148,6 @@ export default function BidTaskBoard() {
               </div>
             )}
           </section>
-
-          {/* ── 最近访问 ── */}
-          {recent.length > 0 && (
-            <section>
-              <h2 className="mb-3 flex items-center gap-2 text-[15px] font-bold tracking-tight text-[color:var(--foreground)]">
-                <History size={16} strokeWidth={1.8} className="text-[color:var(--muted-foreground)]" />
-                最近访问
-              </h2>
-              <div className="neu-card-static divide-y divide-[oklch(0.6_0.04_258_/_0.1)] p-0">
-                {recent.map(p => (
-                  <div key={p.id} className="group flex items-center gap-3 px-5 py-3">
-                    <button
-                      type="button"
-                      onClick={() => enterHall(p.id)}
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                    >
-                      <span className="shrink-0 font-mono text-[12px] font-bold text-[color:var(--accent-strong)]">{p.projectCode}</span>
-                      <span className="truncate text-sm font-medium text-[color:var(--foreground)]">{p.name}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); removeRecentProject(p.id); setRecent(getRecentProjects()); }}
-                      className="shrink-0 rounded p-1 text-[color:var(--muted-foreground)] opacity-0 transition-all hover:bg-[oklch(0.66_0.175_27_/_0.1)] hover:text-[var(--danger)] group-hover:opacity-100"
-                      title="移除此记录"
-                    >
-                      <X size={13} strokeWidth={1.5} />
-                    </button>
-                    <ChevronRight size={14} className="shrink-0 text-[color:var(--muted-foreground)]" />
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
         </>
       )}
     </div>
