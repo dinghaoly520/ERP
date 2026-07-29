@@ -17,6 +17,7 @@ import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
 import { NotifySuppliersDto } from './dto/notify-suppliers.dto';
+import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { SetClassificationsDto } from './dto/set-classifications.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -246,6 +247,21 @@ export class SupplierController {
     @Body() dto: NotifySuppliersDto,
   ) {
     return this.supplierService.notifySuppliers(dto.supplierIds, dto.channels, { type: dto.type, title: dto.title, content: dto.content, link: dto.link });
+  }
+
+  @Post('negotiation-config')
+  @UseGuards(AuthGuard)
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '谈判采购配置下发（时间/附件/下载方式 → Redis，供应商端读取）' })
+  async sendNegotiationConfig(@Body() dto: NegotiationConfigDto) {
+    return this.supplierService.sendNegotiationConfig(dto);
+  }
+
+  @Get('negotiation-config/:projectId')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: '供应商端读取谈判采购配置' })
+  async getNegotiationConfig(@Param('projectId') projectId: string) {
+    return this.supplierService.getNegotiationConfig(projectId);
   }
 
   @Get('eliminate-candidates')

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Inject } from '@nestjs/common';
 import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,10 +10,12 @@ import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { CreateClassificationDto, UpdateClassificationDto } from './dto/create-classification.dto';
+import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { isSupplierChangeAllowedField } from './supplier-change-fields';
 import { shouldAutoDisable, aggregatePerformance } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MIN } from './business-tags';
+import { LlmService } from '../local-ai/llm.service';
 
 // 等级→数值映射（与 expert-admin.service.ts 共享语义，ExpertLevel: A=5 B=4 C=3 D=2 E=1）
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -43,6 +45,8 @@ export class SupplierService {
   constructor(
     private prisma: PrismaService,
     private notificationService: NotificationService,
+    @Inject('REDIS_CLIENT') private redis: any,
+    private llm: LlmService,
   ) {}
 
   async register(dto: RegisterSupplierDto) {
@@ -590,7 +594,7 @@ export class SupplierService {
       type: 'SUPPLIER_APPROVED',
       title: '供应商审核通过',
       content: `您的供应商注册申请已审核通过，企业名称：${supplier.name}`,
-      link: `/supplier/${id}`,
+      link: `/dashboard`,
     });
 
     if (userId) await this.audit(userId, 'SUPPLIER_APPROVED', id, { name: supplier.name });
@@ -661,7 +665,7 @@ export class SupplierService {
       type: 'SUPPLIER_RETURNED',
       title: '供应商注册退回补正',
       content: `您的供应商注册申请需补充修改，原因：${reason}`,
-      link: `/supplier/register`,
+      link: `/profile`,
     });
 
     if (userId) await this.audit(userId, 'SUPPLIER_RETURNED', id, { name: supplier.name, reason });
@@ -1869,5 +1873,137 @@ export class SupplierService {
 
   async deleteDocument(_id: string) {
     return null;
+  }
+
+  // ── 谈判采购配置下发 ──
+  async sendNegotiationConfig(dto: NegotiationConfigDto) {
+    const key = `negotiation-config:${dto.projectId}`;
+    const payload = {
+      ...dto,
+      deliveredAt: new Date().toISOString(),
+    };
+    await this.redis.set(key, JSON.stringify(payload), 'EX', 86400 * 30); // 30 天过期
+
+    // 配置写回 BidProject：openTime=开标时间，deadline=开标前半小时，downloadDeadline=获取截止
+    const bidOpening = new Date(dto.bidOpeningTime);
+    const acquireEnd = new Date(dto.acquireEndTime);
+    if (!isNaN(bidOpening.getTime())) {
+      await this.prisma.bidProject.update({
+        where: { id: dto.projectId },
+        data: {
+          openTime: bidOpening,
+          deadline: new Date(bidOpening.getTime() - 30 * 60 * 1000),
+          ...(acquireEnd && !isNaN(acquireEnd.getTime()) ? { downloadDeadline: acquireEnd } : {}),
+        },
+      }).catch(() => { /* 项目可能不存在，忽略 */ });
+    }
+
+    // 确保受邀供应商进入候选名单（决定其在供应商端「可投标项目」的可见性）
+    if (dto.supplierIds.length > 0) {
+      const suppliers = await this.prisma.supplier.findMany({
+        where: { id: { in: dto.supplierIds } },
+        select: { id: true, name: true },
+      });
+      for (const s of suppliers) {
+        await this.prisma.bidSupplier.upsert({
+          where: { projectId_supplierName: { projectId: dto.projectId, supplierName: s.name } },
+          create: { projectId: dto.projectId, supplierId: s.id, supplierName: s.name },
+          update: { supplierId: s.id },
+        }).catch(() => {});
+      }
+    }
+
+    // 预生成 AI 融合概览并缓存（采购内容 + 招标范围 + 通知 + 两个时间），详情页直接读缓存
+    void this.generateAndCacheOverview(dto.projectId).catch(() => {});
+
+    return { delivered: dto.supplierIds.length };
+  }
+
+  /** 生成并缓存项目概览（采购内容/招标范围/通知/两个时间 → AI 融合文本），存 Redis */
+  private async generateAndCacheOverview(projectId: string): Promise<void> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { name: true, projectCode: true, procurementMethod: true, scope: true, qualification: true, budget: true, qualityRequirement: true, riskNote: true, contact: true },
+    });
+    if (!project) return;
+
+    let nego: any = null;
+    try {
+      const raw = await this.redis.get(`negotiation-config:${projectId}`);
+      if (raw) nego = JSON.parse(raw);
+    } catch { /* ignore */ }
+
+    // 邀请通知原文（任意受邀供应商的 SELECTION_NOTIFY，内容含项目名）
+    let notification: string | null = null;
+    try {
+      const invited = await this.prisma.bidSupplier.findMany({
+        where: { projectId, supplierId: { not: null } },
+        select: { supplierId: true },
+        take: 5,
+      });
+      const supplierIds = invited.map(s => s.supplierId).filter((u): u is string => !!u);
+      const suppliers = supplierIds.length > 0
+        ? await this.prisma.supplier.findMany({ where: { id: { in: supplierIds } }, select: { userId: true } })
+        : [];
+      const userIds = suppliers.map(s => s.userId).filter((u): u is string => !!u);
+      if (userIds.length > 0) {
+        const notifs = await this.prisma.notification.findMany({
+          where: { userId: { in: userIds }, type: { in: ['SELECTION_NOTIFY', 'BID_INVITED'] } },
+          orderBy: { createdAt: 'desc' },
+          take: 15,
+          select: { content: true },
+        });
+        const hit = notifs.find(n => (n.content || '').includes(project.name));
+        notification = hit?.content || null;
+      }
+    } catch { /* ignore */ }
+
+    const fmt = (t?: string) => (t ? new Date(t).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+    const context = {
+      项目名称: project.name,
+      项目编号: project.projectCode,
+      采购方式: project.procurementMethod,
+      招标范围与采购内容: project.scope || '（未填写）',
+      资质要求: project.qualification || '（未填写）',
+      质量要求: project.qualityRequirement || '（未填写）',
+      预算: project.budget ? `¥${project.budget}` : '（未填写）',
+      风险提示: project.riskNote || '（无）',
+      联系人: project.contact || '（未填写）',
+      采购文件获取时间: nego ? `${fmt(nego.acquireStartTime)} 至 ${fmt(nego.acquireEndTime)}` : '（未配置）',
+      开标时间: nego ? fmt(nego.bidOpeningTime) : '（未配置）',
+      下载模式: nego?.downloadMode || '（未配置）',
+      邀请通知原文: notification || '（无）',
+    };
+
+    const sys = `你是采购项目说明助手。基于提供的项目数据，为投标供应商生成一段融合性项目概览，必须涵盖：招标范围与采购内容（综合招标范围/资质/质量/预算）、关键时间安排（采购文件获取窗口、开标时间）、注意事项（下载模式、风险提示、联系人）。用流畅的中文段落表达，关键时间用具体日期，不要编造数据中不存在的信息。输出纯文本，2-3 段，不要 markdown 标题或列表符号。`;
+    let overview = '';
+    try {
+      overview = await this.llm.chat(sys, JSON.stringify(context, null, 2), 0.3);
+    } catch {
+      overview = `${project.name}（${project.procurementMethod}），招标范围：${project.scope || '详见采购文件'}。${
+        nego ? `采购文件获取时间 ${fmt(nego.acquireStartTime)} 至 ${fmt(nego.acquireEndTime)}，开标时间 ${fmt(nego.bidOpeningTime)}。` : ''
+      }${project.riskNote ? `风险提示：${project.riskNote}。` : ''}`;
+    }
+
+    await this.redis.set(
+      `negotiation-overview:${projectId}`,
+      JSON.stringify({
+        overview,
+        notification,
+        acquireStartTime: nego?.acquireStartTime || null,
+        acquireEndTime: nego?.acquireEndTime || null,
+        bidOpeningTime: nego?.bidOpeningTime || null,
+        downloadMode: nego?.downloadMode || null,
+        generatedAt: new Date().toISOString(),
+      }),
+      'EX', 86400 * 30,
+    ).catch(() => {});
+  }
+
+  async getNegotiationConfig(projectId: string) {
+    const key = `negotiation-config:${projectId}`;
+    const raw = await this.redis.get(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
   }
 }

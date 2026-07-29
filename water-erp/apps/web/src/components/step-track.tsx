@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Check } from 'lucide-react';
 
 export interface StepDef {
@@ -17,19 +18,50 @@ interface StepTrackProps {
 }
 
 /**
- * 水流管道式步骤轨道 — 凹槽通道 + 浮起节点 + 流光填充
+ * 步骤轨道 — 节点圆心与进度条严格对齐。
  *
- * 使用 cgzxui 设计系统：
- * - 方向性双影 + 内高光线
- * - oklch() 色彩空间
- * - 无外侧框线
- * - 三态交互（clickable 节点：默认 → hover 抬升 → active 内凹）
- * - reduced-motion 降级
+ * 使用 ResizeObserver 测量第一个 / 最后一个节点的实际圆心，
+ * 进度条 left/width 精确到像素，不依赖硬编码偏移。
+ *
+ * 视觉提升：
+ * - 节点 36px（原 32px），进度条 5px（原 4px）
+ * - 当前步骤外圈光环 + 脉冲，已完成绿色渐变 + ✓
+ * - 进度条从节点 1 圆心到节点 N 圆心，边缘精确对准
  */
 export function StepTrack({ steps, current, onStepClick, reachable }: StepTrackProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [barMetrics, setBarMetrics] = useState<{ left: number; width: number } | null>(null);
   const total = steps.length;
-  // Progress width as percentage of the track channel
-  const progressPct = total > 1 ? ((current - 1) / (total - 1)) * 100 : 0;
+
+  const measure = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const circles = el.querySelectorAll<HTMLElement>('.step-node__circle');
+    if (circles.length < 2) {
+      setBarMetrics(null);
+      return;
+    }
+    const trackRect = el.getBoundingClientRect();
+    const firstRect = circles[0].getBoundingClientRect();
+    const lastRect = circles[circles.length - 1].getBoundingClientRect();
+    const startX = firstRect.left + firstRect.width / 2 - trackRect.left;
+    const endX = lastRect.left + lastRect.width / 2 - trackRect.left;
+    setBarMetrics({ left: startX, width: Math.max(0, endX - startX) });
+  }, []);
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [measure, steps.length]);
+
+  // 填充进度 = 实际进度条宽度的 (current-1)/(total-1)
+  const fillPct = barMetrics && total > 1
+    ? ((current - 1) / (total - 1)) * 100
+    : 0;
 
   const isReachable = (num: number) => {
     if (reachable) return reachable(num);
@@ -37,17 +69,31 @@ export function StepTrack({ steps, current, onStepClick, reachable }: StepTrackP
   };
 
   return (
-    <div className="step-track">
-      {/* 流光填充进度条 */}
-      <div
-        className="step-track__progress"
-        style={{ width: `calc(${progressPct}% - ${progressPct > 0 ? 0 : 0}px)` }}
-      />
+    <div ref={trackRef} className="step-track" style={{ '--n': total } as React.CSSProperties}>
+      {/* 凹槽通道 */}
+      {barMetrics && (
+        <div
+          className="step-track__groove"
+          style={{ left: barMetrics.left, width: barMetrics.width }}
+        />
+      )}
+
+      {/* 流光填充 */}
+      {barMetrics && (
+        <div
+          className="step-track__progress"
+          style={{ left: barMetrics.left, width: barMetrics.width }}
+        >
+          <div
+            className="step-track__progress-fill"
+            style={{ width: `${fillPct}%` }}
+          />
+        </div>
+      )}
 
       {steps.map((s) => {
         const isActive = s.num === current;
         const isDone = s.num < current;
-        const isFuture = s.num > current;
         const clickable = isReachable(s.num) && !!onStepClick;
 
         const stateClass = isActive
@@ -66,7 +112,7 @@ export function StepTrack({ steps, current, onStepClick, reachable }: StepTrackP
             tabIndex={clickable ? 0 : -1}
           >
             <span className="step-node__circle">
-              {isDone ? <Check size={14} strokeWidth={2.5} /> : s.num}
+              {isDone ? <Check size={15} strokeWidth={2.5} /> : s.num}
             </span>
             <div className="step-node__label">
               <div className="step-node__title">{s.label}</div>

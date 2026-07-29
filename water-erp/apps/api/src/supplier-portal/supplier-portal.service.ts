@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException, ForbiddenException, ConflictException, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, ConflictException, NotFoundException, Optional, Inject } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
@@ -15,6 +16,7 @@ import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { LlmService } from '../local-ai/llm.service';
 import * as crypto from 'crypto';
 
 /** 供应商投标提交/草稿共用的可持久化字段 */
@@ -91,6 +93,8 @@ export class SupplierPortalService {
     private bidDocumentService: BidDocumentService,
     private signatureService: SignatureService,
     private bidBackup: BidBackupService,
+    @Inject('REDIS_CLIENT') private redis: Redis,
+    private llm: LlmService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
 
@@ -299,23 +303,32 @@ export class SupplierPortalService {
     page = 1,
     pageSize = 20,
     filters: { search?: string; scope?: string } = {},
+    supplierId?: string,
   ) {
     const skip = (page - 1) * pageSize;
     const now = new Date();
     const kw = filters.search?.trim();
     const baseWhere: any = {
-      deadline: { gt: now }, // 仅展示截止时间未到的项目
       isExtractionOnly: false, // 排除自定义抽取的影子项目（不进供应商投标机会列表）
+      stage: { not: 'ARCHIVED' }, // 不展示已归档项目
     };
-    if (kw) {
-      baseWhere.OR = [
-        { name: { contains: kw, mode: 'insensitive' } as any },
-        { projectCode: { contains: kw, mode: 'insensitive' } as any },
-      ];
+
+    // 可见性 + 时效：
+    //  - 受邀项目（BidSupplier 命中）：确认参加即显示，不受 deadline 限制（谈判配置才定义真实窗口）
+    //  - 公开公告项目（accessScope=OPEN）：仅展示 deadline 未到的活跃项目
+    let invitedIds: string[] = [];
+    let openIds: string[] = [];
+    if (supplierId) {
+      const [invited, openDocs] = await Promise.all([
+        this.prisma.bidSupplier.findMany({ where: { supplierId }, select: { projectId: true } }),
+        this.prisma.bidDocument.findMany({ where: { accessScope: 'OPEN', bidProjectId: { not: null } }, select: { bidProjectId: true } }),
+      ]);
+      invitedIds = invited.map(i => i.projectId);
+      openIds = openDocs.map(d => d.bidProjectId!).filter(Boolean);
     }
 
     // scope 过滤：公告项目=OPEN，受邀项目=INVITED|DESIGNATED
-    let scopeProjectIds: string[] | undefined;
+    let scopeIds: string[] | undefined;
     if (filters.scope) {
       const scopeValues = filters.scope === 'OPEN'
         ? ['OPEN']
@@ -324,11 +337,44 @@ export class SupplierPortalService {
         where: { accessScope: { in: scopeValues }, bidProjectId: { not: null } },
         select: { bidProjectId: true },
       });
-      scopeProjectIds = docs.map(d => d.bidProjectId!).filter(Boolean);
-      if (scopeProjectIds.length === 0) {
+      scopeIds = docs.map(d => d.bidProjectId!).filter(Boolean);
+      if (scopeIds.length === 0) {
         return { total: 0, page, pageSize, items: [], scopeCounts: { open: 0, invited: 0 } };
       }
-      baseWhere.id = { in: scopeProjectIds };
+    }
+
+    // 组装 OR 可见性分支：受邀(任意未归档) + 公开(deadline 未到)，再与 scope/keyword AND
+    const orBranches: any[] = [];
+    if (supplierId) {
+      if (invitedIds.length > 0) {
+        const ids = scopeIds ? invitedIds.filter(id => scopeIds.includes(id)) : invitedIds;
+        if (ids.length > 0) orBranches.push({ id: { in: ids } });
+      }
+      if (openIds.length > 0) {
+        const ids = scopeIds ? openIds.filter(id => scopeIds.includes(id)) : openIds;
+        if (ids.length > 0) orBranches.push({ id: { in: ids }, deadline: { gt: now } });
+      }
+    } else {
+      // 无供应商上下文（防御）：沿用原"全部活跃项目"语义
+      if (scopeIds) baseWhere.id = { in: scopeIds };
+      baseWhere.deadline = { gt: now };
+    }
+    if (supplierId) {
+      if (orBranches.length === 0) {
+        return { total: 0, page, pageSize, items: [], scopeCounts: { open: 0, invited: 0 } };
+      }
+      baseWhere.OR = orBranches;
+    }
+
+    // 关键词搜索（AND）
+    if (kw) {
+      baseWhere.AND = baseWhere.AND || [];
+      baseWhere.AND.push({
+        OR: [
+          { name: { contains: kw, mode: 'insensitive' } as any },
+          { projectCode: { contains: kw, mode: 'insensitive' } as any },
+        ],
+      });
     }
 
     const where = baseWhere;
@@ -373,6 +419,13 @@ export class SupplierPortalService {
       accessScope: scopeMap[i.id] || 'OPEN',
     }));
 
+    // 富化谈判配置（来自 Redis）：采购文件获取窗口、开标时间、下载模式、文件数
+    const negoConfigs = await this.fetchNegotiationConfigs(projectIds);
+    const finalItems = enrichedItems.map(i => ({
+      ...i,
+      negotiation: negoConfigs[i.id] || null,
+    }));
+
     // 按 scope 分组计数：基于 BidProject（deadline > now）+ BidDocument accessScope，
     // 保证"全部"=所有未到期项目数，与 total 一致；公告/受邀按 BidDocument 归因。
     const allProjectIds = (
@@ -399,7 +452,99 @@ export class SupplierPortalService {
     }
     const scopeCounts = { open: openCount, invited: invitedCount };
 
-    return { total, page, pageSize, items: enrichedItems, scopeCounts };
+    return { total, page, pageSize, items: finalItems, scopeCounts };
+  }
+
+  /** 项目概览：直接读预生成缓存（采购端下发谈判配置时已 AI 融合并缓存），无实时 LLM 调用 */
+  async getBidProjectOverview(projectId: string, supplierId?: string) {
+    const cached = await this.redis.get(`negotiation-overview:${projectId}`).catch(() => null);
+    if (cached) {
+      try { return JSON.parse(cached); } catch { /* fall through */ }
+    }
+    // 无缓存（未下发谈判配置）：回退基础信息
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { name: true, procurementMethod: true, scope: true, riskNote: true },
+    });
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    return {
+      overview: `${project.name}（${project.procurementMethod}）。招标范围：${project.scope || '详见采购文件'}。${project.riskNote ? `风险提示：${project.riskNote}。` : ''}`,
+      notification: null,
+      acquireStartTime: null,
+      acquireEndTime: null,
+      bidOpeningTime: null,
+      downloadMode: null,
+    };
+  }
+
+  /** 谈判采购文件下载：校验受邀 + 获取窗口内，解析 refFileKeys/attachFileIds 为 FileAsset 列表 */
+  async getNegotiationFiles(projectId: string, supplierId: string) {
+    // 校验供应商被邀请
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
+    const roster = await this.prisma.bidSupplier.findUnique({
+      where: { projectId_supplierName: { projectId, supplierName: supplier.name } },
+    }).catch(() => null);
+    if (!roster) throw new ForbiddenException({ error: '您未被邀请参与该项目', code: 'NOT_INVITED' });
+
+    // 读 Redis 配置
+    const raw = await this.redis.get(`negotiation-config:${projectId}`);
+    if (!raw) throw new NotFoundException({ error: '该项目暂无谈判配置', code: 'NO_CONFIG' });
+    const cfg = JSON.parse(raw);
+
+    // 获取窗口校验
+    const now = Date.now();
+    const start = new Date(cfg.acquireStartTime).getTime();
+    const end = new Date(cfg.acquireEndTime).getTime();
+    if (!isNaN(start) && now < start) {
+      throw new BadRequestException({ error: '采购文件获取尚未开始', code: 'ACQUIRE_NOT_STARTED' });
+    }
+    if (!isNaN(end) && now > end) {
+      throw new BadRequestException({ error: '采购文件获取时间已截止', code: 'ACQUIRE_ENDED' });
+    }
+
+    // 解析文件：refFileKeys（FileAsset.key）+ attachFileIds（FileAsset.id）
+    const keys: string[] = cfg.refFileKeys || [];
+    const ids: string[] = cfg.attachFileIds || [];
+    const [byKey, byId] = await Promise.all([
+      keys.length > 0 ? this.prisma.fileAsset.findMany({ where: { key: { in: keys } }, select: { id: true, originalName: true, size: true, mimeType: true } }) : [],
+      ids.length > 0 ? this.prisma.fileAsset.findMany({ where: { id: { in: ids } }, select: { id: true, originalName: true, size: true, mimeType: true } }) : [],
+    ]);
+    const files = [...byKey, ...byId].filter((f, i, arr) => arr.findIndex(x => x.id === f.id) === i);
+
+    return {
+      downloadMode: cfg.downloadMode || 'free',
+      password: cfg.downloadMode === 'encrypted' ? cfg.downloadPassword : undefined,
+      paidAmount: cfg.downloadMode === 'paid' ? cfg.paidAmount : undefined,
+      acquireStartTime: cfg.acquireStartTime || null,
+      acquireEndTime: cfg.acquireEndTime || null,
+      bidOpeningTime: cfg.bidOpeningTime || null,
+      files: files.map(f => ({ id: f.id, name: f.originalName, size: f.size, mimeType: f.mimeType, url: `/api/upload/files/${f.id}` })),
+    };
+  }
+
+  /** 批量读取项目的谈判配置（Redis），返回 projectId → 配置摘要 映射 */
+  private async fetchNegotiationConfigs(projectIds: string[]): Promise<Record<string, any>> {
+    const result: Record<string, any> = {};
+    if (projectIds.length === 0) return result;
+    await Promise.all(projectIds.map(async (pid) => {
+      try {
+        const raw = await this.redis.get(`negotiation-config:${pid}`);
+        if (!raw) return;
+        const cfg = JSON.parse(raw);
+        result[pid] = {
+          acquireStartTime: cfg.acquireStartTime || null,
+          acquireEndTime: cfg.acquireEndTime || null,
+          bidOpeningTime: cfg.bidOpeningTime || null,
+          downloadMode: cfg.downloadMode || 'free',
+          fileCount: (cfg.refFileKeys?.length || 0) + (cfg.attachFileIds?.length || 0),
+        };
+      } catch { /* ignore */ }
+    }));
+    return result;
   }
 
   async getBidProject(id: string) {

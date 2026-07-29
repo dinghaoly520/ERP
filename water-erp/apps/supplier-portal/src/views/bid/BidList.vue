@@ -2,6 +2,8 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBidStore } from '@/stores/bid'
+import { bidApi } from '@/api/bid'
+import { ElMessage } from 'element-plus'
 import CountdownTimer from '@/components/CountdownTimer.vue'
 import SpPageHero from '@/components/SpPageHero.vue'
 import { Gavel, AlertTriangle } from 'lucide-vue-next'
@@ -40,6 +42,35 @@ onMounted(load)
 function isSubmitStage(stage: string) { return stage === 'SUBMIT' }
 function isDeadlineClose(deadline: string): boolean { if (!deadline) return false; const diff = (new Date(deadline).getTime() - Date.now()) / 86400000; return diff > 0 && diff <= 3 }
 function rowClass(p: any) { if (p.stage === 'SUBMIT') return 'is-submit'; if (p.stage === 'DOWNLOAD' && isDeadlineClose(p.deadline)) return 'is-dl-close'; return '' }
+
+// 谈判采购文件下载：校验获取窗口 + 权限由后端把关，前端拿到文件列表后逐个打开
+const negoLoading = ref<string>('')
+async function downloadNegotiationFiles(p: any, e: Event) {
+  e.stopPropagation()
+  negoLoading.value = p.id
+  try {
+    const res = await bidApi.getNegotiationFiles(p.id) as any
+    if (!res.files || res.files.length === 0) { ElMessage.warning('该项目暂无可下载的采购文件'); return }
+    if (res.downloadMode === 'encrypted' && res.password) {
+      ElMessage.info(`加密文件，访问密码：${res.password}`)
+    } else if (res.downloadMode === 'paid' && res.paidAmount) {
+      ElMessage.info(`付费文件，金额：¥${res.paidAmount}`)
+    }
+    res.files.forEach((f: any) => window.open(f.url, '_blank', 'noopener'))
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.error || err?.message || '文件下载失败')
+  } finally { negoLoading.value = '' }
+}
+// 获取窗口状态：未开始 / 进行中 / 已结束
+function negoWindowState(p: any): 'before' | 'open' | 'after' {
+  const n = p.negotiation; if (!n) return 'before'
+  const now = Date.now()
+  const s = new Date(n.acquireStartTime).getTime()
+  const e = new Date(n.acquireEndTime).getTime()
+  if (!isNaN(s) && now < s) return 'before'
+  if (!isNaN(e) && now > e) return 'after'
+  return 'open'
+}
 </script>
 
 <template>
@@ -75,6 +106,22 @@ function rowClass(p: any) { if (p.stage === 'SUBMIT') return 'is-submit'; if (p.
             <span class="bid-stage" :style="{ '--stage-c': stageMap[p.stage]?.color || '#94a3b8' } as any">{{ stageMap[p.stage]?.label || p.stage }}</span>
           </div>
           <div class="row-meta"><span class="meta-code">{{ p.projectCode }}</span><span class="meta-sep">·</span><span>{{ p.procurementMethod }}</span><span class="meta-sep">·</span><span>开标 {{ dayjs(p.openTime).format('MM-DD HH:mm') }}</span></div>
+          <!-- 谈判配置信息：采购文件获取窗口 + 开标时间 + 文件下载 -->
+          <div v-if="p.negotiation" class="row-nego">
+            <span class="nego-item"><span class="nego-label">采购文件获取</span><span class="nego-val">{{ dayjs(p.negotiation.acquireStartTime).format('MM-DD HH:mm') }} ~ {{ dayjs(p.negotiation.acquireEndTime).format('MM-DD HH:mm') }}</span></span>
+            <span class="nego-item"><span class="nego-label">开标时间</span><span class="nego-val">{{ dayjs(p.negotiation.bidOpeningTime).format('YYYY-MM-DD HH:mm') }}</span></span>
+            <button
+              class="neu-btn-xs nego-dl"
+              :class="{ 'is-open': negoWindowState(p) === 'open', 'is-before': negoWindowState(p) === 'before' }"
+              :disabled="negoWindowState(p) !== 'open' || negoLoading === p.id"
+              @click="downloadNegotiationFiles(p, $event)"
+            >
+              <span v-if="negoLoading === p.id">下载中…</span>
+              <span v-else-if="negoWindowState(p) === 'before'">未开放（{{ p.negotiation.fileCount }} 个文件）</span>
+              <span v-else-if="negoWindowState(p) === 'after'">已截止</span>
+              <span v-else>下载采购文件（{{ p.negotiation.fileCount }}）</span>
+            </button>
+          </div>
         </div>
         <div class="row-deadline" :class="{ 'submit-deadline': isSubmitStage(p.stage) }">
           <small>投递截止</small><strong>{{ dayjs(p.deadline).format('MM-DD HH:mm') }}</strong>
@@ -160,6 +207,16 @@ function rowClass(p: any) { if (p.stage === 'SUBMIT') return 'is-submit'; if (p.
 .row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 7px; color: var(--muted-foreground); font-size: 12px; }
 .row-meta .meta-code { font-family: 'SF Mono','JetBrains Mono',monospace; font-size: 11px; color: var(--brand); font-weight: 700; }
 .row-meta .meta-sep { color: var(--hairline); font-size: 11px; }
+
+/* 谈判配置信息行 */
+.row-nego { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: oklch(0.97 0.01 258); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.nego-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; }
+.nego-label { color: var(--muted-foreground); font-weight: 700; }
+.nego-val { color: var(--foreground); font-variant-numeric: tabular-nums; font-weight: 600; }
+.nego-dl { margin-left: auto; }
+.nego-dl.is-open { color: var(--brand); font-weight: 700; }
+.nego-dl.is-before { opacity: 0.6; cursor: not-allowed; }
+.nego-dl:disabled { cursor: not-allowed; }
 .row-deadline { padding-left: 18px; border-left: 1px solid var(--hairline); }
 .row-deadline small { display: block; color: var(--muted-foreground); font-size: 11px; }
 .row-deadline strong { display: block; color: var(--foreground); font-size: 14px; margin-top: 2px; font-variant-numeric: tabular-nums; }

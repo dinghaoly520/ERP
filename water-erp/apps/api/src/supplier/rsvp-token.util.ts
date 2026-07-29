@@ -17,7 +17,6 @@ export interface RsvpPayload {
   pid: string | null; // projectId（无项目时为 null）
   iid: string; // invitationId（批次）
   name: string; // 供应商名称（链接页展示 + 防误点）
-  summary: string; // 关键信息 JSON 文本（采购方式/预算/截止/邀请方…）
   exp: number; // 过期时间 ms
 }
 

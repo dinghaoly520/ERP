@@ -26,14 +26,13 @@ export class RsvpService {
 
   /** 校验链接 token，返回展示信息 + 当前回执状态。公开调用，失败抛错由控制器转 400。 */
   async verify(token: string): Promise<RsvpView> {
-    const ctx = verifyRsvpToken(token); // 解密 + 完整性 + token 过期校验
-    const row = await this.prisma.invitationRsvp.findFirst({
-      where: { invitationId: ctx.iid, supplierId: ctx.sid },
+    const row = await this.prisma.invitationRsvp.findUnique({
+      where: { token },
       select: { status: true, respondedAt: true, expiresAt: true, title: true, summary: true, supplierName: true, projectId: true },
     });
     if (!row) throw new NotFoundException({ error: '回执链接无效或已失效', code: 'RSVP_NOT_FOUND' });
     return {
-      supplierName: row.supplierName || ctx.name,
+      supplierName: row.supplierName,
       title: row.title,
       summary: this.parseSummary(row.summary),
       projectId: row.projectId,
@@ -49,8 +48,7 @@ export class RsvpService {
     if (body.status !== 'ACCEPTED' && body.status !== 'DECLINED') {
       throw new BadRequestException({ error: '回执状态非法', code: 'INVALID_RSVP_STATUS' });
     }
-    const ctx = verifyRsvpToken(token);
-    const row = await this.prisma.invitationRsvp.findFirst({ where: { invitationId: ctx.iid, supplierId: ctx.sid } });
+    const row = await this.prisma.invitationRsvp.findUnique({ where: { token } });
     if (!row) throw new NotFoundException({ error: '回执链接无效或已失效', code: 'RSVP_NOT_FOUND' });
     if (new Date(row.expiresAt).getTime() < Date.now()) {
       throw new BadRequestException({ error: '回执链接已过期，请联系采购方重新发送邀请', code: 'RSVP_EXPIRED' });

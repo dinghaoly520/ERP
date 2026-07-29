@@ -139,15 +139,18 @@ export class SupplierPortalController {
 
   @Get('bid-projects')
   async listBidProjects(
+    @Request() req: any,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
     @Query('scope') scope?: string,
   ) {
+    const supplierId = await this.getSupplierId(req.user.sub).catch(() => undefined);
     return this.portalService.listBidProjects(
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
       { search, scope },
+      supplierId,
     );
   }
 
@@ -156,10 +159,22 @@ export class SupplierPortalController {
     return this.portalService.getBidProject(id);
   }
 
+  @Get('bid-projects/:id/overview')
+  async getBidProjectOverview(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getBidProjectOverview(id, supplierId);
+  }
+
   @Get('bid-projects/:id/bid-document')
   async getBidProjectDocument(@Request() req: any, @Param('id') id: string) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.getBidProjectDocument(id, supplierId);
+  }
+
+  @Get('bid-projects/:id/negotiation-files')
+  async getNegotiationFiles(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getNegotiationFiles(id, supplierId);
   }
 
   // ─── 澄清答疑 ───

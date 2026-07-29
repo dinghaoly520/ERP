@@ -90,7 +90,7 @@ export function getSupplierStats() {
 }
 
 // AI 智能推荐供应商（按采购需求）
-export function recommendSuppliers(data: { requirement: string; classificationId?: string; tags?: string[]; maxCount?: number }) {
+export function recommendSuppliers(data: { requirement: string; classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[] }) {
   return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
 }
 
@@ -120,7 +120,7 @@ export function generateNotificationContent(data: {
   budgetAmount?: string; requesterDepartment?: string; requesterName?: string;
   projectReason?: string; fileAnalysisContext?: string; validityDays?: number;
 }) {
-  return api.post<{ title: string; body: string; rsvpTokens: Record<string, string> }>('/ai/generate-notification', data);
+  return api.post<{ title: string; body: string; rsvpTokens: Record<string, string>; invitationId: string | null }>('/ai/generate-notification', data);
 }
 
 // ── 选取历史 ──
@@ -163,6 +163,23 @@ export interface NotifySuppliersResult {
 }
 export function notifySuppliers(data: { supplierIds: string[]; channels: string[]; type: string; title: string; content: string; link?: string }) {
   return api.post<NotifySuppliersResult>('/supplier/notify', data);
+}
+
+// ── 谈判采购配置下发（附件步骤确认后，后台推送给供应商端）──
+export interface NegotiationConfigPayload {
+  projectId: string;
+  supplierIds: string[];
+  acquireStartTime: string;
+  acquireEndTime: string;
+  bidOpeningTime: string;
+  refFileKeys: string[];
+  attachFileIds: string[];
+  downloadMode: 'free' | 'encrypted' | 'paid';
+  downloadPassword?: string;
+  paidAmount?: string;
+}
+export function sendNegotiationConfig(data: NegotiationConfigPayload) {
+  return api.post<{ delivered: number }>('/supplier/negotiation-config', data);
 }
 
 // ── 邀请回执看板（采购端）──

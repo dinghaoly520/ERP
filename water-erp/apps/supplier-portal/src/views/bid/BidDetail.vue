@@ -8,7 +8,7 @@ import { announcementApi } from '@/api/announcement'
 import { bidApi } from '@/api/bid'
 import { uploadFile } from '@/api/upload'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { FileText, AlertTriangle, Lock, Upload, Download } from 'lucide-vue-next'
+import { FileText, AlertTriangle, Lock, Upload, Download, Sparkles, Loader2 } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const route = useRoute()
@@ -90,6 +90,17 @@ const replyOpen = ref<string | null>(null); const replyText = ref(''); const rep
 async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入函件内容'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim(), attachAssetId.value || undefined); ElMessage.success('来函已提交'); questionText.value = ''; attachAssetId.value = ''; attachUploadRef.value?.clearFiles(); await bidStore.fetchProject(projectId.value) } catch { /* 拦截器已提示 */ } questionPosting.value = false }
 function openReply(id: string) { replyOpen.value = id; replyText.value = '' }
 function closeReply() { replyOpen.value = null; replyText.value = '' }
+
+// AI 融合概览（采购内容 + 通知内容 + 两个时间）
+const overview = ref<any>(null)
+const overviewLoading = ref(false)
+function fmtTime(t: string) { return t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '—' }
+async function loadOverview() {
+  overviewLoading.value = true
+  try { overview.value = await bidApi.getProjectOverview(projectId.value) as any }
+  catch { /* 拦截器已提示 */ }
+  finally { overviewLoading.value = false }
+}
 async function postReply(id: string) { if (!replyText.value.trim()) { ElMessage.warning('请输入回复'); return }; replyPosting.value = true; try { await bidApi.createQuestion(projectId.value, replyText.value.trim()); ElMessage.success('回复已提交'); closeReply(); await bidStore.fetchProject(projectId.value) } catch { /* 拦截器已提示 */ } replyPosting.value = false }
 // U6：附件上传失败 → toast + 清 assetId；re-throw 让 el-upload 将文件标红
 async function handleAttachUpload(opt: any) {
@@ -129,8 +140,8 @@ function formatContent(raw: string): string {
     .join('\n')
 }
 
-onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } catch { error.value = true } finally { loading.value = false } })
-async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc() } catch { error.value = true } finally { loading.value = false } }
+onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc(); loadOverview() } catch { error.value = true } finally { loading.value = false } })
+async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc(); loadOverview() } catch { error.value = true } finally { loading.value = false } }
 function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.status !== 'APPROVED') { ElMessage.warning('只有已入库供应商可以提交标书'); return } router.push(`/bids/${projectId.value}/submit`) }
 </script>
 
@@ -180,6 +191,34 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
         <span v-if="showSupplierCount">投标方<strong>{{ supplierCount }} 家</strong></span>
       </div>
 
+      <!-- ═══ AI 融合概览（采购内容 + 通知 + 两个时间）═══ -->
+      <div class="overview-card neu-card">
+        <div class="ov-head">
+          <span class="ov-head-icon"><el-icon :size="16"><Sparkles /></el-icon></span>
+          <h3>项目概览</h3>
+        </div>
+        <div v-if="overviewLoading" class="ov-loading"><el-icon :size="18" class="is-loading"><Loader2 /></el-icon><span>正在生成项目概览…</span></div>
+        <template v-else-if="overview">
+          <p class="ov-text">{{ overview.overview }}</p>
+          <!-- 两个时间 -->
+          <div v-if="overview.acquireStartTime || overview.bidOpeningTime" class="ov-times">
+            <div v-if="overview.acquireStartTime" class="ov-time-item">
+              <span class="ov-time-label">采购文件获取</span>
+              <span class="ov-time-val">{{ fmtTime(overview.acquireStartTime) }} ~ {{ fmtTime(overview.acquireEndTime) }}</span>
+            </div>
+            <div v-if="overview.bidOpeningTime" class="ov-time-item">
+              <span class="ov-time-label">开标时间</span>
+              <span class="ov-time-val">{{ fmtTime(overview.bidOpeningTime) }}</span>
+            </div>
+          </div>
+          <!-- 通知原文 -->
+          <details v-if="overview.notification" class="ov-notif">
+            <summary>查看邀请通知原文</summary>
+            <div class="ov-notif-body">{{ overview.notification }}</div>
+          </details>
+        </template>
+      </div>
+
       <!-- ═══ 公告正文 ═══ -->
       <div class="content-card neu-card">
         <!-- 公告结构化信息（镜像信息发布中心） -->
@@ -190,12 +229,8 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           </div>
         </div>
 
-        <!-- 招标条件 -->
-        <div v-if="project.scope || project.qualification || project.contact || project.qualityRequirement" class="cc-conds">
-          <div v-if="project.scope" class="cc-cond">
-            <span class="cc-cond-hd">招标范围</span>
-            <p class="cc-cond-bd">{{ project.scope }}</p>
-          </div>
+        <!-- 招标条件（招标范围已融入上方项目概览，此处不再单独展示） -->
+        <div v-if="project.qualification || project.contact || project.qualityRequirement" class="cc-conds">
           <div v-if="project.qualification" class="cc-cond">
             <span class="cc-cond-hd">资质要求</span>
             <p class="cc-cond-bd">{{ project.qualification }}</p>
@@ -357,6 +392,24 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 .content-card {
   margin-top: 16px; padding: 28px;
 }
+
+/* AI 融合概览卡片 */
+.overview-card { margin-top: 16px; padding: 22px 26px; }
+.ov-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+.ov-head-icon { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.ov-head h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--foreground); }
+.ov-head-tag { font-size: 10px; font-weight: 800; color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, transparent); padding: 2px 8px; border-radius: 999px; letter-spacing: 0.04em; }
+.ov-loading { display: flex; align-items: center; gap: 9px; color: var(--muted-foreground); font-size: 13px; padding: 8px 0; }
+.ov-loading .is-loading { animation: spin 1s linear infinite; color: var(--brand); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ov-text { margin: 0 0 16px; font-size: 14px; line-height: 1.85; color: var(--foreground); white-space: pre-line; }
+.ov-times { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.ov-time-item { display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border-radius: 10px; background: oklch(0.97 0.01 258); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); flex: 1; min-width: 200px; }
+.ov-time-label { font-size: 11px; font-weight: 700; color: var(--muted-foreground); }
+.ov-time-val { font-size: 13px; font-weight: 700; color: var(--brand-deep); font-variant-numeric: tabular-nums; }
+.ov-notif { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.ov-notif summary { font-size: 12px; font-weight: 700; color: var(--brand); cursor: pointer; }
+.ov-notif-body { margin-top: 10px; font-size: 13px; line-height: 1.8; color: var(--muted-foreground); white-space: pre-line; }
 /* 公告结构化信息条 — 镜像信息发布中心，仅展示有值字段 */
 .cc-meta {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));

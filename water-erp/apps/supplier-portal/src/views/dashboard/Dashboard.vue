@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSupplierStore } from '@/stores/supplier'
 import { useNotificationStore } from '@/stores/notification'
@@ -29,6 +29,17 @@ onMounted(async () => {
       notifStore.fetchNotifications(1, 10),
     ])
   } catch { error.value = true } finally { loading.value = false }
+})
+
+// 每 30s 轮询新通知，有新消息自动刷新列表
+let notifTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  notifTimer = setInterval(() => {
+    notifStore.fetchNotifications(1, 10).catch(() => {})
+  }, 30_000)
+})
+onBeforeUnmount(() => {
+  if (notifTimer) clearInterval(notifTimer)
 })
 
 async function retryLoad() {
@@ -139,6 +150,36 @@ const notifFeed = computed(() =>
       color: NOTIF_COLORS[n.type] || NOTIF_COLORS.SYSTEM,
     }))
 )
+
+// ── 通知详情弹窗 ──
+const notifDetail = ref<any>(null)
+const notifDetailVisible = computed({
+  get: () => notifDetail.value !== null,
+  set: (v) => { if (!v) notifDetail.value = null },
+})
+function openNotifDetail(n: any) {
+  notifDetail.value = { ...n }
+}
+/** 识别纯文本中的换行与 URL，转为 HTML；其余文本转义防 XSS。末尾 2 行作为落款右对齐。 */
+function linkify(text: string): string {
+  if (!text) return ''
+  const escaped = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const lines = escaped.split('\n')
+  // 末尾 2 行为落款（发件机构 + 日期），右对齐；其余为正文
+  const sigLen = Math.min(2, lines.length)
+  const bodyLines = lines.slice(0, -sigLen)
+  const sigLines = lines.slice(-sigLen)
+  let html = bodyLines.join('<br>')
+  html = html.replace(
+    /(https?:\/\/[^\s<>"'{}|]+)/g,
+    '<a href="$1" target="_blank" rel="noopener" class="notif-link">$1</a>',
+  )
+  if (sigLines.length > 0) {
+    html += '<div class="nd-signature">' + sigLines.join('<br>') + '</div>'
+  }
+  return html
+}
 
 // ── Days since registration ──
 const daysSinceReg = computed(() => {
@@ -420,7 +461,7 @@ async function submitConvert() {
                 :key="n.id"
                 class="db-msg-row"
                 :class="{ unread: !n.isRead, 'is-last': idx === notifFeed.length - 1 }"
-                @click="router.push('/notifications')"
+                @click="openNotifDetail(n)"
               >
                 <span class="db-msg-dot" :style="{ '--c': n.color.dot, '--g': n.color.glow } as any" />
                 <div class="db-msg-body">
@@ -520,6 +561,20 @@ async function submitConvert() {
       <template #footer>
         <el-button @click="convertDialog = false">取消</el-button>
         <el-button type="primary" :loading="convertLoading" @click="submitConvert">提交转正申请</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 通知详情弹窗（cgzxui neumorphic） -->
+    <el-dialog v-model="notifDetailVisible" :title="notifDetail?.title || '通知详情'" width="600px" destroy-on-close @closed="notifDetail = null" class="neumorphic-dlg">
+      <div v-if="notifDetail" class="nd-body">
+        <span class="nd-time">{{ dayjs(notifDetail.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
+        <div class="nd-content" v-html="linkify(notifDetail.content)" />
+      </div>
+      <template #footer>
+        <div class="nd-footer">
+          <button v-if="notifDetail && !notifDetail.isRead" class="nd-btn nd-btn--danger" @click="notifStore.markAsRead(notifDetail.id); notifDetail.isRead = true">标为已读</button>
+          <button class="nd-btn nd-btn--soft" @click="notifDetailVisible = false">关闭</button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -668,5 +723,108 @@ async function submitConvert() {
 @media (max-width: 760px) {
   .cv-contact-row, .cv-qual-row { flex-wrap: wrap; }
   .cv-ci-name, .cv-ci-phone, .cv-ci-email, .cv-ci-position, .cv-qs-type, .cv-qs-name, .cv-qs-date { width: 100%; flex: auto; }
+}
+
+/* 通知详情弹窗（scoped body） */
+.nd-body { padding: 4px 0; }
+.nd-time { font-size: 12px; color: var(--muted-foreground); display: block; margin-bottom: 14px; }
+.nd-content { margin: 0; font-size: 14px; color: var(--foreground); line-height: 1.8; word-break: break-word; }
+.nd-footer { display: flex; gap: 10px; justify-content: flex-end; }
+</style>
+
+<style>
+/* ═══ cgzxui neumorphic 通知弹窗（teleported → 非 scoped）═══ */
+.neumorphic-dlg { --nd-bg: oklch(0.975 0.012 258); }
+/* 蒙层 */
+.neumorphic-dlg .el-overlay { background: oklch(0.35 0.06 258 / 0.28) !important; }
+/* 面板 — 玻璃渐变底 + 方向性双影 + 内高光线，无外侧框线 */
+.neumorphic-dlg .el-dialog {
+  border: none !important;
+  border-radius: 20px !important;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)) !important;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18) !important;
+}
+/* 标题栏 — hairline 底部分割 */
+.neumorphic-dlg .el-dialog__header {
+  padding: 22px 26px 16px;
+  margin: 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.neumorphic-dlg .el-dialog__title {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--foreground);
+  letter-spacing: -0.01em;
+}
+/* 关闭按钮 — neumorphic 图标按钮 */
+.neumorphic-dlg .el-dialog__headerbtn {
+  position: absolute !important;
+  top: 16px !important;
+  right: 22px;
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.neumorphic-dlg .el-dialog__headerbtn:hover {
+  color: var(--brand);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.neumorphic-dlg .el-dialog__headerbtn .el-dialog__close { color: var(--muted-foreground); font-weight: 700; }
+/* 内容区 */
+.neumorphic-dlg .el-dialog__body { padding: 18px 26px; word-break: break-word; }
+/* 底栏 — hairline 分割 + 半透底 */
+.neumorphic-dlg .el-dialog__footer {
+  padding: 16px 26px;
+  border-top: 1px solid var(--hairline);
+  background: oklch(1 0 0 / 0.3);
+  border-radius: 0 0 20px 20px;
+}
+
+/* ── neumorphic 按钮（三态：凸起→抬升→内凹）── */
+.nd-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 22px; border-radius: 9px; border: none;
+  font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: all 0.18s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+/* 次要按钮（关闭）— 凸起表面 */
+.nd-btn--soft {
+  background: var(--surface); color: var(--foreground);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+}
+.nd-btn--soft:hover { color: var(--brand); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9); }
+.nd-btn--soft:active { transform: translateY(0);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
+/* danger 按钮（标为已读）— 品牌色实心 + 凸起投影 */
+.nd-btn--danger {
+  background: var(--danger); color: #fff;
+  box-shadow: 3px 3px 6px oklch(0.5 0.16 27 / 0.22), -2px -2px 5px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.2);
+}
+.nd-btn--danger:hover { transform: translateY(-1px);
+  box-shadow: 4px 4px 10px oklch(0.45 0.16 27 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.25); }
+.nd-btn--danger:active { transform: translateY(0);
+  box-shadow: inset 2px 2px 5px oklch(0.45 0.16 27 / 0.25), inset -2px -2px 5px oklch(1 0 0 / 0.4); }
+/* disabled */
+.nd-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.nd-btn--soft:disabled { box-shadow: 2px 2px 4px oklch(0.5 0.05 258 / 0.15), -1px -1px 3px oklch(1 0 0 / 0.4); }
+.nd-btn--danger:disabled { box-shadow: 2px 2px 4px oklch(0.5 0.16 27 / 0.12), -1px -1px 3px oklch(1 0 0 / 0.3); }
+
+/* ── 内容中的可点击链接 ── */
+.notif-link { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.notif-link:hover { color: var(--brand-deep); }
+
+/* 落款右对齐 */
+.nd-signature { text-align: right; margin-top: 14px; color: var(--muted-foreground); font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .neumorphic-dlg .el-dialog__headerbtn,
+  .neumorphic-dlg .el-dialog,
+  .nd-btn { transition: none; }
+  .nd-btn:hover { transform: none; }
 }
 </style>
