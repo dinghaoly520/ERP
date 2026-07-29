@@ -7,6 +7,7 @@ import NotificationBell from './notification-bell';
 import RecentProjects from './recent-projects';
 import {
   Gavel,
+  Archive,
   LogOut,
   ChevronDown,
   ChevronLeft,
@@ -25,10 +26,11 @@ interface NavItem {
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 }
 
-// Phase 3：:3007 为纯开标执行终端，仅余开标大厅一个业务入口（任务板 + 大厅）。
-// 项目管理 / 评标 / 澄清 / 归档全部归 :3005 采购管理工作台。
+// Phase 3 + 归档恢复：:3007 为纯开标执行终端，仅开标大厅 + 归档端（只读回看）。
+// 项目管理 / 评标 / 澄清 / 归档操作全部归 :3005 采购管理工作台。
 const navItems: NavItem[] = [
   { label: '开标大厅', caption: '开标任务 · 在线开标', path: '/bid', icon: Gavel },
+  { label: '归档端', caption: '已归档项目', path: '/bid/archive', icon: Archive },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -50,7 +52,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   // 单一入口：任务板(/bid) 与开标大厅(/bid/open) 均高亮
-  const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
+  const isActive = (path: string) => {
+    if (path === '/bid') return pathname === '/bid' || (pathname.startsWith('/bid/') && !pathname.startsWith('/bid/archive'));
+    return pathname === path || pathname.startsWith(path + '/');
+  };
 
   const registeredName = user?.displayName?.trim() || user?.username || '用户';
   const userInitial = registeredName.slice(0, 1);

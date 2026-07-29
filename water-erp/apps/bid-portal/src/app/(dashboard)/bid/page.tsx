@@ -8,6 +8,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { RefreshCw, Gavel, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ExternalLink, ChevronRight } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
@@ -69,7 +70,7 @@ export default function BidTaskBoard() {
   // 评标中 / 已结束：dashboard 已返回全阶段项目，前端分组渲染为可进入工作区的入口
   // （评标管理 tab 现从 OPENING 起启用，故 EVALUATING 项目可直达评标 tab 看真实数据）
   const evaluating = (projects ?? []).filter(p => p.stage === 'EVALUATING');
-  const ended = (projects ?? []).filter(p => p.stage === 'ARCHIVED' || p.stage === 'ABORTED');
+
 
   const enterHall = (id: string) => router.push(`/bid/project/${id}`);
 
@@ -205,37 +206,11 @@ export default function BidTaskBoard() {
             )}
           </section>
 
-          {/* ── 已结束（归档 / 流标，只读回看：进工作区看终局横幅与开标记录）── */}
-          <section>
-            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">已结束 · {ended.length}</h2>
-            {ended.length === 0 ? (
-              <div className="neu-card-static px-6 py-6 text-center text-[12px] text-[color:var(--muted-foreground)]">暂无已结束项目</div>
-            ) : (
-              <div className="space-y-2">
-                {ended.map(p => {
-                  const aborted = p.stage === 'ABORTED';
-                  return (
-                    <button key={p.id} type="button" onClick={() => enterHall(p.id)}
-                      className="neu-card-static group flex w-full flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-3.5 text-left opacity-95">
-                      <div className="min-w-0 flex-1">
-                        <span className="mr-2 font-mono text-[12px] font-semibold text-[color:var(--muted-foreground)]">{p.projectCode}</span>
-                        <span className="text-[13px] font-semibold text-[color:var(--foreground)]">{p.name}</span>
-                      </div>
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${aborted ? 'bg-[oklch(0.66_0.175_27_/_0.14)] text-[var(--danger)]' : 'bg-[oklch(0.71_0.11_164_/_0.14)] text-[var(--success)]'}`}>
-                        {aborted ? '已流标' : '已归档'}
-                      </span>
-                      <ChevronRight size={13} className="text-[color:var(--muted-foreground)]" />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
 
           {/* ── 跨端入口 ── */}
           <div className="neu-card-static flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
             <p className="text-[12px] text-[color:var(--muted-foreground)]">
-              评标管理 / 评分标准可在此只读查看；澄清答疑 / 评标操作 / 归档 → 在采购管理工作台的项目「开标确认」面板中操作
+              已归档项目请前往<Link href="/bid/archive" className="font-semibold text-[color:var(--accent-strong)] underline underline-offset-2">归档端</Link>查看 · 评标管理 / 评分标准可在此只读查看；澄清答疑 / 评标操作 / 归档 → 在采购管理工作台的项目「开标确认」面板中操作
             </p>
             <a href={portalURL('web', '/projects')} target="_blank" rel="noopener" className="neu-btn-soft">
               <ExternalLink size={13} /> 前往采购管理工作台
