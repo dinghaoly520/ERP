@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertCircle, TrendingUp, Lightbulb, MessageSquare, Edit3 } from 'lucide-react';
-import type { AssistData, AiScoreItem, BidScoreItem } from '@water-erp/shared';
+import { AlertCircle, TrendingUp, Lightbulb, MessageSquare } from 'lucide-react';
+import type { AssistData, AiScoreItem } from '@water-erp/shared';
 import { CollapsibleSection } from './shared/collapsible-section';
 import { SectionHeader } from './shared/section-header';
 import { SwCard, type SwItem } from './shared/sw-card';
@@ -78,83 +78,6 @@ function ClauseEvidence({ resp }: { resp: AssistData['requirementResponses'] }) 
   );
 }
 
-// ── ExpertComparisonTable（含理由对照列）──
-
-function ExpertComparisonTable({
-  myScoredItems,
-  scoreItems,
-  expertScores,
-  activeSupplier,
-}: {
-  myScoredItems: BidScoreItem[];
-  scoreItems: AiScoreItem[];
-  expertScores: Record<string, { score: number; reason: string }>;
-  activeSupplier: string;
-}) {
-  return (
-    <div className="neu-card-static p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <Edit3 size={14} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
-        <h4 className="text-sm font-bold text-[var(--foreground)]">AI 建议 vs 您的评分</h4>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-[var(--muted-foreground)] shadow-[inset_0_-1px_0_oklch(0.55_0.03_258/0.1)]">
-              <th className="pb-2 text-left font-medium">评分项</th>
-              <th className="pb-2 text-right font-medium">AI 建议</th>
-              <th className="pb-2 text-right font-medium">您的评分</th>
-              <th className="pb-2 text-right font-medium">偏差</th>
-              <th className="pb-2 text-left font-medium">理由对照</th>
-            </tr>
-          </thead>
-          <tbody>
-            {myScoredItems.map((si) => {
-              const aiItem = scoreItems.find((a) => a.scoreItemId === si.id);
-              const myScore = expertScores[`${activeSupplier}:${si.id}`];
-              const aiScore = aiItem ? Number(aiItem.score) : null;
-              const diff = aiScore != null ? Number(myScore.score) - aiScore : null;
-              return (
-                <tr key={si.id} className="[&>td]:border-t [&>td]:border-[oklch(0.55_0.03_258/0.06)]">
-                  <td className="py-2 text-[var(--muted-foreground)]">{si.name}</td>
-                  <td className="py-2 text-right font-semibold text-[var(--accent-strong)]">
-                    {aiScore != null ? aiScore.toFixed(1) : '—'}
-                  </td>
-                  <td className="py-2 text-right font-bold text-[var(--foreground)]">
-                    {Number(myScore.score).toFixed(1)}
-                  </td>
-                  <td
-                    className={`py-2 text-right text-xs font-semibold ${
-                      diff != null && Math.abs(diff) >= 2
-                        ? 'text-[var(--danger)]'
-                        : diff != null && Math.abs(diff) >= 1
-                          ? 'text-[var(--warning)]'
-                          : 'text-[var(--success)]'
-                    }`}
-                  >
-                    {diff != null ? (diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)) : '—'}
-                  </td>
-                  <td className="max-w-[200px] py-2 text-[11px] text-[var(--muted-foreground)]">
-                    <div className="truncate" title={aiItem?.reason}>
-                      AI：{aiItem?.reason ?? '—'}
-                    </div>
-                    <div className="truncate" title={myScore?.reason}>
-                      我：{myScore?.reason ?? '—'}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-        偏差 ≥2 分标红，≥1 分标黄，建议复核相应评分依据。
-      </p>
-    </div>
-  );
-}
-
 // ── Summary ──
 
 function Summary({ assistData }: { assistData: AssistData }) {
@@ -224,25 +147,12 @@ function Summary({ assistData }: { assistData: AssistData }) {
 
 export function ScoringLayer({
   assistData,
-  expertScores,
-  activeSupplier,
-  projectScoreItems,
 }: {
   assistData: AssistData;
-  expertScores: Record<string, { score: number; reason: string }>;
-  activeSupplier: string;
-  projectScoreItems: BidScoreItem[];
 }) {
   const items = assistData.scoreItems ?? [];
   const price = items.filter((i) => i.category === 'PRICE');
   const subjective = items.filter((i) => i.category === 'BUSINESS' || i.category === 'TECHNICAL');
-
-  // 专家已打分项（用于偏差表门控）
-  const myScoredItems = projectScoreItems.filter((si) => {
-    const key = `${activeSupplier}:${si.id}`;
-    return expertScores[key] && !['QUALIFICATION', 'RESPONSIVE', 'PRICE'].includes(si.category);
-  });
-  const hasComparison = !!(activeSupplier && subjective.length > 0 && myScoredItems.length > 0);
 
   return (
     <section className="space-y-4">
@@ -287,15 +197,6 @@ export function ScoringLayer({
               (r) => r.category === 'technical' || r.category === 'commercial',
             )}
           />
-          {/* AI vs 专家偏差表（回看才出现） */}
-          {hasComparison && (
-            <ExpertComparisonTable
-              myScoredItems={myScoredItems}
-              scoreItems={subjective}
-              expertScores={expertScores}
-              activeSupplier={activeSupplier}
-            />
-          )}
         </div>
       )}
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { Sparkles, AlertCircle } from 'lucide-react';
-import type { AssistData, BidScoreItem } from '@water-erp/shared';
+import type { AssistData } from '@water-erp/shared';
 import { StatusBar } from './status-bar';
 import { GateLayer } from './gate-layer';
 import { EvidenceLayer } from './evidence-layer';
@@ -16,8 +16,6 @@ interface AssistPanelProps {
   activeSupplier: string;
   supplierName: string;
   decryptStatus: string;
-  expertScores: Record<string, { score: number; reason: string }>;
-  projectScoreItems: BidScoreItem[];
   projectId: string;
   onRetry: () => void;
 }
@@ -34,8 +32,6 @@ export function AssistPanel({
   activeSupplier,
   supplierName,
   decryptStatus,
-  expertScores,
-  projectScoreItems,
   projectId,
   onRetry,
 }: AssistPanelProps) {
@@ -119,12 +115,7 @@ export function AssistPanel({
       <EvidenceLayer assistData={assistData} supplierName={supplierName} />
 
       {/* ③ 打分层（客观价格/主观商务技术/综合） */}
-      <ScoringLayer
-        assistData={assistData}
-        expertScores={expertScores}
-        activeSupplier={activeSupplier}
-        projectScoreItems={projectScoreItems}
-      />
+      <ScoringLayer assistData={assistData} />
 
       {/* ── 单供应商区 / 跨供应商区分隔线 ── */}
       <div className="flex items-center gap-4 pt-2">

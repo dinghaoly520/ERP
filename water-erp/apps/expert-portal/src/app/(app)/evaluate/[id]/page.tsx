@@ -1216,8 +1216,6 @@ export default function ExpertEvaluatePage() {
                 activeSupplier={activeSupplier}
                 supplierName={project.suppliers.find(s => s.id === activeSupplier)?.supplierName || '请选择'}
                 decryptStatus={project.suppliers.find(s => s.id === activeSupplier)?.decryptStatus ?? ''}
-                expertScores={scores}
-                projectScoreItems={project.scoreItems}
                 projectId={projectId}
                 onRetry={() => activeSupplier && loadAssist(activeSupplier)}
               />
