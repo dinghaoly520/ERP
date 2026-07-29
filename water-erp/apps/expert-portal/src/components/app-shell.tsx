@@ -108,8 +108,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   const activeKey = keyForPath(pathname);
-  const registeredName = user?.displayName?.trim() || user?.username || '专家';
-  const userInitial = registeredName.slice(0, 1);
 
   return (
     <div className="flow-page ambient-grid flex h-screen flex-col overflow-hidden px-2.5 pb-2.5 text-[var(--foreground)] sm:px-3.5 lg:pl-0 lg:pr-4">
@@ -194,13 +192,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* 侧栏底栏 —— 用户信息 + 退出 */}
+          {/* 侧栏底栏 —— 退出 */}
           <div className="px-2.5 pb-3 pt-2">
             <div aria-hidden className="mx-1 mb-2.5 h-px bg-[linear-gradient(90deg,transparent,rgba(160,178,210,0.6),transparent)]" />
-            <div className="exp-user-chip mb-2">
-              <span className="exp-user-chip-avatar">{userInitial}</span>
-              <span className="min-w-0 flex-1 truncate text-sm font-bold text-[color:var(--foreground)]">{registeredName}</span>
-            </div>
             <button onClick={logout} className="neu-btn-soft is-danger w-full justify-center">
               <LogOut size={15} strokeWidth={1.7} />
               <span>退出登录</span>

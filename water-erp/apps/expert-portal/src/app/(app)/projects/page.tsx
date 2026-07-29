@@ -20,6 +20,13 @@ export default function ExpertProjectsPage() {
   const [overviewProject, setOverviewProject] = useState<ExpertProject | null>(null);
 
   useEffect(() => {
+    // 支持 ?filter=reviewable|archived|all 预选 tab
+    const params = new URLSearchParams(window.location.search);
+    const f = params.get('filter');
+    if (f === 'reviewable' || f === 'archived' || f === 'all') setFilter(f);
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
     api.get<ExpertProject[]>('/expert/projects')
       .then(setProjects)
