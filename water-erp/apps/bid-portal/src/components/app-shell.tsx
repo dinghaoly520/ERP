@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
-import RecentProjects from './recent-projects';
 import {
   Gavel,
   Archive,
@@ -132,8 +131,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 </button>
               );
             })}
-
-            <RecentProjects />
           </nav>
 
           {/* 右边缘折叠手柄 —— 点击向左折叠 */}
