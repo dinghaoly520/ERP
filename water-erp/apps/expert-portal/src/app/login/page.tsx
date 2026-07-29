@@ -15,6 +15,12 @@ const IconLock = (
 const IconArrow = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
 );
+const IconEye = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+);
+const IconEyeOff = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+);
 
 type Tab = 'expert' | 'admin';
 
@@ -40,6 +46,7 @@ export default function ExpertLoginPage() {
   const [tab, setTab] = useState<Tab>(fromInvitation ? 'expert' : 'admin');
   const [form, setForm] = useState(fromInvitation ? { ...DEMO_ACCOUNTS.expert } : { ...DEMO_ACCOUNTS.admin });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('forceLogin') !== '1') return;
@@ -155,10 +162,19 @@ export default function ExpertLoginPage() {
           <div className="login-field-shell">
             <label htmlFor="exp-pass" className="sr-only">密码</label>
             <span aria-hidden className="login-field-shell__icon-rail">{IconLock}</span>
-            <input id="exp-pass" className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[#9aa7ba]"
-              type="password" autoComplete="current-password"
+            <input id="exp-pass" className="login-field-input w-full bg-transparent pb-4 pl-[3rem] pr-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[#9aa7ba]"
+              type={showPassword ? "text" : "password"} autoComplete="current-password"
               value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               placeholder="请输入密码" />
+            <button
+              type="button"
+              className="login-field-shell__password-toggle"
+              onClick={() => setShowPassword(v => !v)}
+              aria-label={showPassword ? '隐藏密码' : '显示密码'}
+              tabIndex={-1}
+            >
+              {showPassword ? IconEyeOff : IconEye}
+            </button>
             <span aria-hidden className="login-field-shell__line" />
           </div>
 

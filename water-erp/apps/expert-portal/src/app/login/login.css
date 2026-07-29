@@ -199,6 +199,33 @@
   color: var(--muted-foreground);
   transition: transform 240ms var(--ease-out-quint), color 240ms var(--ease-out-quint);
 }
+.login-field-shell__password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  z-index: 3;
+  display: inline-flex;
+  height: 32px;
+  width: 32px;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  color: var(--muted-foreground);
+  background: none;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 200ms ease, background 200ms ease;
+}
+.login-field-shell__password-toggle:hover {
+  color: var(--accent);
+  background: oklch(0.62 0.128 247 / 0.08);
+}
+.login-field-shell__password-toggle:active {
+  color: var(--accent);
+  background: oklch(0.62 0.128 247 / 0.14);
+}
 .login-field-shell__line {
   position: absolute;
   left: 16px;
