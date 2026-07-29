@@ -12,6 +12,7 @@ export interface RsvpView {
   projectId: string | null;
   status: RsvpStatus;
   respondedAt: string | null;
+  rsvpNo: string | null;
   expired: boolean;
   expiresAt: string;
 }
@@ -28,7 +29,7 @@ export class RsvpService {
   async verify(token: string): Promise<RsvpView> {
     const row = await this.prisma.invitationRsvp.findUnique({
       where: { token },
-      select: { status: true, respondedAt: true, expiresAt: true, title: true, summary: true, supplierName: true, projectId: true },
+      select: { id: true, status: true, respondedAt: true, expiresAt: true, title: true, summary: true, supplierName: true, projectId: true },
     });
     if (!row) throw new NotFoundException({ error: '回执链接无效或已失效', code: 'RSVP_NOT_FOUND' });
     return {
@@ -38,6 +39,7 @@ export class RsvpService {
       projectId: row.projectId,
       status: row.status as RsvpStatus,
       respondedAt: row.respondedAt ? row.respondedAt.toISOString() : null,
+      rsvpNo: row.id ? row.id.slice(-8).toUpperCase() : null,
       expired: new Date(row.expiresAt).getTime() < Date.now(),
       expiresAt: row.expiresAt.toISOString(),
     };

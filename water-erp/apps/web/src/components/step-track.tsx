@@ -74,7 +74,7 @@ export function StepTrack({ steps, current, onStepClick, reachable }: StepTrackP
       {barMetrics && (
         <div
           className="step-track__groove"
-          style={{ left: barMetrics.left, width: barMetrics.width }}
+          style={{ position: 'absolute', left: barMetrics.left, width: barMetrics.width }}
         />
       )}
 
@@ -82,7 +82,7 @@ export function StepTrack({ steps, current, onStepClick, reachable }: StepTrackP
       {barMetrics && (
         <div
           className="step-track__progress"
-          style={{ left: barMetrics.left, width: barMetrics.width }}
+          style={{ position: 'absolute', left: barMetrics.left, width: barMetrics.width }}
         >
           <div
             className="step-track__progress-fill"

@@ -7,6 +7,7 @@ export interface RsvpView {
   projectId: string | null
   status: 'PENDING' | 'ACCEPTED' | 'DECLINED'
   respondedAt: string | null
+  rsvpNo: string | null
   expired: boolean
   expiresAt: string
 }

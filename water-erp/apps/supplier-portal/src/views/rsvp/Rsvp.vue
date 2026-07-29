@@ -30,6 +30,10 @@ async function load() {
   try {
     const v = await verifyRsvp(token.value)
     view.value = v
+    // 已回执：直接从 verify 数据初始化 done 状态（含回执号）
+    if (v.status !== 'PENDING' && v.respondedAt && v.rsvpNo) {
+      done.value = { status: v.status, rsvpNo: v.rsvpNo, respondedAt: v.respondedAt }
+    }
     phase.value = 'ready'
   } catch (e: any) {
     phase.value = 'invalid'

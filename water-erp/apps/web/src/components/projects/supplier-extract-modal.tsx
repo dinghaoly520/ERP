@@ -1,7 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Building2, X } from 'lucide-react';
+import { Suspense, useEffect } from 'react';
+import { Building2, X } from 'lucide-react';
 import { SupplierSelectionPage } from '@/app/(main)/supplier/selection/page';
 import { RulesPopover } from '@/components/rules-popover';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
@@ -13,17 +13,6 @@ type Props = {
 };
 
 export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
-  const [ready, setReady] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setReady(false);
-      return;
-    }
-    setReady(true);
-  }, [isOpen]);
-
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -104,34 +93,17 @@ export function SupplierExtractModal({ isOpen, onClose, project }: Props) {
               'inset 2px 3px 8px oklch(0.5 0.04 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.55)',
           }}
         >
-          {ready ? (
-            <Suspense fallback={
-              <div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">
-                加载供应商邀请配置...
-              </div>
-            }>
-              <SupplierSelectionPage
-                hideHeader
-                defaultProjectTitle={project?.title}
-                project={project}
-              />
-            </Suspense>
-          ) : (
-            <div className="flex-1 flex items-center justify-center min-h-[300px]">
-              <div className="flex flex-col items-center gap-4 w-full max-w-[400px]">
-                <RefreshCw size={36} className="text-[var(--success)] animate-spin" />
-                <div className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-                  AI 正在准备供应商邀请
-                </div>
-                <div className="text-[11px] text-[var(--muted-foreground)] text-center leading-[1.55]">
-                  正在加载采购项目上下文与供应商分类，准备按需求语义匹配候选供应商，请稍候…
-                </div>
-                <div className="w-full h-1.5 rounded-full bg-[oklch(0.55_0.03_258_/_0.1)] overflow-hidden">
-                  <div className="h-full rounded-full animate-loading-progress" style={{ background: 'linear-gradient(90deg, oklch(0.55 0.14 150 / 0.9), oklch(0.6 0.1 150 / 0.7))' }} />
-                </div>
-              </div>
+          <Suspense fallback={
+            <div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">
+              加载供应商邀请配置...
             </div>
-          )}
+          }>
+            <SupplierSelectionPage
+              hideHeader
+              defaultProjectTitle={project?.title}
+              project={project}
+            />
+          </Suspense>
         </div>
       </div>
     </div>

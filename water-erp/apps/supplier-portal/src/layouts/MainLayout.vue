@@ -74,7 +74,11 @@ async function handleNotifOpen() {
 
 function goToNotif(n: any) {
   notifPopover.value = false
-  if (n.link) router.push(n.link)
+  if (n.link) {
+    // 通知 link 可能是完整 URL（如 http://localhost:3004/rsvp?t=xxx），Vue Router push 只接受路径
+    const url = new URL(n.link, window.location.origin)
+    router.push(url.pathname + url.search + url.hash)
+  }
   if (!n.isRead) notifStore.markAsRead(n.id)
 }
 

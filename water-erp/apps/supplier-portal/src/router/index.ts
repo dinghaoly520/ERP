@@ -138,25 +138,21 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
-  // 公开页（如回执 /rsvp）：登录与否都直接放行，不强制登录、也不把已登录者弹走。
-  if (to.meta.public) return next()
+  // 公开页（如回执 /rsvp）：登录与否都直接放行
+  if (to.meta.public) return true
 
-  // Initialize auth state on first navigation
+  // 首次导航：localStorage 有缓存但 store 未初始化时，恢复会话
   if (!authStore.user && localStorage.getItem('supplier_user')) {
-    await authStore.init()
+    await authStore.init().catch(() => {})
   }
 
   if (to.meta.guest) {
-    // Public homepage quick-entry uses forceLogin=1 so users must re-enter
-    // credentials even if this portal already has a cached session.
     if (to.query.forceLogin === '1') return true
-
-    // Guest pages — redirect to dashboard if already logged in
     if (authStore.isLoggedIn) return '/dashboard'
     return true
   }
 
-  // Protected pages — redirect to login if not authenticated
+  // 受保护页 — 未登录跳登录页
   if (!authStore.isLoggedIn) return '/login'
 
   return true

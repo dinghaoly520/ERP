@@ -2355,23 +2355,23 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
 
     const fileSummaries = (payload.files || [])
       .map(f => `- ${f.fileName}：${f.stageMatch}\n  摘要：${f.contentSummary}`)
-      .join('\n') || '（无文件分析结果）';
+      .join('\n') || '（本次未提供任何文件分析结果——凡需要文件证据支撑的审查项，按"材料未提供"处理，不得判"通过"。）';
 
     const systemPrompt = [
       '你是"水叮当"——四川水发集团招采ERP的 AI 采购合规审查专家，负责对采购项目的每个阶段进行合规性审查。',
       '',
       '# 角色设定',
       '你是一位在国有企业采购管理领域有15年经验的合规审计专家，现转型为 AI 审查助手。你的审查风格：',
-      '- 以"善意推断"为原则：信息不足或未提及的内容，默认视为已满足要求（判"通过"），除非有明确证据表明不满足。',
-      '- 不要因为信息缺失就判"警告"——只有在发现明确不完善、矛盾或缺失关键要素时才降级。',
-      '- 仅当文件内容或项目信息中存在明确违反法规要求的证据时，才判"违规"。',
+      '- 严格以证据为准：结论只能建立在"项目信息"与"文件分析结果"中真实存在的内容之上，不得凭空假设材料里有什么。',
+      '- 严禁任何形式的"放行推定"：信息不足时不得假设材料已满足要求，不得编造文件内容，必须如实标注材料缺失并据此降级，绝不得据此判"通过"。',
+      '- 不得编造文件内容：若某审查项依赖文件证据、而相应文件或其内容摘要未提供，必须如实写明"未提供/未见相关内容"，并据此降级，绝不得判"通过"。',
       '',
       '# 审查方法',
-      '你需要对照审查要点（checkpoints），逐一分析项目信息和文件内容，给出每项审查结论。',
-      '审查结论分为三种（注意：默认倾向"通过"）：',
-      '- "通过"：项目信息/文件内容符合要求，或当前信息不足以否定合规性（善意推定）。大部分检查项应属于此类。',
-      '- "警告"：存在轻微不完善之处、信息模糊或部分关键要素缺失，但未达到严重违规程度。仅在有具体证据支持时使用。',
-      '- "违规"：明确违反法规要求，或文件内容与审查要点存在严重冲突。必须引用具体证据，一般不会超过 1-2 项。',
+      '对照审查要点（checkpoints），逐项核对项目信息与文件内容，给出每项结论。结论严格按证据判定，不预设各等级的比例或分布。',
+      '审查结论分为三种：',
+      '- "通过"：仅当项目信息或文件内容中确有可印证该要点的内容时才判通过；信息不足以印证时不得判通过。',
+      '- "警告"：所需文件未提供、关键内容缺失、信息模糊或部分要素缺失时判警告，并给出补充该材料后复审的建议。',
+      '- "违规"：明确违反法规要求，或文件内容与审查要点存在严重冲突；必须引用具体证据。',
       '',
       '# 输出格式',
       '严格返回 JSON（不要任何其他文本、代码块标记或解释）：',
@@ -2381,7 +2381,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       '      "checkpoint": "审查项名称（与输入中的 name 字段一致）",',
       '      "dimension": "审查维度",',
       '      "verdict": "通过 / 警告 / 违规",',
-      '      "evidence": "证据描述（40-80字），引用项目信息或文件内容中的具体事实",',
+      '      "evidence": "证据描述（40-80字），必须引用项目信息或文件内容中的具体事实；若材料缺失，如实写明缺什么（例：未提供采购文件，无法核实是否含基本要素）。",',
       '      "suggestion": "整改建议（20-50字），仅在 verdict 为"警告"或"违规"时提供，否则为空字符串",',
       '      "regulationRef": "法规依据（与输入一致）"',
       '    }',
@@ -2417,37 +2417,22 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       checkpointsText,
     ].join('\n');
 
-    try {
-      const result = await this.llm.chatJson<{
-        results: Array<{ checkpoint: string; dimension: string; verdict: string; evidence: string; suggestion: string; regulationRef: string }>;
-        summary: string;
-      }>(systemPrompt, userPrompt, 0.1);
+    const result = await this.llm.chatJson<{
+      results: Array<{ checkpoint: string; dimension: string; verdict: string; evidence: string; suggestion: string; regulationRef: string }>;
+      summary: string;
+    }>(systemPrompt, userPrompt, 0.1);
 
-      return {
-        results: (result.results || []).map(r => ({
-          checkpoint: r.checkpoint || '',
-          dimension: r.dimension || '',
-          verdict: (['通过', '警告', '违规'].includes(r.verdict) ? r.verdict : '警告') as '通过' | '警告' | '违规',
-          evidence: r.evidence || '',
-          suggestion: r.verdict === '通过' ? '' : (r.suggestion || ''),
-          regulationRef: r.regulationRef || '',
-        })),
-        summary: result.summary || '合规审查完成。',
-      };
-    } catch (err) {
-      this.logger.error('auditStageCompliance AI call failed:', err instanceof Error ? err.message : String(err));
-      return {
-        results: payload.checkpoints.map(c => ({
-          checkpoint: c.name,
-          dimension: c.dimension,
-          verdict: '警告' as const,
-          evidence: 'AI 审查服务暂不可用，请稍后重试。',
-          suggestion: '请人工核实此审查项。',
-          regulationRef: c.regulationRef,
-        })),
-        summary: 'AI 合规审查服务当前不可用，已记录所有审查要点供人工查阅。',
-      };
-    }
+    return {
+      results: (result.results || []).map(r => ({
+        checkpoint: r.checkpoint || '',
+        dimension: r.dimension || '',
+        verdict: (['通过', '警告', '违规'].includes(r.verdict) ? r.verdict : '警告') as '通过' | '警告' | '违规',
+        evidence: r.evidence || '',
+        suggestion: r.verdict === '通过' ? '' : (r.suggestion || ''),
+        regulationRef: r.regulationRef || '',
+      })),
+      summary: result.summary || '合规审查完成。',
+    };
   }
 
   // ── 选取历史持久化（#13 落库）：替代多实例不安全的 JSON 文件存储（跨进程 read-modify-write 会丢记录/分裂/阻塞事件循环）。

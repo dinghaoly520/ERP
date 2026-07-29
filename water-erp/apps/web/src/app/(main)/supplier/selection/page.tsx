@@ -116,8 +116,12 @@ export function SupplierSelectionPage({
   const loadRsvpList = useCallback(async () => {
     const pid = projectId || (project as any)?.id;
     if (!pid) { setRsvpList(null); return; }
-    try { setRsvpList(await getRsvpList({ projectId: pid })); } catch { setRsvpList(null); }
+    try {
+      const data = await getRsvpList({ projectId: pid });
+      setRsvpList(data);
+    } catch { setRsvpList(null); }
   }, [projectId, project]);
+
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
@@ -138,7 +142,7 @@ export function SupplierSelectionPage({
     // 补选模式：最后一步名改为「补选」，追加 3 步
     const baseRenumbered = base.map((s, i) => ({ ...s, num: i + 1 }));
     const lastIdx = baseRenumbered.length - 1;
-    baseRenumbered[lastIdx] = { ...baseRenumbered[lastIdx], label: '补选' };
+    baseRenumbered[lastIdx] = { ...baseRenumbered[lastIdx], label: '正选确认并补选' };
     RERUN_EXTRA_STEPS.forEach((e, i) => {
       baseRenumbered.push({ num: baseRenumbered.length + 1, label: e.label, desc: e.desc });
     });
@@ -227,6 +231,9 @@ export function SupplierSelectionPage({
   const [paidAmount, setPaidAmount] = useState('');
   // 项目时间确认
   const [timeConfirmed, setTimeConfirmed] = useState(false);
+  // 确认配置下发状态
+  const [configSending, setConfigSending] = useState(false);
+  const [configSent, setConfigSent] = useState(false);
 
   // ── 补选状态 ──
   const [showRerunDialog, setShowRerunDialog] = useState(false);
@@ -236,6 +243,7 @@ export function SupplierSelectionPage({
   const [rerunLoading, setRerunLoading] = useState(false);
   const [rerunManualSearch, setRerunManualSearch] = useState('');
   const [rerunManualSuppliers, setRerunManualSuppliers] = useState<Supplier[]>([]);
+  const [showRerunManualAdd, setShowRerunManualAdd] = useState(false);
   const [rerunManualLoading, setRerunManualLoading] = useState(false);
   const [rerunNotifyPerSupplier, setRerunNotifyPerSupplier] = useState<Map<string, { title: string; body: string }>>(new Map());
   const [rerunNotified, setRerunNotified] = useState(false);
@@ -255,6 +263,7 @@ export function SupplierSelectionPage({
   const [manualSuppliers, setManualSuppliers] = useState<Supplier[]>([]);
   const [manualLoading, setManualLoading] = useState(false);
   const [manualTotal, setManualTotal] = useState(0);
+  const [showManualAdd, setShowManualAdd] = useState(false);
 
   // 项目文件分析上下文（用于 AI 润色时提供真实文件内容）
   const [fileContextLoaded, setFileContextLoaded] = useState(false);
@@ -319,12 +328,42 @@ export function SupplierSelectionPage({
         if (state.manualSearch) setManualSearch(state.manualSearch);
         if (state.manualSuppliers) setManualSuppliers(state.manualSuppliers);
         if (state.manualTotal) setManualTotal(state.manualTotal);
+        // 恢复补选状态
+        if (state.isRerun) setIsRerun(true);
+        if (state.rerunMode) setRerunMode(state.rerunMode);
+        if (state.rerunResult) setRerunResult(state.rerunResult);
+        if (state.rerunNotified) setRerunNotified(true);
+        if (state.rerunShortlistArr) {
+          const m = new Map<string, { item: SupplierRecommendation; note: string }>();
+          (state.rerunShortlistArr as [string, any][]).forEach(([k, v]) => m.set(k, v));
+          setRerunShortlist(m);
+        }
+        if (state.rerunConfirmationsArr) {
+          const cm = new Map<string, 'pending' | 'confirmed' | 'declined'>();
+          (state.rerunConfirmationsArr as [string, string][]).forEach(([k, v]) => cm.set(k, v as 'pending' | 'confirmed' | 'declined'));
+          setRerunConfirmations(cm);
+        }
+        if (state.rerunNotifyPerSupplierArr) {
+          const m = new Map<string, { title: string; body: string }>();
+          (state.rerunNotifyPerSupplierArr as [string, { title: string; body: string }][]).forEach(([k, v]) => m.set(k, v));
+          setRerunNotifyPerSupplier(m);
+        }
+        // 恢复附件 + 下载方式 + 时间确认
+        if (state.configSent) setConfigSent(true);
+        if (state.timeConfirmed) setTimeConfirmed(true);
+        if (Array.isArray(state.attachFiles)) setAttachFiles(state.attachFiles);
+        if (Array.isArray(state.refFileKeys)) setRefFileKeys(new Set(state.refFileKeys));
+        if (state.downloadMode) setDownloadMode(state.downloadMode);
+        if (state.downloadPassword) setDownloadPassword(state.downloadPassword);
+        if (state.paidAmount) setPaidAmount(state.paidAmount);
       }
     } catch {}
   }, []);
 
-  // 输入状态变化时持久化到 sessionStorage
+  // 输入状态变化时持久化到 sessionStorage（跳过首次渲染，避免覆盖恢复的状态）
+  const firstPersistSkip = useRef(true);
   useEffect(() => {
+    if (firstPersistSkip.current) { firstPersistSkip.current = false; return; }
     try {
       sessionStorage.setItem(sessionKey, JSON.stringify({
         requirement, selectedTags, projectId, step,
@@ -336,9 +375,21 @@ export function SupplierSelectionPage({
         notifyPerSupplierArr: [...notifyPerSupplier.entries()],
         notifyRsvpTokens,
         manualSearch, manualSuppliers, manualTotal,
+        // 补选状态
+        isRerun,
+        rerunShortlistArr: [...rerunShortlist.entries()],
+        rerunConfirmationsArr: [...rerunConfirmations.entries()],
+        rerunResult: rerunResult ? { ...rerunResult, recommendations: rerunResult.recommendations.slice(0, 20) } : null,
+        rerunNotified,
+        rerunNotifyPerSupplierArr: [...rerunNotifyPerSupplier.entries()],
+        rerunMode,
+        // 附件 + 下载方式 + 时间确认
+        configSent, timeConfirmed,
+        attachFiles, refFileKeys: [...refFileKeys],
+        downloadMode, downloadPassword, paidAmount,
       }));
     } catch {}
-  }, [requirement, selectedTags, projectId, step, result, shortlist, notified, notifyNotFound, completed, confirmations, selectionMode, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal]);
+  }, [requirement, selectedTags, projectId, step, result, shortlist, notified, notifyNotFound, completed, confirmations, selectionMode, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
 
   // 加载项目文件分析上下文（用于 AI 润色 + 标签预选；步骤 1 即加载，手动模式据此预填标签）
@@ -425,7 +476,7 @@ export function SupplierSelectionPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileContextLoaded, selectionMode, tagVocab.length, selectedProject?.id, project?.id]);
 
-  // 模态入口：自动匹配项目，但优先恢复 session 中保存的步骤（不强制覆盖到第 2 步）
+  // 模态入口：自动匹配项目 ID；步骤由 session 恢复决定（首次进入=步骤 1，再次进入=上次步骤）
   const autoMatchedRef = useRef(false);
   useEffect(() => {
     if (!defaultProjectTitle || !projects.length || autoMatchedRef.current) return;
@@ -433,10 +484,8 @@ export function SupplierSelectionPage({
     if (!match) return;
     autoMatchedRef.current = true;
     setProjectId(match.id);
-    // 仅当 session 中没有恢复跳步且当前仍在第 1 步时才自动跳到第 2 步
-    const saved = (() => { try { return JSON.parse(sessionStorage.getItem(sessionKey) || 'null'); } catch { return null; } })();
-    if (!saved?.step || saved.step <= 1) setStep(2);
-  }, [defaultProjectTitle, projects, sessionKey]);
+    // 不强制跳步——首次进入停留在步骤 1，session 恢复由 restored effect 处理
+  }, [defaultProjectTitle, projects]);
 
   const run = async () => {
     if (!requirement.trim()) { setError('请先描述采购需求'); return; }
@@ -714,8 +763,6 @@ export function SupplierSelectionPage({
   };
 
   // 确认配置：将谈判配置（时间/附件/下载方式）后台推送给供应商端
-  const [configSending, setConfigSending] = useState(false);
-  const [configSent, setConfigSent] = useState(false);
   const handleConfirmConfig = async () => {
     const pid = projectId || (project as any)?.id;
     if (!pid) { toast.error('未关联项目'); return; }
@@ -742,7 +789,7 @@ export function SupplierSelectionPage({
   };
   const downloadList = () => { if (shortlist.size === 0) return; const blob = new Blob([buildExportText()], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `供应商候选名单_${new Date().toISOString().slice(0, 10)}.txt`; a.click(); URL.revokeObjectURL(url); };
 
-  const reset = () => { setStep(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); try { sessionStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} };
+  const reset = () => { setStep(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setPaidAmount(''); setShowManualAdd(false); setShowRerunManualAdd(false); try { sessionStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} };
 
   // ── 补选 handlers ──
   const openRerun = () => setShowRerunDialog(true);
@@ -762,7 +809,8 @@ export function SupplierSelectionPage({
     setRerunLoading(true);
     const excludeIds = [...shortlist.keys()];
     const need = (pendingCount + declinedCount) + 1;
-    recommendSuppliers({ requirement: requirement.trim() || (selectedProject?.name || ''), tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds })
+    const rerunReq = requirement.trim() || selectedProject?.name || project?.title || '';
+    recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds })
       .then(res => { setRerunResult(res); setRerunLoading(false); })
       .catch(() => { setRerunLoading(false); toast.error('补选推荐失败'); });
   };
@@ -792,35 +840,38 @@ export function SupplierSelectionPage({
     setRerunManualLoading(false);
   };
 
-  const rerunGenerateNotify = async () => {
-    if (rerunShortlist.size === 0) { toast.error('请先加入补选供应商'); return; }
-    setNotifyAiLoading(true);
-    try {
-      const snames = [...rerunShortlist.values()].map(({ item: r }) => r.name);
-      const sids = [...rerunShortlist.keys()];
-      const res = await generateNotificationContent({
-        supplierNames: snames, supplierIds: sids,
-        projectName: selectedProject?.name ?? project?.title,
-        projectCode: selectedProject?.projectCode,
-        projectId: selectedProject?.id ?? projectId,
-        procurementMethod: project?.procurementMethod ?? selectedProject?.procurementMethod,
-        procurementCategory: project?.procurementCategory,
-        budgetAmount: project?.contractAmount != null ? `最高限价 ${Number(project.contractAmount).toLocaleString('zh-CN')} 元` : project?.budgetAmount != null ? `项目预算 ${Number(project.budgetAmount).toLocaleString('zh-CN')} 元` : undefined,
-        requesterDepartment: project?.requesterDepartment,
-        deadline: '',
-        fileAnalysisContext: '',
-      });
-      const perSupplier = new Map<string, { title: string; body: string }>();
-      const ds = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-      for (const [sid, { item: r }] of rerunShortlist) {
-        const link = (res.rsvpTokens || {})[sid] || '';
-        perSupplier.set(sid, { title: res.title, body: `${r.name} 您好！\n\n${res.body.replace(/\{rsvpLink\}/g, link)}\n\n四川水发集团\n${ds}` });
-      }
-      setRerunNotifyPerSupplier(perSupplier);
-      toast.success('AI 已生成补选通知');
-    } catch (e: any) { toast.error(e?.message || '生成失败'); }
-    setNotifyAiLoading(false);
-  };
+  // 进入补选通知步骤时自动填充：沿用确认通知的内容模板，仅更新 RSVP 链接
+  useEffect(() => {
+    if (step !== rerunNotifyStep || !isRerun) return;
+    if (rerunShortlist.size === 0 || notifyPerSupplier.size === 0) return;
+    (async () => {
+      try {
+        // 取第一家模板（移除抬头和落款，保留正文本体）
+        const firstEntry = [...notifyPerSupplier.values()][0];
+        const templateTitle = firstEntry?.title || '';
+        let templateBody = firstEntry?.body || '';
+        templateBody = templateBody.replace(/^[^\n]+您好！\n\n/, '').replace(/\n\n四川水发集团\n[^\n]*$/, '');
+        // 将原链接换回占位符
+        templateBody = templateBody.replace(/https?:\/\/[^\s]+/g, '{rsvpLink}');
+        if (!templateBody) return;
+        // 为补选供应商获取新 RSVP 令牌
+        const sids = [...rerunShortlist.keys()];
+        const snames = [...rerunShortlist.values()].map(({ item: r }) => r.name);
+        const res = await generateNotificationContent({
+          supplierNames: snames, supplierIds: sids,
+          projectName: selectedProject?.name ?? project?.title,
+          projectId: selectedProject?.id ?? projectId,
+        });
+        const perSupplier = new Map<string, { title: string; body: string }>();
+        const ds = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+        for (const [sid, { item: r }] of rerunShortlist) {
+          const link = (res.rsvpTokens || {})[sid] || '';
+          perSupplier.set(sid, { title: templateTitle, body: `${r.name} 您好！\n\n${templateBody.replace(/\{rsvpLink\}/g, link)}\n\n四川水发集团\n${ds}` });
+        }
+        setRerunNotifyPerSupplier(perSupplier);
+      } catch {}
+    })();
+  }, [step, rerunNotifyStep, isRerun, rerunShortlist, notifyPerSupplier, selectedProject, project, projectId]);
 
   const handleRerunNotify = async () => {
     if (rerunNotifyPerSupplier.size === 0) { toast.error('请先生成补选通知内容'); return; }
@@ -914,6 +965,45 @@ export function SupplierSelectionPage({
   const confirmedCount = [...confirmations.values()].filter(s => s === 'confirmed').length;
   const declinedCount = [...confirmations.values()].filter(s => s === 'declined').length;
   const pendingCount = shortlist.size - confirmedCount - declinedCount;
+
+  // 过滤 RSVP 列表：仅展示当前候选名单中供应商的回执记录
+  const filteredRsvp = useMemo(() => {
+    if (!rsvpList) return null;
+    const supplierIds = new Set([...shortlist.keys(), ...rerunShortlist.keys()]);
+    // 同一供应商可能有多轮 RSVP 记录，去重按 supplierId 取最后一条
+    const latestBySupplier = new Map<string, typeof rsvpList.items[number]>();
+    for (const it of rsvpList.items) {
+      if (supplierIds.has(it.supplierId)) latestBySupplier.set(it.supplierId, it);
+    }
+    if (latestBySupplier.size === 0) return null;
+    const items = [...latestBySupplier.values()];
+    const counts = { ACCEPTED: 0, DECLINED: 0, PENDING: 0 };
+    for (const it of items) counts[it.status]++;
+    return { ...rsvpList, total: items.length, items, counts };
+  }, [rsvpList, shortlist, rerunShortlist]);
+
+  // 同步 RSVP 回执到 confirmations（仅覆盖仍为 pending 的）
+  useEffect(() => {
+    if (!filteredRsvp?.items?.length) return;
+    setConfirmations(prev => {
+      const n = new Map(prev);
+      for (const item of filteredRsvp.items) {
+        if (n.has(item.supplierId) && n.get(item.supplierId) === 'pending') {
+          n.set(item.supplierId, item.status === 'ACCEPTED' ? 'confirmed' : item.status === 'DECLINED' ? 'declined' : 'pending');
+        }
+      }
+      return n;
+    });
+    setRerunConfirmations(prev => {
+      const n = new Map(prev);
+      for (const item of filteredRsvp.items) {
+        if (n.has(item.supplierId) && n.get(item.supplierId) === 'pending') {
+          n.set(item.supplierId, item.status === 'ACCEPTED' ? 'confirmed' : item.status === 'DECLINED' ? 'declined' : 'pending');
+        }
+      }
+      return n;
+    });
+  }, [filteredRsvp]);
 
   // ── 第 3 步：候选名单 sidebar ──
   const shortlistPanel = (
@@ -1102,6 +1192,7 @@ export function SupplierSelectionPage({
                   </div>
                 )}
               </div>
+              {selectionMode === 'ai' && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">业务标签<span className="ml-1 normal-case font-medium text-[var(--muted-foreground)]/70">（AI 预填 · 可搜索、删减、补充）</span></label>
@@ -1191,6 +1282,7 @@ export function SupplierSelectionPage({
                   })()}
                 </div>
               </div>
+              )}
             </div>
           </div>
 
@@ -1291,10 +1383,61 @@ export function SupplierSelectionPage({
                 <div className="flex items-center gap-2 text-[10px] font-semibold text-[var(--muted-foreground)]">
                   <button onClick={() => handleBatchAdd()} className="neu-btn-xs gap-1"><ListPlus size={12} />全部加入</button>
                   <span className="text-[var(--muted-foreground)]/40">|</span>
-                  {[3, 5, 8, 10].map(n => (
-                    <button key={n} onClick={() => handleBatchAdd(n)} className="neu-btn-xs">{n} 名</button>
-                  ))}
+                  <button onClick={() => setShowManualAdd(v => !v)} className={`neu-btn-xs gap-1 ${showManualAdd ? 'is-active' : ''}`}>
+                    <Search size={12} />手动补充
+                  </button>
                 </div>
+
+                {/* 手动补充搜索面板 */}
+                {showManualAdd && (
+                  <div className="rounded-[16px] p-4 space-y-3" style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                        <input value={manualSearch} onChange={e => { setManualSearch(e.target.value); if (!e.target.value.trim()) { setManualSuppliers([]); setManualTotal(0); } }}
+                          onKeyDown={e => { if (e.key === 'Enter') handleManualSearch(); }}
+                          placeholder="搜索供应商名称、标签或经营范围..." className="workbench-input w-full !pl-9 !pr-8 text-sm" />
+                        {manualSearch && (
+                          <button type="button" onClick={() => { setManualSearch(''); setManualSuppliers([]); setManualTotal(0); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--muted-foreground)]/50 transition hover:text-[var(--muted-foreground)]">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <button onClick={handleManualSearch} disabled={manualLoading} className="neu-btn-soft text-sm gap-1.5">
+                        <Search size={14} />{manualLoading ? '搜索中…' : '搜索'}
+                      </button>
+                    </div>
+                    {manualSearch.trim() && manualSuppliers.length > 0 && (
+                      <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                        {manualSuppliers.map(s => {
+                          const inList = shortlist.has(s.id);
+                          return (
+                            <div key={s.id} className={`flex items-center justify-between rounded-[14px] p-3 ${inList ? 'ring-2 ring-[var(--success)]/20' : ''}`} style={{ background: 'oklch(1 0 0 / 0.5)' }}>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span>
+                                  {(s as any).enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType((s as any).enterpriseType)}</span>}
+                                  {inList && <span className="text-[10px] font-bold text-[var(--success)]">✓ 已加入</span>}
+                                </div>
+                                {(s as any).tags?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {(s as any).tags.slice(0, 5).map((tg: string) => (
+                                      <span key={tg} className="inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]" style={{ background: 'color-mix(in oklch, var(--accent) 9%, transparent)' }}>{tg}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <button onClick={() => toggleManualSupplier(s)} className={`neu-btn-xs flex-shrink-0 ${inList ? 'is-danger' : 'is-success'}`}>
+                                {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 推荐列表 */}
                 {result.recommendations.map((r, idx) => {
@@ -1564,12 +1707,7 @@ export function SupplierSelectionPage({
               </div>
 
               {/* 发送操作栏 */}
-              <div className="flex items-center justify-between pt-1">
-                {projectId ? (
-                  <button onClick={handleInvite} disabled={inviting} className="neu-btn-soft text-sm gap-1.5">
-                    <Send size={14} />{inviting ? '发送中…' : '发送项目邀请'}
-                  </button>
-                ) : <div />}
+              <div className="flex items-center justify-end pt-1">
                 <button onClick={handleNotify} disabled={notifySending || notifyPerSupplier.size === 0} className="neu-btn-primary !h-9 !text-xs gap-2">
                   <Bell size={13} />{notifySending ? '发送中…' : `一键通知 ${notifyPerSupplier.size} 家供应商`}
                 </button>
@@ -1850,19 +1988,19 @@ export function SupplierSelectionPage({
                 </div>
 
                 {/* ── 邀请回执看板：供应商点击通知内回执链接后的「参加/不参加」结果（来自系统记录） ── */}
-                {rsvpList && rsvpList.total > 0 && (
+                {filteredRsvp && filteredRsvp.total > 0 && (
                   <div className="rounded-[16px] p-4 space-y-3" style={{ background: 'color-mix(in oklch, var(--accent) 5%, oklch(1 0 0 / 0.5))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 1px 1px 3px oklch(0.55 0.03 258 / 0.06)' }}>
                     <div className="flex items-center justify-between">
                       <h4 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">邀请回执（供应商链接回执）</h4>
                       <button onClick={() => loadRsvpList()} className="neu-btn-xs gap-1"><RefreshCw size={11} />刷新</button>
                     </div>
                     <div className="flex items-center gap-3 text-[11px] tabular-nums">
-                      <span className="font-bold text-[var(--success)]">{rsvpList.counts.ACCEPTED} 确认参加</span>
-                      <span className="font-bold text-[var(--danger)]">{rsvpList.counts.DECLINED} 无法参加</span>
-                      <span className="text-[var(--muted-foreground)]">{rsvpList.counts.PENDING} 未回执</span>
+                      <span className="font-bold text-[var(--success)]">{filteredRsvp.counts.ACCEPTED} 确认参加</span>
+                      <span className="font-bold text-[var(--danger)]">{filteredRsvp.counts.DECLINED} 无法参加</span>
+                      <span className="text-[var(--muted-foreground)]">{filteredRsvp.counts.PENDING} 未回执</span>
                     </div>
                     <div className="space-y-1">
-                      {rsvpList.items.filter(it => it.status !== 'PENDING').map(it => (
+                      {filteredRsvp.items.filter(it => it.status !== 'PENDING').map(it => (
                         <div key={it.rsvpNo} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[11px]" style={{ background: 'oklch(1 0 0 / 0.5)' }}>
                           <span className={`font-extrabold ${it.status === 'ACCEPTED' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>{it.status === 'ACCEPTED' ? '✓' : '✕'}</span>
                           <span className="font-bold text-[var(--foreground)] truncate">{it.supplierName}</span>
@@ -1879,9 +2017,15 @@ export function SupplierSelectionPage({
                 <button onClick={() => setStep(neg ? attachStep : 4)} className="neu-btn-soft gap-2">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：{neg ? '附件选择' : '确认通知'}
                 </button>
-                <button onClick={openRerun} className="neu-btn-soft gap-2">
-                  <Plus size={14} />补选
-                </button>
+                {isRerun ? (
+                  <button onClick={() => setStep(rerunPickStep)} className="neu-btn-soft gap-2">
+                    下一步：补选候选<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                ) : (
+                  <button onClick={openRerun} className="neu-btn-soft gap-2">
+                    <Plus size={14} />补选
+                  </button>
+                )}
               </div>
             </>
           ) : (
@@ -1920,8 +2064,55 @@ export function SupplierSelectionPage({
                   </div>
                   <div className="flex items-center gap-2 mt-3">
                     <button onClick={() => { const toAdd = rerunResult.recommendations; setRerunShortlist(prev => { const nm = new Map(prev); for (const r of toAdd) nm.set(r.supplierId, { item: r, note: '' }); return nm; }); }} className="neu-btn-xs gap-1"><ListPlus size={12} />全部加入</button>
-                    {[3,5,8].map(n => <button key={n} onClick={() => { const toAdd = rerunResult.recommendations.slice(0, n); setRerunShortlist(prev => { const nm = new Map(prev); for (const r of toAdd) nm.set(r.supplierId, { item: r, note: '' }); return nm; }); }} className="neu-btn-xs">{n} 名</button>)}
+                    <span className="text-[var(--muted-foreground)]/40">|</span>
+                    <button onClick={() => setShowRerunManualAdd(v => !v)} className={`neu-btn-xs gap-1 ${showRerunManualAdd ? 'is-active' : ''}`}>
+                      <Search size={12} />手动补充
+                    </button>
                   </div>
+
+                  {/* 手动补充搜索面板 */}
+                  {showRerunManualAdd && (
+                    <div className="rounded-[16px] p-4 space-y-3 mt-3" style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.75)' }}>
+                      <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                          <input value={rerunManualSearch} onChange={e => { setRerunManualSearch(e.target.value); if (!e.target.value.trim()) { setRerunManualSuppliers([]); } }}
+                            onKeyDown={e => { if (e.key === 'Enter') handleRerunManualSearch(); }}
+                            placeholder="搜索供应商名称、标签或经营范围..." className="workbench-input w-full !pl-9 !pr-8 text-sm" />
+                          {rerunManualSearch && (
+                            <button type="button" onClick={() => { setRerunManualSearch(''); setRerunManualSuppliers([]); }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--muted-foreground)]/50 transition hover:text-[var(--muted-foreground)]">
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                        <button onClick={handleRerunManualSearch} disabled={rerunManualLoading} className="neu-btn-soft text-sm gap-1.5">
+                          <Search size={14} />{rerunManualLoading ? '搜索中…' : '搜索'}
+                        </button>
+                      </div>
+                      {rerunManualSearch.trim() && rerunManualSuppliers.length > 0 && (
+                        <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                          {rerunManualSuppliers.map(s => {
+                            const inRerun = rerunShortlist.has(s.id);
+                            const inOriginal = shortlist.has(s.id);
+                            if (inOriginal) return null;
+                            return (
+                              <div key={s.id} className={`flex items-center justify-between rounded-[14px] p-3 ${inRerun ? 'ring-2 ring-[var(--success)]/20' : ''}`} style={{ background: 'oklch(1 0 0 / 0.5)' }}>
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span>
+                                  {(s as any).enterpriseType && <span className="neu-tab-count ml-2">{normalizeEnterpriseType((s as any).enterpriseType)}</span>}
+                                  {inRerun && <span className="text-[10px] font-bold text-[var(--success)] ml-2">✓ 已加入</span>}
+                                </div>
+                                <button onClick={() => toggleRerunManual(s)} className={`neu-btn-xs flex-shrink-0 ${inRerun ? 'is-danger' : 'is-success'}`}>
+                                  {inRerun ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {/* 推荐列表 */}
                 {rerunResult.recommendations.map((r, idx) => {
@@ -1935,22 +2126,45 @@ export function SupplierSelectionPage({
                           style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))', boxShadow: '0 2px 6px oklch(0.5 0.12 258 / 0.3)' }}>{idx + 1}</span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                            <span className="text-sm font-bold text-[var(--foreground)]">{r.name}</span>
+                            <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)] transition" onClick={() => openSupplierDetail(r)}>{r.name}</span>
                             {r.enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType(r.enterpriseType)}</span>}
+                            {(r as any).evaluation && (
+                              <span className="inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[10px] font-extrabold text-white tabular-nums"
+                                style={{ background: (r as any).evaluation.level === 'A' ? 'var(--success)' : (r as any).evaluation.level === 'B' ? 'var(--accent)' : (r as any).evaluation.level === 'C' ? 'var(--warning)' : (r as any).evaluation.level === 'D' ? '#ca8a04' : 'var(--danger)' }}>
+                                {(r as any).evaluation.level}
+                              </span>
+                            )}
                             {inList && <span className="text-[10px] font-bold text-[var(--success)]">✓ 已入选</span>}
                           </div>
+                          {r.tags && r.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {r.tags.slice(0, 6).map((tg: string) => (
+                                <span key={tg} className="inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]"
+                                  style={{ background: 'color-mix(in oklch, var(--accent) 9%, transparent)' }}>{tg}</span>
+                              ))}
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 mb-2">
                             <div className="flex-1 h-1.5 rounded-full overflow-hidden max-w-[200px]" style={{ background: 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)' }}>
                               <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${r.matchScore}%`, background: scoreVar(r.matchScore) }} />
                             </div>
                             <strong className="text-xs tabular-nums font-extrabold" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</strong>
+                            <span className="rounded-[4px] px-1.5 py-0.5 text-[9px] font-bold" style={{ color: scoreVar(r.matchScore), background: `color-mix(in oklch, ${scoreVar(r.matchScore)} 14%, transparent)` }}>{scoreLabel(r.matchScore)}</span>
                           </div>
                           <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">{r.reason}</p>
-                          {contact && <p className="mt-1.5 text-[10px] text-[var(--muted-foreground)]">联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}</p>}
+                          {contact && <p className="mt-1.5 text-[10px] text-[var(--muted-foreground)]">联系人：{contact.name}{contact.phone ? ` · ${contact.phone}` : ''}{r.legalPerson ? ` · 法人：${r.legalPerson}` : ''}
+                            <span className={`ml-2 inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[9px] font-semibold tabular-nums ${r.activeProjects >= 5 ? 'text-[var(--danger)]' : r.activeProjects > 0 ? 'text-[var(--muted-foreground)]' : 'text-[var(--success)]'}`}
+                              style={{ background: r.activeProjects >= 5 ? 'color-mix(in oklch, var(--danger) 10%, transparent)' : r.activeProjects > 0 ? 'color-mix(in oklch, var(--foreground) 5%, transparent)' : 'color-mix(in oklch, var(--success) 8%, transparent)' }}>
+                              {r.activeProjects >= 5 ? '繁忙' : r.activeProjects > 0 ? '正常' : '空闲'} {r.activeProjects}
+                            </span>
+                          </p>}
                         </div>
-                        <button onClick={() => toggleRerunShortlist(r)} className={`neu-btn-xs w-14 justify-center self-center ${inList ? 'is-success' : ''}`}>
-                          {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
-                        </button>
+                        <div className="flex flex-col gap-1.5 flex-shrink-0 self-center">
+                          <button onClick={() => openSupplierDetail(r)} className="neu-btn-xs w-14 justify-center">详情</button>
+                          <button onClick={() => toggleRerunShortlist(r)} className={`neu-btn-xs w-14 justify-center ${inList ? 'is-success' : ''}`}>
+                            {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2082,9 +2296,6 @@ export function SupplierSelectionPage({
                   <strong className="tabular-nums text-[var(--foreground)]">{rerunShortlist.size}</strong> 家补选供应商
                 </p>
               </div>
-              <button onClick={rerunGenerateNotify} disabled={notifyAiLoading} className="neu-btn-xs gap-1">
-                <Sparkles size={10} />{notifyAiLoading ? '生成中…' : 'AI 生成'}
-              </button>
             </div>
             {/* 逐供应商通知列表 */}
             <div className="space-y-2">

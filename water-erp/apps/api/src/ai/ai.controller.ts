@@ -56,7 +56,7 @@ export class AiController {
   @ApiOperation({ summary: 'AI智能推荐供应商（按采购需求）' })
   @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
   async recommendSuppliers(
-    @Body() body: { requirement?: string; classificationId?: string; tags?: string[]; maxCount?: number },
+    @Body() body: { requirement?: string; classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[] },
   ) {
     const requirement = (body?.requirement ?? '').trim();
     if (!requirement) {
@@ -68,6 +68,7 @@ export class AiController {
         classificationId: body.classificationId,
         tags: tags && tags.length > 0 ? tags : undefined,
         maxCount: body.maxCount,
+        excludedSupplierIds: Array.isArray(body.excludedSupplierIds) ? body.excludedSupplierIds.filter(Boolean) : undefined,
       });
     } catch (e: any) {
       throw new BadRequestException({ error: e?.message || '智能推荐服务暂时不可用，请稍后重试', code: 'RECOMMEND_FAILED' });

@@ -23,8 +23,12 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = me
       localStorage.setItem('supplier_user', JSON.stringify(me))
     } catch {
-      user.value = null
-      localStorage.removeItem('supplier_user')
+      // getMe 失败不主动清除会话——可能是网络波动或 API 临时不可用。
+      // 如果 token 真正过期，axios 拦截器会捕获 401 并跳转登录。
+      if (!cached) {
+        user.value = null
+        localStorage.removeItem('supplier_user')
+      }
     }
   }
 
