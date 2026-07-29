@@ -6,7 +6,6 @@ import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage } from 'element-plus'
 import { announcementApi } from '@/api/announcement'
 import { bidApi } from '@/api/bid'
-import { uploadFile } from '@/api/upload'
 import SpPageHero from '@/components/SpPageHero.vue'
 import { FileText, AlertTriangle, Lock, Upload, Download, Sparkles, Loader2 } from 'lucide-vue-next'
 import dayjs from 'dayjs'
@@ -82,14 +81,9 @@ async function loadBidDoc() { bidDocLoading.value = true; try { bidDoc.value = a
 async function doPay() { if (!bidDoc.value?.announcementId) return; paying.value = true; try { await announcementApi.payBidDocument(bidDoc.value.announcementId, paymentRef.value || undefined); ElMessage.success('付款凭证已提交'); payDialog.value = false; paymentRef.value = ''; await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '提交失败') } paying.value = false }
 async function doDownload() { if (!bidDoc.value?.announcementId) return; downloading.value = true; try { const { blob, fileName } = await announcementApi.downloadBidDocument(bidDoc.value.announcementId, decryptPwd.value || undefined); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; a.click(); URL.revokeObjectURL(url); decryptPwd.value = ''; pwdDialog.value = false; await loadBidDoc() } catch (e: any) { ElMessage.error(e?.message || '下载失败') } downloading.value = false }
 
-// ── 书面交流（来函 + 可选附件；澄清模块保持单向，无实时推送）──
-const questionText = ref(''); const questionPosting = ref(false)
-const attachAssetId = ref(''); const attachUploadRef = ref<any>(null); const attachUploading = ref(false)
-const replyOpen = ref<string | null>(null); const replyText = ref(''); const replyPosting = ref(false)
-// U5：catch 仅保留状态复位——业务错误消息已由 axios 拦截器统一弹出（data.error），不再重复 toast
-async function postQuestion() { if (!questionText.value.trim()) { ElMessage.warning('请输入函件内容'); return }; questionPosting.value = true; try { await bidApi.createQuestion(projectId.value, questionText.value.trim(), attachAssetId.value || undefined); ElMessage.success('来函已提交'); questionText.value = ''; attachAssetId.value = ''; attachUploadRef.value?.clearFiles(); await bidStore.fetchProject(projectId.value) } catch { /* 拦截器已提示 */ } questionPosting.value = false }
-function openReply(id: string) { replyOpen.value = id; replyText.value = '' }
-function closeReply() { replyOpen.value = null; replyText.value = '' }
+// 澄清说明文案（由采购管理端编辑发布，供应商端只读展示）
+const notice = ref('')
+async function loadNotice() { try { const r = await bidApi.getClarificationNotice() as any; notice.value = r?.value || '' } catch { notice.value = '' } }
 
 // AI 融合概览（采购内容 + 通知内容 + 两个时间）
 const overview = ref<any>(null)
@@ -101,23 +95,6 @@ async function loadOverview() {
   catch { /* 拦截器已提示 */ }
   finally { overviewLoading.value = false }
 }
-async function postReply(id: string) { if (!replyText.value.trim()) { ElMessage.warning('请输入回复'); return }; replyPosting.value = true; try { await bidApi.createQuestion(projectId.value, replyText.value.trim()); ElMessage.success('回复已提交'); closeReply(); await bidStore.fetchProject(projectId.value) } catch { /* 拦截器已提示 */ } replyPosting.value = false }
-// U6：附件上传失败 → toast + 清 assetId；re-throw 让 el-upload 将文件标红
-async function handleAttachUpload(opt: any) {
-  attachUploading.value = true
-  try {
-    const asset = await uploadFile(opt.file as File, 'clarification')
-    attachAssetId.value = asset.id
-  } catch (e: any) {
-    attachAssetId.value = ''
-    // 带 response 的错误已由 axios 拦截器统一弹出；仅补无 response（断网/超时）这一空洞，避免双弹窗（M2）
-    if (!e?.response) ElMessage.error('附件上传失败，请检查网络后重试')
-    throw e
-  } finally {
-    attachUploading.value = false
-  }
-}
-
 // 将纯文本公告格式化为 HTML（处理中文招标公告结构）
 function formatContent(raw: string): string {
   if (!raw) return ''
@@ -140,8 +117,8 @@ function formatContent(raw: string): string {
     .join('\n')
 }
 
-onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc(); loadOverview() } catch { error.value = true } finally { loading.value = false } })
-async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()]); loadBidDoc(); loadOverview() } catch { error.value = true } finally { loading.value = false } }
+onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile(), loadNotice()]); loadBidDoc(); loadOverview() } catch { error.value = true } finally { loading.value = false } })
+async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile(), loadNotice()]); loadBidDoc(); loadOverview() } catch { error.value = true } finally { loading.value = false } }
 function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.status !== 'APPROVED') { ElMessage.warning('只有已入库供应商可以提交标书'); return } router.push(`/bids/${projectId.value}/submit`) }
 </script>
 
@@ -277,27 +254,11 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           <div v-else-if="!bidDocLoading" class="bc-empty">暂无招标文件</div>
         </div>
 
-        <!-- 书面交流 -->
+        <!-- 澄清答疑（只读：说明文案 + 澄清/回复列表，供应商不可在系统内提交） -->
         <div class="neu-card bottom-card">
-          <div class="bc-hd">书面交流</div>
-          <p class="cq-desc">如需获取信息，可提交书面函件（支持附件），或致电项目联系人</p>
-          <div class="cq-ask">
-            <el-input v-model="questionText" placeholder="填写书面函件内容…" :rows="2" type="textarea" size="small" />
-            <!-- U6：附件上传进行中禁用提交，防裸提交丢附件 -->
-            <button class="neu-btn-xs cq-submit-btn" :disabled="questionPosting || attachUploading" @click="postQuestion">提交</button>
-          </div>
-          <div class="cq-attach">
-            <el-upload
-              ref="attachUploadRef"
-              :auto-upload="true"
-              :limit="1"
-              :http-request="handleAttachUpload"
-              :on-exceed="() => ElMessage.warning('仅支持 1 个附件')"
-              :on-remove="() => (attachAssetId.value = '')"
-            >
-              <el-button size="small">添加附件</el-button>
-            </el-upload>
-          </div>
+          <div class="bc-hd">澄清答疑</div>
+          <div v-if="notice" class="cq-notice" v-html="notice"></div>
+          <p v-else class="cq-desc">如需获取信息，请按招标文件载明的方式，拨打招标联系人电话或以书面来函提交。</p>
           <div v-if="project.clarifications?.length" class="cq-list">
             <div v-for="c in project.clarifications" :key="c.id" class="cq-item">
               <div class="cq-head">
@@ -307,19 +268,9 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
               </div>
               <div class="cq-text">{{ c.question }}</div>
               <div v-if="c.reply" class="cq-reply"><el-tag type="success" size="small" effect="plain">回复</el-tag><span>{{ c.reply }}</span></div>
-              <div class="cq-act">
-                <button v-if="replyOpen !== c.id" class="neu-btn-xs" @click="openReply(c.id)">回复</button>
-                <div v-else class="cq-reply-box">
-                  <el-input v-model="replyText" placeholder="输入回复…" :rows="2" type="textarea" size="small" />
-                  <span class="cq-reply-btns">
-                    <button class="neu-btn-xs is-success" :disabled="replyPosting" @click="postReply(c.id)">发送</button>
-                    <button class="neu-btn-xs" @click="closeReply">取消</button>
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
-          <div v-else class="bc-empty">暂无答疑</div>
+          <div v-else class="bc-empty">暂无澄清/答疑记录</div>
         </div>
       </div>
 
@@ -471,11 +422,11 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 .bdoc-acts  { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .bdoc-acts .neu-btn-soft, .bdoc-acts .neu-btn-primary { justify-content: center; }
 
-/* 书面交流 */
+/* 澄清答疑（只读） */
+.cq-notice { margin: 2px 0 12px; padding: 10px 12px; font-size: 12px; line-height: 1.7; color: var(--foreground); background: color-mix(in oklch, var(--accent) 8%, transparent); border-radius: 10px; }
+.cq-notice :deep(p) { margin: 0 0 6px; }
+.cq-notice :deep(p:last-child) { margin-bottom: 0; }
 .cq-desc   { margin: 2px 0 10px; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
-.cq-ask   { display: flex; gap: 8px; margin-bottom: 12px; }
-.cq-submit-btn { min-width: 64px; flex-shrink: 0; align-self: center; }
-.cq-attach { margin: -4px 0 12px; }
 .cq-list  { display: flex; flex-direction: column; }
 .cq-item  { padding: 9px 0; border-bottom: 1px solid var(--hairline); }
 .cq-item:last-child { border-bottom: none; }
@@ -484,9 +435,6 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
 .cq-time   { font-size: 10px; color: var(--muted-foreground); margin-left: auto; font-variant-numeric: tabular-nums; }
 .cq-text   { font-size: 12px; line-height: 1.6; color: var(--foreground); }
 .cq-reply  { display: flex; align-items: flex-start; gap: 6px; margin-top: 5px; font-size: 12px; line-height: 1.6; color: var(--foreground); }
-.cq-act    { margin-top: 8px; }
-.cq-reply-box  { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
-.cq-reply-btns { display: flex; gap: 6px; align-self: flex-end; }
 
 @media (max-width: 860px) {
   .bottom-grid { grid-template-columns: 1fr; }

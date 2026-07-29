@@ -45,6 +45,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { SearchModule } from './search/search.module';
 import { ChatModule } from './chat/chat.module';
 import { OpeningHallModule } from './opening-hall/opening-hall.module';
+import { SystemConfigModule } from './system-config/system-config.module';
 import { AppController } from './app.controller';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -97,6 +98,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     SearchModule,
     ChatModule,
     OpeningHallModule,
+    SystemConfigModule,
   ],
   controllers: [AppController],
   providers: [

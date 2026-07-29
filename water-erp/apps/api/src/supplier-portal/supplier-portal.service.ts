@@ -6,7 +6,6 @@ import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
-import { CreateQuestionDto } from './dto/create-question.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
@@ -598,46 +597,6 @@ export class SupplierPortalService {
       (project as any).announcement = announcement;
     }
     return project;
-  }
-
-  /**
-   * 供应商提问（答疑）
-   */
-  async createQuestion(supplierId: string, projectId: string, dto: CreateQuestionDto) {
-    // P2: 阶段门控 — 归档后不可提问
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
-    if (project?.stage === 'ARCHIVED') {
-      throw new BadRequestException({ error: '项目已归档，无法提问', code: 'PROJECT_ARCHIVED' });
-    }
-
-    const supplier = await this.prisma.supplier.findUnique({
-      where: { id: supplierId },
-      select: { id: true, name: true, status: true },
-    });
-    if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
-    // P2：停用/黑名单供应商不得发起答疑（即便仍残留 bidSupplier 记录）。
-    if (supplier.status !== 'APPROVED') {
-      throw new BadRequestException({ error: '当前账号状态不允许发起答疑', code: 'NOT_APPROVED' });
-    }
-
-    // Verify the supplier is registered for this project
-    const bidSupplier = await this.prisma.bidSupplier.findFirst({
-      where: { projectId, supplierId },
-    });
-    if (!bidSupplier) throw new BadRequestException({ error: '您未参与该项目投标', code: 'NOT_PROJECT_SUPPLIER' });
-
-    return this.prisma.bidClarification.create({
-      data: {
-        projectId,
-        type: 'question',
-        question: dto.question,
-        issuer: supplier.name,
-        supplierName: supplier.name,
-        supplierId: supplier.id,
-        status: '待回复',
-        fileAssetId: dto.fileAssetId ?? null,
-      },
-    });
   }
 
   /**

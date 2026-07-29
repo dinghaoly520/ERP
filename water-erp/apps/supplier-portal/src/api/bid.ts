@@ -20,8 +20,8 @@ export const bidApi = {
   getNegotiationFiles(projectId: string) {
     return api.get(`/supplier-portal/bid-projects/${projectId}/negotiation-files`)
   },
-  // 供应商书面交流（来函 + 可选附件）
-  createQuestion(projectId: string, question: string, fileAssetId?: string) {
-    return api.post(`/supplier-portal/bid-projects/${projectId}/questions`, { question, fileAssetId })
+  // 澄清说明文案（只读，由采购管理端编辑发布）
+  getClarificationNotice() {
+    return api.get('/system-config/clarification-notice')
   },
 }

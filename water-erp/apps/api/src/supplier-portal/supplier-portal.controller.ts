@@ -5,7 +5,6 @@ import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
-import { CreateQuestionDto } from './dto/create-question.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -175,18 +174,6 @@ export class SupplierPortalController {
   async getNegotiationFiles(@Request() req: any, @Param('id') id: string) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.getNegotiationFiles(id, supplierId);
-  }
-
-  // ─── 澄清答疑 ───
-
-  @Post('bid-projects/:id/questions')
-  async createQuestion(
-    @Request() req: any,
-    @Param('id') id: string,
-    @Body() dto: CreateQuestionDto,
-  ) {
-    const supplierId = await this.getSupplierId(req.user.sub);
-    return this.portalService.createQuestion(supplierId, id, dto);
   }
 
   // ─── Bid Submissions ───

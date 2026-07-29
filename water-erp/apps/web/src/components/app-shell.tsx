@@ -17,6 +17,7 @@ import {
   Building2,
   Users,
   Megaphone,
+  MessageSquare,
   ShoppingBag,
   ChevronDown,
   ChevronLeft,
@@ -82,6 +83,7 @@ const navGroups: NavGroup[] = [
     icon: Megaphone,
     items: [
       { key: "notice", label: "信息发布中心", href: "/notice", icon: Megaphone, meta: "公告/公示/政策" },
+      { key: "clar-notice", label: "澄清说明", href: "/clar-notice", icon: MessageSquare, meta: "供应商端展示文案", roles: ["admin", "bid_host", "leader", "staff"] },
     ],
   },
   {

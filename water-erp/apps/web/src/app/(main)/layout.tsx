@@ -21,6 +21,7 @@ const routeToKey: Record<string, string> = {
   "/admin/password-requests": "password-requests",
   // 公告管理
   "/notice": "notice",
+  "/clar-notice": "clar-notice",
   "/notifications": "notifications",
   // 供应商管理
   "/supplier/approval": "supplier-approval",
@@ -53,6 +54,7 @@ const routeToModule: Record<string, string> = {
   "/assistant": "水叮当助手",
   "/admin/password-requests": "密码审批",
   "/notice": "信息发布中心",
+  "/clar-notice": "澄清说明",
   "/notifications": "通知中心",
   "/supplier": "供应商管理",
   "/expert": "专家管理",

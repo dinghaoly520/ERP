@@ -635,6 +635,14 @@ model BidClarification {
   @@index([projectId])
 }
 
+/// 全局键值配置（澄清说明文案等平台级文本）
+model SystemConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
 model BidSupervisionLog {
   id           String     @id @default(cuid())
   projectId    String

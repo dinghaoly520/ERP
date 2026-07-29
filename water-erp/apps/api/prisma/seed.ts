@@ -61,6 +61,7 @@ const ALL_TABLES = [
   'Supplier', 'SupplierBidSubmission', 'SupplierCatalogApplication',
   'SupplierChangeRecord', 'SupplierClassification', 'SupplierContact',
   'SupplierEvaluation', 'SupplierQualification',
+  'SystemConfig',
   'TenderDocumentHistory', 'TenderFieldSample',
   'User', 'UserFavorite', 'UserSettings',
   'WorkArrangement', 'WorkArrangementDailyPlanCache',
@@ -85,6 +86,7 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['CatalogCategory', 'catalogCategory'],
   ['CatalogItem', 'catalogItem'],
   ['ScoreTemplate', 'scoreTemplate'],
+  ['SystemConfig', 'systemConfig'],
   // Level 1 —— 依赖 Level 0
   ['CategoryAttributeTemplate', 'categoryAttributeTemplate'],
   ['User', 'user'],
