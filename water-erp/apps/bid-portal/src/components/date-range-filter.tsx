@@ -141,7 +141,7 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
           onClick={() => handleDayClick(year, month, day)}
           className={`flex h-8 w-8 items-center justify-center rounded-[10px] text-[12px] font-medium transition-colors relative ${
             isBoundary
-              ? 'bg-[var(--accent)] text-white shadow-[0_4px_12px_rgba(6,78,162,0.25)]'
+              ? 'bg-[var(--accent)] text-white shadow-[0_4px_12px_oklch(0.56_0.153_251_/_0.3)]'
               : inRange
                 ? 'bg-[oklch(0.62_0.16_258_/_0.1)] text-[color:var(--accent-strong)]'
                 : 'text-[color:var(--muted-foreground)] hover:bg-[oklch(0.985_0.006_258_/_0.7)]'
@@ -185,7 +185,7 @@ export default function DateRangeFilter({ value, onChange }: DateRangeFilterProp
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-[580px] rounded-2xl border border-[oklch(0.6_0.04_258_/_0.18)] bg-white p-4 shadow-[0_18px_60px_rgba(15,47,87,0.14)]">
+        <div className="absolute left-0 top-full z-50 mt-1 w-[580px] rounded-[20px] bg-[var(--background)] p-4 shadow-[0_20px_60px_oklch(0.55_0.03_258_/_0.12),inset_0_1px_0_oklch(1_0_0_/_0.7)]">
           {/* 快捷预设 */}
           <div className="mb-3 flex items-center gap-1.5 border-b border-[oklch(0.6_0.04_258_/_0.14)] pb-3">
             <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--muted-foreground)]">

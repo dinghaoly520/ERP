@@ -2,14 +2,13 @@
 
 /**
  * 只读评标管理视图——:3007 项目工作区「评标管理」tab。
- * 评标管理（只读）——:3007 项目工作区「评标管理」tab。
  * 专家状态玻璃卡（3 徽标 + 已评分工作量条 + 整体进度条 + 平均分 + 点击展开每供应商进度）、
  * 专家×供应商评分矩阵（表头解密标签 + 得分分布迷你折线，单元格悬停 CellTooltip，偏差 >20%
  * 标异常，表下展开专家明细）、供应商评分汇总（排名 / 单位 / 5 分类列「通过·不通过」结论 +
  * 数值类均分悬停专家明细 / 总分平均 / 推荐列，表头未确认红点脉冲 + 名单 hover 浮窗）。
- * 全部 className / inline style / #hex 配色 / glass-card·workbench-table·Manrope 类原样保留。
+ * 全部 className 走 cgzxui 规范（neu-card-static / neu-table / kpi-card / oklch 配色）。
  *
- * operation controls omitted (read-only tab)：旧页的阶段流转、结果生成、归档等写入操作件
+ * operation controls omitted (read-only tab)：旧页的阶段流转、结果生成、归档等写入操作
  * 及其向导模态已全部剥离——相关流转统一在采购管理工作台（:3005）进行，本页只读。
  *
  * 数据源改造（唯一偏离旧页逻辑处）：project 不再自取，props 优先（工作区页持有 project + 单一
@@ -26,7 +25,6 @@ import {
   Trophy, X, Users,
 } from 'lucide-react';
 import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, isPassFailCategory } from '@water-erp/shared';
-import { MetricCard, SectionCard } from '@water-erp/ui';
 import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { listEvaluationResults, type EvaluationResultRow } from '@/lib/api/bid';
@@ -101,18 +99,20 @@ function RingChart({ pct, size = 56, stroke = 5, color }: { pct: number; size?: 
   const circ = 2 * Math.PI * r;
   const dash = circ * Math.min(1, pct / 100);
   return (
-    <div className="relative inline-flex items-center justify-center">
+    <div className="relative inline-flex items-center justify-center" style={{ '--ring-color': color } as React.CSSProperties}>
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="oklch(0.94 0.004 264)" strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ring-color)" strokeWidth={stroke}
           strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" className="transition-all duration-1000" />
       </svg>
-      <span className="absolute text-xs font-extrabold tabular-nums" style={{ color }}>{Math.round(pct)}%</span>
+      <span className="absolute text-xs font-extrabold tabular-nums text-[var(--ring-color)]">{Math.round(pct)}%</span>
     </div>
   );
 }
 
 /* ── Score distribution mini line chart ── */
+const CHART_STROKE = 'oklch(0.56 0.153 251)';
+
 function DistributionChart({ scores, avg }: { scores: number[]; avg: number }) {
   if (scores.length === 0) return null;
   const w = 52, h = 28, padX = 2, padY = 4;
@@ -138,22 +138,26 @@ function DistributionChart({ scores, avg }: { scores: number[]; avg: number }) {
         <line x1={0} x2={w} y1={avgY} y2={avgY}
           stroke="oklch(0.55 0.01 264)" strokeWidth={0.5} strokeDasharray="2 2" opacity={0.5} />
         {/* Polyline */}
-        <polyline points={polyline} fill="none" stroke="#064ea2" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points={polyline} fill="none" stroke={CHART_STROKE} strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" />
         {/* Dots */}
         {scores.map((s, i) => {
           const x = padX + i * xStep;
           const y = padY + (h - padY * 2) * (1 - (s - yMin) / ySpan);
-          return <circle key={i} cx={x} cy={y} r={2} fill="white" stroke="#064ea2" strokeWidth={1.2} />;
+          return <circle key={i} cx={x} cy={y} r={2} fill="oklch(1 0 0)" stroke={CHART_STROKE} strokeWidth={1.2} />;
         })}
       </svg>
-      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-[#18243a] text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
+      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded bg-[oklch(0.18_0.012_265)] px-1.5 py-0.5 text-[10px] text-white opacity-0 transition group-hover:opacity-100 whitespace-nowrap z-10">
         均分 {avg.toFixed(0)}
       </div>
     </div>
   );
 }
 
-/* ── Tooltip ── */
+/* ── Tooltip — cgzxui floating panel (no border, neumorphic shadow) ── */
+const TOOLTIP_PANEL =
+  'fixed z-[9999] rounded-[16px] bg-[var(--background)] p-4 ' +
+  'shadow-[0_20px_60px_oklch(0.55_0.03_258_/_0.12),inset_0_1px_0_oklch(1_0_0_/_0.7)]';
+
 function CellTooltip({ cell, supplierName, expertName, onClose, anchorRect }: {
   cell: ExpertSupplierCell; supplierName: string; expertName: string; onClose: () => void;
   anchorRect: DOMRect;
@@ -174,22 +178,20 @@ function CellTooltip({ cell, supplierName, expertName, onClose, anchorRect }: {
   }, [anchorRect]);
 
   return createPortal(
-    <div ref={ref}
-      className="fixed z-[9999] w-[320px] rounded-2xl border border-[#dce6f3] bg-white p-4 shadow-[0_18px_60px_rgba(15,47,87,0.15)]"
-      style={{ left: pos.left, top: pos.top }}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-bold text-[#18243a]">{expertName} → {supplierName}</span>
-        <button onClick={onClose} className="text-[#8a99ad] hover:text-[#18243a]"><X size={12} /></button>
+    <div ref={ref} className={`${TOOLTIP_PANEL} w-[320px]`} style={{ left: pos.left, top: pos.top }}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-bold text-[color:var(--foreground)]">{expertName} → {supplierName}</span>
+        <button onClick={onClose} className="text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]"><X size={12} /></button>
       </div>
-      <div className="text-xs font-mono font-bold mb-2" style={{ color: '#064ea2' }}>
+      <div className="mb-2 font-mono text-xs font-bold text-[color:var(--accent-strong)]">
         {cell.totalScore.toFixed(1)}/{cell.maxScore} ({cell.scoredCount}/{cell.totalCount} 项)
       </div>
       <div className="space-y-1.5">
         {cell.items.map(item => (
           <div key={item.name} className="flex items-center justify-between text-[11px]">
-            <span className="text-[#5a6d8a] truncate flex-1">{item.name}</span>
-            <span className="font-mono font-bold text-[#18243a] ml-2">{item.score}/{item.maxScore}</span>
-            {item.reason && <span className="text-[10px] text-[#8a99ad] ml-1">({item.reason})</span>}
+            <span className="flex-1 truncate text-[color:var(--muted-foreground)]">{item.name}</span>
+            <span className="ml-2 font-mono font-bold text-[color:var(--foreground)]">{item.score}/{item.maxScore}</span>
+            {item.reason && <span className="ml-1 text-[10px] text-[color:var(--muted-foreground)]">({item.reason})</span>}
           </div>
         ))}
       </div>
@@ -219,12 +221,10 @@ function CategoryDetailTooltip({ expertScores, onClose, anchorRect }: {
   }, [anchorRect]);
 
   return createPortal(
-    <div ref={ref}
-      className="fixed z-[9999] w-48 rounded-xl border border-[#dce6f3] bg-white p-3 shadow-[0_12px_40px_rgba(15,47,87,0.12)]"
-      style={{ left: pos.left, top: pos.top }}>
-      <div className="text-[11px] font-semibold text-[#5a6d8a] mb-1.5">专家明细</div>
+    <div ref={ref} className={`${TOOLTIP_PANEL} w-48 p-3`} style={{ left: pos.left, top: pos.top }}>
+      <div className="mb-1.5 text-[11px] font-semibold text-[color:var(--muted-foreground)]">专家明细</div>
       {expertScores.map(es => (
-        <div key={es.name} className="flex items-center justify-between text-[11px] py-0.5">
+        <div key={es.name} className="flex items-center justify-between py-0.5 text-[11px]">
           <span className="text-[oklch(0.55_0.01_264)]">{es.name}</span>
           <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{es.score.toFixed(1)}</span>
         </div>
@@ -375,7 +375,7 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
   }, [project, expertMatrix]);
 
   /* ── empty ── */
-  if (!project) return <div className="py-16 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无评标数据</div>;
+  if (!project) return <div className="py-16 text-center text-[13px] text-[color:var(--muted-foreground)]">暂无评标数据</div>;
 
   const { experts, suppliers } = project;
 
@@ -383,48 +383,82 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
     <div className="space-y-6">
       {/* ═══ Progress dashboard ═══ */}
       {dashMetrics && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <MetricCard label="评分进度" value={`${dashMetrics.scorePct}%`} tone={dashMetrics.scorePct >= 80 ? 'green' : dashMetrics.scorePct >= 50 ? 'blue' : 'orange'}
-            icon={<RingChart pct={dashMetrics.scorePct} size={40} stroke={4} color={
-              dashMetrics.scorePct >= 80 ? '#11a874' : dashMetrics.scorePct >= 50 ? '#064ea2' : '#f5a623'
-            } />}
-            hint={dashMetrics.scorePct >= 80 ? '即将完成全部评分' : dashMetrics.scorePct >= 50 ? '评分进行中' : '评分刚起步'}
-          />
-          <MetricCard label="专家签到" value={<><span className="text-[#11a874]">{dashMetrics.signedIn}</span><span className="text-[#8a99ad]">/{dashMetrics.total}</span></>}
-            tone={dashMetrics.signedIn === dashMetrics.total ? 'green' : 'blue'}
-            icon={<Users size={14} />} hint="已签到 / 总计"
-          />
-          <MetricCard label="报告确认" value={<><span className="text-[#11a874]">{dashMetrics.reportsDone}</span><span className="text-[#8a99ad]">/{dashMetrics.total}</span></>}
-            tone={dashMetrics.reportsDone === dashMetrics.total ? 'green' : dashMetrics.reportsDone > 0 ? 'blue' : 'gray'}
-            icon={<FileCheck size={14} />} hint="报告已确认 / 总计"
-          />
-          <MetricCard label="可生成结果" value={dashMetrics.canGenerate ? '是' : '否'}
-            tone={dashMetrics.canGenerate ? 'green' : 'gray'}
-            icon={dashMetrics.canGenerate ? <CheckCircle size={14} /> : <Clock size={14} />}
-            hint={dashMetrics.canGenerate ? '所有报告已确认' : `仍有 ${unconfirmedCount} 位未确认`}
-          />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {/* 评分进度 */}
+          <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">评分进度</span>
+            <div className="flex items-center gap-2">
+              <RingChart pct={dashMetrics.scorePct} size={40} stroke={4} color={
+                dashMetrics.scorePct >= 80 ? 'oklch(0.54 0.16 158)' : dashMetrics.scorePct >= 50 ? 'oklch(0.56 0.153 251)' : 'oklch(0.64 0.16 82)'
+              } />
+              <span className="text-[1.35rem] font-black leading-none tracking-[-0.04em] tabular-nums text-[color:var(--foreground)]">{dashMetrics.scorePct}%</span>
+            </div>
+            <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">
+              {dashMetrics.scorePct >= 80 ? '即将完成全部评分' : dashMetrics.scorePct >= 50 ? '评分进行中' : '评分刚起步'}
+            </span>
+          </div>
+          {/* 专家签到 */}
+          <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">专家签到</span>
+              <Users size={14} className="text-[color:var(--muted-foreground)]" />
+            </div>
+            <span className="text-[1.55rem] font-black leading-none tracking-[-0.04em] tabular-nums text-[color:var(--foreground)]">
+              <span className="text-[oklch(0.54_0.16_158)]">{dashMetrics.signedIn}</span>
+              <span className="text-[color:var(--muted-foreground)]">/{dashMetrics.total}</span>
+            </span>
+            <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">已签到 / 总计</span>
+          </div>
+          {/* 报告确认 */}
+          <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">报告确认</span>
+              <FileCheck size={14} className="text-[color:var(--muted-foreground)]" />
+            </div>
+            <span className="text-[1.55rem] font-black leading-none tracking-[-0.04em] tabular-nums text-[color:var(--foreground)]">
+              <span className="text-[oklch(0.54_0.16_158)]">{dashMetrics.reportsDone}</span>
+              <span className="text-[color:var(--muted-foreground)]">/{dashMetrics.total}</span>
+            </span>
+            <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">报告已确认 / 总计</span>
+          </div>
+          {/* 可生成结果 */}
+          <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">可生成结果</span>
+              {dashMetrics.canGenerate ? <CheckCircle size={14} className="text-[oklch(0.54_0.16_158)]" /> : <Clock size={14} className="text-[color:var(--muted-foreground)]" />}
+            </div>
+            <span className="text-[1.55rem] font-black leading-none tracking-[-0.04em] text-[color:var(--foreground)]">{dashMetrics.canGenerate ? '是' : '否'}</span>
+            <span className="text-[10px] font-medium text-[color:var(--muted-foreground)]">
+              {dashMetrics.canGenerate ? '所有报告已确认' : `仍有 ${unconfirmedCount} 位未确认`}
+            </span>
+          </div>
         </div>
       )}
 
       {/* ═══ Stage transition（只读横幅：operation controls omitted，流转在 :3005）═══ */}
       {project.stage === 'OPENING' && (
-        <div className="rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-[16px] bg-[oklch(0.96_0.02_251_/_0.5)] p-4">
           <div className="flex items-center gap-3">
-            <Play size={16} strokeWidth={1.5} className="text-[#064ea2]" />
+            <Play size={16} strokeWidth={1.5} className="text-[color:var(--accent-strong)]" />
             <div>
-              <span className="text-sm font-bold text-[#064ea2]">当前阶段：在线开标</span>
-              <span className="text-xs text-[#5a6d8a] ml-2">— 评标启动 / 生成结果 / 归档均在采购管理工作台（:3005）进行，本页只读</span>
+              <span className="text-sm font-bold text-[color:var(--accent-strong)]">当前阶段：在线开标</span>
+              <span className="ml-2 text-xs text-[color:var(--muted-foreground)]">— 评标启动 / 生成结果 / 归档均在采购管理工作台（:3005）进行，本页只读</span>
             </div>
           </div>
         </div>
       )}
 
       {/* ═══ Section 1: Expert status cards ═══ */}
-      <SectionCard title="专家状态" className="overflow-hidden">
+      <div className="neu-card-static overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-3.5">
+          <h2 className="text-[13px] font-semibold tracking-tight text-[color:var(--foreground)]">专家状态</h2>
+        </div>
+        <hr className="wb-section-rule" />
+        <div className="p-5">
         {experts.length === 0 ? (
-          <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-[12px] bg-[oklch(0.97_0.02_260_/_0.5)] p-4">
             <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)]" />
-            <span className="text-[12px] text-[oklch(0.18_0.012_265)]">暂无专家数据，请先配置评标专家。</span>
+            <span className="text-[12px] text-[color:var(--foreground)]">暂无专家数据，请先配置评标专家。</span>
           </div>
         ) : (
           <div className="flex flex-wrap gap-4">
@@ -440,79 +474,87 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
               const scoredCount = scoredCells.length;
               return (
                 <div key={expert.id}
-                  className={`flex-1 min-w-[240px] glass-card-lighter glass-card-blue border p-4 cursor-pointer transition-all duration-300 ${
+                  className={`min-w-[240px] flex-1 cursor-pointer rounded-[16px] p-4 transition-all duration-300 neu-card-static ${
                     expert.signedIn && expert.avoidanceConfirmed && expert.reportConfirmed
-                      ? 'border-[#11a874]/30 hover:border-[#11a874]'
-                      : 'border-[oklch(0.91_0.006_264)] hover:border-[oklch(0.82_0.04_258)]'
+                      ? 'hover:translate-y-[-1px]'
+                      : 'hover:translate-y-[-1px]'
                   }`}
                   onClick={() => setExpandedCard(prev => { const next = new Set(prev); if (isExpanded) next.delete(expert.id); else next.add(expert.id); return next; })}
                 >
                   {/* Name + specialty */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <UserCircle size={14} strokeWidth={1.5} className="text-[oklch(0.42_0.14_260)] shrink-0" />
-                    <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight truncate">
+                  <div className="mb-3 flex items-center gap-2">
+                    <UserCircle size={14} strokeWidth={1.5} className="shrink-0 text-[oklch(0.42_0.14_260)]" />
+                    <span className="truncate text-[13px] font-semibold tracking-tight text-[color:var(--foreground)]">
                       {expert.expertName}
                     </span>
-                    {expert.major && <span className="text-[11px] text-[oklch(0.62_0.008_264)] shrink-0">{expert.major}</span>}
-                    {isExpanded ? <ChevronDown size={12} className="ml-auto text-[oklch(0.55_0.01_264)]" /> : <ChevronRight size={12} className="ml-auto text-[oklch(0.55_0.01_264)]" />}
+                    {expert.major && <span className="shrink-0 text-[11px] text-[color:var(--muted-foreground)]">{expert.major}</span>}
+                    {isExpanded ? <ChevronDown size={12} className="ml-auto text-[color:var(--muted-foreground)]" /> : <ChevronRight size={12} className="ml-auto text-[color:var(--muted-foreground)]" />}
                   </div>
 
                   {/* Status badges */}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5"
-                      style={{ color: expert.signedIn ? 'oklch(0.54 0.16 158)' : 'oklch(0.62 0.008 264)', backgroundColor: expert.signedIn ? 'oklch(0.96 0.03 158)' : 'oklch(0.97 0.004 264)' }}>
+                  <div className="mb-3 flex flex-wrap gap-1.5">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      expert.signedIn
+                        ? 'bg-[oklch(0.96_0.03_158_/_0.6)] text-[oklch(0.54_0.16_158)]'
+                        : 'bg-[oklch(0.97_0.004_264_/_0.6)] text-[oklch(0.62_0.008_264)]'
+                    }`}>
                       {expert.signedIn ? <CheckCircle size={10} strokeWidth={2} /> : <Clock size={10} strokeWidth={2} />}
                       {expert.signedIn ? '已签到' : '未签到'}
                     </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5"
-                      style={{ color: expert.avoidanceConfirmed ? 'oklch(0.54 0.16 158)' : 'oklch(0.64 0.16 82)', backgroundColor: expert.avoidanceConfirmed ? 'oklch(0.96 0.03 158)' : 'oklch(0.96 0.04 85)' }}>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      expert.avoidanceConfirmed
+                        ? 'bg-[oklch(0.96_0.03_158_/_0.6)] text-[oklch(0.54_0.16_158)]'
+                        : 'bg-[oklch(0.96_0.04_85_/_0.6)] text-[oklch(0.64_0.16_82)]'
+                    }`}>
                       <ShieldCheck size={10} strokeWidth={2} />{expert.avoidanceConfirmed ? '已回避' : '未回避'}
                     </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5"
-                      style={{ color: expert.reportConfirmed ? 'oklch(0.54 0.16 158)' : 'oklch(0.55 0.01 264)', backgroundColor: expert.reportConfirmed ? 'oklch(0.96 0.03 158)' : 'oklch(0.97 0.004 264)' }}>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      expert.reportConfirmed
+                        ? 'bg-[oklch(0.96_0.03_158_/_0.6)] text-[oklch(0.54_0.16_158)]'
+                        : 'bg-[oklch(0.97_0.004_264_/_0.6)] text-[oklch(0.55_0.01_264)]'
+                    }`}>
                       <FileCheck size={10} strokeWidth={2} />{expert.reportConfirmed ? '报告已确认' : '报告未确认'}
                     </span>
                   </div>
 
                   {/* Scoring workload */}
                   <div className="mb-2">
-                    <div className="flex items-center justify-between text-[10px] text-[oklch(0.62_0.008_264)] mb-1">
+                    <div className="mb-1 flex items-center justify-between text-[10px] text-[color:var(--muted-foreground)]">
                       <span>已评分</span>
                       <span className="font-mono">{scoredCount}/{supplierCount} 供应商</span>
                     </div>
-                    <div className="h-1.5 bg-[oklch(0.94_0.004_264)]">
-                      <div className="h-full bg-[oklch(0.42_0.14_260)] transition-all"
+                    <div className="h-1.5 rounded-full bg-[oklch(0.94_0.004_264)]">
+                      <div className="h-full rounded-full bg-[oklch(0.42_0.14_260)] transition-all"
                         style={{ width: `${supplierCount > 0 ? (scoredCount / supplierCount) * 100 : 0}%` }} />
                     </div>
                   </div>
 
                   {/* Progress + total */}
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="flex-1 h-1.5 bg-[oklch(0.94_0.004_264)]">
-                      <div className="h-full bg-[oklch(0.42_0.14_260)] transition-all" style={{ width: `${expert.progress}%` }} />
+                  <div className="mb-1 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 rounded-full bg-[oklch(0.94_0.004_264)]">
+                      <div className="h-full rounded-full bg-[oklch(0.42_0.14_260)] transition-all" style={{ width: `${expert.progress}%` }} />
                     </div>
-                    <span className="text-[11px] font-mono font-semibold text-[oklch(0.42_0.14_260)]">{expert.progress}%</span>
+                    <span className="font-mono text-[11px] font-semibold text-[oklch(0.42_0.14_260)]">{expert.progress}%</span>
                   </div>
-                  <div className="text-[12px] text-[oklch(0.55_0.01_264)]">
-                    平均分 <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{scoredCount > 0 ? (scoredCells.reduce((s, c) => s + c.totalScore, 0) / scoredCount).toFixed(1) : '0.0'}</span>
+                  <div className="text-[12px] text-[color:var(--muted-foreground)]">
+                    平均分 <span className="font-mono font-bold text-[color:var(--foreground)]">{scoredCount > 0 ? (scoredCells.reduce((s, c) => s + c.totalScore, 0) / scoredCount).toFixed(1) : '0.0'}</span>
                   </div>
 
                   {/* Expandable: per-supplier progress */}
                   {isExpanded && row && (
-                    <div className="mt-3 pt-3 border-t border-[oklch(0.94_0.004_264)] space-y-1.5">
+                    <div className="mt-3 space-y-1.5 border-t border-[oklch(0.94_0.004_264)] pt-3">
                       {suppliers.map(supplier => {
                         const cell = row.get(supplier.id);
                         const spct = cell && cell.totalCount > 0 ? Math.round((cell.scoredCount / cell.totalCount) * 100) : 0;
                         return (
                           <div key={supplier.id} className="flex items-center gap-2 text-[11px]">
-                            <span className="w-20 truncate text-[oklch(0.55_0.01_264)]">{supplier.supplierName}</span>
-                            <div className="flex-1 h-1 bg-[oklch(0.94_0.004_264)]">
-                              <div className="h-full transition-all" style={{
-                                width: `${spct}%`,
-                                backgroundColor: spct >= 100 ? '#11a874' : spct > 0 ? '#064ea2' : 'oklch(0.88 0.006 264)',
-                              }} />
+                            <span className="w-20 truncate text-[color:var(--muted-foreground)]">{supplier.supplierName}</span>
+                            <div className="h-1 flex-1 rounded-full bg-[oklch(0.94_0.004_264)]">
+                              <div className={`h-full rounded-full transition-all ${
+                                spct >= 100 ? 'bg-[oklch(0.54_0.16_158)]' : spct > 0 ? 'bg-[oklch(0.56_0.153_251)]' : 'bg-[oklch(0.88_0.006_264)]'
+                              }`} style={{ width: `${spct}%` }} />
                             </div>
-                            <span className="font-mono font-bold w-10 text-right tabular-nums">{cell ? `${cell.totalScore.toFixed(0)}` : '—'}</span>
+                            <span className="w-10 text-right font-mono font-bold tabular-nums">{cell ? `${cell.totalScore.toFixed(0)}` : '—'}</span>
                           </div>
                         );
                       })}
@@ -523,29 +565,31 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
             })}
           </div>
         )}
-      </SectionCard>
+        </div>
+      </div>
 
       {/* ═══ Section 2: Expert×Supplier matrix ═══ */}
       {suppliers.length === 0 ? (
-        <div className="bg-[oklch(0.96_0.02_260)] border border-[oklch(0.88_0.04_258)] p-4 mb-8 flex items-center gap-2">
+        <div className="mb-8 flex items-center gap-2 rounded-[12px] bg-[oklch(0.97_0.02_260_/_0.5)] p-4">
           <AlertTriangle size={14} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)]" />
-          <span className="text-[12px] text-[oklch(0.18_0.012_265)]">暂无供应商数据。</span>
+          <span className="text-[12px] text-[color:var(--foreground)]">暂无供应商数据。</span>
         </div>
       ) : (
-        <div className="glass-card glass-card-blue mb-8">
-          <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-            <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
+        <div className="neu-card-static mb-8">
+          <div className="flex items-center px-5 py-4">
+            <h2 className="text-[13px] font-semibold tracking-tight text-[color:var(--foreground)]">
               专家评分概览
             </h2>
           </div>
+          <hr className="wb-section-rule" />
           {experts.length === 0 ? (
-            <div className="px-5 py-12 text-center text-[13px] text-[oklch(0.62_0.008_264)]">暂无专家数据</div>
+            <div className="px-5 py-12 text-center text-[13px] text-[color:var(--muted-foreground)]">暂无专家数据</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="workbench-table mx-auto">
+              <table className="neu-table mx-auto">
                 <thead>
-                  <tr className="text-[oklch(0.55_0.01_264)]">
-                    <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">专家</th>
+                  <tr className="text-[color:var(--muted-foreground)]">
+                    <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap">专家</th>
                     {suppliers.map(s => {
                       const scores = experts.map(e => {
                         const cell = expertMatrix.get(e.id)?.get(s.id);
@@ -553,10 +597,10 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                       }).filter(Boolean) as number[];
                       const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
                       return (
-                        <th key={s.id} className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">
-                          <div className="text-[oklch(0.18_0.012_265)]">{s.supplierName}</div>
-                          <div className="flex items-center justify-center gap-2 mt-1">
-                            <span className="text-[10px] font-normal text-[oklch(0.62_0.008_264)]">{DECRYPT_LABEL[s.decryptStatus] || s.decryptStatus}</span>
+                        <th key={s.id} className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap">
+                          <div className="text-[color:var(--foreground)]">{s.supplierName}</div>
+                          <div className="mt-1 flex items-center justify-center gap-2">
+                            <span className="text-[10px] font-normal text-[color:var(--muted-foreground)]">{DECRYPT_LABEL[s.decryptStatus] || s.decryptStatus}</span>
                             {scores.length > 1 && <DistributionChart scores={scores} avg={avg} />}
                           </div>
                         </th>
@@ -573,9 +617,9 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                       <tr key={expert.id}>
                         <td className="px-5 py-3">
                           <button onClick={() => setExpandedExperts(prev => { const next = new Set(prev); if (isExpanded) next.delete(expert.id); else next.add(expert.id); return next; })} disabled={!hasAnyScore}
-                            className={`inline-flex items-center gap-1.5 text-left ${hasAnyScore ? 'cursor-pointer hover:text-[oklch(0.42_0.14_260)]' : 'cursor-default'} transition-colors`}>
-                            {hasAnyScore && (isExpanded ? <ChevronDown size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" /> : <ChevronRight size={12} strokeWidth={1.5} className="text-[oklch(0.55_0.01_264)] shrink-0" />)}
-                            <span className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight">{expert.expertName}</span>
+                            className={`inline-flex items-center gap-1.5 text-left transition-colors ${hasAnyScore ? 'cursor-pointer hover:text-[oklch(0.42_0.14_260)]' : 'cursor-default'}`}>
+                            {hasAnyScore && (isExpanded ? <ChevronDown size={12} strokeWidth={1.5} className="shrink-0 text-[color:var(--muted-foreground)]" /> : <ChevronRight size={12} strokeWidth={1.5} className="shrink-0 text-[color:var(--muted-foreground)]" />)}
+                            <span className="text-[13px] font-semibold tracking-tight text-[color:var(--foreground)]">{expert.expertName}</span>
                           </button>
                         </td>
                         {suppliers.map(s => {
@@ -584,22 +628,22 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                           const cellPct = cell && cell.maxScore > 0 ? (cell.totalScore / cell.maxScore) * 100 : null;
                           const isAnomaly = cellPct !== null && avg > 0 && Math.abs(cellPct - avg) > anomalyThreshold;
                           if (!cell || cell.scoredCount === 0) {
-                            return <td key={s.id} className="px-5 py-3 text-[12px] text-[oklch(0.62_0.008_264)]">—</td>;
+                            return <td key={s.id} className="px-5 py-3 text-[12px] text-[color:var(--muted-foreground)]">—</td>;
                           }
                           return (
                             <td key={s.id} className="px-5 py-3">
-                              <div className={`relative inline-flex items-center gap-1 cursor-default rounded-md px-2 py-1 transition-all ${
-                                isAnomaly ? 'border border-[#f5a623] bg-[#fef6e8]' : ''
+                              <div className={`relative inline-flex cursor-default items-center gap-1 rounded-md px-2 py-1 transition-all ${
+                                isAnomaly ? 'bg-[oklch(0.97_0.04_83_/_0.5)]' : ''
                               }`}
                                 onMouseEnter={(e) => setTooltip({ cell, expertName: expert.expertName, supplierName: s.supplierName, anchorRect: e.currentTarget.getBoundingClientRect() })}
                                 onMouseLeave={() => setTooltip(null)}
                               >
-                                <span className="font-mono text-[oklch(0.18_0.012_265)]">
+                                <span className="font-mono text-[color:var(--foreground)]">
                                   <span className="font-bold">{cell.totalScore.toFixed(1)}</span>
-                                  <span className="text-[oklch(0.62_0.008_264)]">/{cell.maxScore}</span>
+                                  <span className="text-[color:var(--muted-foreground)]">/{cell.maxScore}</span>
                                 </span>
-                                <span className="text-[11px] text-[oklch(0.62_0.008_264)]">({cell.scoredCount})</span>
-                                {isAnomaly && <AlertTriangle size={10} className="text-[#f5a623]" />}
+                                <span className="text-[11px] text-[color:var(--muted-foreground)]">({cell.scoredCount})</span>
+                                {isAnomaly && <AlertTriangle size={10} className="text-[oklch(0.64_0.16_82)]" />}
                                 {tooltip && tooltip.expertName === expert.expertName && tooltip.supplierName === s.supplierName && (
                                   <CellTooltip cell={cell} expertName={expert.expertName} supplierName={s.supplierName}
                                     anchorRect={tooltip.anchorRect}
@@ -622,8 +666,8 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                 if (!row) return null;
                 return (
                   <div key={expId} className="border-t border-[oklch(0.91_0.006_264)]">
-                    <div className="p-5 bg-[oklch(0.98_0.005_264)]">
-                      <div className="text-[12px] font-semibold text-[oklch(0.42_0.14_260)] mb-3 tracking-tight">
+                    <div className="bg-[oklch(0.98_0.005_264_/_0.5)] p-5">
+                      <div className="mb-3 text-[12px] font-semibold tracking-tight text-[oklch(0.42_0.14_260)]">
                         {expert.expertName} 详细评分
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -631,15 +675,15 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                           const cell = row.get(supplier.id);
                           if (!cell || cell.scoredCount === 0) return null;
                           return (
-                            <div key={supplier.id} className="glass-card glass-card-lighter glass-card-blue p-4">
-                              <div className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] mb-2 tracking-tight">{supplier.supplierName}</div>
+                            <div key={supplier.id} className="neu-card-static p-4">
+                              <div className="mb-2 text-[13px] font-semibold tracking-tight text-[color:var(--foreground)]">{supplier.supplierName}</div>
                               {cell.items.map(item => (
-                                <div key={item.name} className="flex justify-between items-center text-[12px] py-1.5 border-b border-[oklch(0.94_0.004_264)] last:border-0">
-                                  <span className="text-[oklch(0.55_0.01_264)]">{item.name}</span>
+                                <div key={item.name} className="flex items-center justify-between border-b border-[oklch(0.94_0.004_264)] py-1.5 text-[12px] last:border-0">
+                                  <span className="text-[color:var(--muted-foreground)]">{item.name}</span>
                                   <span className="font-mono">
-                                    <span className="font-bold text-[oklch(0.18_0.012_265)]">{item.score}</span>
-                                    <span className="text-[oklch(0.62_0.008_264)]">/{item.maxScore}</span>
-                                    {item.reason && <span className="text-[oklch(0.55_0.01_264)] ml-1.5 text-[11px]">({item.reason})</span>}
+                                    <span className="font-bold text-[color:var(--foreground)]">{item.score}</span>
+                                    <span className="text-[color:var(--muted-foreground)]">/{item.maxScore}</span>
+                                    {item.reason && <span className="ml-1.5 text-[11px] text-[color:var(--muted-foreground)]">({item.reason})</span>}
                                   </span>
                                 </div>
                               ))}
@@ -658,43 +702,42 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
 
       {/* ═══ Section 3: Supplier score summary ═══ */}
       {suppliers.length > 0 && (
-        <div className="glass-card glass-card-blue mb-8">
-          <div className="px-5 py-4 border-b border-[oklch(0.91_0.006_264)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-[13px] font-semibold text-[oklch(0.18_0.012_265)] tracking-tight" style={{ fontFamily: "'Manrope', system-ui, sans-serif" }}>
-                  供应商评分汇总
-                </h2>
-                <p className="text-[11px] text-[oklch(0.62_0.008_264)] mt-1">各分类展示专家均分。尚无官方结果时排名/总分为实时参考值（未去极值）；官方结果生成后以其为准（≥5 专家去 1 高 1 低、废标置后）。悬停分类得分查看专家明细。</p>
-              </div>
-              <div className="flex items-center gap-3">
-                {!allReportsConfirmed && experts.length > 0 && (
-                  <span className="relative inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#92400e] group cursor-default" title={unconfirmedNames.join('、')}>
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#e74c3c] opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-[#e74c3c]" />
-                    </span>
-                    {unconfirmedCount} 位未确认
-                    <span className="absolute top-full mt-1 right-0 w-48 rounded-xl border border-[#dce6f3] bg-white p-2.5 text-[11px] text-[#5a6d8a] shadow-[0_8px_30px_rgba(15,47,87,0.1)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition z-50 text-left font-normal">
-                      {unconfirmedNames.map((n, i) => <div key={n} className="py-0.5">{i + 1}. {n}</div>)}
-                    </span>
+        <div className="neu-card-static mb-8">
+          <div className="flex items-center justify-between px-5 py-4">
+            <div>
+              <h2 className="text-[13px] font-semibold tracking-tight text-[color:var(--foreground)]">
+                供应商评分汇总
+              </h2>
+              <p className="mt-1 text-[11px] text-[color:var(--muted-foreground)]">各分类展示专家均分。尚无官方结果时排名/总分为实时参考值（未去极值）；官方结果生成后以其为准（≥5 专家去 1 高 1 低、废标置后）。悬停分类得分查看专家明细。</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {!allReportsConfirmed && experts.length > 0 && (
+                <span className="group relative inline-flex cursor-default items-center gap-1.5 text-[11px] font-semibold text-[oklch(0.55_0.13_70)]" title={unconfirmedNames.join('、')}>
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--danger)]" />
                   </span>
-                )}
-              </div>
+                  {unconfirmedCount} 位未确认
+                  <span className="absolute right-0 top-full mt-1 z-50 w-48 rounded-[12px] bg-[var(--background)] p-2.5 text-left text-[11px] font-normal text-[color:var(--muted-foreground)] opacity-0 shadow-[0_12px_40px_oklch(0.55_0.03_258_/_0.1),inset_0_1px_0_oklch(1_0_0_/_0.7)] transition group-hover:visible group-hover:opacity-100">
+                    {unconfirmedNames.map((n, i) => <div key={n} className="py-0.5">{i + 1}. {n}</div>)}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
+          <hr className="wb-section-rule" />
           <div className="overflow-x-auto overflow-y-visible">
-            <table className="workbench-table mx-auto">
+            <table className="neu-table mx-auto">
               <thead>
-                <tr className="text-[oklch(0.55_0.01_264)] relative z-0">
-                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="按专家总分均分排名，同分同名次（竞赛式）">排名</th>
-                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">投标单位</th>
+                <tr className="relative z-0 text-[color:var(--muted-foreground)]">
+                  <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap" title="按专家总分均分排名，同分同名次（竞赛式）">排名</th>
+                  <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap">投标单位</th>
                   {CATEGORY_ORDER.map(cat => (
-                    <th key={cat} className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">{CATEGORY_LABEL[cat] || cat}</th>
+                    <th key={cat} className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap">{CATEGORY_LABEL[cat] || cat}</th>
                   ))}
-                  <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap" title="商务+技术+价格分类均分之和，满分 100">总分(平均)</th>
+                  <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap" title="商务+技术+价格分类均分之和，满分 100">总分(平均)</th>
                   {results.length > 0 && (
-                    <th className="px-5 py-3 font-medium text-[11px] uppercase tracking-wider whitespace-nowrap">推荐</th>
+                    <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider whitespace-nowrap">推荐</th>
                   )}
                 </tr>
               </thead>
@@ -720,10 +763,10 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                     <tr key={supplier.id} className={`transition-colors ${evalResult?.disqualified ? 'opacity-60' : ''}`}>
                       <td className="px-5 py-3">
                         {rank != null ? (
-                          <span className="font-mono font-bold text-[oklch(0.18_0.012_265)] transition-all duration-300">#{rank}</span>
-                        ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
+                          <span className="font-mono font-bold text-[color:var(--foreground)] transition-all duration-300">#{rank}</span>
+                        ) : <span className="text-[12px] text-[color:var(--muted-foreground)]">—</span>}
                       </td>
-                      <td className="px-5 py-3 font-semibold text-[oklch(0.18_0.012_265)] whitespace-nowrap">{supplier.supplierName}</td>
+                      <td className="whitespace-nowrap px-5 py-3 font-semibold text-[color:var(--foreground)]">{supplier.supplierName}</td>
                       {CATEGORY_ORDER.map(cat => {
                         const cell = catMap?.get(cat);
                         // ── Pass-fail categories: show verdict ──
@@ -744,10 +787,14 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                           return (
                             <td key={cat} className="px-5 py-3">
                               {hasVerdict ? (
-                                <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2 py-0.5 rounded-full ${failed ? 'text-[#e74c3c] border border-[#e74c3c]/40 bg-[#fef2f2]' : 'text-[#11a874] border border-[#11a874]/40 bg-[#ecfdf5]'}`}>
+                                <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${
+                                  failed
+                                    ? 'bg-[oklch(0.97_0.03_22_/_0.5)] text-[var(--danger)]'
+                                    : 'bg-[oklch(0.96_0.03_158_/_0.5)] text-[oklch(0.54_0.16_158)]'
+                                }`}>
                                   {failed ? '不通过' : '通过'}
                                 </span>
-                              ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
+                              ) : <span className="text-[12px] text-[color:var(--muted-foreground)]">—</span>}
                             </td>
                           );
                         }
@@ -768,38 +815,38 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                         return (
                           <td key={cat} className="px-5 py-3">
                             {avg != null ? (
-                              <span className="inline-flex items-center gap-1.5 cursor-default"
+                              <span className="inline-flex cursor-default items-center gap-1.5"
                                 onMouseEnter={(e) => setCategoryTooltip({ expertScores, anchorRect: e.currentTarget.getBoundingClientRect(), key: `${supplier.id}-${cat}` })}
                                 onMouseLeave={() => setCategoryTooltip(null)}
                               >
-                                <span className="w-0.5 h-3 shrink-0" style={{ backgroundColor: CATEGORY_COLOR[cat] }} />
-                                <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{avg}</span>
+                                <span className="h-3 w-0.5 shrink-0 bg-[var(--cat-accent)]" style={{ '--cat-accent': CATEGORY_COLOR[cat] } as React.CSSProperties} />
+                                <span className="font-mono font-bold text-[color:var(--foreground)]">{avg}</span>
                                 {categoryTooltip && categoryTooltip.key === `${supplier.id}-${cat}` && (
                                   <CategoryDetailTooltip expertScores={categoryTooltip.expertScores}
                                     anchorRect={categoryTooltip.anchorRect}
                                     onClose={() => setCategoryTooltip(null)} />
                                 )}
                               </span>
-                            ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
+                            ) : <span className="text-[12px] text-[color:var(--muted-foreground)]">—</span>}
                           </td>
                         );
                       })}
                       <td className="px-5 py-3">
                         {overallAvg != null ? (
                           <span className="font-mono font-bold text-[oklch(0.42_0.14_260)]">{overallAvg}</span>
-                        ) : <span className="text-[12px] text-[oklch(0.62_0.008_264)]">—</span>}
+                        ) : <span className="text-[12px] text-[color:var(--muted-foreground)]">—</span>}
                       </td>
                       {results.length > 0 && (
                           <td className="px-5 py-3">
                             {evalResult?.disqualified ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 tracking-wide rounded-full text-[#e74c3c] border border-[#e74c3c]/40 bg-[#fef2f2]">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.97_0.03_22_/_0.5)] px-2.5 py-1 text-[11px] font-bold tracking-wide text-[var(--danger)]">
                                 废标（资格/响应性不通过）
                               </span>
                             ) : evalResult?.recommended ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 tracking-wide rounded-full text-[#11a874] border border-[#11a874]/40 bg-gradient-to-r from-[#f0fdf4] to-[#ecfdf5]">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.96_0.03_158_/_0.5)] px-2.5 py-1 text-[11px] font-bold tracking-wide text-[oklch(0.54_0.16_158)]">
                                 <Trophy size={11} /> 第一中标候选人
                               </span>
-                            ) : <span className="text-[11px] text-[oklch(0.62_0.008_264)]">—</span>}
+                            ) : <span className="text-[11px] text-[color:var(--muted-foreground)]">—</span>}
                           </td>
                         )}
                     </tr>
