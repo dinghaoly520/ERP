@@ -11,7 +11,7 @@
  * 展示侧统一 Number() 消费；与 :3005 apps/web lib/api/bid.ts BidScorePoint 同形状）。
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { ListChecks, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
@@ -36,12 +36,15 @@ export default function ScoreStandardView({ projectId, project: propsProject }: 
   const items = project?.scoreItems ?? [];
 
   useEffect(() => {
+    const ac = new AbortController();
+    const fetched = new Set(Object.keys(pointsByItem));
     for (const item of items) {
-      if (pointsByItem[item.id]) continue;
-      api.get<ScorePoint[]>(`/bid/projects/${projectId}/score-items/${item.id}/points`)
+      if (fetched.has(item.id)) continue;
+      api.get<ScorePoint[]>(`/bid/projects/${projectId}/score-items/${item.id}/points`, { signal: ac.signal })
         .then(pts => setPointsByItem(prev => ({ ...prev, [item.id]: pts })))
         .catch(() => {});
     }
+    return () => ac.abort();
   }, [items, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!project) return null;

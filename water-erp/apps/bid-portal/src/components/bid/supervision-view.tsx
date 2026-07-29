@@ -1,11 +1,10 @@
 'use client';
 
 /**
- * 监督视图（嵌入开标大厅）——移植自已删除的 supervise/page.tsx。
- * 开标过程的只读留痕：权限边界、过程时间线、异常事件（解密 DANGER + AI 实时事件，
- * 支持关注/上报/批注持久化）、监督日志表（含 CSV 导出）、大厅交流只读。
- * F8：实时事件（supervision:log / anomaly:detected）改由开标大厅页面级 socket
- * 统一订阅后经 props 下传，避免同一 project room 双连接。
+ * 监督视图（嵌入项目工作区）——开标过程的只读留痕。权限边界、过程时间线、
+ * 异常事件（解密 DANGER + AI 实时事件，支持关注/上报/批注持久化）、
+ * 监督日志表（含 CSV 导出）、大厅交流只读。
+ * 实时事件由工作区页级 socket 统一订阅后经 props 下传。
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -15,6 +14,7 @@ import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { getSupervisionAnnotations, upsertSupervisionAnnotation, deleteSupervisionAnnotation } from '@/lib/api/bid';
 import { Shield, AlertTriangle, Eye, Download, Zap } from 'lucide-react';
 import { toast } from 'sonner';
+import { SEG_ACTIVE } from '@/components/bid/exchange-drawer';
 
 /** cgzxui 面板（取代 @water-erp/ui 的 SectionCard）——无边框玻璃静态卡 + hairline 标题行 */
 function Panel({ title, children, className = '' }: { title?: string; children: React.ReactNode; className?: string }) {
@@ -29,9 +29,6 @@ function Panel({ title, children, className = '' }: { title?: string; children: 
     </section>
   );
 }
-
-// 分段切换钮选中态：内凹按压
-const SEG_ACTIVE = 'rounded-[7px] px-2 py-1 text-xs font-semibold text-[color:var(--foreground)] bg-[oklch(0.92_0.012_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)] transition-all';
 
 function exportSupervisionCSV(logs: Array<{ id?: string; time: string; role: string; target: string; action: string; result: string; riskFlag: string }>) {
   const BOM = '﻿';

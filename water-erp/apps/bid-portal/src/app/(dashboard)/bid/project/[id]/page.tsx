@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
@@ -12,6 +13,7 @@ import { SupervisionView, type SupervisionLog } from '@/components/bid/supervisi
 import EvaluationView from '@/components/workspace/evaluation-view';
 import ScoreStandardView from '@/components/workspace/score-standard-view';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { useOpeningSfx } from '@/hooks/use-opening-sfx';
 import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -24,30 +26,6 @@ const TAB_LABELS: Record<TabDef['key'], string> = {
   standard: '评分标准',
 };
 
-/* ── Sound Engine helpers（从 opening-hall 上提：解密音效由页级 socket 驱动，跨 tab 常驻）── */
-function playTone(ctx: AudioContext, freq: number, duration: number, type: OscillatorType = 'sine') {
-  try {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type; osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.12, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime + duration);
-  } catch { /* silent fail */ }
-}
-function createSfx(ctxRef: React.RefObject<AudioContext | null>) {
-  return {
-    decryptSuccess: () => {
-      const ctx = ctxRef.current; if (!ctx) return;
-      playTone(ctx, 880, 0.12);
-      setTimeout(() => { const c = ctxRef.current; if (c) playTone(c, 1100, 0.15); }, 120);
-    },
-    decryptFail: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 180, 0.3, 'square'); },
-    tick: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 600, 0.05); },
-    warning: () => { const ctx = ctxRef.current; if (ctx) playTone(ctx, 440, 0.4, 'sawtooth'); },
-  };
-}
 
 function WorkspaceInner() {
   const router = useRouter();
@@ -65,9 +43,8 @@ function WorkspaceInner() {
   const [liveLogs, setLiveLogs] = useState<SupervisionLog[]>([]);
   const [anomalyEvents, setAnomalyEvents] = useState<AnomalyDetectedPayload[]>([]);
 
-  // ═══ Audio context（从 opening-hall 上提，无模块级泄漏）═══
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const sfx = createSfx(audioCtxRef);
+  // ═══ Audio（从 opening-hall 上提：解密音效由页级 socket 驱动，跨 tab 常驻）═══
+  const sfx = useOpeningSfx();
   const seenDecrypt = useRef<Set<string>>(new Set());
 
   const loadProject = useCallback(async () => {
@@ -90,22 +67,6 @@ function WorkspaceInner() {
     setAnomalyEvents([]);
     loadProject();
   }, [projectId, loadProject]);
-
-  // AudioContext 生命周期
-  useEffect(() => {
-    audioCtxRef.current = new AudioContext();
-    return () => { audioCtxRef.current?.close(); audioCtxRef.current = null; };
-  }, []);
-  // 浏览器在用户首次交互前可能将 AudioContext 置于 suspended —— 首次点击/按键时 resume
-  useEffect(() => {
-    const resume = () => { audioCtxRef.current?.resume?.(); };
-    window.addEventListener('click', resume, { once: true });
-    window.addEventListener('keydown', resume, { once: true });
-    return () => {
-      window.removeEventListener('click', resume);
-      window.removeEventListener('keydown', resume);
-    };
-  }, []);
 
   // ═══ 当前 tab ═══
   const stage = project?.stage ?? 'DOWNLOAD';
@@ -200,7 +161,7 @@ function WorkspaceInner() {
     <div className="space-y-5">
       {project && (
         <nav className="sp-breadcrumb" aria-label="面包屑">
-          <a className="sp-breadcrumb-link" href="/bid">开标任务板</a>
+          <Link className="sp-breadcrumb-link" href="/bid">开标任务板</Link>
           <span className="sp-breadcrumb-sep">/</span>
           <span className="sp-breadcrumb-current">{project.projectCode} · {project.name}</span>
           <span className="sp-breadcrumb-sep">/</span>

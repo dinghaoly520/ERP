@@ -77,6 +77,9 @@ type CustomPhrase = { label: string; text: string };
 type PhraseStore = { custom: CustomPhrase[]; hiddenBuiltin: string[] };
 type PhraseItem = { text: string; builtin: boolean };
 
+/** 内凹按压态分段控件样式（与 supervision-view 共用） */
+export const SEG_ACTIVE = 'rounded-[7px] px-2 py-1 text-xs font-semibold text-[color:var(--foreground)] bg-[oklch(0.92_0.012_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)] transition-all';
+
 export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: string; initialStageClosed?: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
@@ -365,8 +368,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed }: { projectId: s
       ? { text: '重连中…', cls: 'text-[var(--warning)]', dot: 'bg-[var(--warning)]' }
       : { text: '已断开', cls: 'text-[var(--danger)]', dot: 'bg-[var(--danger)]' };
 
-  // 控制 / 私聊供应商 切换钮：选中 = 内凹按压态，未选 = 凸起 neu-btn-xs
-  const segActive = 'rounded-[7px] px-2 py-1 text-xs font-semibold text-[color:var(--foreground)] bg-[oklch(0.92_0.012_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)] transition-all';
+  const segActive = SEG_ACTIVE;
 
   return (
     <>

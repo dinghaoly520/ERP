@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams, useParams } from 'next/navigation';
 import { getRecentProjects, removeRecentProject, type RecentProject } from '@/lib/storage';
 import { Clock, X } from 'lucide-react';
 
@@ -18,9 +18,10 @@ function RecentProjectsInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const params = useParams();
   const [items, setItems] = useState<RecentProject[]>([]);
 
-  // pathname 或 ?id= 变化时刷新列表（进入新项目会更新 localStorage）
+  // pathname 或 route params 变化时刷新列表（进入新项目会更新 localStorage）
   useEffect(() => {
     setItems(getRecentProjects());
   }, [pathname, searchParams]);
@@ -28,7 +29,7 @@ function RecentProjectsInner() {
   if (items.length === 0) return null;
 
   const handleClick = (p: RecentProject) => {
-    // Phase 3：project 工作区已退役，最近项目直达开标大厅
+    // 最近项目直达工作区
     router.push(`/bid/project/${p.id}`);
   };
 
@@ -39,9 +40,8 @@ function RecentProjectsInner() {
     setItems(getRecentProjects());
   };
 
-  // F10：改从 useSearchParams 响应式读取（同 pathname 切 ?id= 时高亮随之更新）
-  const currentId = searchParams.get('id');
-
+  // F10：从路由参数读取当前项目 ID（/bid/project/[id]），高亮匹配项
+  const currentId = (params?.id as string) ?? null;
   return (
     <div className="px-2 pt-2 pb-2">
       <div className="flex items-center gap-1.5 px-2 pb-1.5">

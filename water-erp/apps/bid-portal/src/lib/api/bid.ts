@@ -1,15 +1,9 @@
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 
-/* ── :3007 开标执行终端 API 封装（Phase 3 瘦身版）──
+/* ── :3007 开标执行终端 API 封装 ──
    项目管理 / 评分标准 / 评标 / 澄清 / 归档触发等封装已随对应页面迁往 :3005。
-   此处仅保留：项目读取、任务板、开标会话组建、解密、唱标、异议、监督批注。 */
-
-/* ── 项目详情 ── */
-
-export function getProject<T = BidProjectDetail>(id: string) {
-  return api.get<T>(`/bid/projects/${id}`);
-}
+   此处仅保留：任务板、开标会话组建、解密、唱标、异议、监督批注、评标结果。 */
 
 /* ── 开标任务板 ── */
 
@@ -66,23 +60,6 @@ export function decryptBid(projectId: string, supplierId: string) {
   return api.post(`/bid/projects/${projectId}/decrypt/${supplierId}`, {});
 }
 
-/* ── 管理员补传异常投标文件（SHA-256 闸门校验）── */
-
-export interface ReuploadResult {
-  recovered: boolean;
-  decrypted: boolean;
-  decryptStatus?: string;
-  message?: string;
-}
-
-export function reuploadBidFile(projectId: string, supplierId: string, role: string, file: File) {
-  const fd = new FormData();
-  fd.append('file', file);
-  return api.upload<ReuploadResult>(
-    `/bid/projects/${projectId}/suppliers/${supplierId}/files/${role}/reupload`, fd,
-  );
-}
-
 /* ── 管理员一键重新封标（从系统内原始明文恢复，无需上传文件）── */
 
 export interface ResealResult {
@@ -94,17 +71,6 @@ export interface ResealResult {
 
 export function resealBidFiles(projectId: string, supplierId: string) {
   return api.post<ResealResult>(`/bid/projects/${projectId}/suppliers/${supplierId}/reseal`, {});
-}
-
-/* ── 重新加载招标文件（验证可解密 + 自动修复关联）── */
-
-export interface TenderDocReloadResult {
-  status: 'ok' | 'missing' | 'decrypt_failed';
-  message: string;
-}
-
-export function reloadTenderDocument(projectId: string) {
-  return api.post<TenderDocReloadResult>(`/bid/projects/${projectId}/tender-document/reload`, {});
 }
 
 /* ── 唱标与异议 ── */

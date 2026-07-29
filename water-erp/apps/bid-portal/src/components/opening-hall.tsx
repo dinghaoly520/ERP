@@ -6,7 +6,7 @@ import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import {
-  Unlock, Clock, Shield, CheckCircle, AlertTriangle, Eye, ExternalLink,
+  Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
   Volume2, Zap, Loader, FileText, RotateCcw,
 } from 'lucide-react';
 import { DECRYPT_LABEL } from '@water-erp/shared';
@@ -92,7 +92,6 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
   const [bulkDecrypting, setBulkDecrypting] = useState(false);
   const [decryptTarget, setDecryptTarget] = useState<{ id: string; name: string }[] | null>(null);
-  const [bigScreen] = useState(false);
   const [inlineDispute, setInlineDispute] = useState<string | null>(null);
   const [disputeHandleResult, setDisputeHandleResult] = useState('');
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
@@ -318,7 +317,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   }, [session]);
 
   return (
-    <div className={`space-y-5 ${bigScreen ? 'text-[115%]' : ''}`}>
+    <div className="space-y-5">
       {/* ═══ Time warning banners — 无边框色调提示 ═══ */}
       {timeWarning === '5min' && (
         <div className="flex animate-pulse items-center gap-2 rounded-xl bg-[oklch(0.78_0.12_83_/_0.16)] px-4 py-2.5 text-sm font-bold text-[oklch(0.46_0.11_65)]">
@@ -411,7 +410,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         <div className="neu-card-static space-y-4 p-6">
           <div className="flex flex-wrap items-center gap-8">
             <div className="min-w-0 flex-1">
-              <h2 className={`mb-2 font-black tracking-tight text-[color:var(--foreground)] ${bigScreen ? 'text-2xl' : 'text-lg'}`}>
+              <h2 className="mb-2 text-lg font-black tracking-tight text-[color:var(--foreground)]">
                 {project.name}
               </h2>
               <div className="flex flex-wrap items-center gap-6 text-sm text-[color:var(--muted-foreground)]">
@@ -424,7 +423,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
               <div className="mb-1 text-xs uppercase tracking-widest text-[color:var(--muted-foreground)]">状态</div>
               <div className="text-lg font-black tracking-tight text-[color:var(--foreground)]">{session.status}</div>
             </div>
-            {remaining > 0 && <RingCountdown remaining={remaining} big={bigScreen} />}
+            {remaining > 0 && <RingCountdown remaining={remaining} />}
             {session && remaining > 0 && (
               <div className="mt-2 flex flex-wrap gap-2">
                 <button

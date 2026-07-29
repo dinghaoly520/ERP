@@ -37,7 +37,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('bid-portal.sidebar-collapsed') === '1';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('bid-portal.sidebar-collapsed', collapsed ? '1' : '0');
+  }, [collapsed]);
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })

@@ -38,7 +38,7 @@ export function BidProjectProvider({ children }: { children: React.ReactNode }) 
 function BidProjectProviderInner({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const searchParams = useSearchParams();
-  // Phase 3：project/[id] 工作区已退役，开标大厅经 ?id= 指定项目（useSearchParams 全响应式）
+  // 项目工作区经路由参数 [id] 指定项目（useParams 全响应式）
   const id = (params?.id as string | undefined) ?? (searchParams.get('id') ?? undefined);
 
   const [project, setProject] = useState<BidProjectDetail | null>(null);

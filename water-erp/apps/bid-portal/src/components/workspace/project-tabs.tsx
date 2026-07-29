@@ -31,7 +31,7 @@ export const TABS: TabDef[] = [
     key: 'standard',
     label: '评分标准',
     icon: ListChecks,
-    minStage: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
+    minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
     stageHint: '—',
   },
   {
