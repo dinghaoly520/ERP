@@ -60,13 +60,6 @@ export default function BidTaskBoard() {
 
   return (
     <div className="space-y-5">
-      {/* ── 顶部工具条 ── */}
-      <div className="flex items-center justify-end">
-        <button type="button" onClick={load} disabled={loading} title="刷新" className="neu-btn-xs">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-        </button>
-      </div>
-
       {loading && !projects ? (
         <div className="flex min-h-[240px] items-center justify-center text-sm text-[color:var(--muted-foreground)]">
           <RefreshCw size={18} className="mr-2 animate-spin" /> 加载开标任务…
