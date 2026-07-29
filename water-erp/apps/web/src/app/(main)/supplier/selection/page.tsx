@@ -131,23 +131,50 @@ export function SupplierSelectionPage({
   const [isRerun, setIsRerun] = useState(false);
   const baseConfirmStep = neg ? 6 : 5;
   const attachStep = neg ? 5 : -1;
-  // 补选模式下步骤编号
-  const rerunPickStep = baseConfirmStep + 1;   // 补选候选
-  const rerunNotifyStep = baseConfirmStep + 2;  // 补选通知
-  const finalConfirmStep = baseConfirmStep + 3; // 最终供应商确认
+  // 多轮补选累积数据（须在动态步骤编号前声明）
+  const [rerunHistory, setRerunHistory] = useState<Array<{ shortlist: Map<string, { item: SupplierRecommendation; note: string }>; confirmations: Map<string, 'pending' | 'confirmed' | 'declined'> }>>([]);
+  const previousRerunShortlist = useMemo(() => {
+    const m = new Map<string, { item: SupplierRecommendation; note: string }>();
+    for (const h of rerunHistory) { for (const [k, v] of h.shortlist) m.set(k, v); }
+    return m;
+  }, [rerunHistory]);
+  const previousRerunConfirmations = useMemo(() => {
+    const m = new Map<string, 'pending' | 'confirmed' | 'declined'>();
+    for (const h of rerunHistory) { for (const [k, v] of h.confirmations) m.set(k, v); }
+    return m;
+  }, [rerunHistory]);
+  // 补选模式下步骤编号（动态：随 continueRerun 轮次递增）
+  const rerunRound = rerunHistory.length; // 已完成的轮次数
+  const firstRerunPickStep = baseConfirmStep + 1; // 第一轮补选候选（固定 = 步骤7/8），步骤6"下一步"用
+  const rerunPickStep = baseConfirmStep + 1 + rerunRound * 3;     // 当前轮补选候选
+  const rerunNotifyStep = baseConfirmStep + 2 + rerunRound * 3;   // 当前轮补选通知
+  const finalConfirmStep = baseConfirmStep + 3 + rerunRound * 3;  // 当前轮供应商确认
+  // 当前步骤所在的补选轮次索引：-1=非补选步骤，0/1/2...=第N轮
+  const currentRerunRound = step > baseConfirmStep ? Math.floor((step - baseConfirmStep - 1) / 3) : -1;
+  const isAnyRerunPick = step > baseConfirmStep && (step - baseConfirmStep - 1) % 3 === 0;
+  const isAnyRerunNotify = step > baseConfirmStep && (step - baseConfirmStep - 2) % 3 === 0;
+  const isAnyRerunConfirm = step > baseConfirmStep && (step - baseConfirmStep) % 3 === 0;
   // 动态步骤轨道
   const steps = useMemo(() => {
     const base: { num: number; label: string; desc: string }[] = [...(neg ? NEGOTIATION_STEPS : STEPS)].map(s => ({ ...s }));
     if (!isRerun) return base;
-    // 补选模式：最后一步名改为「补选」，追加 3 步
     const baseRenumbered = base.map((s, i) => ({ ...s, num: i + 1 }));
     const lastIdx = baseRenumbered.length - 1;
     baseRenumbered[lastIdx] = { ...baseRenumbered[lastIdx], label: '正选确认并补选' };
-    RERUN_EXTRA_STEPS.forEach((e, i) => {
-      baseRenumbered.push({ num: baseRenumbered.length + 1, label: e.label, desc: e.desc });
-    });
+      // 已完成的轮次：最后一步改名为「第N轮确认」
+      for (let r = 0; r < rerunRound; r++) {
+        RERUN_EXTRA_STEPS.forEach((e, i) => {
+          const label = i === 2 ? `第${r + 1}轮确认` : e.label;
+          baseRenumbered.push({ num: baseRenumbered.length + 1, label, desc: e.desc });
+        });
+      }
+      // 当前轮次（最后一步永远是「供应商确认」）
+      RERUN_EXTRA_STEPS.forEach((e, i) => {
+        baseRenumbered.push({ num: baseRenumbered.length + 1, label: e.label, desc: e.desc });
+      });
+      return baseRenumbered;
     return baseRenumbered;
-  }, [neg, isRerun]);
+  }, [neg, isRerun, rerunRound]);
   // 日期解析：从 AI 提取的中文/ISO 格式字符串中提取日期和时分
   // 开标时间为单点时间："2026年3月27日14:00"→ {date, time}
   // 采购文件获取时间为区间："2026年3月23日9:00-2026年3月26日15:00"→ {startDate, startTime, endDate, endTime}
@@ -249,8 +276,9 @@ export function SupplierSelectionPage({
   const [rerunNotified, setRerunNotified] = useState(false);
   const [rerunConfirmations, setRerunConfirmations] = useState<Map<string, 'pending' | 'confirmed' | 'declined'>>(new Map());
   const [rerunNotifySending, setRerunNotifySending] = useState(false);
+  // 多轮补选累积数据
   // 进入「确认/回执」步骤时自动刷新看板（供应商可能已陆续回执）——须在 step 声明之后。
-  useEffect(() => { if (step === baseConfirmStep) void loadRsvpList(); }, [step, loadRsvpList, baseConfirmStep]);
+  useEffect(() => { if (step === baseConfirmStep || step === finalConfirmStep) void loadRsvpList(); }, [step, loadRsvpList, baseConfirmStep, finalConfirmStep]);
   const [notified, setNotified] = useState(false); // 第 4 步：是否已完成通知发送
   // 第 5 步：逐供应商确认状态（待确认 / 已确认 / 已放弃）
   const [confirmations, setConfirmations] = useState<Map<string, 'pending' | 'confirmed' | 'declined'>>(new Map());
@@ -331,8 +359,17 @@ export function SupplierSelectionPage({
         // 恢复补选状态
         if (state.isRerun) setIsRerun(true);
         if (state.rerunMode) setRerunMode(state.rerunMode);
+        if (Array.isArray(state.rerunHistoryArr)) {
+          setRerunHistory(state.rerunHistoryArr.map((h: any) => {
+            const sl = new Map<string, { item: SupplierRecommendation; note: string }>();
+            (h.shortlistArr as [string, any][]).forEach(([k, v]) => sl.set(k, v));
+            const cm = new Map<string, 'pending' | 'confirmed' | 'declined'>();
+            (h.confirmationsArr as [string, string][]).forEach(([k, v]) => cm.set(k, v as 'pending' | 'confirmed' | 'declined'));
+            return { shortlist: sl, confirmations: cm };
+          }));
+        }
         if (state.rerunResult) setRerunResult(state.rerunResult);
-        if (state.rerunNotified) setRerunNotified(true);
+                if (state.rerunNotified) setRerunNotified(true);
         if (state.rerunShortlistArr) {
           const m = new Map<string, { item: SupplierRecommendation; note: string }>();
           (state.rerunShortlistArr as [string, any][]).forEach(([k, v]) => m.set(k, v));
@@ -383,13 +420,14 @@ export function SupplierSelectionPage({
         rerunNotified,
         rerunNotifyPerSupplierArr: [...rerunNotifyPerSupplier.entries()],
         rerunMode,
+        rerunHistoryArr: rerunHistory.map(h => ({ shortlistArr: [...h.shortlist.entries()], confirmationsArr: [...h.confirmations.entries()] })),
         // 附件 + 下载方式 + 时间确认
         configSent, timeConfirmed,
         attachFiles, refFileKeys: [...refFileKeys],
         downloadMode, downloadPassword, paidAmount,
       }));
     } catch {}
-  }, [requirement, selectedTags, projectId, step, result, shortlist, notified, notifyNotFound, completed, confirmations, selectionMode, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount]);
+  }, [requirement, selectedTags, projectId, step, result, shortlist, notified, notifyNotFound, completed, confirmations, selectionMode, notifyPerSupplier, notifyRsvpTokens, manualSearch, manualSuppliers, manualTotal, isRerun, rerunShortlist, rerunConfirmations, rerunResult, rerunNotified, rerunNotifyPerSupplier, rerunMode, rerunHistory.length, configSent, timeConfirmed, attachFiles, refFileKeys, downloadMode, downloadPassword, paidAmount]);
   useEffect(() => { if (!projectId) { setProjectDetail(null); return; } getBidProjectDetail(projectId).then(setProjectDetail).catch(() => setProjectDetail(null)); }, [projectId]);
 
   // 加载项目文件分析上下文（用于 AI 润色 + 标签预选；步骤 1 即加载，手动模式据此预填标签）
@@ -458,19 +496,21 @@ export function SupplierSelectionPage({
     setTagQuery('');
   }, [selectedProject?.id]);
 
-  // AI 模式：选定项目后即预填
+  // AI 模式：选定项目后即预填（仅当尚无选中标签时）
   useEffect(() => {
     if (selectionMode !== 'ai' || !selectedProject || tagVocab.length === 0) return;
     if (tagsUserEditedRef.current) return;
+    if (selectedTags.length > 0) return;
     runTagSuggestion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject?.id, selectionMode, tagVocab.length]);
 
-  // 手动模式：文件分析完成后预填；无项目分析来源时退化为选定项目即预填
+  // 手动模式：文件分析完成后预填；无项目分析来源时退化为选定项目即预填（仅当尚无选中标签时）
   useEffect(() => {
     if (selectionMode !== 'manual' || tagVocab.length === 0) return;
     if (tagsUserEditedRef.current) return;
-    if (project?.id && !fileContextLoaded) return; // 有分析来源则等待分析完成
+    if (selectedTags.length > 0) return;
+    if (project?.id && !fileContextLoaded) return;
     if (!selectedProject && !project) return;
     runTagSuggestion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -491,12 +531,7 @@ export function SupplierSelectionPage({
     if (!requirement.trim()) { setError('请先描述采购需求'); return; }
     setError(''); setLoading(true); setResult(null);
     try {
-      let fullReq = requirement.trim();
-      if (selectedProject && projectDetail) {
-        const ctx = [`关联项目：${selectedProject.name}（${selectedProject.projectCode}）`,`采购方式：${METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}`,`项目阶段：${STAGE_LABELS[selectedProject.stage] || selectedProject.stage}`,projectDetail.suppliers?.length ? `已有参与供应商：${projectDetail.suppliers.map(s => s.supplierName).join('、')}` : ''].filter(Boolean).join('；');
-        fullReq = `${ctx}\n${fullReq}`;
-      }
-      const res = await recommendSuppliers({ requirement: fullReq, tags: selectedTags.length ? selectedTags : undefined, maxCount });
+      const res = await recommendSuppliers({ requirement: requirement.trim(), tags: selectedTags.length ? selectedTags : undefined, maxCount });
       setResult(res);
       setShortlist(new Map());
       setStep(3); // 自动跳转到审核候选步骤
@@ -789,25 +824,36 @@ export function SupplierSelectionPage({
   };
   const downloadList = () => { if (shortlist.size === 0) return; const blob = new Blob([buildExportText()], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `供应商候选名单_${new Date().toISOString().slice(0, 10)}.txt`; a.click(); URL.revokeObjectURL(url); };
 
-  const reset = () => { setStep(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setPaidAmount(''); setShowManualAdd(false); setShowRerunManualAdd(false); try { sessionStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} };
+  const reset = () => { setStep(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setRerunHistory([]); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setPaidAmount(''); setShowManualAdd(false); setShowRerunManualAdd(false); try { sessionStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} };
 
   // ── 补选 handlers ──
   const openRerun = () => setShowRerunDialog(true);
+  const continueRerun = () => {
+    setShowRerunDialog(true);
+  };
 
   const confirmRerun = (mode: 'ai' | 'manual') => {
+    // 将当前轮归档到历史记录（仅在用户实际选择补选方式后）
+    if (rerunShortlist.size > 0) {
+      setRerunHistory(prev => [...prev, { shortlist: new Map(rerunShortlist), confirmations: new Map(rerunConfirmations) }]);
+    }
     setShowRerunDialog(false);
     setRerunMode(mode);
-    setIsRerun(true);
+    if (!isRerun) setIsRerun(true);
     setRerunShortlist(new Map());
     setRerunResult(null);
     setRerunNotified(false);
     setRerunConfirmations(new Map());
     setRerunNotifyPerSupplier(new Map());
-    setStep(rerunPickStep);
+    // 目标步骤：当前轮归档后的新轮次第一步
+    const willArchive = rerunShortlist.size > 0 ? 1 : 0;
+    const nextRound = rerunHistory.length + willArchive;
+    const targetPickStep = baseConfirmStep + 1 + nextRound * 3;
+    setStep(targetPickStep);
     if (mode === 'manual') return;
-    // 智能选取：沿用需求 + 标签
+    // 智能选取：沿用需求 + 标签，排除所有已选（正选+历史补选）
     setRerunLoading(true);
-    const excludeIds = [...shortlist.keys()];
+    const excludeIds = [...shortlist.keys(), ...previousRerunShortlist.keys()];
     const need = (pendingCount + declinedCount) + 1;
     const rerunReq = requirement.trim() || selectedProject?.name || project?.title || '';
     recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds })
@@ -840,38 +886,53 @@ export function SupplierSelectionPage({
     setRerunManualLoading(false);
   };
 
-  // 进入补选通知步骤时自动填充：沿用确认通知的内容模板，仅更新 RSVP 链接
+  // 补选手动搜索防抖（自动关联搜索）
+  const rerunSearchTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    if (!rerunManualSearch.trim() || rerunMode !== 'manual' || step !== rerunPickStep) return;
+    clearTimeout(rerunSearchTimerRef.current);
+    rerunSearchTimerRef.current = setTimeout(() => { handleRerunManualSearch(); }, 300);
+    return () => clearTimeout(rerunSearchTimerRef.current);
+  }, [rerunManualSearch, rerunMode, step, rerunPickStep]);
+
+  // 进入补选通知步骤时自动填充（仅首次无内容时触发）
   useEffect(() => {
     if (step !== rerunNotifyStep || !isRerun) return;
     if (rerunShortlist.size === 0 || notifyPerSupplier.size === 0) return;
-    (async () => {
-      try {
-        // 取第一家模板（移除抬头和落款，保留正文本体）
-        const firstEntry = [...notifyPerSupplier.values()][0];
-        const templateTitle = firstEntry?.title || '';
-        let templateBody = firstEntry?.body || '';
-        templateBody = templateBody.replace(/^[^\n]+您好！\n\n/, '').replace(/\n\n四川水发集团\n[^\n]*$/, '');
-        // 将原链接换回占位符
-        templateBody = templateBody.replace(/https?:\/\/[^\s]+/g, '{rsvpLink}');
-        if (!templateBody) return;
-        // 为补选供应商获取新 RSVP 令牌
-        const sids = [...rerunShortlist.keys()];
-        const snames = [...rerunShortlist.values()].map(({ item: r }) => r.name);
-        const res = await generateNotificationContent({
-          supplierNames: snames, supplierIds: sids,
-          projectName: selectedProject?.name ?? project?.title,
-          projectId: selectedProject?.id ?? projectId,
-        });
-        const perSupplier = new Map<string, { title: string; body: string }>();
-        const ds = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-        for (const [sid, { item: r }] of rerunShortlist) {
-          const link = (res.rsvpTokens || {})[sid] || '';
-          perSupplier.set(sid, { title: templateTitle, body: `${r.name} 您好！\n\n${templateBody.replace(/\{rsvpLink\}/g, link)}\n\n四川水发集团\n${ds}` });
-        }
-        setRerunNotifyPerSupplier(perSupplier);
-      } catch {}
-    })();
-  }, [step, rerunNotifyStep, isRerun, rerunShortlist, notifyPerSupplier, selectedProject, project, projectId]);
+    if (rerunNotifyPerSupplier.size > 0) return;
+    fillRerunNotify();
+  }, [step, rerunNotifyStep, isRerun, rerunShortlist, rerunNotifyPerSupplier.size, notifyPerSupplier, selectedProject, project, projectId]);
+
+  const fillRerunNotify = async () => {
+    try {
+      const firstEntry = [...notifyPerSupplier.values()][0];
+      const templateTitle = firstEntry?.title || '';
+      let templateBody = firstEntry?.body || '';
+      templateBody = templateBody.replace(/^[^\n]+您好！\n\n/, '').replace(/\n\n四川水发集团\n[^\n]*$/, '');
+      templateBody = templateBody.replace(/https?:\/\/[^\s]+/g, '{rsvpLink}');
+      if (!templateBody) return;
+      const sids = [...rerunShortlist.keys()];
+      const snames = [...rerunShortlist.values()].map(({ item: r }) => r.name);
+      const res = await generateNotificationContent({
+        supplierNames: snames, supplierIds: sids,
+        projectName: selectedProject?.name ?? project?.title,
+        projectId: selectedProject?.id ?? projectId,
+      });
+      const perSupplier = new Map<string, { title: string; body: string }>();
+      const ds = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+      for (const [sid, { item: r }] of rerunShortlist) {
+        const link = (res.rsvpTokens || {})[sid] || '';
+        perSupplier.set(sid, { title: templateTitle, body: `${r.name} 您好！\n\n${templateBody.replace(/\{rsvpLink\}/g, link)}\n\n四川水发集团\n${ds}` });
+      }
+      setRerunNotifyPerSupplier(perSupplier);
+    } catch {}
+  };
+
+  const rerunGenerateNotify = async () => {
+    setNotifyAiLoading(true);
+    await fillRerunNotify();
+    setNotifyAiLoading(false);
+  };
 
   const handleRerunNotify = async () => {
     if (rerunNotifyPerSupplier.size === 0) { toast.error('请先生成补选通知内容'); return; }
@@ -894,9 +955,9 @@ export function SupplierSelectionPage({
     setRerunConfirmations(prev => { const n = new Map(prev); n.set(sid, st); return n; });
   };
 
-  // 合并名单与确认状态（正选 + 补选）
-  const allShortlist = useMemo(() => new Map([...shortlist, ...rerunShortlist]), [shortlist, rerunShortlist]);
-  const allConfirmations = useMemo(() => new Map([...confirmations, ...rerunConfirmations]), [confirmations, rerunConfirmations]);
+  // 合并名单与确认状态（正选 + 历史补选 + 当前补选）
+  const allShortlist = useMemo(() => new Map([...shortlist, ...previousRerunShortlist, ...rerunShortlist]), [shortlist, previousRerunShortlist, rerunShortlist]);
+  const allConfirmations = useMemo(() => new Map([...confirmations, ...previousRerunConfirmations, ...rerunConfirmations]), [confirmations, previousRerunConfirmations, rerunConfirmations]);
 
   // 手动搜索供应商
   const handleManualSearch = async () => {
@@ -969,7 +1030,7 @@ export function SupplierSelectionPage({
   // 过滤 RSVP 列表：仅展示当前候选名单中供应商的回执记录
   const filteredRsvp = useMemo(() => {
     if (!rsvpList) return null;
-    const supplierIds = new Set([...shortlist.keys(), ...rerunShortlist.keys()]);
+    const supplierIds = new Set([...shortlist.keys(), ...previousRerunShortlist.keys(), ...rerunShortlist.keys()]);
     // 同一供应商可能有多轮 RSVP 记录，去重按 supplierId 取最后一条
     const latestBySupplier = new Map<string, typeof rsvpList.items[number]>();
     for (const it of rsvpList.items) {
@@ -980,7 +1041,7 @@ export function SupplierSelectionPage({
     const counts = { ACCEPTED: 0, DECLINED: 0, PENDING: 0 };
     for (const it of items) counts[it.status]++;
     return { ...rsvpList, total: items.length, items, counts };
-  }, [rsvpList, shortlist, rerunShortlist]);
+  }, [rsvpList, shortlist, previousRerunShortlist, rerunShortlist]);
 
   // 同步 RSVP 回执到 confirmations（仅覆盖仍为 pending 的）
   useEffect(() => {
@@ -1719,11 +1780,9 @@ export function SupplierSelectionPage({
             <button onClick={() => setStep(3)} className="neu-btn-soft gap-2">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：审核候选
             </button>
-            {notifyPerSupplier.size > 0 && (
-              <button onClick={() => setStep(neg ? attachStep : baseConfirmStep)} className="neu-btn-soft gap-2">
-                下一步：{neg ? '附件选择' : '供应商确认'}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-              </button>
-            )}
+            <button onClick={() => setStep(neg ? attachStep : baseConfirmStep)} className="neu-btn-soft gap-2">
+              下一步：{neg ? '附件选择' : '供应商确认'}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
           </div>
         </div>
       )}
@@ -1966,13 +2025,17 @@ export function SupplierSelectionPage({
                   {[...shortlist.entries()].map(([sid, { item: r }], idx) => {
                     const status = confirmations.get(sid) || 'pending';
                     const contact = r.contacts?.find(c => c.isPrimary) || r.contacts?.[0];
+                    const rsvpItem = filteredRsvp?.items.find(it => it.supplierId === sid);
                     return (
                       <div key={sid} className="flex items-center gap-3 rounded-xl px-4 py-3 transition-shadow"
                         style={{ background: 'oklch(1 0 0 / 0.42)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.05)' }}>
                         <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[8px] text-[10px] font-extrabold text-white tabular-nums"
                           style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{idx + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-bold text-[var(--foreground)] truncate">{r.name}</div>
+                          <div className="text-sm font-bold text-[var(--foreground)] truncate">
+                            {r.name}
+                            {rsvpItem && <span className="ml-2 text-[10px] font-mono text-[var(--muted-foreground)]">#{rsvpItem.rsvpNo}</span>}
+                          </div>
                           <div className="text-[10px] text-[var(--muted-foreground)] tabular-nums">
                             匹配 <span style={{ color: scoreVar(r.matchScore) }} className="font-bold">{r.matchScore}</span>
                             {contact ? ` · ${contact.name} ${contact.phone}` : ''}
@@ -2018,7 +2081,7 @@ export function SupplierSelectionPage({
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：{neg ? '附件选择' : '确认通知'}
                 </button>
                 {isRerun ? (
-                  <button onClick={() => setStep(rerunPickStep)} className="neu-btn-soft gap-2">
+                  <button onClick={() => setStep(firstRerunPickStep)} className="neu-btn-soft gap-2">
                     下一步：补选候选<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                   </button>
                 ) : (
@@ -2038,8 +2101,79 @@ export function SupplierSelectionPage({
         </div>
       )}
 
+      {/* ── 历史补选轮次（只读回顾） ── */}
+      {isRerun && currentRerunRound >= 0 && currentRerunRound < rerunRound && (
+        <div className="space-y-5">
+          <div className="flex items-center justify-center py-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+            <span className="rounded-full border px-3 py-0.5" style={{ borderColor: 'oklch(0.6 0.04 258 / 0.18)' }}>第{currentRerunRound + 1}轮补选 · 已归档</span>
+          </div>
+          {(() => {
+            const h = rerunHistory[currentRerunRound];
+            if (!h) return null;
+            if (isAnyRerunPick) return (
+              <div className="rounded-[20px] p-6" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+                <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">补选供应商 · {h.shortlist.size} 家</h2>
+                <div className="space-y-2">
+                  {[...h.shortlist.entries()].map(([sid, { item: r }], idx) => (
+                    <div key={sid} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                      <span className="text-[11px] font-bold tabular-nums text-[var(--muted-foreground)]">{idx + 1}.</span>
+                      <span className="flex-1 text-xs font-semibold text-[var(--foreground)]">{r.name}</span>
+                      <span className="text-[10px] tabular-nums font-bold" style={{ color: scoreVar(r.matchScore) }}>{r.matchScore}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+            if (isAnyRerunNotify) return (
+              <div className="rounded-[20px] p-6" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+                <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">补选通知 · {h.shortlist.size} 家</h2>
+                <div className="space-y-2">
+                  {[...h.shortlist.entries()].map(([sid, { item: r }], idx) => (
+                    <div key={sid} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                      <span className="text-[11px] font-bold text-[var(--foreground)]">{idx + 1}. {r.name}</span>
+                      <span className="text-[10px] text-[var(--muted-foreground)]">已通知</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+            if (isAnyRerunConfirm) return (
+              <div className="rounded-[20px] p-6" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
+                <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">第{currentRerunRound + 1}轮确认</h2>
+                <div className="space-y-1.5">
+                  {[...h.shortlist.entries()].map(([sid, { item: r }], idx) => {
+                    const st = h.confirmations.get(sid) || 'pending';
+                    const rsvpItem = filteredRsvp?.items.find(it => it.supplierId === sid);
+                    return (
+                      <div key={sid} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                        <span className="text-[11px] font-bold text-[var(--foreground)] flex-1">
+                          {idx + 1}. {r.name}
+                          {rsvpItem && <span className="ml-2 text-[10px] font-mono text-[var(--muted-foreground)]">#{rsvpItem.rsvpNo}</span>}
+                        </span>
+                        <span className={`text-[10px] font-bold ${st === 'confirmed' ? 'text-[var(--success)]' : st === 'declined' ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
+                          {st === 'confirmed' ? '已确认' : st === 'declined' ? '已放弃' : '待确认'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+            return null;
+          })()}
+          <div className="flex items-center justify-between">
+            <button onClick={() => setStep(step - 1)} className="neu-btn-soft gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：{steps[step - 2]?.label || ''}
+            </button>
+            <button onClick={() => setStep(step + 1)} className="neu-btn-soft gap-2" disabled={currentRerunRound >= rerunRound - 1 && step >= finalConfirmStep}>
+              下一步：{steps[step]?.label || ''}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 补选候选步骤 ── */}
-      {step === rerunPickStep && isRerun && (
+      {step === rerunPickStep && isRerun && currentRerunRound === rerunRound && (
         <div className="space-y-5">
           {rerunLoading && (
             <div className="rounded-[20px] py-16 text-center" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
@@ -2214,9 +2348,15 @@ export function SupplierSelectionPage({
                   <div className="flex gap-2">
                     <div className="flex-1 relative">
                       <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                      <input value={rerunManualSearch} onChange={e => setRerunManualSearch(e.target.value)}
+                      <input value={rerunManualSearch} onChange={e => { setRerunManualSearch(e.target.value); if (!e.target.value.trim()) { setRerunManualSuppliers([]); } }}
                         onKeyDown={e => { if (e.key === 'Enter') handleRerunManualSearch(); }}
-                        placeholder="搜索供应商名称、标签或经营范围..." className="workbench-input w-full !pl-9 text-sm" />
+                        placeholder="搜索供应商名称、标签或经营范围..." className="workbench-input w-full !pl-9 !pr-8 text-sm" />
+                        {rerunManualSearch && (
+                          <button type="button" onClick={() => { setRerunManualSearch(''); setRerunManualSuppliers([]); }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--muted-foreground)]/50 transition hover:text-[var(--muted-foreground)]">
+                            <X size={14} />
+                          </button>
+                        )}
                     </div>
                     <button onClick={handleRerunManualSearch} disabled={rerunManualLoading} className="neu-btn-soft text-sm gap-1.5">
                       <Search size={14} />{rerunManualLoading ? '搜索中…' : '搜索'}
@@ -2286,7 +2426,7 @@ export function SupplierSelectionPage({
       )}
 
       {/* ── 补选通知步骤 ── */}
-      {step === rerunNotifyStep && isRerun && (
+      {step === rerunNotifyStep && isRerun && currentRerunRound === rerunRound && (
         <div className="space-y-5">
           <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
             <div className="flex items-center justify-between">
@@ -2296,6 +2436,9 @@ export function SupplierSelectionPage({
                   <strong className="tabular-nums text-[var(--foreground)]">{rerunShortlist.size}</strong> 家补选供应商
                 </p>
               </div>
+              <button onClick={rerunGenerateNotify} disabled={notifyAiLoading} className="neu-btn-xs gap-1">
+                <Sparkles size={10} />{notifyAiLoading ? '生成中…' : 'AI 生成'}
+              </button>
             </div>
             {/* 逐供应商通知列表 */}
             <div className="space-y-2">
@@ -2325,15 +2468,20 @@ export function SupplierSelectionPage({
             <button onClick={() => setStep(rerunPickStep)} className="neu-btn-soft gap-2">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：补选候选
             </button>
-            <button onClick={handleRerunNotify} disabled={rerunNotifySending || rerunNotifyPerSupplier.size === 0} className="neu-btn-primary !h-9 !text-xs gap-2">
-              <Bell size={13} />{rerunNotifySending ? '发送中…' : `一键通知 ${rerunNotifyPerSupplier.size} 家`}
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={handleRerunNotify} disabled={rerunNotifySending || rerunNotified || rerunNotifyPerSupplier.size === 0} className="neu-btn-primary !h-9 !text-xs gap-2">
+                <Bell size={13} />{rerunNotifySending ? '发送中…' : rerunNotified ? '已通知' : `一键通知 ${rerunNotifyPerSupplier.size} 家`}
+              </button>
+              <button onClick={() => setStep(finalConfirmStep)} disabled={!rerunNotified} className="neu-btn-soft gap-2" title={!rerunNotified ? '请先一键通知供应商' : undefined}>
+                下一步：供应商确认<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── 最终供应商确认步骤（正选 + 补选） ── */}
-      {step === finalConfirmStep && isRerun && rerunNotified && (
+      {step === finalConfirmStep && isRerun && rerunNotified && currentRerunRound === rerunRound && (
         <div className="space-y-5">
           <div className="rounded-[20px] p-6 space-y-5" style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.88), oklch(1 0 0 / 0.18))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.1), -2px -2px 6px oklch(1 0 0 / 0.82)' }}>
             <div className="flex items-start gap-4">
@@ -2343,7 +2491,7 @@ export function SupplierSelectionPage({
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-bold text-[var(--foreground)]">全部供应商确认状态</h3>
                 <p className="text-[11px] text-[var(--muted-foreground)] mt-1">
-                  共计 {allShortlist.size} 家 · 正选 {shortlist.size} · 补选 {rerunShortlist.size}
+                  共计 {allShortlist.size} 家 · 正选 {shortlist.size} · 补选 {previousRerunShortlist.size + rerunShortlist.size}{rerunHistory.length > 0 ? `（${rerunHistory.length + 1} 轮）` : ''}
                 </p>
                 <div className="mt-2 flex items-center gap-3 text-[11px] tabular-nums">
                   <span className="font-bold text-[var(--success)]">{[...allConfirmations.values()].filter(s => s === 'confirmed').length} 已确认</span>
@@ -2358,11 +2506,15 @@ export function SupplierSelectionPage({
               <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-1">正选供应商</div>
               {[...shortlist.entries()].map(([sid, { item: r }], idx) => {
                 const status = confirmations.get(sid) || 'pending';
+                const rsvpItem = filteredRsvp?.items.find(it => it.supplierId === sid);
                 return (
                   <div key={sid} className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.42)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.05)' }}>
                     <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[8px] text-[10px] font-extrabold text-white tabular-nums"
                       style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>{idx + 1}</span>
-                    <span className="flex-1 min-w-0 text-sm font-bold text-[var(--foreground)] truncate">{r.name}</span>
+                    <span className="flex-1 min-w-0 text-sm font-bold text-[var(--foreground)] truncate">
+                      {r.name}
+                      {rsvpItem && <span className="ml-2 text-[10px] font-mono text-[var(--muted-foreground)]">#{rsvpItem.rsvpNo}</span>}
+                    </span>
                     <span className="text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0" style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)', color: 'var(--accent-strong)' }}>正选</span>
                     <span className={`text-[10px] font-bold shrink-0 ${status === 'confirmed' ? 'text-[var(--success)]' : status === 'declined' ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
                       {status === 'confirmed' ? '已确认' : status === 'declined' ? '已放弃' : '待确认'}
@@ -2372,16 +2524,45 @@ export function SupplierSelectionPage({
               })}
             </div>
 
-            {/* 补选供应商 */}
+            {rerunHistory.length > 0 && rerunHistory.map((h, roundIdx) => (
+              <div key={roundIdx} className="space-y-1.5">
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-1">第{roundIdx + 1}轮补选</div>
+                {[...h.shortlist.entries()].map(([sid, { item: r }], idx) => {
+                  const status = h.confirmations.get(sid) || 'pending';
+                  const rsvpItem = filteredRsvp?.items.find(it => it.supplierId === sid);
+                  return (
+                    <div key={sid} className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.42)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.05)' }}>
+                      <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[8px] text-[10px] font-extrabold text-white tabular-nums"
+                        style={{ background: 'linear-gradient(135deg, oklch(0.55 0.14 150), oklch(0.48 0.12 150))' }}>{idx + 1}</span>
+                      <span className="flex-1 min-w-0 text-sm font-bold text-[var(--foreground)] truncate">
+                        {r.name}
+                        {rsvpItem && <span className="ml-2 text-[10px] font-mono text-[var(--muted-foreground)]">#{rsvpItem.rsvpNo}</span>}
+                      </span>
+                      <span className="text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0" style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', color: 'var(--success)' }}>补选</span>
+                      <span className={`text-[10px] font-bold shrink-0 ${status === 'confirmed' ? 'text-[var(--success)]' : status === 'declined' ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
+                        {status === 'confirmed' ? '已确认' : status === 'declined' ? '已放弃' : '待确认'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+
+            {/* 补选供应商（当前轮次） */}
+            {rerunShortlist.size > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-1">补选供应商</div>
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-1">补选供应商{rerunHistory.length > 0 ? `（第${rerunHistory.length + 1}轮）` : ''}</div>
               {[...rerunShortlist.entries()].map(([sid, { item: r }], idx) => {
                 const status = rerunConfirmations.get(sid) || 'pending';
+                const rsvpItem = filteredRsvp?.items.find(it => it.supplierId === sid);
                 return (
                   <div key={sid} className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: 'oklch(1 0 0 / 0.42)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 2px oklch(0.55 0.03 258 / 0.05)' }}>
                     <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[8px] text-[10px] font-extrabold text-white tabular-nums"
                       style={{ background: 'linear-gradient(135deg, oklch(0.55 0.14 150), oklch(0.48 0.12 150))' }}>{idx + 1}</span>
-                    <span className="flex-1 min-w-0 text-sm font-bold text-[var(--foreground)] truncate">{r.name}</span>
+                    <span className="flex-1 min-w-0 text-sm font-bold text-[var(--foreground)] truncate">
+                      {r.name}
+                      {rsvpItem && <span className="ml-2 text-[10px] font-mono text-[var(--muted-foreground)]">#{rsvpItem.rsvpNo}</span>}
+                    </span>
                     <span className="text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0" style={{ background: 'color-mix(in oklch, var(--success) 12%, transparent)', color: 'var(--success)' }}>补选</span>
                     <span className={`text-[10px] font-bold shrink-0 ${status === 'confirmed' ? 'text-[var(--success)]' : status === 'declined' ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
                       {status === 'confirmed' ? '已确认' : status === 'declined' ? '已放弃' : '待确认'}
@@ -2390,13 +2571,14 @@ export function SupplierSelectionPage({
                 );
               })}
             </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between">
             <button onClick={() => setStep(rerunNotifyStep)} className="neu-btn-soft gap-2">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：补选通知
             </button>
-            <button onClick={openRerun} className="neu-btn-soft gap-2">
+            <button onClick={continueRerun} className="neu-btn-soft gap-2">
               <Plus size={14} />继续补选
             </button>
           </div>

@@ -32,9 +32,9 @@ onBeforeUnmount(() => {
 
 async function handleRead(id:string) { try { await store.markAsRead(id) } catch { ElMessage.error('标记失败，请重试') } }
 async function handleReadAll() { try { await store.markAllAsRead(); store.fetchUnreadCount(); ElMessage.success('已全部标为已读') } catch { ElMessage.error('操作失败，请重试') } }
-function handleClick(n:any) { detailNotif.value = { ...n } }
 const detailNotif = ref<any>(null)
-const detailVisible = computed({ get: () => detailNotif.value !== null, set: (v) => { if (!v) detailNotif.value = null } })
+const detailVisible = ref(false)
+function handleClick(n:any) { detailNotif.value = { ...n }; detailVisible.value = true }
 function linkify(text: string): string {
   if (!text) return ''
   const escaped = text
@@ -96,7 +96,7 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
   </div>
 
   <!-- 通知详情弹窗（cgzxui neumorphic） -->
-  <el-dialog v-model="detailVisible" :title="detailNotif?.title || '通知详情'" width="600px" destroy-on-close @closed="detailNotif = null" class="neumorphic-dlg">
+  <el-dialog v-model="detailVisible" :title="detailNotif?.title || '通知详情'" width="600px" @closed="detailNotif = null" class="neumorphic-dlg">
     <div v-if="detailNotif" class="nd-body">
       <span class="nd-time">{{ dayjs(detailNotif.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
       <div class="nd-content" v-html="linkify(detailNotif.content)" />
