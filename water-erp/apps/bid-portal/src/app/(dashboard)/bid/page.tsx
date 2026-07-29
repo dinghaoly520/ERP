@@ -75,7 +75,11 @@ export default function BidTaskBoard() {
         <>
           {/* ── 开标中 ── */}
           <section>
-            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">开标中 · {opening.length}</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-[15px] font-bold tracking-tight text-[color:var(--foreground)]">
+              <span className="h-4 w-1 rounded-full bg-[oklch(0.6_0.15_210)]" />
+              开标中
+              <span className="rounded-full bg-[oklch(0.62_0.16_210_/_0.12)] px-2 py-0.5 text-[11px] font-bold tabular-nums text-[oklch(0.5_0.13_210)]">{opening.length}</span>
+            </h2>
             {opening.length === 0 ? (
               <div className="neu-card-static px-6 py-10 text-center text-[13px] text-[color:var(--muted-foreground)]">
                 暂无开标中的项目。项目在 :3005「按时开标」确定后出现在此处。
@@ -118,7 +122,11 @@ export default function BidTaskBoard() {
 
           {/* ── 评标中（只读监测：进入工作区默认评标 tab，看真实评标数据）── */}
           <section>
-            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">评标中 · {evaluating.length}</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-[15px] font-bold tracking-tight text-[color:var(--foreground)]">
+              <span className="h-4 w-1 rounded-full bg-[oklch(0.55_0.12_150)]" />
+              评标中
+              <span className="rounded-full bg-[oklch(0.7_0.12_150_/_0.14)] px-2 py-0.5 text-[11px] font-bold tabular-nums text-[oklch(0.45_0.1_150)]">{evaluating.length}</span>
+            </h2>
             {evaluating.length === 0 ? (
               <div className="neu-card-static px-6 py-8 text-center text-[12px] text-[color:var(--muted-foreground)]">
                 暂无评标中的项目。:3005 启动评标后项目出现在此处，可在此只读查看评标进展。
