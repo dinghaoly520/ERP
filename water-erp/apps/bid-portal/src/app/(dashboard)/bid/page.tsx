@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * 开标任务板（只读）——Phase 3 重构。
- * :3007 现为纯开标执行终端：项目全生命周期管理与全部阶段流转归 :3005 采购管理工作台。
- * 本页仅列出「开标中」与「待 :3005 确定开标（截标已过）」的项目，入口只有一个：进入开标大厅。
+ * 开标任务板（只读）。
+ * :3007 为纯开标执行终端：仅展示进行中项目（开标中 / 评标中），已归档移至归档端。
+ * 项目全生命周期管理与全部阶段流转归 :3005 采购管理工作台。
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -51,21 +51,7 @@ export default function BidTaskBoard() {
 
   useEffect(() => { load(); }, [load]);
 
-  // F9：低频 tick（30s），停留期间到点截标的项目自动移入「待确定开标」
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(t);
-  }, []);
-
   const opening = (projects ?? []).filter(p => p.stage === 'OPENING');
-  // 棘轮化后项目可一直停在 DOWNLOAD 到截标（投递闸门不再要求 SUBMIT），
-  // 故「待确定开标」需覆盖 DOWNLOAD+SUBMIT 两个截标已过的前阶段（审查发现 F2）
-  const awaitingConfirm = (projects ?? []).filter(p => {
-    if (p.stage !== 'DOWNLOAD' && p.stage !== 'SUBMIT') return false;
-    const deadline = new Date(p.deadline).getTime();
-    return !isNaN(deadline) && deadline <= now;
-  });
   const archivedCount = stageDistribution['ARCHIVED'] ?? 0;
   // 评标中 / 已结束：dashboard 已返回全阶段项目，前端分组渲染为可进入工作区的入口
   // （评标管理 tab 现从 OPENING 起启用，故 EVALUATING 项目可直达评标 tab 看真实数据）
@@ -89,7 +75,6 @@ export default function BidTaskBoard() {
           <div className="page-hero__right">
             <span className="page-hero__stat page-hero__stat--info">开标中 {opening.length}</span>
             <span className="page-hero__stat page-hero__stat--info">评标中 {evaluating.length}</span>
-            <span className="page-hero__stat page-hero__stat--warning">待确定开标 {awaitingConfirm.length}</span>
             <span className="page-hero__stat page-hero__stat--success">已归档 {archivedCount}</span>
             <button type="button" onClick={load} disabled={loading} title="刷新" className="neu-btn-xs">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -181,30 +166,6 @@ export default function BidTaskBoard() {
             )}
           </section>
 
-          {/* ── 待 :3005 确定开标（截标已过的 SUBMIT 项目，仅提示，不可操作）── */}
-          <section>
-            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">待确定开标（截标已过）· {awaitingConfirm.length}</h2>
-            {awaitingConfirm.length === 0 ? (
-              <div className="neu-card-static px-6 py-6 text-center text-[12px] text-[color:var(--muted-foreground)]">
-                暂无等待确定开标的项目
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {awaitingConfirm.map(p => (
-                  <div key={p.id} className="neu-card-static flex flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-3.5 opacity-90">
-                    <div className="min-w-0 flex-1">
-                      <span className="mr-2 font-mono text-[12px] font-semibold text-[color:var(--muted-foreground)]">{p.projectCode}</span>
-                      <span className="text-[13px] font-semibold text-[color:var(--foreground)]">{p.name}</span>
-                    </div>
-                    <span className="text-[11px] tabular-nums text-[color:var(--muted-foreground)]">截标 {fmt(p.deadline)} · {p.supplierSubmitted}/{p.supplierCount} 已投递</span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(0.78_0.12_83_/_0.16)] px-3 py-1 text-[11px] font-bold text-[oklch(0.46_0.11_65)]">
-                      <Clock size={11} /> 等待 :3005 确定开标
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
 
 
           {/* ── 跨端入口 ── */}
