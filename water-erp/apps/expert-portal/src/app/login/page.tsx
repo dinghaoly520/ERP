@@ -25,7 +25,7 @@ const WEB_ROLES = ['admin', 'bid_host', 'leader', 'staff'];
 const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
   process.env.NODE_ENV === 'production'
     ? { expert: { username: '', password: '' }, admin: { username: '', password: '' } }
-    : { expert: { username: '周祥志', password: 'expert@2026' }, admin: { username: 'Swhi-CGZX-admin', password: 'abc123' } };
+    : { expert: { username: '周祥志', password: 'expert@2026' }, admin: { username: 'Swhi-CGZX-admin', password: 'Swhi-CGZX-admin@2026' } };
 
 export default function ExpertLoginPage() {
   const router = useRouter();
