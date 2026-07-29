@@ -1,25 +1,12 @@
 import { TableSkeleton } from '@/components/skeleton';
-import { Gavel } from 'lucide-react';
 
 export default function BidLoading() {
   return (
-    <div className="space-y-6">
-      <div className="page-hero">
-        <div className="page-hero__row">
-          <div className="page-hero__left">
-            <div className="page-hero__icon"><Gavel size={17} strokeWidth={1.5} /></div>
-            <div>
-              <div className="page-hero__title">开评标管理系统</div>
-              <div className="page-hero__sub">统一入口 · 多端协同 · 限时开标 · 全程留痕</div>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-5">
+      <div className="flex items-center justify-end">
+        <div className="neu-card-static h-8 w-8 animate-pulse rounded-[10px]" />
       </div>
-      <div className="grid gap-4 md:grid-cols-4">
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className="neu-card-static h-24 animate-pulse" />
-        ))}
-      </div>
+      <div className="h-4 w-24 animate-pulse rounded bg-[oklch(0.9_0.004_258_/_0.6)]" />
       <TableSkeleton rows={5} cols={8} />
     </div>
   );

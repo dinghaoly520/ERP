@@ -8,7 +8,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Archive, Search, ChevronRight, ExternalLink, Ban } from 'lucide-react';
+import { RefreshCw, Search, ChevronRight, ExternalLink, Ban } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
 import DateRangeFilter from '@/components/date-range-filter';
@@ -91,33 +91,10 @@ export default function BidArchivePage() {
   // 过滤条件变化时回到第 1 页
   useEffect(() => { setPage(1); }, [search, dateRange.start, dateRange.end]);
 
-  const archivedCount = ended.filter(p => p.stage === 'ARCHIVED').length;
-  const abortedCount = ended.filter(p => p.stage === 'ABORTED').length;
-
   const enterWorkspace = (id: string) => router.push(`/bid/project/${id}`);
 
   return (
     <div className="space-y-5">
-      {/* ── 页头 ── */}
-      <div className="page-hero">
-        <div className="page-hero__row">
-          <div className="page-hero__left">
-            <div className="page-hero__icon"><Archive size={17} strokeWidth={1.7} /></div>
-            <div>
-              <div className="page-hero__title">归档端</div>
-              <div className="page-hero__sub">已归档 / 已流标项目只读回看 · 归档操作请前往采购管理工作台（:3005）</div>
-            </div>
-          </div>
-          <div className="page-hero__right">
-            <span className="page-hero__stat page-hero__stat--success">已归档 {archivedCount}</span>
-            <span className="page-hero__stat page-hero__stat--muted">已流标 {abortedCount}</span>
-            <button type="button" onClick={load} disabled={loading} title="刷新" className="neu-btn-xs">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* ── 筛选工具栏 ── */}
       <div className="neu-card-static flex flex-wrap items-center gap-3 px-4 py-2.5">
         {/* 搜索 */}
@@ -139,6 +116,11 @@ export default function BidArchivePage() {
 
         {/* 日期范围 */}
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
+
+        {/* 刷新 */}
+        <button type="button" onClick={load} disabled={loading} title="刷新" className="neu-btn-xs">
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+        </button>
 
         {/* 结果计数 */}
         <span className="ml-auto text-[11px] tabular-nums text-[color:var(--muted-foreground)]">

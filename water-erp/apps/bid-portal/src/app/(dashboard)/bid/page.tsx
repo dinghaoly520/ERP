@@ -9,7 +9,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { RefreshCw, Gavel, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ExternalLink, ChevronRight } from 'lucide-react';
+import { RefreshCw, Clock, KeyRound, FileCheck, UserCheck, Shield, AlertTriangle, ExternalLink, ChevronRight } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { getProjectsDashboard, type DashboardProject } from '@/lib/api/bid';
 
@@ -38,13 +38,12 @@ function MiniStat({ icon, label, done, total, tone }: {
 export default function BidTaskBoard() {
   const router = useRouter();
   const [projects, setProjects] = useState<DashboardProject[] | null>(null);
-  const [stageDistribution, setStageDistribution] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
     setLoading(true);
     getProjectsDashboard()
-      .then(d => { setProjects(d.projects); setStageDistribution(d.stageDistribution); })
+      .then(d => { setProjects(d.projects); })
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
   }, []);
@@ -52,7 +51,6 @@ export default function BidTaskBoard() {
   useEffect(() => { load(); }, [load]);
 
   const opening = (projects ?? []).filter(p => p.stage === 'OPENING');
-  const archivedCount = stageDistribution['ARCHIVED'] ?? 0;
   // 评标中 / 已结束：dashboard 已返回全阶段项目，前端分组渲染为可进入工作区的入口
   // （评标管理 tab 现从 OPENING 起启用，故 EVALUATING 项目可直达评标 tab 看真实数据）
   const evaluating = (projects ?? []).filter(p => p.stage === 'EVALUATING');
@@ -62,25 +60,11 @@ export default function BidTaskBoard() {
 
   return (
     <div className="space-y-5">
-      {/* ── 页头（cgzxui page-hero）── */}
-      <div className="page-hero">
-        <div className="page-hero__row">
-          <div className="page-hero__left">
-            <div className="page-hero__icon"><Gavel size={17} strokeWidth={1.7} /></div>
-            <div>
-              <div className="page-hero__title">开标任务板</div>
-              <div className="page-hero__sub">在线开标执行终端 · 项目管理与阶段流转请前往采购管理工作台（:3005）</div>
-            </div>
-          </div>
-          <div className="page-hero__right">
-            <span className="page-hero__stat page-hero__stat--info">开标中 {opening.length}</span>
-            <span className="page-hero__stat page-hero__stat--info">评标中 {evaluating.length}</span>
-            <span className="page-hero__stat page-hero__stat--success">已归档 {archivedCount}</span>
-            <button type="button" onClick={load} disabled={loading} title="刷新" className="neu-btn-xs">
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
+      {/* ── 顶部工具条 ── */}
+      <div className="flex items-center justify-end">
+        <button type="button" onClick={load} disabled={loading} title="刷新" className="neu-btn-xs">
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       {loading && !projects ? (
