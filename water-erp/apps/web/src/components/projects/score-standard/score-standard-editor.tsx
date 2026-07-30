@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   Check,
   ChevronDown,
   ChevronRight,
@@ -80,6 +81,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         setStage(detail.stage);
         setPublishedAt(detail.scoreStandardPublishedAt ?? null);
         setItems(its);
+        setExpanded(Object.fromEntries(its.map((i) => [i.id, true])));
       } catch {
         if (!cancelled) toast.error('评分标准加载失败');
       } finally {
@@ -100,6 +102,30 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     [items],
   );
 
+  /** 发布就绪状态：满 100 + 每项有得分点 + 无超出。驱动信号灯 & publish 按钮状态。 */
+  const readiness = useMemo(() => {
+    if (items.length === 0) return { ready: false, sum: 0, issues: [] as string[] };
+    const scoringItems = items.filter((i) => Number(i.maxScore) > 0);
+    const sum = scoringItems.reduce((s, i) => s + Number(i.maxScore), 0);
+    const sumOk = Math.abs(sum - 100) < 0.05;
+    const noPointsItems = scoringItems.filter((i) => !i.points || i.points.length === 0);
+    const exceededItems = scoringItems.filter((i) => {
+      const ps = (i.points ?? []).reduce((s, p) => s + Number(p.fullScore), 0);
+      return ps - Number(i.maxScore) > 0.05;
+    });
+    const issues: string[] = [];
+    if (!sumOk) {
+      issues.push(
+        sum < 100
+          ? `满分合计 ${sum}，差 ${(100 - sum).toFixed(1)} 分`
+          : `满分合计 ${sum}，超出 ${(sum - 100).toFixed(1)} 分`,
+      );
+    }
+    if (noPointsItems.length > 0) issues.push(`${noPointsItems.length} 个打分项缺得分点`);
+    if (exceededItems.length > 0) issues.push(`${exceededItems.length} 个打分项得分点超出满分`);
+    return { ready: sumOk && noPointsItems.length === 0 && exceededItems.length === 0, sum, issues };
+  }, [items]);
+
   // 得分点增删改后刷新 items（含 points 字段）并通知父组件
   const reloadItems = useCallback(async () => {
     if (!bpId) return;
@@ -114,10 +140,8 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
 
   const handlePublish = async () => {
     if (!bpId) return;
-    const scoredSum = items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0);
-    const incomplete = items.filter((i) => Number(i.maxScore) > 0 && (!i.points || i.points.length === 0));
-    if (scoredSum !== 100 || incomplete.length > 0) {
-      toast.error(`发布前请确保:打分项满分合计=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
+    if (!readiness.ready) {
+      toast.error(`暂不符合发布条件：${readiness.issues.join('；')}`);
       return;
     }
     if (!window.confirm('发布后评分标准将锁定,不可再修改。确认发布?')) return;
@@ -208,6 +232,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         maxScore: isPassFailCategory(draft.category) ? 0 : Number(draft.maxScore),
       });
       setItems((prev) => [...prev, created]);
+      setExpanded((prev) => ({ ...prev, [created.id]: true }));
       setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 });
       setShowAdd(false);
       toast.success('评分项已新增');
@@ -315,7 +340,13 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           </button>
           <button
             onClick={handlePublish}
-            className="flex items-center gap-1.5 rounded-xl bg-[#11a874] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#0e8f61]"
+            disabled={!readiness.ready}
+            title={!readiness.ready ? readiness.issues.join('；') : undefined}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-white transition ${
+              readiness.ready
+                ? 'bg-[#11a874] hover:bg-[#0e8f61]'
+                : 'cursor-not-allowed bg-[#b0bec5]'
+            }`}
           >
             <Check size={14} strokeWidth={1.8} />
             发布评分标准
@@ -328,16 +359,28 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const tableBlock = (
     <>
       {/* ── Summary ── */}
-      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-[#f3f7fc] px-4 py-3 text-sm">
-        <span className="text-[#5a6d8a]">
-          评分项：<span className="font-mono font-bold text-[#18243a]">{items.length}</span> 项
-        </span>
-        <span className="text-[#5a6d8a]">
-          打分项满分合计：<span className="font-mono font-bold text-[#064ea2]">{scoredTotal}</span> 分
-        </span>
-        <span className="text-[#8a96aa]">
-          （含 {items.length - items.filter((i) => Number(i.maxScore) > 0).length} 项通过性审查）
-        </span>
+      <div className="mb-4 rounded-xl bg-[#f3f7fc] px-4 py-3 text-sm">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <span className="text-[#5a6d8a]">
+            评分项：<span className="font-mono font-bold text-[#18243a]">{items.length}</span> 项
+          </span>
+          <span className="text-[#5a6d8a]">
+            打分项满分合计：
+            <span className={`font-mono font-bold ${readiness.ready ? 'text-[#11a874]' : !readiness.issues.length ? 'text-[#064ea2]' : 'text-[#b45309]'}`}>
+              {scoredTotal}
+            </span>
+            <span className="ml-0.5 text-[#8a96aa]">/ 100 分</span>
+          </span>
+          <span className="text-[#8a96aa]">
+            （含 {items.length - items.filter((i) => Number(i.maxScore) > 0).length} 项通过性审查）
+          </span>
+        </div>
+        {items.length > 0 && !locked && !readiness.ready && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-[#b45309]">
+            <AlertTriangle size={13} strokeWidth={1.8} />
+            {readiness.issues.join('；')}
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -598,7 +641,20 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           projectId={bpId}
           locked={locked}
           onChanged={(updated) => {
+            const scoringUpdated = updated.filter((i) => Number(i.maxScore) > 0);
+            const s = scoringUpdated.reduce((a, i) => a + Number(i.maxScore), 0);
+            if (Math.abs(s - 100) >= 0.05) {
+              toast.warning(
+                `模板应用后满分合计 ${s}（${s < 100 ? `差 ${(100 - s).toFixed(1)}` : `超出 ${(s - 100).toFixed(1)}`}），需调整至 100 分后方可发布`,
+                { duration: 8000 },
+              );
+            }
+            const noPts = scoringUpdated.filter((i) => !i.points || i.points.length === 0);
+            if (noPts.length > 0) {
+              toast.info(`模板不含得分点（${noPts.length} 个打分项），可手动添加或 AI 提取`, { duration: 5000 });
+            }
             setItems(updated);
+            setExpanded(Object.fromEntries(updated.map((i) => [i.id, true])));
             onChanged?.();
           }}
         />
