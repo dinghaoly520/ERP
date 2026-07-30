@@ -202,6 +202,8 @@ export class SupplierPortalController {
       // P0-1：前端完整/拆分模型字段（服务层 normalizeBidFileAssets 归一到三角色契约）
       fullBidFileAssetId?: string; coverLetterFileAssetId?: string;
       splitFiles?: { tech?: any; biz?: any; other?: any };
+      // E2EE
+      clientDeks?: Record<string, string>;
     },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
@@ -220,6 +222,8 @@ export class SupplierPortalController {
       // P0-1：前端完整/拆分模型字段（服务层 normalizeBidFileAssets 归一到三角色契约）
       fullBidFileAssetId?: string; coverLetterFileAssetId?: string;
       splitFiles?: { tech?: any; biz?: any; other?: any };
+      // E2EE: 客户端加密密钥（assetId → "keyHex:ivHex:authTagHex"）
+      clientDeks?: Record<string, string>;
     },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);

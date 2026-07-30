@@ -35,6 +35,8 @@ type BidSubmissionData = {
   fullBidFileAssetId?: string;
   coverLetterFileAssetId?: string;
   splitFiles?: { tech?: any; biz?: any; other?: any };
+  // E2EE: 客户端加密密钥（assetId → "keyHex:ivHex:authTagHex"）
+  clientDeks?: Record<string, string>;
 };
 
 /**
@@ -768,33 +770,70 @@ export class SupplierPortalService {
         const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
         if (!asset) continue;
 
-        const objStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
-        const plaintext = await streamToBuffer(objStream);
+        if (asset.clientEncrypted) {
+          // ── E2EE 分支：文件由客户端加密，密文已在 MinIO（asset.key），跳过 encryptBuffer ──
+          const clientDek = data.clientDeks?.[assetId];
+          if (!clientDek) {
+            throw new BadRequestException({
+              error: `客户端加密文件缺少 DEK (assetId: ${assetId})`,
+              code: 'MISSING_CLIENT_DEK',
+            });
+          }
+          // 校验 DEK 格式：三段 hex，冒号分隔
+          const parts = clientDek.split(':');
+          if (parts.length !== 3 || parts.some(p => !/^[0-9a-f]+$/i.test(p))) {
+            throw new BadRequestException({
+              error: `客户端 DEK 格式无效 (assetId: ${assetId})`,
+              code: 'INVALID_CLIENT_DEK',
+            });
+          }
+          sealedKeys[assetId] = wrapKey(clientDek, process.env.KMS_SECRET!);
+          sealedPaths[assetId] = asset.key; // 密文即上传路径
 
-        const { ciphertext, decryptKey } = encryptBuffer(plaintext);
-        sealedKeys[assetId] = wrapKey(decryptKey, process.env.KMS_SECRET!);
+          // ── 备份：读取密文 → 拷贝到 sealed-backup ──
+          const staged = await this.bidBackup.stageBackup({
+            projectId, supplierId, fileRole: assetRoles[assetId],
+            fileAssetId: assetId,
+            sealedPath: asset.key, // E2EE: sealedPath = asset.key
+            ciphertext: await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.key)),
+            wrappedDek: sealedKeys[assetId],
+            plaintextSha256: asset.sha256 ?? null, // 客户端传入的原文哈希
+          });
+          if (staged) {
+            stagedBackups.push(staged);
+            newlySealedPaths.push(staged.backupKey);
+          }
+        } else {
+          // ── 现有服务端加密分支（不变）──
+          const objStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+          const plaintext = await streamToBuffer(objStream);
 
-        // Write ciphertext to a NEW path (do not overwrite original plaintext)
-        const sealedPath = `sealed/${projectId}/${supplierId}/${asset.key.split('/').pop()}.enc`;
-        await minioClient.putObject(MINIO_BUCKET, sealedPath, ciphertext, ciphertext.length, {
-          'Content-Type': 'application/octet-stream',
-        });
-        sealedPaths[assetId] = sealedPath;
-        newlySealedPaths.push(sealedPath);
+          const { ciphertext, decryptKey } = encryptBuffer(plaintext);
+          sealedKeys[assetId] = wrapKey(decryptKey, process.env.KMS_SECRET!);
 
-        // ── 未解密备份：复用内存密文 best-effort 备份到独立前缀；失败不阻断提交（交后台补备）──
-        const staged = await this.bidBackup.stageBackup({
-          projectId, supplierId, fileRole: assetRoles[assetId],
-          fileAssetId: assetId, sealedPath, ciphertext,
-          wrappedDek: sealedKeys[assetId], plaintextSha256: asset.sha256 ?? null,
-        });
-        if (staged) {
-          stagedBackups.push(staged);
-          newlySealedPaths.push(staged.backupKey); // 失败回滚时一并清理备份对象
+          // Write ciphertext to a NEW path (do not overwrite original plaintext)
+          const sealedPath = `sealed/${projectId}/${supplierId}/${asset.key.split('/').pop()}.enc`;
+          await minioClient.putObject(MINIO_BUCKET, sealedPath, ciphertext, ciphertext.length, {
+            'Content-Type': 'application/octet-stream',
+          });
+          sealedPaths[assetId] = sealedPath;
+          newlySealedPaths.push(sealedPath);
+
+          // ── 未解密备份：复用内存密文 best-effort 备份到独立前缀；失败不阻断提交（交后台补备）──
+          const staged = await this.bidBackup.stageBackup({
+            projectId, supplierId, fileRole: assetRoles[assetId],
+            fileAssetId: assetId, sealedPath, ciphertext,
+            wrappedDek: sealedKeys[assetId], plaintextSha256: asset.sha256 ?? null,
+          });
+          if (staged) {
+            stagedBackups.push(staged);
+            newlySealedPaths.push(staged.backupKey); // 失败回滚时一并清理备份对象
+          }
         }
       }
     } catch (err) {
       // Clean up any newly written sealed files on failure
+      // E2EE files: only clean up backup paths, not asset.key (original upload)
       for (const path of newlySealedPaths) {
         try {
           await minioClient.removeObject(MINIO_BUCKET, path);

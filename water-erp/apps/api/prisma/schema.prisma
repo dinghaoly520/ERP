@@ -1183,6 +1183,7 @@ model FileAsset {
   iv              String? // Track C: AES-GCM iv (base64)
   authTag         String? // Track C: AES-GCM authTag (base64)
   sealedPath      String? // Layer B: 密文存储路径（不覆盖原明文）
+  clientEncrypted Boolean  @default(false) // E2EE: 客户端加密标记（上传时已是密文）
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

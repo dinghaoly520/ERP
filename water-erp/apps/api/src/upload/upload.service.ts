@@ -3,6 +3,8 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
 import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
+import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
+import { createDecryptStream } from '../announcement/bid-document.crypto';
 
 /** Allowed MIME types for upload */
 const ALLOWED_MIME_TYPES = [
@@ -82,31 +84,45 @@ export class UploadService implements OnModuleInit {
   /**
    * 上传文件并持久化元数据（文件字节写入 MinIO）
    */
-  async upload(file: Express.Multer.File, category: string = 'general', userId?: string) {
-    this.validateFile(file, category);
+  async upload(
+    file: Express.Multer.File, category: string = 'general', userId?: string,
+    clientEncrypted = false,
+    clientPlaintextSha256?: string,
+  ) {
+    // clientEncrypted 时跳过 MIME 校验——密文的 MIME type 是 application/octet-stream
+    if (!clientEncrypted) {
+      this.validateFile(file, category);
+    }
 
     // ① 文件名从 multer 的 latin1 还原为 utf8（中文不乱码）
     const originalName = sanitizeFileName(file.originalname);
 
     // ② Office Word 文档自动转 PDF（预览统一，转换失败降级存原始文件）
+    //    clientEncrypted 时跳过——文件已是密文，无法识别为 Office 文档
     let buffer = file.buffer;
     let mimeType = file.mimetype;
     let displayName = originalName;
-    const converted = convertOfficeToPdf(file.buffer, file.mimetype, originalName);
-    if (converted) {
-      buffer = converted.buffer;
-      mimeType = converted.mimeType;
-      displayName = converted.fileName;
+    if (!clientEncrypted) {
+      const converted = convertOfficeToPdf(file.buffer, file.mimetype, originalName);
+      if (converted) {
+        buffer = converted.buffer;
+        mimeType = converted.mimeType;
+        displayName = converted.fileName;
+      }
+    } else {
+      // E2EE: 统一标记为 octet-stream
+      mimeType = 'application/octet-stream';
     }
 
     const key = this.generateKey(displayName);
-    const sha256 = this.computeSha256(buffer);
+    // sha256: 客户端提供原文哈希则用它；否则计算密文哈希
+    const sha256 = clientPlaintextSha256 || this.computeSha256(buffer);
 
     // 写入 MinIO 对象存储
     await minioClient.putObject(MINIO_BUCKET, key, buffer, buffer.length, {
       'Content-Type': mimeType,
     });
-    this.logger.log(`File stored in MinIO: ${key} (${buffer.length} bytes, ${mimeType})`);
+    this.logger.log(`File stored in MinIO: ${key} (${buffer.length} bytes, ${mimeType})${clientEncrypted ? ' [E2EE]' : ''}`);
 
     // 持久化文件元数据到数据库
     const asset = await this.prisma.fileAsset.create({
@@ -118,6 +134,7 @@ export class UploadService implements OnModuleInit {
         sha256,
         category,
         uploaderId: userId,
+        clientEncrypted, // E2EE 标记持久化
       },
     });
 
@@ -149,6 +166,40 @@ export class UploadService implements OnModuleInit {
     const canAccess = await this.canAccessFile(asset, user);
     if (!canAccess) {
       throw new ForbiddenException({ error: '无权访问该文件', code: 'FILE_FORBIDDEN' });
+    }
+
+    // E2EE: 文件在 MinIO 中是 ciphertext，需在流式输出时解密
+    if (asset.clientEncrypted) {
+      const submission = await this.prisma.supplierBidSubmission.findFirst({
+        where: {
+          OR: [
+            { technicalFileAssetId: asset.id },
+            { businessFileAssetId: asset.id },
+            { coverLetterAssetId: asset.id },
+          ],
+        },
+      });
+      const sealedKey = submission?.technicalFileAssetId === asset.id ? submission?.technicalSealedKey
+        : submission?.businessFileAssetId === asset.id ? submission?.businessSealedKey
+        : submission?.coverLetterSealedKey;
+      if (!sealedKey) {
+        throw new BadRequestException({ error: 'E2EE 文件缺少解密密钥', code: 'MISSING_SEALED_KEY' });
+      }
+      const rawKey = isWrappedKey(sealedKey) ? unwrapKey(sealedKey, process.env.KMS_SECRET!) : sealedKey;
+
+      // 流式解密：从 MinIO 读取 ciphertext → AES-256-GCM decrypt → 响应
+      const cipherStream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+      const decryptStream = createDecryptStream(rawKey);
+
+      // E2EE 文件在 MinIO 中存的是 ciphertext，不含 authTag → size 是 ciphertext 长度
+      // 解密后会略短（去掉 authTag 长度），无法提前知道 Content-Length
+      res.setHeader('Content-Type', asset.mimeType);
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${encodeURIComponent(asset.originalName.replace(/\.enc$/, ''))}"`,
+      );
+      cipherStream.pipe(decryptStream).pipe(res);
+      return;
     }
 
     res.setHeader('Content-Type', asset.mimeType);

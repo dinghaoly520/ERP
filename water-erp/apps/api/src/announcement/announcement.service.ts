@@ -331,7 +331,7 @@ export class AnnouncementService {
 
     // 事务成功后异步清理 MinIO 密封文件（best-effort，不阻塞）
     if (sealedPathsToClean.length > 0) {
-      for (const path of sealedPathsToClean) {
+      for (const path of [...new Set(sealedPathsToClean)]) {
         try { await minioClient.removeObject(MINIO_BUCKET, path); } catch (_) { /* best-effort */ }
       }
       this.logger.log(`公告删除清理 MinIO 密封文件 ${sealedPathsToClean.length} 个 (project=${relatedProjectCode})`);

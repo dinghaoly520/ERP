@@ -1592,7 +1592,8 @@ export class BidService {
     await this.prisma.$transaction(async (tx) => {
       await tx.fileAsset.update({
         where: { id: assetId },
-        data: { sealedPath, encrypted: true },
+        // reupload 后文件变为 server-encrypted，清除 E2EE 标记
+        data: { sealedPath, encrypted: true, clientEncrypted: false },
       });
       await tx.supplierBidSubmission.update({
         where: { supplierId_projectId: { supplierId: bidSupplier.supplierId!, projectId } },
@@ -1675,6 +1676,41 @@ export class BidService {
       const originalAsset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
       if (!originalAsset || !originalAsset.sha256 || !originalAsset.key) {
         failed.push({ role, label: fields.label, code: 'FILE_RECORD_MISSING', error: '原始文件记录缺失' });
+        continue;
+      }
+
+      if (originalAsset.clientEncrypted) {
+        // ── E2EE 分支：密文在 asset.key，无需重加密。仅重新包裹 DEK（支持 KMS 轮转）──
+        const oldSealedKey = submission?.[fields.sealedKeyKey as keyof typeof submission] as string | undefined;
+        if (!oldSealedKey || !isWrappedKey(oldSealedKey)) {
+          failed.push({ role, label: fields.label, code: 'MISSING_E2EE_KEY', error: 'E2EE 文件缺少有效 sealedKey' });
+          continue;
+        }
+        const oldDek = unwrapKey(oldSealedKey, process.env.KMS_SECRET!);
+        const wrappedKey = wrapKey(oldDek, process.env.KMS_SECRET!);
+
+        // sealedPath 不变（密文已在 asset.key），仅更新 wrappedKey
+        const sealedKeyUpdate: Record<string, string> = {};
+        sealedKeyUpdate[fields.sealedKeyKey] = wrappedKey;
+
+        await this.prisma.$transaction(async (tx) => {
+          await tx.supplierBidSubmission.update({
+            where: { supplierId_projectId: { supplierId: bidSupplier.supplierId!, projectId } },
+            data: sealedKeyUpdate as any,
+          });
+          await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'PENDING', decryptError: null } });
+          await tx.bidSupervisionLog.create({
+            data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
+              action: '重新封标', result: `${fields.label}（E2EE）已重新包裹密钥`, riskFlag: '低风险' },
+          });
+          if (actorId) {
+            await tx.auditLog.create({
+              data: { userId: actorId, action: 'BID_FILE_RESEAL', resourceType: `${bidSupplier.supplierName}:${supplierId}`,
+                details: { projectId, role, e2ee: true } },
+            });
+          }
+        });
+        recovered.push(fields.label);
         continue;
       }
 

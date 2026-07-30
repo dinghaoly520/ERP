@@ -22,10 +22,15 @@ export function uploadFile(
   file: File,
   category = 'qualification',
   onProgress?: (pct: number) => void,
+  clientEncrypted = false,
+  plaintextSha256?: string,
 ): Promise<FileAssetResponse> {
   const fd = new FormData()
   fd.append('file', file)
-  return api.post(`/upload?category=${encodeURIComponent(category)}`, fd, {
+  const params = new URLSearchParams({ category })
+  if (clientEncrypted) params.set('clientEncrypted', 'true')
+  if (plaintextSha256) params.set('plaintextSha256', plaintextSha256)
+  return api.post(`/upload?${params.toString()}`, fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120000,
     onUploadProgress: onProgress ? (e) => { if (e.total) onProgress(Math.round((e.loaded / e.total) * 100)) } : undefined,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBidStore } from '@/stores/bid'
 import { useSupplierStore } from '@/stores/supplier'
@@ -10,6 +10,10 @@ import { useAutoSave, useRouteLeaveGuard } from '@/composables'
 import SpPageHero from '@/components/SpPageHero.vue'
 import { Send, AlertTriangle, Check, X, Upload, Plus, Trash2 } from 'lucide-vue-next'
 import dayjs from 'dayjs'
+import {
+  generateDEK, encryptFile, formatDEK, computePlaintextHash, packageEncryptedFile,
+  type ClientDek,
+} from '@/utils/bid-crypto'
 
 const route = useRoute(); const router = useRouter(); const bidStore = useBidStore(); const supplierStore = useSupplierStore()
 const maxUploadSizeMB = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB) || 50
@@ -41,6 +45,11 @@ const form = ref({
   bidBondAssetId: '',
 })
 
+// E2EE: 存储每个文件的 DEK（assetId → {keyHex, ivHex, authTagHex}）
+const clientDeks = ref<Record<string, ClientDek>>({})
+// E2EE: 加密阶段指示器（UPLOADING 时显示进度条，ENCRYPTING 时显示「正在加密…」）
+const encrypting = ref<Record<string, boolean>>({})
+
 const project = computed(() => bidStore.currentProject)
 const heroSub = computed(() => {
   const p = project.value
@@ -61,12 +70,51 @@ const splitCats = ref<{ tech: SplitCategory; biz: SplitCategory; other: SplitCat
 })
 
 const autoSaveReady = ref(false); const showRecovery = ref(false); const submitDialogVisible = ref(false)
+// E2EE: localStorage key for DEK persistence (separate from form draft)
+const DEK_STORAGE_KEY = computed(() => `supplier_dek:bidsubmit:${projectId.value}`)
+
+// Persist clientDeks to localStorage on change
+watch(clientDeks, (val) => {
+  try { localStorage.setItem(DEK_STORAGE_KEY.value, JSON.stringify(val)) } catch {}
+}, { deep: true })
+
+// Restore clientDeks from localStorage on mount
+function restoreDeks() {
+  try {
+    const raw = localStorage.getItem(DEK_STORAGE_KEY.value)
+    if (raw) { clientDeks.value = JSON.parse(raw) }
+  } catch {}
+}
+function clearDeks() { try { localStorage.removeItem(DEK_STORAGE_KEY.value) } catch {} }
 const draft = useAutoSave(() => 'bidsubmit:'+projectId.value, form, { enabled: autoSaveReady })
 useRouteLeaveGuard(draft.dirty)
-function acceptRecovery() { const d = draft.restoreDraft(); if (d) Object.assign(form.value, d); showRecovery.value = false }
-function discardRecovery() { draft.clearDraft(); showRecovery.value = false }
+function acceptRecovery() { const d = draft.restoreDraft(); if (d) Object.assign(form.value, d); restoreDeks(); showRecovery.value = false }
+function discardRecovery() { draft.clearDraft(); clearDeks(); showRecovery.value = false }
 
 function formatSize(bytes: number): string { if (bytes<1024) return `${bytes} B`; if (bytes<1024*1024) return `${(bytes/1024).toFixed(1)} KB`; return `${(bytes/1024/1024).toFixed(1)} MB` }
+
+// ── E2EE: 加密并上传文件 ──
+async function uploadEncryptedFile(
+  file: File,
+  catKey: string, // identifier for encrypting state
+  onProgress: (pct: number) => void,
+): Promise<FileAssetResponse> {
+  // 1. 计算原文哈希
+  encrypting.value[catKey] = true
+  const plaintextSha256 = await computePlaintextHash(file)
+  // 2. 生成 DEK
+  const { rawKey, keyHex, iv, ivHex } = await generateDEK()
+  // 3. 加密
+  const { encryptedBlob, dek } = await encryptFile(file, rawKey, iv)
+  dek.keyHex = keyHex
+  encrypting.value[catKey] = false
+  // 4. 包装并上传密文
+  const encryptedFile = packageEncryptedFile(encryptedBlob, file.name)
+  const res = await uploadFile(encryptedFile, 'bid_document', onProgress, true, plaintextSha256)
+  // 5. 存储 DEK
+  clientDeks.value[res.id] = dek
+  return res
+}
 
 // bidPrice 存为字符串，可能以万元或元为单位。≥10000 视为元自动换算。
 function formatBidPrice(raw: string | number | null | undefined): string {
@@ -76,32 +124,32 @@ function formatBidPrice(raw: string | number | null | undefined): string {
   return `${n} 万元`
 }
 
-// ── 完整标书上传 ──
+// ── 完整标书上传（E2EE 加密）──
 async function handleFullBidUpload(options: any) {
   const file = options.file as File
   if (file.size > maxUploadSize) { ElMessage.error(`文件不能超过${maxUploadSizeMB}MB`); options.onError(new Error('FILE_TOO_LARGE')); return }
   fullBidProgress.value = 0
   try {
-    const res = await uploadFile(file, 'bid_document', (pct) => { fullBidProgress.value = pct })
+    const res = await uploadEncryptedFile(file, 'full', (pct) => { fullBidProgress.value = pct })
     form.value.fullBidFileAssetId = res.id
-    fullBidMeta.value = res
+    fullBidMeta.value = { ...res, originalName: file.name, size: file.size } as FileAssetResponse
     options.onSuccess(res)
-    ElMessage.success('文件上传成功')
+    ElMessage.success('文件加密上传成功')
   } catch (e: any) { options.onError(e) }
   finally { fullBidProgress.value = null }
 }
 
-// ── 拆分文件上传 ──
+// ── 拆分文件上传（E2EE 加密）──
 async function handleSplitUpload(catKey: 'tech' | 'biz' | 'other', options: any) {
   const file = options.file as File
   if (file.size > maxUploadSize) { ElMessage.error(`文件不能超过${maxUploadSizeMB}MB`); options.onError(new Error('FILE_TOO_LARGE')); return }
   const cat = splitCats.value[catKey]
   cat.uploading = true; cat.progress = 0
   try {
-    const res = await uploadFile(file, 'bid_document', (pct) => { cat.progress = pct })
-    cat.files.push({ id: res.id, name: res.originalName, size: res.size })
+    const res = await uploadEncryptedFile(file, `split-${catKey}`, (pct) => { cat.progress = pct })
+    cat.files.push({ id: res.id, name: file.name, size: file.size })
     options.onSuccess(res)
-    ElMessage.success('文件上传成功')
+    ElMessage.success('文件加密上传成功')
   } catch (e: any) { options.onError(e) }
   finally { cat.uploading = false; cat.progress = null }
 }
@@ -125,17 +173,17 @@ async function handleBondUpload(options: any) {
   finally { bondUploadProgress.value = null }
 }
 
-// ── 投标函文件上传 ──
+// ── 投标函文件上传（E2EE 加密）──
 async function handleCoverLetterUpload(options: any) {
   const file = options.file as File
   if (file.size > maxUploadSize) { ElMessage.error(`文件不能超过${maxUploadSizeMB}MB`); options.onError(new Error('FILE_TOO_LARGE')); return }
   coverLetterProgress.value = 0
   try {
-    const res = await uploadFile(file, 'bid_document', (pct) => { coverLetterProgress.value = pct })
+    const res = await uploadEncryptedFile(file, 'coverLetter', (pct) => { coverLetterProgress.value = pct })
     form.value.coverLetterFileAssetId = res.id
-    coverLetterMeta.value = res
+    coverLetterMeta.value = { ...res, originalName: file.name, size: file.size } as FileAssetResponse
     options.onSuccess(res)
-    ElMessage.success('投标函文件上传成功')
+    ElMessage.success('投标函文件加密上传成功')
   } catch (e: any) { options.onError(e) }
   finally { coverLetterProgress.value = null }
 }
@@ -165,6 +213,7 @@ onMounted(async () => {
       // P1：草稿/已提交记录读取失败须提示，否则用户以为没填过、重填后被 ALREADY_SUBMITTED 拦截。
       ElMessage.warning('无法读取已保存的草稿/已提交记录；若您已提交过，请勿重复提交');
     }
+    restoreDeks() // E2EE: restore DEKs from previous session
     if (draft.restoreDraft() && draft.storedAt.value && (!existingSubmission.value || draft.storedAt.value > new Date(existingSubmission.value.updatedAt).getTime())) {
       showRecovery.value = true
     }
@@ -193,10 +242,29 @@ const canSubmit = computed(() => {
   return ['DOWNLOAD', 'SUBMIT'].includes(project.value.stage) && new Date(project.value.deadline) > new Date()
 })
 
+// 构建 clientDeks 映射（根据当前表单中的 assetId 查找 DEK）
+function buildClientDeksPayload(): Record<string, string> {
+  const result: Record<string, string> = {}
+  const assetIds: string[] = []
+  if (submissionMode.value === 'full') {
+    if (form.value.fullBidFileAssetId) assetIds.push(form.value.fullBidFileAssetId)
+  } else {
+    for (const cat of (['tech', 'biz', 'other'] as const)) {
+      for (const f of splitCats.value[cat].files) { assetIds.push(f.id) }
+    }
+  }
+  if (form.value.coverLetterFileAssetId) assetIds.push(form.value.coverLetterFileAssetId)
+  for (const id of assetIds) {
+    const dek = clientDeks.value[id]
+    if (dek) result[id] = formatDEK(dek.keyHex, dek.ivHex, dek.authTagHex)
+  }
+  return result
+}
+
 async function saveDraft() {
   saving.value = true
   try {
-    const payload: any = { ...form.value }
+    const payload: any = { ...form.value, clientDeks: buildClientDeksPayload() }
     if (submissionMode.value === 'split') {
       payload.splitFiles = {
         tech: splitCats.value.tech.files,
@@ -240,7 +308,7 @@ function openSubmitDialog() { submitDialogVisible.value = true }
 async function confirmSubmit() {
   submitDialogVisible.value = false; submitting.value = true
   try {
-    const payload: any = { ...form.value }
+    const payload: any = { ...form.value, clientDeks: buildClientDeksPayload() }
     if (submissionMode.value === 'split') {
       payload.splitFiles = {
         tech: splitCats.value.tech.files,
@@ -249,7 +317,7 @@ async function confirmSubmit() {
       }
     }
     await supplierApi.submitBid(projectId.value, payload)
-    draft.clearDraft()
+    draft.clearDraft(); clearDeks()
     ElMessage.success('标书提交成功！')
     router.push('/my-bids')
   } catch (err: any) {

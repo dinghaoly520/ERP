@@ -41,12 +41,14 @@ export class UploadController {
   async upload(
     @UploadedFile() file: Express.Multer.File,
     @Query('category') category: string = 'general',
-    @Request() req: any,
+    @Query('clientEncrypted') clientEncrypted = 'false',
+    @Query('plaintextSha256') plaintextSha256?: string,
+    @Request() req?: any,
   ) {
     if (!file) {
       throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
     }
-    return this.uploadService.upload(file, category, req.user?.sub);
+    return this.uploadService.upload(file, category, req.user?.sub, clientEncrypted === 'true', plaintextSha256);
   }
 
   @Get('files/:id')
