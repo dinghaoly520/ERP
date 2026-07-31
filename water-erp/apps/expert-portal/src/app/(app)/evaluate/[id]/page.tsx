@@ -1346,6 +1346,8 @@ export default function ExpertEvaluatePage() {
                               const val = scores[k];
                               const reasonMissing = missingReasons.has(item.id);
                               const passFail = isPassFailCategory(item.category);
+                              // P1: 价格分公式引擎 — PRICE 项由系统自动算分
+                              const isPriceFormula = item.category === 'PRICE' && !!(project as any)?.priceFormulaConfig;
                               const isLastItem = idx === items.length - 1;
                               if (passFail) {
                                 const verdict = val?.passed;
@@ -1380,6 +1382,18 @@ export default function ExpertEvaluatePage() {
                                     {/* Task 5: pass-fail 「不通过」理由框聚焦（或点📎按钮）→ 展开复选框面板 */}
                                     {verdict === false && renderReviewPanel(k, category, item.id)}
                                     {reasonMissing && <p className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-[var(--danger)]"><AlertTriangle size={12} strokeWidth={1.5} />请选择「通过 / 不通过」，不通过需填理由</p>}
+                                  </div>
+                                );
+                              }
+                              // P1: PRICE 公式项 → 只读展示,无打分输入
+                              if (isPriceFormula) {
+                                return (
+                                  <div key={item.id} data-score-item={item.id} className="neu-card-static !rounded-[14px] p-4">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="font-semibold text-[var(--foreground)]">{item.name}</h4>
+                                      <span className="rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2.5 py-0.5 text-xs font-semibold text-[var(--accent)]">系统公式计算</span>
+                                    </div>
+                                    <p className="mt-2 text-xs text-[var(--muted-foreground)]">满分 {item.maxScore} · 价格分由公式引擎根据报价自动计算,无需专家打分</p>
                                   </div>
                                 );
                               }

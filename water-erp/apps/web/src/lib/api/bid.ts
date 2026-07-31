@@ -316,6 +316,14 @@ export function getAwardLetterStatus(bidProjectId: string) {
   );
 }
 
+/** P1: 设置价格分公式配置 */
+export function updatePriceConfig(
+  bidProjectId: string,
+  data: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> },
+) {
+  return api.patch(`/bid/projects/${bidProjectId}/price-config`, data);
+}
+
 /** 延时开标：修改 openTime / deadline */
 export function updateBidProjectSchedule(
   bidProjectId: string,

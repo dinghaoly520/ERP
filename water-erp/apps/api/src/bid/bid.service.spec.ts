@@ -6,6 +6,7 @@ import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from './clarification-ai.service';
 import { BidGateway } from './bid.gateway';
 import { ScoreStandardValidator } from './score-standard-validator.service';
+import { PriceFormulaService } from './price-formula.service';
 import { StorageService } from '../storage/storage.service';
 import { assertBidStageTransition } from './bid-state';
 import { sealField, openField } from '../common/crypto/field-crypto';
@@ -135,12 +136,14 @@ describe('BidService — stage transitions', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
         { provide: ClarificationAiService, useValue: { draftQuestion: jest.fn().mockResolvedValue({ drafts: [], basis: [] }), summarizeReply: jest.fn().mockResolvedValue(null) } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
       ],
     }).compile();
 
@@ -1439,6 +1442,7 @@ describe('BidService — decryptSupplier 真实校验', () => {
         { provide: NotificationService, useValue: { create: jest.fn() } },
         { provide: BidGateway, useValue: { notifyDecryptStatus: jest.fn(), notifyStageChange: jest.fn(), notifyAnomaly: jest.fn(), notifySupervisionLog: jest.fn(), notifySubmissionOpened: jest.fn(), notifyOpeningStarted: jest.fn(), notifyEvaluationStarted: jest.fn(), broadcastAggregatePresence: jest.fn() } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -1474,6 +1478,7 @@ describe('BidService — score items (评分标准)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: jest.fn() } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -1642,6 +1647,7 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: jest.fn() } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -1758,6 +1764,7 @@ describe('BidService — nudge (催办)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: notifyCreate } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -1901,6 +1908,7 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: notifyCreate } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2044,6 +2052,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -2093,6 +2102,7 @@ describe('BidService — createProject 字段写入', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -2132,6 +2142,7 @@ describe('BidService — getOpeningRecordDraft', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -2223,6 +2234,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -2295,6 +2307,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: { create: jest.fn() } },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2417,6 +2430,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },

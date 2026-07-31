@@ -11,6 +11,7 @@ import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { AiBidAnalysisModule } from '../ai-bid-analysis/ai-bid-analysis.module';
 import { ScorePointExtractorService } from './score-point-extractor.service';
 import { ScoreStandardValidator } from './score-standard-validator.service';
+import { PriceFormulaService } from './price-formula.service';
 import { BidBackupModule } from '../bid-backup/bid-backup.module';
 
 @Module({
@@ -23,7 +24,7 @@ import { BidBackupModule } from '../bid-backup/bid-backup.module';
     BidBackupModule,
   ],
   controllers: [BidController],
-  providers: [BidService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator],
+  providers: [BidService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService],
   exports: [BidGateway, BidService, ClarificationAiService],
 })
 export class BidModule {}

@@ -34,6 +34,7 @@ import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 import { buildArchiveAiUsage } from '../ai-bid-analysis/utils/archive-ai-usage';
 import { ClarificationAiService } from './clarification-ai.service';
 import { ScoreStandardValidator } from './score-standard-validator.service';
+import { PriceFormulaService } from './price-formula.service';
 import { StorageService } from '../storage/storage.service';
 
 @Injectable()
@@ -42,6 +43,7 @@ export class BidService {
     private prisma: PrismaService,
     private notificationService: NotificationService,
     private readonly scoreStandardValidator: ScoreStandardValidator,
+    private readonly priceFormula: PriceFormulaService,
     private readonly storage: StorageService,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
@@ -2418,13 +2420,65 @@ export class BidService {
       }
     }
 
+    // P1: 价格分公式引擎 — PRICE 类项由公式自动算分,替代专家手填
+    const priceItemIds = new Set<string>();
+    let formulaPriceScores = new Map<string, number>();
+    {
+      const priceItems = await this.prisma.bidScoreItem.findMany({
+        where: { projectId, category: 'PRICE' },
+        select: { id: true, maxScore: true },
+      });
+      for (const pi of priceItems) priceItemIds.add(pi.id);
+
+      if (priceItems.length > 0 && project.priceFormulaConfig) {
+        const config = project.priceFormulaConfig as any;
+        const ceilingPrice = project.ceilingPrice ? Number(project.ceilingPrice) : null;
+
+        // 从 BidOpeningRecord 读取唱标时录入的报价(明文 amount 字段)
+        const openingRecs = await this.prisma.bidOpeningRecord.findMany({
+          where: { projectId, bidSupplierId: { in: activeSupplierIds } },
+          select: { bidSupplierId: true, amount: true },
+        });
+        const bidPrices = new Map<string, number>();
+        for (const r of openingRecs) {
+          if (r.amount) {
+            const price = parseFloat(String(r.amount).replace(/,/g, ''));
+            if (!isNaN(price) && price > 0) bidPrices.set(r.bidSupplierId!, price);
+          }
+        }
+
+        const priceMaxTotal = priceItems.reduce((s, i) => s + Number(i.maxScore), 0);
+        formulaPriceScores = this.priceFormula.calculate(config, bidPrices, ceilingPrice, priceMaxTotal);
+
+        // 超限价自动判废
+        const overCeiling = this.priceFormula.getOverCeilingSuppliers(bidPrices, ceilingPrice);
+        for (const sid of overCeiling) {
+          passFailVerdicts.set(sid, true);
+          passFailFailures.push({
+            supplierId: sid, supplierName: activeSuppliers.find(s => s.id === sid)?.supplierName ?? sid,
+            category: '超限价', fail: 0, total: 0,
+          });
+        }
+      }
+    }
+
     const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number; disqualified: boolean }[] = [];
     for (const supplier of activeSuppliers) {
       const records = recordsBySupplier.get(supplier.id) ?? [];
       // 每位专家对该供应商的总评分
       const perExpert = new Map<string, number>();
       for (const r of records) {
+        if (priceItemIds.size > 0 && priceItemIds.has(r.scoreItemId)) continue; // P1: PRICE 类由公式算
         perExpert.set(r.expertId, (perExpert.get(r.expertId) ?? 0) + Number(r.score));
+      }
+      // P1: 公式价格分作为常量加到每位专家总分(不影响去极值)
+      const formulaScore = formulaPriceScores.get(supplier.id) ?? 0;
+      if (formulaScore > 0) {
+        if (perExpert.size > 0) {
+          for (const eid of perExpert.keys()) perExpert.set(eid, perExpert.get(eid)! + formulaScore);
+        } else {
+          perExpert.set('__formula__', formulaScore); // 纯价格模式(无专家评分)
+        }
       }
       const expertTotals = [...perExpert.values()].sort((a, b) => a - b);
       const totalScore = expertTotals.reduce((s, v) => s + v, 0);
@@ -3156,6 +3210,23 @@ export class BidService {
     const publicityEnd = notice.publicityEnd;
     const canIssueAward = !publicityEnd || now >= new Date(publicityEnd);
     return { hasPublicity: true, publicityEnd, canIssueAward };
+  }
+
+  /** P1: 设置最高限价 + 价格分公式配置 + 评标办法 */
+  async updatePriceConfig(
+    projectId: string,
+    dto: { ceilingPrice?: number; evaluationMethod?: string; priceFormulaConfig?: Record<string, unknown> },
+    actorId?: string,
+  ) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, stage: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const data: Record<string, unknown> = {};
+    if (dto.ceilingPrice !== undefined) data.ceilingPrice = dto.ceilingPrice;
+    if (dto.evaluationMethod !== undefined) data.evaluationMethod = dto.evaluationMethod;
+    if (dto.priceFormulaConfig !== undefined) data.priceFormulaConfig = dto.priceFormulaConfig as any;
+
+    return this.prisma.bidProject.update({ where: { id: projectId }, data, select: { id: true, ceilingPrice: true, evaluationMethod: true, priceFormulaConfig: true } });
   }
 
   /** A3: 推送中标通知书给中标供应商 */

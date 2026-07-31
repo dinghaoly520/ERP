@@ -282,6 +282,9 @@ model BidProject {
   scoreStandardPublishedAt DateTime?
   riskNote                 String?
   budget                   Decimal?                   @db.Decimal(14, 2)
+  ceilingPrice             Decimal?                   @db.Decimal(14, 2) // P1: 最高限价/控制价(逐项目可编辑)
+  evaluationMethod         String? // P2: 评标办法 comprehensive|lowest_price|ratio|none
+  priceFormulaConfig       Json? // P1: { formulaType, K, penaltyRate, noPenaltyRange }
   scope                    String?
   qualification            String?
   contact                  String?
