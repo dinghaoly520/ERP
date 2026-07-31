@@ -84,6 +84,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
   const [pendingOpenTime, setPendingOpenTime] = useState('');
   // B2: 流标串联对话框
   const [abortDialogOpen, setAbortDialogOpen] = useState(false);
+  // D1: 专家在线状态
+  const [expertOnlineCount, setExpertOnlineCount] = useState(0);
 
   const showToast = useCallback((text: string, tone: 'ok' | 'err' = 'ok') => setToast({ text, tone }), []);
 
@@ -134,7 +136,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
     onSupervisionLog: scheduleRefresh,
     onClarificationCreated: () => { scheduleRefresh(); setClarTick(t => t + 1); },
     onClarificationReplied: () => { scheduleRefresh(); setClarTick(t => t + 1); },
-    onExpertPresence: scheduleRefresh,
+    onExpertPresence: useCallback((d: any) => {
+      scheduleRefresh();
+      if (d?.onlineCount !== undefined) setExpertOnlineCount(d.onlineCount);
+    }, [scheduleRefresh]),
+    onExpertPresenceAggregate: useCallback((d: any) => {
+      if (d?.onlineCount !== undefined) setExpertOnlineCount(d.onlineCount);
+    }, []),
     // F13：断线重连后全量补偿刷新（断线窗口内错过的事件无法补推）
     onReconnected: () => { if (bidProject?.id) void load(); },
   });
@@ -466,6 +474,22 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
 
               {/* ▸ 区块5-8（Phase 2 指挥中心）：开标进度 / 评标管理 / 澄清答疑 / 归档
                   —— :3007 开标执行数据经同一 API 回流，各区块按 stage 自行决定渲染 */}
+              {/* D1/G2: 专家在线 + 监督视图入口 */}
+              {bpId && (
+                <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl bg-[#f8fbff] px-4 py-2 text-xs">
+                  {expertOnlineCount > 0 && (
+                    <span className="flex items-center gap-1 font-semibold text-[var(--success)]">
+                      <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
+                      专家在线 {expertOnlineCount} 人
+                    </span>
+                  )}
+                  <a href={`${process.env.NEXT_PUBLIC_BID_PORTAL_URL || 'http://localhost:3007'}/bid/supervision?id=${bpId}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[var(--accent)] hover:underline">
+                    <Shield size={12} /> 监督视图
+                  </a>
+                </div>
+              )}
               {bpId && detail && (
                 <>
                   <OpeningProgressBlock

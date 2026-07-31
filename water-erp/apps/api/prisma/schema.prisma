@@ -471,6 +471,7 @@ model BidExpert {
   confidentialityAgreedAt DateTime?              // P4: 签署时间
   disciplineAgreed      Boolean                 @default(false) // P4: 评标纪律确认
   disciplineAgreedAt    DateTime?               // P4: 确认时间
+  scoreDraft            Json?                    // G3: 评分草稿(防 localStorage 丢失)
   conflictedSupplierIds Json                    @default("[]")
   progress              Int                     @default(0)
   totalScore            Decimal                 @default("0") @db.Decimal(8, 1)

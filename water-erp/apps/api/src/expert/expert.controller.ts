@@ -261,6 +261,18 @@ export class ExpertController {
     return this.expertService.leaderCoSign(userId, projectId);
   }
 
+  /* ── G3: 评分草稿持久化 ── */
+
+  @Post('projects/:projectId/score-draft')
+  saveScoreDraft(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() draft: Record<string, unknown>) {
+    return this.expertService.saveScoreDraft(userId, projectId, draft);
+  }
+
+  @Get('projects/:projectId/score-draft')
+  getScoreDraft(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.getScoreDraft(userId, projectId);
+  }
+
   /* ── 核对评分（draft → verified）── */
 
   @Post('projects/:projectId/suppliers/:supplierId/score-review/verify')

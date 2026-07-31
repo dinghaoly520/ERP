@@ -2572,8 +2572,8 @@ export class BidService {
       for (const f of passFailFailures) {
         await tx.bidSupervisionLog.create({
           data: {
-            projectId, time: new Date(), role: '系统', target: f.supplierName,
-            action: '资格审查', result: `因${f.category === 'QUALIFICATION' ? '资格' : '响应性'}性审查不通过废标（不通过 ${f.fail}/${f.total} 票）`, riskFlag: '高风险',
+            projectId, time: new Date(), role: '评标委员会', target: f.supplierName,
+            action: '废标决议', result: `经评审委员会表决，${f.category === 'QUALIFICATION' ? '资格' : '响应性'}性审查不通过（不通过 ${f.fail}/${f.total} 票），依据招标文件规定予以废标`, riskFlag: '高风险',
           },
         });
       }

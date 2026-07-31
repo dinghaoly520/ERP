@@ -1590,6 +1590,18 @@ export class ExpertService {
     return updated;
   }
 
+  /** G3: 保存/加载评分草稿(服务端持久化,防 localStorage 丢失) */
+  async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: draft as any } });
+  }
+
+  async getScoreDraft(userId: string, projectId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
+    return expert?.scoreDraft ?? null;
+  }
+
   /** C2: 组长末签 — 所有专家确认报告后,组长执行最终末签 */
   async leaderCoSign(userId: string, projectId: string) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
