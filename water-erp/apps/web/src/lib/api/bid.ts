@@ -292,9 +292,28 @@ export function startOpening(
   return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/open`, dto ?? {});
 }
 
-/** 流标：将项目状态置为 ABORTED */
-export function abortBidProject(bidProjectId: string) {
-  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/abort`, {});
+/** 流标：将项目状态置为 ABORTED（B2: 支持流标原因） */
+export function abortBidProject(bidProjectId: string, reason?: string) {
+  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/abort`, reason ? { reason } : {});
+}
+
+/** A1: 公示状态查询 */
+export function getPublicityStatus(bidProjectId: string) {
+  return api.get<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean }>(
+    `/bid/projects/${bidProjectId}/publicity-status`,
+  );
+}
+
+/** A3: 推送中标通知书 */
+export function deliverAwardLetter(bidProjectId: string, data: { winnerName: string; winnerSupplierId?: string; content?: Record<string, unknown> }) {
+  return api.post(`/bid/projects/${bidProjectId}/award-letter/deliver`, data);
+}
+
+/** A3: 中标通知书签收状态 */
+export function getAwardLetterStatus(bidProjectId: string) {
+  return api.get<Array<{ id: string; supplierName: string; deliveredAt: string | null; signedAt: string | null; signedBy: string | null }>>(
+    `/bid/projects/${bidProjectId}/award-letter/status`,
+  );
 }
 
 /** 延时开标：修改 openTime / deadline */

@@ -27,6 +27,7 @@ import { DraftClarificationDto } from './dto/draft-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
+import { UpdateAgreementsDto } from './dto/update-agreements.dto';
 import { CreateMemoDto } from './dto/create-memo.dto';
 import { UpdateMemoDto } from './dto/update-memo.dto';
 
@@ -108,6 +109,16 @@ export class ExpertController {
   @Post('projects/:projectId/ai-consent')
   confirmAiConsent(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.confirmAiConsent(userId, projectId);
+  }
+
+  @Patch('projects/:projectId/agreements')
+  @ApiOperation({ summary: '签署保密承诺/评标纪律 (P4)' })
+  updateAgreements(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Body() dto: UpdateAgreementsDto,
+  ) {
+    return this.expertService.updateAgreements(userId, projectId, dto);
   }
 
   /* ── 标书解密获取 ── */

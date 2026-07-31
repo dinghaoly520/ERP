@@ -185,6 +185,14 @@ export class AnnouncementService {
       throw new BadRequestException({ error: '公告不存在或已删除', code: 'NOT_FOUND' });
     }
 
+    // A1: WIN_NOTICE 发布时自动设置公示期（3 个日历日，Wave 1 简化）
+    if (result.type === 'WIN_NOTICE' && targetStatus === 'PUBLISHED' && !result.publicityEnd) {
+      const end = new Date(result.publishDate || new Date());
+      end.setDate(end.getDate() + 3);
+      await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
+      result.publicityEnd = end;
+    }
+
     // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
     if (isPublishTransition) {
       await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode });

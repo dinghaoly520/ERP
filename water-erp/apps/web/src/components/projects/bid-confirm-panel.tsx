@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AbortDialog } from './bid-confirm/abort-dialog';
 import {
   AlertTriangle,
   Bell,
@@ -21,6 +22,7 @@ import {
   ensureBidProject,
   getBidProjectDetail,
   getBidWorkspace,
+  getPublicityStatus,
   nudgeExperts,
   nudgeSuppliers,
   notifyBidScheduleChange,
@@ -79,6 +81,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
   // 延时开标后的"是否通知供应商与专家"确认
   const [notifyConfirmOpen, setNotifyConfirmOpen] = useState(false);
   const [pendingOpenTime, setPendingOpenTime] = useState('');
+  // B2: 流标串联对话框
+  const [abortDialogOpen, setAbortDialogOpen] = useState(false);
 
   const showToast = useCallback((text: string, tone: 'ok' | 'err' = 'ok') => setToast({ text, tone }), []);
 
@@ -461,11 +465,22 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
                     detail={detail}
                     onChanged={refreshDetail}
                     onConfirmOpening={() => void handleConfirmOpening()}
-                    onAbort={onAbort}
+                    onAbort={() => setAbortDialogOpen(true)}
                   />
                   <EvaluationBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   <ClarificationsBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} refreshTick={clarTick} />
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
+                  {/* A1: 公示期状态指示（归档后显示） */}
+                  {detail?.stage === 'ARCHIVED' && <PublicityBanner bidProjectId={bpId} />}
+                  {/* B2: 流标串联——abort + 公告 + 归档一步完成 */}
+                  <AbortDialog
+                    bidProjectId={bpId}
+                    projectName={project?.title ?? ''}
+                    projectCode={project?.projectCode ?? ''}
+                    isOpen={abortDialogOpen}
+                    onClose={() => setAbortDialogOpen(false)}
+                    onChanged={() => { setAbortDialogOpen(false); refreshDetail(); }}
+                  />
                 </>
               )}
             </div>
@@ -632,6 +647,45 @@ function EmptyHint({ text }: { text: string }) {
     <div className="flex items-center justify-center gap-2 rounded-[14px] px-4 py-6 text-xs text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.4)' }}>
       <AlertTriangle size={13} className="shrink-0 opacity-60" />
       <span>{text}</span>
+    </div>
+  );
+}
+
+/** A1: 公示期状态指示——归档后显示公示倒计时 / 期满可发通知书 */
+function PublicityBanner({ bidProjectId }: { bidProjectId: string }) {
+  const [status, setStatus] = useState<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean } | null>(null);
+
+  useEffect(() => {
+    getPublicityStatus(bidProjectId).then(setStatus).catch(() => {});
+  }, [bidProjectId]);
+
+  if (!status) return null;
+
+  if (!status.hasPublicity) {
+    return (
+      <div className="exp-alert exp-alert--info flex items-center gap-2 !p-3">
+        <Clock size={14} strokeWidth={1.5} className="shrink-0" />
+        <span className="text-xs">尚未发布中标公示</span>
+      </div>
+    );
+  }
+
+  if (status.canIssueAward) {
+    return (
+      <div className="exp-alert exp-alert--success flex items-center gap-2 !p-3">
+        <CheckCircle2 size={14} strokeWidth={1.5} className="shrink-0" />
+        <span className="text-xs font-semibold">公示期已满，可发出中标通知书</span>
+      </div>
+    );
+  }
+
+  const remaining = status.publicityEnd
+    ? Math.ceil((new Date(status.publicityEnd).getTime() - Date.now()) / 86400000)
+    : 0;
+  return (
+    <div className="exp-alert exp-alert--warning flex items-center gap-2 !p-3">
+      <Clock size={14} strokeWidth={1.5} className="shrink-0" />
+      <span className="text-xs font-semibold">公示期未满，剩余约 {remaining} 天，暂不可发出中标通知书</span>
     </div>
   );
 }

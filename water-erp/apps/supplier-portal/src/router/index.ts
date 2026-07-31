@@ -124,6 +124,12 @@ const router = createRouter({
           component: () => import('@/views/notification/NotificationList.vue'),
           meta: { title: '消息中心', icon: 'ChatDotRound' },
         },
+        {
+          path: 'award-letters',
+          name: 'AwardLetters',
+          component: () => import('@/views/award-letter/AwardLetterList.vue'),
+          meta: { title: '中标通知书', icon: 'Trophy' },
+        },
       ],
     },
     {

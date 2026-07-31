@@ -108,6 +108,10 @@ export interface BidExpert {
   totalScore: number;
   reportConfirmed?: boolean;
   conflictedSupplierIds?: string[];
+  confidentialityAgreed?: boolean; // P4
+  confidentialityAgreedAt?: string | null; // P4
+  disciplineAgreed?: boolean; // P4
+  disciplineAgreedAt?: string | null; // P4
   reportConfirmedAt?: string | null;
 }
 

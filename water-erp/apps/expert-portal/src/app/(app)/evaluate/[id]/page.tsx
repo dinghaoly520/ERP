@@ -242,6 +242,9 @@ export default function ExpertEvaluatePage() {
         // P2: sync per-supplier conflicts from server
         const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));
+        // P4: hydrate confidentiality/discipline agreements from server (survives refresh)
+        if (p.myExpertRecord?.confidentialityAgreed) setConfidentialityAgreed(true);
+        if (p.myExpertRecord?.disciplineAgreed) setDisciplineAgreed(true);
         // Fix 1: fetch disputeCategoriesBySupplier (per-supplier) via my-scores endpoint.
         // Task 4: 同时取 disputesBySupplier（异议详情，用于打分 step「📎插入异议」联动）。
         // Task 7: 同时取 pointDecisions，按 pointId→scoreItemId 映射 hydrate 到 scores[k].points。
@@ -1012,7 +1015,10 @@ export default function ExpertEvaluatePage() {
                         本人作为本项目评审专家，郑重承诺：在评标过程中严格遵守保密规定，不向任何第三方泄露评标过程中获取的投标文件内容、评审意见及其他相关信息。如有违反，愿意承担相应法律责任。
                       </p>
                       <label className="flex cursor-pointer items-center gap-3">
-                        <input type="checkbox" checked={confidentialityAgreed} onChange={e => setConfidentialityAgreed(e.target.checked)}
+                        <input type="checkbox" checked={confidentialityAgreed} onChange={e => {
+                          setConfidentialityAgreed(e.target.checked);
+                          api.patch(`/expert/projects/${projectId}/agreements`, { confidentialityAgreed: e.target.checked }).catch(() => {});
+                        }}
                           className="neu-checkbox" />
                         <span className="text-sm font-semibold text-[var(--foreground)]">本人已阅读并同意以上保密承诺</span>
                       </label>
@@ -1067,7 +1073,10 @@ export default function ExpertEvaluatePage() {
                         <li className="flex items-start gap-2"><span className="text-[var(--accent-strong)]">•</span>对评审过程和结果保密，不向任何人透露</li>
                       </ul>
                       <label className="flex cursor-pointer items-center gap-3">
-                        <input type="checkbox" checked={disciplineAgreed} onChange={e => setDisciplineAgreed(e.target.checked)}
+                        <input type="checkbox" checked={disciplineAgreed} onChange={e => {
+                          setDisciplineAgreed(e.target.checked);
+                          api.patch(`/expert/projects/${projectId}/agreements`, { disciplineAgreed: e.target.checked }).catch(() => {});
+                        }}
                           className="neu-checkbox" />
                         <span className="text-sm font-semibold text-[var(--foreground)]">本人已阅读并同意遵守以上评标纪律</span>
                       </label>

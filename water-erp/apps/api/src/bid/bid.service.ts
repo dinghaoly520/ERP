@@ -708,7 +708,7 @@ export class BidService {
    * 允许从 SUBMIT 或 OPENING 阶段流转（开标确认后发现供应商不足）。
    * 直接委托（SINGLE_SOURCE）阈值 1，其余阈值 3。
    */
-  async abortBidProject(id: string, actorId?: string) {
+  async abortBidProject(id: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { id: true, name: true, stage: true, procurementMethod: true, _count: { select: { suppliers: true } } },
@@ -721,7 +721,8 @@ export class BidService {
     // （请求级留痕含操作人 userId 由全局 OperationLogInterceptor 自动记录）
     const supplierCount = project._count.suppliers;
     const abortAt = new Date().toISOString();
-    const riskNote = `流标（${project.procurementMethod}，投标供应商 ${supplierCount} 家，${abortAt}${actorId ? `，操作人 ${actorId}` : ''}）`;
+    const reasonPart = reason ? `，原因：${reason}` : '';
+    const riskNote = `流标（${project.procurementMethod}，投标供应商 ${supplierCount} 家，${abortAt}${actorId ? `，操作人 ${actorId}` : ''}${reasonPart}）`;
 
     const updated = await this.prisma.bidProject.update({
       where: { id },
@@ -1019,6 +1020,15 @@ export class BidService {
       throw new BadRequestException({
         error: '没有解密成功的有效供应商，无法启动评标',
         code: 'NO_EVALUABLE_SUPPLIERS',
+      });
+    }
+    // P3: 法定门槛——有效投标不足 3 家应当流标（招标投标法第二十八条）
+    // Wave 2 引入采购方式配置后，可按 procurementMethod 区分（直接采购/谈判采购可放宽）
+    if (evaluableSupplierCount < 3) {
+      throw new BadRequestException({
+        error: `有效投标仅 ${evaluableSupplierCount} 家，不足法定 3 家，应当流标`,
+        code: 'INSUFFICIENT_BIDDERS',
+        count: evaluableSupplierCount,
       });
     }
 
@@ -3124,6 +3134,95 @@ export class BidService {
     return this.prisma.announcement.findFirst({
       where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
     });
+  }
+
+  /** A1: 公示状态——是否已公示、公示截止时间、是否可发中标通知书 */
+  async getPublicityStatus(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { projectCode: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const notice = await this.prisma.announcement.findFirst({
+      where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
+      select: { status: true, publishDate: true, publicityEnd: true },
+    });
+
+    if (!notice || notice.status !== 'PUBLISHED') {
+      return { hasPublicity: false, publicityEnd: null, canIssueAward: false };
+    }
+    const now = new Date();
+    const publicityEnd = notice.publicityEnd;
+    const canIssueAward = !publicityEnd || now >= new Date(publicityEnd);
+    return { hasPublicity: true, publicityEnd, canIssueAward };
+  }
+
+  /** A3: 推送中标通知书给中标供应商 */
+  async deliverAwardLetter(
+    projectId: string,
+    dto: { winnerName: string; winnerSupplierId?: string; content?: Record<string, unknown>; letterAssetId?: string },
+    actorId?: string,
+  ) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { name: true, projectCode: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // 找到中标供应商的 BidSupplier 记录
+    let supplierId = dto.winnerSupplierId;
+    let supplierName = dto.winnerName;
+    if (!supplierId) {
+      const winnerResult = await this.prisma.bidEvaluationResult.findFirst({
+        where: { projectId, recommended: true, rank: 1 },
+        select: { supplierId: true, supplierName: true },
+      });
+      if (winnerResult) {
+        supplierId = winnerResult.supplierId;
+        supplierName = winnerResult.supplierName;
+      }
+    }
+
+    const delivery = await this.prisma.awardLetterDelivery.upsert({
+      where: { projectId_supplierId: { projectId, supplierId: supplierId || dto.winnerName } },
+      update: {
+        supplierName,
+        content: (dto.content as any) ?? undefined,
+        letterAssetId: dto.letterAssetId,
+        deliveredAt: new Date(),
+        // 如果之前已签收，保留签收状态（幂等重推不清除签收）
+      },
+      create: {
+        projectId,
+        supplierId: supplierId || dto.winnerName,
+        supplierName,
+        content: (dto.content as any) ?? undefined,
+        letterAssetId: dto.letterAssetId,
+        deliveredAt: new Date(),
+      },
+    });
+
+    // 推送通知给中标供应商
+    try {
+      await this.notificationService.sendToRole('supplier', {
+        type: 'AWARD_LETTER',
+        title: `中标通知书：${project.name}`,
+        content: `恭喜贵公司中标${project.name}，请及时签收中标通知书。`,
+        link: `/award-letter`,
+      });
+    } catch { /* 通知失败不阻塞 */ }
+
+    return delivery;
+  }
+
+  /** A3: 查询中标通知书签收状态 */
+  async getAwardLetterStatus(projectId: string) {
+    const deliveries = await this.prisma.awardLetterDelivery.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return deliveries;
   }
 
   async exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json', scope: 'full' | 'summary' = 'full') {

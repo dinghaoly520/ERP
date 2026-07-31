@@ -366,4 +366,55 @@ export class SupplierPortalController {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.listMyCatalogSupply(supplierId);
   }
+
+  // ─── A3: 中标通知书签收 ───
+
+  @Get('award-letters')
+  async listAwardLetters(@Request() req: any) {
+    const supplierTableId = await this.getSupplierId(req.user.sub);
+    // AwardLetterDelivery.supplierId = BidSupplier.id；需通过 BidSupplier 关联到 Supplier
+    const bidSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { supplierId: supplierTableId },
+      select: { id: true },
+    });
+    if (bidSuppliers.length === 0) return [];
+    return this.prisma.awardLetterDelivery.findMany({
+      where: { supplierId: { in: bidSuppliers.map(s => s.id) } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Post('award-letters/:id/sign')
+  async signAwardLetter(@Request() req: any, @Param('id') id: string) {
+    const record = await this.prisma.awardLetterDelivery.findUnique({ where: { id } });
+    if (!record) throw new BadRequestException({ error: '通知书不存在', code: 'NOT_FOUND' });
+    // 验证所有权：该 delivery 的 supplierId 必须属于当前供应商
+    const supplierTableId = await this.getSupplierId(req.user.sub);
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: record.supplierId, supplierId: supplierTableId },
+    });
+    if (!bidSupplier) throw new ForbiddenException({ error: '无权签收此通知书', code: 'FORBIDDEN' });
+
+    return this.prisma.awardLetterDelivery.update({
+      where: { id },
+      data: { signedAt: new Date(), signedBy: req.user.sub, receivedAt: record.receivedAt ?? new Date() },
+    });
+  }
+
+  @Post('award-letters/:id/received')
+  async markAwardLetterReceived(@Request() req: any, @Param('id') id: string) {
+    const supplierTableId = await this.getSupplierId(req.user.sub);
+    const bidSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { supplierId: supplierTableId },
+      select: { id: true },
+    });
+    const record = await this.prisma.awardLetterDelivery.findFirst({
+      where: { id, supplierId: { in: bidSuppliers.map(s => s.id) } },
+    });
+    if (!record) throw new BadRequestException({ error: '通知书不存在', code: 'NOT_FOUND' });
+    if (!record.receivedAt) {
+      await this.prisma.awardLetterDelivery.update({ where: { id }, data: { receivedAt: new Date() } });
+    }
+    return { received: true };
+  }
 }

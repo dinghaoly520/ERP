@@ -434,6 +434,23 @@ export class ExpertService {
     return updated;
   }
 
+  /** P4: 保密承诺/评标纪律签署 — 持久化到 BidExpert,刷新不丢,涉诉可取证 */
+  async updateAgreements(userId: string, projectId: string, dto: import('./dto/update-agreements.dto').UpdateAgreementsDto) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    const data: Record<string, unknown> = {};
+    if (dto.confidentialityAgreed !== undefined) {
+      data.confidentialityAgreed = dto.confidentialityAgreed;
+      data.confidentialityAgreedAt = dto.confidentialityAgreed ? new Date() : null;
+    }
+    if (dto.disciplineAgreed !== undefined) {
+      data.disciplineAgreed = dto.disciplineAgreed;
+      data.disciplineAgreedAt = dto.disciplineAgreed ? new Date() : null;
+    }
+    return this.prisma.bidExpert.update({ where: { id: expert.id }, data });
+  }
+
   /* ── 标书解密获取 ── */
 
   async getDecryptedDocuments(userId: string, projectId: string, supplierId: string) {
@@ -1066,7 +1083,41 @@ export class ExpertService {
           });
         }
       }
+
+      // P5: 预读现有评分记录用于修订历史快照
+      const existingScoreRecords = await tx.bidScoreRecord.findMany({
+        where: {
+          expertId: expert.id,
+          scoreItemId: { in: dto.scores.map(i => i.scoreItemId) },
+          supplierId: { in: [...new Set(dto.scores.map(i => i.supplierId))] },
+        },
+      });
+      const existingScoreMap = new Map(existingScoreRecords.map(r => [`${r.scoreItemId}:${r.supplierId}`, r]));
+
       for (const item of dto.scores) {
+        // P5: 评分修订历史 — 覆盖前写入旧值快照
+        const existing = existingScoreMap.get(`${item.scoreItemId}:${item.supplierId}`);
+        if (existing) {
+          const newScore = item.score ?? 0;
+          const newPassed = item.passed ?? null;
+          const scoreChanged = Number(existing.score) !== newScore;
+          const passedChanged = (existing.passed ?? null) !== newPassed;
+          const reasonChanged = (existing.reason ?? null) !== (item.reason ?? null);
+          if (scoreChanged || passedChanged || reasonChanged) {
+            await tx.bidScoreRecordHistory.create({
+              data: {
+                recordId: existing.id,
+                expertId: expert.id,
+                scoreItemId: item.scoreItemId,
+                supplierId: item.supplierId,
+                score: existing.score,
+                passed: existing.passed,
+                reason: existing.reason,
+                action: 'update',
+              },
+            });
+          }
+        }
         await tx.bidScoreRecord.upsert({
           where: {
             expertId_scoreItemId_supplierId: {

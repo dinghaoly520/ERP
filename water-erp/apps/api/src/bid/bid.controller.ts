@@ -73,6 +73,23 @@ export class BidController {
   @ApiOperation({ summary: '项目详情' })
   getProject(@Param('id') id: string) { return this.bidService.getProject(id); }
 
+  @Get('projects/:id/publicity-status')
+  @ApiOperation({ summary: 'A1: 公示状态（公示截止时间 + 是否可发中标通知书）' })
+  getPublicityStatus(@Param('id') id: string) { return this.bidService.getPublicityStatus(id); }
+
+  @Get('projects/:id/award-letter/status')
+  @ApiOperation({ summary: 'A3: 中标通知书签收状态' })
+  getAwardLetterStatus(@Param('id') id: string) { return this.bidService.getAwardLetterStatus(id); }
+
+  @Post('projects/:id/award-letter/deliver')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'A3: 推送中标通知书给中标供应商' })
+  deliverAwardLetter(
+    @Param('id') id: string,
+    @Body() dto: { winnerName: string; winnerSupplierId?: string; content?: Record<string, unknown>; letterAssetId?: string },
+    @CurrentUser('sub') userId?: string,
+  ) { return this.bidService.deliverAwardLetter(id, dto, userId); }
+
   @Get('projects/:id/workspace')
   @ApiOperation({ summary: '项目工作台（供应商/标书/专家组聚合，开标准备判断）' })
   getWorkspace(@Param('id') id: string) { return this.bidService.getWorkspace(id); }
@@ -104,7 +121,7 @@ export class BidController {
 
   @Post('projects/:id/abort')
   @ApiOperation({ summary: '流标（SUBMIT/OPENING→ABORTED）' })
-  abortBidProject(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.abortBidProject(id, userId); }
+  abortBidProject(@Param('id') id: string, @CurrentUser('sub') userId?: string, @Body() body?: { reason?: string }) { return this.bidService.abortBidProject(id, userId, body?.reason); }
 
   @Post('projects/:id/reopen')
   @Roles('admin', 'leader')

@@ -310,6 +310,7 @@ model BidProject {
   bidInvalidBids           BidInvalidBid[]
   expertMemos              ExpertMemo[]
   bidScoreReviews          BidScoreReview[]
+  awardDeliveries          AwardLetterDelivery[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
 
@@ -456,6 +457,10 @@ model BidExpert {
   avoidanceConfirmed    Boolean                 @default(false)
   aiConsentConfirmed    Boolean                 @default(false)
   aiConsentAt           DateTime?
+  confidentialityAgreed Boolean                 @default(false) // P4: 保密承诺签署
+  confidentialityAgreedAt DateTime?              // P4: 签署时间
+  disciplineAgreed      Boolean                 @default(false) // P4: 评标纪律确认
+  disciplineAgreedAt    DateTime?               // P4: 确认时间
   conflictedSupplierIds Json                    @default("[]")
   progress              Int                     @default(0)
   totalScore            Decimal                 @default("0") @db.Decimal(8, 1)
@@ -530,6 +535,23 @@ model BidScoreRecord {
   @@unique([expertId, scoreItemId, supplierId])
   @@index([supplierId])
   @@index([scoreItemId, supplierId])
+}
+
+/// P5: 评分修订历史 — upsert 覆盖前写入旧值快照,支持回放评分演变过程
+model BidScoreRecordHistory {
+  id          String   @id @default(cuid())
+  recordId    String   // 关联 BidScoreRecord.id
+  expertId    String
+  scoreItemId String
+  supplierId  String
+  score       Decimal  @db.Decimal(5, 1)
+  passed      Boolean?
+  reason      String?
+  action      String   // 'create' | 'update'
+  createdAt   DateTime @default(now())
+
+  @@index([recordId])
+  @@index([expertId, scoreItemId, supplierId])
 }
 
 model BidScorePointDecision {
@@ -707,6 +729,26 @@ model BidEvaluationResult {
 
   @@unique([projectId, supplierId])
   @@index([projectId, rank])
+}
+
+/// A3: 中标通知书送达与签收记录
+model AwardLetterDelivery {
+  id            String    @id @default(cuid())
+  projectId     String
+  supplierId    String
+  supplierName  String
+  letterAssetId String?   // 通知书 DOCX 的 FileAsset ID
+  content       Json?     // 通知书结构化内容（中标单位/金额/项目）
+  deliveredAt   DateTime? // 推送到供应商的时间
+  receivedAt    DateTime? // 供应商打开时间
+  signedAt      DateTime? // 签收确认时间
+  signedBy      String?   // 签收人 userId
+  createdAt     DateTime  @default(now())
+
+  project       BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId])
+  @@index([projectId])
 }
 
 // ── 专家管理 ──
@@ -1051,6 +1093,7 @@ model Announcement {
   status             AnnouncementStatus @default(DRAFT)
   summary            String?
   publishDate        DateTime?
+  publicityEnd       DateTime? // A1: 公示截止时间（WIN_NOTICE 发布时自动设为 publishDate + 3 天）
   isTop              Boolean            @default(false)
   viewCount          Int                @default(0)
   relatedProjectCode String?
