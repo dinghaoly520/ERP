@@ -319,6 +319,7 @@ model BidProject {
   bidScoreReviews          BidScoreReview[]
   awardDeliveries          AwardLetterDelivery[]
   bidRounds                BidRound[]
+  motions                  BidMotion[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
 
@@ -790,6 +791,35 @@ model BidQuote {
 
   @@unique([roundId, bidSupplierId])
   @@index([roundId])
+}
+
+/// C1: 委员会动议(异议裁决/废标表决/其他)
+model BidMotion {
+  id          String   @id @default(cuid())
+  projectId   String
+  type        String   // 'dispute_resolution' | 'invalid_bid' | 'other'
+  title       String
+  description String?
+  status      String   @default("open") // open | voting | closed
+  result      String?  // 'approved' | 'rejected' | 'tie_broken'
+  createdBy   String
+  createdAt   DateTime @default(now())
+  closedAt    DateTime?
+  project     BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  votes       BidVote[]
+  @@index([projectId])
+}
+
+/// C1: 专家投票
+model BidVote {
+  id          String   @id @default(cuid())
+  motionId    String
+  expertId    String
+  vote        String   // 'approve' | 'reject' | 'abstain'
+  reason      String?
+  createdAt   DateTime @default(now())
+  motion      BidMotion @relation(fields: [motionId], references: [id], onDelete: Cascade)
+  @@unique([motionId, expertId])
 }
 
 // ── 专家管理 ──

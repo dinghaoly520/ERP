@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, AlertTriangle, BarChart3 } from 'lucide-react';
+import { Check, AlertTriangle, BarChart3, Gavel } from 'lucide-react';
 import type { EvaluationReport } from '@/lib/types';
 import { CATEGORY_LABEL, CATEGORY_COLOR, isPassFailCategory } from '@water-erp/shared';
 
@@ -13,9 +13,11 @@ interface ReportStepProps {
   leaderCoSigned?: boolean;
   allMembersConfirmed?: boolean;
   onLeaderCoSign?: () => void;
+  // C3: 动议/投票
+  motions?: Array<{ id: string; type: string; title: string; status: string; result?: string | null; votes?: Array<{ vote: string }> }>;
 }
 
-export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign }: ReportStepProps) {
+export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions }: ReportStepProps) {
   return (
     <div className="mx-auto max-w-4xl p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -56,6 +58,39 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
           </div>
         )}
       </div>
+
+      {/* C3: 动议决议汇总 */}
+      {(motions && motions.length > 0) && (
+        <div className="neu-card-static mb-4 rounded-xl p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Gavel size={15} strokeWidth={1.8} className="text-[var(--accent)]" />
+            <h3 className="text-sm font-bold text-[var(--foreground)]">委员会动议决议</h3>
+            <span className="text-xs text-[var(--muted-foreground)]">{motions.length} 项</span>
+          </div>
+          <div className="space-y-2">
+            {motions.map(m => {
+              const approves = m.votes?.filter(v => v.vote === 'approve').length ?? 0;
+              const rejects = m.votes?.filter(v => v.vote === 'reject').length ?? 0;
+              const totalVotes = (m.votes?.length ?? 0);
+              return (
+                <div key={m.id} className="flex items-center justify-between rounded-lg border border-[color-mix(in_oklch,var(--foreground)_6%,transparent)] px-3 py-2">
+                  <div>
+                    <span className="text-sm font-semibold">{m.title}</span>
+                    <span className="ml-2 text-xs text-[var(--muted-foreground)]">
+                      {m.status === 'closed' ? (m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : '△ 平票') : '投票中'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-[var(--success)]">赞成 {approves}</span>
+                    <span className="text-[var(--danger)]">反对 {rejects}</span>
+                    <span className="text-[var(--muted-foreground)]">/ {totalVotes} 票</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {report ? (
         <div className="space-y-6">

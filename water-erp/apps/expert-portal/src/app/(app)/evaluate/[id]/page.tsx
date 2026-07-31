@@ -619,6 +619,11 @@ export default function ExpertEvaluatePage() {
   const isLead = !!expert?.isLead;
   const allMembersConfirmed = project ? project.experts.every((e: any) => e.reportConfirmed) : false;
   const leaderCoSigned = !!(project as any)?.leaderCoSigned;
+  // C3: 动议列表
+  const [motions, setMotions] = useState<any[]>([]);
+  useEffect(() => {
+    if (project) { api.get(`/expert/projects/${projectId}/motions`).then((res: any) => setMotions(res)).catch(() => {}); }
+  }, [project?.id]);
 
   if (loadError) return (
     <div className="flex h-64 flex-col items-center justify-center gap-3 text-[var(--muted-foreground)]">
@@ -1570,7 +1575,7 @@ export default function ExpertEvaluatePage() {
           {step === 'report' && (
             <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport}
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
-              onLeaderCoSign={handleLeaderCoSign} />
+              onLeaderCoSign={handleLeaderCoSign} motions={motions} />
           )}
             </div>
           </div>

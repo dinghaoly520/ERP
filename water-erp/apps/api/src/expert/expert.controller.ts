@@ -231,6 +231,28 @@ export class ExpertController {
     return this.expertService.getMyScores(userId, projectId);
   }
 
+  /* ── C1: 投票/合议/决议 ── */
+
+  @Get('projects/:projectId/motions')
+  listMotions(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.listMotions(projectId);
+  }
+
+  @Post('projects/:projectId/motions')
+  createMotion(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() dto: { type: string; title: string; description?: string }) {
+    return this.expertService.createMotion(userId, projectId, dto);
+  }
+
+  @Post('motions/:motionId/vote')
+  castVote(@CurrentUser('sub') userId: string, @Param('motionId') motionId: string, @Body() dto: { vote: string; reason?: string }) {
+    return this.expertService.castVote(userId, motionId, dto.vote, dto.reason);
+  }
+
+  @Post('motions/:motionId/close')
+  closeMotion(@CurrentUser('sub') userId: string, @Param('motionId') motionId: string) {
+    return this.expertService.closeMotion(motionId);
+  }
+
   /* ── C2: 组长末签 ── */
 
   @Post('projects/:projectId/leader-cosign')

@@ -1618,4 +1618,65 @@ export class ExpertService {
 
     return updated;
   }
+
+  // ── C1: 投票/合议/决议 ──
+
+  /** 发起动议(组长或任意专家) */
+  async createMotion(userId: string, projectId: string, dto: { type: string; title: string; description?: string }) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    const motion = await this.prisma.bidMotion.create({
+      data: { projectId, type: dto.type, title: dto.title, description: dto.description, createdBy: expert.id, status: 'voting' },
+    });
+    return motion;
+  }
+
+  /** 投票 */
+  async castVote(userId: string, motionId: string, vote: string, reason?: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId } });
+    if (!expert) throw new ForbiddenException({ error: '不是评审专家', code: 'NOT_EXPERT' });
+
+    const motion = await this.prisma.bidMotion.findUnique({ where: { id: motionId } });
+    if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
+    if (motion.status !== 'voting') throw new BadRequestException({ error: '动议不在投票阶段', code: 'MOTION_NOT_VOTING' });
+
+    return this.prisma.bidVote.upsert({
+      where: { motionId_expertId: { motionId, expertId: expert.id } },
+      update: { vote, reason },
+      create: { motionId, expertId: expert.id, vote, reason },
+    });
+  }
+
+  /** 结束投票并统计结果 */
+  async closeMotion(motionId: string) {
+    const motion = await this.prisma.bidMotion.findUnique({
+      where: { id: motionId },
+      include: { votes: true, project: { select: { experts: { where: { expertRole: '正选' }, select: { id: true } } } } },
+    });
+    if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
+
+    const approves = motion.votes.filter(v => v.vote === 'approve').length;
+    const rejects = motion.votes.filter(v => v.vote === 'reject').length;
+    const totalVoters = motion.project.experts.length;
+
+    let result: string;
+    if (approves > rejects) result = 'approved';
+    else if (rejects > approves) result = 'rejected';
+    else result = 'tie_broken'; // 平票由组长裁决
+
+    return this.prisma.bidMotion.update({
+      where: { id: motionId },
+      data: { status: 'closed', result, closedAt: new Date() },
+    });
+  }
+
+  /** 查询项目动议列表 */
+  async listMotions(projectId: string) {
+    return this.prisma.bidMotion.findMany({
+      where: { projectId },
+      include: { votes: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }
