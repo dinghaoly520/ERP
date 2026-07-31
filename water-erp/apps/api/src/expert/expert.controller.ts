@@ -231,6 +231,14 @@ export class ExpertController {
     return this.expertService.getMyScores(userId, projectId);
   }
 
+  /* ── C2: 组长末签 ── */
+
+  @Post('projects/:projectId/leader-cosign')
+  @ApiOperation({ summary: '组长末签——所有专家确认后,组长执行最终末签' })
+  leaderCoSign(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.leaderCoSign(userId, projectId);
+  }
+
   /* ── 核对评分（draft → verified）── */
 
   @Post('projects/:projectId/suppliers/:supplierId/score-review/verify')

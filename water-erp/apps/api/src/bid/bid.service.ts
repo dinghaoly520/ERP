@@ -2332,6 +2332,10 @@ export class BidService {
     if (project.experts.some(e => !e.reportConfirmed)) {
       throw new BadRequestException({ error: '仍有专家未确认评审报告', code: 'EXPERT_REPORTS_NOT_CONFIRMED' });
     }
+    // C2: 组长末签闸门
+    if (!project.leaderCoSigned) {
+      throw new BadRequestException({ error: '评审报告尚未经组长末签', code: 'LEADER_NOT_COSIGNED' });
+    }
 
     const activeSuppliers = project.suppliers.filter(
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED' && s.bidValidity !== 'invalid',

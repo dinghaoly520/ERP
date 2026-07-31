@@ -1,0 +1,2 @@
+ALTER TABLE "BidProject" ADD COLUMN "leaderCoSigned" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "BidProject" ADD COLUMN "leaderCoSignedAt" TIMESTAMP(3);

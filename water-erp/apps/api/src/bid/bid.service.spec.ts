@@ -651,6 +651,16 @@ describe('BidService — stage transitions', () => {
         .rejects.toMatchObject({ response: { code: 'EXPERT_REPORTS_NOT_CONFIRMED' } });
     });
 
+    it('rejects when leader has not co-signed', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目',
+        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }],
+        suppliers: [],
+      });
+      await expect(service.generateEvaluationResults('p1'))
+        .rejects.toMatchObject({ response: { code: 'LEADER_NOT_COSIGNED' } });
+    });
+
     it('rejects when project is not EVALUATING', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', name: 'x', experts: [], suppliers: [] });
       await expect(service.generateEvaluationResults('p1'))
@@ -659,7 +669,7 @@ describe('BidService — stage transitions', () => {
 
     it('ranks suppliers by average score and recommends the top supplier', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
-        id: 'p1', stage: 'EVALUATING', name: '测试项目',
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
         experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }],
         suppliers: [
           { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
@@ -698,7 +708,7 @@ describe('BidService — stage transitions', () => {
 
   describe('BidService.generateEvaluationResults — 去极值与候选人 (G2)', () => {
     const buildProject = (overrides = {}) => ({
-      id: 'p1', stage: 'EVALUATING', name: '项目',
+      id: 'p1', stage: 'EVALUATING', name: '项目', leaderCoSigned: true,
       experts: [
         { id: 'e1', reportConfirmed: true },
         { id: 'e2', reportConfirmed: true },
@@ -801,7 +811,7 @@ describe('BidService — stage transitions', () => {
       ]);
       // 3 专家，2 票不通过 1 票通过 → 过半废标
       prisma.bidProject.findUnique.mockResolvedValue({
-        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false,
+        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
         experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
         suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
       });
@@ -834,7 +844,7 @@ describe('BidService — stage transitions', () => {
         { id: 'si_qual', category: 'QUALIFICATION' },
       ]);
       prisma.bidProject.findUnique.mockResolvedValue({
-        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false,
+        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
         experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
         suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
       });
@@ -867,7 +877,7 @@ describe('BidService — stage transitions', () => {
         { id: 'si_resp', category: 'RESPONSIVE' },
       ]);
       prisma.bidProject.findUnique.mockResolvedValue({
-        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false,
+        id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
         experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
         suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
       });
@@ -2247,7 +2257,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
 
   it('bondRequired 且某供应商保证金未达标 → 写高风险监督日志，但仍纳入排名', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({
-      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: true,
+      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: true, leaderCoSigned: true,
       experts: [{ reportConfirmed: true }],
       suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
     });
@@ -2269,7 +2279,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
 
   it('bondRequired=false → 不写保证金监督日志', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({
-      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: false,
+      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
       experts: [{ reportConfirmed: true }],
       suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
     });

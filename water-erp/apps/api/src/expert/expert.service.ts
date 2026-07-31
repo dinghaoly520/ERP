@@ -1589,4 +1589,33 @@ export class ExpertService {
     });
     return updated;
   }
+
+  /** C2: 组长末签 — 所有专家确认报告后,组长执行最终末签 */
+  async leaderCoSign(userId: string, projectId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可末签', code: 'NOT_LEADER' });
+    if (!expert.reportConfirmed) throw new BadRequestException({ error: '组长须先确认自己的评审报告', code: 'REPORT_NOT_CONFIRMED' });
+
+    // 所有专家必须已确认报告
+    const unconfirmed = await this.prisma.bidExpert.count({
+      where: { projectId, reportConfirmed: false },
+    });
+    if (unconfirmed > 0) throw new BadRequestException({
+      error: `还有 ${unconfirmed} 位专家未确认报告,无法末签`, code: 'MEMBERS_NOT_CONFIRMED',
+    });
+
+    const updated = await this.prisma.bidProject.update({
+      where: { id: projectId },
+      data: { leaderCoSigned: true, leaderCoSignedAt: new Date() },
+      select: { id: true, leaderCoSigned: true, leaderCoSignedAt: true },
+    });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '评审组长', target: expert.expertName,
+        action: '组长末签', result: '评审报告经组长末签,可生成评标结果', riskFlag: '无' },
+    }).catch(() => {});
+
+    return updated;
+  }
 }

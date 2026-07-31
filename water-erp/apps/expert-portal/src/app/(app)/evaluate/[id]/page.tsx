@@ -608,6 +608,18 @@ export default function ExpertEvaluatePage() {
     setBusy(false);
   };
 
+  // C2: 组长末签
+  const handleLeaderCoSign = async () => {
+    if (!confirm('末签后将锁定评审报告，可生成评标结果。是否继续？')) return;
+    setBusy(true);
+    try { await api.post(`/expert/projects/${projectId}/leader-cosign`, {}); loadProject(); toast.success('组长末签完成'); }
+    catch (e: any) { toast.error(e.message || '末签失败'); }
+    setBusy(false);
+  };
+  const isLead = !!expert?.isLead;
+  const allMembersConfirmed = project ? project.experts.every((e: any) => e.reportConfirmed) : false;
+  const leaderCoSigned = !!(project as any)?.leaderCoSigned;
+
   if (loadError) return (
     <div className="flex h-64 flex-col items-center justify-center gap-3 text-[var(--muted-foreground)]">
       <p>加载失败：{loadError}</p>
@@ -1556,7 +1568,9 @@ export default function ExpertEvaluatePage() {
 
           {/* ====== 评审报告 ====== */}
           {step === 'report' && (
-            <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport} />
+            <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport}
+              isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
+              onLeaderCoSign={handleLeaderCoSign} />
           )}
             </div>
           </div>

@@ -8,9 +8,14 @@ interface ReportStepProps {
   report: EvaluationReport | null;
   busy: boolean;
   onConfirmReport: () => void;
+  // C2: 组长末签
+  isLead?: boolean;
+  leaderCoSigned?: boolean;
+  allMembersConfirmed?: boolean;
+  onLeaderCoSign?: () => void;
 }
 
-export function ReportStep({ report, busy, onConfirmReport }: ReportStepProps) {
+export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign }: ReportStepProps) {
   return (
     <div className="mx-auto max-w-4xl p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -18,10 +23,37 @@ export function ReportStep({ report, busy, onConfirmReport }: ReportStepProps) {
           <h2 className="text-xl font-bold text-[var(--foreground)]">评审报告</h2>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">查看评审结果汇总，确认后不可修改</p>
         </div>
-        {report?.canConfirm && (
-          <button onClick={onConfirmReport} disabled={busy} className="neu-btn-primary is-success">
-            {busy ? '确认中...' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />确认评审报告</span>}
-          </button>
+        <div className="flex items-center gap-3">
+          {/* C2: 组长末签按钮 */}
+          {isLead && allMembersConfirmed && !leaderCoSigned && (
+            <button onClick={onLeaderCoSign} disabled={busy} className="neu-btn-primary is-warning">
+              {busy ? '末签中...' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />组长末签</span>}
+            </button>
+          )}
+          {report?.canConfirm && (
+            <button onClick={onConfirmReport} disabled={busy} className="neu-btn-primary is-success">
+              {busy ? '确认中...' : <span className="inline-flex items-center gap-1.5"><Check size={14} strokeWidth={2.5} />确认评审报告</span>}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* C2: 末签状态指示 */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        {leaderCoSigned && (
+          <div className="exp-alert exp-alert--success flex items-center gap-2 !py-2">
+            <Check size={14} strokeWidth={2} /><span className="text-sm font-semibold">组长已末签,可生成评标结果</span>
+          </div>
+        )}
+        {isLead && !leaderCoSigned && allMembersConfirmed && (
+          <div className="exp-alert exp-alert--warning flex items-center gap-2 !py-2">
+            <AlertTriangle size={14} strokeWidth={2} /><span className="text-sm font-semibold">所有成员已确认,请组长末签</span>
+          </div>
+        )}
+        {!isLead && !leaderCoSigned && allMembersConfirmed && (
+          <div className="exp-alert exp-alert--info flex items-center gap-2 !py-2">
+            <AlertTriangle size={14} strokeWidth={2} /><span className="text-sm">所有成员已确认,等待组长末签</span>
+          </div>
         )}
       </div>
 
