@@ -107,6 +107,12 @@ const router = createRouter({
           meta: { title: '在线开标大厅' },
         },
         {
+          path: 'bids/:id/round-quote',
+          name: 'RoundQuote',
+          component: () => import('@/views/bid/RoundQuote.vue'),
+          meta: { title: '多轮报价' },
+        },
+        {
           path: 'announcements',
           name: 'Announcements',
           component: () => import('@/views/announcement/AnnouncementList.vue'),

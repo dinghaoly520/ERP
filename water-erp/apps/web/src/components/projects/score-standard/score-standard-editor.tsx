@@ -25,7 +25,9 @@ import {
   extractAllScorePoints,
   getBidProjectDetail,
   listScoreItems,
+  listScorePoints,
   publishScoreStandard,
+  updatePriceConfig,
   updateScoreItem,
   type BidProjectRef,
   type BidScoreItem,
@@ -65,6 +67,10 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const [showLib, setShowLib] = useState(false);
   const [bulkGroups, setBulkGroups] = useState<EditableGroup[] | null>(null);
   const [extractingAll, setExtractingAll] = useState(false);
+  // P1: 价格公式配置
+  const [priceConfig, setPriceConfig] = useState<{ ceilingPrice: string; formulaType: string; K: string; penaltyRate: string }>({
+    ceilingPrice: '', formulaType: '', K: '0.97', penaltyRate: '2',
+  });
 
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
@@ -81,7 +87,15 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         setStage(detail.stage);
         setPublishedAt(detail.scoreStandardPublishedAt ?? null);
         setItems(its);
-        setExpanded(Object.fromEntries(its.map((i) => [i.id, true])));
+        // P1: hydrate 价格公式配置
+        const d = detail as any;
+        const cfg = d?.priceFormulaConfig as any;
+        setPriceConfig({
+          ceilingPrice: d?.ceilingPrice ? String(d.ceilingPrice) : '',
+          formulaType: cfg?.formulaType ?? '',
+          K: cfg?.K ? String(cfg.K) : '0.97',
+          penaltyRate: cfg?.penaltyRate ? String(cfg.penaltyRate) : '2',
+        });
       } catch {
         if (!cancelled) toast.error('评分标准加载失败');
       } finally {
@@ -97,6 +111,28 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
 
   const locked = !!publishedAt || stage === 'EVALUATING' || stage === 'ARCHIVED';
   const totalMax = useMemo(() => items.reduce((s, i) => s + Number(i.maxScore), 0), [items]);
+  const hasPriceItem = useMemo(() => items.some((i) => i.category === 'PRICE'), [items]);
+
+  // P1: 保存价格公式配置
+  const savePriceConfig = useCallback(async (patch: Partial<typeof priceConfig>) => {
+    if (!bpId) return;
+    const merged = { ...priceConfig, ...patch };
+    setPriceConfig(merged);
+    try {
+      const body: Record<string, unknown> = {};
+      if (patch.ceilingPrice !== undefined) body.ceilingPrice = patch.ceilingPrice ? Number(patch.ceilingPrice) : null;
+      if (patch.formulaType !== undefined || patch.K !== undefined || patch.penaltyRate !== undefined) {
+        const ft = patch.formulaType ?? priceConfig.formulaType;
+        if (ft) {
+          body.priceFormulaConfig = {
+            formulaType: ft,
+            ...(ft === 'benchmark_deviation' && { K: Number(merged.K), penaltyRate: Number(merged.penaltyRate) }),
+          };
+        }
+      }
+      if (Object.keys(body).length > 0) await updatePriceConfig(bpId, body);
+    } catch { toast.error('公式配置保存失败'); }
+  }, [bpId, priceConfig]);
   const scoredTotal = useMemo(
     () => items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0),
     [items],
@@ -137,6 +173,17 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     }
     onChanged?.();
   }, [bpId, onChanged]);
+
+  /** 精准刷新单个评分项的得分点（仅更新自身 items，不冒泡到父面板，避免滚动跳顶） */
+  const reloadItemPoints = useCallback(async (itemId: string) => {
+    if (!bpId) return;
+    try {
+      const pts = await listScorePoints(bpId, itemId);
+      setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, points: pts } : i)));
+    } catch {
+      /* 保留旧数据 */
+    }
+  }, [bpId]);
 
   const handlePublish = async () => {
     if (!bpId) return;
@@ -232,7 +279,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         maxScore: isPassFailCategory(draft.category) ? 0 : Number(draft.maxScore),
       });
       setItems((prev) => [...prev, created]);
-      setExpanded((prev) => ({ ...prev, [created.id]: true }));
       setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 });
       setShowAdd(false);
       toast.success('评分项已新增');
@@ -383,6 +429,62 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         )}
       </div>
 
+      {/* P1: 价格分公式配置面板(仅当存在 PRICE 类评分项时) */}
+      {hasPriceItem && bpId && !loading && (
+        <div className="mb-4 rounded-xl border border-[#dce6f3] bg-[#fafcff] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Sparkles size={15} strokeWidth={1.8} className="text-[#064ea2]" />
+            <h3 className="text-sm font-bold text-[#18243a]">价格分公式配置</h3>
+            <span className="text-xs text-[#8a96aa]">设置后价格分由系统公式自动计算,专家无需手填</span>
+          </div>
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-[#5a6d8a]">控制价/最高限价(元)</span>
+              <input type="number" className={inputCls + ' w-40'} placeholder="如 500000" value={priceConfig.ceilingPrice}
+                onChange={e => setPriceConfig(p => ({ ...p, ceilingPrice: e.target.value }))}
+                onBlur={e => savePriceConfig({ ceilingPrice: e.target.value })}
+                disabled={locked} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-[#5a6d8a]">公式类型</span>
+              <select className={inputCls + ' w-44'} value={priceConfig.formulaType}
+                onChange={e => { setPriceConfig(p => ({ ...p, formulaType: e.target.value })); savePriceConfig({ formulaType: e.target.value }); }}
+                disabled={locked}>
+                <option value="">未设置(专家手填)</option>
+                <option value="lowest_price">最低评标价法</option>
+                <option value="benchmark_deviation">基准价偏离法</option>
+                <option value="ratio">比例法</option>
+              </select>
+            </label>
+            {priceConfig.formulaType === 'benchmark_deviation' && (
+              <>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-[#5a6d8a]">折扣系数 K</span>
+                  <input type="number" step="0.01" className={inputCls + ' w-20'} value={priceConfig.K}
+                    onChange={e => setPriceConfig(p => ({ ...p, K: e.target.value }))}
+                    onBlur={e => savePriceConfig({ K: e.target.value })}
+                    disabled={locked} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-[#5a6d8a]">扣分系数(每1%偏离)</span>
+                  <input type="number" step="0.1" className={inputCls + ' w-20'} value={priceConfig.penaltyRate}
+                    onChange={e => setPriceConfig(p => ({ ...p, penaltyRate: e.target.value }))}
+                    onBlur={e => savePriceConfig({ penaltyRate: e.target.value })}
+                    disabled={locked} />
+                </label>
+              </>
+            )}
+          </div>
+          {priceConfig.formulaType && (
+            <p className="mt-2 text-xs text-[#8a96aa]">
+              {priceConfig.formulaType === 'lowest_price' && '最低有效报价 = 满分,其余按 最低报价 ÷ 该报价 × 满分 折算'}
+              {priceConfig.formulaType === 'benchmark_deviation' && `基准价 = 控制价 × ${priceConfig.K},双向偏离每 1% 扣 ${priceConfig.penaltyRate}% 满分`}
+              {priceConfig.formulaType === 'ratio' && '控制价 ÷ 报价 × 满分,报价越低分越高'}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         {loading ? (
           <table className="workbench-table">
@@ -503,7 +605,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                     {open && !isEdit && bpId && (
                       <tr className="border-t border-[#edf2f7] bg-[oklch(0.985_0.003_265)]">
                         <td colSpan={5} className="px-4 pb-4 pt-1">
-                          <ScorePointsEditor projectId={bpId} item={it} points={points} onChanged={reloadItems} locked={locked} />
+                          <ScorePointsEditor projectId={bpId} item={it} points={points} onChanged={() => reloadItemPoints(it.id)} locked={locked} />
                         </td>
                       </tr>
                     )}
@@ -654,7 +756,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
               toast.info(`模板不含得分点（${noPts.length} 个打分项），可手动添加或 AI 提取`, { duration: 5000 });
             }
             setItems(updated);
-            setExpanded(Object.fromEntries(updated.map((i) => [i.id, true])));
             onChanged?.();
           }}
         />

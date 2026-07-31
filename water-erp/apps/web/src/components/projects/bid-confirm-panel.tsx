@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AbortDialog } from './bid-confirm/abort-dialog';
+import { RoundBlock } from './bid-confirm/round-block';
 import {
   AlertTriangle,
   Bell,
@@ -470,6 +471,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
                   <EvaluationBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   <ClarificationsBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} refreshTick={clarTick} />
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
+                  {/* P2c: 多轮报价轮次管理(仅 谈判/竞价 项目) */}
+                  <RoundBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   {/* A1: 公示期状态指示（归档后显示） */}
                   {detail?.stage === 'ARCHIVED' && <PublicityBanner bidProjectId={bpId} />}
                   {/* B2: 流标串联——abort + 公告 + 归档一步完成 */}
