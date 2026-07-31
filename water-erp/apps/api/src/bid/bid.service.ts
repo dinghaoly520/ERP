@@ -1073,7 +1073,7 @@ export class BidService {
       await this.lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 P1-17 与评分标准编辑互斥的 FOR UPDATE）
       const result = await tx.bidProject.update({
         where: { id },
-        data: { stage: 'EVALUATING' },
+        data: { stage: 'EVALUATING', evaluationDeadline: new Date(Date.now() + 72 * 60 * 60 * 1000) }, // E2: 72h 评标时限
       });
 
       await tx.bidSupervisionLog.create({

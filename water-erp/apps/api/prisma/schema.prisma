@@ -298,6 +298,7 @@ model BidProject {
   roundMode                String? // P2c: null=单轮 | 'negotiation'=谈判 | 'sealed_auction'=竞价
   leaderCoSigned           Boolean                    @default(false) // C2: 组长末签
   leaderCoSignedAt         DateTime? // C2: 末签时间
+  evaluationDeadline       DateTime? // E2: 评标截止时间(超时告警)
   isExtractionOnly         Boolean                    @default(false) // 自定义抽取影子项目：仅承载专家抽取/通知/确认，不出现在项目管理列表
   suppliers                BidSupplier[]
   openingSession           BidOpeningSession?
