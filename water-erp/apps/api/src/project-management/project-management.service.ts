@@ -219,6 +219,9 @@ export class ProjectManagementService {
     if (def.formulaType) {
       data.priceFormulaConfig = { formulaType: def.formulaType };
     }
+    // P2c: 谈判/竞价设多轮模式
+    if (procurementMethod === '谈判采购') data.roundMode = 'negotiation';
+    else if (procurementMethod === '竞价采购') data.roundMode = 'sealed_auction';
     return data;
   }
 

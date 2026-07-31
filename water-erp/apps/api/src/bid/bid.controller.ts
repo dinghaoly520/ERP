@@ -103,6 +103,45 @@ export class BidController {
     @CurrentUser('sub') userId?: string,
   ) { return this.bidService.updatePriceConfig(id, dto, userId); }
 
+  // ── P2c: 多轮报价管理 ──
+  @Get('projects/:id/rounds')
+  @ApiOperation({ summary: '查询报价轮次列表' })
+  listRounds(@Param('id') id: string) { return this.bidService.listRounds(id); }
+
+  @Post('projects/:id/rounds')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '创建报价轮次' })
+  createRound(@Param('id') id: string, @Body() dto: { roundType: string; deadline?: string }, @CurrentUser('sub') userId?: string) {
+    return this.bidService.createRound(id, dto.roundType, dto.deadline, userId);
+  }
+
+  @Post('projects/:id/rounds/:roundId/seal')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '截止报价(密封)' })
+  sealRound(@Param('id') id: string, @Param('roundId') roundId: string, @CurrentUser('sub') userId?: string) {
+    return this.bidService.sealRound(id, roundId, userId);
+  }
+
+  @Post('projects/:id/rounds/:roundId/publish')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '公布报价(开标)' })
+  publishRound(@Param('id') id: string, @Param('roundId') roundId: string, @CurrentUser('sub') userId?: string) {
+    return this.bidService.publishRound(id, roundId, userId);
+  }
+
+  @Post('projects/:id/rounds/:roundId/close')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '结束轮次(进入下一轮或评标)' })
+  closeRound(@Param('id') id: string, @Param('roundId') roundId: string, @Body() dto: { proceedToEvaluation?: boolean }, @CurrentUser('sub') userId?: string) {
+    return this.bidService.closeRound(id, roundId, dto.proceedToEvaluation ?? false, userId);
+  }
+
+  @Get('projects/:id/rounds/:roundId/quotes')
+  @ApiOperation({ summary: '查询轮次报价' })
+  getRoundQuotes(@Param('id') id: string, @Param('roundId') roundId: string, @CurrentUser('sub') userId?: string) {
+    return this.bidService.getRoundQuotes(id, roundId, 'staff');
+  }
+
   @Patch('projects/:id')
   @ApiOperation({ summary: '更新项目' })
   updateProject(@Param('id') id: string, @Body() dto: UpdateBidProjectDto) { return this.bidService.updateProject(id, dto); }

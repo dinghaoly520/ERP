@@ -417,4 +417,45 @@ export class SupplierPortalController {
     }
     return { received: true };
   }
+
+  // ─── P2c: 多轮报价(供应商端) ───
+
+  @Get('projects/:projectId/rounds')
+  async listProjectRounds(@Param('projectId') projectId: string) {
+    return this.prisma.bidRound.findMany({
+      where: { projectId },
+      orderBy: { roundNo: 'asc' },
+      select: { id: true, roundNo: true, roundType: true, status: true, deadline: true },
+    });
+  }
+
+  @Post('projects/:projectId/rounds/:roundId/quote')
+  async submitQuote(@Request() req: any, @Param('projectId') projectId: string, @Param('roundId') roundId: string, @Body() body: { bidSupplierId: string; quotePrice: number }) {
+    // 验证供应商属于该项目且属于当前登录用户
+    const supplierTableId = await this.getSupplierId(req.user.sub);
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: body.bidSupplierId, projectId, supplierId: supplierTableId },
+    });
+    if (!bidSupplier) throw new ForbiddenException({ error: '无权报价', code: 'FORBIDDEN' });
+
+    // 验证轮次开放
+    const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
+    if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
+    if (round.status !== 'open') throw new ForbiddenException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
+
+    return this.prisma.bidQuote.upsert({
+      where: { roundId_bidSupplierId: { roundId, bidSupplierId: body.bidSupplierId } },
+      update: { quotePrice: body.quotePrice, submittedAt: new Date() },
+      create: { roundId, bidSupplierId: body.bidSupplierId, quotePrice: body.quotePrice },
+    });
+  }
+
+  @Get('projects/:projectId/rounds/:roundId/quotes')
+  async getRoundQuotes(@Param('projectId') projectId: string, @Param('roundId') roundId: string) {
+    // 供应商只能看 published 轮次的报价
+    const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
+    if (!round || round.projectId !== projectId) return [];
+    if (round.status !== 'published') return [];
+    return this.prisma.bidQuote.findMany({ where: { roundId }, orderBy: { quotePrice: 'asc' } });
+  }
 }

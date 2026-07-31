@@ -294,6 +294,8 @@ model BidProject {
   encryptionKeyId          String? // Track C: 项目数据密钥引用
   projectManagementItemId  String? // 多轮采购：所属项目管理项
   round                    Int                        @default(1) // 采购轮次（再次采购递增）
+  currentRoundNo           Int                        @default(1) // P2c: 当前报价轮次(多轮报价)
+  roundMode                String? // P2c: null=单轮 | 'negotiation'=谈判 | 'sealed_auction'=竞价
   isExtractionOnly         Boolean                    @default(false) // 自定义抽取影子项目：仅承载专家抽取/通知/确认，不出现在项目管理列表
   suppliers                BidSupplier[]
   openingSession           BidOpeningSession?
@@ -314,6 +316,7 @@ model BidProject {
   expertMemos              ExpertMemo[]
   bidScoreReviews          BidScoreReview[]
   awardDeliveries          AwardLetterDelivery[]
+  bidRounds                BidRound[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
 
@@ -752,6 +755,39 @@ model AwardLetterDelivery {
 
   @@unique([projectId, supplierId])
   @@index([projectId])
+}
+
+/// P2c: 报价轮次 — 谈判/竞价多轮报价
+model BidRound {
+  id          String   @id @default(cuid())
+  projectId   String
+  roundNo     Int
+  roundType   String   // 'negotiation' | 'final_quote' | 'sealed_auction'
+  status      String   @default("pending") // pending | open | sealed | published | closed
+  deadline    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  quotes      BidQuote[]
+
+  @@unique([projectId, roundNo])
+  @@index([projectId])
+}
+
+/// P2c: 供应商报价(每轮每供应商一条)
+model BidQuote {
+  id            String   @id @default(cuid())
+  roundId       String
+  bidSupplierId String
+  quotePrice    Decimal  @db.Decimal(14, 2)
+  submittedAt   DateTime @default(now())
+  status        String   @default("sealed") // sealed | opened
+
+  round         BidRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, bidSupplierId])
+  @@index([roundId])
 }
 
 // ── 专家管理 ──

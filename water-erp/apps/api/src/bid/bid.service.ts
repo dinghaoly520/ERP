@@ -3297,6 +3297,123 @@ export class BidService {
     return deliveries;
   }
 
+  // ── P2c: 多轮报价(谈判/竞价) ──
+
+  /** 查询项目的报价轮次 */
+  listRounds(projectId: string) {
+    return this.prisma.bidRound.findMany({
+      where: { projectId },
+      include: { quotes: true },
+      orderBy: { roundNo: 'asc' },
+    });
+  }
+
+  /** 创建新报价轮次 */
+  async createRound(projectId: string, roundType: string, deadline?: string, actorId?: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, roundMode: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (!project.roundMode) throw new BadRequestException({ error: '该项目不是多轮报价模式', code: 'NOT_MULTI_ROUND' });
+
+    const lastRound = await this.prisma.bidRound.findFirst({ where: { projectId }, orderBy: { roundNo: 'desc' } });
+    const roundNo = (lastRound?.roundNo ?? 0) + 1;
+
+    const round = await this.prisma.bidRound.create({
+      data: {
+        projectId, roundNo, roundType,
+        status: 'open',
+        deadline: deadline ? new Date(deadline) : null,
+      },
+    });
+    await this.prisma.bidProject.update({ where: { id: projectId }, data: { currentRoundNo: roundNo } });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '开标主持人', target: `第${roundNo}轮报价`, action: '创建报价轮次', result: `类型: ${roundType}`, riskFlag: '无' },
+    }).catch(() => {});
+
+    // 通知供应商新报价轮已开放
+    try {
+      await this.notificationService.sendToRole('supplier', {
+        type: 'BID_ROUND_OPEN', title: `新报价轮次已开放(第${roundNo}轮)`, content: `请尽快提交报价`, link: `/bids`,
+      });
+    } catch {}
+
+    return round;
+  }
+
+  /** 截止报价(密封) */
+  async sealRound(projectId: string, roundId: string, actorId?: string) {
+    const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
+    if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
+    if (round.status !== 'open') throw new ConflictException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
+
+    return this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'sealed' } });
+  }
+
+  /** 公布报价(开标) */
+  async publishRound(projectId: string, roundId: string, actorId?: string) {
+    const round = await this.prisma.bidRound.findUnique({ where: { id: roundId }, include: { quotes: true } });
+    if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
+    if (round.status !== 'sealed') throw new ConflictException({ error: '轮次未截止', code: 'ROUND_NOT_SEALED' });
+
+    // 开标: 所有 sealed 报价 → opened
+    await this.prisma.bidQuote.updateMany({ where: { roundId, status: 'sealed' }, data: { status: 'opened' } });
+    return this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'published' } });
+  }
+
+  /** 结束轮次(进入下一轮或评标) */
+  async closeRound(projectId: string, roundId: string, proceedToEvaluation: boolean, actorId?: string) {
+    const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
+    if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
+    if (round.status !== 'published') throw new ConflictException({ error: '轮次未公布', code: 'ROUND_NOT_PUBLISHED' });
+
+    await this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'closed' } });
+
+    if (proceedToEvaluation) {
+      // 将最终轮报价写入 BidOpeningRecord.amount 供公式引擎使用
+      const quotes = await this.prisma.bidQuote.findMany({ where: { roundId } });
+      for (const q of quotes) {
+        const existing = await this.prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: q.bidSupplierId } });
+        if (existing) {
+          await this.prisma.bidOpeningRecord.update({ where: { id: existing.id }, data: { amount: String(q.quotePrice) } });
+        }
+      }
+    }
+
+    return { closed: true, proceedToEvaluation };
+  }
+
+  /** 供应商提交报价 */
+  async submitQuote(projectId: string, roundId: string, bidSupplierId: string, quotePrice: number) {
+    const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
+    if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
+    if (round.status !== 'open') throw new ConflictException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
+    if (round.deadline && new Date() > new Date(round.deadline)) {
+      throw new BadRequestException({ error: '报价已截止', code: 'ROUND_DEADLINE_PASSED' });
+    }
+
+    // 验证供应商属于该项目
+    const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: bidSupplierId, projectId } });
+    if (!supplier) throw new ForbiddenException({ error: '供应商不属于该项目', code: 'NOT_PROJECT_SUPPLIER' });
+
+    return this.prisma.bidQuote.upsert({
+      where: { roundId_bidSupplierId: { roundId, bidSupplierId } },
+      update: { quotePrice, submittedAt: new Date() },
+      create: { roundId, bidSupplierId, quotePrice },
+    });
+  }
+
+  /** 获取轮次报价(仅 published 轮次对供应商可见) */
+  async getRoundQuotes(projectId: string, roundId: string, requesterRole: string) {
+    const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
+    if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
+
+    // 供应商只能看 published 轮次;管理端可看所有
+    if (requesterRole === 'supplier' && round.status !== 'published') {
+      return []; // 未公布的轮次不返回报价
+    }
+    return this.prisma.bidQuote.findMany({ where: { roundId }, orderBy: { quotePrice: 'asc' } });
+  }
+
   async exportArchivePackage(projectId: string, format: 'json' | 'csv' = 'json', scope: 'full' | 'summary' = 'full') {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
