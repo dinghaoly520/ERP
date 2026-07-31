@@ -1172,8 +1172,8 @@ export default function ExpertEvaluatePage() {
                 </div>
               </div>
 
-              {/* P2: per-supplier avoidance declaration */}
-              {!expert?.avoidanceConfirmed && (
+              {/* P2/D4: per-supplier avoidance declaration — 评审中可重新声明 */}
+              {expert?.signedIn && (
                 <div className="exp-alert exp-alert--warn mt-6 !p-5 !font-normal">
                   <h3 className="mb-2 flex items-center gap-2 !text-sm font-bold text-[var(--foreground)]">
                     <Lock size={14} strokeWidth={1.5} className="shrink-0" /> 利益冲突回避

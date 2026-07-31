@@ -171,6 +171,13 @@ export class BidController {
   @ApiOperation({ summary: '流标（SUBMIT/OPENING→ABORTED）' })
   abortBidProject(@Param('id') id: string, @CurrentUser('sub') userId?: string, @Body() body?: { reason?: string }) { return this.bidService.abortBidProject(id, userId, body?.reason); }
 
+  @Post('projects/:id/invalidate-bid/:supplierId')
+  @Roles('admin', 'bid_host', 'leader')
+  @ApiOperation({ summary: 'B1: 手动标记废标(围标/串标/资质造假)' })
+  manualMarkInvalidBid(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto: { reason: string }, @CurrentUser('sub') userId?: string) {
+    return this.bidService.manualMarkInvalidBid(id, supplierId, dto.reason, userId);
+  }
+
   @Post('projects/:id/reopen')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: '从流标项目重启（创建新项目，复制基础信息，递增轮次）' })
@@ -179,7 +186,7 @@ export class BidController {
   @Post('projects/:id/pause')
   @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '暂停开标（冻结解密窗口，拒绝解密操作）' })
-  pauseOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.pauseOpening(id, userId); }
+  pauseOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string, @Body() body?: { reason?: string }) { return this.bidService.pauseOpening(id, userId, body?.reason); }
 
   @Post('projects/:id/resume')
   @Roles('admin', 'bid_host')

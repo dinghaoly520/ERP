@@ -139,6 +139,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
     onReconnected: () => { if (bidProject?.id) void load(); },
   });
 
+  // G1: 30s 轮询兜底(防止 WS 静默丢事件导致数据不同步)
+  useEffect(() => {
+    if (!isOpen || !bidProject?.id) return;
+    const timer = setInterval(() => { refreshDetail(); }, 30_000);
+    return () => clearInterval(timer);
+  }, [isOpen, bidProject?.id, refreshDetail]);
+
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
     if (isOpen) void load();

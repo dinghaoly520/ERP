@@ -832,6 +832,22 @@ export class BidService {
       });
     }
 
+    // E4: 开标准备 checklist(仅阶段推进时检查,同阶段调用不检查)
+    if (isTransitioning) {
+      const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
+      const supplierCount = await this.prisma.bidSupplier.count({ where: { projectId: id } });
+      const items: string[] = [];
+      if (expertCount === 0) items.push('尚有专家未分配');
+      if (supplierCount < 3) items.push(`有效投标供应商仅 ${supplierCount} 家(不足 3 家)`);
+      if (items.length > 0) {
+        console.warn(`[E4] 开标准备 checklist 未完善(${project.name}): ${items.join('; ')}`);
+        await this.prisma.bidSupervisionLog.create({
+          data: { projectId: id, time: new Date(), role: '系统', target: project.name,
+            action: '开标准备 checklist', result: items.join('; '), riskFlag: items.length > 0 ? '有' : '无' },
+        }).catch(() => {});
+      }
+    }
+
     // 会话必填三项（主持人 + 解密窗口起止）要么全给（组建/更新开标会话），要么全不给（仅推进阶段）。
     // 监督人选填——法律未强制开标现场必须有具名监督人（《招标投标法》第35/36条开标程序不含监督人；
     // 《水利工程建设项目招标投标行政监督暂行规定》第8条行政监督部门「可以派人」为裁量性规定），
@@ -1957,7 +1973,7 @@ export class BidService {
   }
 
   /** 暂停开标：冻结解密窗口倒计时，暂停期间拒绝解密。 */
-  async pauseOpening(projectId: string, actorId?: string) {
+  async pauseOpening(projectId: string, actorId?: string, reason?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId }, select: { stage: true, name: true },
     });
@@ -1976,17 +1992,18 @@ export class BidService {
       data: { pausedAt: now },
     });
 
+    const resultText = reason ? `暂停原因: ${reason}。解密窗口倒计时已冻结` : '解密窗口倒计时已冻结，解密操作被禁止';
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: now, role: '开标主持人', target: project.name,
-        action: '暂停开标', result: '解密窗口倒计时已冻结，解密操作被禁止', riskFlag: '中风险' },
+        action: '暂停开标', result: reason ? `暂停原因: ${reason}。解密窗口倒计时已冻结` : '解密窗口倒计时已冻结，解密操作被禁止', riskFlag: '中风险' },
     }).catch(() => {});
     if (actorId) {
       await this.prisma.auditLog.create({
-        data: { userId: actorId, action: 'BID_OPENING_PAUSED', resourceType: `BidProject:${projectId}`, details: { pausedAt: now.toISOString() } },
+        data: { userId: actorId, action: 'BID_OPENING_PAUSED', resourceType: `BidProject:${projectId}`, details: { pausedAt: now.toISOString(), reason } },
       }).catch(() => {});
     }
 
-    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '暂停开标', target: project.name, result: '解密窗口倒计时已冻结', riskFlag: '中风险' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '暂停开标', target: project.name, result: resultText, riskFlag: '中风险' });
     return { paused: true, pausedAt: now.toISOString() };
   }
 
@@ -3166,6 +3183,19 @@ export class BidService {
     const winner = project.evaluationResults.find(r => r.rank === 1);
     const candidates = project.evaluationResults.filter(r => r.recommended);
 
+    // A4: 尝试从 BidOpeningRecord 获取中标价格
+    let winnerPrice: string | null = null;
+    if (winner) {
+      const supplierResult = project.evaluationResults.find(r => r.rank === 1);
+      if (supplierResult) {
+        const openingRec = await this.prisma.bidOpeningRecord.findFirst({
+          where: { projectId, supplierName: winner.supplierName },
+          select: { amount: true },
+        });
+        if (openingRec?.amount) winnerPrice = openingRec.amount;
+      }
+    }
+
     await this.prisma.announcement.create({
       data: {
         title: `中标公示：${project.name}`,
@@ -3175,7 +3205,7 @@ export class BidService {
         relatedProjectCode: project.projectCode,
         metadata: {
           projectCode: project.projectCode,
-          winner: winner ? { supplierName: winner.supplierName, totalScore: Number(winner.totalScore), averageScore: Number(winner.averageScore) } : null,
+          winner: winner ? { supplierName: winner.supplierName, totalScore: Number(winner.totalScore), averageScore: Number(winner.averageScore), price: winnerPrice } : null,
           candidates: candidates.map(c => ({ rank: c.rank, supplierName: c.supplierName, totalScore: Number(c.totalScore), averageScore: Number(c.averageScore) })),
         },
       },
@@ -3299,6 +3329,26 @@ export class BidService {
       orderBy: { createdAt: 'desc' },
     });
     return deliveries;
+  }
+
+  /** B1: 手动标记废标(围标/串标/资质造假等非通过性违规) */
+  async manualMarkInvalidBid(projectId: string, supplierId: string, reason: string, actorId?: string) {
+    const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: supplierId, projectId } });
+    if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bidSupplier.update({ where: { id: supplierId }, data: { bidValidity: 'invalid' } });
+      await tx.bidInvalidBid.upsert({
+        where: { projectId_supplierId_scoreItemId: { projectId, supplierId, scoreItemId: 'manual' } },
+        update: { status: 'invalid', failCount: 0, totalCount: 0 },
+        create: { projectId, supplierId, scoreItemId: 'manual', status: 'invalid' },
+      });
+      await tx.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '采购管理员', target: supplier.supplierName,
+          action: '手动废标', result: `原因: ${reason}`, riskFlag: '高风险' },
+      });
+    });
+    return { invalidated: true };
   }
 
   // ── P2c: 多轮报价(谈判/竞价) ──
