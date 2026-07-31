@@ -35,6 +35,7 @@ import { buildArchiveAiUsage } from '../ai-bid-analysis/utils/archive-ai-usage';
 import { ClarificationAiService } from './clarification-ai.service';
 import { ScoreStandardValidator } from './score-standard-validator.service';
 import { PriceFormulaService } from './price-formula.service';
+import { getScoreTemplate } from './evaluation-method.config';
 import { StorageService } from '../storage/storage.service';
 
 @Injectable()
@@ -3760,18 +3761,19 @@ export class BidService {
   async applyScoreItemTemplate(projectId: string, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, name: true, scoreStandardPublishedAt: true },
+      select: { stage: true, name: true, scoreStandardPublishedAt: true, evaluationMethod: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
 
-    const TEMPLATE: Array<{ category: ScoreCategory; name: string; maxScore: number }> = [
-      { category: ScoreCategory.QUALIFICATION, name: '资格性审查', maxScore: 0 },
-      { category: ScoreCategory.RESPONSIVE, name: '符合性审查', maxScore: 0 },
-      { category: ScoreCategory.BUSINESS, name: '商务评分', maxScore: 20 },
-      { category: ScoreCategory.TECHNICAL, name: '技术评分', maxScore: 50 },
-      { category: ScoreCategory.PRICE, name: '价格评分', maxScore: 30 },
-    ];
+    // P2: 按评标办法选择模板(默认综合评估法)
+    const evalMethod = (project.evaluationMethod as any) || 'comprehensive';
+    const templateRaw = getScoreTemplate(evalMethod);
+    const TEMPLATE: Array<{ category: ScoreCategory; name: string; maxScore: number }> = templateRaw.map(t => ({
+      category: t.category as ScoreCategory,
+      name: t.name,
+      maxScore: t.maxScore,
+    }));
 
     const existing = await this.prisma.bidScoreItem.findMany({ where: { projectId }, select: { name: true } });
     const existingNames = new Set(existing.map(e => e.name));

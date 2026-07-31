@@ -18,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
+import { getEvaluationDefault } from '../bid/evaluation-method.config';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
 import { estimateBudgetReference } from './budget-reference-estimator';
@@ -211,6 +212,16 @@ export class ProjectManagementService {
     }));
   }
 
+  /** P2: 按采购方式构建评标办法+公式默认值 */
+  private buildEvaluationDefaults(procurementMethod: string): Record<string, unknown> {
+    const def = getEvaluationDefault(procurementMethod);
+    const data: Record<string, unknown> = { evaluationMethod: def.evaluationMethod };
+    if (def.formulaType) {
+      data.priceFormulaConfig = { formulaType: def.formulaType };
+    }
+    return data;
+  }
+
   /**
    * 开标确认：确保项目管理项已关联 BidProject。
    * 已关联 → 返回该 BidProject 概要；未关联 → 按项目信息创建并回写 bidProjectId。
@@ -290,6 +301,8 @@ export class ProjectManagementService {
         stage: 'SUBMIT',
         projectManagementItemId: itemId,
         round: targetRound,
+        // P2: 按采购方式自动设置评标办法 + 价格公式默认值
+        ...this.buildEvaluationDefaults(item.procurementMethod || '公开招标'),
       },
     });
     this.logger.log(
