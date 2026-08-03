@@ -1612,7 +1612,9 @@ export class ExpertService {
   }
 
   /** D2: 查询项目异议工单 */
-  async listDisputes(projectId: string) {
+  async listDisputes(userId: string, projectId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     return this.prisma.expertDispute.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' } });
   }
 
@@ -1666,6 +1668,8 @@ export class ExpertService {
     const motion = await this.prisma.bidMotion.findUnique({ where: { id: motionId } });
     if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
     if (motion.status !== 'voting') throw new BadRequestException({ error: '动议不在投票阶段', code: 'MOTION_NOT_VOTING' });
+    if (motion.projectId !== expert.projectId)
+      throw new ForbiddenException({ error: '无权对此动议投票', code: 'NOT_PROJECT_EXPERT' });
 
     const existing = await this.prisma.bidVote.findUnique({ where: { motionId_expertId: { motionId, expertId: expert.id } } });
     if (existing) throw new BadRequestException({ error: '您已投过票,不可重复投票', code: 'ALREADY_VOTED' });
@@ -1675,13 +1679,20 @@ export class ExpertService {
     });
   }
 
-  /** 结束投票并统计结果 */
-  async closeMotion(motionId: string) {
+  /** 结束投票并统计结果(仅组长或动议发起人) */
+  async closeMotion(userId: string, motionId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId } });
+    if (!expert) throw new ForbiddenException({ error: '不是评审专家', code: 'NOT_EXPERT' });
+
     const motion = await this.prisma.bidMotion.findUnique({
       where: { id: motionId },
       include: { votes: true, project: { select: { experts: { where: { expertRole: '正选' }, select: { id: true } } } } },
     });
     if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
+    if (motion.projectId !== expert.projectId)
+      throw new ForbiddenException({ error: '无权操作此动议', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.isLead && motion.createdBy !== expert.id)
+      throw new ForbiddenException({ error: '仅评审组长或动议发起人可结束投票', code: 'NOT_AUTHORIZED' });
 
     const approves = motion.votes.filter(v => v.vote === 'approve').length;
     const rejects = motion.votes.filter(v => v.vote === 'reject').length;
@@ -1699,7 +1710,9 @@ export class ExpertService {
   }
 
   /** 查询项目动议列表 */
-  async listMotions(projectId: string) {
+  async listMotions(userId: string, projectId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     return this.prisma.bidMotion.findMany({
       where: { projectId },
       include: { votes: true },

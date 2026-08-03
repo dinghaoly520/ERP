@@ -37,6 +37,7 @@ import {
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ArchiveBlock } from './bid-confirm/archive-block';
 import { ClarificationsBlock } from './bid-confirm/clarifications-block';
+import { DisputeBlock } from './bid-confirm/dispute-block';
 import { EvaluationBlock } from './bid-confirm/evaluation-block';
 import { OpeningProgressBlock } from './bid-confirm/opening-progress-block';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
@@ -515,6 +516,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
                     onAbort={() => setAbortDialogOpen(true)}
                   />
                   <EvaluationBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
+                  <DisputeBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   <ClarificationsBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} refreshTick={clarTick} />
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   {/* P2c: 多轮报价轮次管理(仅 谈判/竞价 项目) */}

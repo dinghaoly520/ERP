@@ -235,7 +235,7 @@ export class ExpertController {
 
   @Get('projects/:projectId/motions')
   listMotions(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertService.listMotions(projectId);
+    return this.expertService.listMotions(userId, projectId);
   }
 
   @Post('projects/:projectId/motions')
@@ -250,14 +250,14 @@ export class ExpertController {
 
   @Post('motions/:motionId/close')
   closeMotion(@CurrentUser('sub') userId: string, @Param('motionId') motionId: string) {
-    return this.expertService.closeMotion(motionId);
+    return this.expertService.closeMotion(userId, motionId);
   }
 
   /* ── D2: 专家异议工单 ── */
 
   @Get('projects/:projectId/disputes')
   listDisputes(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertService.listDisputes(projectId);
+    return this.expertService.listDisputes(userId, projectId);
   }
 
   @Post('projects/:projectId/disputes')

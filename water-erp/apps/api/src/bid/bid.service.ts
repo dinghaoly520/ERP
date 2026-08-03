@@ -281,6 +281,7 @@ export class BidService {
         scoreItems: true,
         clarifications: true,
         supervisionLogs: { orderBy: { time: 'desc' } },
+        expertDisputes: { orderBy: { createdAt: 'desc' } },
         archiveItems: true,
       },
     });

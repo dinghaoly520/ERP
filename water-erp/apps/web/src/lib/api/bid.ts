@@ -449,6 +449,12 @@ export interface BidProjectDetail {
   }>;
   archiveItems: BidArchiveItemInfo[];
   supervisionLogs?: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>; // G2
+  expertDisputes?: Array<{ // D2: 专家异议工单（采购端裁决用）
+    id: string; expertName: string; type: string; // scoring | procedure | other
+    title: string; content: string; status: string; // open | resolved | rejected
+    response?: string | null; createdAt: string;
+    resolvedAt?: string | null; resolvedBy?: string | null;
+  }>;
 }
 
 export function getBidProjectDetail(bidProjectId: string) {
@@ -557,4 +563,15 @@ export function archivePackageExportUrl(bidProjectId: string, format: 'json' | '
 
 export function exportArchivePackageJson(bidProjectId: string) {
   return api.get<Record<string, unknown>>(archivePackageExportUrl(bidProjectId, 'json'));
+}
+
+/* ── 专家异议工单（D2：采购端裁决）── */
+
+/** 采购端裁决专家异议工单（采纳/驳回） */
+export function resolveExpertDispute(
+  bidProjectId: string,
+  disputeId: string,
+  dto: { response: string; status: 'resolved' | 'rejected' },
+) {
+  return api.post(`/bid/projects/${bidProjectId}/disputes/${disputeId}/resolve`, dto);
 }
