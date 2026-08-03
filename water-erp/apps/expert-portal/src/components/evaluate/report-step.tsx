@@ -15,6 +15,7 @@ interface ReportStepProps {
   onLeaderCoSign?: () => void;
   // C3: 动议/投票
   motions?: Array<{ id: string; type: string; title: string; status: string; result?: string | null; votes?: Array<{ vote: string }> }>;
+  // C3: 个人异议标注(从 report.myDisputedReviews 传入,无需额外 prop)
 }
 
 export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions }: ReportStepProps) {
@@ -110,6 +111,30 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
               </div>
             </div>
           </div>
+
+          {/* C3: 个人异议标注 */}
+          {report.myDisputedReviews && report.myDisputedReviews.length > 0 && (
+            <div className="neu-card-static overflow-hidden rounded-xl border-l-[3px] border-l-[var(--warning)]">
+              <div className="border-b border-[color-mix(in_oklch,var(--foreground)_6%,transparent)] px-5 py-3">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-[var(--foreground)]">
+                  <AlertTriangle size={15} strokeWidth={1.8} className="text-[var(--warning)]" />
+                  本人异议标注（{report.myDisputedReviews.length} 条）
+                </h3>
+              </div>
+              <div className="divide-y divide-[color-mix(in_oklch,var(--foreground)_4%,transparent)]">
+                {report.myDisputedReviews.map((d, i) => (
+                  <div key={i} className="px-5 py-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-[var(--foreground)]">{d.supplierName}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{d.requirementId}</span>
+                    </div>
+                    <p className="text-xs text-[var(--muted-foreground)] line-clamp-2">{d.tenderContent}</p>
+                    {d.note && <p className="mt-1 text-xs font-medium text-[var(--warning)]">异议: {d.note}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {report.supplierScores.map((ss, i) => (
             <div key={i} className="neu-card-static overflow-hidden">

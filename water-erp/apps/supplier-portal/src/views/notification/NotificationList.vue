@@ -4,13 +4,13 @@ import { ref, computed, onMounted, onBeforeUnmount, type Component } from 'vue'
 import { useNotificationStore } from '@/stores/notification'
 import { ElMessage } from 'element-plus'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { Bell, AlertTriangle, CircleCheck, CircleX, ClipboardList, AlarmClock, MessageSquare, LockOpen, BarChart3, Inbox, Send } from 'lucide-vue-next'
+import { Bell, AlertTriangle, CircleCheck, CircleX, ClipboardList, AlarmClock, MessageSquare, LockOpen, BarChart3, Inbox, Send, Trophy } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const store = useNotificationStore(); const loading = ref(true); const error = ref(false); const currentPage = ref(1); const typeFilter = ref('')
-const typeIconMap: Record<string, Component> = {SUPPLIER_APPROVED:CircleCheck,SUPPLIER_REJECTED:CircleX,SUPPLIER_RETURNED:AlertTriangle,BID_PUBLISHED:ClipboardList,BID_INVITED:Send,BID_REMINDER:AlarmClock,SYSTEM:Bell,CLARIFICATION_REPLIED:MessageSquare,BID_OPENING:LockOpen,BID_EVALUATION_RESULT:BarChart3}
-const typeColorMap: Record<string, string> = {SUPPLIER_APPROVED:'#059669',SUPPLIER_REJECTED:'#dc2626',SUPPLIER_RETURNED:'#d97706',BID_PUBLISHED:'#2563eb',BID_INVITED:'#db2777',BID_REMINDER:'#ea580c',SYSTEM:'#475569',CLARIFICATION_REPLIED:'#0d9488',BID_OPENING:'#0891b2',BID_EVALUATION_RESULT:'#7c3aed'}
-const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'采购项目发布',BID_INVITED:'采购项目邀请',BID_REMINDER:'开标提醒',SYSTEM:'系统通知',CLARIFICATION_REPLIED:'澄清答疑',BID_OPENING:'开标通知',BID_EVALUATION_RESULT:'评标结果'}
+const typeIconMap: Record<string, Component> = {SUPPLIER_APPROVED:CircleCheck,SUPPLIER_REJECTED:CircleX,SUPPLIER_RETURNED:AlertTriangle,BID_PUBLISHED:ClipboardList,BID_INVITED:Send,BID_REMINDER:AlarmClock,SYSTEM:Bell,CLARIFICATION_REPLIED:MessageSquare,BID_OPENING:LockOpen,BID_EVALUATION_RESULT:BarChart3,AWARD_LETTER:Trophy,BID_ROUND_OPEN:Send}
+const typeColorMap: Record<string, string> = {SUPPLIER_APPROVED:'#059669',SUPPLIER_REJECTED:'#dc2626',SUPPLIER_RETURNED:'#d97706',BID_PUBLISHED:'#2563eb',BID_INVITED:'#db2777',BID_REMINDER:'#ea580c',SYSTEM:'#475569',CLARIFICATION_REPLIED:'#0d9488',BID_OPENING:'#0891b2',BID_EVALUATION_RESULT:'#7c3aed',AWARD_LETTER:'#059669',BID_ROUND_OPEN:'#2563eb'}
+const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'采购项目发布',BID_INVITED:'采购项目邀请',BID_REMINDER:'开标提醒',SYSTEM:'系统通知',CLARIFICATION_REPLIED:'澄清答疑',BID_OPENING:'开标通知',BID_EVALUATION_RESULT:'评标结果',AWARD_LETTER:'中标通知书',BID_ROUND_OPEN:'多轮报价'}
 const filteredNotifications = computed(() => {
   if (!typeFilter.value) return store.notifications
   return store.notifications.filter((n:any) => n.type === typeFilter.value)
