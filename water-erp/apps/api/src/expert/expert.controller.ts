@@ -395,4 +395,12 @@ export class ExpertController {
   ) {
     return this.memoService.getInkUrl(userId, projectId, memoId);
   }
+
+  /* ── 评审待办：跨项目聚合 ── */
+
+  @Get('tasks')
+  @ApiOperation({ summary: '汇总当前专家所有活跃项目的动议(投票中)与异议工单' })
+  getMyTasks(@CurrentUser('sub') userId: string) {
+    return this.expertService.getMyTasks(userId);
+  }
 }

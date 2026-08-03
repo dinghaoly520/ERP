@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '../lib/types';
 import {
-  LayoutDashboard, ClipboardList, ClipboardCheck, UserCircle, UserRound,
+  LayoutDashboard, ClipboardList, ClipboardCheck, ListTodo, UserCircle, UserRound,
   AlertTriangle, RefreshCw, LogOut, ChevronDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import ContactConfirmModal from './contact-confirm-modal';
@@ -22,6 +22,7 @@ const navGroups: NavGroup[] = [
     icon: ClipboardCheck,
     items: [
       { key: 'workbench', label: '工作台', caption: '评审总览', path: '/', icon: LayoutDashboard },
+      { key: 'tasks', label: '评审待办', caption: '投票/异议', path: '/tasks', icon: ListTodo },
       { key: 'projects', label: '评审项目', caption: '项目列表', path: '/projects', icon: ClipboardList },
     ],
   },
@@ -37,6 +38,7 @@ const navGroups: NavGroup[] = [
 
 function keyForPath(pathname: string): string {
   if (pathname === '/') return 'workbench';
+  if (pathname.startsWith('/tasks')) return 'tasks';
   if (pathname.startsWith('/projects')) return 'projects';
   if (pathname.startsWith('/profile')) return 'profile';
   return '';

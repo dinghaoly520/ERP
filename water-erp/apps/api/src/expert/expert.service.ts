@@ -1719,4 +1719,45 @@ export class ExpertService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  // ── 评审待办：跨项目聚合 ──
+
+  /** 汇总当前专家所有活跃项目的动议(投票中)与异议工单 */
+  async getMyTasks(userId: string) {
+    const records = await this.prisma.bidExpert.findMany({
+      where: { userId, project: { stage: { in: ['OPENING', 'EVALUATING'] } } },
+      select: { id: true, projectId: true, project: { select: { name: true, stage: true } } },
+    });
+    if (records.length === 0) return { motions: [], disputes: [] };
+
+    const projectIds = [...new Set(records.map(r => r.projectId))];
+    const expertIds = records.map(r => r.id);
+    const projectMap = new Map(records.map(r => [r.projectId, { name: r.project.name, stage: r.project.stage }]));
+
+    const [motions, disputes] = await Promise.all([
+      this.prisma.bidMotion.findMany({
+        where: { projectId: { in: projectIds }, status: 'voting' },
+        include: { votes: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.expertDispute.findMany({
+        where: { expertId: { in: expertIds } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      motions: motions.map(m => ({
+        ...m,
+        projectName: projectMap.get(m.projectId)?.name ?? '',
+        projectStage: projectMap.get(m.projectId)?.stage ?? '',
+        myVote: m.votes.find(v => expertIds.includes(v.expertId))?.vote ?? null,
+      })),
+      disputes: disputes.map(d => ({
+        ...d,
+        projectName: projectMap.get(d.projectId)?.name ?? '',
+        projectStage: projectMap.get(d.projectId)?.stage ?? '',
+      })),
+    };
+  }
 }
