@@ -1658,7 +1658,7 @@ export class ExpertService {
     return motion;
   }
 
-  /** 投票 */
+  /** 投票(一票制,不可改投) */
   async castVote(userId: string, motionId: string, vote: string, reason?: string) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId } });
     if (!expert) throw new ForbiddenException({ error: '不是评审专家', code: 'NOT_EXPERT' });
@@ -1667,10 +1667,11 @@ export class ExpertService {
     if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
     if (motion.status !== 'voting') throw new BadRequestException({ error: '动议不在投票阶段', code: 'MOTION_NOT_VOTING' });
 
-    return this.prisma.bidVote.upsert({
-      where: { motionId_expertId: { motionId, expertId: expert.id } },
-      update: { vote, reason },
-      create: { motionId, expertId: expert.id, vote, reason },
+    const existing = await this.prisma.bidVote.findUnique({ where: { motionId_expertId: { motionId, expertId: expert.id } } });
+    if (existing) throw new BadRequestException({ error: '您已投过票,不可重复投票', code: 'ALREADY_VOTED' });
+
+    return this.prisma.bidVote.create({
+      data: { motionId, expertId: expert.id, vote, reason },
     });
   }
 
