@@ -253,6 +253,18 @@ export class ExpertController {
     return this.expertService.closeMotion(motionId);
   }
 
+  /* ── D2: 专家异议工单 ── */
+
+  @Get('projects/:projectId/disputes')
+  listDisputes(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.listDisputes(projectId);
+  }
+
+  @Post('projects/:projectId/disputes')
+  createDispute(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() dto: { type: string; title: string; content: string }) {
+    return this.expertService.createDispute(userId, projectId, dto);
+  }
+
   /* ── C2: 组长末签 ── */
 
   @Post('projects/:projectId/leader-cosign')

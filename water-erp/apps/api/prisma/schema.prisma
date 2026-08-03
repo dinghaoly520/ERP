@@ -321,6 +321,7 @@ model BidProject {
   awardDeliveries          AwardLetterDelivery[]
   bidRounds                BidRound[]
   motions                  BidMotion[]
+  expertDisputes           ExpertDispute[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
 
@@ -822,6 +823,24 @@ model BidVote {
   createdAt   DateTime @default(now())
   motion      BidMotion @relation(fields: [motionId], references: [id], onDelete: Cascade)
   @@unique([motionId, expertId])
+}
+
+/// D2: 专家异议工单(跨端:专家创建→采购端裁决)
+model ExpertDispute {
+  id          String   @id @default(cuid())
+  projectId   String
+  expertId    String
+  expertName  String
+  type        String   @default("scoring") // scoring | procedure | other
+  title       String
+  content     String
+  status      String   @default("open") // open | resolved | rejected
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  response    String?
+  createdAt   DateTime @default(now())
+  project     BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId])
 }
 
 // ── 专家管理 ──

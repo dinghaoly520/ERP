@@ -448,6 +448,7 @@ export interface BidProjectDetail {
     weight?: number | null;
   }>;
   archiveItems: BidArchiveItemInfo[];
+  supervisionLogs?: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>; // G2
 }
 
 export function getBidProjectDetail(bidProjectId: string) {

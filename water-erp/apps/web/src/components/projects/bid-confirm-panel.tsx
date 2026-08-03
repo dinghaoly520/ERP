@@ -474,20 +474,35 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
 
               {/* ▸ 区块5-8（Phase 2 指挥中心）：开标进度 / 评标管理 / 澄清答疑 / 归档
                   —— :3007 开标执行数据经同一 API 回流，各区块按 stage 自行决定渲染 */}
-              {/* D1/G2: 专家在线 + 监督视图入口 */}
+              {/* D1/G2: 专家在线 + 监督时间线 */}
               {bpId && (
-                <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl bg-[#f8fbff] px-4 py-2 text-xs">
-                  {expertOnlineCount > 0 && (
-                    <span className="flex items-center gap-1 font-semibold text-[var(--success)]">
-                      <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
-                      专家在线 {expertOnlineCount} 人
+                <div className="mb-3 rounded-xl bg-[#f8fbff] px-4 py-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {expertOnlineCount > 0 && (
+                      <span className="flex items-center gap-1 font-semibold text-[var(--success)]">
+                        <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
+                        专家在线 {expertOnlineCount} 人
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 text-[var(--accent)]">
+                      <Shield size={12} /> 监督时间线
                     </span>
+                  </div>
+                  {/* G2: 最近监督日志(滚动时间线) */}
+                  {detail?.supervisionLogs && detail.supervisionLogs.length > 0 && (
+                    <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
+                      {detail.supervisionLogs.slice(-10).reverse().map((log: any, i: number) => (
+                        <div key={i} className="flex items-start gap-2 text-[11px]">
+                          <span className="shrink-0 text-[var(--muted-foreground)] tabular-nums">
+                            {new Date(log.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className="font-semibold">{log.role}</span>
+                          <span className="text-[var(--muted-foreground)]">{log.action}</span>
+                          {log.riskFlag === '高风险' && <span className="font-semibold text-[var(--danger)]">⚠</span>}
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  <a href={`${process.env.NEXT_PUBLIC_BID_PORTAL_URL || 'http://localhost:3007'}/bid/supervision?id=${bpId}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[var(--accent)] hover:underline">
-                    <Shield size={12} /> 监督视图
-                  </a>
                 </div>
               )}
               {bpId && detail && (

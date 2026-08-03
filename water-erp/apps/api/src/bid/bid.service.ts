@@ -3331,6 +3331,16 @@ export class BidService {
     return deliveries;
   }
 
+  /** D2: 采购端裁决专家异议工单 */
+  async resolveExpertDispute(projectId: string, disputeId: string, dto: { response: string; status: string }, actorId?: string) {
+    const dispute = await this.prisma.expertDispute.findUnique({ where: { id: disputeId } });
+    if (!dispute || dispute.projectId !== projectId) throw new BadRequestException({ error: '异议不存在', code: 'NOT_FOUND' });
+    return this.prisma.expertDispute.update({
+      where: { id: disputeId },
+      data: { status: dto.status, response: dto.response, resolvedBy: actorId, resolvedAt: new Date() },
+    });
+  }
+
   /** B1: 手动标记废标(围标/串标/资质造假等非通过性违规) */
   async manualMarkInvalidBid(projectId: string, supplierId: string, reason: string, actorId?: string) {
     const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: supplierId, projectId } });

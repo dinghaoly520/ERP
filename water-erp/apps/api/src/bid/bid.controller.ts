@@ -171,6 +171,13 @@ export class BidController {
   @ApiOperation({ summary: '流标（SUBMIT/OPENING→ABORTED）' })
   abortBidProject(@Param('id') id: string, @CurrentUser('sub') userId?: string, @Body() body?: { reason?: string }) { return this.bidService.abortBidProject(id, userId, body?.reason); }
 
+  @Post('projects/:id/disputes/:disputeId/resolve')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'D2: 采购端裁决专家异议工单' })
+  resolveExpertDispute(@Param('id') id: string, @Param('disputeId') disputeId: string, @Body() dto: { response: string; status: string }, @CurrentUser('sub') userId?: string) {
+    return this.bidService.resolveExpertDispute(id, disputeId, dto, userId);
+  }
+
   @Post('projects/:id/invalidate-bid/:supplierId')
   @Roles('admin', 'bid_host', 'leader')
   @ApiOperation({ summary: 'B1: 手动标记废标(围标/串标/资质造假)' })

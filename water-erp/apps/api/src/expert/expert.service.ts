@@ -1602,6 +1602,20 @@ export class ExpertService {
     return expert?.scoreDraft ?? null;
   }
 
+  /** D2: 创建异议工单 */
+  async createDispute(userId: string, projectId: string, dto: { type: string; title: string; content: string }) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    return this.prisma.expertDispute.create({
+      data: { projectId, expertId: expert.id, expertName: expert.expertName, type: dto.type, title: dto.title, content: dto.content },
+    });
+  }
+
+  /** D2: 查询项目异议工单 */
+  async listDisputes(projectId: string) {
+    return this.prisma.expertDispute.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' } });
+  }
+
   /** C2: 组长末签 — 所有专家确认报告后,组长执行最终末签 */
   async leaderCoSign(userId: string, projectId: string) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });

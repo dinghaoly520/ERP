@@ -624,6 +624,19 @@ export default function ExpertEvaluatePage() {
   useEffect(() => {
     if (project) { api.get(`/expert/projects/${projectId}/motions`).then((res: any) => setMotions(res)).catch(() => {}); }
   }, [project?.id]);
+  // D2: 异议工单
+  const [disputes, setDisputes] = useState<any[]>([]);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeForm, setDisputeForm] = useState({ title: '', content: '' });
+  useEffect(() => {
+    if (project) { api.get(`/expert/projects/${projectId}/disputes`).then((res: any) => setDisputes(res)).catch(() => {}); }
+  }, [project?.id]);
+  const handleDisputeSubmit = async () => {
+    setBusy(true);
+    try { await api.post(`/expert/projects/${projectId}/disputes`, { ...disputeForm, type: 'scoring' }); setDisputeForm({ title: '', content: '' }); setShowDisputeForm(false); api.get(`/expert/projects/${projectId}/disputes`).then((res: any) => setDisputes(res)).catch(() => {}); toast.success('异议已提交'); }
+    catch (e: any) { toast.error(e.message || '提交失败'); }
+    setBusy(false);
+  };
 
   if (loadError) return (
     <div className="flex h-64 flex-col items-center justify-center gap-3 text-[var(--muted-foreground)]">
@@ -1569,6 +1582,46 @@ export default function ExpertEvaluatePage() {
               onVerified={loadProject}
               onOpenMemo={() => setMemoOpen(true)}
             />
+          )}
+
+          {/* ====== D2: 异议工单 ====== */}
+          {step === 'report' && (
+            <div className="mx-auto max-w-4xl p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={16} strokeWidth={1.8} className="text-[var(--warning)]" />
+                  <h3 className="text-sm font-bold text-[var(--foreground)]">异议工单</h3>
+                </div>
+                <button onClick={() => setShowDisputeForm(!showDisputeForm)}
+                  className="neu-btn-soft !h-[30px] !text-xs">
+                  {showDisputeForm ? '取消' : '提交异议'}
+                </button>
+              </div>
+              {showDisputeForm && (
+                <div className="neu-card-static mb-4 rounded-xl p-4 space-y-3">
+                  <input className="workbench-input w-full" placeholder="异议标题" value={disputeForm.title}
+                    onChange={e => setDisputeForm(p => ({ ...p, title: e.target.value }))} />
+                  <textarea className="workbench-input w-full !min-h-[64px]" placeholder="异议详细内容" value={disputeForm.content}
+                    onChange={e => setDisputeForm(p => ({ ...p, content: e.target.value }))} />
+                  <button onClick={handleDisputeSubmit} disabled={busy || !disputeForm.title || !disputeForm.content}
+                    className="neu-btn-primary !h-[32px] !text-xs">提交异议工单</button>
+                </div>
+              )}
+              {disputes.length === 0 && !showDisputeForm && (
+                <p className="text-xs text-[var(--muted-foreground)]">暂无异议工单</p>
+              )}
+              {disputes.map((d: any) => (
+                <div key={d.id} className="mb-2 rounded-lg border border-[color-mix(in_oklch,var(--foreground)_6%,transparent)] px-3 py-2 flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-semibold">{d.title}</span>
+                    <span className="ml-2 text-xs text-[var(--muted-foreground)]">{d.expertName}</span>
+                  </div>
+                  <span className={`text-xs font-semibold ${d.status === 'open' ? 'text-[var(--warning)]' : d.status === 'resolved' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
+                    {d.status === 'open' ? '待裁决' : d.status === 'resolved' ? '已采纳' : '已驳回'}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* ====== 评审报告 ====== */}
