@@ -3338,11 +3338,6 @@ export class BidService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.bidSupplier.update({ where: { id: supplierId }, data: { bidValidity: 'invalid' } });
-      await tx.bidInvalidBid.upsert({
-        where: { projectId_supplierId_scoreItemId: { projectId, supplierId, scoreItemId: 'manual' } },
-        update: { status: 'invalid', failCount: 0, totalCount: 0 },
-        create: { projectId, supplierId, scoreItemId: 'manual', status: 'invalid' },
-      });
       await tx.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '采购管理员', target: supplier.supplierName,
           action: '手动废标', result: `原因: ${reason}`, riskFlag: '高风险' },
