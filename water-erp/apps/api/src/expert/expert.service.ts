@@ -1762,7 +1762,7 @@ export class ExpertService {
 
     const [motions, disputes] = await Promise.all([
       this.prisma.bidMotion.findMany({
-        where: { projectId: { in: projectIds }, status: 'voting' },
+        where: { projectId: { in: projectIds }, status: { in: ['voting', 'closed'] } },
         include: { votes: true },
         orderBy: { createdAt: 'desc' },
       }),

@@ -121,11 +121,11 @@ export default function ExpertTasksPage() {
         </div>
       ) : (
         <>
-          {/* ====== 待投票动议 ====== */}
+          {/* ====== 动议记录（投票中 + 已决议）====== */}
           <section>
             <div className="mb-3 flex items-center gap-2">
               <Gavel size={15} strokeWidth={1.8} className="text-[var(--accent)]" />
-              <h3 className="text-sm font-bold text-[var(--foreground)]">待投票动议</h3>
+              <h3 className="text-sm font-bold text-[var(--foreground)]">动议记录</h3>
               <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: motions.length > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
                 {motions.length}
               </span>
@@ -134,8 +134,8 @@ export default function ExpertTasksPage() {
             {motions.length === 0 ? (
               <div className="neu-card-static rounded-2xl px-6 py-10 text-center">
                 <Gavel size={24} strokeWidth={1.2} className="mx-auto mb-2 text-[var(--muted-foreground)] opacity-50" />
-                <p className="text-xs text-[var(--muted-foreground)]">暂无待投票动议</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">所有项目的动议均已投票或关闭</p>
+                <p className="text-xs text-[var(--muted-foreground)]">暂无动议记录</p>
+                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">在项目评审报告中可发起动议</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -143,6 +143,14 @@ export default function ExpertTasksPage() {
                   const approves = m.votes.filter((v: any) => v.vote === 'approve').length;
                   const rejects = m.votes.filter((v: any) => v.vote === 'reject').length;
                   const totalVotes = m.votes.length;
+                  const isVoting = m.status === 'voting';
+                  const resultMeta = isVoting
+                    ? { label: '投票中', color: 'var(--warning)' }
+                    : m.result === 'approved'
+                      ? { label: '✓ 通过', color: 'var(--success)' }
+                      : m.result === 'rejected'
+                        ? { label: '✗ 否决', color: 'var(--danger)' }
+                        : { label: '△ 平票', color: 'var(--muted-foreground)' };
                   return (
                     <div key={m.id} className="neu-card-static rounded-xl p-4">
                       {/* 项目行 */}
@@ -166,8 +174,8 @@ export default function ExpertTasksPage() {
                       <div className="mb-2 flex items-center justify-between">
                         <div>
                           <span className="text-sm font-bold text-[var(--foreground)]">{m.title}</span>
-                          <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold text-[var(--warning)]" style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)' }}>
-                            投票中
+                          <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `color-mix(in oklch, ${resultMeta.color} 14%, transparent)`, color: resultMeta.color }}>
+                            {resultMeta.label}
                           </span>
                         </div>
                       </div>
@@ -185,7 +193,7 @@ export default function ExpertTasksPage() {
                           <span className="ml-auto rounded px-2 py-1 text-xs font-semibold" style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}>
                             已投：{VOTE_LABEL[m.myVote] ?? m.myVote}
                           </span>
-                        ) : (
+                        ) : isVoting ? (
                           <div className="ml-auto flex gap-1.5">
                             <button onClick={() => handleVote(m.id, 'approve')} disabled={busy}
                               className="neu-btn-soft !h-[28px] !text-xs !text-[var(--success)]">赞成</button>
@@ -194,7 +202,7 @@ export default function ExpertTasksPage() {
                             <button onClick={() => handleVote(m.id, 'abstain')} disabled={busy}
                               className="neu-btn-soft !h-[28px] !text-xs">弃权</button>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   );
