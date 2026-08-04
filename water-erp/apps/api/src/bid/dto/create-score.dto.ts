@@ -30,7 +30,7 @@ export class CreateScoreDto {
 
   @IsNumber()
   @Min(0)
-  @Max(100)
+  @Max(9999.9)
   score: number;
 
   @IsString()
