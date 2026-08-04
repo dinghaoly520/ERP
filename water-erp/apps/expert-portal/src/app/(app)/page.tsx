@@ -238,7 +238,7 @@ export default function ExpertDashboardPage() {
               </div>
             )}
 
-            {totalPending === 0 ? (
+            {(pendingSignin.length === 0 && activeMotions.length === 0 && activeDisputes.length === 0) ? (
               <div className="neu-card-static rounded-2xl px-6 py-8 text-center">
                 <CheckCircle2 size={24} strokeWidth={1.4} className="mx-auto mb-2 text-[var(--success)]" />
                 <p className="text-xs font-semibold text-[var(--foreground)]">暂无待处理事项</p>
