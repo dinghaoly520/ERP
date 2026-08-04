@@ -220,7 +220,7 @@ export class ExpertService {
         },
       },
     });
-    if (!record) throw new NotFoundException('未找到该项目的评审邀请');
+    if (!record) throw new NotFoundException({ error: '未找到该项目的评审邀请', code: 'INVITATION_NOT_FOUND' });
     return {
       projectId: record.projectId,
       projectName: record.project.name,
@@ -243,7 +243,7 @@ export class ExpertService {
         user: { include: { expertProfile: true } },
       },
     });
-    if (!expertRecord) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expertRecord) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -260,7 +260,7 @@ export class ExpertService {
         supervisionLogs: { orderBy: { time: 'desc' }, take: 20 },
       },
     });
-    if (!project) throw new NotFoundException('项目不存在');
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
 
     const isActive = project.stage === 'OPENING' || project.stage === 'EVALUATING';
 
@@ -357,7 +357,7 @@ export class ExpertService {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
-    if (!expert) throw new ForbiddenException('您不是该项目的评审专家');
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     if (!expert.phoneVerified) {
       throw new ForbiddenException({
@@ -370,6 +370,11 @@ export class ExpertService {
       where: { id: expert.id },
       data: { signedIn: true },
     });
+    // P1-5: 签到监督日志
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '身份签到', result: '签到成功', riskFlag: '无' },
+    }).catch(() => {});
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'signed_in', progressPercent: updated.progress ?? 0,
     });
@@ -408,6 +413,15 @@ export class ExpertService {
       where: { id: expert.id },
       data: { avoidanceConfirmed: true, conflictedSupplierIds: allConflictIds.length > 0 ? (allConflictIds as any) : undefined },
     });
+    // P1-5: 回避确认监督日志
+    const conflictNames = allConflictIds.length > 0
+      ? (await this.prisma.bidSupplier.findMany({ where: { id: { in: allConflictIds.filter((id): id is string => !!id) } }, select: { supplierName: true } }))
+          .map(s => s.supplierName).join('、')
+      : '无';
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '确认利益回避', result: `回避供应商：${conflictNames}`, riskFlag: allConflictIds.length > 0 ? '中' : '无' },
+    }).catch(() => {});
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'avoidance_confirmed', progressPercent: updated.progress ?? 0,
     });
@@ -431,6 +445,11 @@ export class ExpertService {
       where: { id: expert.id },
       data: { aiConsentConfirmed: true, aiConsentAt: new Date() },
     });
+    // P1-5: AI 辅助评标声明监督日志
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+        action: '确认AI辅助评标声明', result: '已确认', riskFlag: '无' },
+    }).catch(() => {});
     return updated;
   }
 
@@ -448,7 +467,18 @@ export class ExpertService {
       data.disciplineAgreed = dto.disciplineAgreed;
       data.disciplineAgreedAt = dto.disciplineAgreed ? new Date() : null;
     }
-    return this.prisma.bidExpert.update({ where: { id: expert.id }, data });
+    const result = await this.prisma.bidExpert.update({ where: { id: expert.id }, data });
+    // P1-5: 协议签署监督日志
+    const agreedItems: string[] = [];
+    if (dto.confidentialityAgreed) agreedItems.push('保密承诺');
+    if (dto.disciplineAgreed) agreedItems.push('评标纪律');
+    if (agreedItems.length > 0) {
+      await this.prisma.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
+          action: '签署协议', result: `已签署：${agreedItems.join('、')}`, riskFlag: '无' },
+      }).catch(() => {});
+    }
+    return result;
   }
 
   /* ── 标书解密获取 ── */
@@ -1063,6 +1093,8 @@ export class ExpertService {
 
       // Re-check reportConfirmed inside transaction to close the TOCTOU window
       // （事务外已检查，但 confirmReport 可在进入事务前把 reportConfirmed 置 true → 报告确认后仍可改分）
+      // P0-3: 行锁 BidExpert，消除与 confirmReport 的 TOCTOU 竞态
+      await tx.$queryRaw`SELECT id FROM "BidExpert" WHERE id = ${expert.id} FOR UPDATE`;
       const lockedExpert = await tx.bidExpert.findUnique({
         where: { id: expert.id },
         select: { reportConfirmed: true },
@@ -1331,6 +1363,12 @@ export class ExpertService {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
+    // P2-2：仅活跃供应商（解密成功且未撤回）可核对评分
+    const activeSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { id: supplierId, projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+    });
+    if (!activeSupplier) throw new BadRequestException({ error: '该供应商未解密成功或已撤回，无法核对', code: 'SUPPLIER_NOT_ACTIVE' });
+
     // 必须先有评分记录
     const scores = await this.prisma.bidScoreRecord.findMany({ where: { expertId: expert.id, supplierId } });
     if (scores.length === 0) throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
@@ -1545,6 +1583,9 @@ export class ExpertService {
 
     // P1-7：事务化——事务内重读核对状态并原子确认，消除与 submitScores（重置 review 为 draft）的 TOCTOU
     const updated = await this.prisma.$transaction(async (tx) => {
+      // P0-3: 行锁 BidExpert，消除与 submitScores 的 TOCTOU 竞态
+      await tx.$queryRaw`SELECT id FROM "BidExpert" WHERE id = ${expert.id} FOR UPDATE`;
+
       // phase ③：所有活跃供应商必须已核对（事务内重读）
       const activeSuppliers = await tx.bidSupplier.findMany({
         where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
@@ -1625,6 +1666,22 @@ export class ExpertService {
   async leaderCoSign(userId: string, projectId: string) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    // P1-1: 阶段门控 — 仅在评标阶段可末签
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true },
+    });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new ForbiddenException({ error: '项目不在评标阶段，无法末签', code: 'PROJECT_NOT_EVALUATING' });
+    }
+
+    // P1-1: 组长身份核验门控（与 confirmReport 对齐）
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed
+        || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
+    }
+
     if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可末签', code: 'NOT_LEADER' });
     if (!expert.reportConfirmed) throw new BadRequestException({ error: '组长须先确认自己的评审报告', code: 'REPORT_NOT_CONFIRMED' });
 
@@ -1669,14 +1726,16 @@ export class ExpertService {
     if (!VALID_VOTES.includes(vote)) {
       throw new BadRequestException({ error: '无效的投票值', code: 'INVALID_VOTE' });
     }
-    const expert = await this.prisma.bidExpert.findFirst({ where: { userId } });
-    if (!expert) throw new ForbiddenException({ error: '不是评审专家', code: 'NOT_EXPERT' });
 
+    // P0-1: 先查 motion 获取 projectId，再以此限定 BidExpert 查询，防止跨项目投票
     const motion = await this.prisma.bidMotion.findUnique({ where: { id: motionId } });
     if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
     if (motion.status !== 'voting') throw new BadRequestException({ error: '动议不在投票阶段', code: 'MOTION_NOT_VOTING' });
-    if (motion.projectId !== expert.projectId)
-      throw new ForbiddenException({ error: '无权对此动议投票', code: 'NOT_PROJECT_EXPERT' });
+
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { userId, projectId: motion.projectId },
+    });
+    if (!expert) throw new ForbiddenException({ error: '不是该项目评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     const existing = await this.prisma.bidVote.findUnique({ where: { motionId_expertId: { motionId, expertId: expert.id } } });
     if (existing) throw new BadRequestException({ error: '您已投过票,不可重复投票', code: 'ALREADY_VOTED' });
@@ -1688,9 +1747,7 @@ export class ExpertService {
 
   /** 结束投票并统计结果(仅组长或动议发起人) */
   async closeMotion(userId: string, motionId: string) {
-    const expert = await this.prisma.bidExpert.findFirst({ where: { userId } });
-    if (!expert) throw new ForbiddenException({ error: '不是评审专家', code: 'NOT_EXPERT' });
-
+    // P0-1: 先查 motion 获取 projectId，再以此限定 BidExpert 查询，防止跨项目操作
     const motion = await this.prisma.bidMotion.findUnique({
       where: { id: motionId },
       include: { votes: true, project: { select: { experts: {
@@ -1699,8 +1756,11 @@ export class ExpertService {
       } } } },
     });
     if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
-    if (motion.projectId !== expert.projectId)
-      throw new ForbiddenException({ error: '无权操作此动议', code: 'NOT_PROJECT_EXPERT' });
+
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { userId, projectId: motion.projectId },
+    });
+    if (!expert) throw new ForbiddenException({ error: '不是该项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (!expert.isLead && motion.createdBy !== expert.id)
       throw new ForbiddenException({ error: '仅评审组长或动议发起人可结束投票', code: 'NOT_AUTHORIZED' });
 
@@ -1726,7 +1786,7 @@ export class ExpertService {
       const leadVote = motion.votes.find(v => v.expertId === lead?.id);
       if (leadVote?.vote === 'approve') result = 'approved';
       else if (leadVote?.vote === 'reject') result = 'rejected';
-      else result = 'tie_broken'; // 组长未投票或弃权——保留平票，须人工介入
+      else result = 'tie_deadlock'; // 组长未投票或弃权——保留平票，须人工介入
     }
 
     return this.prisma.bidMotion.update({

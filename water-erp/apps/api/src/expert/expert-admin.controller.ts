@@ -270,6 +270,18 @@ export class ExpertAdminController {
     return this.expertAdminService.confirmRetire(id, dto.reason);
   }
 
+  @Post('projects/:projectId/experts/:expertId/unconfirm-report')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '撤销专家报告确认（允许专家修改评分后重新确认）' })
+  unconfirmReport(
+    @Param('projectId') projectId: string,
+    @Param('expertId') expertId: string,
+    @Body() dto: { reason: string },
+    @Request() req: any,
+  ) {
+    return this.expertAdminService.unconfirmReport(projectId, expertId, dto.reason, req.user?.sub);
+  }
+
   @Post('import-from-seed')
   @ApiOperation({ summary: '从种子数据批量导入专家（跳过已存在的）' })
   importFromSeed() {

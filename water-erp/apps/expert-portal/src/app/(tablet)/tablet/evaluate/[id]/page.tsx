@@ -159,6 +159,8 @@ export default function TabletEvaluatePage() {
         }
         if (hasDraft) {
           localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
+          // P2-5: 同步草稿到服务端（与桌面端一致，跨设备恢复）
+          api.post(`/expert/projects/${projectId}/score-draft`, { scores: draftScores, savedAt: Date.now() }).catch(() => {});
         } else {
           localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
         }

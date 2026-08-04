@@ -316,21 +316,25 @@ export class ExpertController {
   /* ── C1: 投票/合议/决议 ── */
 
   @Get('projects/:projectId/motions')
+  @ApiOperation({ summary: '查询项目动议列表（含投票状态）' })
   listMotions(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.listMotions(userId, projectId);
   }
 
   @Post('projects/:projectId/motions')
+  @ApiOperation({ summary: '发起动议（组长或任意专家）' })
   createMotion(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() dto: { type: string; title: string; description?: string }) {
     return this.expertService.createMotion(userId, projectId, dto);
   }
 
   @Post('motions/:motionId/vote')
+  @ApiOperation({ summary: '投票（一票制，不可改投）' })
   castVote(@CurrentUser('sub') userId: string, @Param('motionId') motionId: string, @Body() dto: { vote: string; reason?: string }) {
     return this.expertService.castVote(userId, motionId, dto.vote, dto.reason);
   }
 
   @Post('motions/:motionId/close')
+  @ApiOperation({ summary: '结束投票并统计结果（仅组长或动议发起人）' })
   closeMotion(@CurrentUser('sub') userId: string, @Param('motionId') motionId: string) {
     return this.expertService.closeMotion(userId, motionId);
   }
@@ -338,11 +342,13 @@ export class ExpertController {
   /* ── D2: 专家异议工单 ── */
 
   @Get('projects/:projectId/disputes')
+  @ApiOperation({ summary: '查询项目异议工单列表' })
   listDisputes(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.listDisputes(userId, projectId);
   }
 
   @Post('projects/:projectId/disputes')
+  @ApiOperation({ summary: '提交专家异议工单' })
   createDispute(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() dto: { type: string; title: string; content: string }) {
     return this.expertService.createDispute(userId, projectId, dto);
   }

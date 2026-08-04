@@ -898,6 +898,72 @@ export class ExpertAdminService {
     return { success: true, status: 'confirmed' };
   }
 
+  /** P0-4: 撤销专家报告确认 — 允许专家在确认后修改评分并重新确认 */
+  async unconfirmReport(projectId: string, expertId: string, reason: string, actorId: string) {
+    // 门控：项目必须仍在 EVALUATING 阶段（已归档不可撤销）——事务外快速失败
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true },
+    });
+    if (!project || project.stage !== 'EVALUATING') {
+      throw new BadRequestException({ error: '项目不在评标阶段，无法撤销', code: 'PROJECT_NOT_EVALUATING' });
+    }
+
+    const expert = await this.prisma.bidExpert.findFirst({
+      where: { id: expertId, projectId },
+    });
+    if (!expert) throw new NotFoundException({ error: '专家不存在', code: 'NOT_FOUND' });
+    if (!expert.reportConfirmed) {
+      throw new BadRequestException({ error: '该专家尚未确认报告', code: 'NOT_CONFIRMED' });
+    }
+
+    // P0-4/R2: 事务内重读 stage + leaderCoSigned，消除与 archiveAll / leaderCoSign 的 TOCTOU
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.bidProject.findUnique({
+        where: { id: projectId },
+        select: { stage: true, leaderCoSigned: true },
+      });
+      if (!locked || locked.stage !== 'EVALUATING') {
+        throw new BadRequestException({ error: '项目不在评标阶段，无法撤销', code: 'PROJECT_NOT_EVALUATING' });
+      }
+
+      // 如果项目已末签，撤销末签状态（不再满足"所有专家已确认"的前置条件）
+      if (locked.leaderCoSigned) {
+        await tx.bidProject.update({
+          where: { id: projectId },
+          data: { leaderCoSigned: false, leaderCoSignedAt: null },
+        });
+      }
+
+      await tx.bidExpert.update({
+        where: { id: expertId },
+        data: { reportConfirmed: false, reportConfirmedAt: null },
+      });
+
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '管理员',
+          target: expert.expertName,
+          action: '撤销报告确认',
+          result: `原因：${reason}`,
+          riskFlag: '高',
+        },
+      });
+
+      if (actorId) {
+        await tx.auditLog.create({
+          data: {
+            userId: actorId, action: 'EXPERT_REPORT_UNCONFIRMED',
+            resourceType: `BidExpert:${expertId}`,
+            details: { projectId, reason },
+          },
+        });
+      }
+    });
+
+    return { success: true };
+  }
+
   /** 抽取确认后发送通知（逐专家逐渠道投递） */
   /** 预生成 RSVP 确认链接（进入通知页时调用，写入通知模板）。
    *  已存在未过期 token 的专家直接复用，不对全部记录重新生成——避免步骤 3→6 切换时，

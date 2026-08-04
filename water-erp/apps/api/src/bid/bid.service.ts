@@ -780,6 +780,23 @@ export class BidService {
       });
     } catch { /* 通知失败不阻塞流标 */ }
 
+    // P3-5: 通知已分配的评审专家
+    try {
+      const experts = await this.prisma.bidExpert.findMany({
+        where: { projectId: id },
+        select: { userId: true, expertName: true },
+      });
+      for (const e of experts) {
+        if (!e.userId) continue;
+        await this.notificationService.sendToUser(e.userId, ['in_app'], {
+          type: 'BID_ABORTED',
+          title: `项目${project.name}已流标`,
+          content: '您被指派的评标项目已流标，无需继续评审。',
+          link: '/',
+        }).catch(() => {});
+      }
+    } catch { /* 通知失败不阻塞流标 */ }
+
     return updated;
   }
 
@@ -1140,8 +1157,6 @@ export class BidService {
           skipDuplicates: true, // @@unique([taskId, bidSupplierId]) 幂等
         });
       }
-      // TODO Phase 5: 入队 BullMQ 触发 worker（OCR → extract → concordance → score）
-
       return result;
     });
 
@@ -2439,6 +2454,11 @@ export class BidService {
     // G2: 按供应商聚合 → 每专家对该供应商的总评分 → 专家组≥5 去 1 高 1 低 → 求平均
     const panelSize = project.experts.length;
 
+    // P1-2：收集完整性警告——正选专家是否都已对活跃供应商完成通过性评分
+    const completenessWarnings: { supplierName: string; voters: number; expected: number }[] = [];
+    const expectedVoters = project.experts.filter(e => e.expertRole === '正选').length;
+    const mainExpertIds = new Set(project.experts.filter(e => e.expertRole === '正选').map(e => e.id));
+
     // ── 通过性审查废标判定：某项不通过票严格过半 → 该供应商废标 ──
     const passFailVerdicts = new Map<string, boolean>(); // supplierId -> disqualified
     const passFailFailures: { supplierId: string; supplierName: string; category: string; fail: number; total: number }[] = [];
@@ -2483,6 +2503,19 @@ export class BidService {
           }
         }
         passFailVerdicts.set(supplier.id, disqualified);
+
+        // P1-2：防御性检查——该供应商是否所有正选专家都已提交通过性评分
+        const votersWithPassFail = new Set(
+          records.filter(r => passFailItemIds.has(r.scoreItemId) && r.passed !== null && r.passed !== undefined
+            && mainExpertIds.has(r.expertId)).map(r => r.expertId),
+        );
+        if (votersWithPassFail.size < expectedVoters) {
+          completenessWarnings.push({
+            supplierName: supplier.supplierName,
+            voters: votersWithPassFail.size,
+            expected: expectedVoters,
+          });
+        }
       }
     }
 
@@ -2619,6 +2652,22 @@ export class BidService {
             projectId, time: new Date(), role: '评标委员会', target: f.supplierName,
             action: '废标决议', result: `经评审委员会表决，${f.category === 'QUALIFICATION' ? '资格' : '响应性'}性审查不通过（不通过 ${f.fail}/${f.total} 票），依据招标文件规定予以废标`, riskFlag: '高风险',
           },
+        });
+      }
+      // P1-3：专家组人数不足时写入监督日志
+      if (panelSize < 3) {
+        await tx.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '系统', target: project.name,
+            action: '评标专家组人数不足',
+            result: `专家组仅 ${panelSize} 人（不足 3 人），统计意义有限`, riskFlag: '中' },
+        });
+      }
+      // P1-2：通过性评分完整性警告
+      for (const w of completenessWarnings) {
+        await tx.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '系统', target: w.supplierName,
+            action: '废标表决完整性警告',
+            result: `仅 ${w.voters}/${w.expected} 位正选专家完成通过性审查`, riskFlag: '高' },
         });
       }
     });
@@ -3145,6 +3194,13 @@ export class BidService {
           code: 'EVALUATION_RESULTS_REQUIRED',
         });
       }
+      // P2-1：无有效供应商时记录原因（避免静默跳过评标结果检查）
+      if (scope === 'full' && confirmableCount === 0) {
+        await tx.bidSupervisionLog.create({
+          data: { projectId: id, time: new Date(), role: '系统', target: project.name,
+            action: '归档无有效供应商', result: '无解密成功且已确认的可评供应商，跳过评标结果检查', riskFlag: '无' },
+        });
+      }
 
       if (confirmableSuppliers.length > 0) {
         const confirmedSupplierIds = confirmableSuppliers.map(s => s.id);
@@ -3223,6 +3279,11 @@ export class BidService {
       await this.ensureWinnerNotice(id);
     } catch (e) {
       this.logger.error(`中标公示自动生成失败（不阻塞归档）: ${(e as Error).message}`);
+      // P2-3: 写入监督日志告警
+      await this.prisma.bidSupervisionLog.create({
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name,
+          action: '中标公示生成失败', result: (e as Error).message, riskFlag: '高' },
+      }).catch(() => {});
     }
 
     return result;

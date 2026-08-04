@@ -165,8 +165,14 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
     return ranks;
   }, [detail, supplierAvg]);
 
+  // P3-4: 按业务逻辑序排列评分项（而非 API 字母序）。useMemo 必须在所有条件返回之前调用。
+  const scoreItems = useMemo(() => {
+    if (!detail) return [];
+    const orderMap = new Map(CATEGORY_ORDER.map((c, i) => [c, i]));
+    return [...detail.scoreItems].sort((a, b) => (orderMap.get(a.category) ?? 99) - (orderMap.get(b.category) ?? 99));
+  }, [detail]);
   if (!detail) return null;
-  const { stage, experts, suppliers, scoreItems } = detail;
+  const { stage, experts, suppliers } = detail;
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
 
   const archived = stage === 'ARCHIVED';
@@ -540,6 +546,12 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
               {results.length > 0 ? '官方评标结果（去极值 · 废标置后）' : '实时均分参考（未生成官方结果）'}
             </span>
           </div>
+          {/* P1-6: 实时排名与官方结果计算方式不同的提示 */}
+          {results.length === 0 && suppliers.length > 0 && (
+            <div className="mx-3.5 mt-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
+              实时预览基于专家原始评分（含手填价格分，未去极值），最终排名以「生成评标结果」后公式计算为准
+            </div>
+          )}
           {rankedSuppliers.length === 0 ? (
             <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">暂无投标供应商</div>
           ) : (

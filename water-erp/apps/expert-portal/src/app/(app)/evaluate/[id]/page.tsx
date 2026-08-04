@@ -1636,7 +1636,7 @@ export default function ExpertEvaluatePage() {
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-bold">{m.title}</span>
                             <span className={`text-xs font-semibold ${m.status === 'voting' ? 'text-[var(--accent)]' : m.result === 'approved' ? 'text-[var(--success)]' : m.result === 'rejected' ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
-                              {m.status === 'voting' ? '投票中' : m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : m.result === 'tie_broken' ? '△ 平票' : m.status}
+                              {m.status === 'voting' ? '投票中' : m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : m.result === 'tie_deadlock' ? '△ 平票（须人工介入）' : m.status}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-xs tabular-nums">
