@@ -95,6 +95,12 @@ export default function ExpertDashboardPage() {
     } catch (e: any) { toast.error(e.message || '提交失败'); }
     finally { setBusy(false); }
   }
+  async function handleVote(motionId: string, vote: string) {
+    setBusy(true);
+    try { await api.post(`/expert/motions/${motionId}/vote`, { vote }); toast.success('投票成功'); load(); }
+    catch (e: any) { toast.error(e.message || '投票失败'); }
+    finally { setBusy(false); }
+  }
 
   // ── 派生数据 ──
 
@@ -248,24 +254,48 @@ export default function ExpertDashboardPage() {
                     {pendingMotions.map(m => {
                       const approves = m.votes.filter(v => v.vote === 'approve').length;
                       const rejects = m.votes.filter(v => v.vote === 'reject').length;
+                      const total = m.votes.length;
+                      const sc = STAGE_COLOR[m.projectStage as keyof typeof STAGE_COLOR];
                       return (
-                        <TaskRow
-                          key={m.id}
-                          name={m.projectName}
-                          stage={m.projectStage}
-                          subtitle={m.title}
-                          meta={`赞成 ${approves} · 反对 ${rejects}`}
-                          onClick={() => router.push(`/evaluate/${m.projectId}`)}
-                        />
+                        <div key={m.id} className="rounded-lg px-2 py-2">
+                          <div className="flex items-center gap-2 text-xs mb-1.5">
+                            <span className="truncate font-semibold text-[var(--foreground)]">{m.projectName}</span>
+                            {sc && (
+                              <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold" style={{ background: `color-mix(in oklch, ${sc} 12%, transparent)`, color: sc }}>
+                                {STAGE_LABEL[m.projectStage as keyof typeof STAGE_LABEL] ?? m.projectStage}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-semibold text-[var(--foreground)] mb-1">{m.title}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
+                              赞成 {approves} · 反对 {rejects} / {total}
+                            </span>
+                            <div className="flex gap-1">
+                              <button onClick={() => handleVote(m.id, 'approve')} disabled={busy}
+                                className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--success)]">赞成</button>
+                              <button onClick={() => handleVote(m.id, 'reject')} disabled={busy}
+                                className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--danger)]">反对</button>
+                              <button onClick={() => handleVote(m.id, 'abstain')} disabled={busy}
+                                className="neu-btn-soft !h-[24px] !text-[10px]">弃权</button>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
                   </TaskGroup>
                 )}
-                {/* 异议跟进 */}
+                {/* 异议跟进（只读：裁决由采购端执行） */}
                 {pendingDisputes.length > 0 && (
                   <TaskGroup icon={<AlertTriangle size={14} strokeWidth={1.8} />} color="var(--danger)" label="异议跟进" count={pendingDisputes.length}>
                     {pendingDisputes.map(d => (
-                      <TaskRow key={d.id} name={d.projectName} subtitle={d.title} meta="待裁决" onClick={() => router.push(`/evaluate/${d.projectId}`)} />
+                      <div key={d.id} className="rounded-lg px-2 py-1.5">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="truncate font-semibold text-[var(--foreground)]">{d.projectName}</span>
+                          <span className="truncate text-[11px] text-[var(--muted-foreground)]">· {d.title}</span>
+                          <span className="ml-auto shrink-0 text-[10px] font-semibold text-[var(--danger)]">待裁决</span>
+                        </div>
+                      </div>
                     ))}
                   </TaskGroup>
                 )}
