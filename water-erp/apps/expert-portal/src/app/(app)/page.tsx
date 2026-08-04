@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   ShieldCheck, Gavel, AlertTriangle, CheckCircle2, ChevronRight,
-  ChevronDown, RefreshCw, ClipboardCheck, UserCircle,
+  ChevronDown, RefreshCw, ClipboardCheck, UserCircle, Plus,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject, User } from '@/lib/types';
@@ -42,8 +42,57 @@ export default function ExpertDashboardPage() {
 
   useEffect(() => { load(); }, []);
 
-  // ── 派生数据 ──
   const isActive = (stage: string) => stage === 'OPENING' || stage === 'EVALUATING';
+
+  // ── 发起动议 / 提交异议 ──
+  const [busy, setBusy] = useState(false);
+  const [showMotionForm, setShowMotionForm] = useState(false);
+  const [motionForm, setMotionForm] = useState({ projectId: '', title: '', description: '' });
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeForm, setDisputeForm] = useState({ projectId: '', title: '', content: '' });
+
+  const activeProjects = useMemo(
+    () => projects.filter(p => isActive(p.project.stage)),
+    [projects],
+  );
+
+  const openMotionForm = () => {
+    if (activeProjects.length === 1 && !motionForm.projectId) {
+      setMotionForm(prev => ({ ...prev, projectId: activeProjects[0].project.id }));
+    }
+    setShowDisputeForm(false);
+    setShowMotionForm(prev => !prev);
+  };
+  const openDisputeForm = () => {
+    if (activeProjects.length === 1 && !disputeForm.projectId) {
+      setDisputeForm(prev => ({ ...prev, projectId: activeProjects[0].project.id }));
+    }
+    setShowMotionForm(false);
+    setShowDisputeForm(prev => !prev);
+  };
+
+  async function handleCreateMotion() {
+    if (!motionForm.projectId || !motionForm.title.trim()) { toast.error('请选择项目并填写动议标题'); return; }
+    setBusy(true);
+    try {
+      await api.post(`/expert/projects/${motionForm.projectId}/motions`, { title: motionForm.title, description: motionForm.description, type: 'other' });
+      setMotionForm({ projectId: '', title: '', description: '' }); setShowMotionForm(false);
+      toast.success('动议已发起'); load();
+    } catch (e: any) { toast.error(e.message || '发起失败'); }
+    finally { setBusy(false); }
+  }
+  async function handleDisputeSubmit() {
+    if (!disputeForm.projectId || !disputeForm.title.trim() || !disputeForm.content.trim()) { toast.error('请选择项目并填写异议标题和内容'); return; }
+    setBusy(true);
+    try {
+      await api.post(`/expert/projects/${disputeForm.projectId}/disputes`, { title: disputeForm.title, content: disputeForm.content, type: 'scoring' });
+      setDisputeForm({ projectId: '', title: '', content: '' }); setShowDisputeForm(false);
+      toast.success('异议已提交'); load();
+    } catch (e: any) { toast.error(e.message || '提交失败'); }
+    finally { setBusy(false); }
+  }
+
+  // ── 派生数据 ──
 
   const pendingSignin = useMemo(
     () => projects.filter(p => isActive(p.project.stage) && !p.signedIn),
@@ -103,11 +152,73 @@ export default function ExpertDashboardPage() {
         <>
           {/* ====== 🔴 待处理事项 ====== */}
           <section>
-            <div className="mb-3 flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${totalPending > 0 ? 'animate-pulse' : ''}`} style={{ background: totalPending > 0 ? 'var(--warning)' : 'var(--success)' }} />
-              <h3 className="text-sm font-bold text-[var(--foreground)]">待处理事项</h3>
-              {totalPending > 0 && <span className="text-xs font-semibold tabular-nums text-[var(--warning)]">{totalPending}</span>}
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${totalPending > 0 ? 'animate-pulse' : ''}`} style={{ background: totalPending > 0 ? 'var(--warning)' : 'var(--success)' }} />
+                <h3 className="text-sm font-bold text-[var(--foreground)]">待处理事项</h3>
+                {totalPending > 0 && <span className="text-xs font-semibold tabular-nums text-[var(--warning)]">{totalPending}</span>}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button onClick={openMotionForm} className="neu-btn-soft !h-[26px] !text-[11px]">
+                  <Plus size={11} /> {showMotionForm ? '取消' : '发起动议'}
+                </button>
+                <button onClick={openDisputeForm} className="neu-btn-soft !h-[26px] !text-[11px] !text-[var(--danger)]">
+                  <Plus size={11} /> {showDisputeForm ? '取消' : '提交异议'}
+                </button>
+              </div>
             </div>
+
+            {/* 发起动议表单 */}
+            {showMotionForm && (
+              <div className="neu-card-static mb-3 rounded-xl p-4 space-y-3">
+                {activeProjects.length > 1 && (
+                  <select className="workbench-input w-full"
+                    value={motionForm.projectId}
+                    onChange={e => setMotionForm(p => ({ ...p, projectId: e.target.value }))}>
+                    <option value="" disabled>选择项目</option>
+                    {activeProjects.map(p => (
+                      <option key={p.project.id} value={p.project.id}>
+                        {p.project.name} · {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <input className="workbench-input w-full" placeholder="动议标题"
+                  value={motionForm.title}
+                  onChange={e => setMotionForm(p => ({ ...p, title: e.target.value }))} />
+                <textarea className="workbench-input w-full !min-h-[48px]" placeholder="动议说明（选填）"
+                  value={motionForm.description}
+                  onChange={e => setMotionForm(p => ({ ...p, description: e.target.value }))} />
+                <button onClick={handleCreateMotion} disabled={busy || !motionForm.title.trim()}
+                  className="neu-btn-primary !h-[32px] !text-xs">{busy ? '发起中…' : '发起动议'}</button>
+              </div>
+            )}
+
+            {/* 提交异议表单 */}
+            {showDisputeForm && (
+              <div className="neu-card-static mb-3 rounded-xl p-4 space-y-3">
+                {activeProjects.length > 1 && (
+                  <select className="workbench-input w-full"
+                    value={disputeForm.projectId}
+                    onChange={e => setDisputeForm(p => ({ ...p, projectId: e.target.value }))}>
+                    <option value="" disabled>选择项目</option>
+                    {activeProjects.map(p => (
+                      <option key={p.project.id} value={p.project.id}>
+                        {p.project.name} · {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <input className="workbench-input w-full" placeholder="异议标题"
+                  value={disputeForm.title}
+                  onChange={e => setDisputeForm(p => ({ ...p, title: e.target.value }))} />
+                <textarea className="workbench-input w-full !min-h-[64px]" placeholder="异议详细内容"
+                  value={disputeForm.content}
+                  onChange={e => setDisputeForm(p => ({ ...p, content: e.target.value }))} />
+                <button onClick={handleDisputeSubmit} disabled={busy || !disputeForm.title.trim() || !disputeForm.content.trim()}
+                  className="neu-btn-primary !h-[32px] !text-xs">{busy ? '提交中…' : '提交异议工单'}</button>
+              </div>
+            )}
 
             {totalPending === 0 ? (
               <div className="neu-card-static rounded-2xl px-6 py-8 text-center">
