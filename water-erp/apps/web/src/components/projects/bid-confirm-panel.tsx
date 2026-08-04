@@ -20,7 +20,9 @@ import {
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import {
   BID_STAGE_LABELS,
+  deliverAwardLetter,
   ensureBidProject,
+  getAwardLetterStatus,
   getBidProjectDetail,
   getBidWorkspace,
   getPublicityStatus,
@@ -522,7 +524,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
                   {/* P2c: 多轮报价轮次管理(仅 谈判/竞价 项目) */}
                   <RoundBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   {/* A1: 公示期状态指示（归档后显示） */}
-                  {detail?.stage === 'ARCHIVED' && <PublicityBanner bidProjectId={bpId} />}
+                  {detail?.stage === 'ARCHIVED' && <PublicityBanner bidProjectId={bpId} detail={detail} />}
                   {/* B2: 流标串联——abort + 公告 + 归档一步完成 */}
                   <AbortDialog
                     bidProjectId={bpId}
@@ -702,41 +704,74 @@ function EmptyHint({ text }: { text: string }) {
   );
 }
 
-/** A1: 公示期状态指示——归档后显示公示倒计时 / 期满可发通知书 */
-function PublicityBanner({ bidProjectId }: { bidProjectId: string }) {
+/** A1+A3: 公示期状态指示 + 中标通知书推送——归档后显示公示倒计时 / 期满可发通知书 */
+function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detail: BidProjectDetail | null }) {
   const [status, setStatus] = useState<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean } | null>(null);
+  const [letters, setLetters] = useState<Array<{ id: string; supplierName: string; deliveredAt: string | null; signedAt: string | null; signedBy: string | null }>>([]);
+  const [delivering, setDelivering] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     getPublicityStatus(bidProjectId).then(setStatus).catch(() => {});
+    getAwardLetterStatus(bidProjectId).then(setLetters).catch(() => {});
   }, [bidProjectId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const handleDeliver = async () => {
+    const winner = (detail?.evaluationResults ?? []).find(r => r.rank === 1 && r.recommended);
+    if (!winner) return;
+    setDelivering(true);
+    try {
+      await deliverAwardLetter(bidProjectId, { winnerName: winner.supplierName, winnerSupplierId: winner.supplierId });
+      refresh();
+    } catch { /* toast handled by caller */ }
+    finally { setDelivering(false); }
+  };
 
   if (!status) return null;
 
-  if (!status.hasPublicity) {
-    return (
-      <div className="exp-alert exp-alert--info flex items-center gap-2 !p-3">
-        <Clock size={14} strokeWidth={1.5} className="shrink-0" />
-        <span className="text-xs">尚未发布中标公示</span>
-      </div>
-    );
-  }
-
-  if (status.canIssueAward) {
-    return (
-      <div className="exp-alert exp-alert--success flex items-center gap-2 !p-3">
-        <CheckCircle2 size={14} strokeWidth={1.5} className="shrink-0" />
-        <span className="text-xs font-semibold">公示期已满，可发出中标通知书</span>
-      </div>
-    );
-  }
-
-  const remaining = status.publicityEnd
-    ? Math.ceil((new Date(status.publicityEnd).getTime() - Date.now()) / 86400000)
-    : 0;
   return (
-    <div className="exp-alert exp-alert--warning flex items-center gap-2 !p-3">
-      <Clock size={14} strokeWidth={1.5} className="shrink-0" />
-      <span className="text-xs font-semibold">公示期未满，剩余约 {remaining} 天，暂不可发出中标通知书</span>
+    <div className="space-y-2">
+      {!status.hasPublicity ? (
+        <div className="exp-alert exp-alert--info flex items-center gap-2 !p-3">
+          <Clock size={14} strokeWidth={1.5} className="shrink-0" />
+          <span className="text-xs">尚未发布中标公示</span>
+        </div>
+      ) : status.canIssueAward ? (
+        <div className="exp-alert exp-alert--success flex items-center gap-2 !p-3">
+          <CheckCircle2 size={14} strokeWidth={1.5} className="shrink-0" />
+          <span className="text-xs font-semibold">公示期已满，可发出中标通知书</span>
+          {detail?.evaluationResults?.some(r => r.rank === 1 && r.recommended) && letters.length === 0 && (
+            <button type="button" onClick={handleDeliver} disabled={delivering} className="neu-btn-primary !h-[26px] !px-2.5 !text-[11px] ml-auto">
+              {delivering ? '推送中…' : '推送中标通知书'}
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="exp-alert exp-alert--warning flex items-center gap-2 !p-3">
+          <Clock size={14} strokeWidth={1.5} className="shrink-0" />
+          <span className="text-xs font-semibold">公示期未满，剩余约 {status.publicityEnd ? Math.ceil((new Date(status.publicityEnd).getTime() - Date.now()) / 86400000) : 0} 天，暂不可发出中标通知书</span>
+        </div>
+      )}
+
+      {/* A3: 签收状态展示 */}
+      {letters.length > 0 && (
+        <div className="rounded-[12px] border border-[color-mix(in_oklch,var(--foreground)_10%,transparent)] px-3 py-2">
+          <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)]">中标通知书签收</div>
+          {letters.map(l => (
+            <div key={l.id} className="flex items-center gap-2 py-0.5 text-xs">
+              <span className="font-medium text-[var(--foreground)]">{l.supplierName}</span>
+              {l.signedAt ? (
+                <span className="text-[var(--success)] font-semibold">✓ 已签收</span>
+              ) : l.deliveredAt ? (
+                <span className="text-[var(--muted-foreground)]">已推送，待签收</span>
+              ) : (
+                <span className="text-[var(--muted-foreground)]">未推送</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

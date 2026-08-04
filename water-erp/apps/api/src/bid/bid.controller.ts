@@ -23,6 +23,7 @@ import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
+import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 
 @ApiTags('开评标管理')
@@ -174,7 +175,7 @@ export class BidController {
   @Post('projects/:id/disputes/:disputeId/resolve')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'D2: 采购端裁决专家异议工单' })
-  resolveExpertDispute(@Param('id') id: string, @Param('disputeId') disputeId: string, @Body() dto: { response: string; status: string }, @CurrentUser('sub') userId?: string) {
+  resolveExpertDispute(@Param('id') id: string, @Param('disputeId') disputeId: string, @Body() dto: ResolveExpertDisputeDto, @CurrentUser('sub') userId?: string) {
     return this.bidService.resolveExpertDispute(id, disputeId, dto, userId);
   }
 
@@ -227,6 +228,14 @@ export class BidController {
     @Body() body: { scoreItemId: string },
     @CurrentUser('sub') userId: string,
   ) { return this.bidService.revokeInvalidBid(id, supplierId, body.scoreItemId, userId); }
+
+  @Post('projects/:id/suppliers/:supplierId/manual-invalid-bid/revoke')
+  @ApiOperation({ summary: 'B1: 撤销手动废标（恢复供应商有效状态，reportConfirmed 前可逆）' })
+  revokeManualInvalidBid(
+    @Param('id') id: string,
+    @Param('supplierId') supplierId: string,
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.revokeManualInvalidBid(id, supplierId, userId); }
 
   @Post('projects/:id/nudge-suppliers')
   @ApiOperation({ summary: '催促供应商投标（站内信+Email 多通道）' })
@@ -367,6 +376,10 @@ export class BidController {
   @Get('projects/:id/scores')
   @ApiOperation({ summary: '评分列表' })
   listScores(@Param('id') id: string) { return this.bidService.listScores(id); }
+
+  @Get('projects/:id/score-history')
+  @ApiOperation({ summary: 'P5: 评分修订历史（防篡改取证）' })
+  getScoreHistory(@Param('id') id: string) { return this.bidService.getScoreHistory(id); }
 
   @Get('projects/:id/score-items')
   @ApiOperation({ summary: '评分标准（评分项）列表' })

@@ -464,13 +464,13 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
       // 审计：专家核验未完成即尝试访问
       this.prisma.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
-          action: '尝试查看投标文件（被拒：核验未完成）', result: `signedIn=${expert.signedIn} avoidanceConfirmed=${expert.avoidanceConfirmed} aiConsentConfirmed=${expert.aiConsentConfirmed}`, riskFlag: '无' },
+          action: '尝试查看投标文件（被拒：核验未完成）', result: `signedIn=${expert.signedIn} avoidanceConfirmed=${expert.avoidanceConfirmed} aiConsentConfirmed=${expert.aiConsentConfirmed} confidentialityAgreed=${expert.confidentialityAgreed} disciplineAgreed=${expert.disciplineAgreed}`, riskFlag: '无' },
       }).catch(() => {});
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
     // 回避名单检查：与 downloadBidDocument / getAssistData 保持一致，避免向冲突专家泄露投标文件元数据
@@ -540,8 +540,8 @@ export class ExpertService {
     }
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
     return expert;
   }
@@ -731,8 +731,8 @@ export class ExpertService {
     if (conflictedIds.includes(supplierId)) {
       throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
     }
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
     const bidderResult = await this.prisma.aiBidderResult.findFirst({
       where: { bidSupplierId: supplierId, status: 'COMPLETED' },
@@ -782,8 +782,8 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     // P1-2：身份核验/回避/AI声明门控——未完成前置步骤不可读 AI 分析（服务端强制，前端门控不可绕过）
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
     // 15.4: 专家回避屏蔽 — 回避名单中的供应商不可查看 AI 分析
@@ -858,8 +858,8 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
     // P1-2：身份核验/回避/AI声明门控——未完成前置步骤不可读竞争态势（含 projectFraudSummary）
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
     const task = await this.prisma.aiBidAnalysisTask.findUnique({
@@ -915,8 +915,8 @@ export class ExpertService {
     if (expert.reportConfirmed) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     }
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
     // P2: block scoring for suppliers the expert declared as conflicted
     // 防御性处理：Prisma Json 字段可能返回数组或字符串（seed 数据历史遗留）
@@ -1238,8 +1238,8 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
     const [records, reviews, pointDecisions] = await Promise.all([
@@ -1327,8 +1327,8 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (expert.reportConfirmed) throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     // P2-3：身份核验/回避/AI声明门控
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
     // 必须先有评分记录
@@ -1426,8 +1426,8 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -1538,8 +1538,8 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed) {
-      throw new ForbiddenException({ error: '请先完成身份核验、回避确认与 AI 辅助评标声明', code: 'VERIFICATION_REQUIRED' });
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
     if (expert.progress < 100) throw new ForbiddenException({ error: '评分未完成，无法确认报告', code: 'SCORING_INCOMPLETE' });
 
@@ -1594,6 +1594,9 @@ export class ExpertService {
   async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (expert.reportConfirmed) {
+      throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+    }
     return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: draft as any } });
   }
 
@@ -1662,6 +1665,10 @@ export class ExpertService {
 
   /** 投票(一票制,不可改投) */
   async castVote(userId: string, motionId: string, vote: string, reason?: string) {
+    const VALID_VOTES = ['approve', 'reject', 'abstain'];
+    if (!VALID_VOTES.includes(vote)) {
+      throw new BadRequestException({ error: '无效的投票值', code: 'INVALID_VOTE' });
+    }
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId } });
     if (!expert) throw new ForbiddenException({ error: '不是评审专家', code: 'NOT_EXPERT' });
 
@@ -1686,7 +1693,10 @@ export class ExpertService {
 
     const motion = await this.prisma.bidMotion.findUnique({
       where: { id: motionId },
-      include: { votes: true, project: { select: { experts: { where: { expertRole: '正选' }, select: { id: true } } } } },
+      include: { votes: true, project: { select: { experts: {
+        where: { expertRole: '正选' },
+        select: { id: true, isLead: true },
+      } } } },
     });
     if (!motion) throw new BadRequestException({ error: '动议不存在', code: 'NOT_FOUND' });
     if (motion.projectId !== expert.projectId)
@@ -1698,10 +1708,26 @@ export class ExpertService {
     const rejects = motion.votes.filter(v => v.vote === 'reject').length;
     const totalVoters = motion.project.experts.length;
 
+    // P1: 常量门槛——须过半数正选专家投票方可结束（防 1 票草率结案）
+    const quorum = Math.floor(totalVoters / 2) + 1;
+    if (motion.votes.length < quorum) {
+      throw new BadRequestException({
+        error: `投票人数不足（${motion.votes.length}/${totalVoters}），须至少 ${quorum} 人投票方可结束`,
+        code: 'QUORUM_NOT_MET',
+      });
+    }
+
     let result: string;
     if (approves > rejects) result = 'approved';
     else if (rejects > approves) result = 'rejected';
-    else result = 'tie_broken'; // 平票由组长裁决
+    else {
+      // P1: 平票时组长投票作为决定票（评标实务：组长裁决权）
+      const lead = motion.project.experts.find(e => e.isLead);
+      const leadVote = motion.votes.find(v => v.expertId === lead?.id);
+      if (leadVote?.vote === 'approve') result = 'approved';
+      else if (leadVote?.vote === 'reject') result = 'rejected';
+      else result = 'tie_broken'; // 组长未投票或弃权——保留平票，须人工介入
+    }
 
     return this.prisma.bidMotion.update({
       where: { id: motionId },

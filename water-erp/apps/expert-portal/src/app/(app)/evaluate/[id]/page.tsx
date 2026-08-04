@@ -295,16 +295,27 @@ export default function ExpertEvaluatePage() {
   const draftStorageKey = expertId ? `expert-draft:${projectId}:${expertId}` : '';
   useEffect(() => {
     if (!draftStorageKey) return;
+    // E4/G3: 先查 localStorage（快速），无草稿则尝试服务端恢复
     try {
       const raw = localStorage.getItem(draftStorageKey);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt: number };
-      const count = Object.keys(draft.scores || {}).length;
-      if (count > 0) setDraftAvailable({ count, savedAt: draft.savedAt });
+      if (raw) {
+        const draft = JSON.parse(raw) as { scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt: number };
+        const count = Object.keys(draft.scores || {}).length;
+        if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); return; }
+      }
     } catch { /* corrupt draft — ignore */ }
-  }, [draftStorageKey]);
+    // localStorage 无草稿，尝试从服务端恢复
+    api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft`)
+      .then(d => {
+        if (d && d.scores && Object.keys(d.scores).length > 0) {
+          setDraftAvailable({ count: Object.keys(d.scores).length, savedAt: d.savedAt ?? Date.now() });
+        }
+      })
+      .catch(() => {});
+  }, [draftStorageKey, projectId]);
 
   // P0-3: debounced autosave whenever scores change (only while scoring).
+  // E4/G3: 双写 localStorage（快速离线恢复）+ 服务端 scoreDraft API（跨设备持久化）
   useEffect(() => {
     if (!draftStorageKey || step !== 'scoring') return;
     const entries = Object.keys(scores).length;
@@ -314,9 +325,11 @@ export default function ExpertEvaluatePage() {
       try {
         localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
       } catch { /* quota / private mode — ignore */ }
+      // E4/G3: 同步到服务端（失败静默降级到 localStorage）
+      api.post(`/expert/projects/${projectId}/score-draft`, { scores, savedAt: Date.now() }).catch(() => {});
     }, 2000);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
-  }, [scores, draftStorageKey, step]);
+  }, [scores, draftStorageKey, step, projectId]);
 
   const restoreDraft = () => {
     if (!draftStorageKey) return;
@@ -332,6 +345,7 @@ export default function ExpertEvaluatePage() {
   };
   const discardDraft = () => {
     if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+    api.post(`/expert/projects/${projectId}/score-draft`, { scores: {}, savedAt: Date.now() }).catch(() => {});
     setDraftAvailable(null);
     setDraftDismissed(true);
   };
@@ -339,8 +353,10 @@ export default function ExpertEvaluatePage() {
     if (!draftStorageKey) return;
     try {
       localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
-      toast.success('草稿已保存');
-    } catch { toast.error('草稿保存失败'); }
+    } catch { /* quota — ignore */ }
+    api.post(`/expert/projects/${projectId}/score-draft`, { scores, savedAt: Date.now() })
+      .then(() => toast.success('草稿已保存（已同步到服务端）'))
+      .catch(() => toast.success('草稿已保存（本地）'));
   };
 
   useEffect(() => { loadProject(); }, [loadProject]);
@@ -639,41 +655,16 @@ export default function ExpertEvaluatePage() {
   const isLead = !!expert?.isLead;
   const allMembersConfirmed = project ? project.experts.every((e: any) => e.reportConfirmed) : false;
   const leaderCoSigned = !!(project as any)?.leaderCoSigned;
-  // C1/C3: 动议+投票
+  // C1/C3: 动议+投票（只读记录——功能操作在工作台「评审待办」页面）
   const [motions, setMotions] = useState<any[]>([]);
-  const [showMotionForm, setShowMotionForm] = useState(false);
-  const [motionForm, setMotionForm] = useState({ title: '', description: '' });
   useEffect(() => {
     if (project) { api.get(`/expert/projects/${projectId}/motions`).then((res: any) => setMotions(res)).catch(() => {}); }
   }, [project?.id]);
-  const handleCreateMotion = async () => {
-    setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/motions`, { ...motionForm, type: 'other' }); setMotionForm({ title: '', description: '' }); setShowMotionForm(false); loadMotions(); toast.success('动议已发起'); }
-    catch (e: any) { toast.error(e.message || '发起失败'); }
-    setBusy(false);
-  };
-  const handleCastVote = async (motionId: string, vote: string) => {
-    try { await api.post(`/expert/motions/${motionId}/vote`, { vote }); loadMotions(); toast.success('投票成功'); }
-    catch (e: any) { toast.error(e.message || '投票失败'); }
-  };
-  const handleCloseMotion = async (motionId: string) => {
-    try { await api.post(`/expert/motions/${motionId}/close`, {}); loadMotions(); toast.success('决议已生成'); }
-    catch (e: any) { toast.error(e.message || '关闭失败'); }
-  };
-  const loadMotions = () => { api.get(`/expert/projects/${projectId}/motions`).then((res: any) => setMotions(res)).catch(() => {}); };
-  // D2: 异议工单
+  // D2: 异议工单（只读记录——功能操作在工作台「评审待办」页面）
   const [disputes, setDisputes] = useState<any[]>([]);
-  const [showDisputeForm, setShowDisputeForm] = useState(false);
-  const [disputeForm, setDisputeForm] = useState({ title: '', content: '' });
   useEffect(() => {
     if (project) { api.get(`/expert/projects/${projectId}/disputes`).then((res: any) => setDisputes(res)).catch(() => {}); }
   }, [project?.id]);
-  const handleDisputeSubmit = async () => {
-    setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/disputes`, { ...disputeForm, type: 'scoring' }); setDisputeForm({ title: '', content: '' }); setShowDisputeForm(false); api.get(`/expert/projects/${projectId}/disputes`).then((res: any) => setDisputes(res)).catch(() => {}); toast.success('异议已提交'); }
-    catch (e: any) { toast.error(e.message || '提交失败'); }
-    setBusy(false);
-  };
 
   if (loadError) return (
     <div className="flex h-64 flex-col items-center justify-center gap-3 text-[var(--muted-foreground)]">
@@ -1621,118 +1612,90 @@ export default function ExpertEvaluatePage() {
             />
           )}
 
-          {/* ====== C1: 动议与投票 ====== */}
+          {/* ====== C1: 动议与投票（只读记录——操作在工作台「评审待办」）====== */}
           {step === 'report' && (
             <div className="mx-auto max-w-4xl p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Gavel size={16} strokeWidth={1.8} className="text-[var(--accent)]" />
-                  <h3 className="text-sm font-bold text-[var(--foreground)]">委员会动议与投票</h3>
-                  <span className="text-xs text-[var(--muted-foreground)]">({motions.length} 项)</span>
-                </div>
-                <button onClick={() => setShowMotionForm(!showMotionForm)}
-                  className="neu-btn-soft !h-[30px] !text-xs">
-                  {showMotionForm ? '取消' : '发起动议'}
-                </button>
+              <div className="mb-4 flex items-center gap-2">
+                <Gavel size={16} strokeWidth={1.8} className="text-[var(--accent)]" />
+                <h3 className="text-sm font-bold text-[var(--foreground)]">委员会动议记录</h3>
+                <span className="text-xs text-[var(--muted-foreground)]">({motions.length} 项)</span>
               </div>
 
-              {showMotionForm && (
-                <div className="neu-card-static mb-4 rounded-xl p-4 space-y-3">
-                  <input className="workbench-input w-full" placeholder="动议标题" value={motionForm.title}
-                    onChange={e => setMotionForm(p => ({ ...p, title: e.target.value }))} />
-                  <textarea className="workbench-input w-full !min-h-[48px]" placeholder="动议说明" value={motionForm.description}
-                    onChange={e => setMotionForm(p => ({ ...p, description: e.target.value }))} />
-                  <button onClick={handleCreateMotion} disabled={busy || !motionForm.title}
-                    className="neu-btn-primary !h-[32px] !text-xs">{busy ? '发起中…' : '发起动议'}</button>
+              {motions.length === 0 ? (
+                <p className="text-xs text-[var(--muted-foreground)]">暂无动议记录</p>
+              ) : (
+                <div className="space-y-2">
+                  {motions.map((m: any) => {
+                    const approves = m.votes?.filter((v: any) => v.vote === 'approve').length ?? 0;
+                    const rejects = m.votes?.filter((v: any) => v.vote === 'reject').length ?? 0;
+                    const totalVotes = m.votes?.length ?? 0;
+                    const myVote = m.votes?.find((v: any) => v.expertId === expert?.id);
+                    return (
+                      <div key={m.id} className="neu-card-static rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold">{m.title}</span>
+                            <span className={`text-xs font-semibold ${m.status === 'voting' ? 'text-[var(--accent)]' : m.result === 'approved' ? 'text-[var(--success)]' : m.result === 'rejected' ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
+                              {m.status === 'voting' ? '投票中' : m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : m.result === 'tie_broken' ? '△ 平票' : m.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs tabular-nums">
+                            <span className="text-[var(--success)]">赞成 {approves}</span>
+                            <span className="text-[var(--danger)]">反对 {rejects}</span>
+                            <span className="text-[var(--muted-foreground)]">/ {totalVotes}</span>
+                          </div>
+                        </div>
+                        {m.description && (
+                          <p className="text-xs text-[var(--muted-foreground)] mb-1">{m.description}</p>
+                        )}
+                        {myVote && (
+                          <span className="text-xs text-[var(--muted-foreground)]">您已投：{myVote.vote === 'approve' ? '赞成' : myVote.vote === 'reject' ? '反对' : '弃权'}</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-
-              {motions.map((m: any) => {
-                const approves = m.votes?.filter((v: any) => v.vote === 'approve').length ?? 0;
-                const rejects = m.votes?.filter((v: any) => v.vote === 'reject').length ?? 0;
-                const totalVotes = m.votes?.length ?? 0;
-                const myVote = m.votes?.find((v: any) => v.expertId === expert?.id);
-                return (
-                  <div key={m.id} className="neu-card-static mb-2 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">{m.title}</span>
-                        <span className={`text-xs font-semibold ${m.status === 'voting' ? 'text-[var(--accent)]' : m.result === 'approved' ? 'text-[var(--success)]' : m.result === 'rejected' ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
-                          {m.status === 'voting' ? '投票中' : m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : m.result === 'tie_broken' ? '△ 平票' : m.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-[var(--success)]">赞成 {approves}</span>
-                        <span className="text-[var(--danger)]">反对 {rejects}</span>
-                        <span className="text-[var(--muted-foreground)]">/ {totalVotes}</span>
-                      </div>
-                    </div>
-
-                    {/* 投票按钮(仅在投票中且未投过时显示) */}
-                    {m.status === 'voting' && !myVote && (
-                      <div className="flex gap-2">
-                        <button onClick={() => handleCastVote(m.id, 'approve')} disabled={busy}
-                          className="neu-btn-soft !h-[28px] !text-xs !text-[var(--success)]">赞成</button>
-                        <button onClick={() => handleCastVote(m.id, 'reject')} disabled={busy}
-                          className="neu-btn-soft !h-[28px] !text-xs !text-[var(--danger)]">反对</button>
-                        <button onClick={() => handleCastVote(m.id, 'abstain')} disabled={busy}
-                          className="neu-btn-soft !h-[28px] !text-xs">弃权</button>
-                      </div>
-                    )}
-                    {myVote && (
-                      <span className="text-xs text-[var(--muted-foreground)]">您已投: {myVote.vote === 'approve' ? '赞成' : myVote.vote === 'reject' ? '反对' : '弃权'}</span>
-                    )}
-
-                    {/* 结束投票(组长或动议发起人) */}
-                    {m.status === 'voting' && (expert?.isLead || m.createdBy === expert?.id) && (
-                      <div className="mt-2">
-                        <button onClick={() => handleCloseMotion(m.id)} disabled={busy}
-                          className="neu-btn-soft is-warning !h-[28px] !text-xs">结束投票·形成决议</button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              <p className="mt-3 text-[11px] text-[var(--muted-foreground)]">
+                动议发起、投票与形成决议请前往工作台「评审待办」页面
+              </p>
             </div>
           )}
 
-          {/* ====== D2: 异议工单 ====== */}
+          {/* ====== D2: 异议工单（只读记录——操作在工作台「评审待办」）====== */}
           {step === 'report' && (
             <div className="mx-auto max-w-4xl p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={16} strokeWidth={1.8} className="text-[var(--warning)]" />
-                  <h3 className="text-sm font-bold text-[var(--foreground)]">异议工单</h3>
-                </div>
-                <button onClick={() => setShowDisputeForm(!showDisputeForm)}
-                  className="neu-btn-soft !h-[30px] !text-xs">
-                  {showDisputeForm ? '取消' : '提交异议'}
-                </button>
+              <div className="mb-4 flex items-center gap-2">
+                <AlertTriangle size={16} strokeWidth={1.8} className="text-[var(--warning)]" />
+                <h3 className="text-sm font-bold text-[var(--foreground)]">异议工单记录</h3>
+                <span className="text-xs text-[var(--muted-foreground)]">({disputes.length} 项)</span>
               </div>
-              {showDisputeForm && (
-                <div className="neu-card-static mb-4 rounded-xl p-4 space-y-3">
-                  <input className="workbench-input w-full" placeholder="异议标题" value={disputeForm.title}
-                    onChange={e => setDisputeForm(p => ({ ...p, title: e.target.value }))} />
-                  <textarea className="workbench-input w-full !min-h-[64px]" placeholder="异议详细内容" value={disputeForm.content}
-                    onChange={e => setDisputeForm(p => ({ ...p, content: e.target.value }))} />
-                  <button onClick={handleDisputeSubmit} disabled={busy || !disputeForm.title || !disputeForm.content}
-                    className="neu-btn-primary !h-[32px] !text-xs">提交异议工单</button>
-                </div>
-              )}
-              {disputes.length === 0 && !showDisputeForm && (
+
+              {disputes.length === 0 ? (
                 <p className="text-xs text-[var(--muted-foreground)]">暂无异议工单</p>
-              )}
-              {disputes.map((d: any) => (
-                <div key={d.id} className="mb-2 rounded-lg border border-[color-mix(in_oklch,var(--foreground)_6%,transparent)] px-3 py-2 flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-semibold">{d.title}</span>
-                    <span className="ml-2 text-xs text-[var(--muted-foreground)]">{d.expertName}</span>
-                  </div>
-                  <span className={`text-xs font-semibold ${d.status === 'open' ? 'text-[var(--warning)]' : d.status === 'resolved' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
-                    {d.status === 'open' ? '待裁决' : d.status === 'resolved' ? '已采纳' : '已驳回'}
-                  </span>
+              ) : (
+                <div className="space-y-2">
+                  {disputes.map((d: any) => (
+                    <div key={d.id} className="rounded-lg border border-[color-mix(in_oklch,var(--foreground)_6%,transparent)] px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold">{d.title}</span>
+                          <span className="ml-2 text-xs text-[var(--muted-foreground)]">{d.expertName}</span>
+                        </div>
+                        <span className={`shrink-0 text-xs font-semibold ${d.status === 'open' ? 'text-[var(--warning)]' : d.status === 'resolved' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
+                          {d.status === 'open' ? '待裁决' : d.status === 'resolved' ? '已采纳' : '已驳回'}
+                        </span>
+                      </div>
+                      {d.response && (
+                        <p className="mt-1 text-xs text-[var(--muted-foreground)]">裁决回复：{d.response}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              <p className="mt-3 text-[11px] text-[var(--muted-foreground)]">
+                提交异议请前往工作台「评审待办」页面
+              </p>
             </div>
           )}
 

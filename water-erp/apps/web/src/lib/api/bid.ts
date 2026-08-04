@@ -429,6 +429,7 @@ export interface BidProjectDetail {
   riskNote?: string | null;
   qualityRequirement?: string | null;
   scoreStandardPublishedAt?: string | null;
+  evaluationDeadline?: string | null; // E2: 评标截止时间
   suppliers: BidProjectSupplierInfo[];
   openingSession: BidOpeningSessionInfo | null;
   openingRecords: Array<{
