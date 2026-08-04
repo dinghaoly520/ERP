@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   ShieldCheck, Gavel, AlertTriangle, CheckCircle2, ChevronRight,
-  ChevronDown, RefreshCw, ClipboardCheck, UserCircle, Plus,
+  RefreshCw, ClipboardCheck, UserCircle, Plus,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject, User } from '@/lib/types';
@@ -31,7 +31,6 @@ export default function ExpertDashboardPage() {
   const [projects, setProjects] = useState<ExpertProject[]>([]);
   const [tasks, setTasks] = useState<MyTasks | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showCompleted, setShowCompleted] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -126,7 +125,7 @@ export default function ExpertDashboardPage() {
     [projects],
   );
   const completed = useMemo(
-    () => projects.filter(p => p.project.stage === 'ARCHIVED').slice(0, 5),
+    () => projects.filter(p => p.project.stage === 'ARCHIVED'),
     [projects],
   );
 
@@ -379,29 +378,23 @@ export default function ExpertDashboardPage() {
           {/* ====== 📋 最近完成 ====== */}
           {completed.length > 0 && (
             <section>
-              <button
-                onClick={() => setShowCompleted(!showCompleted)}
-                className="mb-3 flex items-center gap-2 text-sm font-bold text-[var(--foreground)] hover:opacity-80"
-              >
-                <ChevronDown size={15} strokeWidth={1.8} className={`text-[var(--muted-foreground)] transition-transform ${showCompleted ? '' : '-rotate-90'}`} />
-                最近完成
+              <div className="mb-3 flex items-center gap-2">
+                <CheckCircle2 size={15} strokeWidth={1.8} className="text-[var(--success)]" />
+                <h3 className="text-sm font-bold text-[var(--foreground)]">最近完成</h3>
                 <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: 'var(--success)' }}>
                   {completed.length}
                 </span>
-              </button>
-              {showCompleted && (
-                <div className="space-y-1.5">
-                  {completed.map(p => (
-                    <div key={p.id} className="neu-card-static rounded-xl px-4 py-2.5 flex items-center gap-3 opacity-70">
-                      <CheckCircle2 size={14} strokeWidth={1.8} className="shrink-0 text-[var(--success)]" />
-                      <span className="truncate text-sm font-semibold text-[var(--foreground)]">{p.project.name}</span>
-                      <span className="ml-auto tabular-nums text-xs text-[var(--muted-foreground)]">
-                        得分 {Number(p.totalScore).toFixed(1)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              </div>
+              <div className="space-y-1.5">
+                {completed.map(p => (
+                  <div key={p.id} className="neu-card-static rounded-xl px-3 py-2 flex items-center gap-2">
+                    <span className="truncate text-xs font-semibold text-[var(--foreground)]">{p.project.name}</span>
+                    <span className="ml-auto shrink-0 tabular-nums text-[11px] text-[var(--muted-foreground)]">
+                      总分 {Number(p.totalScore).toFixed(1)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
         </>
