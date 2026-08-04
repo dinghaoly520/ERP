@@ -94,6 +94,7 @@ export default function ExpertTasksPage() {
   const disputes = tasks?.disputes ?? [];
   const projects = tasks?.projects ?? [];
   const projectOpts = projects.map(p => ({ value: p.projectId, label: p.projectName, stage: p.stage }));
+  const isLeadAnywhere = projects.some(p => p.isLead);
 
   // ── 发起表决 ──
   const [showMotionForm, setShowMotionForm] = useState(false);
@@ -211,12 +212,14 @@ export default function ExpertTasksPage() {
                   {motions.length}
                 </span>
               </div>
-              <button
-                onClick={() => { autoFillProject(setMotionForm); setShowMotionForm(!showMotionForm); }}
-                className="neu-btn-soft !h-[28px] !text-xs"
-              >
-                <Plus size={12} /> {showMotionForm ? '取消' : '发起表决'}
-              </button>
+              {isLeadAnywhere && (
+                <button
+                  onClick={() => { autoFillProject(setMotionForm); setShowMotionForm(!showMotionForm); }}
+                  className="neu-btn-soft !h-[28px] !text-xs"
+                >
+                  <Plus size={12} /> {showMotionForm ? '取消' : '发起表决'}
+                </button>
+              )}
             </div>
 
             {showMotionForm && (
@@ -343,12 +346,14 @@ export default function ExpertTasksPage() {
                   {disputes.length}
                 </span>
               </div>
-              <button
-                onClick={() => { autoFillProject(setDisputeForm); setShowDisputeForm(!showDisputeForm); }}
-                className="neu-btn-soft !h-[28px] !text-xs"
-              >
-                <Plus size={12} /> {showDisputeForm ? '取消' : '提交异议'}
-              </button>
+              {isLeadAnywhere && (
+                <button
+                  onClick={() => { autoFillProject(setDisputeForm); setShowDisputeForm(!showDisputeForm); }}
+                  className="neu-btn-soft !h-[28px] !text-xs"
+                >
+                  <Plus size={12} /> {showDisputeForm ? '取消' : '提交异议'}
+                </button>
+              )}
             </div>
 
             {showDisputeForm && (

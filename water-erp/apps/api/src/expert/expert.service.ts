@@ -1646,10 +1646,11 @@ export class ExpertService {
     return expert?.scoreDraft ?? null;
   }
 
-  /** D2: 创建异议工单 */
+  /** D2: 创建异议工单（仅组长） */
   async createDispute(userId: string, projectId: string, dto: { type: string; title: string; content: string }) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可提交异议', code: 'NOT_LEAD' });
     return this.prisma.expertDispute.create({
       data: { projectId, expertId: expert.id, expertName: expert.expertName, type: dto.type, title: dto.title, content: dto.content },
     });
@@ -1709,10 +1710,11 @@ export class ExpertService {
 
   // ── C1: 投票/合议/决议 ──
 
-  /** 发起动议(组长或任意专家) */
+  /** 发起表决(仅组长) */
   async createMotion(userId: string, projectId: string, dto: { type: string; title: string; description?: string }) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
+    if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可发起表决', code: 'NOT_LEAD' });
 
     const motion = await this.prisma.bidMotion.create({
       data: { projectId, type: dto.type, title: dto.title, description: dto.description, createdBy: expert.id, status: 'voting' },

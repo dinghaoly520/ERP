@@ -55,6 +55,10 @@ export default function ExpertDashboardPage() {
     () => projects.filter(p => isActive(p.project.stage)),
     [projects],
   );
+  const isLeadAnywhere = useMemo(
+    () => activeProjects.some(p => p.isLead),
+    [activeProjects],
+  );
 
   const openMotionForm = () => {
     if (activeProjects.length === 1 && !motionForm.projectId) {
@@ -158,14 +162,16 @@ export default function ExpertDashboardPage() {
                 <h3 className="text-sm font-bold text-[var(--foreground)]">待处理事项</h3>
                 {totalPending > 0 && <span className="text-xs font-semibold tabular-nums text-[var(--warning)]">{totalPending}</span>}
               </div>
-              <div className="flex items-center gap-1.5">
-                <button onClick={openMotionForm} className="neu-btn-soft !h-[26px] !text-[11px]">
-                  <Plus size={11} /> {showMotionForm ? '取消' : '发起表决'}
-                </button>
-                <button onClick={openDisputeForm} className="neu-btn-soft !h-[26px] !text-[11px] !text-[var(--danger)]">
-                  <Plus size={11} /> {showDisputeForm ? '取消' : '提交异议'}
-                </button>
-              </div>
+              {isLeadAnywhere && (
+                <div className="flex items-center gap-1.5">
+                  <button onClick={openMotionForm} className="neu-btn-soft !h-[26px] !text-[11px]">
+                    <Plus size={11} /> {showMotionForm ? '取消' : '发起表决'}
+                  </button>
+                  <button onClick={openDisputeForm} className="neu-btn-soft !h-[26px] !text-[11px] !text-[var(--danger)]">
+                    <Plus size={11} /> {showDisputeForm ? '取消' : '提交异议'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 发起表决表单 */}

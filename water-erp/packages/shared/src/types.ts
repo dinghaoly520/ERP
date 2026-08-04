@@ -236,6 +236,7 @@ export interface ExpertProject {
   expertName: string;
   major: string;
   signedIn: boolean;
+  isLead?: boolean;
   avoidanceConfirmed: boolean;
   progress: number;
   totalScore: number;
