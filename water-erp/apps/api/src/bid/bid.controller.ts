@@ -673,4 +673,10 @@ export class BidController {
     }
     return data;
   }
+
+  @Post('projects/:id/swap-expert')
+  @ApiOperation({ summary: '正选↔候补互换（开标确认页操作→替换）' })
+  async swapExpert(@Param('id') id: string, @Body() body: { fromExpertId: string; toExpertId: string }) {
+    return this.bidService.swapExpertRole(id, body.fromExpertId, body.toExpertId);
+  }
 }

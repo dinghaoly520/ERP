@@ -644,7 +644,7 @@ export class ExpertAdminService {
       include: { suppliers: { include: { supplier: { select: { name: true } } } } },
     });
     if (!project) throw new NotFoundException('项目不存在');
-    if (!dto.experts?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
+    if (!dto.experts?.length && !dto.candidates?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
 
     // 供应商名集合（回避校验）
     const supplierNames = new Set(
@@ -660,10 +660,10 @@ export class ExpertAdminService {
 
       // 资格复核放在事务内重查：与 previewExtraction 同款合规过滤，并杜绝复核后、提交前被并发停用/退库的专家混入
       const users = await tx.user.findMany({
-        where: { id: { in: dto.experts.map(e => e.userId) } },
+        where: { id: { in: (dto.experts ?? []).map(e => e.userId) } },
         include: { expertProfile: true },
       });
-      for (const e of dto.experts) {
+      for (const e of (dto.experts ?? [])) {
         const u = users.find(x => x.id === e.userId);
         if (!u) throw new BadRequestException({ error: `专家 ${e.expertName} 不存在`, code: 'EXPERT_NOT_FOUND' });
         if (u.role !== 'bid_expert' || !u.isActive || u.expertProfile?.availability !== '可用') {
@@ -680,7 +680,7 @@ export class ExpertAdminService {
       }
 
       // 正选专家创建为 expertRole=正选
-      for (const e of dto.experts) {
+      for (const e of (dto.experts ?? [])) {
         await tx.bidExpert.upsert({
           where: { projectId_userId: { projectId, userId: e.userId } },
           update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending' },
@@ -705,14 +705,14 @@ export class ExpertAdminService {
           resourceId: projectId,
           details: {
             projectName: project.name,
-            expertCount: dto.experts.length,
-            experts: dto.experts.map(e => ({ userId: e.userId, name: e.expertName, major: e.major, isLead: e.isLead ?? false })),
+            expertCount: dto.experts?.length ?? 0,
+            experts: (dto.experts ?? []).map(e => ({ userId: e.userId, name: e.expertName, major: e.major, isLead: e.isLead ?? false })),
           },
         },
       });
     });
 
-    return { success: true, count: dto.experts.length + (dto.candidates?.length ?? 0), expertIds: dto.experts.map(e => e.userId) };
+    return { success: true, count: (dto.experts?.length ?? 0) + (dto.candidates?.length ?? 0), expertIds: (dto.experts ?? []).map(e => e.userId) };
   }
 
   /** 查询项目专家邀请状态（正选+候补） */
@@ -736,7 +736,7 @@ export class ExpertAdminService {
         id: true, userId: true, expertName: true, major: true,
         isLead: true, expertRole: true, invitationStatus: true,
         rsvpToken: true, rsvpRespondedAt: true, rsvpExpiresAt: true,
-        user: { select: { expertProfile: { select: { title: true } } } },
+        user: { select: { expertProfile: { select: { title: true, employer: true } } } },
       },
     });
     const confirmed = records.filter(r => r.invitationStatus === 'confirmed').length;
@@ -744,7 +744,7 @@ export class ExpertAdminService {
     const pending = records.filter(r => r.invitationStatus === 'pending').length;
     const candidates = records.filter(r => r.expertRole === '候补' && r.invitationStatus === 'pending');
     return {
-      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, rsvpNo: r.id.slice(-8).toUpperCase() })),
+      experts: records.map(r => ({ ...r, title: r.user?.expertProfile?.title ?? null, employer: r.user?.expertProfile?.employer ?? null, rsvpNo: r.id.slice(-8).toUpperCase() })),
       summary: {
         total: records.length,
         confirmed,

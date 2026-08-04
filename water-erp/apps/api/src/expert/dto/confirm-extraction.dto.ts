@@ -19,9 +19,10 @@ export class ConfirmExtractionDto {
   @IsString() @IsNotEmpty()
   projectId!: string;
 
+  @IsOptional()
   @IsArray() @ValidateNested({ each: true })
   @Type(() => ExtractionExpertDto)
-  experts!: ExtractionExpertDto[];
+  experts?: ExtractionExpertDto[];
 
   /** 候补专家列表（也会创建 BidExpert 记录，expertRole=候补） */
   @IsOptional() @IsArray() @ValidateNested({ each: true })

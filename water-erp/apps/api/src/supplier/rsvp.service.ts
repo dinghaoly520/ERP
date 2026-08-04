@@ -106,6 +106,16 @@ export class RsvpService {
       orderBy: { createdAt: 'desc' },
       select: { id: true, supplierId: true, supplierName: true, status: true, note: true, respondedAt: true, expiresAt: true, createdAt: true },
     });
+    // 补查供应商标签
+    const supplierIds = [...new Set(rows.map(r => r.supplierId).filter(Boolean))];
+    const supplierTags = new Map<string, string[]>();
+    if (supplierIds.length > 0) {
+      const suppliers = await this.prisma.supplier.findMany({
+        where: { id: { in: supplierIds } },
+        select: { id: true, tags: true },
+      });
+      for (const s of suppliers) supplierTags.set(s.id, s.tags as string[]);
+    }
     const now = Date.now();
     // 批量自动弃权：过期且仍为 PENDING 的行
     const expiredIds = rows.filter(r => new Date(r.expiresAt).getTime() < now && r.status === 'PENDING').map(r => r.id);
@@ -161,6 +171,7 @@ export class RsvpService {
       return {
         rsvpNo: r.id.slice(-8).toUpperCase(),
         supplierId: r.supplierId, supplierName: r.supplierName, status: st,
+        tags: r.supplierId ? (supplierTags.get(r.supplierId) ?? []) : [],
         note: r.note, respondedAt: r.respondedAt ? r.respondedAt.toISOString() : null,
         expired: new Date(r.expiresAt).getTime() < now,
       };

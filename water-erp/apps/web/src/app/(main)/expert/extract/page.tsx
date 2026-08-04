@@ -61,6 +61,7 @@ export function ExpertExtractPage({
     expertIds: string[];           // 入库的 BidExpert userId（按此从 invitationData 取回复）
     confirmed: boolean;            // 是否已 append 入库
     notified: boolean;             // 本轮是否已通知
+    isAlt?: boolean;               // 是否为候补记录（候补不入库，直接从 selected 展示）
   };
   const [reHistory, setReHistory] = useState<ReHistoryItem[]>([]);
   // 当前进行中的补选草稿（null = 弹窗关闭）；仅一个并发轮次
@@ -225,8 +226,8 @@ export function ExpertExtractPage({
   }, [step, pid, altPreview]);
 
   // 状态变更时自动保存到 localStorage（页面切换后恢复）
-  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory });
-  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory };
+  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified });
+  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified };
   useEffect(() => {
     const save = () => {
       const s = stateRef.current;
@@ -272,6 +273,9 @@ export function ExpertExtractPage({
       if (snap.error) setError(snap.error);
       if (snap.pd) setPd(snap.pd);
       if (snap.step) setStep(snap.step);
+      if (snap.altPreview) setAltPreview(snap.altPreview);
+      if (snap.altSelected?.length) setAltSelected(snap.altSelected);
+      if (snap.altNotified) setAltNotified(snap.altNotified);
     } catch { localStorage.removeItem(LAST_PID_KEY); }
   }, []);
   useEffect(() => {
@@ -2030,13 +2034,14 @@ export function ExpertExtractPage({
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
-                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
                     <tbody>
                       {invitationData.experts.filter(e=>e.expertRole==='正选' && originalConfirmedIdsRef.current.has(e.userId)).sort((a,b)=>(a.invitationStatus==='declined'?1:0)-(b.invitationStatus==='declined'?1:0)).map(e => (
                         <tr key={e.id}>
                           <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span></td>
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
+                          <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
                           <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
                           <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{e.rsvpRespondedAt?(e.rsvpNo||'—'):'—'}</td>
                           <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
@@ -2059,27 +2064,50 @@ export function ExpertExtractPage({
                       const idSet = new Set(h.expertIds);
                       const experts = (invitationData?.experts ?? []).filter(e => idSet.has(e.userId));
                       const confirmed = experts.filter(e => e.invitationStatus === 'confirmed').length;
+                      const isAlt = !!h.isAlt;
                       return (
                         <div key={hi} className="rounded-xl border border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] overflow-hidden">
                           <div className="flex items-center gap-2 px-3 py-2 bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]">
-                            <span className="text-xs font-bold text-[var(--foreground)]">第{h.roundNo}次补选</span>
+                            <span className="text-xs font-bold text-[var(--foreground)]">{isAlt ? '候补专家' : `第${h.roundNo}次补选`}</span>
                             <span className="text-[11px] text-[var(--muted-foreground)]">· {h.selected.length} 人</span>
                             <div className="ml-auto flex items-center gap-1.5">
-                              <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">{confirmed} 确认</span>
-                              {experts.filter(e => e.invitationStatus === 'pending').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">{experts.filter(e => e.invitationStatus === 'pending').length} 待回</span>}
-                              {experts.filter(e => e.invitationStatus === 'declined').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]">{experts.filter(e => e.invitationStatus === 'declined').length} 拒绝</span>}
-                              {!h.notified && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--muted-foreground)]">未通知</span>}
-                              {!h.notified && <button onClick={() => reopenReModal(h.roundNo)} disabled={!!reDraft} className="neu-btn-xs is-info">继续通知</button>}
+                              {isAlt ? (
+                                <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">已记录</span>
+                              ) : (
+                                <>
+                                  <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">{confirmed} 确认</span>
+                                  {experts.filter(e => e.invitationStatus === 'pending').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">{experts.filter(e => e.invitationStatus === 'pending').length} 待回</span>}
+                                  {experts.filter(e => e.invitationStatus === 'declined').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]">{experts.filter(e => e.invitationStatus === 'declined').length} 拒绝</span>}
+                                  {!h.notified && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--muted-foreground)]">未通知</span>}
+                                  {!h.notified && <button onClick={() => reopenReModal(h.roundNo)} disabled={!!reDraft} className="neu-btn-xs is-info">继续通知</button>}
+                                </>
+                              )}
                             </div>
                           </div>
+                          {isAlt ? (
+                            <table className="neu-table w-full table-fixed">
+                              <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th></tr></thead>
+                              <tbody>
+                                {h.selected.map(s => (
+                                  <tr key={s.userId}>
+                                    <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span></td>
+                                    <td className="text-center text-sm text-[var(--muted-foreground)]">{s.specialty}</td>
+                                    <td className="text-center text-xs text-[var(--muted-foreground)]">{s.title || '—'}</td>
+                                    <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : (
                           <table className="neu-table w-full table-fixed">
-                            <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
+                            <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">回复状态</th><th className="text-center">回执号</th><th className="text-center">操作</th></tr></thead>
                             <tbody>
                               {experts.map(e => (
                                 <tr key={e.id}>
                                   <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span></td>
                                   <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
+                                  <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
                                   <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
                                   <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{e.rsvpRespondedAt?(e.rsvpNo||'—'):'—'}</td>
                                   <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
@@ -2087,6 +2115,7 @@ export function ExpertExtractPage({
                               ))}
                             </tbody>
                           </table>
+                          )}
                         </div>
                       );
                     })}
@@ -2148,7 +2177,7 @@ export function ExpertExtractPage({
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
-                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">来源</th><th className="text-center">回复状态</th><th className="text-center">回执号</th></tr></thead>
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">来源</th><th className="text-center">回复状态</th><th className="text-center">回执号</th></tr></thead>
                     <tbody>
                       {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus !== 'declined').sort((a, b) => (a.invitationStatus === 'confirmed' ? -1 : 1) - (b.invitationStatus === 'confirmed' ? -1 : 1)).map(e => {
                         const isOriginal = originalConfirmedIdsRef.current.has(e.userId);
@@ -2158,6 +2187,7 @@ export function ExpertExtractPage({
                           <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span></td>
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
+                          <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
                           <td className="text-center">{isOriginal ? <StatusBadge tone="green">正选</StatusBadge> : <StatusBadge tone="blue">第{roundNo || '?'}次补选</StatusBadge>}</td>
                           <td className="text-center">{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
                           <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—'}</td>
@@ -2201,26 +2231,27 @@ export function ExpertExtractPage({
                 <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{altPreview.analysis}</p>
               </div>
 
-              {/* 候补专家名单 */}
               <div className="neu-table-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">候补专家组 · {altSelected.length} 人</span>
-                  <button onClick={() => { setAltPreview(null); setAltSelected([]); extractAlternates(); }} disabled={altExtracting} className="neu-btn-xs"><RefreshCw size={12} className="inline mr-0.5" />重新抽取</button>
+                  <button onClick={() => { setAltPreview(null); setAltSelected([]); setAltNotified(false); extractAlternates(); }} disabled={altExtracting} className="neu-btn-xs"><RefreshCw size={12} className="inline mr-0.5" />重新抽取</button>
                 </div>
-                {altSelected.map((s, i) => (
-                  <div key={s.userId} className={`flex items-start gap-3 mt-3 ${i > 0 ? 'border-t border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] pt-3' : ''}`}>
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--warning)_40%,transparent)] text-xs font-extrabold text-[var(--warning)]">{i + 1}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)]" onClick={() => router.push('/expert/' + s.userId)}>{s.name}</span>
-                        <StatusBadge tone="blue">{s.specialty}</StatusBadge>
-                        <StatusBadge tone="orange">候补</StatusBadge>
-                        {s.evaluationLevel && <StatusBadge tone={s.evaluationLevel === 'A' ? 'green' : s.evaluationLevel === 'B' ? 'blue' : s.evaluationLevel === 'D' ? 'orange' : s.evaluationLevel === 'E' ? 'red' : 'gray'}>{s.evaluationLevel}</StatusBadge>}
-                      </div>
-                      <p className="text-xs text-[var(--muted-foreground)] mt-1 mb-1">{s.reason}</p>
-                    </div>
-                  </div>
-                ))}
+                <div className="overflow-x-auto">
+                  <table className="neu-table w-full table-fixed">
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">理由</th></tr></thead>
+                    <tbody>
+                      {altSelected.map((s, i) => (
+                        <tr key={s.userId}>
+                          <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)]" onClick={() => router.push('/expert/' + s.userId)}>{s.name}</span></td>
+                          <td className="text-center text-sm text-[var(--muted-foreground)]">{s.specialty}</td>
+                          <td className="text-center text-xs text-[var(--muted-foreground)]">{s.title || '—'}</td>
+                          <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td>
+                          <td className="text-center text-xs text-[var(--muted-foreground)] max-w-[180px] truncate">{s.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* 通知渠道（适用于全部候补专家） */}
@@ -2282,8 +2313,24 @@ export function ExpertExtractPage({
                           return { eid: e.userId, msg, channels };
                         }).filter((x): x is { eid: string; msg: string; channels: string[] } => x !== null);
                         if (tasks.length === 0) { toast.warning('无可用通知文案'); return; }
+                        // 1. 写入 BidExpert 表（expertRole='候补'），开源确认面板/开标端可读
+                        const altCandidates = altSelected.map(e => ({ userId: e.userId, expertName: e.name, major: e.specialty }));
+                        await confirmExtraction({ projectId: pid, experts: [], candidates: altCandidates, append: true });
+                        // 2. 发送通知
                         await Promise.allSettled(tasks.map(t => sendExtractionNotify({ projectId: pid, expertIds: [t.eid], channels: t.channels, message: t.msg })));
                         setAltNotified(true);
+                        // 3. 写入补选历史
+                        const altRoundNo = reHistory.length + 1;
+                        setReHistory(prev => [...prev, {
+                          roundNo: altRoundNo,
+                          preview: altPreview,
+                          selected: [...altSelected],
+                          alternatives: [],
+                          expertIds: altSelected.map(e => e.userId),
+                          confirmed: true,
+                          notified: true,
+                          isAlt: true,
+                        }]);
                         toast.success(`候补通知已发送（${tasks.length} 名专家）`);
                       } catch (e: any) { toast.error(e?.message || '发送失败'); }
                       setAltNotifying(false);

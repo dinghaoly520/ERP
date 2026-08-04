@@ -38,7 +38,7 @@ import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
 import { AwardFileMaker } from './award-file-maker';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
-import { Modal } from '@/components/workbench';
+import { Modal, StatusBadge } from '@/components/workbench';
 
 // ─── Extracted Info Field Components ───────────────────────────────────────────
 
@@ -71,6 +71,7 @@ function ExpertInfoField({
         department: (parts[1] ?? '').trim(),
         specialty: (parts[2] ?? '').trim(),
         title: (parts[3] ?? '').trim(),
+        role: (parts[4] ?? '').trim(),
       };
     });
   };
@@ -81,15 +82,15 @@ function ExpertInfoField({
   // falling back to display value when edit is first entered
   const editExperts = parseExperts(editValue);
 
-  const syncEditValue = (rows: Array<{ name: string; department: string; specialty: string; title: string }>) => {
-    onEditValueChange(rows.map(e => `${e.name}|${e.department}|${e.specialty}|${e.title}`).join('\n'));
+  const syncEditValue = (rows: Array<{ name: string; department: string; specialty: string; title: string; role: string }>) => {
+    onEditValueChange(rows.map(e => `${e.name}|${e.department}|${e.specialty}|${e.title}|${e.role||''}`).join('\n'));
   };
 
-  const updateExpertField = (index: number, field: 'name' | 'department' | 'specialty' | 'title', newValue: string) => {
+  const updateExpertField = (index: number, field: 'name' | 'department' | 'specialty' | 'title' | 'role', newValue: string) => {
     const updated = [...editExperts];
     if (index >= updated.length) {
       for (let i = updated.length; i <= index; i++) {
-        updated.push({ name: '', department: '', specialty: '', title: '' });
+        updated.push({ name: '', department: '', specialty: '', title: '', role: '' });
       }
     }
     updated[index] = { ...updated[index], [field]: newValue };
@@ -97,7 +98,7 @@ function ExpertInfoField({
   };
 
   const addExpertRow = () => {
-    syncEditValue([...editExperts, { name: '', department: '', specialty: '', title: '' }]);
+    syncEditValue([...editExperts, { name: '', department: '', specialty: '', title: '', role: '' }]);
   };
 
   const removeExpertRow = (index: number) => {
@@ -118,11 +119,12 @@ function ExpertInfoField({
       {isEditing ? (
         <div className="space-y-2">
           {editExperts.map((expert, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-1.5 items-center">
+            <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_80px_auto] gap-1.5 items-center">
               <input type="text" value={expert.name} onChange={(e) => updateExpertField(i, 'name', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="姓名" />
               <input type="text" value={expert.department} onChange={(e) => updateExpertField(i, 'department', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="部门" />
               <input type="text" value={expert.specialty} onChange={(e) => updateExpertField(i, 'specialty', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="专业" />
               <input type="text" value={expert.title} onChange={(e) => updateExpertField(i, 'title', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="职称" />
+              <input type="text" value={(expert as any).role || ''} onChange={(e) => updateExpertField(i, 'role', e.target.value)} className="workbench-input !h-[32px] !text-xs" placeholder="角色" />
               <button type="button" onClick={() => removeExpertRow(i)} className="neu-btn-xs !px-2"><X size={13} /></button>
             </div>
           ))}
@@ -134,18 +136,31 @@ function ExpertInfoField({
           </div>
         </div>
       ) : hasValue && experts.length > 0 ? (
-        <div className="space-y-1">
-          {experts.map((expert, i) => (
-            <div key={i} className="flex items-baseline gap-2 text-sm">
-              <span className="font-semibold text-[color:var(--foreground)]">{expert.name}</span>
-              <span className="text-[color:var(--muted-foreground)]/70">·</span>
-              <span className="text-[color:var(--muted-foreground)]">{expert.department}</span>
-              <span className="text-[color:var(--muted-foreground)]/70">·</span>
-              <span className="text-[color:var(--muted-foreground)]">{expert.specialty}</span>
-              <span className="text-[color:var(--muted-foreground)]/70">·</span>
-              <span className="text-[color:var(--muted-foreground)]">{expert.title}</span>
-            </div>
-          ))}
+        <div className="overflow-x-auto rounded-[10px]" style={{ background: 'oklch(1 0 0 / 0.3)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+          <table className="neu-table w-full min-w-[500px]">
+            <thead>
+              <tr>
+                <th style={{ width: 36 }}>#</th>
+                <th>专家</th>
+                <th>部门</th>
+                <th>专业</th>
+                <th>职称</th>
+                <th style={{ width: 80 }}>角色</th>
+              </tr>
+            </thead>
+            <tbody>
+              {experts.map((expert, i) => (
+                <tr key={i}>
+                  <td className="text-center tabular-nums" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{i + 1}</td>
+                  <td className="font-medium" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)' }}>{expert.name}</td>
+                  <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.department}</td>
+                  <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.specialty}</td>
+                  <td style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)' }}>{expert.title}</td>
+                  <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6 }}>{((expert as any).role === '候补' || (expert as any).role === '补选') ? <StatusBadge tone="orange">候补</StatusBadge> : ((expert as any).role ? <StatusBadge tone="blue">正选</StatusBadge> : null)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="text-sm text-[color:var(--muted-foreground)]/50">待补充</div>
@@ -1890,11 +1905,20 @@ export function ProjectDetailPanel({
         project={item}
         round={bidConfirmRound}
         onSyncProjectInfo={(info) => {
-          setExtractedInfoOverride((prev) => ({
-            ...prev,
-            invitedSuppliers: info.invitedSuppliers || prev?.invitedSuppliers,
-            expertInfo: info.expertInfo || prev?.expertInfo,
-          }));
+          const hasInvited = info.invitedSuppliers.length > 0;
+          const hasExpert = info.expertInfo.length > 0;
+          if (!hasInvited && !hasExpert) return;
+          const payload: Record<string, string | null> = {};
+          if (hasInvited) payload.invitedSuppliers = info.invitedSuppliers;
+          if (hasExpert) payload.expertInfo = info.expertInfo;
+          // 直接落库持久化
+          updateProjectExtractedInfo(item.id, payload as any).then((updated) => {
+            setExtractedInfoOverride((prev) => ({
+              ...prev,
+              ...(hasInvited ? { invitedSuppliers: info.invitedSuppliers } : {}),
+              ...(hasExpert ? { expertInfo: info.expertInfo } : {}),
+            }));
+          }).catch(() => {});
         }}
         onAbort={() => {
           setBidConfirmOpen(false);

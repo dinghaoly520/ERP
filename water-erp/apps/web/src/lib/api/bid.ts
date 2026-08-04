@@ -53,6 +53,7 @@ export interface BidWorkspaceSupplier {
   supplierId: string | null;
   supplierName: string;
   classification?: string | null;
+  tags?: string[] | null;
   downloadStatus: string;
   submitStatus: string;
   decryptStatus: string;
@@ -79,7 +80,7 @@ export interface BidWorkspaceExpert {
   signedIn: boolean;
   avoidanceConfirmed: boolean;
   progress: string;
-  user?: { expertProfile?: { title?: string | null } | null } | null;
+  user?: { expertProfile?: { title?: string | null; employer?: string | null } | null } | null;
 }
 
 export interface BidWorkspace {
@@ -606,4 +607,9 @@ export function resolveExpertDispute(
   dto: { response: string; status: 'resolved' | 'rejected' },
 ) {
   return api.post(`/bid/projects/${bidProjectId}/disputes/${disputeId}/resolve`, dto);
+}
+
+/** 正选↔候补角色互换（开标确认页操作→替换） */
+export function swapExpertRole(bidProjectId: string, fromExpertId: string, toExpertId: string) {
+  return api.post<{ success: boolean }>(`/bid/projects/${bidProjectId}/swap-expert`, { fromExpertId, toExpertId });
 }

@@ -333,13 +333,13 @@ export class BidService {
     const [suppliers, experts, submissions, openingRecordCount] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: id },
-        include: { supplier: { select: { id: true, name: true, classification: { select: { name: true } } } } },
+        include: { supplier: { select: { id: true, name: true, tags: true, classification: { select: { name: true } } } } },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.bidExpert.findMany({
         where: { projectId: id },
-        include: { user: { select: { expertProfile: { select: { title: true } } } } },
-        orderBy: [{ expertRole: 'asc' }, { createdAt: 'asc' }],
+        include: { user: { select: { expertProfile: { select: { title: true, employer: true } } } } },
+        orderBy: [{ expertRole: 'desc' }, { createdAt: 'asc' }],
       }),
       this.prisma.supplierBidSubmission.findMany({
         where: { projectId: id },
@@ -371,6 +371,7 @@ export class BidService {
         supplierId: s.supplierId,
         supplierName: s.supplierName,
         classification: s.supplier?.classification?.name,
+        tags: s.supplier?.tags ?? [],
         downloadStatus: s.downloadStatus,
         submitStatus: s.submitStatus,
         decryptStatus: s.decryptStatus,
@@ -4841,6 +4842,20 @@ export class BidService {
     });
 
     return { revoked: true };
+  }
+
+  /** 正选↔候补角色互换（开标确认页 操作→替换） */
+  async swapExpertRole(projectId: string, fromExpertId: string, toExpertId: string) {
+    const [e1, e2] = await Promise.all([
+      this.prisma.bidExpert.findFirst({ where: { projectId, id: fromExpertId } }),
+      this.prisma.bidExpert.findFirst({ where: { projectId, id: toExpertId } }),
+    ]);
+    if (!e1 || !e2) throw new BadRequestException({ error: '专家记录不存在', code: 'NOT_FOUND' });
+    await this.prisma.$transaction([
+      this.prisma.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补' } }),
+      this.prisma.bidExpert.update({ where: { id: e2.id }, data: { expertRole: '正选' } }),
+    ]);
+    return { success: true };
   }
 }
 

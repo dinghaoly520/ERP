@@ -31,6 +31,7 @@ import {
   notifyBidScheduleChange,
   startEvaluation,
   startOpening,
+  swapExpertRole,
   updateBidProjectSchedule,
   type BidProjectDetail,
   type BidProjectRef,
@@ -45,7 +46,7 @@ import { EvaluationBlock } from './bid-confirm/evaluation-block';
 import { OpeningProgressBlock } from './bid-confirm/opening-progress-block';
 import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
-import { StatusBadge } from '@/components/workbench';
+import { StatusBadge, Modal } from '@/components/workbench';
 
 type Props = {
   isOpen: boolean;
@@ -101,8 +102,22 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const [abortDialogOpen, setAbortDialogOpen] = useState(false);
   // D1: 专家在线状态
   const [expertOnlineCount, setExpertOnlineCount] = useState(0);
+  // 正选专家替换弹窗
+  const [replaceModalOpen, setReplaceModalOpen] = useState(false);
+  const [replaceModalExpert, setReplaceModalExpert] = useState<{ id: string; name: string } | null>(null);
+  const onSyncRef = useRef(onSyncProjectInfo);
+  onSyncRef.current = onSyncProjectInfo;
 
   const showToast = useCallback((text: string, tone: 'ok' | 'err' = 'ok') => setToast({ text, tone }), []);
+
+  // 轻量刷新 workspace（交换角色后只刷新专家数据，不 setLoading 导致页面跳顶）
+  const refreshWorkspace = useCallback(async () => {
+    if (!bidProject?.id) return;
+    try {
+      const ws = await getBidWorkspace(bidProject.id);
+      setWorkspace(ws);
+    } catch {}
+  }, [bidProject?.id]);
 
   const load = useCallback(async () => {
     if (!project) return;
@@ -120,6 +135,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       // 加载供应商回执情况（谈判采购：即受邀供应商名单 + 回复情况）。
       // 邀请页可能把回执行写在 PM-item id 或 BidProject id 下（取决于其当时解析到的项目），
       // 故两个 id 空间都查、按 rsvpNo 去重合并，确保名单不丢。
+      let rsvpLocal = new Map<string, string>();
       try {
         const fetches: Promise<RsvpListResult>[] = [getRsvpList({ projectId: project.id })];
         if (bp.id && bp.id !== project.id) fetches.push(getRsvpList({ projectId: bp.id }).catch(() => ({ total: 0, counts: { ACCEPTED: 0, DECLINED: 0, PENDING: 0 }, items: [] } as RsvpListResult)));
@@ -127,30 +143,32 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         const seen = new Set<string>();
         const merged: RsvpListItem[] = [];
         for (const r of results) for (const it of r.items) if (!seen.has(it.rsvpNo)) { seen.add(it.rsvpNo); merged.push(it); }
-        const map = new Map<string, string>();
-        for (const it of merged) map.set(it.supplierId, it.status);
-        setRsvpMap(map);
+        rsvpLocal = new Map<string, string>();
+        for (const it of merged) rsvpLocal.set(it.supplierId, it.status);
+        setRsvpMap(rsvpLocal);
         setRsvpItems(merged);
       } catch { /* RSVP 加载失败不阻断 */ }
       // 同步确认参加/已投递的供应商+专家组到项目基本信息
-      if (onSyncProjectInfo && ws && project) {
+      if (onSyncRef.current && ws && project) {
         try {
-          // 供应商：回执确认参加 + 已投递标书（谈判/询比走 RSVP rsvpMap.local，其余仅看投递状态）
-          const rsvpLocal = map;
-          const confirmedSubmittedSuppliers = ws.suppliers
+          // 供应商：回执确认参加 + 已投递 → 每行一个，换行分隔（匹配 BiddingUnitsField 格式）
+          const confirmedSuppliers = ws.suppliers
             .filter(s => {
               const hasRsvp = rsvpLocal.size > 0;
               const rsvpOk = hasRsvp ? rsvpLocal.get(s.supplierId) === 'ACCEPTED' : true;
               return rsvpOk && s.submitted;
             })
             .map(s => s.supplierName);
-          // 专家：邀请确认参加
+          // 专家：正选已确认 + 候补（排除已拒绝）→ 每行 姓名|部门|专业|职称（匹配 ExpertInfoField pipe 格式）
           const confirmedExperts = ws.experts
-            .filter(e => e.invitationStatus === 'confirmed')
-            .map(e => `${e.expertName}（${e.major || ''}）`);
-          onSyncProjectInfo({
-            invitedSuppliers: confirmedSubmittedSuppliers.join('、'),
-            expertInfo: confirmedExperts.join('、'),
+            .filter(e => e.expertRole !== '候补' && e.invitationStatus === 'confirmed')
+            .map(e => `${e.expertName}|${e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|正选`);
+          const alternateExperts = ws.experts
+            .filter(e => e.expertRole === '候补' && e.invitationStatus !== 'declined')
+            .map(e => `${e.expertName}|${e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|候补`);
+          onSyncRef.current({
+            invitedSuppliers: confirmedSuppliers.join('\n'),
+            expertInfo: [...confirmedExperts, ...alternateExperts].join('\n'),
           });
         } catch { /* sync 失败不阻断 */ }
       }
@@ -160,7 +178,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     } finally {
       setLoading(false);
     }
-  }, [project]);
+  }, [project, round]);
 
   /* ── Phase 2：详情增量刷新（socket 事件驱动，防抖合并高频事件）── */
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -336,6 +354,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     key: string;
     supplierName: string;
     classification: string;
+    tags: string[];
     rsvpStatus?: string;
     submitted: boolean;
     withdrawn: boolean;
@@ -354,6 +373,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           key: `rsvp-${it.rsvpNo}`,
           supplierName: it.supplierName,
           classification: sub?.classification || '—',
+          tags: it.tags ?? sub?.tags ?? [],
           rsvpStatus: it.status,
           submitted: !!sub?.submitted,
           withdrawn: !!sub?.withdrawn,
@@ -365,6 +385,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         key: s.id,
         supplierName: s.supplierName,
         classification: s.classification || '—',
+        tags: s.tags ?? [],
         rsvpStatus: s.supplierId ? rsvpMap.get(s.supplierId) : undefined,
         submitted: s.submitted,
         withdrawn: s.withdrawn,
@@ -443,7 +464,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
               </div>
             </div>
           ) : workspace && bidProject && stats ? (
-            <div className="mx-auto max-w-[1080px] space-y-5">
+            <div className="space-y-5">
               {/* ▸ 区块2：供应商投标状态 */}
               <SectionCard
                 icon={<Users size={14} />}
@@ -485,15 +506,15 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   />
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="neu-table w-full min-w-[720px]">
+                    <table className="neu-table w-full min-w-[880px]">
                       <thead>
                         <tr>
-                          <th>供应商</th>
-                          <th>资质分类</th>
-                          {isNegotiation && <th>回执情况</th>}
-                          <th>投递状态</th>
-                          <th>投递时间</th>
-                          <th>报价</th>
+                          <th style={{ width: 140 }}>供应商</th>
+                          <th style={{ width: 160 }}>业务标签</th>
+                          {isNegotiation && <th style={{ width: 80 }}>回执情况</th>}
+                          <th style={{ width: 70 }}>投递状态</th>
+                          <th style={{ width: 130 }}>投递时间</th>
+                          <th style={{ width: 110 }}>报价</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -505,7 +526,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                           return (
                             <tr key={r.key} className="row-clickable">
                               <td className="font-medium text-[var(--foreground)]">{r.supplierName}</td>
-                              <td className="text-[var(--muted-foreground)]">{r.classification}</td>
+                              <td className="text-[var(--muted-foreground)]">{r.tags.length > 0 ? r.tags.join('、') : '—'}</td>
                               {isNegotiation && <td><StatusPill tone={rsvpTone}>{rsvpLabel}</StatusPill></td>}
                               <td><StatusPill tone={tone}>{label}</StatusPill></td>
                               <td className="tabular-nums text-[var(--muted-foreground)]">{r.submittedAt ? formatDateTime(r.submittedAt) : '—'}</td>
@@ -540,16 +561,19 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   <EmptyHint text="尚未组建专家组。请先在「专家抽取」步骤完成抽取并通知。" />
                 ) : (
                   (() => {
-                    // 过滤：排除已拒绝/超时的专家（pending 和 confirmed 保留）
+                    // 正选（排除已拒绝）+ 候补（全部展示）。已拒绝的正选不显示，候补始终显示供替换选择。
                     const activeExperts = workspace.experts.filter(
-                      e => e.invitationStatus !== 'declined',
+                      e => (e.expertRole === '候补') || (e.expertRole !== '候补' && e.invitationStatus !== 'declined'),
                     );
+                    const hasAlts = workspace.experts.some(x => x.expertRole === '候补');
                     if (activeExperts.length === 0) {
                       return <EmptyHint text="所有专家均已拒绝或超时，暂无确认的专家组成员。" />;
                     }
-                    const roleLabel = (r: string) => r === '候补' ? '补选' : '正选';
+                    const roleLabel = (r: string) => r === '候补' ? '候补' : '正选';
                     const resolveTitle = (e: typeof workspace.experts[0]) =>
                       e.user?.expertProfile?.title || e.title || null;
+                    const resolveEmployer = (e: typeof workspace.experts[0]) =>
+                      e.user?.expertProfile?.employer || null;
                     return (
                       <div className="overflow-x-auto">
                         <table className="neu-table w-full min-w-[600px]">
@@ -558,22 +582,33 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                               <th style={{ width: 44 }}>#</th>
                               <th>专家</th>
                               <th>专业</th>
+                              <th>部门</th>
                               <th>职称</th>
                               <th>角色</th>
                               <th>确认状态</th>
+                              <th style={{ width: 60 }}>操作</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {activeExperts.map((e, i) => (
-                              <tr key={e.id} className="row-clickable">
-                                <td className="text-center text-[var(--muted-foreground)] tabular-nums">{i + 1}</td>
-                                <td className="font-medium text-[var(--foreground)]">{e.expertName}</td>
-                                <td className="text-[var(--muted-foreground)]">{e.major || '—'}</td>
-                                <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>
-                                <td><StatusBadge tone={e.expertRole === '候补' ? 'orange' : 'blue'}>{roleLabel(e.expertRole)}</StatusBadge></td>
-                                <td>{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
-                              </tr>
-                            ))}
+                            {activeExperts.map((e, i) => {
+                              const isAlt = e.expertRole === '候补';
+                              return (
+                                <tr key={e.id} className="row-clickable">
+                                  <td className="text-center text-[var(--muted-foreground)] tabular-nums">{i + 1}</td>
+                                  <td className="font-medium text-[var(--foreground)]">{e.expertName}</td>
+                                  <td className="text-[var(--muted-foreground)]">{e.major || '—'}</td>
+                                  <td className="text-[var(--muted-foreground)]">{resolveEmployer(e) || '—'}</td>
+                                  <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>
+                                  <td><StatusBadge tone={isAlt ? 'orange' : 'blue'}>{roleLabel(e.expertRole)}</StatusBadge></td>
+                                  <td>{isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
+                                  <td className="text-center">
+                                    {!isAlt && hasAlts && (
+                                      <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName }); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -581,6 +616,44 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   })()
                 )}
               </SectionCard>
+
+              {/* 正选专家替换弹窗 */}
+              {replaceModalOpen && replaceModalExpert && workspace && (
+                <Modal
+                  open
+                  onClose={() => { setReplaceModalOpen(false); setReplaceModalExpert(null); }}
+                  size="sm"
+                  title={`替换专家：${replaceModalExpert.name}`}
+                  description="选择一名候补专家替换当前正选专家"
+                >
+                  <div className="space-y-2 max-h-[260px] overflow-y-auto">
+                    {workspace.experts
+                      .filter(e => e.expertRole === '候补')
+                      .map(alt => (
+                        <button
+                          key={alt.id}
+                          onClick={async () => {
+                            setBusy(true);
+                            try {
+                              await swapExpertRole(bidProject?.id || '', replaceModalExpert.id, alt.id);
+                              showToast(`已将 ${replaceModalExpert.name} 与 ${alt.expertName} 角色互换`);
+                              setReplaceModalOpen(false);
+                              setReplaceModalExpert(null);
+                              void refreshWorkspace();
+                            } catch (err: any) { showToast(err?.message || '替换失败', 'err'); }
+                            setBusy(false);
+                          }}
+                          disabled={busy}
+                          className="neu-btn-soft w-full text-left flex items-center gap-3 p-3"
+                        >
+                          <span className="text-sm font-bold text-[var(--foreground)]">{alt.expertName}</span>
+                          <span className="text-xs text-[var(--muted-foreground)]">{alt.major || '—'}</span>
+                          <StatusBadge tone="orange">候补</StatusBadge>
+                        </button>
+                      ))}
+                  </div>
+                </Modal>
+              )}
 
               {/* ▸ 区块4：评分标准编制（2026-07-24 换用从 :3007 移植的完整编辑器：AI 提取 / 发布锁定 / 模板库 / 客观主观）*/}
               <SectionCard

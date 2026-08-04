@@ -318,7 +318,7 @@ export function declineInvitation(projectId: string, userId: string) {
 
 export function getProjectInvitations(projectId: string) {
   return api.get<{
-    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; title?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
+    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; title?: string | null; employer?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
     summary: { total: number; confirmed: number; declined: number; pending: number; availableCandidates: number; allDeclined: boolean };
   }>(`/expert-admin/invitations/${projectId}`);
 }

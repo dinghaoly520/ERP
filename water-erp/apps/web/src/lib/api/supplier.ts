@@ -184,7 +184,7 @@ export function sendNegotiationConfig(data: NegotiationConfigPayload) {
 }
 
 // ── 邀请回执看板（采购端）──
-export interface RsvpListItem { rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED'; note: string | null; respondedAt: string | null; expired: boolean; }
+export interface RsvpListItem { rsvpNo: string; supplierId: string; supplierName: string; status: 'PENDING' | 'ACCEPTED' | 'DECLINED'; tags?: string[]; note: string | null; respondedAt: string | null; expired: boolean; }
 export interface RsvpListResult { total: number; counts: { ACCEPTED: number; DECLINED: number; PENDING: number }; items: RsvpListItem[]; }
 export function getRsvpList(params: { projectId?: string; invitationId?: string }) {
   const q = new URLSearchParams();
