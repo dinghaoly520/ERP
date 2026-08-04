@@ -246,6 +246,34 @@ export class BidController {
     @CurrentUser('sub') userId: string,
   ) { return this.bidService.nudgeSuppliers(id, dto?.onlyUnsubmitted ?? true, userId); }
 
+  // ── 催促未投递供应商 v2：逐家 AI 文案 + 自选渠道 + 一次性额度（人工/自动共用）──
+  @Get('projects/:id/supplier-nudge')
+  @ApiOperation({ summary: '催促未投递供应商：当前状态/目标数/定时点' })
+  getSupplierNudge(@Param('id') id: string) { return this.bidService.getNudgeStatus(id); }
+
+  @Post('projects/:id/supplier-nudge/send')
+  @ApiOperation({ summary: '催促未投递供应商：人工立即发送（一次性）' })
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  sendSupplierNudge(
+    @Param('id') id: string,
+    @Body() dto: { channels: string[]; messages: Record<string, { title: string; body: string }> },
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.sendNudgeNow(id, dto, userId); }
+
+  @Post('projects/:id/supplier-nudge/schedule')
+  @ApiOperation({ summary: '催促未投递供应商：定时发送（开标前 24h，一次性）' })
+  scheduleSupplierNudge(
+    @Param('id') id: string,
+    @Body() dto: { sendAt: string; channels: string[]; messages: Record<string, { title: string; body: string }> },
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.scheduleNudge(id, dto, userId); }
+
+  @Post('projects/:id/supplier-nudge/cancel')
+  @ApiOperation({ summary: '催促未投递供应商：取消定时' })
+  cancelSupplierNudge(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.bidService.cancelNudge(id, userId);
+  }
+
   @Post('projects/:id/nudge-experts')
   @ApiOperation({ summary: '催促专家签到/评分（站内信+Email 多通道）' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })

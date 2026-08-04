@@ -2,7 +2,6 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle,
   Check,
   ChevronDown,
   ChevronRight,
@@ -25,9 +24,7 @@ import {
   extractAllScorePoints,
   getBidProjectDetail,
   listScoreItems,
-  listScorePoints,
   publishScoreStandard,
-  updatePriceConfig,
   updateScoreItem,
   type BidProjectRef,
   type BidScoreItem,
@@ -67,10 +64,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const [showLib, setShowLib] = useState(false);
   const [bulkGroups, setBulkGroups] = useState<EditableGroup[] | null>(null);
   const [extractingAll, setExtractingAll] = useState(false);
-  // P1: 价格公式配置
-  const [priceConfig, setPriceConfig] = useState<{ ceilingPrice: string; formulaType: string; K: string; penaltyRate: string }>({
-    ceilingPrice: '', formulaType: '', K: '0.97', penaltyRate: '2',
-  });
 
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
@@ -87,15 +80,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         setStage(detail.stage);
         setPublishedAt(detail.scoreStandardPublishedAt ?? null);
         setItems(its);
-        // P1: hydrate 价格公式配置
-        const d = detail as any;
-        const cfg = d?.priceFormulaConfig as any;
-        setPriceConfig({
-          ceilingPrice: d?.ceilingPrice ? String(d.ceilingPrice) : '',
-          formulaType: cfg?.formulaType ?? '',
-          K: cfg?.K ? String(cfg.K) : '0.97',
-          penaltyRate: cfg?.penaltyRate ? String(cfg.penaltyRate) : '2',
-        });
       } catch {
         if (!cancelled) toast.error('评分标准加载失败');
       } finally {
@@ -111,56 +95,10 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
 
   const locked = !!publishedAt || stage === 'EVALUATING' || stage === 'ARCHIVED';
   const totalMax = useMemo(() => items.reduce((s, i) => s + Number(i.maxScore), 0), [items]);
-  const hasPriceItem = useMemo(() => items.some((i) => i.category === 'PRICE'), [items]);
-
-  // P1: 保存价格公式配置
-  const savePriceConfig = useCallback(async (patch: Partial<typeof priceConfig>) => {
-    if (!bpId) return;
-    const merged = { ...priceConfig, ...patch };
-    setPriceConfig(merged);
-    try {
-      const body: Record<string, unknown> = {};
-      if (patch.ceilingPrice !== undefined) body.ceilingPrice = patch.ceilingPrice ? Number(patch.ceilingPrice) : null;
-      if (patch.formulaType !== undefined || patch.K !== undefined || patch.penaltyRate !== undefined) {
-        const ft = patch.formulaType ?? priceConfig.formulaType;
-        if (ft) {
-          body.priceFormulaConfig = {
-            formulaType: ft,
-            ...(ft === 'benchmark_deviation' && { K: Number(merged.K), penaltyRate: Number(merged.penaltyRate) }),
-          };
-        }
-      }
-      if (Object.keys(body).length > 0) await updatePriceConfig(bpId, body);
-    } catch { toast.error('公式配置保存失败'); }
-  }, [bpId, priceConfig]);
   const scoredTotal = useMemo(
     () => items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0),
     [items],
   );
-
-  /** 发布就绪状态：满 100 + 每项有得分点 + 无超出。驱动信号灯 & publish 按钮状态。 */
-  const readiness = useMemo(() => {
-    if (items.length === 0) return { ready: false, sum: 0, issues: [] as string[] };
-    const scoringItems = items.filter((i) => Number(i.maxScore) > 0);
-    const sum = scoringItems.reduce((s, i) => s + Number(i.maxScore), 0);
-    const sumOk = Math.abs(sum - 100) < 0.05;
-    const noPointsItems = scoringItems.filter((i) => !i.points || i.points.length === 0);
-    const exceededItems = scoringItems.filter((i) => {
-      const ps = (i.points ?? []).reduce((s, p) => s + Number(p.fullScore), 0);
-      return ps - Number(i.maxScore) > 0.05;
-    });
-    const issues: string[] = [];
-    if (!sumOk) {
-      issues.push(
-        sum < 100
-          ? `满分合计 ${sum}，差 ${(100 - sum).toFixed(1)} 分`
-          : `满分合计 ${sum}，超出 ${(sum - 100).toFixed(1)} 分`,
-      );
-    }
-    if (noPointsItems.length > 0) issues.push(`${noPointsItems.length} 个打分项缺得分点`);
-    if (exceededItems.length > 0) issues.push(`${exceededItems.length} 个打分项得分点超出满分`);
-    return { ready: sumOk && noPointsItems.length === 0 && exceededItems.length === 0, sum, issues };
-  }, [items]);
 
   // 得分点增删改后刷新 items（含 points 字段）并通知父组件
   const reloadItems = useCallback(async () => {
@@ -174,21 +112,12 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     onChanged?.();
   }, [bpId, onChanged]);
 
-  /** 精准刷新单个评分项的得分点（仅更新自身 items，不冒泡到父面板，避免滚动跳顶） */
-  const reloadItemPoints = useCallback(async (itemId: string) => {
-    if (!bpId) return;
-    try {
-      const pts = await listScorePoints(bpId, itemId);
-      setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, points: pts } : i)));
-    } catch {
-      /* 保留旧数据 */
-    }
-  }, [bpId]);
-
   const handlePublish = async () => {
     if (!bpId) return;
-    if (!readiness.ready) {
-      toast.error(`暂不符合发布条件：${readiness.issues.join('；')}`);
+    const scoredSum = items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0);
+    const incomplete = items.filter((i) => Number(i.maxScore) > 0 && (!i.points || i.points.length === 0));
+    if (scoredSum !== 100 || incomplete.length > 0) {
+      toast.error(`发布前请确保:打分项满分合计=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
       return;
     }
     if (!window.confirm('发布后评分标准将锁定,不可再修改。确认发布?')) return;
@@ -345,28 +274,16 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       {/* 左侧：模板与提取 */}
       <div className="flex flex-wrap items-center gap-2">
         {items.length > 0 && (
-          <button
-            onClick={() => setShowSaveTpl(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
-          >
-            <Save size={14} strokeWidth={1.8} />
-            存为模板
+          <button onClick={() => setShowSaveTpl(true)} className="neu-btn-xs gap-1.5">
+            <Save size={13} />存为模板
           </button>
         )}
-        <button
-          onClick={() => setShowLib(true)}
-          className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff]"
-        >
-          <FileSpreadsheet size={14} strokeWidth={1.8} />
-          应用模板
+        <button onClick={() => setShowLib(true)} className="neu-btn-xs gap-1.5">
+          <FileSpreadsheet size={13} />应用模板
         </button>
         {!locked && (
-          <button
-            onClick={handleBulkExtract}
-            disabled={extractingAll}
-            className="flex items-center gap-1.5 rounded-xl border border-[#dce6f3] bg-white px-3 py-2 text-sm font-bold text-[#064ea2] transition hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Sparkles size={14} strokeWidth={1.8} />
+          <button onClick={handleBulkExtract} disabled={extractingAll} className="neu-btn-xs gap-1.5 is-info">
+            <Sparkles size={13} />
             {extractingAll ? '提取中…' : 'AI 提取'}
           </button>
         )}
@@ -374,28 +291,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       {/* 右侧：发布与新增 */}
       {!locked && (
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => {
-              setShowAdd(true);
-              setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 });
-            }}
-            className="flex items-center gap-1.5 rounded-xl bg-[#064ea2] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#054280]"
-          >
-            <Plus size={14} strokeWidth={2} />
-            新增评分项
+          <button onClick={() => { setShowAdd(true); setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 }); }} className="neu-btn-soft gap-1.5">
+            <Plus size={14} />新增评分项
           </button>
-          <button
-            onClick={handlePublish}
-            disabled={!readiness.ready}
-            title={!readiness.ready ? readiness.issues.join('；') : undefined}
-            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-white transition ${
-              readiness.ready
-                ? 'bg-[#11a874] hover:bg-[#0e8f61]'
-                : 'cursor-not-allowed bg-[#b0bec5]'
-            }`}
-          >
-            <Check size={14} strokeWidth={1.8} />
-            发布评分标准
+          <button onClick={handlePublish} className="neu-btn-primary !h-[38px] !text-xs gap-1.5">
+            <Check size={14} />发布评分标准
           </button>
         </div>
       )}
@@ -405,109 +305,41 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const tableBlock = (
     <>
       {/* ── Summary ── */}
-      <div className="mb-4 rounded-xl bg-[#f3f7fc] px-4 py-3 text-sm">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <span className="text-[#5a6d8a]">
-            评分项：<span className="font-mono font-bold text-[#18243a]">{items.length}</span> 项
-          </span>
-          <span className="text-[#5a6d8a]">
-            打分项满分合计：
-            <span className={`font-mono font-bold ${readiness.ready ? 'text-[#11a874]' : !readiness.issues.length ? 'text-[#064ea2]' : 'text-[#b45309]'}`}>
-              {scoredTotal}
-            </span>
-            <span className="ml-0.5 text-[#8a96aa]">/ 100 分</span>
-          </span>
-          <span className="text-[#8a96aa]">
-            （含 {items.length - items.filter((i) => Number(i.maxScore) > 0).length} 项通过性审查）
-          </span>
-        </div>
-        {items.length > 0 && !locked && !readiness.ready && (
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-[#b45309]">
-            <AlertTriangle size={13} strokeWidth={1.8} />
-            {readiness.issues.join('；')}
-          </div>
-        )}
+      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl neu-table-card-header px-4 py-3 text-sm">
+        <span className="text-[var(--muted-foreground)]">
+          评分项：<span className="font-mono font-bold text-[var(--foreground)]">{items.length}</span> 项
+        </span>
+        <span className="text-[var(--muted-foreground)]">
+          打分项满分合计：<span className="font-mono font-bold text-[var(--accent-strong)]">{scoredTotal}</span> 分
+        </span>
+        <span className="text-[var(--muted-foreground)]/70">
+          （含 {items.length - items.filter((i) => Number(i.maxScore) > 0).length} 项通过性审查）
+        </span>
       </div>
-
-      {/* P1: 价格分公式配置面板(仅当存在 PRICE 类评分项时) */}
-      {hasPriceItem && bpId && !loading && (
-        <div className="mb-4 rounded-xl border border-[#dce6f3] bg-[#fafcff] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Sparkles size={15} strokeWidth={1.8} className="text-[#064ea2]" />
-            <h3 className="text-sm font-bold text-[#18243a]">价格分公式配置</h3>
-            <span className="text-xs text-[#8a96aa]">设置后价格分由系统公式自动计算,专家无需手填</span>
-          </div>
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-[#5a6d8a]">控制价/最高限价(元)</span>
-              <input type="number" className={inputCls + ' w-40'} placeholder="如 500000" value={priceConfig.ceilingPrice}
-                onChange={e => setPriceConfig(p => ({ ...p, ceilingPrice: e.target.value }))}
-                onBlur={e => savePriceConfig({ ceilingPrice: e.target.value })}
-                disabled={locked} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-[#5a6d8a]">公式类型</span>
-              <select className={inputCls + ' w-44'} value={priceConfig.formulaType}
-                onChange={e => { setPriceConfig(p => ({ ...p, formulaType: e.target.value })); savePriceConfig({ formulaType: e.target.value }); }}
-                disabled={locked}>
-                <option value="">未设置(专家手填)</option>
-                <option value="lowest_price">最低评标价法</option>
-                <option value="benchmark_deviation">基准价偏离法</option>
-                <option value="ratio">比例法</option>
-              </select>
-            </label>
-            {priceConfig.formulaType === 'benchmark_deviation' && (
-              <>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-[#5a6d8a]">折扣系数 K</span>
-                  <input type="number" step="0.01" className={inputCls + ' w-20'} value={priceConfig.K}
-                    onChange={e => setPriceConfig(p => ({ ...p, K: e.target.value }))}
-                    onBlur={e => savePriceConfig({ K: e.target.value })}
-                    disabled={locked} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-[#5a6d8a]">扣分系数(每1%偏离)</span>
-                  <input type="number" step="0.1" className={inputCls + ' w-20'} value={priceConfig.penaltyRate}
-                    onChange={e => setPriceConfig(p => ({ ...p, penaltyRate: e.target.value }))}
-                    onBlur={e => savePriceConfig({ penaltyRate: e.target.value })}
-                    disabled={locked} />
-                </label>
-              </>
-            )}
-          </div>
-          {priceConfig.formulaType && (
-            <p className="mt-2 text-xs text-[#8a96aa]">
-              {priceConfig.formulaType === 'lowest_price' && '最低有效报价 = 满分,其余按 最低报价 ÷ 该报价 × 满分 折算'}
-              {priceConfig.formulaType === 'benchmark_deviation' && `基准价 = 控制价 × ${priceConfig.K},双向偏离每 1% 扣 ${priceConfig.penaltyRate}% 满分`}
-              {priceConfig.formulaType === 'ratio' && '控制价 ÷ 报价 × 满分,报价越低分越高'}
-            </p>
-          )}
-        </div>
-      )}
 
       <div className="overflow-x-auto">
         {loading ? (
-          <table className="workbench-table">
+          <table className="neu-table w-full min-w-[640px]">
             <tbody>
               <TableSkeleton cols={5} rows={5} />
             </tbody>
           </table>
         ) : items.length === 0 && !showAdd ? (
           <div className="py-14 text-center">
-            <p className="text-sm text-[#8a96aa]">该项目尚未编制评分标准。</p>
-            <p className="mt-1 text-xs text-[#aab4c5]">
+            <p className="text-sm text-[var(--muted-foreground)]/70">该项目尚未编制评分标准。</p>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]/50">
               评分项是评标的前置条件——无评分项则专家无法打分。请点击「应用模板」选用标准模板，或手动新增。
             </p>
           </div>
         ) : (
-          <table className="workbench-table">
+          <table className="neu-table w-full min-w-[640px]">
             <thead>
-              <tr className="bg-[#f3f7fc]">
+              <tr style={{ background: "oklch(0.975 0.012 258 / 0.5)" }}>
                 <th className="w-8 px-2 py-3"></th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a]">类别</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a]">评分项名称</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-[#5a6d8a]">满分</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-[#5a6d8a]">操作</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">类别</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">评分项名称</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">满分</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--muted-foreground)]">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -518,12 +350,12 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                 return (
                   <Fragment key={it.id}>
                     <tr
-                      className={`border-t border-[#edf2f7] ${isEdit ? '' : 'cursor-pointer hover:bg-[#f8fbff]'}`}
+                      className={`border-t oklch(0.6 0.04 258 / 0.08) ${isEdit ? '' : 'cursor-pointer hover:bg-[oklch(0.97_0.01_258_/_0.5)]'}`}
                       onClick={() => {
                         if (!isEdit) setExpanded((prev) => ({ ...prev, [it.id]: !prev[it.id] }));
                       }}
                     >
-                      <td className="px-2 py-3 text-[#8a96aa]">
+                      <td className="px-2 py-3 text-[var(--muted-foreground)]/70">
                         {!isEdit &&
                           (open ? <ChevronDown size={14} strokeWidth={1.5} /> : <ChevronRight size={14} strokeWidth={1.5} />)}
                       </td>
@@ -553,13 +385,13 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                             className={`${inputCls} w-full max-w-[360px]`}
                           />
                         ) : (
-                          <span className="text-sm font-medium text-[#18243a]">{it.name}</span>
+                          <span className="text-sm font-medium text-[var(--foreground)]">{it.name}</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         {isEdit ? (
                           isPassFailCategory(editDraft.category) ? (
-                            <span className="text-xs font-bold text-[#5a6d8a]">通过性</span>
+                            <span className="text-xs font-bold text-[var(--muted-foreground)]">通过性</span>
                           ) : (
                             <input
                               type="number"
@@ -571,7 +403,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                             />
                           )
                         ) : (
-                          <span className="font-mono text-sm font-bold text-[#064ea2]">
+                          <span className="font-mono text-sm font-bold text-[var(--accent-strong)]">
                             {isPassFailCategory(it.category) ? '通过性' : Number(it.maxScore) > 0 ? `${Number(it.maxScore)}` : '—'}
                           </span>
                         )}
@@ -580,20 +412,20 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                         <div className="flex items-center justify-end gap-1">
                           {isEdit ? (
                             <>
-                              <button onClick={() => handleSaveEdit(it.id)} className="rounded-lg p-1.5 text-[#11a874] hover:bg-[#ecfdf5]" title="保存">
+                              <button onClick={() => handleSaveEdit(it.id)} className="neu-btn-xs is-success" title="保存">
                                 <Check size={15} strokeWidth={1.8} />
                               </button>
-                              <button onClick={() => setEditingId(null)} className="rounded-lg p-1.5 text-[#8a96aa] hover:bg-[#f8fafc]" title="取消">
+                              <button onClick={() => setEditingId(null)} className="neu-btn-xs" title="取消">
                                 <X size={15} strokeWidth={1.8} />
                               </button>
                             </>
                           ) : (
                             !locked && (
                               <>
-                                <button onClick={() => startEdit(it)} className="rounded-lg p-1.5 text-[#5a6d8a] hover:bg-[#f8fafc] hover:text-[#064ea2]" title="编辑">
+                                <button onClick={() => startEdit(it)} className="neu-btn-xs" title="编辑">
                                   <Pencil size={13} strokeWidth={1.5} />
                                 </button>
-                                <button onClick={() => setDeleteConfirm({ id: it.id, name: it.name })} className="rounded-lg p-1.5 text-[#5a6d8a] hover:bg-[#fef2f2] hover:text-[#e74c3c]" title="删除">
+                                <button onClick={() => setDeleteConfirm({ id: it.id, name: it.name })} className="neu-btn-xs is-danger" title="删除">
                                   <Trash2 size={13} strokeWidth={1.5} />
                                 </button>
                               </>
@@ -603,9 +435,9 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                       </td>
                     </tr>
                     {open && !isEdit && bpId && (
-                      <tr className="border-t border-[#edf2f7] bg-[oklch(0.985_0.003_265)]">
+                      <tr className="border-t oklch(0.6 0.04 258 / 0.08) bg-[oklch(0.985_0.003_265)]">
                         <td colSpan={5} className="px-4 pb-4 pt-1">
-                          <ScorePointsEditor projectId={bpId} item={it} points={points} onChanged={() => reloadItemPoints(it.id)} locked={locked} />
+                          <ScorePointsEditor projectId={bpId} item={it} points={points} onChanged={reloadItems} locked={locked} />
                         </td>
                       </tr>
                     )}
@@ -615,7 +447,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
 
               {/* ── Add row ── */}
               {showAdd && (
-                <tr className="border-t-2 border-[#064ea2] bg-[#f8fbff]">
+                <tr className="border-t-2 oklch(0.5 0.16 258) / 0.15">
                   <td className="px-2 py-3"></td>
                   <td className="px-4 py-3">
                     <select
@@ -641,7 +473,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                   </td>
                   <td className="px-4 py-3">
                     {isPassFailCategory(draft.category) ? (
-                      <span className="text-xs font-bold text-[#5a6d8a]">通过性</span>
+                      <span className="text-xs font-bold text-[var(--muted-foreground)]">通过性</span>
                     ) : (
                       <input
                         type="number"
@@ -655,10 +487,10 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={handleCreate} className="rounded-lg p-1.5 text-[#11a874] hover:bg-[#ecfdf5]" title="保存">
+                      <button onClick={handleCreate} className="neu-btn-xs is-success" title="保存">
                         <Check size={15} strokeWidth={1.8} />
                       </button>
-                      <button onClick={() => setShowAdd(false)} className="rounded-lg p-1.5 text-[#8a96aa] hover:bg-white" title="取消">
+                      <button onClick={() => setShowAdd(false)} className="neu-btn-xs" title="取消">
                         <X size={15} strokeWidth={1.8} />
                       </button>
                     </div>
@@ -671,9 +503,9 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       </div>
 
       {items.length > 0 && (
-        <div className="mt-4 flex items-center justify-end border-t border-[#edf2f7] pt-3 text-sm">
-          <span className="text-[#5a6d8a]">满分合计</span>
-          <span className="ml-2 font-mono text-lg font-black text-[#064ea2]">{totalMax}</span>
+        <div className="mt-4 flex items-center justify-end border-t oklch(0.6 0.04 258 / 0.08) pt-3 text-sm">
+          <span className="text-[var(--muted-foreground)]">满分合计</span>
+          <span className="ml-2 font-mono text-lg font-black text-[var(--accent-strong)]">{totalMax}</span>
         </div>
       )}
     </>
@@ -682,8 +514,9 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   return (
     <div className={variant === 'embedded' ? 'space-y-4' : 'space-y-6'}>
       {locked && (
-        <div className="flex items-center gap-2 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-sm text-[#92400e]">
-          <Lock size={14} strokeWidth={1.8} />
+        <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
+          style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)', color: 'oklch(0.55 0.08 75)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)' }}>
+          <Lock size={14} />
           <span>
             {publishedAt
               ? `评分标准已发布(${new Date(publishedAt).toLocaleString('zh-CN')}),不可修改。`
@@ -693,7 +526,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       )}
 
       {variant === 'standalone' ? (
-        <section className="wb-panel p-6">
+        <div className="neu-table-card p-6">
           <div className="mb-4">
             <h3 className="text-base font-bold text-[var(--foreground)]">评分项</h3>
             <p className="mt-1 text-xs text-[var(--muted-foreground)]">
@@ -702,7 +535,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           </div>
           {toolbar}
           {tableBlock}
-        </section>
+        </div>
       ) : (
         <>
           {toolbar}
@@ -723,14 +556,14 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             </button>
             <button
               onClick={confirmDelete}
-              className="rounded-xl bg-[#e74c3c] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#c0392b]"
+              className="neu-btn-primary is-danger !h-[38px] !text-xs"
             >
               确认删除
             </button>
           </>
         }
       >
-        <p className="text-sm text-[#5a6d8a]">
+        <p className="text-sm text-[var(--muted-foreground)]">
           确定要删除评分项「{deleteConfirm?.name}」吗？此操作不可撤销。
         </p>
       </Modal>
@@ -743,18 +576,6 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           projectId={bpId}
           locked={locked}
           onChanged={(updated) => {
-            const scoringUpdated = updated.filter((i) => Number(i.maxScore) > 0);
-            const s = scoringUpdated.reduce((a, i) => a + Number(i.maxScore), 0);
-            if (Math.abs(s - 100) >= 0.05) {
-              toast.warning(
-                `模板应用后满分合计 ${s}（${s < 100 ? `差 ${(100 - s).toFixed(1)}` : `超出 ${(s - 100).toFixed(1)}`}），需调整至 100 分后方可发布`,
-                { duration: 8000 },
-              );
-            }
-            const noPts = scoringUpdated.filter((i) => !i.points || i.points.length === 0);
-            if (noPts.length > 0) {
-              toast.info(`模板不含得分点（${noPts.length} 个打分项），可手动添加或 AI 提取`, { duration: 5000 });
-            }
             setItems(updated);
             onChanged?.();
           }}

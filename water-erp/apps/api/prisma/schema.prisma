@@ -318,6 +318,7 @@ model BidProject {
   bidInvalidBids           BidInvalidBid[]
   expertMemos              ExpertMemo[]
   bidScoreReviews          BidScoreReview[]
+  supplierNudge            BidSupplierNudge?
   awardDeliveries          AwardLetterDelivery[]
   bidRounds                BidRound[]
   motions                  BidMotion[]
@@ -326,6 +327,23 @@ model BidProject {
   updatedAt                DateTime                   @updatedAt
 
   @@index([stage])
+}
+
+/// 开标确认「催促未投递供应商」一次性催促状态（人工/自动共用一次额度）。
+/// status: null=未设 | SCHEDULED=已定时待触发 | SENT=已发送。
+/// messages: 逐家 AI 通知 { supplierId: { title, body } }；channels: 渠道数组。
+/// 定时到点（sendAt）由 SchedulerService 扫描触发；人工发送即置 SENT 并清除定时。
+model BidSupplierNudge {
+  id           String    @id @default(cuid())
+  bidProjectId String    @unique
+  bidProject   BidProject @relation(fields: [bidProjectId], references: [id], onDelete: Cascade)
+  status       String?   // null | SCHEDULED | SENT
+  sendAt       DateTime? // 定时触发时间（开标前 24h）
+  sentAt       DateTime? // 实际发送时间（人工或自动）
+  channels     Json?     // string[]  通知渠道
+  messages     Json?     // Record<supplierId, { title: string; body: string }>
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model BidSupplier {
@@ -478,6 +496,10 @@ model BidExpert {
   totalScore            Decimal                 @default("0") @db.Decimal(8, 1)
   reportConfirmed       Boolean                 @default(false)
   reportConfirmedAt     DateTime?
+  // RSVP token：免登录确认链接（15分钟有效期），发送通知时生成，超时自动弃权
+  rsvpToken             String?                 @unique
+  rsvpExpiresAt         DateTime?
+  rsvpRespondedAt       DateTime?
   user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   project               BidProject              @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scoreRecords          BidScoreRecord[]

@@ -2855,6 +2855,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
       procurementMethod?: string;
       procurementCategory?: string;
       budgetAmount?: number;
+      projectReason?: string;
+      supplierRequirements?: string;
     },
   ) {
     const project = await this.prisma.projectManagementItem.findUnique({
@@ -2955,6 +2957,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
       updateData.budgetAmount = dto.budgetAmount;
     }
 
+    // 申请立项事由 / 对供方的主要要求（schema 非空，空值写空串）
+    if (dto.projectReason !== undefined) {
+      updateData.projectReason = dto.projectReason;
+    }
+
+    if (dto.supplierRequirements !== undefined) {
+      updateData.supplierRequirements = dto.supplierRequirements;
+    }
+
     return this.prisma.projectManagementItem.update({
       where: { id: projectId },
       data: updateData,
@@ -2962,6 +2973,71 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
    
+  /**
+   * 提取并优化"申请立项事由 / 对供方的主要要求"：读 PROCUREMENT_DEMAND + INITIATION 两阶段
+   * 上传文件的内容（优先 AI 分析缓存，无则回退附件原文），结合项目信息调 AI，仅返回不写库。
+   */
+  async optimizeInitiationFields(itemId: string): Promise<{ projectReason: string; supplierRequirements: string }> {
+    const project = await this.prisma.projectManagementItem.findUnique({ where: { id: itemId } });
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+    const demandFileContext = await this.getStageFileContext(itemId, 'PROCUREMENT_DEMAND');
+    const initiationFileContext = await this.getStageFileContext(itemId, 'INITIATION');
+    return this.aiService.optimizeInitiationReasonAndRequirements({
+      projectName: project.title,
+      requesterName: project.requesterName,
+      requesterDepartment: project.requesterDepartment,
+      procurementMethod: project.procurementMethod || '',
+      procurementCategory: project.procurementCategory || '',
+      budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : undefined,
+      currentProjectReason: project.projectReason || '',
+      currentSupplierRequirements: project.supplierRequirements || '',
+      demandFileContext,
+      initiationFileContext,
+    });
+  }
+
+  /** 读取某阶段上传文件的内容上下文：优先 AI 分析缓存，回退附件原文（带截断保护）。 */
+  private async getStageFileContext(itemId: string, stageKey: string): Promise<string> {
+    try {
+      const cachePath = this.getStageAnalysisCachePath(itemId, stageKey);
+      const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
+        files?: Array<{ fileName?: string; contentSummary?: string }>;
+      };
+      if (Array.isArray(cached.files) && cached.files.length > 0) {
+        const parts = cached.files
+          .map((f) => `【${f.fileName || '文件'}】${(f.contentSummary || '').trim()}`)
+          .filter((p) => p.replace(/【.*?】/, '').trim().length > 0);
+        if (parts.length > 0) return parts.join('\n\n').slice(0, 8000);
+      }
+    } catch {
+      // 无分析缓存，回退原文
+    }
+    try {
+      const stage = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: itemId, stageKey },
+        include: { attachments: true },
+      });
+      if (!stage || stage.attachments.length === 0) return '';
+      const chunks: string[] = [];
+      for (const a of stage.attachments.slice(0, 5)) {
+        try {
+          const buffer = await this.storage.download(a.objectKey);
+          const txt = await this.documentParser.parse(buffer, a.mimeType, a.fileName);
+          if (txt && txt.trim()) chunks.push(`【${a.fileName}】${txt.trim().slice(0, 4000)}`);
+        } catch (e) {
+          this.logger.warn(`[optimizeInitiation] 读取附件失败 ${a.fileName}: ${(e as Error)?.message}`);
+        }
+        if (chunks.join('\n').length > 10000) break;
+      }
+      return chunks.join('\n\n').slice(0, 10000);
+    } catch (e) {
+      this.logger.warn(`[optimizeInitiation] 阶段 ${stageKey} 原文读取失败: ${(e as Error)?.message}`);
+      return '';
+    }
+  }
+
   private async generateArchiveFiles(project: any, stages: any[], archivedAt: Date, archiveHook: string) {
     // Primary archive path: project local directory (uploads/archive)
     const localArchiveBasePath = resolve(process.cwd(), 'uploads', 'archive');

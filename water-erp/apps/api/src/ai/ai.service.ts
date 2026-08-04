@@ -223,18 +223,22 @@ export class AiService {
     requesterDepartment?: string;
     requesterName?: string;        // 邀请方/联系人（链接页展示）
     projectReason?: string;
+    supplierRequirements?: string; // 对供方的主要要求
+    projectOverview?: string;      // 项目概况（项目基本信息中的概述）
     fileAnalysisContext?: string;
-    validityDays?: number;         // 回执链接有效期（天），默认 14
+    validityDays?: number;         // 回执链接有效期（天），默认 1（24小时）
   }): Promise<{ title: string; body: string; rsvpTokens: Record<string, string>; invitationId: string | null }> {
     const ctxParts: string[] = [];
     if (context.projectName) ctxParts.push(`项目名称：${context.projectName}`);
     if (context.projectCode) ctxParts.push(`项目编号：${context.projectCode}`);
     if (context.procurementMethod) ctxParts.push(`采购方式：${context.procurementMethod}`);
     if (context.procurementCategory) ctxParts.push(`采购类别：${context.procurementCategory}`);
-    if (context.budgetAmount) ctxParts.push(`预算金额：${context.budgetAmount} 元`);
+    if (context.budgetAmount) ctxParts.push(`预算金额：${context.budgetAmount}`);
     if (context.requesterDepartment) ctxParts.push(`申请部门：${context.requesterDepartment}`);
     if (context.deadline) ctxParts.push(`响应截止：${context.deadline}`);
     if (context.projectReason) ctxParts.push(`立项事由：${context.projectReason.slice(0, 500)}`);
+    if (context.supplierRequirements) ctxParts.push(`对供方要求：${context.supplierRequirements.slice(0, 500)}`);
+    if (context.projectOverview) ctxParts.push(`项目概况：${context.projectOverview.slice(0, 500)}`);
 
     const filesBlock = context.fileAnalysisContext?.trim()
       ? `\n\n项目已上传文件分析摘要：\n${context.fileAnalysisContext.trim().slice(0, 1500)}`
@@ -253,27 +257,103 @@ export class AiService {
       const rows = await this.prisma.supplier.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
       for (const r of rows) nameById.set(r.id, r.name);
       invitationId = createId();
-      const validityDays = Math.min(Math.max(context.validityDays ?? 14, 1), 365);
+      const validityDays = Math.min(Math.max(context.validityDays ?? 1, 1), 365);
       const expiresAt = new Date(Date.now() + validityDays * 86400_000);
+      // AI 整理「项目概况及采购内容」（立项事由 + 供方要求 + 项目概况 → 综合性文字）
+      const overviewSummary = await this.generateOverviewSummary(
+        context.projectReason,
+        context.supplierRequirements,
+        context.projectOverview,
+      );
       const summary = JSON.stringify({
         项目名称: context.projectName || '', 项目编号: context.projectCode || '',
         采购方式: context.procurementMethod || '', 采购类别: context.procurementCategory || '',
-        预算金额: context.budgetAmount ? `${context.budgetAmount} 元` : '',
-        响应截止: context.deadline || '', 邀请方: context.requesterName || context.requesterDepartment || '四川水发集团',
+        预算金额: context.budgetAmount || '',
+        邀请方: context.requesterName || context.requesterDepartment || '四川水发集团',
+        项目概况及采购内容: overviewSummary || '',
       });
       const title0 = `关于${context.projectName || '采购项目'}采购项目候选供应商邀请的通知`;
       const base = (this.config.get<string>('PUBLIC_PORTAL_URL') || 'http://localhost:3004').replace(/\/$/, '');
+
+      // ── 规范 projectId：若传入的是 PM-item id，反查 BidProject id 作为规范 id ──
+      // 确保 rsvp 行始终建在 BidProject id 下，与开标确认面板 / 供应商确认页面一致。
+      let canonicalProjectId = context.projectId || null;
+      if (canonicalProjectId) {
+        const bp = await this.prisma.bidProject.findFirst({
+          where: { projectManagementItemId: canonicalProjectId },
+          select: { id: true },
+        });
+        if (bp) canonicalProjectId = bp.id;
+      }
+
+      // ── 防重复行：同一 (projectId, supplierId) 只保留一行，复用其 token ──
+      // 确保通知链接中的 token 与供应商确认页面显示的 rsvpNo 始终指向同一行。
+      const existingRows = canonicalProjectId
+        ? await this.prisma.invitationRsvp.findMany({
+            where: { projectId: canonicalProjectId, supplierId: { in: ids } },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, token: true, supplierId: true, status: true, expiresAt: true },
+          })
+        : [];
+      const existingBySupplier = new Map<string, { id: string; token: string; status: string; expiresAt: Date }>();
+      const duplicateIds: string[] = [];
+      for (const r of existingRows) {
+        const cur = existingBySupplier.get(r.supplierId);
+        if (!cur) {
+          existingBySupplier.set(r.supplierId, r);
+        } else if (cur.status === 'PENDING' && r.status !== 'PENDING') {
+          // 较旧行已有供应商回复，优先保留；丢弃较新的 PENDING 行
+          duplicateIds.push(cur.id);
+          existingBySupplier.set(r.supplierId, r);
+        } else {
+          duplicateIds.push(r.id);
+        }
+      }
+      if (duplicateIds.length > 0) {
+        this.prisma.invitationRsvp.deleteMany({ where: { id: { in: duplicateIds } } }).catch(() => {});
+      }
+
+      // 统一过期时间：取该项目已有行中最早的 expiresAt（首批通知的过期时间），
+      // 确保所有批次的 RSVP 同时过期，避免后批次"续命"导致状态不一致。
+      let effectiveExpiry = expiresAt;
+      if (existingBySupplier.size > 0) {
+        const earliest = [...existingBySupplier.values()].reduce((min, r) => {
+          const t = new Date(r.expiresAt).getTime();
+          return t < min ? t : min;
+        }, Infinity);
+        if (earliest < Infinity && earliest < expiresAt.getTime()) {
+          effectiveExpiry = new Date(earliest);
+        }
+      }
+
       const createMany: any[] = [];
+      const reuseUpdates: Promise<unknown>[] = [];
       for (const sid of ids) {
         const sname = nameById.get(sid) || '';
-        const rid = createId();
-        // 10 位短随机码替代加密 token，URL 从 400+ 字符缩到 ~40 字符，适合短信
-        const shortCode = randomBytes(6).toString('base64url').slice(0, 10);
-        rsvpTokens[sid] = `${base}/rsvp?t=${shortCode}`;
-        createMany.push({ id: rid, token: shortCode, invitationId, projectId: context.projectId || null, supplierId: sid, supplierName: sname, title: title0, summary, expiresAt });
+        const existing = existingBySupplier.get(sid);
+        if (existing) {
+          // 复用已有行的 token —— rsvpNo 不变，通知链接与确认页面始终一致
+          rsvpTokens[sid] = `${base}/rsvp?t=${existing.token}`;
+          reuseUpdates.push(
+            this.prisma.invitationRsvp.update({
+              where: { id: existing.id },
+              data: { expiresAt: effectiveExpiry, title: title0, summary, invitationId },
+            }),
+          );
+        } else {
+          const rid = createId();
+          // 10 位短随机码替代加密 token，URL 从 400+ 字符缩到 ~40 字符，适合短信
+          const shortCode = randomBytes(6).toString('base64url').slice(0, 10);
+          rsvpTokens[sid] = `${base}/rsvp?t=${shortCode}`;
+          createMany.push({ id: rid, token: shortCode, invitationId, projectId: canonicalProjectId, supplierId: sid, supplierName: sname, title: title0, summary, expiresAt: effectiveExpiry });
+        }
       }
-      // 跳过已存在的（同 invitationId+supplierId 唯一）；批次 id 新生成故一般全插入。
-      await this.prisma.invitationRsvp.createMany({ data: createMany, skipDuplicates: true });
+      if (createMany.length > 0) {
+        await this.prisma.invitationRsvp.createMany({ data: createMany, skipDuplicates: true });
+      }
+      if (reuseUpdates.length > 0) {
+        await Promise.allSettled(reuseUpdates);
+      }
     }
     const hasRsvp = Object.keys(rsvpTokens).length > 0;
 
@@ -287,7 +367,7 @@ export class AiService {
 - ★ 项目编号必须使用输入数据中的真实值；若输入数据中未提供则不得出现项目编号（禁止编造如"GZ2024-001"等示例编号）
 - ★ 所有数字（金额、数量、日期等）必须来自输入数据，不得凭空创造
 - 禁用 Markdown，纯文本
-${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}（原样保留花括号与英文，不要替换、不要加引号、不要拆字）。请用它写一句回执引导，例如："请于响应截止前点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知。"` : ''}`.trim();
+${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}（原样保留花括号与英文，不要替换、不要加引号、不要拆字）。请用它写一句回执引导，例如："请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知。链接有效期为24小时，逾期未点击视为自动放弃。如有疑问请致电四川水发集团采购中心。"` : ''}`.trim();
 
     const userPrompt = [
       `请基于以下信息撰写通知正文（系统会自动在正文前拼接供应商名称和问候语，在正文后附加落款，请仅输出正文段落）：`,
@@ -300,7 +380,7 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
       `正文要求：`,
       `- 通知对象：${context.supplierNames.slice(0, 3).join('、')}${context.supplierNames.length > 3 ? `等 ${context.supplierNames.length} 家供应商` : ''}`,
       `- 告知已被纳入候选名单、项目背景简述`,
-      hasRsvp ? `- 必须含一句回执引导，且原样包含占位符 {rsvpLink}（系统会逐家替换为各供应商专属回执链接，供其点击确认是否参加）` : `- 提醒关注后续正式采购邀请`,
+      hasRsvp ? `- 必须含一句回执引导，且原样包含占位符 {rsvpLink}（系统会逐家替换为各供应商专属回执链接，供其点击确认是否参加）。须注明"请在24小时内点击，链接有效期为24小时，逾期未点击视为自动放弃，如有疑问请致电四川水发集团采购中心"。` : `- 提醒关注后续正式采购邀请`,
       `- 自称使用"四川水发集团"`,
       `- 严格禁止编造未提供的信息`,
       `- 不要输出抬头和落款`,
@@ -312,8 +392,8 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
       if (!hasRsvp) return body;
       if (body.includes('{rsvpLink}')) return body;
       const cta = context.deadline
-        ? `\n\n请于 ${context.deadline} 前点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。`
-        : `\n\n请点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。`;
+        ? `\n\n请于 ${context.deadline} 前（24小时内）点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川水发集团采购中心。`
+        : `\n\n请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川水发集团采购中心。`;
       return body.trimEnd() + cta;
     };
 
@@ -326,8 +406,8 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
       const base2 = `${names} 您好！\n\n您已被初步筛选为「${context.projectName || '相关项目'}」（${context.procurementMethod || '采购'}）的候选供应商。`;
       const cta2 = hasRsvp
         ? (context.deadline
-          ? `\n\n请于 ${context.deadline} 前点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。`
-          : `\n\n请点击 {rsvpLink} 确认是否参加本次采购邀请；如无法参加，亦请在同一链接回执告知。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。`)
+          ? `\n\n请于 ${context.deadline} 前（24小时内）点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川水发集团采购中心。`
+          : `\n\n请在24小时内点击 {rsvpLink} 确认是否参加本次采购邀请；链接有效期为24小时，逾期未点击视为自动放弃。如无法参加，亦请在同一链接回执告知，以便我方调整候选名单。如有疑问请致电四川水发集团采购中心。`)
         : `\n\n请留意后续正式采购邀请及招标文件。如有疑问请与 ${context.requesterDepartment || '采购中心'} 联系。`;
       return {
         title: `关于${context.projectName || '采购项目'}采购项目候选供应商邀请的通知`,
@@ -335,6 +415,42 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
         rsvpTokens,
         invitationId: null,
       };
+    }
+  }
+
+  /** AI 整理「项目概况及采购内容」—— 将立项事由 + 供方要求 + 项目概况汇总为一段综合性文字 */
+  private async generateOverviewSummary(
+    projectReason?: string,
+    supplierRequirements?: string,
+    projectOverview?: string,
+  ): Promise<string> {
+    const sources = [
+      projectReason?.trim(),
+      supplierRequirements?.trim(),
+      projectOverview?.trim(),
+    ].filter(Boolean);
+    if (sources.length === 0) return '';
+    try {
+      const summary = await this.llm.chat(
+        '你是四川水发集团采购项目的概况撰写人。请将以下三部分信息（若存在）整合为一段 100-200 字的项目概况及采购内容综合性文字：\n'
+        + '1) 立项事由：项目发起的背景和原因\n'
+        + '2) 对供方的主要要求：资质、业绩、工期等硬性要求\n'
+        + '3) 项目概况：规模、地点、建设内容等\n\n'
+        + '要求：语言简洁正式，逻辑连贯，不编造不存在的信息，输出纯文字（无 Markdown、无代码块）。',
+        `立项事由：${projectReason || '（无）'}\n\n供方要求：${supplierRequirements || '（无）'}\n\n项目概况：${projectOverview || '（无）'}`,
+        0.2,
+        undefined,
+        undefined,
+        { maxTokens: 500, timeoutMs: 30_000 },
+      );
+      return (summary || '').replace(/```[^]*?```/g, '').trim().slice(0, 500);
+    } catch {
+      // 降级：直接拼接三方内容
+      const fallback = [projectReason, supplierRequirements, projectOverview]
+        .filter(Boolean)
+        .join('；')
+        .slice(0, 500);
+      return fallback || '';
     }
   }
 
@@ -978,8 +1094,91 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     });
     scored.sort((a, b) => b.overlap - a.overlap || b.hits - a.hits);
 
-    const POOL = 40;
-    const pool = scored.slice(0, POOL);
+    // ═══ 多维加权评分 + 加权随机采样 ═══
+    // 问题：纯 n-gram overlap 排序每次结果固定，500+ 供应商中"字符匹配低但语义相关"
+    //       的供应商永不进入 LLM 视线；且评价等级/忙闲状态等择优维度未在预筛选阶段体现。
+    // 方案：① 多维归一化评分（overlap/评价/标签/资质/忙闲）→ ② 加权随机采样
+    //       高分者概率高（不丢失优秀者），中低分者也有机会（引入多样性），
+    //       确定性核心前 40 强保证最匹配者每次必达 LLM。
+    const COMPOSITE_CORE = 40;  // 确定性核心数
+    const COMPOSITE_POOL = 110; // 总候选池（≤110 以适配 LLM 推理模型 token 预算）
+    const SAMPLE_POOL = 300;    // 加权随机采样的候选范围（前 300 名）
+
+    // 归一化用极值
+    const overlapMax = scored[0]?.overlap || 1;
+    const allHits = scored.map(s => s.hits);
+    const hitsMax = Math.max(...allHits, 1);
+    const allEvalGrades = scored.map(s => {
+      const evals: any[] = (s.supplier as any).evaluations || [];
+      return evals.length > 0 ? evals[0].finalGrade : null;
+    });
+    const allActive = scored.map(s => ((s.supplier as any).bidSuppliers || []).length);
+    const activeMax = Math.max(...allActive, 1);
+    const allQualCounts = scored.map(s => ((s.supplier as any).qualifications || []).length);
+    const qualMax = Math.max(...allQualCounts, 1);
+    // 标签命中：需求 n-gram 命中供应商标签关键词
+    const supplierTagsCache = new Map<string, Set<string>>();
+    const tagHits = scored.map(s => {
+      const sid = (s.supplier as any).id as string;
+      if (!supplierTagsCache.has(sid)) {
+        const tags: string[] = (s.supplier as any).tags || [];
+        supplierTagsCache.set(sid, new Set(tags.flatMap(t => this.tokenize(t))));
+      }
+      const tSet = supplierTagsCache.get(sid)!;
+      let th = 0; for (const g of reqGrams) if (tSet.has(g)) th++;
+      return th;
+    });
+    const tagMax = Math.max(...tagHits, 1);
+
+    const scoredWithComposite = scored.map((s, i) => {
+      const evals: any[] = (s.supplier as any).evaluations || [];
+      const evalGrade = evals.length > 0 ? evals[0].finalGrade : null;
+      const active = ((s.supplier as any).bidSuppliers || []).length;
+      const qualCount = ((s.supplier as any).qualifications || []).length;
+
+      // 维度归一化到 0-1
+      const overlapNorm = s.overlap / overlapMax;                          // 0-1
+      const evalNorm = evalGrade === 'A' ? 1 : evalGrade === 'B' ? 0.8     // 0.3-1
+        : evalGrade === 'C' ? 0.6 : evalGrade === 'D' ? 0.4 : 0.3;
+      const tagNorm = tagHits[i] / tagMax;                                 // 0-1
+      const qualNorm = qualCount / qualMax;                                // 0-1
+      const busyNorm = activeMax > 0 ? 1 - (active / activeMax) * 0.5 : 1; // 0.5-1（忙→低分）
+
+      // 加权求和：overlap 权重最高，评价+标签次之，资质+忙闲辅助
+      const composite = overlapNorm * 0.40
+        + evalNorm * 0.22
+        + tagNorm * 0.18
+        + qualNorm * 0.10
+        + busyNorm * 0.10;
+      return { ...s, composite };
+    });
+    scoredWithComposite.sort((a, b) => b.composite - a.composite);
+
+    // ① 确定性核心：前 COMPOSITE_CORE 强每次必到，保证匹配度不降
+    const core = scoredWithComposite.slice(0, COMPOSITE_CORE);
+
+    // ② 加权随机采样：排名 41-SAMPLE_POOL（过滤掉无任何字符重叠+标签重叠的无效候选）
+    const midPool = scoredWithComposite.slice(COMPOSITE_CORE, SAMPLE_POOL)
+      .filter(s => s.overlap > 0 || tagHits[scored.indexOf(s as any)] > 0);
+
+    // 加权抽样：composite 分数 ^ 1.5 作为权重（拉开差距，高分者概率显著更高）
+    const randomPick = Math.min(COMPOSITE_POOL - core.length, midPool.length);
+    const sampled: typeof midPool = [];
+    const remaining = midPool.map((s) => ({ s, w: Math.pow(s.composite, 1.5) }));
+    let currentSum = remaining.reduce((a, b) => a + b.w, 0);
+    for (let k = 0; k < randomPick && remaining.length > 0; k++) {
+      let r = Math.random() * currentSum;
+      let idx = 0;
+      for (let i = 0; i < remaining.length; i++) {
+        r -= remaining[i].w;
+        if (r <= 0 || i === remaining.length - 1) { idx = i; break; }
+      }
+      sampled.push(remaining[idx].s);
+      currentSum -= remaining[idx].w;
+      remaining.splice(idx, 1);
+    }
+
+    const pool = [...core, ...sampled].sort((a, b) => b.composite - a.composite);
     const supplierMap = new Map(pool.map(({ supplier: s }) => [s.id, s]));
     // 评价 + 忙闲状态汇总
     const evalMap = new Map<string, { finalGrade: string; count: number }>();
@@ -1008,8 +1207,13 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       activeProjects: activeMap.get(s.id) ?? 0,
     }));
 
-    // 3. LLM 排序（无 key / 失败 → 规则兜底）
-    const llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount);
+    // 3. LLM 排序（失败重试一次再降级规则引擎，确保正选和补选的一致性）
+    let llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount);
+    if (!llm || llm.recommendations.length === 0) {
+      // 重试一次：缓解 API 瞬时不可用导致的正选/补选分数不可比
+      this.logger.warn('LLM supplier selection failed, retrying once...');
+      llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount);
+    }
 
     let recommendations: SupplierRecommendation[];
     let summary: string;
@@ -1024,10 +1228,11 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     } else {
       engine = 'rules';
       summary = this.fallbackSummary(pool.length, !!opts.classificationId, maxCount);
+      // 规则引擎分数区间抬高到 40-80（原 20-60），使降级结果更接近 LLM 评分范围，减少用户体验落差
       recommendations = pool
         .slice(0, maxCount)
         .map(({ supplier: s, overlap }) =>
-          this.toRecommendation(s.id, Math.round(20 + overlap * 40), this.fallbackReason(s, overlap), supplierMap, enrichment)!,
+          this.toRecommendation(s.id, Math.round(40 + overlap * 40), this.fallbackReason(s, overlap), supplierMap, enrichment)!,
         )
         .filter(Boolean);
     }
@@ -2309,6 +2514,60 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     } catch {
       return `${requesterDepartment}发起「${title}」（${method}），预算${budget}。${context.isCompleted ? '项目已完成归档。' : `${completedStages}/${stageCount}阶段完成，当前处于${currentStageLabel}阶段。`}`;
     }
+  }
+
+  /**
+   * 提取并优化"申请立项事由"与"对供方的主要要求"。
+   * 依据采购需求(PROCUREMENT_DEMAND)与采购立项(INITIATION)两阶段上传文件的分析/原文内容，
+   * 结合项目基本信息，在已有内容基础上优化润色。仅返回，不写库（由前端填编辑态、用户确认后保存）。
+   * 失败直接抛错，不做兜底伪造。
+   */
+  async optimizeInitiationReasonAndRequirements(input: {
+    projectName?: string;
+    requesterName?: string;
+    requesterDepartment?: string;
+    procurementMethod?: string;
+    procurementCategory?: string;
+    budgetAmount?: number;
+    currentProjectReason?: string;
+    currentSupplierRequirements?: string;
+    demandFileContext?: string;
+    initiationFileContext?: string;
+  }): Promise<{ projectReason: string; supplierRequirements: string }> {
+    const system = [
+      '你是国有企业采购立项文书撰写专家，擅长从"采购需求表"与"立项申请材料"中提炼并优化"申请立项事由"和"对供方的主要要求"两段文字。',
+      '# 任务',
+      '根据提供的【采购需求阶段文件内容】与【采购立项阶段文件内容】，结合项目基本信息，提取并优化以下两段：',
+      '1. projectReason（申请立项事由）：阐明为何立项、要解决什么问题、预期目标与必要性，表述专业、完整、连贯成段。',
+      '2. supplierRequirements（对供方的主要要求）：归纳对供方在资质、业绩、技术能力、履约、售后与服务等方面的核心要求，条目清晰。',
+      '# 规则',
+      '- 严格以提供的文件内容为依据，不得编造文件中没有的事实、数字、资质或条款。',
+      '- 若提供了"当前内容"，在其基础上优化润色、补全，不要无谓推翻原有表述。',
+      '- 文件内容不足以支撑某段时，结合项目基本信息谨慎提炼；仍无任何依据时该段返回空字符串。',
+      '- 语言正式、简洁，符合国企采购立项文书风格；严禁使用"根据善意推断"等放行性措辞。',
+      '# 输出格式',
+      '严格返回 JSON：{"projectReason":"...","supplierRequirements":"..."}，不要附加任何解释。',
+    ].join('\n');
+    const user = JSON.stringify({
+      project: {
+        name: input.projectName || '',
+        requesterName: input.requesterName || '',
+        requesterDepartment: input.requesterDepartment || '',
+        procurementMethod: input.procurementMethod || '',
+        procurementCategory: input.procurementCategory || '',
+        budgetAmount: input.budgetAmount,
+      },
+      currentProjectReason: input.currentProjectReason || '',
+      currentSupplierRequirements: input.currentSupplierRequirements || '',
+      采购需求阶段文件内容: input.demandFileContext || '（无）',
+      采购立项阶段文件内容: input.initiationFileContext || '（无）',
+    });
+    const res = await this.llm.chatJson<{ projectReason?: unknown; supplierRequirements?: unknown }>(system, user, 0.2);
+    const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+    return {
+      projectReason: clean(res?.projectReason),
+      supplierRequirements: clean(res?.supplierRequirements),
+    };
   }
 
   /**

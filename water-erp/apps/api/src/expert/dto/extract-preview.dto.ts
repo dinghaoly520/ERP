@@ -2,7 +2,7 @@ import { IsString, IsNotEmpty, IsOptional, IsInt, IsArray, Min, Max, ValidateNes
 import { Type } from 'class-transformer';
 
 export class SpecialtyQuotaDto {
-  @IsString() @IsNotEmpty()
+  @IsString()
   specialty!: string;
 
   @IsInt() @Min(1)
@@ -10,6 +10,10 @@ export class SpecialtyQuotaDto {
 
   @IsOptional() @IsString()
   reason?: string;
+
+  /** 部门限定：该配额仅从工作单位匹配该部门的专家中抽取（用于需求方代表「选择部门」） */
+  @IsOptional() @IsString()
+  employer?: string;
 }
 
 export class ExtractPreviewDto {
@@ -19,7 +23,7 @@ export class ExtractPreviewDto {
   @IsOptional() @IsInt() @Min(1) @Max(9)
   totalNeeded?: number;
 
-  @IsOptional() @IsInt() @Min(0) @Max(5)
+  @IsOptional() @IsInt() @Min(0) @Max(9)
   alternatives?: number;
 
   /** @deprecated 保留兼容，优先使用 extractMode */

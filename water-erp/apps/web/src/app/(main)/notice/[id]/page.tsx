@@ -15,6 +15,7 @@ import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { ArrowLeft, Pencil, X, Trash2, Megaphone, Upload, Sparkles } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 
 /* ── 类型/状态标签 ── */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
@@ -185,7 +186,7 @@ function renderMeta(ann: AnnouncementListItem) {
           </div>
         ))}
       </div>
-    </div>
+      </div>
   );
 }
 
@@ -289,6 +290,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     return out;
   };
   const [metadata, setMetadata] = useState<Record<string, string>>(() => buildMeta(ann.type));
+  const [publishConfig, setPublishConfig] = useState<PublishConfig>(() => configFromMetadata(ann.metadata));
   const [busy, setBusy] = useState(false);
   const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
   const [bidDoc, setBidDoc] = useState<BidDocumentManage | null>(null);
@@ -303,10 +305,20 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
 
   const save = async (targetStatus: AnnouncementStatus): Promise<AnnouncementListItem | null> => {
     if (!title.trim()) { toast.error('请填写标题'); return null; }
+    if (targetStatus === 'PUBLISHED' && publishConfig.visibility === 'RESTRICTED' && publishConfig.restrictedSupplierIds.length === 0) {
+      toast.error('部分供应商可见模式下请至少选择一家供应商');
+      return null;
+    }
+    // 定时发布：实际保存为 DRAFT，由 scheduler 到点自动发布
+    const actualStatus: AnnouncementStatus =
+      targetStatus === 'PUBLISHED' && publishConfig.scheduleMode === 'scheduled' && publishConfig.scheduledPublishDate
+        ? 'DRAFT'
+        : targetStatus;
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
-    const payload = { title, content, type, summary, status: targetStatus, isTop, publishDate, metadata: meta, ...(type === 'BID_NOTICE' ? { relatedProjectCode: meta.projectCode || null } : {}) };
+    const finalMeta = configToMetadata(publishConfig, meta);
+    const payload = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta, ...(type === 'BID_NOTICE' ? { relatedProjectCode: meta.projectCode || null } : {}) };
     try { return await updateAnnouncement(ann.id, payload as any); }
     catch (e: any) { toast.error(e?.message || '保存失败'); return null; }
     finally { setBusy(false); }
@@ -314,12 +326,18 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
 
   const saveDraft = async () => { const s = await save('DRAFT'); if (s) { toast.success('草稿已保存'); onSaved(s); } };
   const publish = async () => {
-    if (type === 'BID_NOTICE' && !bidDoc && !confirm('该招标公示尚未上传招标文件，确认直接发布？')) return;
-    const s = await save('PUBLISHED'); if (s) { toast.success(type === 'BID_NOTICE' ? '已发布' : '已发布'); onSaved(s); }
+    if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) { toast.error('请设置定时发布时间'); return; }
+    if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !confirm('该招标公示尚未上传招标文件，确认直接发布？')) return;
+    const s = await save('PUBLISHED');
+    if (s) {
+      toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
+      onSaved(s);
+    }
   };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
       <div className="neu-table-card p-5 space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
@@ -374,6 +392,8 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
           <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">摘要</label>
           <input value={summary} onChange={e => setSummary(e.target.value)} className="neu-input" placeholder="简要概述..." />
         </div>
+
+
       </div>
 
       <div className="flex flex-col gap-4 min-w-0">
@@ -381,8 +401,15 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
         {type === 'BID_NOTICE' && <BidDocEditSection annId={ann.id} bidDoc={bidDoc} onChanged={loadExtras} />}
         <div className="flex flex-col gap-2 pt-1">
           <button onClick={saveDraft} disabled={busy} className="neu-btn-soft w-full justify-center disabled:opacity-50">{busy ? "保存中..." : "保存草稿"}</button>
-          <button onClick={publish} disabled={busy} className="neu-btn-soft is-success w-full justify-center disabled:opacity-50">{busy ? "处理中..." : "发布"}</button>
+          <button onClick={publish} disabled={busy} className="neu-btn-soft is-success w-full justify-center disabled:opacity-50">{busy ? "处理中..." : publishConfig.scheduleMode === 'scheduled' ? "设定时发布" : "发布"}</button>
         </div>
+      </div>
+      </div>
+
+      {/* 发布配置 — 全宽，在双列网格下方 */}
+      <div className="neu-table-card p-5">
+        <div className="text-xs font-bold text-[var(--accent-strong)] mb-4">发布配置</div>
+        <PublishConfigSection config={publishConfig} onChange={setPublishConfig} />
       </div>
     </div>
   );

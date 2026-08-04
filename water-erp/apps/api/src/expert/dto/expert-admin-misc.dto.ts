@@ -41,6 +41,8 @@ export class GenerateNotificationDto {
   @IsInt() totalExperts!: number;
   @IsString() extractMode!: string;
   @IsString() openTime!: string;
+  @IsOptional() @IsBoolean() isAlternate?: boolean;
+  @IsOptional() @IsString() projectId?: string;
 }
 
 /** 批量启用/停用专家 */
@@ -86,6 +88,12 @@ export class AiSuggestEvaluationDto {
 export class AnalyzeExtractionFilesDto {
   @IsArray() @IsString({ each: true }) @ArrayMaxSize(10)
   fileIds!: string[];
+}
+
+/** 已有项目 AI 推断专业配额（不抽取，仅分析项目返回推荐专业） */
+export class AnalyzeProjectDto {
+  @IsString() @IsNotEmpty()
+  projectId!: string;
 }
 
 /** 自定义抽取：创建影子项目（仅承载抽取/通知/确认，不进项目管理列表） */

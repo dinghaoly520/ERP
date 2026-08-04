@@ -33,6 +33,7 @@ export interface ExtractionSelected {
   specialty: string;
   title?: string | null;
   employer?: string | null;
+  evaluationLevel?: string | null;
   matchScore: number;
   reason: string;
   role: '正选' | '候补';
@@ -62,6 +63,7 @@ export interface ExtractionPreview {
   selected: ExtractionSelected[];
   alternatives: ExtractionSelected[];
   shortages: { specialty: string; needed: number; available: number }[];
+  suggestedLeaderId?: string | null;
   generatedAt: string;
 }
 
@@ -115,13 +117,13 @@ export function previewExtraction(data: {
   extractMode?: 'specialty_match' | 'random' | 'merit_best';
   /** @deprecated 兼容旧UI，优先用 extractMode */
   mode?: 'weighted' | 'fair';
-  manualQuotas?: { specialty: string; count: number }[];
+  manualQuotas?: { specialty: string; count: number; employer?: string }[];
   excludedUserIds?: string[];
 }) {
   return api.post<ExtractionPreview>('/expert-admin/extract', data);
 }
 
-export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[] }) {
+export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[]; append?: boolean }) {
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }
 
@@ -139,6 +141,17 @@ export function analyzeExtractionFiles(fileIds: string[]) {
   return api.post<ExtractionFileAnalysis>('/expert-admin/extract/analyze-files', { fileIds });
 }
 
+/** 已有项目 AI 推断专业配额（仅分析不抽取，用于预填配额） */
+export interface ProjectSpecialtyAnalysis {
+  requiredSpecialties: { specialty: string; count: number; reason: string }[];
+  totalExperts: number;
+  analysis: string;
+  engine: 'ai' | 'rules';
+}
+export function analyzeProjectSpecialties(projectId: string) {
+  return api.post<ProjectSpecialtyAnalysis>('/expert-admin/extract/analyze-project', { projectId });
+}
+
 /** 自定义抽取：创建影子项目（仅承载抽取/通知/确认，不进项目管理列表） */
 export function createCustomProject(data: { name: string; procurementMethod?: string; background?: string; openTime?: string; deadline?: string }) {
   return api.post<{ projectId: string; projectCode: string; name: string; openTime: string }>('/expert-admin/extract/custom-project', data);
@@ -154,8 +167,13 @@ export function uploadExtractionFile(file: File) {
 export function generateNotification(data: {
   projectName: string; expertName: string; isLead: boolean;
   totalExperts: number; extractMode: string; openTime: string;
+  isAlternate?: boolean; projectId?: string;
 }) {
   return api.post<{ success: boolean; generated: boolean; content: string | null }>('/expert-admin/notification/generate', data);
+}
+
+export function prersvpLinks(projectId: string) {
+  return api.post<{ links: Record<string, string> }>(`/expert-admin/projects/${projectId}/rsvp-links`, {});
 }
 
 export function sendExtractionNotify(data: {
@@ -206,6 +224,7 @@ export function aiSuggestEvaluation(expertUserId: string) {
 export interface BidProjectOption {
   id: string; name: string; projectCode: string; stage: string;
   procurementMethod: string; deadline: string; _count: { suppliers: number };
+  projectManagementItemId?: string | null;
 }
 export function listBidProjects() {
   return api.get<BidProjectOption[]>('/bid/projects');
@@ -214,6 +233,8 @@ export function listBidProjects() {
 export interface BidProjectDetail {
   id: string; name: string; projectCode: string; stage: string;
   procurementMethod: string; openTime: string; deadline: string; riskNote?: string | null;
+  budget?: string | number | null;
+  projectManagementItemId?: string | null;
   suppliers: { supplierId: string | null; supplierName: string }[];
   experts: { userId: string; expertName: string; major: string }[];
 }
@@ -297,7 +318,7 @@ export function declineInvitation(projectId: string, userId: string) {
 
 export function getProjectInvitations(projectId: string) {
   return api.get<{
-    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string }[];
+    experts: { id: string; userId: string; expertName: string; major: string; isLead: boolean; expertRole: string; invitationStatus: string; title?: string | null; rsvpRespondedAt?: string | null; rsvpExpiresAt?: string | null; rsvpNo?: string }[];
     summary: { total: number; confirmed: number; declined: number; pending: number; availableCandidates: number; allDeclined: boolean };
   }>(`/expert-admin/invitations/${projectId}`);
 }

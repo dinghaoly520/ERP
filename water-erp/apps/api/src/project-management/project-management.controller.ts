@@ -166,6 +166,11 @@ export class ProjectManagementController {
     return this.projectManagementService.extractTenderFields(id, field);
   }
 
+  @Post(':id/optimize-initiation')
+  optimizeInitiation(@Param('id') id: string) {
+    return this.projectManagementService.optimizeInitiationFields(id);
+  }
+
   @Post(':id/reproc')
   reproc(@Param('id') id: string) {
     return this.projectManagementService.reproc(id);

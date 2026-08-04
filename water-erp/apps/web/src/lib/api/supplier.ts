@@ -118,7 +118,8 @@ export function generateNotificationContent(data: {
   supplierIds?: string[]; projectId?: string | null; deadline?: string;
   procurementMethod?: string; procurementCategory?: string;
   budgetAmount?: string; requesterDepartment?: string; requesterName?: string;
-  projectReason?: string; fileAnalysisContext?: string; validityDays?: number;
+  projectReason?: string; supplierRequirements?: string; projectOverview?: string;
+  fileAnalysisContext?: string; validityDays?: number;
 }) {
   return api.post<{ title: string; body: string; rsvpTokens: Record<string, string>; invitationId: string | null }>('/ai/generate-notification', data);
 }

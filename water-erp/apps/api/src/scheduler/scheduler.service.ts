@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ExpertAdminService } from '../expert/expert-admin.service';
 import { SupplierService } from '../supplier/supplier.service';
+import { AnnouncementService } from '../announcement/announcement.service';
 
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
   const date = input.validTo.toISOString().slice(0, 10);
@@ -24,6 +25,7 @@ export class SchedulerService {
     private notification: NotificationService,
     private expertAdmin: ExpertAdminService,
     private supplierService: SupplierService,
+    private announcementService: AnnouncementService,
   ) {}
 
   // R-4：每天扫描过期超 30 天的临时供应商，记录并通知采购端清理（不删数据，由管理员决定）
@@ -109,53 +111,94 @@ export class SchedulerService {
           where: { id: a.id },
           data: { status: 'PUBLISHED', publishDate: new Date() },
         });
-        if (meta.notifyOnPublish) {
-          await this.sendPublishNotifications(a.id, a.title, meta);
-        }
+        // 委托给 AnnouncementService 统一通知逻辑（按可见范围 + notifyOnPublish 开关）
+        await this.announcementService.notifySuppliersOnPublish(a.id, a.title, { ...meta, __type: a.type });
         this.logger.log(`定时公告发布: ${a.title} (${a.id})`);
       }
     }
   }
 
-  /** 按公告范围向供应商用户发送站内信通知 */
-  private async sendPublishNotifications(
-    annId: string,
-    title: string,
-    meta: Record<string, any>,
-  ) {
-    const visibility = meta.visibility || 'PUBLIC';
-    let userIds: string[];
-    if (
-      visibility === 'RESTRICTED' &&
-      Array.isArray(meta.restrictedSupplierIds) &&
-      meta.restrictedSupplierIds.length > 0
-    ) {
-      const suppliers = await this.prisma.supplier.findMany({
-        where: { id: { in: meta.restrictedSupplierIds } },
-        select: { userId: true },
-      });
-      userIds = suppliers.map((s) => s.userId);
-    } else {
-      const users = await this.prisma.user.findMany({
-        where: { role: 'supplier', isActive: true },
-        select: { id: true },
-      });
-      userIds = users.map((u) => u.id);
-    }
-    for (const userId of userIds) {
+  /** 每分钟扫描"催促未投递供应商"的定时任务（status=SCHEDULED 且 sendAt<=now，通常=开标前 24h）。
+   *  到点重算"已回执参加 + 未投递"目标集合，逐家按所选渠道投递；原子抢占一次性额度（人工已发则跳过）。 */
+  @Cron('0 * * * * *')
+  async fireScheduledSupplierNudges() {
+    const now = new Date();
+    const due = await this.prisma.bidSupplierNudge.findMany({
+      where: { status: 'SCHEDULED', sendAt: { lte: now } },
+      select: { id: true, bidProjectId: true, channels: true, messages: true },
+    });
+    for (const nudge of due) {
       try {
-        await this.notification.create({
-          userId,
-          type: 'ANNOUNCEMENT_PUBLISHED',
-          title: `新采购公告：${title}`,
-          content: `采购公告「${title}」已发布，请前往供应商门户查看详情。`,
-          link: `/notice/${annId}`,
+        const messages = (nudge.messages as Record<string, { title: string; body: string }> | null) ?? {};
+        const channels = (nudge.channels as string[] | null) ?? ['in_app', 'sms', 'phone'];
+        const targets = await this.computeNudgeTargetsLocal(nudge.bidProjectId);
+        // 原子抢占：仅当仍为 SCHEDULED 时置 SENT，避免与人工发送竞态导致重复催促
+        const claimed = await this.prisma.bidSupplierNudge.updateMany({
+          where: { id: nudge.id, status: 'SCHEDULED' },
+          data: { status: 'SENT', sentAt: new Date() },
         });
+        if (claimed.count === 0) continue; // 已被人工发送/取消，跳过
+        let sent = 0;
+        for (const t of targets) {
+          const msg = messages[t.supplierId];
+          if (!msg || !msg.body?.trim()) continue; // 无对应文案者跳过
+          if (!t.userId) continue;
+          try {
+            await this.notification.sendToUser(t.userId, channels, {
+              type: 'BID_NUDGE_SUPPLIER', title: msg.title, content: msg.body, link: null,
+            });
+            sent++;
+          } catch (e) {
+            this.logger.warn(`定时催促发送失败 supplier=${t.supplierId}: ${(e as Error).message}`);
+          }
+        }
+        this.logger.log(`定时催促已发送: bidProject=${nudge.bidProjectId}, 收件 ${sent}/${targets.length}`);
       } catch (e) {
-        this.logger.warn(`通知创建失败 userId=${userId}: ${(e as Error).message}`);
+        this.logger.warn(`定时催促处理失败 nudge=${nudge.id}: ${(e as Error).message}`);
       }
     }
-    this.logger.log(`公告通知已发送: ${title}, 收件人 ${userIds.length} 人`);
+  }
+
+  /** 与 BidService.computeNudgeTargets 同逻辑的本地副本（避免 Scheduler↔Bid 模块循环依赖）。 */
+  private async computeNudgeTargetsLocal(
+    bidProjectId: string,
+  ): Promise<{ supplierId: string; userId: string | null }[]> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: bidProjectId },
+      select: { id: true, projectManagementItemId: true },
+    });
+    if (!project) return [];
+    const pmId = project.projectManagementItemId;
+    const [roster, submissions, rsvps] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId: bidProjectId },
+        select: { supplierId: true, submitStatus: true, supplier: { select: { userId: true } } },
+      }),
+      this.prisma.supplierBidSubmission.findMany({
+        where: { projectId: bidProjectId },
+        select: { supplierId: true, status: true },
+      }),
+      this.prisma.invitationRsvp.findMany({
+        where: { projectId: { in: pmId ? [bidProjectId, pmId] : [bidProjectId] }, status: 'ACCEPTED' },
+        select: { supplierId: true },
+      }),
+    ]);
+    const subMap = new Map(submissions.map(s => [s.supplierId, s]));
+    const userMap = new Map<string, string | null>();
+    for (const r of roster) if (r.supplierId) userMap.set(r.supplierId, r.supplier?.userId ?? null);
+    const seen = new Set<string>();
+    const out: { supplierId: string; userId: string | null }[] = [];
+    for (const r of rsvps) {
+      const sid = r.supplierId;
+      if (!sid || seen.has(sid)) continue;
+      seen.add(sid);
+      const submission = subMap.get(sid);
+      const entry = roster.find(x => x.supplierId === sid);
+      const submitted = submission?.status === 'submitted' || (!submission && entry?.submitStatus === '已提交');
+      if (submitted) continue;
+      out.push({ supplierId: sid, userId: userMap.get(sid) ?? null });
+    }
+    return out;
   }
 
   /** 每小时扫描：投标投递截止（开标前 12h）落在未来 1 小时窗口内的项目，自动催促未投递供应商 */

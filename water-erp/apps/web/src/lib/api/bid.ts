@@ -73,9 +73,13 @@ export interface BidWorkspaceExpert {
   id: string;
   expertName: string;
   major: string;
+  expertRole: string; // 正选 | 候补
+  invitationStatus: string; // pending | confirmed | declined
+  title?: string | null; // 职称，来自 ExpertProfile
   signedIn: boolean;
   avoidanceConfirmed: boolean;
   progress: string;
+  user?: { expertProfile?: { title?: string | null } | null } | null;
 }
 
 export interface BidWorkspace {
@@ -270,6 +274,33 @@ export function nudgeSuppliers(bidProjectId: string, onlyUnsubmitted = true) {
 
 export function nudgeExperts(bidProjectId: string, reason: 'signin' | 'score' = 'signin') {
   return api.post<{ notified: number }>(`/bid/projects/${bidProjectId}/nudge-experts`, { reason });
+}
+
+/* ── 催促未投递供应商 v2：逐家 AI 文案 + 自选渠道 + 一次性额度（人工/自动共用）── */
+
+export interface SupplierNudgeStatus {
+  status: string | null;          // null | SCHEDULED | SENT
+  sendAt: string | null;
+  sentAt: string | null;
+  channels: string[];
+  messageCount: number;
+  canNudge: boolean;
+  openTime: string | null;
+  targets: { supplierId: string; name: string }[];
+}
+export type SupplierNudgeMessage = { title: string; body: string };
+
+export function getSupplierNudgeStatus(bidProjectId: string) {
+  return api.get<SupplierNudgeStatus>(`/bid/projects/${bidProjectId}/supplier-nudge`);
+}
+export function sendSupplierNudge(bidProjectId: string, data: { channels: string[]; messages: Record<string, SupplierNudgeMessage> }) {
+  return api.post<{ sent: number; notFound: number }>(`/bid/projects/${bidProjectId}/supplier-nudge/send`, data);
+}
+export function scheduleSupplierNudge(bidProjectId: string, data: { sendAt: string; channels: string[]; messages: Record<string, SupplierNudgeMessage> }) {
+  return api.post<{ sendAt: string }>(`/bid/projects/${bidProjectId}/supplier-nudge/schedule`, data);
+}
+export function cancelSupplierNudge(bidProjectId: string) {
+  return api.post<{ ok: boolean }>(`/bid/projects/${bidProjectId}/supplier-nudge/cancel`, {});
 }
 
 /** 通知开标时间变更（向全部投标供应商 + 评标专家）*/

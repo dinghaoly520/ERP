@@ -19,6 +19,7 @@ import {
   OcrIntakeDto,
   AiSuggestEvaluationDto,
   AnalyzeExtractionFilesDto,
+  AnalyzeProjectDto,
   CreateCustomProjectDto,
 } from './dto/expert-admin-misc.dto';
 
@@ -89,6 +90,18 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '抽取确认后发送通知（OA/短信/电话多渠道）' })
   sendExtractionNotify(@Body() dto: ExtractionNotifyDto) {
     return this.expertAdminService.sendExtractionNotify(dto.projectId, dto.expertIds, dto.channels, dto.message);
+  }
+
+  @Post('projects/:projectId/rsvp-links')
+  @ApiOperation({ summary: '预生成 RSVP 确认链接（进入通知页时调用，写入通知模板）' })
+  prersvpLinks(@Param('projectId') projectId: string) {
+    return this.expertAdminService.prersvpLinks(projectId);
+  }
+
+  @Post('extract/analyze-project')
+  @ApiOperation({ summary: '已有项目 AI 推断专业配额（仅分析项目不实际抽取，用于预填配额）' })
+  analyzeProject(@Body() dto: AnalyzeProjectDto) {
+    return this.expertAdminService.analyzeProjectSpecialties(dto.projectId);
   }
 
   @Post('extract/analyze-files')

@@ -92,7 +92,6 @@ const navGroups: NavGroup[] = [
     icon: Building2,
     items: [
       { key: "supplier-repo", label: "供应商库", href: "/supplier/repository", icon: Building2, meta: "资源池管理" },
-      { key: "supplier-select", label: "供应商选取", href: "/supplier/selection", icon: Building2, meta: "智能匹配" },
       { key: "supplier-eval", label: "供应商评价", href: "/supplier/evaluation", icon: Building2, meta: "绩效管理" },
     ],
   },
@@ -102,7 +101,6 @@ const navGroups: NavGroup[] = [
     icon: Users,
     items: [
       { key: "expert-repo", label: "专家库", href: "/expert/repository", icon: Users, meta: "专家资源" },
-      { key: "expert-extract", label: "专家抽取", href: "/expert/extract", icon: Users, meta: "随机/手动" },
       { key: "expert-eval", label: "专家评价", href: "/expert/evaluation", icon: Users, meta: "履职考核" },
     ],
   },

@@ -25,13 +25,24 @@ export class RsvpService {
     try { const o = JSON.parse(raw); return o && typeof o === 'object' ? o : {}; } catch { return {}; }
   }
 
-  /** 校验链接 token，返回展示信息 + 当前回执状态。公开调用，失败抛错由控制器转 400。 */
+  /** 校验链接 token，返回展示信息 + 当前回执状态。公开调用，失败抛错由控制器转 400。
+   *  若链接已过期且状态仍为 PENDING，自动标记为 DECLINED（视为自动弃权）。 */
   async verify(token: string): Promise<RsvpView> {
     const row = await this.prisma.invitationRsvp.findUnique({
       where: { token },
       select: { id: true, status: true, respondedAt: true, expiresAt: true, title: true, summary: true, supplierName: true, projectId: true },
     });
     if (!row) throw new NotFoundException({ error: '回执链接无效或已失效', code: 'RSVP_NOT_FOUND' });
+    const expired = new Date(row.expiresAt).getTime() < Date.now();
+    // 过期且仍未回执 → 自动标记为弃权
+    if (expired && row.status === 'PENDING') {
+      await this.prisma.invitationRsvp.update({
+        where: { id: row.id },
+        data: { status: 'DECLINED', respondedAt: new Date(), note: '链接超时（24小时），系统自动视为弃权' },
+      });
+      row.status = 'DECLINED';
+      row.respondedAt = new Date();
+    }
     return {
       supplierName: row.supplierName,
       title: row.title,
@@ -81,7 +92,8 @@ export class RsvpService {
     return { success: true, status: updated.status as RsvpStatus, respondedAt: updated.respondedAt!.toISOString(), rsvpNo: updated.id.slice(-8).toUpperCase() };
   }
 
-  /** 采购端回执看板：按项目（或批次）聚合 接受/拒绝/未回复 + 名单。 */
+  /** 采购端回执看板：按项目（或批次）聚合 接受/拒绝/未回复 + 名单。
+   *  过期且未回执的记录自动标记为弃权，与 verify() 行为一致。 */
   async list(params: { projectId?: string; invitationId?: string }) {
     if (!params.projectId && !params.invitationId) {
       throw new BadRequestException({ error: '请提供 projectId 或 invitationId', code: 'MISSING_RSVP_SCOPE' });
@@ -94,9 +106,56 @@ export class RsvpService {
       orderBy: { createdAt: 'desc' },
       select: { id: true, supplierId: true, supplierName: true, status: true, note: true, respondedAt: true, expiresAt: true, createdAt: true },
     });
-    const counts = { ACCEPTED: 0, DECLINED: 0, PENDING: 0 };
     const now = Date.now();
-    const items = rows.map(r => {
+    // 批量自动弃权：过期且仍为 PENDING 的行
+    const expiredIds = rows.filter(r => new Date(r.expiresAt).getTime() < now && r.status === 'PENDING').map(r => r.id);
+    if (expiredIds.length > 0) {
+      await this.prisma.invitationRsvp.updateMany({
+        where: { id: { in: expiredIds } },
+        data: { status: 'DECLINED', respondedAt: new Date(), note: '链接超时（24小时），系统自动视为弃权' },
+      });
+      for (const r of rows) {
+        if (expiredIds.includes(r.id)) { r.status = 'DECLINED'; r.respondedAt = new Date(); }
+      }
+    }
+
+    // ── 清理重复行：同一 supplierId 只保留一行，确保通知链接与确认页面 rsvpNo 一致 ──
+    const bySupplier = new Map<string, typeof rows>();
+    for (const r of rows) {
+      const arr = bySupplier.get(r.supplierId) || [];
+      arr.push(r);
+      bySupplier.set(r.supplierId, arr);
+    }
+    const deleteIds: string[] = [];
+    for (const [, group] of bySupplier) {
+      if (group.length <= 1) continue;
+      // 优先保留已回复的行；若多行已回复保留最新；全 PENDING 则保留最新（createdAt desc 已排）
+      const responded = group.filter(r => r.status !== 'PENDING');
+      const keep = responded.length > 0
+        ? responded.sort((a, b) => (b.respondedAt?.getTime() ?? 0) - (a.respondedAt?.getTime() ?? 0))[0]
+        : group[0];
+      for (const r of group) {
+        if (r.id === keep.id) continue;
+        // 若被删行有用户回复而保留行没有，转移回复到保留行
+        if (r.status !== 'PENDING' && keep.status === 'PENDING') {
+          await this.prisma.invitationRsvp.update({
+            where: { id: keep.id },
+            data: { status: r.status, respondedAt: r.respondedAt, note: r.note },
+          });
+          keep.status = r.status;
+          keep.respondedAt = r.respondedAt;
+          keep.note = r.note;
+        }
+        deleteIds.push(r.id);
+      }
+    }
+    if (deleteIds.length > 0) {
+      await this.prisma.invitationRsvp.deleteMany({ where: { id: { in: deleteIds } } });
+    }
+    const cleanRows = deleteIds.length > 0 ? rows.filter(r => !deleteIds.includes(r.id)) : rows;
+
+    const counts = { ACCEPTED: 0, DECLINED: 0, PENDING: 0 };
+    const items = cleanRows.map(r => {
       const st = r.status as RsvpStatus;
       if (st in counts) counts[st]++;
       return {
@@ -106,6 +165,6 @@ export class RsvpService {
         expired: new Date(r.expiresAt).getTime() < now,
       };
     });
-    return { total: rows.length, counts, items };
+    return { total: cleanRows.length, counts, items };
   }
 }

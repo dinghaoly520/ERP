@@ -488,6 +488,8 @@ export type ExtractedInfoPayload = {
   procurementMethod?: string;
   procurementCategory?: string;
   budgetAmount?: number;
+  projectReason?: string;
+  supplierRequirements?: string;
 };
 
 export async function updateProjectExtractedInfo(
@@ -544,6 +546,18 @@ export async function auditStageCompliance(
   return parseJsonResponse<ComplianceAuditResponse>(response);
 }
 
+/** AI 提取并优化"申请立项事由 / 对供方的主要要求"，仅返回优化文本，不写库（由调用方填编辑态、用户确认后保存）。 */
+export async function optimizeInitiationFields(
+  projectId: string,
+): Promise<{ projectReason: string; supplierRequirements: string }> {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/optimize-initiation`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  return parseJsonResponse<{ projectReason: string; supplierRequirements: string }>(response);
+}
+
 export async function fetchProjectAttributions(): Promise<ProjectAttribution[]> {
   const response = await fetch(`${API_BASE}/project-management/project-attributions`, {
     credentials: 'include',
@@ -551,4 +565,16 @@ export async function fetchProjectAttributions(): Promise<ProjectAttribution[]> 
   });
 
   return parseJsonResponse<ProjectAttribution[]>(response);
+}
+
+/** 根据项目管理项 ID 获取对应的开评标项目（用于专家抽取等场景直接锁定项目） */
+export async function getPmBidProject(
+  pmId: string,
+  round?: number,
+): Promise<{ id: string; projectCode: string; name: string; stage: string }> {
+  const params = round != null ? `?round=${round}` : '';
+  const response = await fetch(`${API_BASE}/project-management/${pmId}/bid-project${params}`, {
+    credentials: 'include',
+  });
+  return parseJsonResponse(response);
 }

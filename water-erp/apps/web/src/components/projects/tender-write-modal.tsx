@@ -355,10 +355,20 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
         });
         const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
         onAttachmentUploaded?.(uploaded);
-        // 同步 tender-write draft 的 documentAcquireTime 到项目基本信息（绕过 PDF 解析）
-        const acquireTime = (currentDraft as any).documentAcquireTime?.trim();
-        if (acquireTime) {
-          try { await updateProjectExtractedInfo(project.id, { documentAcquireTime: acquireTime }); } catch { /* 同步失败不阻塞 */ }
+        // 同步 tender-write draft 中的字段到项目基本信息（绕过 PDF 解析）
+        // 不同模板的字段名不同：projectOverview/projectIntroduction、documentAcquireTime 等
+        const draftRecord = currentDraft as Record<string, string>;
+        const infoUpdate: Record<string, string> = {};
+        const overviewKey = selectedType === 'INQUIRY_PURCHASE' ? 'projectIntroduction' : 'projectOverview';
+        const overviewVal = draftRecord[overviewKey]?.trim();
+        if (overviewVal) infoUpdate.projectOverview = overviewVal;
+        const acquireVal = draftRecord['documentAcquireTime']?.trim();
+        if (acquireVal) infoUpdate.documentAcquireTime = acquireVal;
+        const evalVal = draftRecord['evaluationMethod']?.trim();
+        if (evalVal) { infoUpdate.evaluationMethod = evalVal /* 非ExtractedInfo字段但DB接受 */; }
+        if (Object.keys(infoUpdate).length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          try { await updateProjectExtractedInfo(project.id, infoUpdate as any); } catch { /* 同步失败不阻塞 */ }
         }
         toast.success('采购文件已上传至项目采购文件阶段');
       } catch {
@@ -440,10 +450,19 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       });
       const uploaded = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
       onAttachmentUploaded?.(uploaded);
-      // 同步 tender-write draft 的 documentAcquireTime 到项目基本信息
-      const acquireTime = (currentDraft as any).documentAcquireTime?.trim();
-      if (acquireTime) {
-        try { await updateProjectExtractedInfo(project.id, { documentAcquireTime: acquireTime }); } catch { /* 同步失败不阻塞 */ }
+      // 同步 tender-write draft 中的字段到项目基本信息（绕过 PDF 解析）
+      const draftRecord2 = currentDraft as Record<string, string>;
+      const infoUpdate2: Record<string, string> = {};
+      const overviewKey2 = selectedType === 'INQUIRY_PURCHASE' ? 'projectIntroduction' : 'projectOverview';
+      const overviewVal2 = draftRecord2[overviewKey2]?.trim();
+      if (overviewVal2) infoUpdate2.projectOverview = overviewVal2;
+      const acquireVal2 = draftRecord2['documentAcquireTime']?.trim();
+      if (acquireVal2) infoUpdate2.documentAcquireTime = acquireVal2;
+      const evalVal2 = draftRecord2['evaluationMethod']?.trim();
+      if (evalVal2) { infoUpdate2.evaluationMethod = evalVal2; }
+      if (Object.keys(infoUpdate2).length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        try { await updateProjectExtractedInfo(project.id, infoUpdate2 as any); } catch { /* 同步失败不阻塞 */ }
       }
       toast.success('采购文件已提交至项目采购文件阶段');
       setShowReviewUploadDialog(false);

@@ -10458,3 +10458,24 @@ select.workbench-input {
   .biz-tag { transition: none; }
   .biz-tag:hover { transform: none; }
 }
+
+/* ── docx-preview 高保真预览（stage-file-list 文件查看）──────────────────
+   docx-preview 运行时会注入 .docx-wrapper / section.docx 默认样式（灰底 + 扁平阴影），
+   此处以更高特异度覆盖，使其融入新拟态面板：透明底 + 方向性双影纸张页。 */
+.docx-preview-host .docx-wrapper {
+  background: transparent;
+  padding: 8px 16px 0;
+}
+.docx-preview-host .docx-wrapper > section.docx {
+  margin-bottom: 24px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.6),
+    2px 2px 6px oklch(0.45 0.04 258 / 0.16),
+    0 10px 24px oklch(0.4 0.04 258 / 0.1);
+}
+/* docx-preview 默认给 span 设 white-space:pre-wrap，会把 AI 生成内容里的字面空白
+   （行尾多余空格、冒号后游离空格）原样显示成可见空白；改回 normal 让浏览器按常规折叠，
+   与 Word 的视觉一致。特异度 (0,2,1) 高于其注入的 .docx span (0,1,1)，稳定覆盖。 */
+.docx-preview-host .docx span {
+  white-space: normal;
+}

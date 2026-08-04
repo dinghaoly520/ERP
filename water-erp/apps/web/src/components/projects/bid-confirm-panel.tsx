@@ -36,19 +36,24 @@ import {
   type BidProjectRef,
   type BidWorkspace,
 } from '@/lib/api/bid';
+import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ArchiveBlock } from './bid-confirm/archive-block';
 import { ClarificationsBlock } from './bid-confirm/clarifications-block';
 import { DisputeBlock } from './bid-confirm/dispute-block';
 import { EvaluationBlock } from './bid-confirm/evaluation-block';
 import { OpeningProgressBlock } from './bid-confirm/opening-progress-block';
+import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
+import { StatusBadge } from '@/components/workbench';
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   project: ProjectManagementItem | null;
   round?: number;
+  /** 同步确认参加/已投递的供应商+专家组到项目基本信息 */
+  onSyncProjectInfo?: (info: { invitedSuppliers: string; expertInfo: string }) => void;
   /** 流标回调（开标完成后选择流标时触发，父面板打开流标公告制作） */
   onAbort?: () => void;
 };
@@ -68,11 +73,15 @@ function formatDateTime(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Props) {
+export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSyncProjectInfo }: Props) {
   const [bidProject, setBidProject] = useState<BidProjectRef | null>(null);
   const [workspace, setWorkspace] = useState<BidWorkspace | null>(null);
   /** Phase 2：项目全量详情（开标进度/评标管理/澄清答疑/归档四区块共用数据源） */
   const [detail, setDetail] = useState<BidProjectDetail | null>(null);
+  /** 供应商回执情况：supplierId → ACCEPTED / DECLINED / PENDING */
+  const [rsvpMap, setRsvpMap] = useState<Map<string, string>>(new Map());
+  /** 邀请回执名单（谈判采购以此为供应商名单来源，含姓名+回执状态） */
+  const [rsvpItems, setRsvpItems] = useState<RsvpListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +90,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
   // 延时开标
   const [delayOpen, setDelayOpen] = useState(false);
   const [delayTime, setDelayTime] = useState('');
+
+  // 催促未投递供应商弹窗
+  const [nudgeOpen, setNudgeOpen] = useState(false);
 
   // 延时开标后的"是否通知供应商与专家"确认
   const [notifyConfirmOpen, setNotifyConfirmOpen] = useState(false);
@@ -105,6 +117,43 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
       ]);
       setWorkspace(ws);
       setDetail(dt);
+      // 加载供应商回执情况（谈判采购：即受邀供应商名单 + 回复情况）。
+      // 邀请页可能把回执行写在 PM-item id 或 BidProject id 下（取决于其当时解析到的项目），
+      // 故两个 id 空间都查、按 rsvpNo 去重合并，确保名单不丢。
+      try {
+        const fetches: Promise<RsvpListResult>[] = [getRsvpList({ projectId: project.id })];
+        if (bp.id && bp.id !== project.id) fetches.push(getRsvpList({ projectId: bp.id }).catch(() => ({ total: 0, counts: { ACCEPTED: 0, DECLINED: 0, PENDING: 0 }, items: [] } as RsvpListResult)));
+        const results = await Promise.all(fetches);
+        const seen = new Set<string>();
+        const merged: RsvpListItem[] = [];
+        for (const r of results) for (const it of r.items) if (!seen.has(it.rsvpNo)) { seen.add(it.rsvpNo); merged.push(it); }
+        const map = new Map<string, string>();
+        for (const it of merged) map.set(it.supplierId, it.status);
+        setRsvpMap(map);
+        setRsvpItems(merged);
+      } catch { /* RSVP 加载失败不阻断 */ }
+      // 同步确认参加/已投递的供应商+专家组到项目基本信息
+      if (onSyncProjectInfo && ws && project) {
+        try {
+          // 供应商：回执确认参加 + 已投递标书（谈判/询比走 RSVP rsvpMap.local，其余仅看投递状态）
+          const rsvpLocal = map;
+          const confirmedSubmittedSuppliers = ws.suppliers
+            .filter(s => {
+              const hasRsvp = rsvpLocal.size > 0;
+              const rsvpOk = hasRsvp ? rsvpLocal.get(s.supplierId) === 'ACCEPTED' : true;
+              return rsvpOk && s.submitted;
+            })
+            .map(s => s.supplierName);
+          // 专家：邀请确认参加
+          const confirmedExperts = ws.experts
+            .filter(e => e.invitationStatus === 'confirmed')
+            .map(e => `${e.expertName}（${e.major || ''}）`);
+          onSyncProjectInfo({
+            invitedSuppliers: confirmedSubmittedSuppliers.join('、'),
+            expertInfo: confirmedExperts.join('、'),
+          });
+        } catch { /* sync 失败不阻断 */ }
+      }
       setDelayTime(toLocalInput(bp.openTime));
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载失败');
@@ -169,6 +218,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
       setBidProject(null);
       setWorkspace(null);
       setDetail(null);
+      setRsvpItems([]);
+      setRsvpMap(new Map());
+      setNudgeOpen(false);
       setError(null);
       setToast(null);
       setDelayOpen(false);
@@ -275,6 +327,51 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
     ? new Date(new Date(bidProject.openTime).getTime() - 12 * 60 * 60 * 1000)
     : null;
 
+  // 谈判采购没有"公告→供应商自行投递"链路，供应商以"受邀名单 + 回执"为准；
+  // 其余方式（询比/邀请招标/竞价）以公告中供应商自行投递为准。
+  const isNegotiation = project?.procurementMethod === '谈判采购';
+
+  // 统一行模型：谈判采购以受邀名单为骨架（合并投递数据），其余以投递供应商为骨架。
+  type SupplierRow = {
+    key: string;
+    supplierName: string;
+    classification: string;
+    rsvpStatus?: string;
+    submitted: boolean;
+    withdrawn: boolean;
+    submittedAt: string | null;
+    bidPrice: string | null;
+  };
+  const wsSuppliers = workspace?.suppliers ?? [];
+  const submissionBySupplier = new Map<string, (typeof wsSuppliers)[number]>();
+  for (const s of wsSuppliers) {
+    if (s.supplierId) submissionBySupplier.set(s.supplierId, s);
+  }
+  const supplierRows: SupplierRow[] = isNegotiation
+    ? rsvpItems.map((it) => {
+        const sub = it.supplierId ? submissionBySupplier.get(it.supplierId) : undefined;
+        return {
+          key: `rsvp-${it.rsvpNo}`,
+          supplierName: it.supplierName,
+          classification: sub?.classification || '—',
+          rsvpStatus: it.status,
+          submitted: !!sub?.submitted,
+          withdrawn: !!sub?.withdrawn,
+          submittedAt: sub?.submission?.submittedAt ?? null,
+          bidPrice: sub?.submission?.bidPrice ?? null,
+        };
+      })
+    : wsSuppliers.map((s) => ({
+        key: s.id,
+        supplierName: s.supplierName,
+        classification: s.classification || '—',
+        rsvpStatus: s.supplierId ? rsvpMap.get(s.supplierId) : undefined,
+        submitted: s.submitted,
+        withdrawn: s.withdrawn,
+        submittedAt: s.submission?.submittedAt ?? null,
+        bidPrice: s.submission?.bidPrice ?? null,
+      }));
+
   return (
     <div className="fixed inset-0 z-[500] flex flex-col">
       <div
@@ -355,20 +452,22 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
                 accentSoft="var(--stage-supplier-soft)"
                 action={
                   <div className="flex items-center gap-2">
-                    <span
-                      className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
-                      style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}
-                      title="标书投递时间范围：公告发布 → 开标前 12 小时"
-                    >
-                      <Clock size={11} />
-                      <span className="tabular-nums">{bidProject.publishTime ? formatDateTime(bidProject.publishTime) : '待发布'}</span>
-                      <span className="opacity-50">→</span>
-                      <span className="tabular-nums">{submitDeadline ? formatDateTime(submitDeadline.toISOString()) : '—'}</span>
-                    </span>
+                    {!isNegotiation && (
+                      <span
+                        className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
+                        style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}
+                        title="标书投递时间范围：公告发布 → 开标前 12 小时"
+                      >
+                        <Clock size={11} />
+                        <span className="tabular-nums">{bidProject.publishTime ? formatDateTime(bidProject.publishTime) : '待发布'}</span>
+                        <span className="opacity-50">→</span>
+                        <span className="tabular-nums">{submitDeadline ? formatDateTime(submitDeadline.toISOString()) : '—'}</span>
+                      </span>
+                    )}
                     <button
                       type="button"
-                      onClick={() => void handleNudgeSuppliers()}
-                      disabled={busy || stats.supplierTotal === 0}
+                      onClick={() => setNudgeOpen(true)}
+                      disabled={!bpId}
                       className="neu-btn-soft !h-[32px] !text-xs"
                     >
                       <BellRing size={13} /> 催促未投递
@@ -376,31 +475,41 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
                   </div>
                 }
               >
-                {workspace.suppliers.length === 0 ? (
-                  <EmptyHint text="暂无投标供应商。邀请招标/竞价等项目，供应商在投标门户响应后会出现。" />
+                {supplierRows.length === 0 ? (
+                  <EmptyHint
+                    text={
+                      isNegotiation
+                        ? '暂无受邀供应商。请先在「供应商邀请」步骤完成邀请，受邀名单与回执将在此同步。'
+                        : '暂无投标供应商。邀请招标/竞价等项目，供应商在投标门户响应后会出现。'
+                    }
+                  />
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="neu-table w-full min-w-[640px]">
+                    <table className="neu-table w-full min-w-[720px]">
                       <thead>
                         <tr>
                           <th>供应商</th>
                           <th>资质分类</th>
+                          {isNegotiation && <th>回执情况</th>}
                           <th>投递状态</th>
                           <th>投递时间</th>
                           <th>报价</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {workspace.suppliers.map((s) => {
-                          const tone = s.submitted ? 'success' : s.withdrawn ? 'warning' : 'muted';
-                          const label = s.submitted ? '已投递' : s.withdrawn ? '已撤回' : '未投递';
+                        {supplierRows.map((r) => {
+                          const tone = r.submitted ? 'success' : r.withdrawn ? 'warning' : 'muted';
+                          const label = r.submitted ? '已投递' : r.withdrawn ? '已撤回' : '未投递';
+                          const rsvpLabel = r.rsvpStatus === 'ACCEPTED' ? '参加' : r.rsvpStatus === 'DECLINED' ? '无法参加' : '未回执';
+                          const rsvpTone = r.rsvpStatus === 'ACCEPTED' ? 'success' : r.rsvpStatus === 'DECLINED' ? 'danger' : 'muted';
                           return (
-                            <tr key={s.id} className="row-clickable">
-                              <td className="font-medium text-[var(--foreground)]">{s.supplierName}</td>
-                              <td className="text-[var(--muted-foreground)]">{s.classification || '—'}</td>
+                            <tr key={r.key} className="row-clickable">
+                              <td className="font-medium text-[var(--foreground)]">{r.supplierName}</td>
+                              <td className="text-[var(--muted-foreground)]">{r.classification}</td>
+                              {isNegotiation && <td><StatusPill tone={rsvpTone}>{rsvpLabel}</StatusPill></td>}
                               <td><StatusPill tone={tone}>{label}</StatusPill></td>
-                              <td className="tabular-nums text-[var(--muted-foreground)]">{s.submission?.submittedAt ? formatDateTime(s.submission.submittedAt) : '—'}</td>
-                              <td className="tabular-nums text-[var(--foreground)]">{s.submission?.bidPrice ? `¥${Number(s.submission.bidPrice).toLocaleString()}` : '—'}</td>
+                              <td className="tabular-nums text-[var(--muted-foreground)]">{r.submittedAt ? formatDateTime(r.submittedAt) : '—'}</td>
+                              <td className="tabular-nums text-[var(--foreground)]">{r.bidPrice ? `¥${Number(r.bidPrice).toLocaleString()}` : '—'}</td>
                             </tr>
                           );
                         })}
@@ -430,30 +539,46 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
                 {workspace.experts.length === 0 ? (
                   <EmptyHint text="尚未组建专家组。请先在「专家抽取」步骤完成抽取并通知。" />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="neu-table w-full min-w-[640px]">
-                      <thead>
-                        <tr>
-                          <th>专家</th>
-                          <th>专业</th>
-                          <th>签到</th>
-                          <th>回避确认</th>
-                          <th>评审进度</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workspace.experts.map((e) => (
-                          <tr key={e.id} className="row-clickable">
-                            <td className="font-medium text-[var(--foreground)]">{e.expertName}</td>
-                            <td className="text-[var(--muted-foreground)]">{e.major || '—'}</td>
-                            <td><StatusPill tone={e.signedIn ? 'success' : 'muted'}>{e.signedIn ? '已签到' : '未签到'}</StatusPill></td>
-                            <td><StatusPill tone={e.avoidanceConfirmed ? 'success' : 'warning'}>{e.avoidanceConfirmed ? '已确认' : '待确认'}</StatusPill></td>
-                            <td className="text-[var(--muted-foreground)]">{e.progress || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  (() => {
+                    // 过滤：排除已拒绝/超时的专家（pending 和 confirmed 保留）
+                    const activeExperts = workspace.experts.filter(
+                      e => e.invitationStatus !== 'declined',
+                    );
+                    if (activeExperts.length === 0) {
+                      return <EmptyHint text="所有专家均已拒绝或超时，暂无确认的专家组成员。" />;
+                    }
+                    const roleLabel = (r: string) => r === '候补' ? '补选' : '正选';
+                    const resolveTitle = (e: typeof workspace.experts[0]) =>
+                      e.user?.expertProfile?.title || e.title || null;
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="neu-table w-full min-w-[600px]">
+                          <thead>
+                            <tr>
+                              <th style={{ width: 44 }}>#</th>
+                              <th>专家</th>
+                              <th>专业</th>
+                              <th>职称</th>
+                              <th>角色</th>
+                              <th>确认状态</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeExperts.map((e, i) => (
+                              <tr key={e.id} className="row-clickable">
+                                <td className="text-center text-[var(--muted-foreground)] tabular-nums">{i + 1}</td>
+                                <td className="font-medium text-[var(--foreground)]">{e.expertName}</td>
+                                <td className="text-[var(--muted-foreground)]">{e.major || '—'}</td>
+                                <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>
+                                <td><StatusBadge tone={e.expertRole === '候补' ? 'orange' : 'blue'}>{roleLabel(e.expertRole)}</StatusBadge></td>
+                                <td>{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()
                 )}
               </SectionCard>
 
@@ -644,6 +769,15 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort }: Pr
           </div>
         )}
       </div>
+
+      {/* 催促未投递供应商弹窗（逐家 AI 文案 + 3 渠道 + 一次性额度，人工/定时共用） */}
+      <NudgeUnsubmittedModal
+        isOpen={nudgeOpen}
+        onClose={() => setNudgeOpen(false)}
+        project={project}
+        bidProjectId={bpId ?? ''}
+        onChanged={() => void load()}
+      />
     </div>
   );
 }

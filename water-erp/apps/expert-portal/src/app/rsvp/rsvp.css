@@ -1,0 +1,47 @@
+.rv { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 18px; position: relative; overflow: hidden; }
+.rv-bg { position: absolute; inset: 0; z-index: -3; background-image: url('/bg-hydro-hero-7.png'); background-position: center; background-size: cover; filter: saturate(0.7) contrast(0.92) brightness(1.02); transform: scale(1.04); }
+.rv::after { position: absolute; inset: 0; z-index: -1; content: ''; pointer-events: none; background: linear-gradient(180deg, oklch(0.96 0.012 258 / 30%), oklch(0.96 0.012 258 / 78%)), radial-gradient(circle at 50% 30%, oklch(1 0 0 / 22%), transparent 50%); }
+.rv-brand { position: fixed; top: 26px; left: 6vw; z-index: 3; display: inline-flex; align-items: center; gap: 12px; }
+.rv-brand-mark { width: 50px; height: 50px; border-radius: 14px; object-fit: cover; background: #fff; padding: 5px; box-sizing: border-box; box-shadow: 4px 4px 12px oklch(0.3 0.05 252 / 0.3), -2px -2px 8px oklch(1 0 0 / 0.4); }
+.rv-brand-name { font-size: 20px; font-weight: 800; letter-spacing: 0.05em; color: #fff; text-shadow: 0 6px 22px rgba(0,0,0,0.32); }
+.rv-panel { width: 100%; max-width: 520px; position: relative; z-index: 2; }
+.rv-card { position: relative; width: 100%; padding: 28px 34px 38px; border-radius: 24px; background: linear-gradient(180deg, oklch(0.995 0.01 252), oklch(0.965 0.018 252)); box-shadow: 12px 12px 30px oklch(0.42 0.05 252 / 0.16), -9px -9px 24px oklch(1 0 0 / 0.92), inset 0 1px 0 oklch(1 0 0 / 0.85); animation: rv-rise 0.5s ease backwards; }
+@keyframes rv-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+.rv-head { margin-bottom: 22px; text-align: center; }
+.rv-brand-word { display: block; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; color: oklch(0.38 0.08 252); }
+.rv-brand-word span { font-size: 20px; margin: 0 6px; opacity: 0.5; color: oklch(0.55 0.15 252); }
+.rv-divider { display: flex; align-items: center; justify-content: center; width: 150px; margin: 14px auto 4px; color: oklch(0.55 0.12 252); font-size: 9px; }
+.rv-divider::before, .rv-divider::after { content: ''; flex: 1; height: 1px; }
+.rv-divider::before { background: linear-gradient(90deg, transparent, oklch(0.6 0.1 252)); margin-right: 10px; }
+.rv-divider::after { background: linear-gradient(270deg, transparent, oklch(0.6 0.1 252)); margin-left: 10px; }
+.rv-title { margin: 0; font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-size: 24px; font-weight: 600; letter-spacing: 0.12em; color: oklch(0.32 0.05 252); }
+.rv-to { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px; border-radius: 14px; margin-bottom: 14px; background: oklch(0.55 0.15 252 / 8%); border: 1px solid oklch(0.55 0.15 252 / 22%); }
+.rv-to-label { font-size: 12px; color: #999; white-space: nowrap; }
+.rv-to-name { font-size: 17px; font-weight: 800; color: oklch(0.38 0.08 252); }
+.rv-subject { margin: 0 0 14px; font-size: 15px; font-weight: 700; line-height: 1.5; color: #333; }
+.rv-code { font-size: 12px; color: #999; margin-bottom: 14px; }
+.rv-info { margin: 0 0 16px; display: grid; gap: 8px; }
+.rv-info-row { display: flex; gap: 10px; font-size: 13px; line-height: 1.5; padding-bottom: 8px; border-bottom: 1px dashed #e0e0e0; }
+.rv-info-row dt { flex: none; width: 72px; color: #999; font-weight: 600; }
+.rv-info-row dd { margin: 0; color: #333; font-weight: 600; }
+.rv-warn { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; font-size: 13px; color: #b45309; background: oklch(0.7 0.15 60 / 10%); border: 1px solid oklch(0.7 0.15 60 / 30%); }
+.rv-actions { margin-top: 4px; }
+.rv-prompt { margin: 0 0 12px; font-size: 13px; font-weight: 700; color: #333; }
+.rv-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rv-btn { height: 52px; border: none; border-radius: 14px; font-weight: 800; font-size: 15px; letter-spacing: 0.08em; cursor: pointer; transition: transform .2s ease, box-shadow .2s ease; }
+.rv-btn:disabled { opacity: 0.6; cursor: wait; }
+.rv-btn--accept { color: #fff; background: linear-gradient(180deg, oklch(0.62 0.16 150), oklch(0.5 0.15 150)); box-shadow: 4px 4px 12px oklch(0.4 0.12 150 / 0.32), inset 0 1px 0 oklch(1 0 0 / 0.3); }
+.rv-btn--accept:hover { transform: translateY(-2px); }
+.rv-btn--decline { color: oklch(0.5 0.16 25); background: linear-gradient(180deg, oklch(0.99 0.01 25), oklch(0.95 0.02 25)); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 6px oklch(0.55 0.03 258 / 0.12); }
+.rv-btn--decline:hover { transform: translateY(-1px); }
+.rv-state { text-align: center; padding: 30px 0; }
+.rv-spin { width: 28px; height: 28px; margin: 0 auto 10px; border: 3px solid oklch(0.9 0.02 252); border-top-color: oklch(0.55 0.15 252); border-radius: 50%; animation: rv-spin 0.8s linear infinite; }
+@keyframes rv-spin { to { transform: rotate(360deg); } }
+.rv-state-ico { width: 48px; height: 48px; margin: 0 auto 10px; border-radius: 50%; background: oklch(0.7 0.15 25 / 10%); color: oklch(0.5 0.15 25); font-size: 28px; font-weight: 800; line-height: 48px; }
+.rv-state-msg { font-size: 14px; font-weight: 600; color: #555; }
+.rv-hint { font-size: 12px; color: #aaa; margin-top: 4px; }
+.rv-done { text-align: center; padding: 24px 0; }
+.rv-done-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 22px; border-radius: 14px; font-size: 16px; font-weight: 800; }
+.rv-done--accept .rv-done-badge { color: oklch(0.45 0.15 150); background: oklch(0.7 0.15 150 / 10%); border: 1px solid oklch(0.7 0.15 150 / 30%); }
+.rv-done--decline .rv-done-badge { color: oklch(0.5 0.15 25); background: oklch(0.7 0.15 25 / 10%); border: 1px solid oklch(0.7 0.15 25 / 30%); }
+.rv-credit { text-align: center; font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 18px; letter-spacing: 0.1em; }

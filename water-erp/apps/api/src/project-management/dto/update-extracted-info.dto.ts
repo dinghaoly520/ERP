@@ -86,4 +86,13 @@ export class UpdateExtractedInfoDto {
   @IsOptional()
   @IsNumber()
   budgetAmount?: number;
+
+  // ── 新增：申请立项事由 / 对供方的主要要求（可手动编辑）──
+  @IsOptional()
+  @IsString()
+  projectReason?: string;
+
+  @IsOptional()
+  @IsString()
+  supplierRequirements?: string;
 }

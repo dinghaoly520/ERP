@@ -21,7 +21,7 @@ const done = ref<{ status: 'ACCEPTED' | 'DECLINED'; rsvpNo: string; respondedAt:
 
 const SUMMARY_LABEL: Record<string, string> = {
   项目名称: '采购项目', 项目编号: '项目编号', 采购方式: '采购方式', 采购类别: '采购类别',
-  预算金额: '预算金额', 响应截止: '响应截止', 邀请方: '邀请方',
+  预算金额: '预算金额', 邀请方: '邀请方', 项目概况及采购内容: '项目概况及采购内容',
 }
 
 async function load() {
@@ -39,7 +39,7 @@ async function load() {
     phase.value = 'invalid'
     const code = e?.response?.data?.code
     errMsg.value = code === 'RSVP_EXPIRED'
-      ? '该回执链接已过期，请联系采购方重新发送邀请。'
+      ? '该回执链接已超过24小时有效期，已自动视为放弃。如有疑问请致电四川水发集团采购中心。'
       : (e?.response?.data?.error || '回执链接无效或已失效，请从最新通知中的链接打开。')
   }
 }
@@ -54,7 +54,7 @@ async function submit(status: 'ACCEPTED' | 'DECLINED') {
     ElMessage.success(status === 'ACCEPTED' ? '已确认参加，感谢您的回执' : '已记录您的回执')
   } catch (e: any) {
     const code = e?.response?.data?.code
-    ElMessage.error(code === 'RSVP_EXPIRED' ? '回执链接已过期' : (e?.response?.data?.error || '提交失败，请稍后重试'))
+    ElMessage.error(code === 'RSVP_EXPIRED' ? '回执链接已超过24小时有效期，已自动视为放弃' : (e?.response?.data?.error || '提交失败，请稍后重试'))
   } finally {
     submitting.value = false
   }
@@ -105,14 +105,14 @@ onMounted(load)
           <!-- 关键信息（来自签名 token 解密） -->
           <dl class="rv-info">
             <template v-for="(val, key) in view.summary" :key="String(key)">
-              <div v-if="val" class="rv-info-row">
+              <div v-if="val && key !== '响应截止'" class="rv-info-row">
                 <dt>{{ SUMMARY_LABEL[String(key)] || String(key) }}</dt>
                 <dd>{{ val }}</dd>
               </div>
             </template>
           </dl>
 
-          <p v-if="view.expired" class="rv-warn">该回执链接已超过有效期。</p>
+          <p v-if="view.expired" class="rv-warn">该回执链接已超过24小时有效期，已自动视为放弃。如有疑问请致电四川水发集团采购中心。</p>
 
           <!-- 已回执 / 提交后：展示结果 -->
           <div v-if="done || (view.status !== 'PENDING')" class="rv-done" :class="done?.status === 'DECLINED' || view.status === 'DECLINED' ? 'is-declined' : 'is-accepted'">
@@ -133,7 +133,7 @@ onMounted(load)
             </div>
             <label class="rv-note-label">备注（选填，如档期冲突、资质说明等）</label>
             <textarea v-model="note" class="rv-note" rows="3" maxlength="500" placeholder="可补充说明，便于采购方了解情况…" />
-            <p class="rv-privacy">本链接仅贵司有效，{{ view.expiresAt ? new Date(view.expiresAt).toLocaleDateString('zh-CN') : '' }} 前有效；您的选择将被记录。</p>
+            <p class="rv-privacy">本链接仅贵司有效，24小时内有效；您的选择将被记录，逾期未点击视为自动放弃。</p>
           </div>
         </template>
       </div>

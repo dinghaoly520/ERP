@@ -33,8 +33,8 @@ export default async function proxy(request: NextRequest) {
   const token = request.cookies.get(COOKIE)?.value;
   const { pathname } = request.nextUrl;
 
-  // Allow public assets without auth
-  if (pathname.startsWith('/assets')) {
+  // Allow public assets without auth (images, css, js chunks)
+  if (pathname.startsWith('/assets') || /\.(png|jpg|jpeg|gif|svg|ico|webp|css)$/i.test(pathname)) {
     return NextResponse.next();
   }
 
@@ -58,6 +58,11 @@ export default async function proxy(request: NextRequest) {
         }
       } catch { /* token validation failed — allow login page */ }
     }
+    return NextResponse.next();
+  }
+
+  // 邀请 + RSVP 确认页：公开访问，无需登录
+  if (pathname.startsWith('/invitation') || pathname.startsWith('/rsvp')) {
     return NextResponse.next();
   }
 
@@ -87,11 +92,6 @@ export default async function proxy(request: NextRequest) {
     }
   } catch {
     return loginWithRedirect();
-  }
-
-  // 邀请确认页（通知链接落地）：通过鉴权后任意设备直接渲染，不参与桌面/平板分流
-  if (pathname.startsWith('/invitation')) {
-    return NextResponse.next();
   }
 
   // ── 设备模式判断（手动覆盖 > cookie > UA 检测）──

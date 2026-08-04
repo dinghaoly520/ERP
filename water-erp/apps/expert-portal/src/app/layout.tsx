@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             var touchTablet = navigator.maxTouchPoints > 1 && !/Mobile/i.test(ua);
             var isTablet = uaTablet || androidTablet || touchTablet;
             if (!isTablet) return;
-            if (location.pathname === '/tablet' || location.pathname.indexOf('/tablet/') === 0 || location.pathname === '/login' || location.pathname.indexOf('/invitation') === 0) return;
+            if (location.pathname === '/tablet' || location.pathname.indexOf('/tablet/') === 0 || location.pathname === '/login' || location.pathname.indexOf('/invitation') === 0 || location.pathname.indexOf('/rsvp') === 0) return;
             document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
             location.replace('/tablet');
           })()`}

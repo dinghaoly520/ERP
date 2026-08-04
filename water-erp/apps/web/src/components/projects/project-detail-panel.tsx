@@ -1,8 +1,7 @@
 "use client";
 
-import { AlertTriangle, Archive, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
   analyzeProjectManagementItem,
@@ -15,6 +14,7 @@ import {
   updateProjectExtractedInfo,
   uploadProjectStageAttachment,
   auditStageCompliance,
+  optimizeInitiationFields,
   type ComplianceAuditResponse,
   type ExtractedInfo,
   type UploadStageAttachmentResult,
@@ -33,6 +33,7 @@ import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
 import { SupplierExtractModal } from './supplier-extract-modal';
+import { ExpertExtractModal } from './expert-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
 import { AwardFileMaker } from './award-file-maker';
@@ -297,7 +298,6 @@ export function ProjectDetailPanel({
   currentUsername?: string;
   autoOpenBidConfirm?: boolean;
 }) {
-  const router = useRouter();
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
   const [selectedRound, setSelectedRound] = useState(item.currentRound ?? 1);
   const [bidConfirmRound, setBidConfirmRound] = useState(1);
@@ -364,6 +364,8 @@ export function ProjectDetailPanel({
     procurementMethod: '',
     procurementCategory: '',
     budgetAmount: '',
+    projectReason: '',
+    supplierRequirements: '',
   });
 
   const selectedStage = useMemo(
@@ -399,6 +401,9 @@ export function ProjectDetailPanel({
   );
 
   const currentFileAnalysis = stageFileAnalysis[currentFileIndex];
+  // 步骤检查是否进行的依据：AI 是否分析出文件内容（与"文件分析"区口径一致），而非仅看是否上传了附件。
+  // 仅上传附件但尚未分析出内容时，不进行步骤检查，避免 AI 在空内容上臆造结论。
+  const hasAnalyzedFiles = stageFileAnalysis.length > 0;
 
   // 用于触发文件分析刷新的计数器（仅在文件上传后增加）
   const [summaryRefreshing, setSummaryRefreshing] = useState(false);
@@ -407,6 +412,7 @@ export function ProjectDetailPanel({
   const [aiExtracting, setAiExtracting] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [supplierExtractOpen, setSupplierExtractOpen] = useState(false);
+  const [expertExtractOpen, setExpertExtractOpen] = useState(false);
   const [announcementPublishOpen, setAnnouncementPublishOpen] = useState(false);
   const [announcementCategory, setAnnouncementCategory] = useState<'procurement_document' | 'failed_bid' | 'winning_bid'>('procurement_document');
   const [bidConfirmOpen, setBidConfirmOpen] = useState(false);
@@ -433,6 +439,16 @@ export function ProjectDetailPanel({
   const runComplianceAudit = useCallback((force = false) => {
     // 缓存 key 含 round，避免多轮采购时不同轮次同一 stageKey 冲突
     const cacheKey = `${item.id}:${selectedStage.stageKey}:${selectedRound}`;
+    // 先判定是否有可分析的文件内容：没有则不进行步骤检查，并清掉该阶段旧缓存，
+    // 避免在"无文件 / 分析被清空 / 分析失败"时误展示历史结论（含旧缓存里的善意推断结论）。
+    // 该判定必须早于缓存读取，否则同 cacheKey 的旧缓存会先命中并覆盖清空意图。
+    if (!hasAnalyzedFiles) {
+      complianceCache.current.delete(cacheKey);
+      setComplianceAudit(null);
+      setComplianceError(null);
+      setComplianceLoading(false);
+      return;
+    }
     // 优先使用缓存（非强制模式下命中即直接展示）——切换步骤时立即显示已有结果
     if (!force) {
       const cached = complianceCache.current.get(cacheKey);
@@ -444,12 +460,6 @@ export function ProjectDetailPanel({
       }
     }
     if (stageLocked) {
-      setComplianceAudit(null);
-      setComplianceError(null);
-      setComplianceLoading(false);
-      return;
-    }
-    if (!hasStageFiles) {
       setComplianceAudit(null);
       setComplianceError(null);
       setComplianceLoading(false);
@@ -470,7 +480,7 @@ export function ProjectDetailPanel({
       })
       .catch((err) => { setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
       .finally(() => setComplianceLoading(false));
-  }, [item.id, selectedStage.stageKey, stageLocked, hasStageFiles]);
+  }, [item.id, selectedStage.stageKey, stageLocked, hasAnalyzedFiles]);
   // 项目切换时清空步骤检查缓存
   useEffect(() => {
     complianceCache.current.clear();
@@ -747,7 +757,9 @@ export function ProjectDetailPanel({
       field === 'requesterName' ||
       field === 'requesterDepartment' ||
       field === 'procurementMethod' ||
-      field === 'procurementCategory'
+      field === 'procurementCategory' ||
+      field === 'projectReason' ||
+      field === 'supplierRequirements'
     ) {
       // 必填字符串字段，空值保留为空串而非 null
       payload[field] = value.trim();
@@ -800,6 +812,44 @@ export function ProjectDetailPanel({
     }
   };
 
+  // AI 提取并优化"申请立项事由 / 对供方的主要要求"：结果预填进双字段编辑态，由用户确认/微调后保存，不直接覆盖。
+  const handleAiOptimizeInitiation = async () => {
+    setAiExtracting('initiation');
+    try {
+      const res = await optimizeInitiationFields(item.id);
+      const pr = typeof res?.projectReason === 'string' ? res.projectReason.trim() : '';
+      const sr = typeof res?.supplierRequirements === 'string' ? res.supplierRequirements.trim() : '';
+      if (!pr && !sr) {
+        setAiResult({ type: 'warning', message: 'AI 未能从采购需求/采购立项文件中提炼出相关内容，请检查是否已上传并分析文件。' });
+        return;
+      }
+      setEditValues((prev) => ({
+        ...prev,
+        projectReason: pr || prev.projectReason || localItem.projectReason || '',
+        supplierRequirements: sr || prev.supplierRequirements || localItem.supplierRequirements || '',
+      }));
+      setEditingField('initiationAi'); // 双字段同时进入编辑态供确认（编辑态本身即反馈，不弹模态以免遮挡保存按钮）
+    } catch (e) {
+      setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取并优化失败' });
+    } finally {
+      setAiExtracting(null);
+    }
+  };
+
+  // 保存 AI 预填/手动编辑后的"申请立项事由 + 对供方的主要要求"（一次写两字段）
+  const handleSaveInitiation = async () => {
+    try {
+      await updateProjectExtractedInfo(item.id, {
+        projectReason: (editValues.projectReason || '').trim(),
+        supplierRequirements: (editValues.supplierRequirements || '').trim(),
+      });
+      setEditingField(null);
+      await onUpdated();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '保存失败。');
+    }
+  };
+
   const formatDate = (value: string | number | null | undefined) => {
     if (!value) return '';
     const date = new Date(String(value));
@@ -833,12 +883,28 @@ export function ProjectDetailPanel({
       if (selectedStageKey === stageKey) {
         setAnalysisLoading(true);
         setAnalysisError(null);
+        // 清缓存后等分析完成再触发合规检查——否则后端 auditStageCompliance
+        // 读到的分析缓存还是旧版本/空，全部显示"未检测到采购文件"
+        complianceCache.current.delete(`${item.id}:${stageKey}:${selectedRound}`);
         analyzeProjectManagementItem(item.id, stageKey)
           .then((next) => setAnalysis(next))
           .catch((e) => setAnalysisError(e instanceof Error ? e.message : 'AI 分析暂不可用。'))
-          .finally(() => setAnalysisLoading(false));
-        complianceCache.current.delete(`${item.id}:${stageKey}:${selectedRound}`);
-        runComplianceAudit(true);
+          .finally(() => {
+            setAnalysisLoading(false);
+            // 文件分析已完成（后端缓存已更新）→ 直接发起合规检查
+            setComplianceLoading(true);
+            setComplianceError(null);
+            auditStageCompliance(item.id, stageKey, true)
+              .then((result) => {
+                const isFallback = result.results.every(r => r.evidence.includes('AI 审查服务暂不可用'));
+                if (!isFallback) {
+                  complianceCache.current.set(`${item.id}:${stageKey}:${selectedRound}`, result);
+                }
+                setComplianceAudit(result);
+              })
+              .catch((err) => { setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
+              .finally(() => setComplianceLoading(false));
+          });
       }
     },
     [item.id, selectedStageKey, runComplianceAudit],
@@ -948,7 +1014,7 @@ export function ProjectDetailPanel({
                 if (stageKey === 'TENDER_DOCUMENT') {
                   setTenderWriteStageAction(stageKey);
                 } else if (stageKey === 'EXPERT_SELECTION') {
-                  router.push(`/expert/extract?projectId=${item.id}`);
+                  setExpertExtractOpen(true);
                 } else if (stageKey === 'SUPPLIER_INVITATION') {
                   setSupplierExtractOpen(true);
                 } else if (stageKey === 'PUBLIC_ANNOUNCEMENT') {
@@ -1193,12 +1259,71 @@ export function ProjectDetailPanel({
                   </div>
                 </div>
                 <div className="mt-3 pt-3" style={{borderTop:"1px solid oklch(0.6 0.04 258 / 0.12)"}}>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请立项事由</span>
-                  <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)]">{item.projectReason || <span className="text-[color:var(--muted-foreground)]/50">待补充</span>}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请立项事由</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleAiOptimizeInitiation()}
+                      disabled={aiExtracting === 'initiation' || stageLocked}
+                      title="依据采购需求、采购立项阶段上传的文件，AI 提取并优化以下两项内容"
+                      className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]"
+                    >
+                      {aiExtracting === 'initiation' ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />} AI 提取并优化
+                    </button>
+                  </div>
+                  {editingField === 'projectReason' || editingField === 'initiationAi' ? (
+                    <div className="mt-1 flex items-start gap-2">
+                      <textarea
+                        value={editValues.projectReason}
+                        onChange={(e) => setEditValues((prev) => ({ ...prev, projectReason: e.target.value }))}
+                        className="workbench-input !text-xs flex-1 min-h-[64px] leading-6"
+                        placeholder="申请立项事由"
+                        autoFocus={editingField === 'projectReason'}
+                      />
+                      {editingField === 'projectReason' && (
+                        <>
+                          <button type="button" onClick={() => void handleSaveField('projectReason')} className="neu-btn-xs mt-1"><Save size={13} /></button>
+                          <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs mt-1"><X size={13} /></button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => handleStartEdit('projectReason', localItem.projectReason ?? null)} disabled={stageLocked} className="group mt-1 block w-full text-left">
+                      <span className={`text-sm leading-6 ${localItem.projectReason ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{localItem.projectReason || '待补充'}</span>
+                      {!stageLocked && <Pencil size={10} className="inline opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)] ml-1" />}
+                    </button>
+                  )}
                 </div>
                 <div className="mt-3">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">对供方的主要要求</span>
-                  <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)]">{item.supplierRequirements || '无'}</div>
+                  {editingField === 'supplierRequirements' || editingField === 'initiationAi' ? (
+                    <div className="mt-1 flex items-start gap-2">
+                      <textarea
+                        value={editValues.supplierRequirements}
+                        onChange={(e) => setEditValues((prev) => ({ ...prev, supplierRequirements: e.target.value }))}
+                        className="workbench-input !text-xs flex-1 min-h-[64px] leading-6"
+                        placeholder="对供方的主要要求"
+                        autoFocus={editingField === 'supplierRequirements'}
+                      />
+                      {editingField === 'supplierRequirements' && (
+                        <>
+                          <button type="button" onClick={() => void handleSaveField('supplierRequirements')} className="neu-btn-xs mt-1"><Save size={13} /></button>
+                          <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs mt-1"><X size={13} /></button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => handleStartEdit('supplierRequirements', localItem.supplierRequirements ?? null)} disabled={stageLocked} className="group mt-1 block w-full text-left">
+                      <span className={`text-sm leading-6 ${localItem.supplierRequirements ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{localItem.supplierRequirements || '无'}</span>
+                      {!stageLocked && <Pencil size={10} className="inline opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)] ml-1" />}
+                    </button>
+                  )}
+                  {editingField === 'initiationAi' && (
+                    <div className="mt-2 flex items-center justify-end gap-1.5">
+                      <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={12} />取消</button>
+                      <button type="button" onClick={() => void handleSaveInitiation()} className="neu-btn-xs is-info"><Save size={12} />保存两项</button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1572,7 +1697,7 @@ export function ProjectDetailPanel({
               </div>
               <button
                 type="button"
-                disabled={complianceLoading || stageProcessing || stageLocked || !hasStageFiles}
+                disabled={complianceLoading || stageProcessing || stageLocked || analysisLoading || !hasAnalyzedFiles}
                 onClick={() => {
                   complianceCache.current.delete(`${item.id}:${selectedStage.stageKey}:${selectedRound}`);
                   runComplianceAudit(true);
@@ -1602,6 +1727,18 @@ export function ProjectDetailPanel({
             {!stageLocked && !hasStageFiles && !complianceLoading && (
               <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
                 请先上传采购文件，再进行步骤检查。
+              </div>
+            )}
+
+            {!stageLocked && hasStageFiles && analysisLoading && !complianceLoading && (
+              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
+                正在分析上传文件，分析完成后将自动进行步骤检查。
+              </div>
+            )}
+
+            {!stageLocked && hasStageFiles && !analysisLoading && !hasAnalyzedFiles && !complianceLoading && (
+              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
+                未分析出文件内容，暂不进行步骤检查。请点击"重新分析"后再检查。
               </div>
             )}
 
@@ -1729,6 +1866,13 @@ export function ProjectDetailPanel({
         project={item}
       />
 
+      {/* 专家抽取弹窗 */}
+      <ExpertExtractModal
+        isOpen={expertExtractOpen}
+        onClose={() => setExpertExtractOpen(false)}
+        project={item}
+      />
+
       {/* 公告制作与发布弹窗（两步向导）*/}
       <AnnouncementPublishWizard
         isOpen={announcementPublishOpen}
@@ -1745,6 +1889,13 @@ export function ProjectDetailPanel({
         onClose={() => setBidConfirmOpen(false)}
         project={item}
         round={bidConfirmRound}
+        onSyncProjectInfo={(info) => {
+          setExtractedInfoOverride((prev) => ({
+            ...prev,
+            invitedSuppliers: info.invitedSuppliers || prev?.invitedSuppliers,
+            expertInfo: info.expertInfo || prev?.expertInfo,
+          }));
+        }}
         onAbort={() => {
           setBidConfirmOpen(false);
           setAnnouncementCategory('failed_bid');

@@ -5,7 +5,7 @@ export class NotifySuppliersDto {
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(200) @IsString({ each: true })
   supplierIds: string[];
 
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(3) @IsIn(['in_app', 'sms', 'email'], { each: true })
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(4) @IsIn(['in_app', 'sms', 'email', 'phone'], { each: true })
   channels: string[];
 
   @IsString() @IsNotEmpty() @MaxLength(40)

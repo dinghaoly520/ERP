@@ -43,14 +43,21 @@ export class AnnouncementService {
     });
 
     // P1: create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
-    const isPublishTransition = dto.type === 'BID_NOTICE' && status === 'PUBLISHED';
-    if (isPublishTransition) {
+    const isBidNoticePublish = dto.type === 'BID_NOTICE' && status === 'PUBLISHED';
+    if (isBidNoticePublish) {
       await this.syncBidProject(result.id, {
         id: result.id, title: result.title, publishDate: result.publishDate,
         metadata: result.metadata, relatedProjectCode: result.relatedProjectCode,
       });
-      return this.get(result.id);
     }
+    // 发布即通知（所有类型，不仅 BID_NOTICE）：按可见范围向供应商发站内信
+    if (status === 'PUBLISHED') {
+      const meta = (result.metadata as Record<string, any>) || {};
+      void this.notifySuppliersOnPublish(result.id, result.title, { ...meta, __type: result.type }).catch(e =>
+        this.logger.warn(`公告发布通知发送失败 (create): ${(e as Error).message}`),
+      );
+    }
+    if (isBidNoticePublish) return this.get(result.id);
 
     return result;
   }
@@ -142,9 +149,11 @@ export class AnnouncementService {
 
     const targetStatus = dto.status ?? announcement.status;
     const isPublishTransition =
-      announcement.type === 'BID_NOTICE' &&
       announcement.status !== 'PUBLISHED' &&
       targetStatus === 'PUBLISHED';
+    const isBidNoticePublish =
+      isPublishTransition &&
+      (dto.type ?? announcement.type) === 'BID_NOTICE';
 
     let result;
     try {
@@ -194,12 +203,67 @@ export class AnnouncementService {
     }
 
     // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
-    if (isPublishTransition) {
+    if (isBidNoticePublish) {
       await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode });
-      return this.get(id);
     }
+    // 发布即通知（所有类型）：按可见范围向供应商发站内信
+    if (isPublishTransition) {
+      const meta = (result.metadata as Record<string, any>) || {};
+      void this.notifySuppliersOnPublish(result.id, result.title, { ...meta, __type: result.type }).catch(e =>
+        this.logger.warn(`公告发布通知发送失败 (update): ${(e as Error).message}`),
+      );
+    }
+    if (isBidNoticePublish) return this.get(id);
 
     return result;
+  }
+
+  /** 按公告可见范围向供应商用户发送站内通知（发布时调用）。
+   *  PUBLIC/未设置 → 全部已启用供应商；RESTRICTED → restrictedSupplierIds 对应用户。 */
+  async notifySuppliersOnPublish(annId: string, title: string, meta: Record<string, any>) {
+    // notifyOnPublish 显式关闭则不发
+    if (meta.notifyOnPublish === false) return;
+
+    let userIds: string[];
+    const visibility = meta.visibility || 'PUBLIC';
+    if (
+      visibility === 'RESTRICTED' &&
+      Array.isArray(meta.restrictedSupplierIds) &&
+      meta.restrictedSupplierIds.length > 0
+    ) {
+      const suppliers = await this.prisma.supplier.findMany({
+        where: { id: { in: meta.restrictedSupplierIds }, status: 'APPROVED' },
+        select: { userId: true },
+      });
+      userIds = suppliers.map(s => s.userId);
+    } else {
+      const users = await this.prisma.user.findMany({
+        where: { role: 'supplier', isActive: true },
+        select: { id: true },
+      });
+      userIds = users.map(u => u.id);
+    }
+
+    const typeLabel: Record<string, string> = { BID_NOTICE: '招标公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知' };
+    const label = typeLabel[meta.__type] || '公告';
+    let sent = 0;
+    for (const userId of userIds) {
+      try {
+        await this.prisma.notification.create({
+          data: {
+            userId,
+            type: 'ANNOUNCEMENT_PUBLISHED',
+            title: `新${label}：${title}`,
+            content: `${label}「${title}」已发布，请前往供应商门户查看详情。`,
+            link: `/announcements/${annId}`,
+          },
+        });
+        sent++;
+      } catch (e) {
+        this.logger.warn(`公告通知创建失败 userId=${userId}: ${(e as Error).message}`);
+      }
+    }
+    this.logger.log(`公告通知已发送: ${title}, 收件人 ${sent}/${userIds.length} 人`);
   }
 
   /** 联动：BID_NOTICE 发布时自动创建/同步 BidProject，幂等安全 */

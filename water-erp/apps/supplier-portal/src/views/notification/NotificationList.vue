@@ -2,15 +2,16 @@
 import { ref, computed, onMounted, onBeforeUnmount, type Component } from 'vue'
 
 import { useNotificationStore } from '@/stores/notification'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { Bell, AlertTriangle, CircleCheck, CircleX, ClipboardList, AlarmClock, MessageSquare, LockOpen, BarChart3, Inbox, Send, Trophy } from 'lucide-vue-next'
+import { Bell, AlertTriangle, CircleCheck, CircleX, ClipboardList, AlarmClock, MessageSquare, LockOpen, BarChart3, Inbox, Send, Megaphone } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
-const store = useNotificationStore(); const loading = ref(true); const error = ref(false); const currentPage = ref(1); const typeFilter = ref('')
-const typeIconMap: Record<string, Component> = {SUPPLIER_APPROVED:CircleCheck,SUPPLIER_REJECTED:CircleX,SUPPLIER_RETURNED:AlertTriangle,BID_PUBLISHED:ClipboardList,BID_INVITED:Send,BID_REMINDER:AlarmClock,SYSTEM:Bell,CLARIFICATION_REPLIED:MessageSquare,BID_OPENING:LockOpen,BID_EVALUATION_RESULT:BarChart3,AWARD_LETTER:Trophy,BID_ROUND_OPEN:Send}
-const typeColorMap: Record<string, string> = {SUPPLIER_APPROVED:'#059669',SUPPLIER_REJECTED:'#dc2626',SUPPLIER_RETURNED:'#d97706',BID_PUBLISHED:'#2563eb',BID_INVITED:'#db2777',BID_REMINDER:'#ea580c',SYSTEM:'#475569',CLARIFICATION_REPLIED:'#0d9488',BID_OPENING:'#0891b2',BID_EVALUATION_RESULT:'#7c3aed',AWARD_LETTER:'#059669',BID_ROUND_OPEN:'#2563eb'}
-const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'采购项目发布',BID_INVITED:'采购项目邀请',BID_REMINDER:'开标提醒',SYSTEM:'系统通知',CLARIFICATION_REPLIED:'澄清答疑',BID_OPENING:'开标通知',BID_EVALUATION_RESULT:'评标结果',AWARD_LETTER:'中标通知书',BID_ROUND_OPEN:'多轮报价'}
+const store = useNotificationStore(); const router = useRouter(); const loading = ref(true); const error = ref(false); const currentPage = ref(1); const typeFilter = ref('')
+const typeIconMap: Record<string, Component> = {SUPPLIER_APPROVED:CircleCheck,SUPPLIER_REJECTED:CircleX,SUPPLIER_RETURNED:AlertTriangle,BID_PUBLISHED:ClipboardList,BID_INVITED:Send,BID_REMINDER:AlarmClock,SYSTEM:Bell,CLARIFICATION_REPLIED:MessageSquare,BID_OPENING:LockOpen,BID_EVALUATION_RESULT:BarChart3,ANNOUNCEMENT_PUBLISHED:Megaphone}
+const typeColorMap: Record<string, string> = {SUPPLIER_APPROVED:'#059669',SUPPLIER_REJECTED:'#dc2626',SUPPLIER_RETURNED:'#d97706',BID_PUBLISHED:'#2563eb',BID_INVITED:'#db2777',BID_REMINDER:'#ea580c',SYSTEM:'#475569',CLARIFICATION_REPLIED:'#0d9488',BID_OPENING:'#0891b2',BID_EVALUATION_RESULT:'#7c3aed',ANNOUNCEMENT_PUBLISHED:'#0891b2'}
+const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'采购项目发布',BID_INVITED:'采购项目邀请',BID_REMINDER:'开标提醒',SYSTEM:'系统通知',CLARIFICATION_REPLIED:'澄清答疑',BID_OPENING:'开标通知',BID_EVALUATION_RESULT:'评标结果',ANNOUNCEMENT_PUBLISHED:'公告发布'}
 const filteredNotifications = computed(() => {
   if (!typeFilter.value) return store.notifications
   return store.notifications.filter((n:any) => n.type === typeFilter.value)
@@ -54,6 +55,7 @@ function linkify(text: string): string {
   return html
 }
 function handlePageChange(page:number) { currentPage.value = page; fetchData() }
+function goLink(link?: string) { if (link) { detailVisible.value = false; router.push(link) } }
 </script>
 
 <template>
@@ -93,32 +95,33 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
     <div v-else-if="store.notifications.length>0" class="sp-empty-panel"><el-icon :size="32"><Search /></el-icon><p class="sp-empty-text">无匹配通知</p><p class="sp-empty-desc">该分类暂无通知，试试其他筛选</p></div>
     <div v-else class="sp-empty-panel"><el-icon :size="32"><ChatDotRound /></el-icon><p class="sp-empty-text">暂无消息</p><p class="sp-empty-desc">您没有未读消息</p></div>
     </template>
-  </div>
 
-  <!-- 通知详情弹窗（cgzxui neumorphic） -->
-  <el-dialog v-model="detailVisible" :title="detailNotif?.title || '通知详情'" width="600px" @closed="detailNotif = null" class="neumorphic-dlg">
-    <div v-if="detailNotif" class="nd-body">
-      <span class="nd-time">{{ dayjs(detailNotif.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
-      <div class="nd-content" v-html="linkify(detailNotif.content)" />
-    </div>
-    <template #footer>
-      <div class="nd-footer">
-        <button v-if="detailNotif && !detailNotif.isRead" class="nd-btn nd-btn--danger" @click="store.markAsRead(detailNotif.id); detailNotif.isRead = true">标为已读</button>
-        <button class="nd-btn nd-btn--soft" @click="detailVisible = false">关闭</button>
+    <!-- 通知详情弹窗（必须在根 div 内部——fragment root 会破坏路由过渡） -->
+    <el-dialog v-model="detailVisible" :title="detailNotif?.title || '通知详情'" width="600px" lazy @closed="detailNotif = null" class="neumorphic-dlg">
+      <div v-if="detailNotif" class="nd-body">
+        <span class="nd-time">{{ dayjs(detailNotif.createdAt).format('YYYY-MM-DD HH:mm') }}</span>
+        <div class="nd-content" v-html="linkify(detailNotif.content)" />
       </div>
-    </template>
-  </el-dialog>
+      <template #footer>
+        <div class="nd-footer">
+          <button v-if="detailNotif && !detailNotif.isRead" class="nd-btn nd-btn--danger" @click="store.markAsRead(detailNotif.id); detailNotif.isRead = true">标为已读</button>
+          <button v-if="detailNotif?.link" class="nd-btn nd-btn--soft" @click="goLink(detailNotif.link)">查看详情</button>
+          <button class="nd-btn nd-btn--soft" @click="detailVisible = false">关闭</button>
+        </div>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <style scoped>
-/* Type filter — concave tab bar (visuals from cgzxui .neu-tab*) */
+/* Type filter */
 .notif-tabs { display: flex; flex-wrap: wrap; margin: 16px 0; max-width: 100%; overflow-x: auto; }
 .notif-tabs .neu-tab.active {
   color: var(--brand); background: var(--surface);
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.7);
 }
 
-/* List — neumorphic plate (no glass / no drift) */
+/* List */
 .notif-list {
   border: none; border-radius: 16px; overflow: hidden;
   background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
@@ -142,60 +145,17 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 .notif-right { text-align: right; flex-shrink: 0; }
 .notif-row-time { font-size: 12px; color: var(--muted-foreground); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
 
+.sp-empty-panel { text-align: center; }
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--muted-foreground); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 
-/* 通知详情弹窗（scoped body） */
+/* 弹窗 body */
 .nd-body { padding: 4px 0; }
 .nd-time { font-size: 12px; color: var(--muted-foreground); display: block; margin-bottom: 14px; }
 .nd-content { margin: 0; font-size: 14px; color: var(--foreground); line-height: 1.8; word-break: break-word; }
 .nd-footer { display: flex; gap: 10px; justify-content: flex-end; }
 
-</style>
-
-<style>
-/* ═══ cgzxui neumorphic 通知弹窗（teleported → 非 scoped）═══ */
-.neumorphic-dlg { --nd-bg: oklch(0.975 0.012 258); }
-.neumorphic-dlg .el-overlay { background: oklch(0.35 0.06 258 / 0.28) !important; }
-.neumorphic-dlg .el-dialog {
-  border: none !important;
-  border-radius: 20px !important;
-  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)) !important;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18) !important;
-}
-.neumorphic-dlg .el-dialog__header {
-  padding: 22px 26px 16px; margin: 0;
-  border-bottom: 1px solid var(--hairline);
-}
-.neumorphic-dlg .el-dialog__title {
-  display: block;
-  padding-right: 48px;
-  font-size: 18px; font-weight: 900; color: var(--foreground); letter-spacing: -0.01em;
-  line-height: 1.3;
-}
-.neumorphic-dlg .el-dialog__headerbtn {
-  position: absolute !important;
-  top: 16px !important;
-  right: 22px;
-  width: 38px; height: 38px;
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
-  transition: all 0.15s;
-  display: flex; align-items: center; justify-content: center;
-}
-.neumorphic-dlg .el-dialog__headerbtn:hover {
-  color: var(--brand); transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9);
-}
-.neumorphic-dlg .el-dialog__headerbtn .el-dialog__close { color: var(--muted-foreground); font-weight: 700; }
-.neumorphic-dlg .el-dialog__body { padding: 18px 26px; word-break: break-word; }
-.neumorphic-dlg .el-dialog__footer {
-  padding: 16px 26px; border-top: 1px solid var(--hairline);
-  background: oklch(1 0 0 / 0.3); border-radius: 0 0 20px 20px;
-}
-
-/* neumorphic 按钮 */
+/* neumorphic 按钮 — scoped（不依赖非 scoped 块） */
 .nd-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 10px 22px; border-radius: 9px; border: none;
@@ -219,8 +179,6 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 .nd-btn--danger:active { transform: translateY(0);
   box-shadow: inset 2px 2px 5px oklch(0.45 0.16 27 / 0.25), inset -2px -2px 5px oklch(1 0 0 / 0.4); }
 .nd-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-
-/* 尺寸变体 */
 .nd-btn--sm { padding: 8px 16px; font-size: 12px; }
 .nd-btn--xs { padding: 5px 10px; font-size: 11px; border-radius: 7px; }
 .nd-btn--sm.nd-btn--danger { box-shadow: 2.5px 2.5px 5px oklch(0.5 0.16 27 / 0.18), -1px -1px 3px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.2); }
@@ -232,15 +190,37 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 .nd-btn--sm.nd-btn--danger:hover { box-shadow: 3px 3px 7px oklch(0.45 0.16 27 / 0.22), -1.5px -1.5px 4px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.25); }
 .nd-btn--xs.nd-btn--danger:hover { box-shadow: 2.5px 2.5px 5px oklch(0.45 0.16 27 / 0.18), -1px -1px 3px oklch(1 0 0 / 0.5), inset 0 1px 0 oklch(1 0 0 / 0.25); }
 
-/* 内容链接 */
-.notif-link { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
-.notif-link:hover { color: var(--brand-deep); }
+/* 内容链接 + 落款（:deep 穿透 v-html 注入的无 scoped 属性 DOM） */
+.nd-content :deep(.notif-link) { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.nd-content :deep(.notif-link):hover { color: var(--brand-deep); }
+.nd-content :deep(.nd-signature) { text-align: right; margin-top: 14px; color: var(--muted-foreground); font-size: 13px; }
 
-/* 落款右对齐 */
-.nd-signature { text-align: right; margin-top: 14px; color: var(--muted-foreground); font-size: 13px; }
+/* el-dialog neumorphic 样式（:deep 穿透到 teleported DOM） */
+:deep(.el-overlay) { background: oklch(0.35 0.06 258 / 0.28) !important; }
+:deep(.el-dialog) {
+  border: none !important; border-radius: 20px !important;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)) !important;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18) !important;
+}
+:deep(.el-dialog__header) { padding: 22px 26px 16px; margin: 0; border-bottom: 1px solid var(--hairline); }
+:deep(.el-dialog__title) { display: block; padding-right: 48px; font-size: 18px; font-weight: 900; color: var(--foreground); letter-spacing: -0.01em; line-height: 1.3; }
+:deep(.el-dialog__headerbtn) {
+  position: absolute !important; top: 16px !important; right: 22px;
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+}
+:deep(.el-dialog__headerbtn:hover) {
+  color: var(--brand); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+:deep(.el-dialog__close) { color: var(--muted-foreground); font-weight: 700; }
+:deep(.el-dialog__body) { padding: 18px 26px; word-break: break-word; }
+:deep(.el-dialog__footer) { padding: 16px 26px; border-top: 1px solid var(--hairline); background: oklch(1 0 0 / 0.3); border-radius: 0 0 20px 20px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .neumorphic-dlg .el-dialog__headerbtn, .neumorphic-dlg .el-dialog, .nd-btn { transition: none; }
+  .nd-btn { transition: none; }
   .nd-btn:hover { transform: none; }
 }
 </style>

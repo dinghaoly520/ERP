@@ -161,14 +161,15 @@ export class AiController {
   @Post('generate-notification')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI生成供应商通知文案' })
-  @Roles('admin', 'bid_expert', 'leader', 'staff')
+  @Roles('admin', 'bid_expert', 'bid_host', 'leader', 'staff')
   async generateNotificationContent(
     @Body() payload: {
       projectName?: string; projectCode?: string; supplierNames: string[];
       supplierIds?: string[]; projectId?: string | null; deadline?: string;
       procurementMethod?: string; procurementCategory?: string;
       budgetAmount?: string; requesterDepartment?: string; requesterName?: string;
-      projectReason?: string; fileAnalysisContext?: string; validityDays?: number;
+      projectReason?: string; supplierRequirements?: string; projectOverview?: string;
+      fileAnalysisContext?: string; validityDays?: number;
     },
   ) {
     return this.aiService.generateNotificationContent(payload);

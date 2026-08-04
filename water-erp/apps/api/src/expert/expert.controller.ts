@@ -10,6 +10,7 @@ import {
   Res,
   UseInterceptors,
   UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -30,15 +31,20 @@ import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
 import { UpdateAgreementsDto } from './dto/update-agreements.dto';
 import { CreateMemoDto } from './dto/create-memo.dto';
 import { UpdateMemoDto } from './dto/update-memo.dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { Public } from '../common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
+import { UseGuards } from '@nestjs/common';
+import { AuthGuard } from '../auth/auth.guard';
 
 @ApiTags('专家评审')
 @Controller('expert')
-@Roles('bid_expert')
 export class ExpertController {
   constructor(
     private expertService: ExpertService,
     private expertAdminService: ExpertAdminService,
     private memoService: ExpertMemoService,
+    private prisma: PrismaService,
   ) {}
 
   /* ── 个人资料 ── */
@@ -88,6 +94,82 @@ export class ExpertController {
   @Post('projects/:projectId/invitation/decline')
   declineMyInvitation(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertAdminService.declineInvitation(projectId, userId);
+  }
+
+  /* ── 免登录 RSVP（token 链接，15分钟有效期）── */
+  @Public()
+  @Get('rsvp/verify')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: '校验专家邀请链接（公开，返回项目信息+状态）' })
+  async rsvpVerify(@Query('t') t?: string) {
+    if (!t) throw new BadRequestException({ error: '缺少邀请凭证', code: 'MISSING_TOKEN' });
+    const be = await this.prisma.bidExpert.findUnique({
+      where: { rsvpToken: t },
+      include: { project: { select: { name: true, projectCode: true, procurementMethod: true, openTime: true, projectManagementItemId: true, scope: true, qualification: true, riskNote: true } } },
+    });
+    if (!be) throw new BadRequestException({ error: '邀请链接无效', code: 'RSVP_NOT_FOUND' });
+    // 用项目管理编号覆盖 BidProject 的自动生成编号
+    let projectCode = be.project.projectCode;
+    if (be.project.projectManagementItemId) {
+      const pm = await this.prisma.projectManagementItem.findUnique({ where: { id: be.project.projectManagementItemId }, select: { projectCode: true } });
+      if (pm?.projectCode) projectCode = pm.projectCode;
+    }
+    const expired = be.rsvpExpiresAt ? new Date(be.rsvpExpiresAt).getTime() < Date.now() : false;
+    // 超时且未回复 → 自动弃权 + 递补候补
+    if (expired && be.invitationStatus === 'pending') {
+      await this.prisma.bidExpert.update({ where: { id: be.id }, data: { invitationStatus: 'declined', rsvpRespondedAt: new Date() } });
+      be.invitationStatus = 'declined';
+    }
+    return {
+      expertName: be.expertName,
+      major: be.major,
+      expertRole: be.expertRole,
+      projectName: be.project.name,
+      projectCode,
+      procurementMethod: be.project.procurementMethod,
+      openTime: be.project.openTime,
+      status: be.invitationStatus,
+      expired,
+      expiresAt: be.rsvpExpiresAt,
+      isLead: be.isLead,
+      projectScope: (() => {
+        const raw = [be.project.scope, be.project.qualification, be.project.riskNote].filter(Boolean).join('；');
+        // 剔除"见附件"等引用语句
+        const cleaned = raw.replace(/[（(]?详见?附件[^。）\n]*[）)]?|[。；]?\s*详细技术规格[^。]*。/g, '').replace(/，。|。。|；；/g, '；').replace(/^\s*[；，、]+\s*|[；，、]+\s*$/g, '').trim();
+        return cleaned.slice(0, 500) || null;
+      })(),
+      rsvpNo: be.id.slice(-8).toUpperCase(),
+      respondedAt: be.rsvpRespondedAt,
+    };
+  }
+
+  @Public()
+  @Post('rsvp/respond')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: '专家确认/婉拒邀请（公开，token 验证）' })
+  async rsvpRespond(@Query('t') t: string, @Body() body: { status: 'confirmed' | 'declined' }) {
+    if (!t) throw new BadRequestException({ error: '缺少邀请凭证', code: 'MISSING_TOKEN' });
+    if (!body?.status) throw new BadRequestException({ error: '请选择操作', code: 'MISSING_STATUS' });
+    const be = await this.prisma.bidExpert.findUnique({ where: { rsvpToken: t } });
+    if (!be) throw new BadRequestException({ error: '邀请链接无效', code: 'RSVP_NOT_FOUND' });
+    if (be.rsvpExpiresAt && new Date(be.rsvpExpiresAt).getTime() < Date.now()) {
+      throw new BadRequestException({ error: '邀请链接已过期（15分钟），请联系采购方', code: 'RSVP_EXPIRED' });
+    }
+    if (be.invitationStatus !== 'pending') {
+      throw new BadRequestException({ error: '您已回复过此邀请', code: 'ALREADY_RESPONDED' });
+    }
+    await this.prisma.bidExpert.update({
+      where: { id: be.id },
+      data: { invitationStatus: body.status, rsvpRespondedAt: new Date() },
+    });
+    // 婉拒 → 自动递补候补
+    const rsvpNo = be.id.slice(-8).toUpperCase();
+    const respondedAt = new Date().toISOString();
+    if (body.status === 'declined') {
+      const promoted = await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null);
+      return { success: true, status: body.status, rsvpNo, respondedAt, promoted };
+    }
+    return { success: true, status: body.status, rsvpNo, respondedAt };
   }
 
   @Get('projects/:projectId')

@@ -10,6 +10,7 @@ import {
 import type { AnnouncementType, AnnouncementStatus, AnnouncementAttachment } from '@/lib/api/announcement';
 import { Upload, PlusCircle, Save, Send } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
+import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 
 type NoticeType = 'POLICY' | 'PLATFORM';
 
@@ -43,6 +44,7 @@ export default function NewNoticePage() {
   const [isTop, setIsTop] = useState(false);
   const [publishDate, setPublishDate] = useState(new Date().toISOString().slice(0, 10));
   const [metadata, setMetadata] = useState<Record<string, string>>({});
+  const [publishConfig, setPublishConfig] = useState<PublishConfig>({ ...DEFAULT_PUBLISH_CONFIG });
   const [busy, setBusy] = useState(false);
 
   const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
@@ -57,10 +59,20 @@ export default function NewNoticePage() {
 
   const saveNew = async (targetStatus: AnnouncementStatus): Promise<string | null> => {
     if (!title.trim()) { toast.error('请填写标题'); return null; }
+    // 定时发布模式下「发布」按钮实际保存为 DRAFT（scheduler 到点自动发布）
+    const actualStatus: AnnouncementStatus =
+      targetStatus === 'PUBLISHED' && publishConfig.scheduleMode === 'scheduled' && publishConfig.scheduledPublishDate
+        ? 'DRAFT'
+        : targetStatus;
+    if (targetStatus === 'PUBLISHED' && publishConfig.visibility === 'RESTRICTED' && publishConfig.restrictedSupplierIds.length === 0) {
+      toast.error('部分供应商可见模式下请至少选择一家供应商');
+      return null;
+    }
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
-    const payload: any = { title, content, type, summary, status: targetStatus, isTop, publishDate, metadata: meta };
+    const finalMeta = configToMetadata(publishConfig, meta);
+    const payload: any = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta };
     try {
       const saved = await createAnnouncement(payload);
       setAnnId(saved.id);
@@ -71,8 +83,15 @@ export default function NewNoticePage() {
 
   const saveDraft = async () => { const id = await saveNew('DRAFT'); if (id) { toast.success('草稿已保存，可上传附件'); loadExtras(); } };
   const publish = async () => {
+    if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) {
+      toast.error('请设置定时发布时间');
+      return;
+    }
     const id = await saveNew('PUBLISHED');
-    if (id) { toast.success('已发布'); router.push(`/notice/${id}`); }
+    if (id) {
+      toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
+      router.push(`/notice/${id}`);
+    }
   };
 
   return (
@@ -182,7 +201,7 @@ export default function NewNoticePage() {
 
         <hr className="wb-section-rule" />
 
-        {/* ④ 正文 */}
+        {/* ⑤ 正文 */}
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
             <Step n={4} />正文内容
@@ -194,13 +213,23 @@ export default function NewNoticePage() {
           </label>
         </fieldset>
 
-        {/* ⑤ 附件 — 保存草稿后显示 */}
+        <hr className="wb-section-rule" />
+
+        {/* ⑤ 发布配置 */}
+        <fieldset>
+          <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
+            <Step n={5} />发布配置
+          </legend>
+          <PublishConfigSection config={publishConfig} onChange={setPublishConfig} />
+        </fieldset>
+
+        {/* ⑥ 附件 — 保存草稿后显示 */}
         {annId ? (
           <>
             <hr className="wb-section-rule" />
             <fieldset>
               <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">
-                <Step n={5} />附件（公开可下载）
+                <Step n={6} />附件（公开可下载）
               </legend>
               <AttachmentUploader annId={annId} attachments={attachments} onChanged={loadExtras} />
             </fieldset>
@@ -221,7 +250,7 @@ export default function NewNoticePage() {
               <Save size={14} />{busy ? '保存中...' : '保存草稿'}
             </button>
             <button onClick={publish} disabled={busy} className="neu-btn-primary disabled:opacity-50">
-              <Send size={14} />{busy ? '处理中...' : '发布'}
+              <Send size={14} />{busy ? '处理中...' : publishConfig.scheduleMode === 'scheduled' ? '设定时发布' : '发布'}
             </button>
           </div>
         </div>

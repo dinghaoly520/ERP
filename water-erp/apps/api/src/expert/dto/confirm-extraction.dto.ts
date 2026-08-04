@@ -27,4 +27,8 @@ export class ConfirmExtractionDto {
   @IsOptional() @IsArray() @ValidateNested({ each: true })
   @Type(() => ExtractionExpertDto)
   candidates?: ExtractionExpertDto[];
+
+  /** 追加模式：不清空已有记录，只追加新专家（补选使用）。默认 false 时清空再写入（正选初次使用）。 */
+  @IsOptional() @IsBoolean()
+  append?: boolean;
 }

@@ -23,7 +23,6 @@ onMounted(async () => {
     await Promise.all([
       supplierStore.fetchDashboardStats(),
       supplierStore.fetchStatus(),
-      supplierStore.fetchEvaluationStats(),
       supplierStore.fetchQualifications(),
       bidStore.fetchProjects(1, 20),
       notifStore.fetchNotifications(1, 10),
@@ -48,7 +47,6 @@ async function retryLoad() {
     await Promise.all([
       supplierStore.fetchDashboardStats(),
       supplierStore.fetchStatus(),
-      supplierStore.fetchEvaluationStats(),
       supplierStore.fetchQualifications(),
       bidStore.fetchProjects(1, 20),
       notifStore.fetchNotifications(1, 10),
@@ -58,8 +56,6 @@ async function retryLoad() {
 
 const stats = computed(() => supplierStore.dashboardStats)
 const statusInfo = computed(() => supplierStore.status)
-const evalStats = computed(() => supplierStore.evaluationStats)
-
 const statusLabel: Record<string, string> = {
   PENDING: '待审核', RETURNED: '退回补正', APPROVED: '已入库',
   REJECTED: '审核不通过', DISABLED: '已停用', BLACKLIST: '黑名单',
@@ -310,17 +306,12 @@ async function submitConvert() {
           <div class="page-hero__left">
             <div class="page-hero__icon"><el-icon :size="20"><OfficeBuilding /></el-icon></div>
             <div>
-              <div class="page-hero__eyebrow">{{ statusInfo.isTemporary ? '临时供应商 · 业务工作台' : '业务工作台' }}</div>
+              <div v-if="statusInfo.isTemporary" class="page-hero__eyebrow">临时供应商</div>
               <div class="page-hero__title">{{ statusInfo.name }}</div>
               <div class="page-hero__sub db-hero-sub">
                 <span class="sp-status" :class="statusType[statusInfo.status]||'pending'">{{ statusLabel[statusInfo.status]||statusInfo.status }}</span>
                 <span v-if="daysSinceReg" class="db-hero-meta">入驻 {{ daysSinceReg }} 天</span>
-                <template v-if="statusInfo.status === 'APPROVED'">
-                  <span class="db-hero-div">·</span>
-                  <span class="db-hero-stat"><strong>{{ evalStats?.excellentRatio ?? '--' }}</strong>{{ evalStats?.excellentRatio != null ? '%' : '' }} 优良率</span>
-                  <span class="db-hero-stat"><strong>{{ evalStats?.total ?? 0 }}</strong> 次评价</span>
-                </template>
-                <template v-else-if="statusInfo.status === 'PENDING'">
+                <template v-if="statusInfo.status === 'PENDING'">
                   <span class="db-hero-hint">审核中 — 通常 3 个工作日内完成</span>
                 </template>
                 <template v-else-if="statusInfo.status === 'RETURNED'">
@@ -587,9 +578,6 @@ async function submitConvert() {
 .db-hero .page-hero__title { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-hero-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .db-hero-meta { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
-.db-hero-stat { font-size: 12px; color: var(--muted-foreground); }
-.db-hero-stat strong { font-size: 14px; font-weight: 800; color: var(--brand); font-variant-numeric: tabular-nums; }
-.db-hero-div { color: var(--hairline); }
 .db-hero-hint { font-size: 12px; color: var(--muted-foreground); }
 .db-hero-hint.warn { color: var(--warning); font-weight: 600; }
 .db-hero-right { flex-shrink: 0; }
@@ -732,66 +720,14 @@ async function submitConvert() {
 .nd-footer { display: flex; gap: 10px; justify-content: flex-end; }
 </style>
 
-<style>
-/* ═══ cgzxui neumorphic 通知弹窗（teleported → 非 scoped）═══ */
-.neumorphic-dlg { --nd-bg: oklch(0.975 0.012 258); }
-/* 蒙层 */
-.neumorphic-dlg .el-overlay { background: oklch(0.35 0.06 258 / 0.28) !important; }
-/* 面板 — 玻璃渐变底 + 方向性双影 + 内高光线，无外侧框线 */
-.neumorphic-dlg .el-dialog {
-  border: none !important;
-  border-radius: 20px !important;
-  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)) !important;
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18) !important;
-}
-/* 标题栏 — hairline 底部分割 */
-.neumorphic-dlg .el-dialog__header {
-  padding: 22px 26px 16px;
-  margin: 0;
-  border-bottom: 1px solid var(--hairline);
-}
-.neumorphic-dlg .el-dialog__title {
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--foreground);
-  letter-spacing: -0.01em;
-}
-/* 关闭按钮 — neumorphic 图标按钮 */
-.neumorphic-dlg .el-dialog__headerbtn {
-  position: absolute !important;
-  top: 16px !important;
-  right: 22px;
-  width: 38px; height: 38px;
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
-  transition: all 0.15s;
-  display: flex; align-items: center; justify-content: center;
-}
-.neumorphic-dlg .el-dialog__headerbtn:hover {
-  color: var(--brand);
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9);
-}
-.neumorphic-dlg .el-dialog__headerbtn .el-dialog__close { color: var(--muted-foreground); font-weight: 700; }
-/* 内容区 */
-.neumorphic-dlg .el-dialog__body { padding: 18px 26px; word-break: break-word; }
-/* 底栏 — hairline 分割 + 半透底 */
-.neumorphic-dlg .el-dialog__footer {
-  padding: 16px 26px;
-  border-top: 1px solid var(--hairline);
-  background: oklch(1 0 0 / 0.3);
-  border-radius: 0 0 20px 20px;
-}
-
-/* ── neumorphic 按钮（三态：凸起→抬升→内凹）── */
+<style scoped>
+/* neumorphic 按钮 */
 .nd-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 10px 22px; border-radius: 9px; border: none;
   font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
   transition: all 0.18s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
-/* 次要按钮（关闭）— 凸起表面 */
 .nd-btn--soft {
   background: var(--surface); color: var(--foreground);
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
@@ -800,7 +736,6 @@ async function submitConvert() {
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9); }
 .nd-btn--soft:active { transform: translateY(0);
   box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
-/* danger 按钮（标为已读）— 品牌色实心 + 凸起投影 */
 .nd-btn--danger {
   background: var(--danger); color: #fff;
   box-shadow: 3px 3px 6px oklch(0.5 0.16 27 / 0.22), -2px -2px 5px oklch(1 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.2);
@@ -809,22 +744,42 @@ async function submitConvert() {
   box-shadow: 4px 4px 10px oklch(0.45 0.16 27 / 0.28), -2px -2px 6px oklch(1 0 0 / 0.6), inset 0 1px 0 oklch(1 0 0 / 0.25); }
 .nd-btn--danger:active { transform: translateY(0);
   box-shadow: inset 2px 2px 5px oklch(0.45 0.16 27 / 0.25), inset -2px -2px 5px oklch(1 0 0 / 0.4); }
-/* disabled */
 .nd-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-.nd-btn--soft:disabled { box-shadow: 2px 2px 4px oklch(0.5 0.05 258 / 0.15), -1px -1px 3px oklch(1 0 0 / 0.4); }
-.nd-btn--danger:disabled { box-shadow: 2px 2px 4px oklch(0.5 0.16 27 / 0.12), -1px -1px 3px oklch(1 0 0 / 0.3); }
 
-/* ── 内容中的可点击链接 ── */
-.notif-link { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
-.notif-link:hover { color: var(--brand-deep); }
+/* 内容链接 + 落款（:deep 穿透 v-html 注入的无 scoped 属性 DOM） */
+.nd-content :deep(.notif-link) { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.nd-content :deep(.notif-link):hover { color: var(--brand-deep); }
+.nd-content :deep(.nd-signature) { text-align: right; margin-top: 14px; color: var(--muted-foreground); font-size: 13px; }
 
-/* 落款右对齐 */
-.nd-signature { text-align: right; margin-top: 14px; color: var(--muted-foreground); font-size: 13px; }
+/* 弹窗 body */
+.nd-body { padding: 4px 0; }
+.nd-time { font-size: 12px; color: var(--muted-foreground); display: block; margin-bottom: 14px; }
+.nd-content { margin: 0; font-size: 14px; color: var(--foreground); line-height: 1.8; word-break: break-word; }
+.nd-footer { display: flex; gap: 10px; justify-content: flex-end; }
 
-@media (prefers-reduced-motion: reduce) {
-  .neumorphic-dlg .el-dialog__headerbtn,
-  .neumorphic-dlg .el-dialog,
-  .nd-btn { transition: none; }
-  .nd-btn:hover { transform: none; }
+/* el-dialog neumorphic 样式 */
+:deep(.el-overlay) { background: oklch(0.35 0.06 258 / 0.28) !important; }
+:deep(.el-dialog) {
+  border: none !important; border-radius: 20px !important;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)) !important;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18) !important;
 }
+:deep(.el-dialog__header) { padding: 22px 26px 16px; margin: 0; border-bottom: 1px solid var(--hairline); }
+:deep(.el-dialog__title) { font-size: 18px; font-weight: 900; color: var(--foreground); letter-spacing: -0.01em; }
+:deep(.el-dialog__headerbtn) {
+  position: absolute !important; top: 16px !important; right: 22px;
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+}
+:deep(.el-dialog__headerbtn:hover) {
+  color: var(--brand); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+:deep(.el-dialog__close) { color: var(--muted-foreground); font-weight: 700; }
+:deep(.el-dialog__body) { padding: 18px 26px; word-break: break-word; }
+:deep(.el-dialog__footer) { padding: 16px 26px; border-top: 1px solid var(--hairline); background: oklch(1 0 0 / 0.3); border-radius: 0 0 20px 20px; }
+
+@media (prefers-reduced-motion: reduce) { .nd-btn { transition: none; } .nd-btn:hover { transform: none; } }
 </style>

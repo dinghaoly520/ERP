@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
-import { Users, X } from 'lucide-react';
+import { Suspense, useEffect, useState } from 'react';
+import { UsersRound, X, Loader2 } from 'lucide-react';
 import { ExpertExtractPage } from '@/app/(main)/expert/extract/page';
-import { RulesPopover } from '@/components/rules-popover';
+import { getPmBidProject } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 type Props = {
@@ -13,6 +13,9 @@ type Props = {
 };
 
 export function ExpertExtractModal({ isOpen, onClose, project }: Props) {
+  const [defaultPid, setDefaultPid] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
+
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -21,6 +24,16 @@ export function ExpertExtractModal({ isOpen, onClose, project }: Props) {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
+
+  // 直接通过项目管理项查对应的开评标项目 ID，不做任何匹配
+  useEffect(() => {
+    if (!isOpen || !project?.id) return;
+    setResolving(true);
+    getPmBidProject(project.id, project.currentRound ?? 1)
+      .then((bp) => setDefaultPid(bp.id))
+      .catch(() => setDefaultPid(null))
+      .finally(() => setResolving(false));
+  }, [isOpen, project?.id, project?.currentRound]);
 
   if (!isOpen) return null;
 
@@ -52,57 +65,44 @@ export function ExpertExtractModal({ isOpen, onClose, project }: Props) {
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px]"
               style={{
                 background: 'color-mix(in oklch, var(--accent-soft) 45%, transparent)',
-                boxShadow:
-                  'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.1)',
+                boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.1)',
               }}
             >
-              <Users size={17} className="text-[var(--accent)]" />
+              <UsersRound size={17} className="text-[var(--accent)]" />
             </div>
             <div className="min-w-0">
-              <div className="text-[0.92rem] font-semibold tracking-[-0.02em] text-[var(--foreground)] truncate">
-                专家抽取
-              </div>
-              <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-                从专家库中按专业分类与回避规则智能抽取评标专家，组建评审委员会
-              </div>
+              <div className="text-[0.92rem] font-semibold tracking-[-0.02em] text-[var(--foreground)] truncate">专家智能抽取</div>
+              <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">专业匹配 / 随机抽取 / 综合择优，AI 分析项目需求并智能组建专家组</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <RulesPopover label="抽取规则" accentColor="var(--accent)">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">专家抽取规则</h3>
-              <ol className="space-y-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>三种抽取模式：专业匹配（AI分析专业构成+加权随机）、随机抽取（合规池公平随机）、综合择优（多维履职数据排名择优）</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级(A/B/C/D)、出勤/质量/廉洁三维度评分、评分偏离度、历史经验与当前负荷</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>手动调整：抽取后可替换/移除/添加专家，灵活组建最终专家组</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
-              </ol>
-            </RulesPopover>
-            <button type="button" onClick={onClose} className="neu-btn-soft !p-2">
-              <X size={16} />
-            </button>
-          </div>
+          <button type="button" onClick={onClose} className="neu-btn-soft !p-2">
+            <X size={16} />
+          </button>
         </div>
 
         <div
-          className="flex-1 min-h-0 overflow-y-auto"
+          className="flex-1 min-h-0 overflow-y-auto px-5"
           style={{
             background: 'oklch(0.975 0.012 258 / 0.32)',
-            boxShadow:
-              'inset 2px 3px 8px oklch(0.5 0.04 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.55)',
+            boxShadow: 'inset 2px 3px 8px oklch(0.5 0.04 258 / 0.1), inset -1px -1px 3px oklch(1 0 0 / 0.55)',
           }}
         >
-          {/* 无装饰性预加载屏：抽取页挂载后即展示真实状态，加载态由页内真实请求驱动 */}
-          <Suspense fallback={
-            <div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">
-              加载抽取配置...
+          {resolving ? (
+            <div className="flex min-h-[300px] items-center justify-center gap-2 text-sm text-[var(--muted-foreground)]">
+              <Loader2 size={16} className="animate-spin" />
+              定位开评标项目…
             </div>
-          }>
-            <ExpertExtractPage
-              hideHeader
-              defaultProjectTitle={project?.title}
-            />
-          </Suspense>
+          ) : (
+            <Suspense fallback={
+              <div className="flex min-h-[300px] items-center justify-center text-sm text-[var(--muted-foreground)]">加载专家抽取配置...</div>
+            }>
+              <ExpertExtractPage
+                hideHeader
+                defaultProjectTitle={project?.title}
+                defaultPid={defaultPid}
+              />
+            </Suspense>
+          )}
         </div>
       </div>
     </div>

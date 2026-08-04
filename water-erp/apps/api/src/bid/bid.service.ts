@@ -102,7 +102,7 @@ export class BidService {
     };
   }
 
-  listProjects(stages?: string[]) {
+  async listProjects(stages?: string[]) {
     const where = stages && stages.length > 0
       ? { stage: { in: stages as BidStage[] }, isExtractionOnly: false }
       : { isExtractionOnly: false };
@@ -110,7 +110,7 @@ export class BidService {
     // 当按阶段筛选时返回精简字段（用于搜索选择器）
     // 无筛选时返回完整字段（用于归档/仪表盘等向后兼容）
     if (stages && stages.length > 0) {
-      return this.prisma.bidProject.findMany({
+      const projects = await this.prisma.bidProject.findMany({
         where,
         orderBy: { updatedAt: 'desc' },
         select: {
@@ -118,14 +118,36 @@ export class BidService {
           projectCode: true,
           name: true,
           stage: true,
+          projectManagementItemId: true,
         },
       });
+      // 用源项目管理的 projectCode 覆盖 bid 自动生成的编号（如 BID-xxx → TP-xxx）
+      return this.resolveDisplayCodes(projects);
     }
 
-    return this.prisma.bidProject.findMany({
+    const projects = await this.prisma.bidProject.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { suppliers: true } } },
+    });
+    // 同上：用源项目管理的 projectCode 覆盖
+    return this.resolveDisplayCodes(projects);
+  }
+
+  /** 联查 ProjectManagementItem.projectCode，覆盖 BidProject 自身编号 */
+  private async resolveDisplayCodes<T extends { projectManagementItemId?: string | null; projectCode?: string }>(
+    projects: T[],
+  ): Promise<T[]> {
+    const pmIds = [...new Set(projects.map(p => p.projectManagementItemId).filter(Boolean))] as string[];
+    if (pmIds.length === 0) return projects;
+    const pmItems = await this.prisma.projectManagementItem.findMany({
+      where: { id: { in: pmIds } },
+      select: { id: true, projectCode: true },
+    });
+    const codeMap = new Map(pmItems.map(pm => [pm.id, pm.projectCode]));
+    return projects.map(p => {
+      const sourceCode = p.projectManagementItemId ? codeMap.get(p.projectManagementItemId) : undefined;
+      return sourceCode ? { ...p, projectCode: sourceCode } : p;
     });
   }
 
@@ -271,8 +293,8 @@ export class BidService {
     };
   }
 
-  getProject(id: string) {
-    return this.prisma.bidProject.findUnique({
+  async getProject(id: string) {
+    const project = await this.prisma.bidProject.findUnique({
       where: { id },
       include: {
         suppliers: true,
@@ -286,6 +308,18 @@ export class BidService {
         archiveItems: true,
       },
     });
+    if (!project) return null;
+    // 用源项目管理的 projectCode 覆盖 bid 自动生成的编号
+    if (project.projectManagementItemId) {
+      const pm = await this.prisma.projectManagementItem.findUnique({
+        where: { id: project.projectManagementItemId },
+        select: { projectCode: true },
+      });
+      if (pm?.projectCode) {
+        return { ...project, projectCode: pm.projectCode };
+      }
+    }
+    return project;
   }
 
   /** 项目工作台：聚合项目 + 供应商(含投标提交) + 专家组 + 统计，供采购管理端判断开标准备 */
@@ -304,7 +338,8 @@ export class BidService {
       }),
       this.prisma.bidExpert.findMany({
         where: { projectId: id },
-        select: { id: true, expertName: true, major: true, signedIn: true, avoidanceConfirmed: true, progress: true },
+        include: { user: { select: { expertProfile: { select: { title: true } } } } },
+        orderBy: [{ expertRole: 'asc' }, { createdAt: 'asc' }],
       }),
       this.prisma.supplierBidSubmission.findMany({
         where: { projectId: id },
@@ -4353,6 +4388,171 @@ export class BidService {
     });
 
     return { reached: userIds.length };
+  }
+
+  // ── 催促未投递供应商（v2：逐家 AI 文案 + 自选渠道 + 一次性额度，人工/自动共用）──
+  // 目标集合 = 回执 ACCEPTED 且尚未投递的供应商；回执可能写在 PM-item id 或 BidProject id 两个空间，故都查。
+
+  /** 计算"已回执参加 + 未投递"的供应商目标集合（含 supplierId/name/userId）。
+   *  与是否已生成逐家文案无关——文案仅在发送时按 supplierId 取用。 */
+  private async computeNudgeTargets(
+    bidProjectId: string,
+  ): Promise<{ supplierId: string; name: string; userId: string | null }[]> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: bidProjectId },
+      select: { id: true, projectManagementItemId: true },
+    });
+    if (!project) return [];
+    const pmId = project.projectManagementItemId;
+
+    const [roster, submissions, rsvps] = await Promise.all([
+      this.prisma.bidSupplier.findMany({
+        where: { projectId: bidProjectId },
+        select: { supplierId: true, supplierName: true, submitStatus: true, supplier: { select: { userId: true } } },
+      }),
+      this.prisma.supplierBidSubmission.findMany({
+        where: { projectId: bidProjectId },
+        select: { supplierId: true, status: true },
+      }),
+      this.prisma.invitationRsvp.findMany({
+        where: { projectId: { in: pmId ? [bidProjectId, pmId] : [bidProjectId] }, status: 'ACCEPTED' },
+        select: { supplierId: true, supplierName: true },
+      }),
+    ]);
+
+    const subMap = new Map(submissions.map(s => [s.supplierId, s]));
+    const nameMap = new Map<string, string>();
+    for (const r of roster) if (r.supplierId) nameMap.set(r.supplierId, r.supplierName);
+    for (const r of rsvps) if (r.supplierId) nameMap.set(r.supplierId, r.supplierName);
+    const userMap = new Map<string, string | null>();
+    for (const r of roster) if (r.supplierId) userMap.set(r.supplierId, r.supplier?.userId ?? null);
+
+    const accepted = new Set(rsvps.map(r => r.supplierId));
+    const seen = new Set<string>();
+    const targets: { supplierId: string; name: string; userId: string | null }[] = [];
+    for (const sid of accepted) {
+      if (!sid || seen.has(sid)) continue;
+      seen.add(sid);
+      const submission = subMap.get(sid);
+      const entry = roster.find(r => r.supplierId === sid);
+      const submitted = submission?.status === 'submitted' || (!submission && entry?.submitStatus === '已提交');
+      if (submitted) continue;
+      targets.push({ supplierId: sid, name: nameMap.get(sid) ?? sid, userId: userMap.get(sid) ?? null });
+    }
+    return targets;
+  }
+
+  /** 当前催促状态（供面板渲染：是否已发/已定时、定时点、目标名单、文案数）。 */
+  async getNudgeStatus(bidProjectId: string): Promise<{
+    status: string | null; sendAt: string | null; sentAt: string | null;
+    channels: string[]; messageCount: number; canNudge: boolean; openTime: string | null;
+    targets: { supplierId: string; name: string }[];
+  }> {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: bidProjectId }, select: { openTime: true } });
+    const nudge = await this.prisma.bidSupplierNudge.findUnique({ where: { bidProjectId } });
+    const messages = (nudge?.messages as Record<string, { title: string; body: string }> | null) ?? {};
+    const targets = await this.computeNudgeTargets(bidProjectId);
+    return {
+      status: nudge?.status ?? null,
+      sendAt: nudge?.sendAt ? nudge.sendAt.toISOString() : null,
+      sentAt: nudge?.sentAt ? nudge.sentAt.toISOString() : null,
+      channels: (nudge?.channels as string[] | null) ?? [],
+      messageCount: Object.keys(messages).length,
+      canNudge: nudge?.status !== 'SENT',
+      openTime: project?.openTime ? project.openTime.toISOString() : null,
+      targets: targets.map(t => ({ supplierId: t.supplierId, name: t.name })),
+    };
+  }
+
+  /** 人工立即发送：原子抢占一次额度（已发则 409），按当前目标集合逐家多渠道投递。 */
+  async sendNudgeNow(
+    bidProjectId: string,
+    input: { channels: string[]; messages: Record<string, { title: string; body: string }> },
+    actorId: string,
+  ): Promise<{ sent: number; notFound: number }> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: bidProjectId },
+      select: { id: true, projectCode: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const claimed = await this.prisma.bidSupplierNudge.updateMany({
+      where: { bidProjectId, status: { not: 'SENT' } },
+      data: { status: 'SENT', sentAt: new Date(), channels: input.channels as unknown as Prisma.InputJsonValue, messages: input.messages as unknown as Prisma.InputJsonValue },
+    });
+    if (claimed.count === 0) {
+      const existing = await this.prisma.bidSupplierNudge.findUnique({ where: { bidProjectId }, select: { status: true } });
+      if (existing?.status === 'SENT') throw new ConflictException({ error: '该项目已催促过，仅可催促一次', code: 'NUDGE_ALREADY_SENT' });
+    }
+    if (claimed.count === 0) {
+      await this.prisma.bidSupplierNudge.upsert({
+        where: { bidProjectId },
+        create: { bidProjectId, status: 'SENT', sentAt: new Date(), channels: input.channels as unknown as Prisma.InputJsonValue, messages: input.messages as unknown as Prisma.InputJsonValue },
+        update: { status: 'SENT', sentAt: new Date(), channels: input.channels as unknown as Prisma.InputJsonValue, messages: input.messages as unknown as Prisma.InputJsonValue },
+      });
+    }
+
+    const targets = await this.computeNudgeTargets(bidProjectId);
+    let sent = 0;
+    let notFound = 0;
+    for (const t of targets) {
+      const msg = input.messages[t.supplierId];
+      if (!msg || !msg.body?.trim()) continue; // 无对应文案者跳过（不催）
+      if (!t.userId) { notFound++; continue; }
+      try {
+        await this.notificationService.sendToUser(t.userId, input.channels, {
+          type: 'BID_NUDGE_SUPPLIER', title: msg.title, content: msg.body, link: null,
+        });
+        sent++;
+      } catch (e) {
+        this.logger.warn(`催促发送失败 supplier=${t.supplierId}: ${(e as Error).message}`);
+      }
+    }
+    await this.prisma.auditLog.create({
+      data: { userId: actorId, action: 'BID_NUDGE_SUPPLIERS', resourceType: project.projectCode, details: { projectId: bidProjectId, mode: 'manual', sent, notFound } },
+    }).catch(() => {});
+    return { sent, notFound };
+  }
+
+  /** 定时发送（开标前 24h）：写入 SCHEDULED；若已发则 409。重复定时以最新为准。 */
+  async scheduleNudge(
+    bidProjectId: string,
+    input: { sendAt: string; channels: string[]; messages: Record<string, { title: string; body: string }> },
+    actorId: string,
+  ): Promise<{ sendAt: string }> {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: bidProjectId }, select: { id: true, projectCode: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const sendAt = new Date(input.sendAt);
+    if (Number.isNaN(sendAt.getTime()) || sendAt.getTime() <= Date.now()) {
+      throw new BadRequestException({ error: '定时时间无效或已过期', code: 'INVALID_SCHEDULE' });
+    }
+    const existing = await this.prisma.bidSupplierNudge.findUnique({ where: { bidProjectId }, select: { status: true } });
+    if (existing?.status === 'SENT') throw new ConflictException({ error: '该项目已催促过，无法再设定时', code: 'NUDGE_ALREADY_SENT' });
+
+    await this.prisma.bidSupplierNudge.upsert({
+      where: { bidProjectId },
+      create: { bidProjectId, status: 'SCHEDULED', sendAt, channels: input.channels as unknown as Prisma.InputJsonValue, messages: input.messages as unknown as Prisma.InputJsonValue },
+      update: { status: 'SCHEDULED', sendAt, channels: input.channels as unknown as Prisma.InputJsonValue, messages: input.messages as unknown as Prisma.InputJsonValue },
+    });
+    await this.prisma.auditLog.create({
+      data: { userId: actorId, action: 'BID_NUDGE_SUPPLIERS', resourceType: project.projectCode, details: { projectId: bidProjectId, mode: 'scheduled', sendAt: sendAt.toISOString() } },
+    }).catch(() => {});
+    return { sendAt: sendAt.toISOString() };
+  }
+
+  /** 取消定时（仅 SCHEDULED 可取消；已发不可取消）。 */
+  async cancelNudge(bidProjectId: string, actorId: string): Promise<{ ok: boolean }> {
+    const res = await this.prisma.bidSupplierNudge.updateMany({
+      where: { bidProjectId, status: 'SCHEDULED' },
+      data: { status: null, sendAt: null },
+    });
+    if (res.count > 0) {
+      const p = await this.prisma.bidProject.findUnique({ where: { id: bidProjectId }, select: { projectCode: true } });
+      await this.prisma.auditLog.create({
+        data: { userId: actorId, action: 'BID_NUDGE_SUPPLIERS', resourceType: p?.projectCode ?? bidProjectId, details: { projectId: bidProjectId, mode: 'cancelled' } },
+      }).catch(() => {});
+    }
+    return { ok: true };
   }
 
   /**
