@@ -105,6 +105,12 @@ export default function ExpertDashboardPage() {
     catch (e: any) { toast.error(e.message || '投票失败'); }
     finally { setBusy(false); }
   }
+  async function handleCloseMotion(motionId: string) {
+    setBusy(true);
+    try { await api.post(`/expert/motions/${motionId}/close`, {}); toast.success('决议已形成'); reloadTasks(); }
+    catch (e: any) { toast.error(e.message || '操作失败'); }
+    finally { setBusy(false); }
+  }
 
   // ── 派生数据 ──
 
@@ -288,16 +294,22 @@ export default function ExpertDashboardPage() {
                             <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
                               赞成 {approves} · 反对 {rejects} / {total}
                             </span>
-                            {needVote && (
-                              <div className="flex gap-1">
-                                <button onClick={() => handleVote(m.id, 'approve')} disabled={busy}
-                                  className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--success)]">赞成</button>
-                                <button onClick={() => handleVote(m.id, 'reject')} disabled={busy}
-                                  className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--danger)]">反对</button>
-                                <button onClick={() => handleVote(m.id, 'abstain')} disabled={busy}
-                                  className="neu-btn-soft !h-[24px] !text-[10px]">弃权</button>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {needVote && (
+                                <div className="flex gap-1">
+                                  <button onClick={() => handleVote(m.id, 'approve')} disabled={busy}
+                                    className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--success)]">赞成</button>
+                                  <button onClick={() => handleVote(m.id, 'reject')} disabled={busy}
+                                    className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--danger)]">反对</button>
+                                  <button onClick={() => handleVote(m.id, 'abstain')} disabled={busy}
+                                    className="neu-btn-soft !h-[24px] !text-[10px]">弃权</button>
+                                </div>
+                              )}
+                              {isVoting && isLeadAnywhere && (
+                                <button onClick={() => handleCloseMotion(m.id)} disabled={busy}
+                                  className="neu-btn-soft is-warning !h-[24px] !text-[10px] ml-auto">结束投票·形成决议</button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

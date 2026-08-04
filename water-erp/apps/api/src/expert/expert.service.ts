@@ -1829,7 +1829,7 @@ export class ExpertService {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.expertDispute.findMany({
-        where: { expertId: { in: expertIds } },
+        where: { projectId: { in: projectIds } },
         orderBy: { createdAt: 'desc' },
       }),
     ]);
