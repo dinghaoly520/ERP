@@ -1612,98 +1612,11 @@ export default function ExpertEvaluatePage() {
             />
           )}
 
-          {/* ====== C1: 表决与投票（只读记录——操作在工作台「评审待办」）====== */}
-          {step === 'report' && (
-            <div className="mx-auto max-w-4xl p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <Gavel size={16} strokeWidth={1.8} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-bold text-[var(--foreground)]">委员会表决记录</h3>
-                <span className="text-xs text-[var(--muted-foreground)]">({motions.length} 项)</span>
-              </div>
-
-              {motions.length === 0 ? (
-                <p className="text-xs text-[var(--muted-foreground)]">暂无表决记录</p>
-              ) : (
-                <div className="space-y-2">
-                  {motions.map((m: any) => {
-                    const approves = m.votes?.filter((v: any) => v.vote === 'approve').length ?? 0;
-                    const rejects = m.votes?.filter((v: any) => v.vote === 'reject').length ?? 0;
-                    const totalVotes = m.votes?.length ?? 0;
-                    const myVote = m.votes?.find((v: any) => v.expertId === expert?.id);
-                    return (
-                      <div key={m.id} className="neu-card-static rounded-xl p-3">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold">{m.title}</span>
-                            <span className={`text-xs font-semibold ${m.status === 'voting' ? 'text-[var(--accent)]' : m.result === 'approved' ? 'text-[var(--success)]' : m.result === 'rejected' ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
-                              {m.status === 'voting' ? '投票中' : m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : m.result === 'tie_deadlock' ? '△ 平票（须人工介入）' : m.status}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs tabular-nums">
-                            <span className="text-[var(--success)]">赞成 {approves}</span>
-                            <span className="text-[var(--danger)]">反对 {rejects}</span>
-                            <span className="text-[var(--muted-foreground)]">/ {totalVotes}</span>
-                          </div>
-                        </div>
-                        {m.description && (
-                          <p className="text-xs text-[var(--muted-foreground)] mb-1">{m.description}</p>
-                        )}
-                        {myVote && (
-                          <span className="text-xs text-[var(--muted-foreground)]">您已投：{myVote.vote === 'approve' ? '赞成' : myVote.vote === 'reject' ? '反对' : '弃权'}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <p className="mt-3 text-[11px] text-[var(--muted-foreground)]">
-                表决发起、投票与形成决议请前往工作台「评审待办」页面
-              </p>
-            </div>
-          )}
-
-          {/* ====== D2: 异议工单（只读记录——操作在工作台「评审待办」）====== */}
-          {step === 'report' && (
-            <div className="mx-auto max-w-4xl p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <AlertTriangle size={16} strokeWidth={1.8} className="text-[var(--warning)]" />
-                <h3 className="text-sm font-bold text-[var(--foreground)]">异议工单记录</h3>
-                <span className="text-xs text-[var(--muted-foreground)]">({disputes.length} 项)</span>
-              </div>
-
-              {disputes.length === 0 ? (
-                <p className="text-xs text-[var(--muted-foreground)]">暂无异议工单</p>
-              ) : (
-                <div className="space-y-2">
-                  {disputes.map((d: any) => (
-                    <div key={d.id} className="rounded-lg border border-[color-mix(in_oklch,var(--foreground)_6%,transparent)] px-3 py-2">
-                      <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                          <span className="text-sm font-semibold">{d.title}</span>
-                          <span className="ml-2 text-xs text-[var(--muted-foreground)]">{d.expertName}</span>
-                        </div>
-                        <span className={`shrink-0 text-xs font-semibold ${d.status === 'open' ? 'text-[var(--warning)]' : d.status === 'resolved' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
-                          {d.status === 'open' ? '待裁决' : d.status === 'resolved' ? '已采纳' : '已驳回'}
-                        </span>
-                      </div>
-                      {d.response && (
-                        <p className="mt-1 text-xs text-[var(--muted-foreground)]">裁决回复：{d.response}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="mt-3 text-[11px] text-[var(--muted-foreground)]">
-                提交异议请前往工作台「评审待办」页面
-              </p>
-            </div>
-          )}
-
           {/* ====== 评审报告 ====== */}
           {step === 'report' && (
             <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport}
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
-              onLeaderCoSign={handleLeaderCoSign} motions={motions} />
+              onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} />
           )}
             </div>
           </div>
