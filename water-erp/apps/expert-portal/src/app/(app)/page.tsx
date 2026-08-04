@@ -82,7 +82,7 @@ export default function ExpertDashboardPage() {
     try {
       await api.post(`/expert/projects/${motionForm.projectId}/motions`, { title: motionForm.title, description: motionForm.description, type: 'other' });
       setMotionForm({ projectId: '', title: '', description: '' }); setShowMotionForm(false);
-      toast.success('表决已发起'); load();
+      toast.success('表决已发起'); reloadTasks();
     } catch (e: any) { toast.error(e.message || '发起失败'); }
     finally { setBusy(false); }
   }
@@ -92,13 +92,16 @@ export default function ExpertDashboardPage() {
     try {
       await api.post(`/expert/projects/${disputeForm.projectId}/disputes`, { title: disputeForm.title, content: disputeForm.content, type: 'scoring' });
       setDisputeForm({ projectId: '', title: '', content: '' }); setShowDisputeForm(false);
-      toast.success('异议已提交'); load();
+      toast.success('异议已提交'); reloadTasks();
     } catch (e: any) { toast.error(e.message || '提交失败'); }
     finally { setBusy(false); }
   }
+  function reloadTasks() {
+    api.get<MyTasks>('/expert/tasks').then(setTasks).catch(() => {});
+  }
   async function handleVote(motionId: string, vote: string) {
     setBusy(true);
-    try { await api.post(`/expert/motions/${motionId}/vote`, { vote }); toast.success('投票成功'); load(); }
+    try { await api.post(`/expert/motions/${motionId}/vote`, { vote }); toast.success('投票成功'); reloadTasks(); }
     catch (e: any) { toast.error(e.message || '投票失败'); }
     finally { setBusy(false); }
   }
