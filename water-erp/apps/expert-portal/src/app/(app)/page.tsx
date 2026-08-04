@@ -1,155 +1,278 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, Clipboard, ShieldCheck, UserCircle, ScrollText, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  ShieldCheck, Gavel, AlertTriangle, CheckCircle2, ChevronRight,
+  ChevronDown, RefreshCw, ClipboardCheck, UserCircle,
+} from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ExpertStatistics, ExpertProject, User } from '@/lib/types';
+import type { ExpertProject, User } from '@/lib/types';
+import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
+
+// /expert/tasks 返回的动议/异议（与 /tasks 页共享类型结构）
+interface MotionItem {
+  id: string; projectId: string; projectName: string; projectStage: string;
+  title: string; status: string; myVote: string | null;
+  votes: Array<{ expertId: string; vote: string }>;
+}
+interface DisputeItem {
+  id: string; projectId: string; projectName: string;
+  title: string; status: string;
+}
+interface MyTasks { motions: MotionItem[]; disputes: DisputeItem[]; }
 
 export default function ExpertDashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [stats, setStats] = useState<ExpertStatistics | null>(null);
   const [projects, setProjects] = useState<ExpertProject[]>([]);
+  const [tasks, setTasks] = useState<MyTasks | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const load = () => {
     setLoading(true);
     Promise.allSettled([
       fetch('/api/auth/me', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setUser),
-      api.get<ExpertStatistics>('/expert/statistics').then(setStats).catch((e) => toast.error(`加载统计数据失败: ${e.message}`)),
-      api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch((e) => toast.error(`加载项目列表失败: ${e.message}`)),
+      api.get<ExpertProject[]>('/expert/projects').then(setProjects).catch((e) => toast.error(`加载项目失败: ${e.message}`)),
+      api.get<MyTasks>('/expert/tasks').then(setTasks).catch(() => { /* 无待办不阻断 */ }),
     ]).finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
 
-  const isProjectActive = (stage: string) => stage === 'OPENING' || stage === 'EVALUATING';
-  const activeProjects = projects.filter(p => isProjectActive(p.project.stage));
-  const totalProjectCount = projects.length;
-  const pendingCount = stats?.pendingProjects ?? 0;
+  // ── 派生数据 ──
+  const isActive = (stage: string) => stage === 'OPENING' || stage === 'EVALUATING';
 
-  const kpis = [
-    {
-      label: '待核验', value: pendingCount, sub: '未完成身份核验',
-      sig: 'var(--warning)', sigLabel: '待处理', Icon: ShieldCheck,
-      path: '/projects',
-    },
-    {
-      label: '评审中', value: activeProjects.length, sub: '开评标进行中',
-      sig: 'var(--accent-strong)', sigLabel: '进行中', Icon: Clipboard,
-      path: '/projects?filter=reviewable',
-    },
-    {
-      label: '已完成', value: stats?.completedProjects ?? 0, sub: '累计评审项目',
-      sig: 'var(--success)', sigLabel: '已归档', Icon: CheckCircle,
-      path: '/projects?filter=archived',
-    },
-  ];
+  const pendingSignin = useMemo(
+    () => projects.filter(p => isActive(p.project.stage) && !p.signedIn),
+    [projects],
+  );
+  const pendingMotions = useMemo(
+    () => (tasks?.motions ?? []).filter(m => !m.myVote),
+    [tasks],
+  );
+  const pendingDisputes = useMemo(
+    () => (tasks?.disputes ?? []).filter(d => d.status === 'open'),
+    [tasks],
+  );
+
+  const inProgress = useMemo(
+    () => projects.filter(p => isActive(p.project.stage) && p.signedIn),
+    [projects],
+  );
+  const completed = useMemo(
+    () => projects.filter(p => p.project.stage === 'ARCHIVED').slice(0, 5),
+    [projects],
+  );
+
+  const totalPending = pendingSignin.length + pendingMotions.length + pendingDisputes.length;
 
   return (
     <div className="space-y-5">
-      {/* 页面标题卡片 */}
+      {/* 页面标题 */}
       <div className="page-hero">
-        <div className="page-hero__row">
-          <div className="page-hero__left">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="page-hero__icon"><UserCircle size={18} strokeWidth={1.5} /></div>
             <div>
               <div className="page-hero__title">欢迎，{user?.displayName || '专家'}</div>
               <div className="page-hero__sub">在线开标 · 专家评审 · 过程留痕</div>
             </div>
           </div>
-          <div className="page-hero__right">
-            <span className="page-hero__stat page-hero__stat--info">共 {totalProjectCount} 个项目</span>
-            {pendingCount > 0 && (
-              <span className="page-hero__stat page-hero__stat--warn">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--danger)]" />
-                {pendingCount} 待核验
+          <div className="flex items-center gap-2">
+            {totalPending > 0 && (
+              <span className="rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums text-white" style={{ background: 'var(--warning)' }}>
+                {totalPending} 项待处理
               </span>
             )}
             <button onClick={load} disabled={loading} className="neu-btn-xs is-square !h-[30px] !w-[30px]" title="刷新">
-              <RefreshCw size={14} strokeWidth={1.6} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
-
-        <div className="wb-section-rule" />
-
-        {/* KPI 指标瓷片 — 可点击跳转至评审项目页对应筛选 */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {loading
-            ? kpis.map(k => (
-                <div key={k.label} className="kpi-card animate-pulse p-3">
-                  <div className="h-2.5 w-14 rounded bg-[oklch(0.55_0.03_258/0.12)]" />
-                  <div className="mt-2 h-6 w-10 rounded bg-[oklch(0.55_0.03_258/0.12)]" />
-                </div>
-              ))
-            : kpis.map(k => (
-                <div
-                  key={k.label}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => router.push(k.path)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(k.path); } }}
-                  className="kpi-card cursor-pointer flex flex-col gap-1.5 p-3.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">
-                      <k.Icon size={13} strokeWidth={1.7} />
-                      {k.label}
-                    </span>
-                    <span className="kpi-signal text-[9px] font-bold" style={{ '--s': k.sig } as React.CSSProperties}>
-                      <span className="kpi-signal-dot" />
-                      {k.sigLabel}
-                    </span>
-                  </div>
-                  <span className="text-[1.7rem] font-black leading-none tracking-[-0.04em] tabular-nums text-[var(--foreground)]">{k.value}</span>
-                  <span className="text-[10px] font-medium text-[var(--muted-foreground)]">{k.sub}</span>
-                </div>
-              ))}
-        </div>
       </div>
 
-      {/* 快捷操作 + 评审须知 */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_336px]">
-        <div className="neu-card-static p-5">
-          <h3 className="mb-4 text-[0.95rem] font-bold text-[var(--foreground)]">快捷操作</h3>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: '查看全部项目', desc: '评审项目管理', path: '/projects', Icon: Clipboard },
-              { label: '个人信息', desc: '资料查看与维护', path: '/profile', Icon: UserCircle },
-            ].map(action => (
-              <button key={action.path} onClick={() => router.push(action.path)} className="exp-action-tile">
-                <span className="exp-action-tile-icon"><action.Icon size={18} strokeWidth={1.6} /></span>
-                <span className="text-sm font-bold text-[var(--foreground)]">{action.label}</span>
-                <span className="text-xs text-[var(--muted-foreground)]">{action.desc}</span>
+      {loading ? (
+        <div className="neu-card-static rounded-2xl px-6 py-12 text-center">
+          <ClipboardCheck size={28} strokeWidth={1.2} className="mx-auto mb-3 animate-pulse text-[var(--muted-foreground)]" />
+          <p className="text-xs text-[var(--muted-foreground)]">加载工作台…</p>
+        </div>
+      ) : (
+        <>
+          {/* ====== 🔴 待处理事项 ====== */}
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${totalPending > 0 ? 'animate-pulse' : ''}`} style={{ background: totalPending > 0 ? 'var(--warning)' : 'var(--success)' }} />
+              <h3 className="text-sm font-bold text-[var(--foreground)]">待处理事项</h3>
+              {totalPending > 0 && <span className="text-xs font-semibold tabular-nums text-[var(--warning)]">{totalPending}</span>}
+            </div>
+
+            {totalPending === 0 ? (
+              <div className="neu-card-static rounded-2xl px-6 py-8 text-center">
+                <CheckCircle2 size={24} strokeWidth={1.4} className="mx-auto mb-2 text-[var(--success)]" />
+                <p className="text-xs font-semibold text-[var(--foreground)]">暂无待处理事项</p>
+                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">所有签到、投票、异议均已处理</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* 待签到 */}
+                {pendingSignin.length > 0 && (
+                  <TaskGroup icon={<ShieldCheck size={14} strokeWidth={1.8} />} color="var(--warning)" label="待签到" count={pendingSignin.length}>
+                    {pendingSignin.map(p => (
+                      <TaskRow key={p.id} name={p.project.name} stage={p.project.stage} onClick={() => router.push(`/evaluate/${p.project.id}`)} />
+                    ))}
+                  </TaskGroup>
+                )}
+                {/* 待投票动议 */}
+                {pendingMotions.length > 0 && (
+                  <TaskGroup icon={<Gavel size={14} strokeWidth={1.8} />} color="var(--accent)" label="待投票动议" count={pendingMotions.length}>
+                    {pendingMotions.map(m => {
+                      const approves = m.votes.filter(v => v.vote === 'approve').length;
+                      const rejects = m.votes.filter(v => v.vote === 'reject').length;
+                      return (
+                        <TaskRow
+                          key={m.id}
+                          name={m.projectName}
+                          stage={m.projectStage}
+                          subtitle={m.title}
+                          meta={`赞成 ${approves} · 反对 ${rejects}`}
+                          onClick={() => router.push(`/evaluate/${m.projectId}`)}
+                        />
+                      );
+                    })}
+                  </TaskGroup>
+                )}
+                {/* 异议跟进 */}
+                {pendingDisputes.length > 0 && (
+                  <TaskGroup icon={<AlertTriangle size={14} strokeWidth={1.8} />} color="var(--danger)" label="异议跟进" count={pendingDisputes.length}>
+                    {pendingDisputes.map(d => (
+                      <TaskRow key={d.id} name={d.projectName} subtitle={d.title} meta="待裁决" onClick={() => router.push(`/evaluate/${d.projectId}`)} />
+                    ))}
+                  </TaskGroup>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ====== 📊 进行中评审 ====== */}
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <ClipboardCheck size={15} strokeWidth={1.8} className="text-[var(--accent-strong)]" />
+              <h3 className="text-sm font-bold text-[var(--foreground)]">进行中评审</h3>
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: inProgress.length > 0 ? 'var(--accent)' : 'var(--muted-foreground)' }}>
+                {inProgress.length}
+              </span>
+            </div>
+
+            {inProgress.length === 0 ? (
+              <div className="neu-card-static rounded-2xl px-6 py-8 text-center">
+                <ClipboardCheck size={24} strokeWidth={1.2} className="mx-auto mb-2 text-[var(--muted-foreground)] opacity-50" />
+                <p className="text-xs text-[var(--muted-foreground)]">暂无进行中评审项目</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {inProgress.map(p => {
+                  const sc = STAGE_COLOR[p.project.stage as keyof typeof STAGE_COLOR] ?? '#7c3aed';
+                  const done = p.progress >= 100;
+                  return (
+                    <div key={p.id} className="neu-card-static rounded-xl p-4">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="truncate text-sm font-bold text-[var(--foreground)]">{p.project.name}</span>
+                          <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `color-mix(in oklch, ${sc} 12%, transparent)`, color: sc }}>
+                            {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
+                          </span>
+                        </div>
+                        <button onClick={() => router.push(`/evaluate/${p.project.id}`)}
+                          className="neu-btn-soft !h-[28px] !text-xs shrink-0">
+                          {done ? '查看' : '继续评审'} <ChevronRight size={12} />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="exp-bar flex-1">
+                          <i style={{ width: `${p.progress}%`, '--bar': done ? 'var(--success)' : sc } as React.CSSProperties} />
+                        </div>
+                        <span className={`w-11 text-right text-sm font-bold tabular-nums ${done ? 'text-[var(--success)]' : 'text-[var(--accent-strong)]'}`}>
+                          {p.progress}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* ====== 📋 最近完成 ====== */}
+          {completed.length > 0 && (
+            <section>
+              <button
+                onClick={() => setShowCompleted(!showCompleted)}
+                className="mb-3 flex items-center gap-2 text-sm font-bold text-[var(--foreground)] hover:opacity-80"
+              >
+                <ChevronDown size={15} strokeWidth={1.8} className={`text-[var(--muted-foreground)] transition-transform ${showCompleted ? '' : '-rotate-90'}`} />
+                最近完成
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: 'var(--success)' }}>
+                  {completed.length}
+                </span>
               </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="neu-card-static p-5">
-          <h3 className="mb-2 flex items-center gap-2 text-[0.95rem] font-bold text-[var(--foreground)]">
-            <ScrollText size={16} strokeWidth={1.6} className="text-[var(--accent-strong)]" />
-            评审须知
-          </h3>
-          <ul className="space-y-0.5 text-sm text-[var(--muted-foreground)]">
-            {[
-              '评审前需完成身份核验与回避确认',
-              '独立评审，不得与其他专家商议',
-              '所有评分需给出客观理由',
-              '评分提交后不可随意修改',
-              '评审全程留痕，受监督审计',
-            ].map(t => (
-              <li key={t} className="exp-list-item">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-strong)]" />
-                <span>{t}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+              {showCompleted && (
+                <div className="space-y-1.5">
+                  {completed.map(p => (
+                    <div key={p.id} className="neu-card-static rounded-xl px-4 py-2.5 flex items-center gap-3 opacity-70">
+                      <CheckCircle2 size={14} strokeWidth={1.8} className="shrink-0 text-[var(--success)]" />
+                      <span className="truncate text-sm font-semibold text-[var(--foreground)]">{p.project.name}</span>
+                      <span className="ml-auto tabular-nums text-xs text-[var(--muted-foreground)]">
+                        得分 {Number(p.totalScore).toFixed(1)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </>
+      )}
     </div>
+  );
+}
+
+/* ── 子组件 ── */
+
+function TaskGroup({ icon, color, label, count, children }: {
+  icon: React.ReactNode; color: string; label: string; count: number; children: React.ReactNode;
+}) {
+  return (
+    <div className="neu-card-static rounded-xl p-4">
+      <div className="mb-2 flex items-center gap-2" style={{ color }}>
+        {icon}
+        <span className="text-xs font-bold">{label}</span>
+        <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: color }}>
+          {count}
+        </span>
+      </div>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+function TaskRow({ name, stage, subtitle, meta, onClick }: {
+  name: string; stage?: string; subtitle?: string; meta?: string; onClick: () => void;
+}) {
+  const sc = stage ? STAGE_COLOR[stage as keyof typeof STAGE_COLOR] : undefined;
+  return (
+    <button onClick={onClick} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]">
+      <span className="truncate text-xs font-semibold text-[var(--foreground)]">{name}</span>
+      {stage && sc && (
+        <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold" style={{ background: `color-mix(in oklch, ${sc} 12%, transparent)`, color: sc }}>
+          {STAGE_LABEL[stage as keyof typeof STAGE_LABEL] ?? stage}
+        </span>
+      )}
+      {subtitle && <span className="truncate text-[11px] text-[var(--muted-foreground)]">· {subtitle}</span>}
+      {meta && <span className="ml-auto shrink-0 text-[10px] tabular-nums text-[var(--muted-foreground)]">{meta}</span>}
+      <ChevronRight size={12} className="shrink-0 text-[var(--muted-foreground)]" />
+    </button>
   );
 }
