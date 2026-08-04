@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2, GripVertical, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -32,7 +32,16 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
   const [suggestions, setSuggestions] = useState<(ScorePointSuggestion & { selected: boolean })[] | null>(null);
   const [extractError, setExtractError] = useState<string | null>(null);
 
-  const total = points.reduce((s, p) => s + Number(p.fullScore), 0);
+  // ── 本地得分点状态：增删改立即更新，避免父组件 reload 导致 DOM 重建 + 滚动跳顶 ──
+  const [localPoints, setLocalPoints] = useState<BidScorePoint[]>(() => points);
+  const localIdsRef = useRef('');
+  useEffect(() => { localIdsRef.current = localPoints.map((p) => p.id).sort().join(','); }, [localPoints]);
+  useEffect(() => {
+    const propIds = points.map((p) => p.id).sort().join(',');
+    if (propIds !== localIdsRef.current) setLocalPoints(points);
+  }, [points]);
+
+  const total = localPoints.reduce((s, p) => s + Number(p.fullScore), 0);
   const max = Number(item.maxScore);
 
   async function handleExtract() {
@@ -82,12 +91,13 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
     if (!draft.name.trim()) return;
     setBusy(true);
     try {
-      await createScorePoint(projectId, item.id, {
+      const created = await createScorePoint(projectId, item.id, {
         name: draft.name.trim(),
         fullScore: isPassFail ? 0 : Number(draft.fullScore),
         evidenceHint: draft.evidenceHint.trim() || undefined,
         objective: draft.objective,
       });
+      setLocalPoints((prev) => [...prev, created]);
       setDraft({ name: '', fullScore: 0, evidenceHint: '', objective: true });
       onChanged();
     } finally {
@@ -96,16 +106,19 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
   }
 
   async function toggleObjective(p: BidScorePoint) {
+    setLocalPoints((prev) => prev.map((x) => (x.id === p.id ? { ...x, objective: !p.objective } : x)));
     await updateScorePoint(projectId, item.id, p.id, { objective: !p.objective });
     onChanged();
   }
 
   async function remove(p: BidScorePoint) {
+    setLocalPoints((prev) => prev.filter((x) => x.id !== p.id));
     await deleteScorePoint(projectId, item.id, p.id);
     onChanged();
   }
 
   async function editFullScore(p: BidScorePoint, v: number) {
+    setLocalPoints((prev) => prev.map((x) => (x.id === p.id ? { ...x, fullScore: String(v) } : x)));
     await updateScorePoint(projectId, item.id, p.id, { fullScore: v });
     onChanged();
   }
@@ -139,7 +152,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
 
       {/* 已有得分点列表 */}
       <div className="space-y-1">
-        {points.map((p, idx) => (
+        {localPoints.map((p, idx) => (
           <div key={p.id} className="flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 text-sm">
             <GripVertical size={14} className="text-[oklch(0.7_0.005_264)]" />
             <span className="text-[oklch(0.45_0.01_265)] w-6">{idx + 1}.</span>
@@ -167,7 +180,7 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
             </button>
           </div>
         ))}
-        {points.length === 0 && (
+        {localPoints.length === 0 && (
           <div className="text-xs text-[oklch(0.6_0.01_264)] py-1">暂无得分点，在下方添加。</div>
         )}
       </div>

@@ -116,7 +116,7 @@ export function generateBusinessTags(s: TagSource): string[] {
   const clsTag = cls.length >= 2 && cls.length <= 14 && !USELESS_CLASS.has(cls) ? cls : '';
 
   // 优先级：经营范围关键词（最具体）> 名称行业词 > 分类锚点（兜底）。
-  let tags = dedupeKeepOrder([...scopeTags, ...nameTags, ...(clsTag ? [clsTag] : [])]);
+  const tags = dedupeKeepOrder([...scopeTags, ...nameTags, ...(clsTag ? [clsTag] : [])]);
 
   // 不足下限：经营范围本身即工商登记的业务活动，首段短语是合法且具体的业务标签，作补位。
   // 用「保留冒号/空格」的切分，使「推荐业务范围: 质量管理体系认证」首段=完整短语而非「推荐业务范围」。

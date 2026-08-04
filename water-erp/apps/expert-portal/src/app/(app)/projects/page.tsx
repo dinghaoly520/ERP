@@ -62,7 +62,7 @@ export default function ExpertProjectsPage() {
   }, [projects]);
 
   const filterTabs = [
-    { key: 'reviewable' as const, label: '可评审' },
+    { key: 'reviewable' as const, label: '评审中' },
     { key: 'archived' as const, label: '已归档' },
     { key: 'all' as const, label: '全部' },
   ];
@@ -119,10 +119,10 @@ export default function ExpertProjectsPage() {
         <div className="neu-card-static p-12 text-center">
           <ClipboardList size={46} strokeWidth={1} className="mx-auto mb-4 text-[oklch(0.75_0.02_258)]" />
           <h3 className="mb-2 text-lg font-bold text-[var(--foreground)]">
-            {filter === 'reviewable' ? '暂无可评审项目' : filter === 'archived' ? '暂无已归档项目' : '暂无项目'}
+            {filter === 'reviewable' ? '暂无评审中项目' : filter === 'archived' ? '暂无已归档项目' : '暂无项目'}
           </h3>
           <p className="text-sm text-[var(--muted-foreground)]">
-            {filter === 'reviewable' ? '请等待管理端启动开标，可评审项目将显示在这里' : '暂无匹配的项目'}
+            {filter === 'reviewable' ? '请等待管理端启动开标，评审中项目将显示在这里' : '暂无匹配的项目'}
           </p>
         </div>
       ) : (
