@@ -271,7 +271,7 @@ export default function ExpertDashboardPage() {
                       const isVoting = m.status === 'voting';
                       const needVote = isVoting && !m.myVote;
                       return (
-                        <div key={m.id} className="rounded-lg px-2 py-2">
+                        <div key={m.id} className={`rounded-lg px-2 py-2 ${needVote ? '' : 'opacity-50'}`}>
                           <div className="flex items-center gap-2 text-xs mb-1.5">
                             <span className="truncate font-semibold text-[var(--foreground)]">{m.projectName}</span>
                             {sc && (
@@ -279,7 +279,7 @@ export default function ExpertDashboardPage() {
                                 {STAGE_LABEL[m.projectStage as keyof typeof STAGE_LABEL] ?? m.projectStage}
                               </span>
                             )}
-                            <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold ${needVote ? '' : 'opacity-70'}`}
+                            <span className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold"
                               style={{
                                 background: needVote ? 'color-mix(in oklch, var(--warning) 14%, transparent)' : 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)',
                                 color: needVote ? 'var(--warning)' : 'var(--muted-foreground)',
@@ -322,7 +322,7 @@ export default function ExpertDashboardPage() {
                     {activeDisputes.map(d => {
                       const isOpen = d.status === 'open';
                       return (
-                        <div key={d.id} className="rounded-lg px-2 py-1.5">
+                        <div key={d.id} className={`rounded-lg px-2 py-1.5 ${isOpen ? '' : 'opacity-50'}`}>
                           <div className="flex items-center gap-2 text-xs">
                             <span className="truncate font-semibold text-[var(--foreground)]">{d.projectName}</span>
                             <span className="truncate text-[11px] text-[var(--muted-foreground)]">· {d.title}</span>
