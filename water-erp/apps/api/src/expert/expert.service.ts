@@ -1752,9 +1752,9 @@ export class ExpertService {
   async getMyTasks(userId: string) {
     const records = await this.prisma.bidExpert.findMany({
       where: { userId, project: { stage: { in: ['OPENING', 'EVALUATING'] } } },
-      select: { id: true, projectId: true, project: { select: { name: true, stage: true } } },
+      select: { id: true, expertName: true, isLead: true, projectId: true, project: { select: { name: true, stage: true } } },
     });
-    if (records.length === 0) return { motions: [], disputes: [] };
+    if (records.length === 0) return { motions: [], disputes: [], projects: [] };
 
     const projectIds = [...new Set(records.map(r => r.projectId))];
     const expertIds = records.map(r => r.id);
@@ -1773,6 +1773,13 @@ export class ExpertService {
     ]);
 
     return {
+      projects: records.map(r => ({
+        projectId: r.projectId,
+        projectName: r.project.name,
+        stage: r.project.stage,
+        myExpertId: r.id,
+        isLead: r.isLead,
+      })),
       motions: motions.map(m => ({
         ...m,
         projectName: projectMap.get(m.projectId)?.name ?? '',
