@@ -11,10 +11,12 @@ import { api } from '@/lib/api';
 import type { ExpertProject, User } from '@/lib/types';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
 
-// /expert/tasks 返回的动议/异议（与 /tasks 页共享类型结构）
+const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
+
+// /expert/tasks 返回的表决/异议（与 /tasks 页共享类型结构）
 interface MotionItem {
   id: string; projectId: string; projectName: string; projectStage: string;
-  title: string; status: string; myVote: string | null;
+  title: string; status: string; result?: string | null; myVote: string | null;
   votes: Array<{ expertId: string; vote: string }>;
 }
 interface DisputeItem {
@@ -108,14 +110,16 @@ export default function ExpertDashboardPage() {
     () => projects.filter(p => isActive(p.project.stage) && !p.signedIn),
     [projects],
   );
-  const pendingMotions = useMemo(
-    () => (tasks?.motions ?? []).filter(m => !m.myVote),
+  const activeMotions = useMemo(
+    () => tasks?.motions ?? [],
     [tasks],
   );
-  const pendingDisputes = useMemo(
-    () => (tasks?.disputes ?? []).filter(d => d.status === 'open'),
+  const activeDisputes = useMemo(
+    () => tasks?.disputes ?? [],
     [tasks],
   );
+  const pendingMotionCount = activeMotions.filter(m => !m.myVote).length;
+  const pendingDisputeCount = activeDisputes.filter(d => d.status === 'open').length;
 
   const inProgress = useMemo(
     () => projects.filter(p => isActive(p.project.stage) && p.signedIn),
@@ -126,7 +130,7 @@ export default function ExpertDashboardPage() {
     [projects],
   );
 
-  const totalPending = pendingSignin.length + pendingMotions.length + pendingDisputes.length;
+  const totalPending = pendingSignin.length + pendingMotionCount + pendingDisputeCount;
 
   return (
     <div className="space-y-5">
@@ -248,14 +252,16 @@ export default function ExpertDashboardPage() {
                     ))}
                   </TaskGroup>
                 )}
-                {/* 待投票表决 */}
-                {pendingMotions.length > 0 && (
-                  <TaskGroup icon={<Gavel size={14} strokeWidth={1.8} />} color="var(--accent)" label="待投票表决" count={pendingMotions.length}>
-                    {pendingMotions.map(m => {
+                {/* 表决记录（投票中 + 已结束，持续显示至项目结束） */}
+                {activeMotions.length > 0 && (
+                  <TaskGroup icon={<Gavel size={14} strokeWidth={1.8} />} color="var(--accent)" label="表决记录" count={activeMotions.length}>
+                    {activeMotions.map(m => {
                       const approves = m.votes.filter(v => v.vote === 'approve').length;
                       const rejects = m.votes.filter(v => v.vote === 'reject').length;
                       const total = m.votes.length;
                       const sc = STAGE_COLOR[m.projectStage as keyof typeof STAGE_COLOR];
+                      const isVoting = m.status === 'voting';
+                      const needVote = isVoting && !m.myVote;
                       return (
                         <div key={m.id} className="rounded-lg px-2 py-2">
                           <div className="flex items-center gap-2 text-xs mb-1.5">
@@ -265,38 +271,56 @@ export default function ExpertDashboardPage() {
                                 {STAGE_LABEL[m.projectStage as keyof typeof STAGE_LABEL] ?? m.projectStage}
                               </span>
                             )}
+                            <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold ${needVote ? '' : 'opacity-70'}`}
+                              style={{
+                                background: needVote ? 'color-mix(in oklch, var(--warning) 14%, transparent)' : 'color-mix(in oklch, var(--muted-foreground) 10%, transparent)',
+                                color: needVote ? 'var(--warning)' : 'var(--muted-foreground)',
+                              }}>
+                              {isVoting ? (m.myVote ? `已投：${VOTE_LABEL[m.myVote] ?? m.myVote}` : '待投票') : (
+                                m.result === 'approved' ? '✓ 通过' : m.result === 'rejected' ? '✗ 否决' : '△ 平票'
+                              )}
+                            </span>
                           </div>
                           <p className="text-[11px] font-semibold text-[var(--foreground)] mb-1">{m.title}</p>
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
                               赞成 {approves} · 反对 {rejects} / {total}
                             </span>
-                            <div className="flex gap-1">
-                              <button onClick={() => handleVote(m.id, 'approve')} disabled={busy}
-                                className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--success)]">赞成</button>
-                              <button onClick={() => handleVote(m.id, 'reject')} disabled={busy}
-                                className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--danger)]">反对</button>
-                              <button onClick={() => handleVote(m.id, 'abstain')} disabled={busy}
-                                className="neu-btn-soft !h-[24px] !text-[10px]">弃权</button>
-                            </div>
+                            {needVote && (
+                              <div className="flex gap-1">
+                                <button onClick={() => handleVote(m.id, 'approve')} disabled={busy}
+                                  className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--success)]">赞成</button>
+                                <button onClick={() => handleVote(m.id, 'reject')} disabled={busy}
+                                  className="neu-btn-soft !h-[24px] !text-[10px] !text-[var(--danger)]">反对</button>
+                                <button onClick={() => handleVote(m.id, 'abstain')} disabled={busy}
+                                  className="neu-btn-soft !h-[24px] !text-[10px]">弃权</button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
                     })}
                   </TaskGroup>
                 )}
-                {/* 异议跟进（只读：裁决由采购端执行） */}
-                {pendingDisputes.length > 0 && (
-                  <TaskGroup icon={<AlertTriangle size={14} strokeWidth={1.8} />} color="var(--danger)" label="异议跟进" count={pendingDisputes.length}>
-                    {pendingDisputes.map(d => (
-                      <div key={d.id} className="rounded-lg px-2 py-1.5">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="truncate font-semibold text-[var(--foreground)]">{d.projectName}</span>
-                          <span className="truncate text-[11px] text-[var(--muted-foreground)]">· {d.title}</span>
-                          <span className="ml-auto shrink-0 text-[10px] font-semibold text-[var(--danger)]">待裁决</span>
+                {/* 异议工单（持续显示至项目结束） */}
+                {activeDisputes.length > 0 && (
+                  <TaskGroup icon={<AlertTriangle size={14} strokeWidth={1.8} />} color="var(--danger)" label="异议工单" count={activeDisputes.length}>
+                    {activeDisputes.map(d => {
+                      const isOpen = d.status === 'open';
+                      return (
+                        <div key={d.id} className="rounded-lg px-2 py-1.5">
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="truncate font-semibold text-[var(--foreground)]">{d.projectName}</span>
+                            <span className="truncate text-[11px] text-[var(--muted-foreground)]">· {d.title}</span>
+                            <span className={`ml-auto shrink-0 text-[10px] font-semibold ${
+                              isOpen ? 'text-[var(--warning)]' : d.status === 'resolved' ? 'text-[var(--success)]' : 'text-[var(--danger)]'
+                            }`}>
+                              {isOpen ? '待裁决' : d.status === 'resolved' ? '已采纳' : '已驳回'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </TaskGroup>
                 )}
               </div>
