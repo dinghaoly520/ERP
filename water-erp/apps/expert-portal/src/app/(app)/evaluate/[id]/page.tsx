@@ -355,6 +355,26 @@ export default function ExpertEvaluatePage() {
 
   const expert = project?.myExpertRecord;
 
+  // Smart initial step: after project loads, jump to the most relevant step
+  // based on expert progress (only runs once per page load)
+  const initialStepComputed = useRef(false);
+  useEffect(() => {
+    if (!project || initialStepComputed.current) return;
+    initialStepComputed.current = true;
+
+    const er = project.myExpertRecord;
+    if (!er) return;
+
+    const verifyDone = er.signedIn && er.avoidanceConfirmed && er.aiConsentConfirmed
+      && er.confidentialityAgreed && er.disciplineAgreed;
+    if (!verifyDone) return; // stay on 'verify'
+
+    const progress = er.progress ?? 0;
+    if (progress >= 100) setStep('report');
+    else if (progress > 0) setStep('scoring');
+    else setStep('assist');
+  }, [project]);
+
   // Guard: redirect to verify if current step is not accessible
   useEffect(() => {
     if (!project) return;
