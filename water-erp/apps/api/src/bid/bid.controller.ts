@@ -340,13 +340,13 @@ export class BidController {
 
   @Post('projects/:id/suppliers/:supplierId/override-dispute')
   @Roles('admin', 'leader')
-  @ApiOperation({ summary: '强制裁决异议（监督人应急通道，DISPUTED→EXCEPTION）' })
+  @ApiOperation({ summary: '强制裁决（监督人应急通道，DISPUTED/EXCEPTION→confirmed/exception）' })
   overrideDispute(
     @Param('id') id: string,
     @Param('supplierId') supplierId: string,
-    @Body() dto: { reason: string },
+    @Body() dto: { reason: string; target?: 'confirmed' | 'exception' },
     @CurrentUser('sub') userId: string,
-  ) { return this.bidService.overrideDispute(id, supplierId, dto.reason, userId); }
+  ) { return this.bidService.overrideDispute(id, supplierId, dto.reason, userId, dto.target); }
 
   @Post('projects/:id/suppliers/:supplierId/accept-danger')
   @ApiOperation({ summary: '主持人确认接受供应商解密失败（不可恢复）' })

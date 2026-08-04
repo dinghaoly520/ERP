@@ -2267,11 +2267,13 @@ export class BidService {
   }
 
   /**
-   * 强制裁决异议（监督人应急通道）。
-   * 当供应商 DISPUTED 导致项目永久卡死时，leader/admin 可直接覆盖 DISPUTED→EXCEPTION。
+   * 强制裁决（监督人应急通道）。
+   * 供应商 DISPUTED/EXCEPTION 导致项目卡死时，leader/admin 可强制覆盖确认态。
+   * target='exception'（默认）: DISPUTED→EXCEPTION（排除供应商）
+   * target='confirmed': DISPUTED/EXCEPTION→CONFIRMED（恢复供应商参评）
    * 要求提供书面理由（入 audit log），写高风险监督日志。
    */
-  async overrideDispute(projectId: string, supplierId: string, reason: string, actorId?: string) {
+  async overrideDispute(projectId: string, supplierId: string, reason: string, actorId?: string, target: 'confirmed' | 'exception' = 'exception') {
     if (!reason?.trim()) throw new BadRequestException({ error: '请填写强制裁决理由', code: 'MISSING_REASON' });
 
     const project = await this.prisma.bidProject.findUnique({
@@ -2287,35 +2289,38 @@ export class BidService {
       select: { id: true, supplierName: true, confirmStatus: true, decryptStatus: true },
     });
     if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
-    if (bidSupplier.confirmStatus !== 'DISPUTED') {
-      throw new BadRequestException({ error: '仅异议中（DISPUTED）的供应商可被强制裁决', code: 'NOT_DISPUTED' });
+    // P2: 扩展接受 DISPUTED 和 EXCEPTION（CONFIRMED 无需覆盖）
+    if (!['DISPUTED', 'EXCEPTION'].includes(bidSupplier.confirmStatus)) {
+      throw new BadRequestException({ error: '仅异议中（DISPUTED）或异常（EXCEPTION）的供应商可被强制裁决', code: 'NOT_OVERRIDABLE' });
     }
 
+    const targetStatus = target === 'confirmed' ? 'CONFIRMED' : 'EXCEPTION';
+    const recordConfirmStatus = target === 'confirmed' ? '异议已处理-确认' : '异议已处理-退回';
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       // 将关联的开标记录同步更新（如有）
       const record = await tx.bidOpeningRecord.findFirst({
         where: { projectId, bidSupplierId: supplierId },
       });
-      if (record && record.confirmStatus === '供应商提出异议') {
+      if (record && ['供应商提出异议', '异议已处理-退回', '异议已处理-确认'].includes(record.confirmStatus)) {
         await tx.bidOpeningRecord.update({
           where: { id: record.id },
-          data: { confirmStatus: '异议已处理-退回', handleResult: `[强制裁决] ${reason}`, handledAt: now, handledBy: actorId ?? null },
+          data: { confirmStatus: recordConfirmStatus, handleResult: `[强制裁决] ${reason}`, handledAt: now, handledBy: actorId ?? null },
         });
       }
       await tx.bidSupplier.update({
         where: { id: supplierId },
-        data: { confirmStatus: 'EXCEPTION' },
+        data: { confirmStatus: targetStatus },
       });
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: now, role: '监督人', target: bidSupplier.supplierName,
-          action: '强制裁决异议', result: `DISPUTED→EXCEPTION：${reason}`, riskFlag: '高风险',
+          action: `强制裁决→${targetStatus}`, result: `${bidSupplier.confirmStatus}→${targetStatus}：${reason}`, riskFlag: '高风险',
         },
       });
       if (actorId) {
         await tx.auditLog.create({
-          data: { userId: actorId, action: 'BID_DISPUTE_OVERRIDE', resourceType: `BidSupplier:${supplierId}`, details: { projectId, reason } },
+          data: { userId: actorId, action: 'BID_DISPUTE_OVERRIDE', resourceType: `BidSupplier:${supplierId}`, details: { projectId, reason, target: targetStatus } },
         });
       }
       // 全清 DISPUTED → 清除 disputedSince
@@ -2326,11 +2331,11 @@ export class BidService {
     });
 
     this.gateway?.notifySupervisionLog(projectId, {
-      role: '监督人', action: '强制裁决异议', target: bidSupplier.supplierName,
-      result: `DISPUTED→EXCEPTION：${reason}`, riskFlag: '高风险',
+      role: '监督人', action: `强制裁决→${targetStatus}`, target: bidSupplier.supplierName,
+      result: `${bidSupplier.confirmStatus}→${targetStatus}：${reason}`, riskFlag: '高风险',
     });
 
-    return { overridden: true, supplierId, supplierName: bidSupplier.supplierName };
+    return { overridden: true, supplierId, supplierName: bidSupplier.supplierName, confirmStatus: targetStatus };
   }
 
   listExperts(projectId: string) {

@@ -803,7 +803,7 @@ model BidMotion {
   type        String   // 'dispute_resolution' | 'invalid_bid' | 'other'
   title       String
   description String?
-  status      String   @default("open") // open | voting | closed
+  status      String   @default("open") // voting | closed（'open' 为 schema 安全默认值，应用层 createMotion 直接写 'voting'）
   result      String?  // 'approved' | 'rejected' | 'tie_broken'
   createdBy   String
   createdAt   DateTime @default(now())
