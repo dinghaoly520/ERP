@@ -1612,17 +1612,17 @@ export default function ExpertEvaluatePage() {
             />
           )}
 
-          {/* ====== C1: 动议与投票（只读记录——操作在工作台「评审待办」）====== */}
+          {/* ====== C1: 表决与投票（只读记录——操作在工作台「评审待办」）====== */}
           {step === 'report' && (
             <div className="mx-auto max-w-4xl p-6">
               <div className="mb-4 flex items-center gap-2">
                 <Gavel size={16} strokeWidth={1.8} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-bold text-[var(--foreground)]">委员会动议记录</h3>
+                <h3 className="text-sm font-bold text-[var(--foreground)]">委员会表决记录</h3>
                 <span className="text-xs text-[var(--muted-foreground)]">({motions.length} 项)</span>
               </div>
 
               {motions.length === 0 ? (
-                <p className="text-xs text-[var(--muted-foreground)]">暂无动议记录</p>
+                <p className="text-xs text-[var(--muted-foreground)]">暂无表决记录</p>
               ) : (
                 <div className="space-y-2">
                   {motions.map((m: any) => {
@@ -1657,7 +1657,7 @@ export default function ExpertEvaluatePage() {
                 </div>
               )}
               <p className="mt-3 text-[11px] text-[var(--muted-foreground)]">
-                动议发起、投票与形成决议请前往工作台「评审待办」页面
+                表决发起、投票与形成决议请前往工作台「评审待办」页面
               </p>
             </div>
           )}

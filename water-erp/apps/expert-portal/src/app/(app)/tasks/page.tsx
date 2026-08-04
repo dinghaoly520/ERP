@@ -95,13 +95,13 @@ export default function ExpertTasksPage() {
   const projects = tasks?.projects ?? [];
   const projectOpts = projects.map(p => ({ value: p.projectId, label: p.projectName, stage: p.stage }));
 
-  // ── 发起动议 ──
+  // ── 发起表决 ──
   const [showMotionForm, setShowMotionForm] = useState(false);
   const [motionForm, setMotionForm] = useState({ projectId: '', title: '', description: '' });
 
   async function handleCreateMotion() {
     if (!motionForm.projectId || !motionForm.title.trim()) {
-      toast.error('请选择项目并填写动议标题');
+      toast.error('请选择项目并填写表决标题');
       return;
     }
     setBusy(true);
@@ -109,7 +109,7 @@ export default function ExpertTasksPage() {
       await api.post(`/expert/projects/${motionForm.projectId}/motions`, { title: motionForm.title, description: motionForm.description, type: 'other' });
       setMotionForm({ projectId: '', title: '', description: '' });
       setShowMotionForm(false);
-      toast.success('动议已发起');
+      toast.success('表决已发起');
       load();
     } catch (e: any) {
       toast.error(e.message || '发起失败');
@@ -178,7 +178,7 @@ export default function ExpertTasksPage() {
             </div>
             <div>
               <h2 className="text-base font-bold tracking-[-0.02em] text-[var(--foreground)]">评审待办</h2>
-              <p className="text-xs text-[var(--muted-foreground)]">跨项目动议投票与异议工单</p>
+              <p className="text-xs text-[var(--muted-foreground)]">跨项目表决投票与异议工单</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -201,12 +201,12 @@ export default function ExpertTasksPage() {
         </div>
       ) : (
         <>
-          {/* ====== 动议记录（投票中 + 已决议）====== */}
+          {/* ====== 表决记录（投票中 + 已决议）====== */}
           <section>
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Gavel size={15} strokeWidth={1.8} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-bold text-[var(--foreground)]">动议记录</h3>
+                <h3 className="text-sm font-bold text-[var(--foreground)]">表决记录</h3>
                 <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: motions.length > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
                   {motions.length}
                 </span>
@@ -215,7 +215,7 @@ export default function ExpertTasksPage() {
                 onClick={() => { autoFillProject(setMotionForm); setShowMotionForm(!showMotionForm); }}
                 className="neu-btn-soft !h-[28px] !text-xs"
               >
-                <Plus size={12} /> {showMotionForm ? '取消' : '发起动议'}
+                <Plus size={12} /> {showMotionForm ? '取消' : '发起表决'}
               </button>
             </div>
 
@@ -233,20 +233,20 @@ export default function ExpertTasksPage() {
                     ))}
                   </select>
                 )}
-                <input className="workbench-input w-full" placeholder="动议标题" value={motionForm.title}
+                <input className="workbench-input w-full" placeholder="表决标题" value={motionForm.title}
                   onChange={e => setMotionForm(p => ({ ...p, title: e.target.value }))} />
-                <textarea className="workbench-input w-full !min-h-[48px]" placeholder="动议说明（选填）" value={motionForm.description}
+                <textarea className="workbench-input w-full !min-h-[48px]" placeholder="表决说明（选填）" value={motionForm.description}
                   onChange={e => setMotionForm(p => ({ ...p, description: e.target.value }))} />
                 <button onClick={handleCreateMotion} disabled={busy || !motionForm.title.trim()}
-                  className="neu-btn-primary !h-[32px] !text-xs">{busy ? '发起中…' : '发起动议'}</button>
+                  className="neu-btn-primary !h-[32px] !text-xs">{busy ? '发起中…' : '发起表决'}</button>
               </div>
             )}
 
             {motions.length === 0 ? (
               <div className="neu-card-static rounded-2xl px-6 py-10 text-center">
                 <Gavel size={24} strokeWidth={1.2} className="mx-auto mb-2 text-[var(--muted-foreground)] opacity-50" />
-                <p className="text-xs text-[var(--muted-foreground)]">暂无动议记录</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">点击「发起动议」按钮新建</p>
+                <p className="text-xs text-[var(--muted-foreground)]">暂无表决记录</p>
+                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">点击「发起表决」按钮新建</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -281,7 +281,7 @@ export default function ExpertTasksPage() {
                         <ChevronRight size={12} className="ml-auto text-[var(--muted-foreground)]" />
                       </div>
 
-                      {/* 动议内容 */}
+                      {/* 表决内容 */}
                       <div className="mb-2 flex items-center justify-between">
                         <div>
                           <span className="text-sm font-bold text-[var(--foreground)]">{m.title}</span>
@@ -315,7 +315,7 @@ export default function ExpertTasksPage() {
                           </div>
                         ) : null}
                       </div>
-                      {/* 关闭投票（组长或动议发起人） */}
+                      {/* 关闭投票（组长或表决发起人） */}
                       {(() => {
                         const proj = projects.find(p => p.projectId === m.projectId);
                         const canClose = isVoting && (proj?.isLead || proj?.myExpertId === m.createdBy);

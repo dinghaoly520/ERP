@@ -44,7 +44,7 @@ export default function ExpertDashboardPage() {
 
   const isActive = (stage: string) => stage === 'OPENING' || stage === 'EVALUATING';
 
-  // ── 发起动议 / 提交异议 ──
+  // ── 发起表决 / 提交异议 ──
   const [busy, setBusy] = useState(false);
   const [showMotionForm, setShowMotionForm] = useState(false);
   const [motionForm, setMotionForm] = useState({ projectId: '', title: '', description: '' });
@@ -72,12 +72,12 @@ export default function ExpertDashboardPage() {
   };
 
   async function handleCreateMotion() {
-    if (!motionForm.projectId || !motionForm.title.trim()) { toast.error('请选择项目并填写动议标题'); return; }
+    if (!motionForm.projectId || !motionForm.title.trim()) { toast.error('请选择项目并填写表决标题'); return; }
     setBusy(true);
     try {
       await api.post(`/expert/projects/${motionForm.projectId}/motions`, { title: motionForm.title, description: motionForm.description, type: 'other' });
       setMotionForm({ projectId: '', title: '', description: '' }); setShowMotionForm(false);
-      toast.success('动议已发起'); load();
+      toast.success('表决已发起'); load();
     } catch (e: any) { toast.error(e.message || '发起失败'); }
     finally { setBusy(false); }
   }
@@ -160,7 +160,7 @@ export default function ExpertDashboardPage() {
               </div>
               <div className="flex items-center gap-1.5">
                 <button onClick={openMotionForm} className="neu-btn-soft !h-[26px] !text-[11px]">
-                  <Plus size={11} /> {showMotionForm ? '取消' : '发起动议'}
+                  <Plus size={11} /> {showMotionForm ? '取消' : '发起表决'}
                 </button>
                 <button onClick={openDisputeForm} className="neu-btn-soft !h-[26px] !text-[11px] !text-[var(--danger)]">
                   <Plus size={11} /> {showDisputeForm ? '取消' : '提交异议'}
@@ -168,7 +168,7 @@ export default function ExpertDashboardPage() {
               </div>
             </div>
 
-            {/* 发起动议表单 */}
+            {/* 发起表决表单 */}
             {showMotionForm && (
               <div className="neu-card-static mb-3 rounded-xl p-4 space-y-3">
                 {activeProjects.length > 1 && (
@@ -183,14 +183,14 @@ export default function ExpertDashboardPage() {
                     ))}
                   </select>
                 )}
-                <input className="workbench-input w-full" placeholder="动议标题"
+                <input className="workbench-input w-full" placeholder="表决标题"
                   value={motionForm.title}
                   onChange={e => setMotionForm(p => ({ ...p, title: e.target.value }))} />
-                <textarea className="workbench-input w-full !min-h-[48px]" placeholder="动议说明（选填）"
+                <textarea className="workbench-input w-full !min-h-[48px]" placeholder="表决说明（选填）"
                   value={motionForm.description}
                   onChange={e => setMotionForm(p => ({ ...p, description: e.target.value }))} />
                 <button onClick={handleCreateMotion} disabled={busy || !motionForm.title.trim()}
-                  className="neu-btn-primary !h-[32px] !text-xs">{busy ? '发起中…' : '发起动议'}</button>
+                  className="neu-btn-primary !h-[32px] !text-xs">{busy ? '发起中…' : '发起表决'}</button>
               </div>
             )}
 
@@ -236,9 +236,9 @@ export default function ExpertDashboardPage() {
                     ))}
                   </TaskGroup>
                 )}
-                {/* 待投票动议 */}
+                {/* 待投票表决 */}
                 {pendingMotions.length > 0 && (
-                  <TaskGroup icon={<Gavel size={14} strokeWidth={1.8} />} color="var(--accent)" label="待投票动议" count={pendingMotions.length}>
+                  <TaskGroup icon={<Gavel size={14} strokeWidth={1.8} />} color="var(--accent)" label="待投票表决" count={pendingMotions.length}>
                     {pendingMotions.map(m => {
                       const approves = m.votes.filter(v => v.vote === 'approve').length;
                       const rejects = m.votes.filter(v => v.vote === 'reject').length;
