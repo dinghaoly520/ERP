@@ -172,6 +172,56 @@ export default function ExpertDashboardPage() {
         </div>
       ) : (
         <>
+          {/* ====== 📊 进行中评审 ====== */}
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <ClipboardCheck size={15} strokeWidth={1.8} className="text-[var(--accent-strong)]" />
+              <h3 className="text-sm font-bold text-[var(--foreground)]">进行中评审</h3>
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: inProgress.length > 0 ? 'var(--accent)' : 'var(--muted-foreground)' }}>
+                {inProgress.length}
+              </span>
+            </div>
+
+            {inProgress.length === 0 ? (
+              <div className="neu-card-static rounded-2xl px-6 py-8 text-center">
+                <ClipboardCheck size={24} strokeWidth={1.2} className="mx-auto mb-2 text-[var(--muted-foreground)] opacity-50" />
+                <p className="text-xs text-[var(--muted-foreground)]">暂无进行中评审项目</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {inProgress.map(p => {
+                  const sc = STAGE_COLOR[p.project.stage as keyof typeof STAGE_COLOR] ?? '#7c3aed';
+                  const done = p.progress >= 100;
+                  return (
+                    <div key={p.id} className="neu-card-static rounded-xl p-4">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="truncate text-sm font-bold text-[var(--foreground)]">{p.project.name}</span>
+                          <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `color-mix(in oklch, ${sc} 12%, transparent)`, color: sc }}>
+                            {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
+                          </span>
+                        </div>
+                        <button onClick={() => router.push(`/evaluate/${p.project.id}`)}
+                          className="neu-btn-soft !h-[28px] !text-xs shrink-0">
+                          {done ? '查看' : '继续评审'} <ChevronRight size={12} />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="exp-bar flex-1">
+                          <i style={{ width: `${p.progress}%`, '--bar': done ? 'var(--success)' : sc } as React.CSSProperties} />
+                        </div>
+                        <span className={`w-11 text-right text-sm font-bold tabular-nums ${done ? 'text-[var(--success)]' : 'text-[var(--accent-strong)]'}`}>
+                          {p.progress}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+
           {/* ====== 🔴 待处理事项 ====== */}
           <section>
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -337,55 +387,6 @@ export default function ExpertDashboardPage() {
                     })}
                   </TaskGroup>
                 )}
-              </div>
-            )}
-          </section>
-
-          {/* ====== 📊 进行中评审 ====== */}
-          <section>
-            <div className="mb-3 flex items-center gap-2">
-              <ClipboardCheck size={15} strokeWidth={1.8} className="text-[var(--accent-strong)]" />
-              <h3 className="text-sm font-bold text-[var(--foreground)]">进行中评审</h3>
-              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: inProgress.length > 0 ? 'var(--accent)' : 'var(--muted-foreground)' }}>
-                {inProgress.length}
-              </span>
-            </div>
-
-            {inProgress.length === 0 ? (
-              <div className="neu-card-static rounded-2xl px-6 py-8 text-center">
-                <ClipboardCheck size={24} strokeWidth={1.2} className="mx-auto mb-2 text-[var(--muted-foreground)] opacity-50" />
-                <p className="text-xs text-[var(--muted-foreground)]">暂无进行中评审项目</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {inProgress.map(p => {
-                  const sc = STAGE_COLOR[p.project.stage as keyof typeof STAGE_COLOR] ?? '#7c3aed';
-                  const done = p.progress >= 100;
-                  return (
-                    <div key={p.id} className="neu-card-static rounded-xl p-4">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="truncate text-sm font-bold text-[var(--foreground)]">{p.project.name}</span>
-                          <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: `color-mix(in oklch, ${sc} 12%, transparent)`, color: sc }}>
-                            {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
-                          </span>
-                        </div>
-                        <button onClick={() => router.push(`/evaluate/${p.project.id}`)}
-                          className="neu-btn-soft !h-[28px] !text-xs shrink-0">
-                          {done ? '查看' : '继续评审'} <ChevronRight size={12} />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="exp-bar flex-1">
-                          <i style={{ width: `${p.progress}%`, '--bar': done ? 'var(--success)' : sc } as React.CSSProperties} />
-                        </div>
-                        <span className={`w-11 text-right text-sm font-bold tabular-nums ${done ? 'text-[var(--success)]' : 'text-[var(--accent-strong)]'}`}>
-                          {p.progress}%
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             )}
           </section>
