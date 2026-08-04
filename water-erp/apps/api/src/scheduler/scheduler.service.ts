@@ -207,4 +207,45 @@ export class SchedulerService {
     }
     this.logger.log(`投标截止催促已发送: ${projectName}, 收件人 ${sent} 人`);
   }
+
+  /** E2: 每小时扫描评标超时项目——已过 evaluationDeadline 的 EVALUATING 项目写监督日志 + 通知 */
+  @Cron('0 30 * * * *')
+  async scanEvaluationDeadlines() {
+    const now = new Date();
+    const projects = await this.prisma.bidProject.findMany({
+      where: { stage: 'EVALUATING', evaluationDeadline: { lt: now } },
+      select: { id: true, name: true, evaluationDeadline: true },
+    });
+    for (const p of projects) {
+      // 去重：同一项目每天只通知一次（查当天是否已有超时日志）
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const existing = await this.prisma.bidSupervisionLog.findFirst({
+        where: { projectId: p.id, action: '评标超时告警', time: { gte: todayStart } },
+      });
+      if (existing) continue;
+
+      try {
+        await this.prisma.bidSupervisionLog.create({
+          data: {
+            projectId: p.id,
+            time: now,
+            role: '系统',
+            target: p.name,
+            action: '评标超时告警',
+            result: `评标截止时间 ${p.evaluationDeadline?.toISOString()} 已过`,
+            riskFlag: '中',
+          },
+        });
+        await this.notification.sendToRole('leader', {
+          type: 'EVAL_DEADLINE_EXPIRED',
+          title: `评标超时：${p.name}`,
+          content: `项目「${p.name}」评标已超时（截止 ${p.evaluationDeadline?.toISOString().slice(0, 16)}），请及时跟进。`,
+          link: '/projects',
+        }).catch(() => {});
+        this.logger.log(`评标超时告警: ${p.name}`);
+      } catch (e) {
+        this.logger.warn(`评标超时告警失败 ${p.id}: ${(e as Error).message}`);
+      }
+    }
+  }
 }

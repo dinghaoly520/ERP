@@ -276,6 +276,21 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
         )}
       </div>
 
+      {/* E2: 评标截止时间展示 */}
+      {stage === 'EVALUATING' && detail?.evaluationDeadline && (() => {
+        const remaining = Math.ceil((new Date(detail.evaluationDeadline).getTime() - Date.now()) / 3600000);
+        const expired = remaining <= 0;
+        return (
+          <div className={`mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold ${expired ? '' : ''}`}
+            style={{ background: expired ? 'color-mix(in oklch, var(--danger) 8%, transparent)' : 'color-mix(in oklch, var(--warning, var(--accent)) 8%, transparent)' }}>
+            <Clock size={13} className={expired ? 'text-[var(--danger)]' : 'text-[var(--accent)]'} />
+            <span className={expired ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}>
+              {expired ? `评标已超时（截止 ${new Date(detail.evaluationDeadline).toLocaleString('zh-CN')}）` : `评标时限剩余约 ${remaining} 小时（截止 ${new Date(detail.evaluationDeadline).toLocaleString('zh-CN')}）`}
+            </span>
+          </div>
+        );
+      })()}
+
       {feedback && (
         <div
           className="mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"

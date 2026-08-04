@@ -24,6 +24,8 @@ const STAGE_ORDER: Record<BidStage, number> = {
  */
 export function assertBidStageTransition(from: BidStage, to: BidStage): void {
   if (from === to) return;
+  // 流标后归档是合法终局操作（AbortDialog: abort → archive）
+  if (from === 'ABORTED' && to === 'ARCHIVED') return;
   if (STAGE_ORDER[to] < STAGE_ORDER[from]) {
     throw new ConflictException(`非法招标阶段流转：${from} -> ${to}（只允许前进，ARCHIVED 为终态）`);
   }

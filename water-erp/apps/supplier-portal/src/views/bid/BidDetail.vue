@@ -140,6 +140,15 @@ function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.sta
           <button class="neu-btn-primary" :disabled="!canSubmit" @click="goToSubmit" style="height:40px;padding:0 20px">
             <Upload :size="14" :stroke-width="1.75" />{{ canSubmit ? '提交标书' : '不可投标' }}
           </button>
+          <!-- 2c: 多轮报价入口（谈判/竞价采购方式） -->
+          <button
+            v-if="project.roundMode"
+            class="neu-btn-soft"
+            @click="router.push(`/bids/${projectId}/round-quote`)"
+            style="height:40px;padding:0 20px"
+          >
+            多轮报价
+          </button>
         </template>
       </SpPageHero>
 
