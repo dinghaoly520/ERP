@@ -167,3 +167,25 @@ export interface EvaluationResultRow {
 export function listEvaluationResults(projectId: string) {
   return api.get<EvaluationResultRow[]>(`/bid/projects/${projectId}/evaluation-results`);
 }
+
+/* ── 多轮报价（谈判/竞价采购）── */
+
+export function listRounds(bidProjectId: string) {
+  return api.get<Array<{ id: string; roundNo: number; roundType: string; status: string; deadline: string | null; quotes?: Array<{ id: string; bidSupplierId: string; quotePrice: string; status: string }> }>>(`/bid/projects/${bidProjectId}/rounds`);
+}
+
+export function createRound(bidProjectId: string, data: { roundType: string; deadline?: string }) {
+  return api.post(`/bid/projects/${bidProjectId}/rounds`, data);
+}
+
+export function sealRound(bidProjectId: string, roundId: string) {
+  return api.post(`/bid/projects/${bidProjectId}/rounds/${roundId}/seal`, {});
+}
+
+export function publishRound(bidProjectId: string, roundId: string) {
+  return api.post(`/bid/projects/${bidProjectId}/rounds/${roundId}/publish`, {});
+}
+
+export function closeRound(bidProjectId: string, roundId: string, proceedToEvaluation: boolean) {
+  return api.post(`/bid/projects/${bidProjectId}/rounds/${roundId}/close`, { proceedToEvaluation });
+}

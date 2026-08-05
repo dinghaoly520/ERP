@@ -12,6 +12,7 @@ import { OpeningHall } from '@/components/opening-hall';
 import { SupervisionView, type SupervisionLog } from '@/components/bid/supervision-view';
 import EvaluationView from '@/components/workspace/evaluation-view';
 import ScoreStandardView from '@/components/workspace/score-standard-view';
+import { RoundBlock } from '@/components/workspace/round-block';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { useOpeningSfx } from '@/hooks/use-opening-sfx';
 import { useReportRealtime } from '@/contexts/bid-realtime-context';
@@ -24,6 +25,7 @@ const TAB_LABELS: Record<TabDef['key'], string> = {
   supervise: '监督视图',
   evaluate: '评标管理',
   standard: '评分标准',
+  quotes: '报价轮次',
 };
 
 
@@ -71,8 +73,9 @@ function WorkspaceInner() {
   // ═══ 当前 tab ═══
   const stage = project?.stage ?? 'DOWNLOAD';
   const requested = searchParams.get('tab') as TabDef['key'] | null;
+  const hasRoundMode = !!project?.roundMode;
   const current: TabDef['key'] =
-    requested && TABS.some(t => t.key === requested && isTabAllowed(t, stage))
+    requested && TABS.some(t => t.key === requested && isTabAllowed(t, stage, hasRoundMode))
       ? requested
       : getDefaultTab(stage);
 
@@ -169,7 +172,7 @@ function WorkspaceInner() {
         </nav>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <ProjectTabs stage={stage} current={current} onSwitch={switchTab} />
+        <ProjectTabs stage={stage} current={current} onSwitch={switchTab} hasRoundMode={hasRoundMode} />
         <span className="text-[11px] text-[color:var(--muted-foreground)]">
           {project?.projectCode} · 评标管理 / 评分标准仅查看，流转操作在采购管理工作台（:3005）
         </span>
@@ -182,6 +185,7 @@ function WorkspaceInner() {
           {current === 'supervise' && <SupervisionView projectId={projectId as string} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />}
           {current === 'evaluate' && <EvaluationView projectId={projectId as string} project={project} />}
           {current === 'standard' && <ScoreStandardView projectId={projectId as string} project={project} />}
+          {current === 'quotes' && <RoundBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />}
         </>
       )}
     </div>

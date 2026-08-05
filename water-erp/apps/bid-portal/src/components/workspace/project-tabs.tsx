@@ -1,13 +1,15 @@
 'use client';
 
-import { Unlock, ClipboardCheck, ListChecks, Shield } from 'lucide-react';
+import { Unlock, ClipboardCheck, ListChecks, Shield, Gavel } from 'lucide-react';
 
 export interface TabDef {
-  key: 'open' | 'supervise' | 'evaluate' | 'standard';
+  key: 'open' | 'supervise' | 'evaluate' | 'standard' | 'quotes';
   label: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   minStage: string[];
   stageHint: string;
+  /** 仅在 roundMode 非空时显示（谈判/竞价采购） */
+  requiresRoundMode?: boolean;
 }
 
 export const TABS: TabDef[] = [
@@ -35,10 +37,18 @@ export const TABS: TabDef[] = [
     stageHint: '—',
   },
   {
+    key: 'quotes',
+    label: '报价轮次',
+    icon: Gavel,
+    minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
+    stageHint: '—',
+    requiresRoundMode: true,
+  },
+  {
     key: 'supervise',
     label: '监督视图',
     icon: Shield,
-    // 置于最右：监督为旁路只读视图，主流程三 tab(大厅/评标/标准)在前。
+    // 置于最右：监督为旁路只读视图，主流程 tab 在前。
     // 与开标大厅同口径启用：监督视图随开标执行阶段提供只读留痕，DOWNLOAD/SUBMIT 不可作为入口仍禁用。
     minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
     stageHint: '开标尚未开始，监督视图不可用。请等待项目在 :3005 确定开标。',
@@ -50,19 +60,23 @@ export function getDefaultTab(stage: string): TabDef['key'] {
   return stage === 'EVALUATING' ? 'evaluate' : 'open';
 }
 
-export function isTabAllowed(def: TabDef, stage: string): boolean {
-  return def.minStage.includes(stage);
+export function isTabAllowed(def: TabDef, stage: string, hasRoundMode?: boolean): boolean {
+  if (!def.minStage.includes(stage)) return false;
+  if (def.requiresRoundMode && !hasRoundMode) return false;
+  return true;
 }
 
-export default function ProjectTabs({ stage, current, onSwitch }: {
+export default function ProjectTabs({ stage, current, onSwitch, hasRoundMode }: {
   stage: string;
   current: TabDef['key'];
   onSwitch: (key: TabDef['key']) => void;
+  hasRoundMode?: boolean;
 }) {
   return (
     <div className="inline-flex w-fit items-center gap-1 rounded-[12px] bg-[oklch(0.95_0.008_258)] p-1 shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.12),inset_-2px_-2px_5px_oklch(1_0_0_/_0.7)]">
       {TABS.map(def => {
-        const allowed = isTabAllowed(def, stage);
+        const allowed = isTabAllowed(def, stage, hasRoundMode);
+        if (def.requiresRoundMode && !hasRoundMode) return null; // 非多轮项目不渲染 tab
         const active = current === def.key;
         return (
           <button
