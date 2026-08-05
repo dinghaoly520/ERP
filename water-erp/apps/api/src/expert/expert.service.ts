@@ -397,12 +397,12 @@ export class ExpertService {
     const autoConflicts = await this.conflictService.detectForProject(projectId, userId);
 
     // P2: 合并手动声明的冲突 + 自动检测的冲突（去重），持久化到 expert 记录。
-    // 合并既有冲突名单 + 本次手动声明 + 自动检测（去重）。
-    // 原实现覆盖式写入：专家可用"声明新冲突"换掉既有真冲突；移除须走单独 admin 审批端点。
+    // D4: 若调用方显式传入 conflictedSupplierIds（含空数组），以传入值为准（替换手动部分）；
+    // 未传入则保留既有手动声明（向后兼容，旧前端可能不传）。
     const existingConflicts = parseConflictedIds(expert.conflictedSupplierIds);
+    const manualConflicts = conflictedSupplierIds !== undefined ? conflictedSupplierIds : existingConflicts;
     const allConflictIds = [...new Set([
-      ...existingConflicts,
-      ...(conflictedSupplierIds || []),
+      ...manualConflicts,
       ...autoConflicts.map(c => c.supplierId),
     ])];
     if (!conflictedSupplierIds?.length && autoConflicts.length > 0) {
