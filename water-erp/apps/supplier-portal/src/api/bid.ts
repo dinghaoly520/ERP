@@ -25,6 +25,9 @@ export const bidApi = {
     return api.get('/system-config/clarification-notice')
   },
   // P2c: 多轮报价
+  getMyBidSupplier(projectId: string) {
+    return api.get(`/supplier-portal/projects/${projectId}/my-bid-supplier`)
+  },
   listRounds(projectId: string) {
     return api.get(`/supplier-portal/projects/${projectId}/rounds`)
   },

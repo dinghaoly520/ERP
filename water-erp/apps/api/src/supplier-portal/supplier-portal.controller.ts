@@ -420,8 +420,25 @@ export class SupplierPortalController {
 
   // ─── P2c: 多轮报价(供应商端) ───
 
+  @Get('projects/:projectId/my-bid-supplier')
+  async getMyBidSupplier(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    const bs = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId },
+      select: { id: true },
+    });
+    if (!bs) throw new BadRequestException({ error: '未参与该项目', code: 'NOT_PROJECT_MEMBER' });
+    return bs;
+  }
+
   @Get('projects/:projectId/rounds')
-  async listProjectRounds(@Param('projectId') projectId: string) {
+  async listProjectRounds(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    const member = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId },
+      select: { id: true },
+    });
+    if (!member) throw new ForbiddenException({ error: '未参与该项目', code: 'NOT_PROJECT_MEMBER' });
     return this.prisma.bidRound.findMany({
       where: { projectId },
       orderBy: { roundNo: 'asc' },
@@ -442,6 +459,7 @@ export class SupplierPortalController {
     const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
     if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
     if (round.status !== 'open') throw new ForbiddenException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
+    if (round.deadline && new Date(round.deadline) < new Date()) throw new BadRequestException({ error: '报价已截止', code: 'ROUND_DEADLINE_PASSED' });
 
     return this.prisma.bidQuote.upsert({
       where: { roundId_bidSupplierId: { roundId, bidSupplierId: body.bidSupplierId } },
@@ -455,7 +473,7 @@ export class SupplierPortalController {
     // 供应商只能看 published 轮次的报价
     const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
     if (!round || round.projectId !== projectId) return [];
-    if (round.status !== 'published') return [];
+    if (round.status !== 'published' && round.status !== 'closed') return [];
     return this.prisma.bidQuote.findMany({ where: { roundId }, orderBy: { quotePrice: 'asc' } });
   }
 }

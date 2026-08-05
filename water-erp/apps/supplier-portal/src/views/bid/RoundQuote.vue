@@ -29,20 +29,20 @@ async function fetchData() {
   loading.value = true
   try {
     const res = await bidApi.listRounds(projectId)
-    rounds.value = res.data
+    rounds.value = res as any
 
-    // Find this supplier's BidSupplier ID from project detail
-    const projRes = await bidApi.getProject(projectId)
-    const suppliers = (projRes.data as any)?.suppliers ?? []
-    const mySupplier = suppliers[0]
-    if (mySupplier) myBidSupplierId.value = mySupplier.id
+    // 获取当前供应商在此项目中的 BidSupplier ID
+    try {
+      const bsRes = await bidApi.getMyBidSupplier(projectId)
+      myBidSupplierId.value = (bsRes as any)?.id ?? ''
+    } catch (e) { /* 非项目成员则保持为空 */ }
 
     // Load published round quotes
     for (const r of rounds.value) {
       if (r.status === 'published' || r.status === 'closed') {
         try {
           const qRes = await bidApi.getRoundQuotes(projectId, r.id)
-          publishedQuotes.value[r.id] = qRes.data
+          publishedQuotes.value[r.id] = qRes as any
         } catch (e) { /* ignore */ }
       }
     }

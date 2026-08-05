@@ -18,6 +18,9 @@ import { ReportStep } from '@/components/evaluate/report-step';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
+import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
+import { openingHallApi } from '@/lib/opening-hall';
+import type { HallMessagePayload } from '@water-erp/shared';
 import { formatBytes } from '@/lib/utils';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
@@ -69,6 +72,10 @@ export default function ExpertEvaluatePage() {
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
   // P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
   const [memoOpen, setMemoOpen] = useState(false);
+  // D1: 开标大厅公聊消息
+  const [hallMessages, setHallMessages] = useState<HallMessagePayload[]>([]);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [showMessages, setShowMessages] = useState(false);
 
   const pushLiveEvent = (label: string, icon: typeof liveEvents[0]['icon']) => {
     setLiveEvents(prev => [{ time: Date.now(), label, icon }, ...prev].slice(0, 20));
@@ -126,6 +133,15 @@ export default function ExpertEvaluatePage() {
         `${supplierName} ${d.status === 'invalid' ? '被废标' : '废标已撤销'}（${d.failCount}/${d.totalCount}）`,
         'stage',
       );
+    },
+    // D1: 开标大厅公聊消息
+    onHallMessage: (d) => {
+      setHallMessages(prev => {
+        // 去重（WS 重连可能推送重复消息）
+        if (prev.some(m => m.id === d.id)) return prev;
+        return [...prev, d].slice(-200); // 最多保留 200 条
+      });
+      setUnreadMessageCount(prev => prev + 1);
     },
   });
 
@@ -793,12 +809,23 @@ export default function ExpertEvaluatePage() {
           <LiveStatusBoard
             connection={_wsConn} lastEventAt={_wsLastEvent} onReconnect={_wsReconnect}
             aggregate={aggregatePresence} events={liveEvents}
+            unreadMessageCount={unreadMessageCount}
+            onOpenMessages={() => { setShowMessages(!showMessages); if (!showMessages) setUnreadMessageCount(0); }}
           />
         </div>
-        <button onClick={() => { setShowClarifications(!showClarifications); if (!showClarifications) loadClarifications(); }}
-          className="neu-btn-xs is-info">
-          <MessageSquare size={13} strokeWidth={1.5} /> 澄清答疑
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => { setShowMessages(!showMessages); if (!showMessages) setUnreadMessageCount(0); }}
+            className="neu-btn-xs is-info">
+            <MessageSquare size={13} strokeWidth={1.5} /> 开标消息
+            {unreadMessageCount > 0 && (
+              <span className="ml-1 rounded-full bg-[var(--danger)] px-1 text-[9px] font-bold leading-tight text-white">{unreadMessageCount}</span>
+            )}
+          </button>
+          <button onClick={() => { setShowClarifications(!showClarifications); if (!showClarifications) loadClarifications(); }}
+            className="neu-btn-xs is-info">
+            <MessageSquare size={13} strokeWidth={1.5} /> 澄清答疑
+          </button>
+        </div>
       </div>
 
       {/* P2: clarifications panel (toggled from header) */}
@@ -864,6 +891,23 @@ export default function ExpertEvaluatePage() {
               </button>
             </div>
           </div>
+          </div>
+        </div>
+      )}
+
+      {/* D1: 开标大厅消息面板（toggled from header） */}
+      {showMessages && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowMessages(false)} />
+          <div className="exp-dialog relative flex max-h-[80vh] min-h-[40vh] w-full max-w-lg flex-col p-0" role="dialog" aria-modal="true" aria-label="开标大厅消息">
+            <div className="flex items-center justify-between px-4 py-2">
+              <span className="text-xs text-[var(--muted-foreground)]">按 Esc 或点击遮罩关闭</span>
+              <button onClick={() => setShowMessages(false)} aria-label="关闭" className="neu-btn-xs is-square"><X size={14} strokeWidth={1.5} /></button>
+            </div>
+            <HallMessagePanel
+              messages={hallMessages}
+              onOpen={() => setUnreadMessageCount(0)}
+            />
           </div>
         </div>
       )}

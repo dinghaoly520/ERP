@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { ConnectionState, ExpertPresenceAggregatePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload } from '@water-erp/shared';
+import type { ConnectionState, ExpertPresenceAggregatePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload } from '@water-erp/shared';
 import { BID_EVENT } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 
@@ -18,6 +18,8 @@ interface Handlers {
   onClarificationCreated?: (d: ClarificationCreatedPayload) => void;
   onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
   onBidValidityChange?: (d: BidValidityChangePayload) => void;
+  /** D1: 开标大厅公聊消息 */
+  onHallMessage?: (d: HallMessagePayload) => void;
   /** G1: 重连后回调——组件可执行全量数据刷新补偿丢失的事件 */
   onReconnected?: () => void;
 }
@@ -36,20 +38,21 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
   const hasConnectedOnce = useRef(false);
   handlersRef.current = handlers;
 
-  /** 绑定业务事件处理（通过 ref 避免闭包过期） */
+  /** 绑定业务事件处理（通过 ref key-based 避免闭包过期，与 bid-portal 对齐） */
   function bindBusinessEvents(socket: Socket) {
-    const on = <T,>(ev: string, fn: ((d: T) => void) | undefined) => {
+    const on = <T,>(ev: string, key: keyof Handlers) => {
       socket.on(ev, (d: T) => {
-      if (fn) { setLastEventAt(Date.now()); fn(d); }
+        const fn = handlersRef.current[key] as ((d: T) => void) | undefined;
+        if (fn) { setLastEventAt(Date.now()); fn(d); }
       });
     };
-    const h = handlersRef;
-    on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, h.current.onAggregatePresence);
-    on(BID_EVENT.DECRYPT_STATUS, h.current.onDecryptStatus);
-    on(BID_EVENT.STAGE_CHANGE, h.current.onStageChange);
-    on(BID_EVENT.CLARIFICATION_CREATED, h.current.onClarificationCreated);
-    on(BID_EVENT.CLARIFICATION_REPLIED, h.current.onClarificationReplied);
-    on(BID_EVENT.BID_VALIDITY_CHANGE, h.current.onBidValidityChange);
+    on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, 'onAggregatePresence');
+    on(BID_EVENT.DECRYPT_STATUS, 'onDecryptStatus');
+    on(BID_EVENT.STAGE_CHANGE, 'onStageChange');
+    on(BID_EVENT.CLARIFICATION_CREATED, 'onClarificationCreated');
+    on(BID_EVENT.CLARIFICATION_REPLIED, 'onClarificationReplied');
+    on(BID_EVENT.BID_VALIDITY_CHANGE, 'onBidValidityChange');
+    on(BID_EVENT.HALL_MESSAGE_NEW, 'onHallMessage');
   }
 
   const clearHeartbeatTimers = useCallback(() => {

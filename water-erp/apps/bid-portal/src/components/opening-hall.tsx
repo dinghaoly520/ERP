@@ -417,6 +417,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 <span className="flex items-center gap-1.5"><Clock size={13} strokeWidth={1.5} /> {new Date(project.openTime).toLocaleString('zh-CN')}</span>
                 <span>主持人：{session.host}</span>
                 <span>监督人：{session.supervisor ?? '未指定'}</span>
+                {(project as any).roundMode && (
+                  <span className="rounded-full bg-[var(--accent-strong)]/10 px-2.5 py-0.5 text-xs font-bold text-[var(--accent-strong)]">
+                    第 {(project as any).currentRoundNo ?? 1} 轮 · {(project as any).roundMode === 'negotiation' ? '谈判' : '竞价'}
+                  </span>
+                )}
               </div>
             </div>
             <div className="rounded-xl bg-[oklch(0.985_0.005_258)] px-6 py-3 text-center shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.12),inset_-2px_-2px_5px_oklch(1_0_0_/_0.7)]">

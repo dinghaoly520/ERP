@@ -573,6 +573,8 @@ export class SupplierPortalService {
           orderBy: { createdAt: 'asc' },
           select: { id: true, type: true, question: true, issuer: true, reply: true, createdAt: true },
         },
+        roundMode: true,
+        currentRoundNo: true,
         _count: { select: { suppliers: true } },
       },
     });

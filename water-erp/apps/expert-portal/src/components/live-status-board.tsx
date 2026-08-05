@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  ShieldCheck, Edit3, FileCheck, Radio, WifiOff,
+  ShieldCheck, Edit3, FileCheck, Radio, WifiOff, MessageSquare,
 } from 'lucide-react';
 import type { ConnectionState, ExpertPresenceAggregatePayload } from '@water-erp/shared';
 
@@ -12,6 +12,9 @@ interface Props {
   onReconnect: () => void;
   aggregate?: ExpertPresenceAggregatePayload | null;
   events: { time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[];
+  /** D1: 开标大厅未读消息数 */
+  unreadMessageCount?: number;
+  onOpenMessages?: () => void;
 }
 
 type EventIcon = 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify';
@@ -30,7 +33,7 @@ const eventIcons: Record<EventIcon, React.ComponentType<{ size?: number; strokeW
  * 紧凑单行状态条：连接 + 专家组签到/进度/确认 + 进度条。
  * 事件流收纳进浮动面板，按需展开，不再占用头部垂直空间。
  */
-export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregate, events }: Props) {
+export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregate, events, unreadMessageCount, onOpenMessages }: Props) {
   const [showEvents, setShowEvents] = useState(false);
 
   const pillColor =
@@ -86,6 +89,18 @@ export function LiveStatusBoard({ connection, lastEventAt, onReconnect, aggregat
             <i style={{ width: `${aggregate.averageProgressPercent}%` } as React.CSSProperties} />
           </div>
         </>
+      )}
+
+      {/* 开标大厅消息 badge */}
+      {unreadMessageCount != null && unreadMessageCount > 0 && (
+        <button
+          onClick={onOpenMessages}
+          title="开标大厅消息"
+          className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--accent-strong)]"
+          style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)' }}
+        >
+          <MessageSquare size={10} strokeWidth={2} /> {unreadMessageCount}
+        </button>
       )}
 
       {/* 事件流开关 */}

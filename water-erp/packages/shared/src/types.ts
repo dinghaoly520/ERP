@@ -77,6 +77,8 @@ export interface BidProject {
   scope?: string;
   qualification?: string;
   contact?: string;
+  roundMode?: string | null;
+  currentRoundNo?: number;
   _count?: { suppliers: number };
 }
 
