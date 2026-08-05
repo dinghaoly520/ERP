@@ -88,7 +88,9 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {rounds.map((r) => (
+          {rounds.map((r, idx) => {
+          const isLast = idx === rounds.length - 1; // 仅最后一轮显示操作按钮
+          return (
             <div key={r.id} className="rounded-xl border border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] p-4">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -106,19 +108,19 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  {r.status === 'open' && (
+                  {isLast && r.status === 'open' && (
                     <button onClick={() => withBusy(async () => { await sealRound(bidProjectId, r.id); })}
                       disabled={busy} className="neu-btn-soft !h-[30px] !text-xs">
                       <Lock size={12} /> 截止报价
                     </button>
                   )}
-                  {r.status === 'sealed' && (
+                  {isLast && r.status === 'sealed' && (
                     <button onClick={() => withBusy(async () => { await publishRound(bidProjectId, r.id); })}
                       disabled={busy} className="neu-btn-soft !h-[30px] !text-xs">
                       <Eye size={12} /> 公布报价
                     </button>
                   )}
-                  {r.status === 'published' && (
+                  {isLast && r.status === 'published' && (
                     <>
                       <button onClick={() => withBusy(async () => { await closeRound(bidProjectId, r.id, false); await createRound(bidProjectId, { roundType: r.roundType }); })}
                         disabled={busy} className="neu-btn-soft !h-[30px] !text-xs">
@@ -163,7 +165,8 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
               )}
               {busy && <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]"><Loader2 size={12} className="animate-spin" /> 处理中…</div>}
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>
