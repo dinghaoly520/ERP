@@ -3499,9 +3499,12 @@ export class BidService {
       });
       if (res.count === 0) throw new BadRequestException({ error: '该异议已被处理', code: 'DISPUTE_NOT_OPEN' });
 
-      // 废标联动：同事务内置 invalid + 高风险监督日志
+      // 废标联动：同事务内置 invalid + 高风险监督日志 + B3 决议记录
       if (invalidateTarget) {
         await tx.bidSupplier.update({ where: { id: invalidateTarget.id }, data: { bidValidity: 'invalid' } });
+        await tx.bidInvalidBid.create({
+          data: { projectId, supplierId: invalidateTarget.id, scoreItemId: '__dispute__', failCount: 0, totalCount: 0, status: 'invalid', reason: `异议裁决废标：${dto.response}`, actorId: actorId ?? null },
+        }).catch(() => {});
         await tx.bidSupervisionLog.create({
           data: {
             projectId, time: now, role: '采购管理员', target: invalidateTarget.supplierName,
@@ -3552,6 +3555,10 @@ export class BidService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.bidSupplier.update({ where: { id: supplierId }, data: { bidValidity: 'invalid' } });
+      // B3: 创建结构化废标决议记录（原因 + 操作人）
+      await tx.bidInvalidBid.create({
+        data: { projectId, supplierId, scoreItemId: '__manual__', failCount: 0, totalCount: 0, status: 'invalid', reason, actorId },
+      }).catch(() => {});
       await tx.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '采购管理员', target: supplier.supplierName,
           action: '手动废标', result: `原因: ${reason}`, riskFlag: '高风险' },

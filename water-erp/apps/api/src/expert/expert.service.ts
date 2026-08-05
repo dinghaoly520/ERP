@@ -1232,8 +1232,8 @@ export class ExpertService {
           if (verdict.disqualified) {
             await this.prisma.bidInvalidBid.upsert({
               where: { projectId_supplierId_scoreItemId: { projectId, supplierId: s, scoreItemId: itemId } },
-              update: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null },
-              create: { projectId, supplierId: s, scoreItemId: itemId, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' },
+              update: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null, reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
+              create: { projectId, supplierId: s, scoreItemId: itemId, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
             });
             this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' });
           } else {

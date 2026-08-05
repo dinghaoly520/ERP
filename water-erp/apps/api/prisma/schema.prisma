@@ -412,6 +412,9 @@ model BidInvalidBid {
   failCount   Int       @default(0)
   totalCount  Int       @default(0)
   status      String    @default("invalid") // 'invalid' | 'revoked'
+  reason      String?   // B3: 废标原因（如"通过性审查不通过票过半"）
+  actorId     String?   // B3: 操作人 userId
+  motionId    String?   // B3: 关联表决（委员会表决废标时）
   revokedAt   DateTime?
   revokedBy   String?
   createdAt   DateTime  @default(now())
