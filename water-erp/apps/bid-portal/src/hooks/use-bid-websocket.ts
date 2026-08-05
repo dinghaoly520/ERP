@@ -46,6 +46,8 @@ export interface BidWsHandlers {
   onOpeningCompleted?: (d: OpeningCompletedPayload) => void;
   onExpertPresence?: (d: ExpertPresencePayload) => void;
   onExpertPresenceAggregate?: (d: ExpertPresenceAggregatePayload) => void;
+  /** G1: 重连后回调——组件可执行全量数据刷新补偿丢失的事件 */
+  onReconnected?: () => void;
 }
 
 export interface UseBidWebSocketResult {
@@ -66,6 +68,8 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
   const pongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
   const manualClose = useRef(false);
+  // G1: 首次连接 vs 重连鉴别
+  const hasConnectedOnce = useRef(false);
 
   handlersRef.current = handlers;
 
@@ -88,9 +92,13 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      const isReconnect = hasConnectedOnce.current;
+      hasConnectedOnce.current = true;
       attemptRef.current = 0;
       setConnection('connected');
       socket.emit('join:project', projectId);
+      // G1: 非首次连接 → 通知组件刷新数据
+      if (isReconnect) handlersRef.current.onReconnected?.();
 
       heartbeatTimer.current = setInterval(() => {
         const now = Date.now();

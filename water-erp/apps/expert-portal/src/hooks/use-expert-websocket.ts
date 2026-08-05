@@ -18,6 +18,8 @@ interface Handlers {
   onClarificationCreated?: (d: ClarificationCreatedPayload) => void;
   onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
   onBidValidityChange?: (d: BidValidityChangePayload) => void;
+  /** G1: 重连后回调——组件可执行全量数据刷新补偿丢失的事件 */
+  onReconnected?: () => void;
 }
 
 export function useExpertWebSocket(projectId: string | undefined, handlers: Handlers) {
@@ -30,6 +32,8 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
   const pongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
   const manualClose = useRef(false);
+  // G1: 首次连接 vs 重连鉴别
+  const hasConnectedOnce = useRef(false);
   handlersRef.current = handlers;
 
   /** 绑定业务事件处理（通过 ref 避免闭包过期） */
@@ -67,9 +71,12 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      const isReconnect = hasConnectedOnce.current;
+      hasConnectedOnce.current = true;
       attemptRef.current = 0;
       setConnection('connected');
       socket.emit('join:project', projectId);
+      if (isReconnect) handlersRef.current.onReconnected?.();
 
       // Heartbeat: ping every 20s, expect pong within 10s
       heartbeatTimer.current = setInterval(() => {
