@@ -476,10 +476,14 @@ export class SupplierPortalController {
     if (round.status !== 'open') throw new ForbiddenException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
     if (round.deadline && new Date(round.deadline) < new Date()) throw new BadRequestException({ error: '报价已截止', code: 'ROUND_DEADLINE_PASSED' });
 
-    return this.prisma.bidQuote.upsert({
+    // 严格一报制：同一轮次已提交则不可修改
+    const existing = await this.prisma.bidQuote.findUnique({
       where: { roundId_bidSupplierId: { roundId, bidSupplierId: body.bidSupplierId } },
-      update: { quotePrice: body.quotePrice, submittedAt: new Date() },
-      create: { roundId, bidSupplierId: body.bidSupplierId, quotePrice: body.quotePrice },
+    });
+    if (existing) throw new BadRequestException({ error: '本轮已提交报价，不可修改', code: 'ALREADY_QUOTED' });
+
+    return this.prisma.bidQuote.create({
+      data: { roundId, bidSupplierId: body.bidSupplierId, quotePrice: body.quotePrice },
     });
   }
 

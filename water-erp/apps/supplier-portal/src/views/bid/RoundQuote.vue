@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { ArrowLeft, Coin, Lock, Check } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft, Coin, Lock } from '@element-plus/icons-vue'
 import SpPageHero from '@/components/SpPageHero.vue'
 import { bidApi } from '@/api/bid'
 import dayjs from 'dayjs'
@@ -47,10 +47,6 @@ async function fetchData() {
       const map: Record<string, MyQuote> = {}
       for (const q of list) map[q.roundId] = q
       myQuotes.value = map
-      // 如果当前 open 轮次已有报价，回填到输入框
-      if (currentOpenRound.value && map[currentOpenRound.value.id]) {
-        quotePrice.value = Number(map[currentOpenRound.value.id].quotePrice)
-      }
     } catch (e) { /* ignore */ }
 
     // Load published round quotes
@@ -71,15 +67,32 @@ async function fetchData() {
 
 async function handleSubmit() {
   if (!currentOpenRound.value || !myBidSupplierId.value || quotePrice.value == null) return
+
+  // 提交前确认弹窗——提醒供应商仔细核对价格
+  try {
+    await ElMessageBox.confirm(
+      `请确认您的报价金额：\n\n¥${formatPrice(quotePrice.value)}\n\n提交后不可修改，请确保价格准确无误。`,
+      '报价确认',
+      {
+        confirmButtonText: '确认提交',
+        cancelButtonText: '再检查一下',
+        type: 'warning',
+        distinguishCancelAndClose: true,
+      },
+    )
+  } catch {
+    return // 用户取消
+  }
+
   submitting.value = true
   try {
     await bidApi.submitQuote(projectId, currentOpenRound.value.id, {
       bidSupplierId: myBidSupplierId.value,
       quotePrice: quotePrice.value,
     })
-    const isModify = !!currentOpenMyQuote.value
-    ElMessage.success(isModify ? '报价已修改(密封)' : '报价已提交(密封)')
-    // 刷新我的报价
+    ElMessage.success('报价已提交(密封)，不可修改')
+    quotePrice.value = undefined
+    // 刷新我的报价状态
     const mqRes = await bidApi.getMyQuotes(projectId)
     const list = (mqRes as any) as MyQuote[]
     const map: Record<string, MyQuote> = {}
@@ -122,7 +135,7 @@ onMounted(fetchData)
       <el-empty v-if="!loading && rounds.length === 0" description="暂无报价轮次" />
 
       <div v-else class="space-y-4">
-        <!-- 当前开放轮次: 报价输入 -->
+        <!-- 当前开放轮次 -->
         <el-card v-if="currentOpenRound" shadow="hover">
           <template #header>
             <div class="flex items-center justify-between">
@@ -135,38 +148,56 @@ onMounted(fetchData)
             截止时间: {{ formatTime(currentOpenRound.deadline) }}
           </div>
 
-          <!-- 已提交报价提示 -->
+          <!-- 已提交：锁定状态 -->
           <el-alert
             v-if="currentOpenMyQuote"
-            type="success" :closable="false" class="mb-4"
+            type="success" :closable="false" class="mb-2"
             show-icon
           >
             <template #title>
-              <span class="text-sm">
-                已提交报价：<strong class="font-mono">¥{{ formatPrice(currentOpenMyQuote.quotePrice) }}</strong>
-                · {{ formatTime(currentOpenMyQuote.submittedAt) }}
-                <span class="ml-1 text-gray-400">（截止前可修改）</span>
-              </span>
+              <div class="flex items-center justify-between">
+                <span class="text-sm">
+                  已提交报价：<strong class="font-mono text-base">¥{{ formatPrice(currentOpenMyQuote.quotePrice) }}</strong>
+                  · {{ formatTime(currentOpenMyQuote.submittedAt) }}
+                </span>
+                <el-tag size="small" type="info" effect="plain">已锁定 · 不可修改</el-tag>
+              </div>
             </template>
           </el-alert>
 
-          <el-form label-width="100px">
-            <el-form-item :label="currentOpenMyQuote ? '修改报价' : '报价(元)'">
-              <el-input-number
-                v-model="quotePrice"
-                :min="0"
-                :precision="2"
-                placeholder="请输入报价金额"
-                class="!w-64"
-              />
-            </el-form-item>
-          </el-form>
+          <!-- 未提交：报价输入 -->
+          <template v-else>
+            <el-alert
+              type="warning" :closable="false" class="mb-4"
+              show-icon
+            >
+              <template #title>
+                <span class="text-sm">报价提交后不可修改，请仔细核对金额后再提交。</span>
+              </template>
+            </el-alert>
 
-          <div class="flex justify-end">
-            <el-button type="primary" :icon="currentOpenMyQuote ? Check : Lock" :loading="submitting" @click="handleSubmit">
-              {{ currentOpenMyQuote ? '修改密封报价' : '提交密封报价' }}
-            </el-button>
-          </div>
+            <el-form label-width="100px">
+              <el-form-item label="报价(元)">
+                <el-input-number
+                  v-model="quotePrice"
+                  :min="0"
+                  :precision="2"
+                  placeholder="请输入报价金额"
+                  class="!w-64"
+                />
+              </el-form-item>
+            </el-form>
+
+            <div class="flex justify-end">
+              <el-button
+                type="primary" :icon="Lock" :loading="submitting"
+                :disabled="quotePrice == null"
+                @click="handleSubmit"
+              >
+                提交密封报价
+              </el-button>
+            </div>
+          </template>
         </el-card>
 
         <!-- 各轮次状态 -->
@@ -179,17 +210,9 @@ onMounted(fetchData)
               </el-tag>
               <span v-if="r.deadline" class="text-xs text-gray-400">截止 {{ formatTime(r.deadline) }}</span>
             </div>
-            <!-- 我的报价状态（sealed 轮次） -->
+            <!-- sealed 轮次：已提交标记 -->
             <span v-if="r.status === 'sealed' && myQuotes[r.id]" class="flex items-center gap-1 text-xs text-amber-600">
               <el-icon><Lock /></el-icon> 已提交（密封中）
-            </span>
-          </div>
-
-          <!-- 我的报价（open 但非当前轮 / pending 已提交） -->
-          <div v-if="myQuotes[r.id] && r.status !== 'published' && r.status !== 'closed'" class="mt-2 rounded bg-gray-50 px-3 py-1.5 text-sm text-gray-600">
-            <span v-if="r.status === 'open' && r.id !== currentOpenRound?.id">
-              我的报价：<strong class="font-mono text-blue-600">¥{{ formatPrice(myQuotes[r.id].quotePrice) }}</strong>
-              <span class="ml-1 text-gray-400">{{ formatTime(myQuotes[r.id].submittedAt) }}</span>
             </span>
           </div>
 
