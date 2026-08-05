@@ -2523,6 +2523,8 @@ export class BidService {
     // P1: 价格分公式引擎 — PRICE 类项由公式自动算分,替代专家手填
     const priceItemIds = new Set<string>();
     let formulaPriceScores = new Map<string, number>();
+    // A4: 报价从开标记录读取，同时供 createMany 写入 BidEvaluationResult.bidPrice
+    const bidPrices = new Map<string, number>();
     {
       const priceItems = await this.prisma.bidScoreItem.findMany({
         where: { projectId, category: 'PRICE' },
@@ -2530,22 +2532,21 @@ export class BidService {
       });
       for (const pi of priceItems) priceItemIds.add(pi.id);
 
+      // 读取唱标报价（无论是否有公式引擎，报价都写入评标结果供定标使用）
+      const openingRecs = await this.prisma.bidOpeningRecord.findMany({
+        where: { projectId, bidSupplierId: { in: activeSupplierIds } },
+        select: { bidSupplierId: true, amount: true },
+      });
+      for (const r of openingRecs) {
+        if (r.amount) {
+          const price = parseFloat(String(r.amount).replace(/,/g, ''));
+          if (!isNaN(price) && price > 0) bidPrices.set(r.bidSupplierId!, price);
+        }
+      }
+
       if (priceItems.length > 0 && project.priceFormulaConfig) {
         const config = project.priceFormulaConfig as any;
         const ceilingPrice = project.ceilingPrice ? Number(project.ceilingPrice) : null;
-
-        // 从 BidOpeningRecord 读取唱标时录入的报价(明文 amount 字段)
-        const openingRecs = await this.prisma.bidOpeningRecord.findMany({
-          where: { projectId, bidSupplierId: { in: activeSupplierIds } },
-          select: { bidSupplierId: true, amount: true },
-        });
-        const bidPrices = new Map<string, number>();
-        for (const r of openingRecs) {
-          if (r.amount) {
-            const price = parseFloat(String(r.amount).replace(/,/g, ''));
-            if (!isNaN(price) && price > 0) bidPrices.set(r.bidSupplierId!, price);
-          }
-        }
 
         const priceMaxTotal = priceItems.reduce((s, i) => s + Number(i.maxScore), 0);
         formulaPriceScores = this.priceFormula.calculate(config, bidPrices, ceilingPrice, priceMaxTotal);
@@ -2617,6 +2618,8 @@ export class BidService {
             rank: index + 1,
             recommended: !r.disqualified && index < winnerCount,
             disqualified: r.disqualified,
+            // A4: 报价从开标记录流入，供定标文件使用
+            bidPrice: bidPrices.get(r.supplierId) ?? undefined,
           })),
         });
       }
@@ -3298,7 +3301,7 @@ export class BidService {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       include: {
-        evaluationResults: { orderBy: { rank: 'asc' }, select: { rank: true, supplierName: true, totalScore: true, averageScore: true, recommended: true } },
+        evaluationResults: { orderBy: { rank: 'asc' }, select: { rank: true, supplierName: true, totalScore: true, averageScore: true, recommended: true, bidPrice: true } },
       },
     });
     if (!project) return;
@@ -3316,18 +3319,8 @@ export class BidService {
     const winner = project.evaluationResults.find(r => r.rank === 1);
     const candidates = project.evaluationResults.filter(r => r.recommended);
 
-    // A4: 尝试从 BidOpeningRecord 获取中标价格
-    let winnerPrice: string | null = null;
-    if (winner) {
-      const supplierResult = project.evaluationResults.find(r => r.rank === 1);
-      if (supplierResult) {
-        const openingRec = await this.prisma.bidOpeningRecord.findFirst({
-          where: { projectId, supplierName: winner.supplierName },
-          select: { amount: true },
-        });
-        if (openingRec?.amount) winnerPrice = openingRec.amount;
-      }
-    }
+    // A4: 中标价格从评标结果直接获取（不再通过 supplierName 模糊匹配开标记录）
+    const winnerPrice = winner?.bidPrice ? String(winner.bidPrice) : null;
 
     await this.prisma.announcement.create({
       data: {

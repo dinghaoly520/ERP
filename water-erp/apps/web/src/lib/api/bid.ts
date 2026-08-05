@@ -515,6 +515,7 @@ export interface BidEvaluationResultInfo {
   rank: number;
   recommended: boolean;
   disqualified: boolean;
+  bidPrice?: string | null; // A4: 供应商报价（从评标结果流入）
   generatedAt: string;
 }
 

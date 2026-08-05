@@ -759,6 +759,7 @@ model BidEvaluationResult {
   rank         Int
   recommended  Boolean    @default(false)
   disqualified Boolean    @default(false) // 废标（资格审查/响应性审查 改通过/不通过制）
+  bidPrice     Decimal?   @db.Decimal(15, 2) // A4: 供应商报价（从开标记录流入，供定标文件使用）
   generatedAt  DateTime   @default(now())
   project      BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
