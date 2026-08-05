@@ -177,6 +177,8 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (!assigned) return { error: 'NOT_ASSIGNED_EXPERT' };
       client.join(`project:${projectId}`);
       client.join(`experts:${projectId}`);
+      // 立即推送当前聚合进度快照（修复：专家进入时看不到专家组签到/进度信息）
+      this.broadcastAggregatePresence(projectId).catch(() => {});
       return { ok: true };
     }
 
