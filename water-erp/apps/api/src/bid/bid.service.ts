@@ -3465,7 +3465,7 @@ export class BidService {
   }
 
   /** D2: 采购端裁决专家异议工单 */
-  async resolveExpertDispute(projectId: string, disputeId: string, dto: { response: string; status: string }, actorId?: string) {
+  async resolveExpertDispute(projectId: string, disputeId: string, dto: { response: string; status: string; invalidateBidSupplierId?: string }, actorId?: string) {
     const dispute = await this.prisma.expertDispute.findUnique({ where: { id: disputeId } });
     if (!dispute || dispute.projectId !== projectId) throw new BadRequestException({ error: '异议不存在', code: 'NOT_FOUND' });
     if (dispute.status !== 'open') throw new BadRequestException({ error: '该异议已处理，不可重复裁决', code: 'DISPUTE_NOT_OPEN' });
@@ -3477,16 +3477,39 @@ export class BidService {
       throw new BadRequestException({ error: '项目不在评标阶段，无法裁决异议', code: 'PROJECT_NOT_EVALUATING' });
     }
 
+    // 废标联动：采纳时可同时把指定供应商置为 invalid（须属于本项目）
+    let invalidateTarget: { id: string; supplierName: string } | null = null;
+    if (dto.status === 'resolved' && dto.invalidateBidSupplierId) {
+      const bs = await this.prisma.bidSupplier.findFirst({
+        where: { id: dto.invalidateBidSupplierId, projectId },
+        select: { id: true, supplierName: true },
+      });
+      if (!bs) throw new BadRequestException({ error: '废标供应商不属于本项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
+      invalidateTarget = bs;
+    }
+
     const statusLabel = dto.status === 'resolved' ? '已采纳' : '已驳回';
     const now = new Date();
 
-    // 事务：乐观锁 updateMany（防并发双裁）+ 监督日志 + 审计日志
+    // 事务：乐观锁 updateMany（防并发双裁）+ 监督日志 + 审计日志 + 废标联动
     const result = await this.prisma.$transaction(async (tx) => {
       const res = await tx.expertDispute.updateMany({
         where: { id: disputeId, status: 'open' },
         data: { status: dto.status, response: dto.response, resolvedBy: actorId, resolvedAt: now },
       });
       if (res.count === 0) throw new BadRequestException({ error: '该异议已被处理', code: 'DISPUTE_NOT_OPEN' });
+
+      // 废标联动：同事务内置 invalid + 高风险监督日志
+      if (invalidateTarget) {
+        await tx.bidSupplier.update({ where: { id: invalidateTarget.id }, data: { bidValidity: 'invalid' } });
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: now, role: '采购管理员', target: invalidateTarget.supplierName,
+            action: '依专家异议裁决废标',
+            result: `异议「${dispute.title}」采纳→废标：${dto.response}`, riskFlag: '高风险',
+          },
+        });
+      }
 
       await tx.bidSupervisionLog.create({
         data: {
@@ -3499,7 +3522,7 @@ export class BidService {
 
       if (actorId) {
         await tx.auditLog.create({
-          data: { userId: actorId, action: 'EXPERT_DISPUTE_RESOLVE', resourceType: `ExpertDispute:${disputeId}`, details: { projectId, status: dto.status, title: dispute.title } },
+          data: { userId: actorId, action: 'EXPERT_DISPUTE_RESOLVE', resourceType: `ExpertDispute:${disputeId}`, details: { projectId, status: dto.status, title: dispute.title, invalidateBidSupplierId: dto.invalidateBidSupplierId ?? null } },
         });
       }
 

@@ -329,6 +329,11 @@ export function abortBidProject(bidProjectId: string, reason?: string) {
   return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/abort`, reason ? { reason } : {});
 }
 
+/** 手动废标：把指定投标供应商置为 bidValidity='invalid'（B1） */
+export function invalidateBid(bidProjectId: string, bidSupplierId: string, reason: string) {
+  return api.post<{ invalidated: boolean }>(`/bid/projects/${bidProjectId}/invalidate-bid/${bidSupplierId}`, { reason });
+}
+
 /** A1: 公示状态查询 */
 export function getPublicityStatus(bidProjectId: string) {
   return api.get<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean }>(
@@ -600,11 +605,12 @@ export function exportArchivePackageJson(bidProjectId: string) {
 
 /* ── 专家异议工单（D2：采购端裁决）── */
 
-/** 采购端裁决专家异议工单（采纳/驳回） */
+/** 采购端裁决专家异议工单（采纳/驳回）。
+ *  invalidateBidSupplierId：采纳时同事务把该投标供应商置为 invalid（废标联动，可选）。 */
 export function resolveExpertDispute(
   bidProjectId: string,
   disputeId: string,
-  dto: { response: string; status: 'resolved' | 'rejected' },
+  dto: { response: string; status: 'resolved' | 'rejected'; invalidateBidSupplierId?: string },
 ) {
   return api.post(`/bid/projects/${bidProjectId}/disputes/${disputeId}/resolve`, dto);
 }
