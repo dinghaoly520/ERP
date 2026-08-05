@@ -446,6 +446,21 @@ export class SupplierPortalController {
     });
   }
 
+  @Get('projects/:projectId/my-quotes')
+  async getMyQuotes(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    const member = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId },
+      select: { id: true },
+    });
+    if (!member) throw new ForbiddenException({ error: '未参与该项目', code: 'NOT_PROJECT_MEMBER' });
+    return this.prisma.bidQuote.findMany({
+      where: { bidSupplierId: member.id },
+      select: { id: true, roundId: true, quotePrice: true, submittedAt: true, status: true },
+      orderBy: { submittedAt: 'desc' },
+    });
+  }
+
   @Post('projects/:projectId/rounds/:roundId/quote')
   async submitQuote(@Request() req: any, @Param('projectId') projectId: string, @Param('roundId') roundId: string, @Body() body: { bidSupplierId: string; quotePrice: number }) {
     // 验证供应商属于该项目且属于当前登录用户

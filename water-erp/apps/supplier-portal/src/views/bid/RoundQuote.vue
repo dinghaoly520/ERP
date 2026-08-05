@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Coin, Lock } from '@element-plus/icons-vue'
+import { ArrowLeft, Coin, Lock, Check } from '@element-plus/icons-vue'
 import SpPageHero from '@/components/SpPageHero.vue'
 import { bidApi } from '@/api/bid'
 import dayjs from 'dayjs'
@@ -15,15 +15,18 @@ interface Round {
   id: string; roundNo: number; roundType: string; status: string; deadline: string | null
 }
 interface Quote { id: string; bidSupplierId: string; quotePrice: string; status: string }
+interface MyQuote { id: string; roundId: string; quotePrice: string; submittedAt: string; status: string }
 
 const loading = ref(true)
 const rounds = ref<Round[]>([])
 const publishedQuotes = ref<Record<string, Quote[]>>({})
+const myQuotes = ref<Record<string, MyQuote>>({}) // roundId → 我的报价
 const myBidSupplierId = ref<string>('')
 const quotePrice = ref<number | undefined>(undefined)
 const submitting = ref(false)
 
 const currentOpenRound = computed(() => rounds.value.find(r => r.status === 'open'))
+const currentOpenMyQuote = computed(() => currentOpenRound.value ? myQuotes.value[currentOpenRound.value.id] : undefined)
 
 async function fetchData() {
   loading.value = true
@@ -36,6 +39,19 @@ async function fetchData() {
       const bsRes = await bidApi.getMyBidSupplier(projectId)
       myBidSupplierId.value = (bsRes as any)?.id ?? ''
     } catch (e) { /* 非项目成员则保持为空 */ }
+
+    // 获取我的全部报价历史
+    try {
+      const mqRes = await bidApi.getMyQuotes(projectId)
+      const list = (mqRes as any) as MyQuote[]
+      const map: Record<string, MyQuote> = {}
+      for (const q of list) map[q.roundId] = q
+      myQuotes.value = map
+      // 如果当前 open 轮次已有报价，回填到输入框
+      if (currentOpenRound.value && map[currentOpenRound.value.id]) {
+        quotePrice.value = Number(map[currentOpenRound.value.id].quotePrice)
+      }
+    } catch (e) { /* ignore */ }
 
     // Load published round quotes
     for (const r of rounds.value) {
@@ -61,8 +77,14 @@ async function handleSubmit() {
       bidSupplierId: myBidSupplierId.value,
       quotePrice: quotePrice.value,
     })
-    ElMessage.success('报价已提交(密封)')
-    quotePrice.value = undefined
+    const isModify = !!currentOpenMyQuote.value
+    ElMessage.success(isModify ? '报价已修改(密封)' : '报价已提交(密封)')
+    // 刷新我的报价
+    const mqRes = await bidApi.getMyQuotes(projectId)
+    const list = (mqRes as any) as MyQuote[]
+    const map: Record<string, MyQuote> = {}
+    for (const q of list) map[q.roundId] = q
+    myQuotes.value = map
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.error || '提交失败')
   } finally {
@@ -72,6 +94,10 @@ async function handleSubmit() {
 
 function formatTime(iso: string | null): string {
   return iso ? dayjs(iso).format('MM-DD HH:mm') : '—'
+}
+
+function formatPrice(p: string | number): string {
+  return Number(p).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 const statusLabels: Record<string, string> = {
@@ -109,8 +135,23 @@ onMounted(fetchData)
             截止时间: {{ formatTime(currentOpenRound.deadline) }}
           </div>
 
+          <!-- 已提交报价提示 -->
+          <el-alert
+            v-if="currentOpenMyQuote"
+            type="success" :closable="false" class="mb-4"
+            show-icon
+          >
+            <template #title>
+              <span class="text-sm">
+                已提交报价：<strong class="font-mono">¥{{ formatPrice(currentOpenMyQuote.quotePrice) }}</strong>
+                · {{ formatTime(currentOpenMyQuote.submittedAt) }}
+                <span class="ml-1 text-gray-400">（截止前可修改）</span>
+              </span>
+            </template>
+          </el-alert>
+
           <el-form label-width="100px">
-            <el-form-item label="报价(元)">
+            <el-form-item :label="currentOpenMyQuote ? '修改报价' : '报价(元)'">
               <el-input-number
                 v-model="quotePrice"
                 :min="0"
@@ -122,8 +163,8 @@ onMounted(fetchData)
           </el-form>
 
           <div class="flex justify-end">
-            <el-button type="primary" :icon="Lock" :loading="submitting" @click="handleSubmit">
-              提交密封报价
+            <el-button type="primary" :icon="currentOpenMyQuote ? Check : Lock" :loading="submitting" @click="handleSubmit">
+              {{ currentOpenMyQuote ? '修改密封报价' : '提交密封报价' }}
             </el-button>
           </div>
         </el-card>
@@ -138,6 +179,18 @@ onMounted(fetchData)
               </el-tag>
               <span v-if="r.deadline" class="text-xs text-gray-400">截止 {{ formatTime(r.deadline) }}</span>
             </div>
+            <!-- 我的报价状态（sealed 轮次） -->
+            <span v-if="r.status === 'sealed' && myQuotes[r.id]" class="flex items-center gap-1 text-xs text-amber-600">
+              <el-icon><Lock /></el-icon> 已提交（密封中）
+            </span>
+          </div>
+
+          <!-- 我的报价（open 但非当前轮 / pending 已提交） -->
+          <div v-if="myQuotes[r.id] && r.status !== 'published' && r.status !== 'closed'" class="mt-2 rounded bg-gray-50 px-3 py-1.5 text-sm text-gray-600">
+            <span v-if="r.status === 'open' && r.id !== currentOpenRound?.id">
+              我的报价：<strong class="font-mono text-blue-600">¥{{ formatPrice(myQuotes[r.id].quotePrice) }}</strong>
+              <span class="ml-1 text-gray-400">{{ formatTime(myQuotes[r.id].submittedAt) }}</span>
+            </span>
           </div>
 
           <!-- 已公布轮次: 报价排名 -->
@@ -152,9 +205,15 @@ onMounted(fetchData)
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(q, idx) in publishedQuotes[r.id]" :key="q.id" class="border-t border-gray-100">
+                  <tr
+                    v-for="(q, idx) in publishedQuotes[r.id]" :key="q.id"
+                    class="border-t border-gray-100"
+                    :class="q.bidSupplierId === myBidSupplierId ? 'bg-blue-50' : ''"
+                  >
                     <td class="px-3 py-2 font-mono font-bold text-blue-600">{{ idx + 1 }}</td>
-                    <td class="px-3 py-2">{{ q.bidSupplierId === myBidSupplierId ? '本企业' : '其他供应商' }}</td>
+                    <td class="px-3 py-2 font-medium" :class="q.bidSupplierId === myBidSupplierId ? 'text-blue-700' : ''">
+                      {{ q.bidSupplierId === myBidSupplierId ? '本企业' : '其他供应商' }}
+                    </td>
                     <td class="px-3 py-2 text-right font-mono font-semibold">{{ Number(q.quotePrice).toLocaleString() }}</td>
                   </tr>
                 </tbody>

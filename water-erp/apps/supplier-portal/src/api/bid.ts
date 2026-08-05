@@ -31,6 +31,9 @@ export const bidApi = {
   listRounds(projectId: string) {
     return api.get(`/supplier-portal/projects/${projectId}/rounds`)
   },
+  getMyQuotes(projectId: string) {
+    return api.get(`/supplier-portal/projects/${projectId}/my-quotes`)
+  },
   submitQuote(projectId: string, roundId: string, data: { bidSupplierId: string; quotePrice: number }) {
     return api.post(`/supplier-portal/projects/${projectId}/rounds/${roundId}/quote`, data)
   },
