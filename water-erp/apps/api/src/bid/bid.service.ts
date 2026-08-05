@@ -891,15 +891,22 @@ export class BidService {
     if (isTransitioning) {
       const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
       const supplierCount = await this.prisma.bidSupplier.count({ where: { projectId: id } });
-      const items: string[] = [];
-      if (expertCount === 0) items.push('尚有专家未分配');
-      if (supplierCount < 3) items.push(`有效投标供应商仅 ${supplierCount} 家(不足 3 家)`);
-      if (items.length > 0) {
-        console.warn(`[E4] 开标准备 checklist 未完善(${project.name}): ${items.join('; ')}`);
-        await this.prisma.bidSupervisionLog.create({
-          data: { projectId: id, time: new Date(), role: '系统', target: project.name,
-            action: '开标准备 checklist', result: items.join('; '), riskFlag: items.length > 0 ? '有' : '无' },
-        }).catch(() => {});
+      const blocking: string[] = [];
+      if (expertCount === 0) blocking.push('尚有专家未分配');
+      if (supplierCount < 3) blocking.push(`有效投标供应商仅 ${supplierCount} 家(不足 3 家)`);
+      if (blocking.length > 0) {
+        if (dto?.force) {
+          await this.prisma.bidSupervisionLog.create({
+            data: { projectId: id, time: new Date(), role: '系统', target: project.name,
+              action: '强制开标(忽略checklist)', result: blocking.join('; '), riskFlag: '高风险' },
+          }).catch(() => {});
+        } else {
+          throw new BadRequestException({
+            error: `开标准备未完成：${blocking.join('；')}`,
+            code: 'OPENING_CHECKLIST_FAILED',
+            items: blocking,
+          });
+        }
       }
     }
 

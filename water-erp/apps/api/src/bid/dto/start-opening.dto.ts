@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsISO8601, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsISO8601, IsOptional, IsBoolean } from 'class-validator';
 
 /**
  * 开标会话字段全部可选：不提供时仅推进阶段 SUBMIT→OPENING，
@@ -19,4 +19,8 @@ export class StartOpeningDto {
 
   @IsOptional() @IsISO8601()
   decryptWindowEnd?: string;
+
+  /** E4: 强制开标——跳过 checklist 阻断检查（写入高风险监督日志） */
+  @IsOptional() @IsBoolean()
+  force?: boolean;
 }
