@@ -449,7 +449,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     className="neu-btn-soft text-xs text-[var(--warning)]"
                     onClick={async () => {
                       setPausing(true);
-                      try { await pauseOpening(projectId); toast.success('开标已暂停'); onRefresh(); }
+                      const reason = window.prompt('暂停原因（可选）'); try { await pauseOpening(projectId, reason || undefined); toast.success('开标已暂停'); onRefresh(); }
                       catch (e: any) { toast.error(e?.message || '暂停失败'); }
                       finally { setPausing(false); }
                     }}

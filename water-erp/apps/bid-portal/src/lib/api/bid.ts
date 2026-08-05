@@ -146,8 +146,8 @@ export function acceptSupplierDanger(projectId: string, supplierId: string, reas
   return api.post(`/bid/projects/${projectId}/suppliers/${supplierId}/accept-danger`, { reason });
 }
 
-export function pauseOpening(projectId: string) {
-  return api.post(`/bid/projects/${projectId}/pause`, {});
+export function pauseOpening(projectId: string, reason?: string) {
+  return api.post(`/bid/projects/${projectId}/pause`, reason ? { reason } : {});
 }
 
 export function resumeOpening(projectId: string) {

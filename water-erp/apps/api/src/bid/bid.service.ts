@@ -2044,7 +2044,7 @@ export class BidService {
     const now = new Date();
     await this.prisma.bidOpeningSession.update({
       where: { projectId },
-      data: { pausedAt: now },
+      data: { pausedAt: now, ...(reason ? { pauseReason: reason } : {}) },
     });
 
     const resultText = reason ? `暂停原因: ${reason}。解密窗口倒计时已冻结` : '解密窗口倒计时已冻结，解密操作被禁止';

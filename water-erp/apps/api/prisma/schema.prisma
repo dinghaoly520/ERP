@@ -443,6 +443,7 @@ model BidOpeningSession {
   activeHostName       String?    // 当前操作者显示名
   pausedAt             DateTime?  // 暂停时刻（正在暂停则为当前时间）
   totalPausedMs        Int        @default(0) // 累计暂停毫秒数（用于补偿解密窗口）
+  pauseReason          String?    // 暂停原因 (E5)
   project              BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
