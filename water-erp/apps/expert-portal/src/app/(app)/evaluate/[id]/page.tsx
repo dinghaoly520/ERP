@@ -1323,6 +1323,37 @@ export default function ExpertEvaluatePage() {
                 </button>
               </div>
 
+              {/* 委员会表决参考（打分时可见，供专家参考） */}
+              {motions.length > 0 && (
+                <div className="neu-card-static mb-4 rounded-xl border-l-[3px] border-l-[var(--accent)] px-4 py-2.5">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold text-[var(--accent-strong)]">
+                    <Gavel size={12} strokeWidth={1.8} /> 委员会表决动态（供评分参考）
+                  </div>
+                  <div className="space-y-1">
+                    {motions.map((m: any) => {
+                      const approves = m.votes?.filter((v: any) => v.vote === 'approve').length ?? 0;
+                      const rejects = m.votes?.filter((v: any) => v.vote === 'reject').length ?? 0;
+                      return (
+                        <div key={m.id} className="flex items-center gap-2 text-[11px]">
+                          <span className={`shrink-0 font-bold ${
+                            m.status === 'voting' ? 'text-[var(--accent)]'
+                            : m.result === 'approved' ? 'text-[var(--success)]'
+                            : m.result === 'rejected' ? 'text-[var(--danger)]'
+                            : 'text-[var(--muted-foreground)]'
+                          }`}>
+                            {m.status === 'voting' ? '投票中' : m.result === 'approved' ? '✓通过' : m.result === 'rejected' ? '✗否决' : '△平票'}
+                          </span>
+                          <span className="truncate text-[var(--foreground)]">{m.title}</span>
+                          <span className="ml-auto shrink-0 tabular-nums text-[var(--muted-foreground)]">
+                            赞{approves}·反{rejects}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* P0-3: draft recovery banner */}
               {draftAvailable && !draftDismissed && (
                 <div className="exp-alert exp-alert--warn mb-6 flex items-center gap-3 !p-4">
