@@ -689,21 +689,45 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                       <Shield size={12} /> 监督时间线
                     </span>
                   </div>
-                  {/* G2: 最近监督日志(滚动时间线) */}
-                  {detail?.supervisionLogs && detail.supervisionLogs.length > 0 && (
-                    <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
-                      {detail.supervisionLogs.slice(-10).reverse().map((log: any, i: number) => (
-                        <div key={i} className="flex items-start gap-2 text-[11px]">
-                          <span className="shrink-0 text-[var(--muted-foreground)] tabular-nums">
-                            {new Date(log.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          <span className="font-semibold">{log.role}</span>
-                          <span className="text-[var(--muted-foreground)]">{log.action}</span>
-                          {log.riskFlag === '高风险' && <span className="font-semibold text-[var(--danger)]">⚠</span>}
+                  {/* G2: 监督日志表（全量滚动 + 风险高亮） */}
+                  {detail?.supervisionLogs && detail.supervisionLogs.length > 0 && (() => {
+                    const logs = detail.supervisionLogs.slice().reverse();
+                    const highRiskCount = logs.filter((l: any) => l.riskFlag === '高风险').length;
+                    return (
+                      <div className="mt-2">
+                        <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--muted-foreground)]">
+                          <span>{logs.length} 条记录</span>
+                          {highRiskCount > 0 && <span className="font-semibold text-[var(--danger)]">{highRiskCount} 条高风险</span>}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <div className="max-h-48 overflow-y-auto rounded-lg border border-[oklch(0.6_0.04_258/0.1)]">
+                          <table className="w-full text-[10px]">
+                            <thead className="sticky top-0 bg-[oklch(0.975_0.012_258)] text-left text-[var(--muted-foreground)]">
+                              <tr>
+                                <th className="px-2 py-1 w-14 font-semibold">时间</th>
+                                <th className="px-1 py-1 w-14 font-semibold">角色</th>
+                                <th className="px-1 py-1 font-semibold">动作</th>
+                                <th className="px-1 py-1 w-10 font-semibold">风险</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {logs.map((log: any, i: number) => (
+                                <tr key={i} className={log.riskFlag === '高风险' ? 'bg-[color-mix(in_oklch,var(--danger)_6%,transparent)]' : ''}>
+                                  <td className="px-2 py-0.5 tabular-nums text-[var(--muted-foreground)]">
+                                    {new Date(log.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                                  </td>
+                                  <td className="px-1 py-0.5 font-semibold">{log.role}</td>
+                                  <td className="px-1 py-0.5 text-[var(--muted-foreground)]">{log.action}<br/><span className="text-[var(--foreground)]">{log.result}</span></td>
+                                  <td className="px-1 py-0.5 text-center">
+                                    {log.riskFlag === '高风险' ? <span className="font-bold text-[var(--danger)]">⚠高</span> : log.riskFlag === '中风险' ? <span className="text-[var(--warning)]">中</span> : <span className="text-[var(--muted-foreground)]">—</span>}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
               {bpId && detail && (
