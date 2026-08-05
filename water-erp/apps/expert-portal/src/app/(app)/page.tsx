@@ -17,6 +17,7 @@ const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对'
 interface MotionItem {
   id: string; projectId: string; projectName: string; projectStage: string;
   title: string; status: string; result?: string | null; myVote: string | null;
+  totalVoters?: number;
   votes: Array<{ expertId: string; vote: string }>;
 }
 interface DisputeItem {
@@ -317,11 +318,12 @@ export default function ExpertDashboardPage() {
                       const approves = m.votes.filter(v => v.vote === 'approve').length;
                       const rejects = m.votes.filter(v => v.vote === 'reject').length;
                       const total = m.votes.length;
+                      const quorum = m.totalVoters ?? 0;
                       const sc = STAGE_COLOR[m.projectStage as keyof typeof STAGE_COLOR];
                       const isVoting = m.status === 'voting';
                       const needVote = isVoting && !m.myVote;
                       return (
-                        <div key={m.id} className={`rounded-lg px-2 py-2 ${needVote ? '' : 'opacity-50'}`}>
+                        <div key={m.id} className={`rounded-lg px-2 py-2 ${isVoting ? '' : 'opacity-50'}`}>
                           <div className="flex items-center gap-2 text-xs mb-1.5">
                             <span className="truncate font-semibold text-[var(--foreground)]">{m.projectName}</span>
                             {sc && (
@@ -342,7 +344,8 @@ export default function ExpertDashboardPage() {
                           <p className="text-[11px] font-semibold text-[var(--foreground)] mb-1">{m.title}</p>
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
-                              赞成 {approves} · 反对 {rejects} / {total}
+                              赞成 {approves} · 反对 {rejects} · 弃权 {total - approves - rejects}
+                              {quorum > 0 && <span className="ml-1 font-semibold text-[var(--foreground)]">已投 {total}/{quorum}</span>}
                             </span>
                             <div className="flex items-center gap-2">
                               {needVote && (

@@ -1820,7 +1820,18 @@ export class ExpertService {
 
     const projectIds = [...new Set(records.map(r => r.projectId))];
     const expertIds = records.map(r => r.id);
-    const projectMap = new Map(records.map(r => [r.projectId, { name: r.project.name, stage: r.project.stage }]));
+
+    // 每个项目的正选委员总数（用于表决进度「已投/应投」）
+    const voterCounts = await this.prisma.bidExpert.groupBy({
+      by: ['projectId'],
+      where: { projectId: { in: projectIds }, expertRole: '正选' },
+      _count: { _all: true },
+    });
+    const projectMap = new Map(records.map(r => [r.projectId, {
+      name: r.project.name,
+      stage: r.project.stage,
+      totalVoters: voterCounts.find(v => v.projectId === r.projectId)?._count._all ?? 0,
+    }]));
 
     const [motions, disputes] = await Promise.all([
       this.prisma.bidMotion.findMany({
@@ -1846,6 +1857,7 @@ export class ExpertService {
         ...m,
         projectName: projectMap.get(m.projectId)?.name ?? '',
         projectStage: projectMap.get(m.projectId)?.stage ?? '',
+        totalVoters: projectMap.get(m.projectId)?.totalVoters ?? 0,
         myVote: m.votes.find(v => expertIds.includes(v.expertId))?.vote ?? null,
       })),
       disputes: disputes.map(d => ({
