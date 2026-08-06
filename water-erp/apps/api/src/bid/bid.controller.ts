@@ -26,6 +26,7 @@ import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
+import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
 
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
@@ -245,8 +246,16 @@ export class BidController {
   decryptAll(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.decryptAllSuppliers(id, userId); }
 
   @Post('projects/:id/rerun-ai-analysis')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '重新触发 AI 辅助分析（B8/15.5）——清除旧结果并重新入队' })
   rerunAiAnalysis(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.rerunAiAnalysis(id, userId); }
+
+  @Post('projects/:id/retry-ai-bidders')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'AI 单家重试（重置 FAILED/卡住的 bidderResult 并重入队）' })
+  retryAiBidders(@Param('id') id: string, @Body() dto: RetryAiBiddersDto, @CurrentUser('sub') userId: string) {
+    return this.bidService.retryAiBidders(id, dto.bidderResultIds, userId);
+  }
 
   @Post('projects/:id/suppliers/:supplierId/invalid-bid/revoke')
   @ApiOperation({ summary: '废标复核撤销（reportConfirmed 前可逆）' })
