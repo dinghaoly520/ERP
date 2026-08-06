@@ -488,11 +488,19 @@ export class SupplierPortalController {
   }
 
   @Get('projects/:projectId/rounds/:roundId/quotes')
-  async getRoundQuotes(@Param('projectId') projectId: string, @Param('roundId') roundId: string) {
-    // 供应商只能看 published 轮次的报价
+  async getRoundQuotes(@Request() req: any, @Param('projectId') projectId: string, @Param('roundId') roundId: string) {
+    // 供应商只能看 published/closed 轮次的报价
     const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
     if (!round || round.projectId !== projectId) return [];
     if (round.status !== 'published' && round.status !== 'closed') return [];
-    return this.prisma.bidQuote.findMany({ where: { roundId }, orderBy: { quotePrice: 'asc' } });
+    const supplierId = await this.getSupplierId(req.user.sub);
+    const myBidSupplier = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } });
+    // M1: 脱敏——非 self 的 bidSupplierId 替换为序号，防止跨轮次关联竞争对手
+    const quotes = await this.prisma.bidQuote.findMany({ where: { roundId }, orderBy: { quotePrice: 'asc' } });
+    let seq = 0;
+    return quotes.map(q => ({
+      ...q,
+      bidSupplierId: q.bidSupplierId === myBidSupplier?.id ? q.bidSupplierId : `competitor_${++seq}`,
+    }));
   }
 }

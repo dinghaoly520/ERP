@@ -822,6 +822,16 @@ export class ExpertService {
       throw new ForbiddenException({ error: '该供应商在您的回避名单中', code: 'CONFLICTED_SUPPLIER' });
     }
 
+    // C3+M11: 多轮报价项目——从 BidOpeningRecord 注入最终轮报价供专家参考
+    let finalQuotePrice: string | null = null;
+    if (project.roundMode) {
+      const openingRec = await this.prisma.bidOpeningRecord.findFirst({
+        where: { projectId, bidSupplierId: supplierId },
+        select: { amount: true },
+      });
+      finalQuotePrice = openingRec?.amount ?? null;
+    }
+
     // 4.5: 优先读 AiBidderResult（per-item LLM 结果），降级用规则引擎
     const bidderResult = await this.prisma.aiBidderResult.findFirst({
       where: { bidSupplierId: supplierId, status: 'COMPLETED' },
@@ -845,6 +855,7 @@ export class ExpertService {
       return {
         source: 'ai_bidder_result',
         supplierName: bidderResult.bidSupplier.supplierName,
+        finalQuotePrice, // C3: 多轮项目最终轮报价
         totalScore: bidderResult.totalScore,
         scoreItems: bidderResult.scoreItems,
         categoryTotals: bidderResult.categoryTotals,
@@ -870,6 +881,7 @@ export class ExpertService {
     // 降级：规则引擎（LLM/OCR 不可用或 bidderResult 未就绪时）
     return {
       source: 'rules_fallback',
+      finalQuotePrice,
       ...(await this.aiService.analyzeBid(projectId, supplierId, expert.id)),
     };
   }
@@ -1493,6 +1505,16 @@ export class ExpertService {
       bySupplier.get(key)!.push(r);
     }
 
+    // C3+M9: 多轮项目查 BidOpeningRecord 金额供报告展示
+    const openingRecMap = new Map<string, string>();
+    const openingRecs = await this.prisma.bidOpeningRecord.findMany({
+      where: { projectId, bidSupplierId: { in: project.suppliers.map(s => s.id) } },
+      select: { bidSupplierId: true, amount: true },
+    });
+    for (const r of openingRecs) {
+      if (r.bidSupplierId && r.amount) openingRecMap.set(r.bidSupplierId, r.amount);
+    }
+
     // 查询该专家在本项目所有供应商的评分核对状态（供 report-step 核对徽章 + canConfirm 判定）
     const reviewRecords = await this.prisma.bidScoreReview.findMany({
       where: { expertId: expert.id, projectId },
@@ -1529,6 +1551,7 @@ export class ExpertService {
       return {
         supplierName: supplier.supplierName,
         totalScore,
+        bidPrice: openingRecMap.get(supplier.id) ?? undefined, // C3+M9: 最终报价
         categoryScores,
         perSupplierComplete: project.scoreItems.length > 0 && records.length === project.scoreItems.length,
         scoreReview: reviewBySupplier.has(supplier.id)

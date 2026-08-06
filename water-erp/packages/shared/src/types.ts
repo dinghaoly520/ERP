@@ -317,6 +317,7 @@ export interface EvaluationReport {
   supplierScores: {
     supplierName: string;
     totalScore: number;
+    bidPrice?: string;
     perSupplierComplete: boolean;
     categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; passed?: boolean; reason?: string }[] }>;
   }[];

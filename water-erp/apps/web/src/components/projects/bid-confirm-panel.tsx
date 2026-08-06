@@ -958,12 +958,20 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
 
   if (!status) return null;
 
+  // M12: 中标价格展示
+  const winner = (detail?.evaluationResults ?? []).find(r => r.rank === 1 && r.recommended);
+
   return (
     <div className="space-y-2">
       {!status.hasPublicity ? (
         <div className="exp-alert exp-alert--info flex items-center gap-2 !p-3">
           <Clock size={14} strokeWidth={1.5} className="shrink-0" />
           <span className="text-xs">尚未发布中标公示</span>
+          {winner?.bidPrice && (
+            <span className="ml-2 text-xs font-mono tabular-nums text-[var(--muted-foreground)]">
+              中标金额：¥{Number(winner.bidPrice).toLocaleString('zh-CN')}
+            </span>
+          )}
         </div>
       ) : status.canIssueAward ? (
         <div className="exp-alert exp-alert--success flex items-center gap-2 !p-3">

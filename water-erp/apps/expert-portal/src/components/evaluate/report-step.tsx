@@ -116,6 +116,11 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--accent-strong)] text-sm font-bold text-white">{i + 1}</div>
                     <h3 className="font-bold text-[var(--foreground)]">{ss.supplierName}</h3>
+                    {ss.bidPrice && (
+                      <span className="text-xs font-mono tabular-nums text-[var(--muted-foreground)]">
+                        报价：¥{Number(ss.bidPrice).toLocaleString('zh-CN')}
+                      </span>
+                    )}
                     {ss.perSupplierComplete && (
                       <span className="exp-pill" style={{ '--c': 'var(--success)' } as React.CSSProperties}>评分完整</span>
                     )}

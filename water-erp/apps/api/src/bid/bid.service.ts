@@ -3652,7 +3652,7 @@ export class BidService {
       // 2c 脱敏：非 published/closed 状态的轮次，密封报价不暴露给前端
       quotes: ['published', 'closed'].includes(r.status)
         ? r.quotes
-        : r.quotes.map(q => ({ ...q, quotePrice: null as any })),
+        : r.quotes.map(q => ({ ...q, quotePrice: null as string | null })),
     })));
   }
 
