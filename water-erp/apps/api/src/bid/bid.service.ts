@@ -3338,7 +3338,7 @@ export class BidService {
     await this.prisma.announcement.create({
       data: {
         title: `中标公示：${project.name}`,
-        content: `项目编号 ${project.projectCode}（${project.name}）已完成评标并归档。中标人：${winner?.supplierName ?? '—'}。`,
+        content: `项目编号 ${project.projectCode}（${project.name}）已完成评标并归档。中标人：${winner?.supplierName ?? '—'}。${winnerPrice ? `中标金额：¥${winnerPrice}元。` : ''}`,
         type: 'WIN_NOTICE',
         status: 'DRAFT',
         relatedProjectCode: project.projectCode,
@@ -3520,6 +3520,14 @@ export class BidService {
             result: `异议「${dispute.title}」采纳→废标：${dto.response}`, riskFlag: '高风险',
           },
         });
+        // H6: 废标联动——清除已有评标结果，强制下次 generateEvaluationResults 重算
+        const existingResults = await tx.bidEvaluationResult.count({ where: { projectId } });
+        if (existingResults > 0) {
+          await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
+          await tx.bidSupervisionLog.create({
+            data: { projectId, time: now, role: '系统', target: invalidateTarget.supplierName, action: '废标联动·评标结果已清除', result: '请重新生成评标结果', riskFlag: '中' },
+          });
+        }
       }
 
       await tx.bidSupervisionLog.create({

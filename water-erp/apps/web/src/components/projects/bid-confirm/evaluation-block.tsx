@@ -582,6 +582,11 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
                       {recommended && <Star size={11} className="ml-1 inline fill-[oklch(0.65_0.15_70)] text-[oklch(0.65_0.15_70)]" />}
                       {disqualified && <span className="ml-2 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }}>废标</span>}
                     </span>
+                    {official?.bidPrice && (
+                      <span className="font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]">
+                        ¥{Number(official.bidPrice).toLocaleString('zh-CN')}
+                      </span>
+                    )}
                     <span className="font-mono text-xs font-bold tabular-nums text-[var(--accent-strong)]">
                       {official ? Number(official.totalScore).toFixed(2) : avg.toFixed(1)}
                       <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : '均分参考'}</span>

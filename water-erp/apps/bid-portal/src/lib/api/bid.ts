@@ -162,6 +162,9 @@ export interface EvaluationResultRow {
   totalScore: number;
   rank: number;
   recommended: boolean;
+  bidPrice?: string | null;
+  disqualified?: boolean;
+  averageScore?: string;
 }
 
 export function listEvaluationResults(projectId: string) {
