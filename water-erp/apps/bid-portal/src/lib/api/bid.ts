@@ -171,6 +171,45 @@ export function listEvaluationResults(projectId: string) {
   return api.get<EvaluationResultRow[]>(`/bid/projects/${projectId}/evaluation-results`);
 }
 
+/* ── 工作区·AI 辅助评标进度与补救（评标管理 tab 顶部卡片）── */
+
+export interface AiBidderProgressRow {
+  id: string;             // AiBidderResult id
+  bidSupplierId: string;
+  name: string;           // 供应商名
+  status: string;         // AiBidderStatus
+  updatedAt: string;
+}
+
+export interface AiAnalysisProgress {
+  exists: boolean;
+  taskStatus: string | null;
+  updatedAt: string | null;
+  total: number;
+  completed: number;
+  failed: number;
+  bidders: AiBidderProgressRow[];
+  anomaly: {
+    hasAnomaly: boolean;
+    failedNames: string[];
+    stuckNames: string[];
+    taskFailed: boolean;
+    allPending: boolean;
+  };
+}
+
+export function getAiAnalysisProgress(projectId: string) {
+  return api.get<AiAnalysisProgress>(`/bid/projects/${projectId}/ai-analysis-progress`);
+}
+
+export function retryAiBidders(projectId: string, bidderResultIds?: string[]) {
+  return api.post<{ retried: Array<{ id: string; name: string }> }>(`/bid/projects/${projectId}/retry-ai-bidders`, { bidderResultIds });
+}
+
+export function rerunAiAnalysis(projectId: string) {
+  return api.post(`/bid/projects/${projectId}/rerun-ai-analysis`, {});
+}
+
 /* ── 多轮报价（谈判/竞价采购）── */
 
 export function listRounds(bidProjectId: string) {
