@@ -150,6 +150,9 @@ export class ProcurementService {
         name: project.title,
         projectCode: `BID-${Date.now()}`,
         procurementMethod: project.procurementMethod,
+        roundMode: project.procurementMethod === '谈判采购' ? 'negotiation'
+                  : project.procurementMethod === '竞价采购' ? 'sealed_auction'
+                  : null,
         openTime,
         deadline,
       },

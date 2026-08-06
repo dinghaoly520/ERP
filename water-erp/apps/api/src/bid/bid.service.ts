@@ -408,6 +408,9 @@ export class BidService {
         name: dto.name,
         projectCode: `BID-${Date.now()}`,
         procurementMethod: dto.procurementMethod,
+        roundMode: dto.procurementMethod === '谈判采购' ? 'negotiation'
+                  : dto.procurementMethod === '竞价采购' ? 'sealed_auction'
+                  : null,
         openTime: new Date(dto.openTime),
         deadline: new Date(dto.deadline),
         riskNote: dto.riskNote,
@@ -455,11 +458,15 @@ export class BidService {
       ? new Date(metadata.downloadDeadline)
       : null;
 
+    const procurementMethod = metadata.method || '公开招标';
     const project = await this.prisma.bidProject.create({
       data: {
         name: announcement.title,
         projectCode,
-        procurementMethod: metadata.method || '公开招标',
+        procurementMethod,
+        roundMode: procurementMethod === '谈判采购' ? 'negotiation'
+                  : procurementMethod === '竞价采购' ? 'sealed_auction'
+                  : null,
         openTime,
         deadline,
         downloadDeadline,
@@ -502,7 +509,12 @@ export class BidService {
       where: { id: projectId },
       data: {
         name: announcement.title,
-        ...(metadata.method !== undefined && { procurementMethod: metadata.method }),
+        ...(metadata.method !== undefined && {
+          procurementMethod: metadata.method,
+          roundMode: metadata.method === '谈判采购' ? 'negotiation'
+                    : metadata.method === '竞价采购' ? 'sealed_auction'
+                    : null,
+        }),
         ...(openTime && { openTime }),
         ...(deadline && { deadline }),
         ...(downloadDeadline !== undefined && { downloadDeadline }),
@@ -1105,9 +1117,19 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'EVALUATING');
 
-    // H3: 多轮报价项目——将最终轮报价写入 BidOpeningRecord.amount 供公式引擎使用
-    // （closeRound 不再做此操作，价格写入归 startEvaluation 管辖）
+    // 多轮报价项目——启动评标前校验所有轮次已完成
     if (project.roundMode) {
+      const totalRounds = await this.prisma.bidRound.count({ where: { projectId: id } });
+      if (totalRounds === 0) {
+        throw new BadRequestException({ error: '本项目为多轮报价项目，请先在开标端(:3007)完成至少一轮报价', code: 'NO_ROUNDS' });
+      }
+      const unclosedRounds = await this.prisma.bidRound.count({
+        where: { projectId: id, status: { not: 'closed' } },
+      });
+      if (unclosedRounds > 0) {
+        throw new BadRequestException({ error: `还有 ${unclosedRounds} 个报价轮次未结束，请先在开标端(:3007)关闭所有轮次`, code: 'ROUNDS_NOT_CLOSED' });
+      }
+      // 同步最终轮报价到 BidOpeningRecord 供公式引擎使用
       await this.syncMultiRoundPrices(id);
     }
 
