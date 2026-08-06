@@ -25,6 +25,7 @@ describe('Bid Lifecycle (e2e)', () => {
   let prisma: PrismaService;
   let adminCookie: string[];
   let supplierCookie: string[];
+  let leaderCookie: string[];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -41,6 +42,7 @@ describe('Bid Lifecycle (e2e)', () => {
 
     adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
     supplierCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
+    leaderCookie = await loginAs(app, 'Swhi-CGZX-01', 'Swhi-CGZX-01@2026', 'web');
   });
 
   afterAll(async () => {
@@ -592,5 +594,92 @@ describe('Bid Lifecycle (e2e)', () => {
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('NO_EXPERTS_ASSIGNED'); // 报的是专家缺失而非"未移交"——交回非闸门
     });
+  });
+
+  // ── 开标主持人指派与硬分流 (Task 3) ──
+  describe('Bid host assignment (e2e)', () => {
+  it('GET /bid/hosts 返回 bid_host 用户列表（leader 可访问）', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/bid/hosts')
+      .set('Cookie', leaderCookie)
+      .set('X-Portal', 'web')
+      .expect(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThan(0);
+    expect(res.body.some((u: any) => u.username === '陈源远')).toBe(true);
+  });
+
+  it('GET /bid/hosts — bid_host 角色被 403 拒绝（非管理端角色）', async () => {
+    // adminCookie = 陈源远 web 会话 = bid_host role
+    await request(app.getHttpServer())
+      .get('/api/bid/hosts')
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .expect(403);
+  });
+
+  it('PATCH /bid/projects/:id/assigned-host — leader 可指派并返回 assignedHostUser', async () => {
+    const project = await prisma.bidProject.findFirst({
+      where: { stage: { in: ['DOWNLOAD', 'SUBMIT'] } },
+    });
+    if (!project) return; // 种子无合适项目则跳过
+    const originalAssign = project.assignedHostUserId;
+
+    const host = await prisma.user.findFirst({
+      where: { role: 'bid_host', isActive: true },
+    });
+    if (!host) return;
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/bid/projects/${project.id}/assigned-host`)
+      .set('Cookie', leaderCookie)
+      .set('X-Portal', 'web')
+      .send({ userId: host.id })
+      .expect(200);
+    expect(res.body.assignedHostUser).toBeTruthy();
+    expect(res.body.assignedHostUser.id).toBe(host.id);
+
+    // 清理：恢复原值（避免影响其它测试 / 种子状态）
+    await prisma.bidProject.update({
+      where: { id: project.id },
+      data: { assignedHostUserId: originalAssign ?? null, assignedAt: null, assignedByUserId: null },
+    });
+  });
+
+  it('PATCH 非法 userId（supplier）→ 400 INVALID_HOST', async () => {
+    const project = await prisma.bidProject.findFirst();
+    if (!project) return;
+    const supplier = await prisma.user.findFirst({ where: { role: 'supplier' } });
+    if (!supplier) return;
+    const res = await request(app.getHttpServer())
+      .patch(`/api/bid/projects/${project.id}/assigned-host`)
+      .set('Cookie', leaderCookie)
+      .set('X-Portal', 'web')
+      .send({ userId: supplier.id })
+      .expect(400);
+    expect(res.body.code).toBe('INVALID_HOST');
+  });
+
+  it('PATCH userId=null → 清除指派（200）', async () => {
+    const project = await prisma.bidProject.findFirst({
+      where: { assignedHostUserId: { not: null } },
+    });
+    if (!project) return;
+    const originalAssign = project.assignedHostUserId;
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/bid/projects/${project.id}/assigned-host`)
+      .set('Cookie', leaderCookie)
+      .set('X-Portal', 'web')
+      .send({ userId: null })
+      .expect(200);
+    expect(res.body.assignedHostUser).toBeNull();
+
+    // 清理：恢复
+    await prisma.bidProject.update({
+      where: { id: project.id },
+      data: { assignedHostUserId: originalAssign ?? null },
+    });
+  });
   });
 });

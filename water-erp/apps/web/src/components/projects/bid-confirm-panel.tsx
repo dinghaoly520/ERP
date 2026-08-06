@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AbortDialog } from './bid-confirm/abort-dialog';
+import { HostPickerModal } from './bid-confirm/host-picker-modal';
 import {
   AlertTriangle,
   Bell,
@@ -13,6 +14,7 @@ import {
   Gavel,
   RefreshCw,
   Shield,
+  UserCheck,
   Users,
   X,
 } from 'lucide-react';
@@ -86,6 +88,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
+  const [hostPickerOpen, setHostPickerOpen] = useState(false);
 
   // 延时开标
   const [delayOpen, setDelayOpen] = useState(false);
@@ -181,6 +184,12 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
 
   /* ── Phase 2：详情增量刷新（socket 事件驱动，防抖合并高频事件）── */
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** 当前指派的开标主持人（来自 detail）；null = 未指派 */
+  const assignedHost = detail?.assignedHostUser ?? null;
+  /** :3007 是否已组建开标会话（= 改派锁定 R3）*/
+  const openingSessionExists = !!detail?.openingSession;
+
   const refreshDetail = useCallback(() => {
     if (!bidProject?.id) return;
     getBidProjectDetail(bidProject.id).then(setDetail).catch(() => {});
@@ -797,10 +806,34 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 <div className="ml-auto flex items-center gap-2">
                   {(stage === 'DOWNLOAD' || stage === 'SUBMIT') && (
                     <>
+                      <button
+                        type="button"
+                        onClick={() => setHostPickerOpen(true)}
+                        disabled={busy || openingSessionExists}
+                        className="neu-btn-soft !h-[36px]"
+                        title={
+                          openingSessionExists
+                            ? '已锁定（开标会话已组建）'
+                            : assignedHost
+                              ? `主持人：${assignedHost.displayName}`
+                              : '未指派'
+                        }
+                      >
+                        <UserCheck size={14} /> 开标主持人
+                        <span className={assignedHost ? '' : 'text-[var(--warning)]'}>
+                          ▾ {assignedHost ? assignedHost.displayName : '未指派'}
+                        </span>
+                      </button>
                       <button type="button" onClick={() => setDelayOpen(true)} disabled={busy} className="neu-btn-soft !h-[36px]">
                         <CalendarClock size={14} /> 延时开标
                       </button>
-                      <button type="button" onClick={() => void handleStartOpening()} disabled={busy} className="neu-btn-primary !h-[36px]">
+                      <button
+                        type="button"
+                        onClick={() => void handleStartOpening()}
+                        disabled={busy || !assignedHost}
+                        className="neu-btn-primary !h-[36px]"
+                        title={!assignedHost ? '请先指派开标主持人' : undefined}
+                      >
                         <CheckCircle2 size={14} /> 按时开标
                       </button>
                     </>
@@ -819,6 +852,19 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
               </div>
             )}
           </div>
+        )}
+
+        {/* ── 开标主持人选择 Modal ── */}
+        {hostPickerOpen && bidProject && (
+          <HostPickerModal
+            projectId={bidProject.id}
+            currentHostId={assignedHost?.id ?? null}
+            onClose={() => setHostPickerOpen(false)}
+            onChanged={() => {
+              setHostPickerOpen(false);
+              refreshDetail();
+            }}
+          />
         )}
 
         {/* ── toast ── */}

@@ -102,10 +102,63 @@ export class BidService {
     };
   }
 
-  async listProjects(stages?: string[]) {
-    const where = stages && stages.length > 0
-      ? { stage: { in: stages as BidStage[] }, isExtractionOnly: false }
-      : { isExtractionOnly: false };
+  /** 列出可指派的开标主持人账号（:3005 选择器用） */
+  async listHosts() {
+    return this.prisma.user.findMany({
+      where: { role: 'bid_host', isActive: true },
+      select: { id: true, username: true, displayName: true },
+      orderBy: { displayName: 'asc' },
+    });
+  }
+
+  /**
+   * 指派/改派开标主持人（R1 硬分流 / R3 改派窗口）。
+   * - leader/staff/admin 调用（角色守卫在 Controller 层）
+   * - OpeningSession 已存在 → 409 锁定
+   * - userId=null 清除指派（项目回到 :3005 公开池，但 :3007 不可见）
+   */
+  async assignHost(projectId: string, userId: string | null, actorId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // R3: OpeningSession 存在则锁定改派
+    const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
+    if (session) {
+      throw new ConflictException({ error: '开标会话已组建，无法改派', code: 'OPENING_SESSION_LOCKED' });
+    }
+
+    // 校验目标用户必须是 active bid_host
+    if (userId !== null) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, role: true, isActive: true },
+      });
+      if (!user || user.role !== 'bid_host' || !user.isActive) {
+        throw new BadRequestException({ error: '目标用户不是有效的开标主持人', code: 'INVALID_HOST' });
+      }
+    }
+
+    return this.prisma.bidProject.update({
+      where: { id: projectId },
+      data: {
+        assignedHostUserId: userId,
+        assignedAt: userId ? new Date() : null,
+        assignedByUserId: userId ? actorId : null,
+      },
+      include: {
+        assignedHostUser: { select: { id: true, username: true, displayName: true } },
+      },
+    });
+  }
+
+  async listProjects(stages?: string[], actor?: { id: string; role: string }) {
+    const stageFilter = stages && stages.length > 0 ? { stage: { in: stages as BidStage[] } } : {};
+    // R1: bid_host 角色硬过滤——仅看到派给自己的项目；其它角色看全部
+    const actorFilter = actor?.role === 'bid_host' ? { assignedHostUserId: actor.id } : {};
+    const where = { ...stageFilter, ...actorFilter, isExtractionOnly: false };
 
     // 当按阶段筛选时返回精简字段（用于搜索选择器）
     // 无筛选时返回完整字段（用于归档/仪表盘等向后兼容）
@@ -155,9 +208,11 @@ export class BidService {
    * Dashboard 聚合端点：一次返回项目列表 + 就绪状态 + 阶段分布。
    * 避免前端 N+1 次工作区查询，在表格中直接呈现供应商/专家就绪信号。
    */
-  async getProjectsDashboard() {
+  async getProjectsDashboard(actor?: { id: string; role: string }) {
+    // R1: bid_host 仅看派给自己的项目；其它角色看全部
+    const actorFilter = actor?.role === 'bid_host' ? { assignedHostUserId: actor.id } : {};
     const projects = await this.prisma.bidProject.findMany({
-      where: { isExtractionOnly: false },
+      where: { ...actorFilter, isExtractionOnly: false },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { suppliers: true, experts: true } },
@@ -307,6 +362,7 @@ export class BidService {
         expertDisputes: { orderBy: { createdAt: 'desc' } },
         archiveItems: true,
         bidRounds: { orderBy: { roundNo: 'asc' } }, // L6: 含轮次数据，省一次 API round-trip
+        assignedHostUser: { select: { id: true, username: true, displayName: true } }, // 开标主持人指派（R1）
       },
     });
     if (!project) return null;
@@ -899,13 +955,22 @@ export class BidService {
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true },
+      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true, assignedHostUserId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
 
     // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
     const isTransitioning = project.stage !== 'OPENING';
+
+    // R2: 指派前置闸门——阶段推进（确定开标）时必须已指派主持人
+    // 同阶段调用（:3007 组建会话）不检查；与 DEADLINE_NOT_PASSED 语义一致
+    if (isTransitioning && !project.assignedHostUserId) {
+      throw new BadRequestException({
+        error: '请先指派开标主持人',
+        code: 'HOST_NOT_ASSIGNED',
+      });
+    }
 
     // P1: 截标时间校验——仅阶段推进（确定开标）时要求投标截止已过；
     // 同阶段调用（:3007 组建/更新开标会话）不受 deadline 约束——

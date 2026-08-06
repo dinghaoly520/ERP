@@ -109,7 +109,7 @@ describe('BidService — stage transitions', () => {
       supplier: { count: jest.fn() },
       announcement: { count: jest.fn(), findFirst: jest.fn() },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), create: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
-      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn() },
+      bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
       supplierBidSubmission: { findUnique: jest.fn() },
@@ -264,7 +264,7 @@ describe('BidService — stage transitions', () => {
     });
 
     it('裸调不带会话字段仅推阶段、不建会话（SUBMIT→OPENING，:3005 确定开标路径）', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目', deadline: new Date(Date.now() - 3600_000) });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目', deadline: new Date(Date.now() - 3600_000), assignedHostUserId: 'host1' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
       prisma.bidSupervisionLog.create.mockResolvedValue({});
 
@@ -321,7 +321,7 @@ describe('BidService — stage transitions', () => {
     });
 
     it('creates session on SUBMIT→OPENING with valid data', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目', assignedHostUserId: 'host1' });
       prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
       prisma.bidOpeningSession.create.mockResolvedValue({ id: 'sess-1' });
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
@@ -364,7 +364,7 @@ describe('BidService — stage transitions', () => {
     });
 
     it('rejects when decryptWindowEnd <= decryptWindowStart', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '测试项目', assignedHostUserId: 'host1' });
       await expect(service.startOpening('p1', {
         ...sessionDto,
         decryptWindowEnd: '2026-06-16T09:00:00.000Z', // 早于 start
@@ -2472,5 +2472,197 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
     await expect(service.revokeInvalidBid('p1', 'sup1', 'si1', 'admin1'))
       .rejects.toMatchObject({ response: { code: 'LOCKED' } });
     expect(prisma.bidInvalidBid.update).not.toHaveBeenCalled();
+  });
+});
+
+// ──────────────────────────────────────────────────────────
+// 开标主持人指派 (assignHost) + listProjects 角色过滤 — Task 2
+// ──────────────────────────────────────────────────────────
+
+describe('assignHost (BidService) — Task 2', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn(), update: jest.fn() },
+      bidOpeningSession: { findUnique: jest.fn() },
+      user: { findUnique: jest.fn() },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: {} },
+        { provide: ClarificationAiService, useValue: {} },
+        { provide: BidGateway, useValue: {} },
+        { provide: ScoreStandardValidator, useValue: {} },
+        { provide: PriceFormulaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('OpeningSession 已存在 → ConflictException OPENING_SESSION_LOCKED', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue({ id: 's1', projectId: 'p1' });
+    await expect(service.assignHost('p1', 'u1', 'actor1'))
+      .rejects.toMatchObject({ response: { code: 'OPENING_SESSION_LOCKED' } });
+  });
+
+  it('userId 非 bid_host → BadRequestException INVALID_HOST', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'supplier', isActive: true });
+    await expect(service.assignHost('p1', 'u1', 'actor1'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_HOST' } });
+  });
+
+  it('userId = null → 清除指派（assignedHostUserId/assignedAt/assignedByUserId 置空）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+    prisma.bidProject.update.mockResolvedValue({ id: 'p1', assignedHostUser: null });
+    const result = await service.assignHost('p1', null, 'actor1');
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'p1' },
+      data: expect.objectContaining({
+        assignedHostUserId: null,
+        assignedAt: null,
+        assignedByUserId: null,
+      }),
+    }));
+    expect(result.assignedHostUser).toBeNull();
+  });
+
+  it('合法 bid_host → 写入 assignedHostUserId + assignedAt + assignedByUserId', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_host', isActive: true });
+    prisma.bidProject.update.mockResolvedValue({
+      id: 'p1',
+      assignedHostUser: { id: 'u1', username: '陈源远', displayName: '陈源远' },
+    });
+    const result = await service.assignHost('p1', 'u1', 'actor1');
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        assignedHostUserId: 'u1',
+        assignedAt: expect.any(Date),
+        assignedByUserId: 'actor1',
+      }),
+    }));
+    expect(result.assignedHostUser?.username).toBe('陈源远');
+  });
+});
+
+describe('listProjects actor 过滤 (R1 硬分流) — Task 2', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findMany: jest.fn().mockResolvedValue([]) },
+      projectManagementItem: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: {} },
+        { provide: ClarificationAiService, useValue: {} },
+        { provide: BidGateway, useValue: {} },
+        { provide: ScoreStandardValidator, useValue: {} },
+        { provide: PriceFormulaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('role=bid_host → where 含 assignedHostUserId = actor.id', async () => {
+    await service.listProjects(undefined, { id: 'host1', role: 'bid_host' });
+    expect(prisma.bidProject.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ assignedHostUserId: 'host1', isExtractionOnly: false }),
+    }));
+  });
+
+  it('role=leader → 不追加 assignedHostUserId 过滤（看到全部）', async () => {
+    await service.listProjects(undefined, { id: 'leader1', role: 'leader' });
+    const callArg = prisma.bidProject.findMany.mock.calls[0][0];
+    expect(callArg.where).not.toHaveProperty('assignedHostUserId');
+    expect(callArg.where.isExtractionOnly).toBe(false);
+  });
+
+  it('actor 未提供（undefined）→ 不追加过滤（向后兼容）', async () => {
+    await service.listProjects(undefined);
+    const callArg = prisma.bidProject.findMany.mock.calls[0][0];
+    expect(callArg.where).not.toHaveProperty('assignedHostUserId');
+  });
+});
+
+// ──────────────────────────────────────────────────────────
+// startOpening 指派前置闸门 (R2) — Task 4
+// ──────────────────────────────────────────────────────────
+
+describe('startOpening 指派前置闸门 (R2) — Task 4', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidOpeningSession: { findUnique: jest.fn(), create: jest.fn() },
+      bidExpert: { count: jest.fn().mockResolvedValue(3) },
+      bidSupplier: { count: jest.fn().mockResolvedValue(3) },
+      bidSupervisionLog: { create: jest.fn() },
+      $transaction: jest.fn((cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: {} },
+        { provide: ClarificationAiService, useValue: {} },
+        { provide: BidGateway, useValue: {} },
+        { provide: ScoreStandardValidator, useValue: {} },
+        { provide: PriceFormulaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('未指派主持人 + 阶段推进 → 400 HOST_NOT_ASSIGNED', async () => {
+    // 初始项目查询返回 assignedHostUserId = null（未指派）
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', stage: 'SUBMIT', name: 't', deadline: '2020-01-01',
+      projectManagementItemId: null, round: 1, assignedHostUserId: null,
+    });
+
+    await expect(service.startOpening('p1', undefined, 'actor1'))
+      .rejects.toMatchObject({ response: { code: 'HOST_NOT_ASSIGNED' } });
+  });
+
+  it('已指派主持人 → 不抛 HOST_NOT_ASSIGNED（通过指派闸门，继续后续流程）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', stage: 'SUBMIT', name: 't', deadline: '2020-01-01',
+      projectManagementItemId: null, round: 1, assignedHostUserId: 'host1',
+    });
+    // 后续流程所需 mock（通过指派闸门后会走 deadline/checklist/session 校验）
+    prisma.bidProject.update = jest.fn().mockResolvedValue({});
+    prisma.bidProject.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    prisma.bidSupplier.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    prisma.bidExpert.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    prisma.bidOpeningSession.create = jest.fn().mockResolvedValue({});
+    prisma.bidOpeningRecord = { createMany: jest.fn() };
+    prisma.notification = { createMany: jest.fn() };
+
+    // 不 reject HOST_NOT_ASSIGNED 即代表通过闸门
+    try {
+      await service.startOpening('p1', undefined, 'actor1');
+    } catch (e: any) {
+      // 即便因其它原因抛错（checklist/session），code 不应是 HOST_NOT_ASSIGNED
+      expect(e?.response?.code).not.toBe('HOST_NOT_ASSIGNED');
+    }
   });
 });

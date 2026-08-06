@@ -360,6 +360,36 @@ async function main() {
     });
   }
 
+  // ═══ 新增「开标主持人」bid_host 账号（演示 :3007 硬分流，与陈源远形成两个可指派对象）═══
+  console.log('▶ 创建「开标主持人」bid_host 账号（口令 开标主持人@2026）');
+  const hostAssgnHash = hashSync('开标主持人@2026', 10);
+  await prisma.user.upsert({
+    where: { username_role: { username: '开标主持人', role: 'bid_host' } },
+    update: { passwordHash: hostAssgnHash, isActive: true, displayName: '开标主持人' },
+    create: {
+      username: '开标主持人',
+      displayName: '开标主持人',
+      role: 'bid_host',
+      isActive: true,
+      passwordHash: hostAssgnHash,
+    },
+  });
+
+  // ═══ R6: 回填现有 BidProject 指派给「陈源远」bid_host（避免 :3007 硬分流后种子项目不可见）═══
+  console.log('▶ 回填 BidProject 主持人指派（→ 陈源远 bid_host）');
+  const chenBidHost = await prisma.user.findFirst({
+    where: { username: '陈源远', role: 'bid_host' },
+  });
+  if (chenBidHost) {
+    const result = await prisma.bidProject.updateMany({
+      where: { assignedHostUserId: null },
+      data: { assignedHostUserId: chenBidHost.id, assignedAt: new Date() },
+    });
+    console.log(`    回填 ${result.count} 个项目 → 陈源远`);
+  } else {
+    console.warn('    ⚠ 未找到 陈源远 bid_host，跳过回填');
+  }
+
   // ═══ 投标文件持久化（让端到端 AI 分析可重现）═══
   await ensureBidFiles();
 
@@ -389,6 +419,7 @@ async function main() {
   console.log('    [采购管理端 :3005]  陈源远 / 陈源远@2026');
   console.log('    [专家评标   :3006]  专家库任意专家（用户名=专家姓名）/ 口令 expert@2026');
   console.log('    [开评标管理端 :3007]  陈源远 / 陈源远@2026');
+  console.log('    [开评标管理端 :3007]  开标主持人 / 开标主持人@2026（演示硬分流）');
 }
 
 main()
