@@ -1117,21 +1117,8 @@ export class BidService {
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'EVALUATING');
 
-    // 多轮报价项目——启动评标前校验所有轮次已完成
-    if (project.roundMode) {
-      const totalRounds = await this.prisma.bidRound.count({ where: { projectId: id } });
-      if (totalRounds === 0) {
-        throw new BadRequestException({ error: '本项目为多轮报价项目，请先在开标端(:3007)完成至少一轮报价', code: 'NO_ROUNDS' });
-      }
-      const unclosedRounds = await this.prisma.bidRound.count({
-        where: { projectId: id, status: { not: 'closed' } },
-      });
-      if (unclosedRounds > 0) {
-        throw new BadRequestException({ error: `还有 ${unclosedRounds} 个报价轮次未结束，请先在开标端(:3007)关闭所有轮次`, code: 'ROUNDS_NOT_CLOSED' });
-      }
-      // 同步最终轮报价到 BidOpeningRecord 供公式引擎使用
-      await this.syncMultiRoundPrices(id);
-    }
+    // 多轮报价项目——价格同步在 generateEvaluationResults 中执行（评标完成后才报价）
+    // 此处不做轮次守卫：谈判采购流程为 先评标 → 再多轮报价 → 最后生成结果
 
     // P2: Prevent deadlock — ensure at least one expert is assigned
     const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
@@ -2467,6 +2454,22 @@ export class BidService {
       throw new BadRequestException({ error: '评审报告尚未经组长末签', code: 'LEADER_NOT_COSIGNED' });
     }
 
+    // 谈判/竞价项目：专家评标完成后进行多轮报价，生成结果前校验轮次已完成 + 同步最终报价
+    if (project.roundMode) {
+      const totalRounds = await this.prisma.bidRound.count({ where: { projectId } });
+      if (totalRounds === 0) {
+        throw new BadRequestException({ error: '本项目为多轮报价项目，请先在开标端(:3007)完成至少一轮报价后再生成结果', code: 'NO_ROUNDS' });
+      }
+      const unclosedRounds = await this.prisma.bidRound.count({
+        where: { projectId, status: { not: 'closed' } },
+      });
+      if (unclosedRounds > 0) {
+        throw new BadRequestException({ error: `还有 ${unclosedRounds} 个报价轮次未结束，请先关闭所有轮次`, code: 'ROUNDS_NOT_CLOSED' });
+      }
+      // 同步最终轮报价到 BidOpeningRecord（公式引擎从这里读价格）
+      await this.syncMultiRoundPrices(projectId);
+    }
+
     const activeSuppliers = project.suppliers.filter(
       s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'CONFIRMED' && s.bidValidity !== 'invalid',
     );
@@ -3684,8 +3687,10 @@ export class BidService {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, roundMode: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (!project.roundMode) throw new BadRequestException({ error: '该项目不是多轮报价模式', code: 'NOT_MULTI_ROUND' });
-    // H5: 阶段守卫——仅 OPENING 阶段可创建轮次
-    if (project.stage !== 'OPENING') throw new ConflictException({ error: '当前阶段不可创建报价轮次', code: 'STAGE_NOT_OPENING' });
+    // 阶段守卫——谈判采购的多轮报价在评标阶段进行（先评标→再报价→最后生成结果）
+    if (project.stage !== 'OPENING' && project.stage !== 'EVALUATING') {
+      throw new ConflictException({ error: '当前阶段不可创建报价轮次', code: 'STAGE_NOT_OPENING' });
+    }
     // H5: 并发守卫——不允许同时存在多个 open 轮次
     const openRound = await this.prisma.bidRound.findFirst({ where: { projectId, status: 'open' } });
     if (openRound) throw new ConflictException({ error: `第${openRound.roundNo}轮仍在进行中，请先截止并公布`, code: 'ROUND_STILL_OPEN' });
