@@ -943,13 +943,22 @@ export class BidService {
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true },
+      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true, assignedHostUserId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
 
     // P1: 整个阶段变更 + Session 创建用事务包裹，防止并发竞争
     const isTransitioning = project.stage !== 'OPENING';
+
+    // R2: 指派前置闸门——阶段推进（确定开标）时必须已指派主持人
+    // 同阶段调用（:3007 组建会话）不检查；与 DEADLINE_NOT_PASSED 语义一致
+    if (isTransitioning && !project.assignedHostUserId) {
+      throw new BadRequestException({
+        error: '请先指派开标主持人',
+        code: 'HOST_NOT_ASSIGNED',
+      });
+    }
 
     // P1: 截标时间校验——仅阶段推进（确定开标）时要求投标截止已过；
     // 同阶段调用（:3007 组建/更新开标会话）不受 deadline 约束——
