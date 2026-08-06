@@ -368,6 +368,7 @@ model BidSupplier {
   supervisionAnnotation BidSupervisionAnnotation?
   bidScoreReviews        BidScoreReview[]
   expertMemos            ExpertMemo[]
+  bidQuotes              BidQuote[]
   decryptError           String? // 解密失败原因
   bidValidity            String? // 废标标记：'valid' | 'invalid'
   checkInAt            DateTime? // 开标大厅签到时间
@@ -818,9 +819,11 @@ model BidQuote {
   status        String   @default("sealed") // sealed | opened
 
   round         BidRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  bidSupplier   BidSupplier @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
 
   @@unique([roundId, bidSupplierId])
   @@index([roundId])
+  @@index([bidSupplierId])
 }
 
 /// C1: 委员会动议(异议裁决/废标表决/其他)

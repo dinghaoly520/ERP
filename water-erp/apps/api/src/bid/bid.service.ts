@@ -306,6 +306,7 @@ export class BidService {
         supervisionLogs: { orderBy: { time: 'desc' } },
         expertDisputes: { orderBy: { createdAt: 'desc' } },
         archiveItems: true,
+        bidRounds: { orderBy: { roundNo: 'asc' } }, // L6: 含轮次数据，省一次 API round-trip
       },
     });
     if (!project) return null;
