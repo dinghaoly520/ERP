@@ -140,6 +140,8 @@ function WorkspaceInner() {
     },
     // T9：移交完成（含 :3005 侧或水叮当触发的 complete-opening）→ refetch，横幅切已移交态
     onOpeningCompleted: () => { loadProject(); },
+    // H2: 轮次状态变更——刷新项目数据（含 currentRoundNo + RoundBlock）
+    onRoundStatusChange: () => { loadProject(); },
     onOpeningDisputed: (d) => {
       loadProject();
       toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);

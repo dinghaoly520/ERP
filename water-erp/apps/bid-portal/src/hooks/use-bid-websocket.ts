@@ -20,6 +20,7 @@ import {
   type OpeningCompletedPayload,
   type ExpertPresencePayload,
   type ExpertPresenceAggregatePayload,
+  type RoundStatusChangePayload,
 } from '@water-erp/shared';
 
 function wsUrl(): string {
@@ -44,6 +45,7 @@ export interface BidWsHandlers {
   onOpeningDisputed?: (d: OpeningDisputedPayload) => void;
   onOpeningDisputeResolved?: (d: OpeningDisputeResolvedPayload) => void;
   onOpeningCompleted?: (d: OpeningCompletedPayload) => void;
+  onRoundStatusChange?: (d: RoundStatusChangePayload) => void;
   onExpertPresence?: (d: ExpertPresencePayload) => void;
   onExpertPresenceAggregate?: (d: ExpertPresenceAggregatePayload) => void;
   /** G1: 重连后回调——组件可执行全量数据刷新补偿丢失的事件 */
@@ -156,6 +158,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.OPENING_DISPUTED, 'onOpeningDisputed');
     on(BID_EVENT.OPENING_DISPUTE_RESOLVED, 'onOpeningDisputeResolved');
     on(BID_EVENT.OPENING_COMPLETED, 'onOpeningCompleted');
+    on(BID_EVENT.ROUND_STATUS_CHANGE, 'onRoundStatusChange');
     on(BID_EVENT.EXPERT_PRESENCE, 'onExpertPresence');
     on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, 'onExpertPresenceAggregate');
   }, [projectId]);

@@ -31,6 +31,7 @@ export const BID_EVENT = {
   OPENING_DISPUTED: 'opening:disputed',
   OPENING_DISPUTE_RESOLVED: 'opening:dispute:resolved',
   OPENING_COMPLETED: 'opening:completed',
+  ROUND_STATUS_CHANGE: 'round:status:change',
 } as const;
 
 // ── 载荷类型 ──
@@ -198,5 +199,14 @@ export interface OpeningCompletedPayload {
   projectId: string;
   handoverAt: string;       // ISO
   handoverAssetId: string;  // FileAsset.id
+  timestamp: number;
+}
+
+// H2: 多轮报价轮次状态变更（create/seal/publish/close）
+export interface RoundStatusChangePayload {
+  projectId: string;
+  roundId: string;
+  roundNo: number;
+  status: string; // open | sealed | published | closed
   timestamp: number;
 }

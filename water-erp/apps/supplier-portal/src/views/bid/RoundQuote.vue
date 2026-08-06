@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Coin, Lock } from '@element-plus/icons-vue'
 import SpPageHero from '@/components/SpPageHero.vue'
@@ -24,6 +24,14 @@ const myQuotes = ref<Record<string, MyQuote>>({}) // roundId → 我的报价
 const myBidSupplierId = ref<string>('')
 const quotePrice = ref<number | undefined>(undefined)
 const submitting = ref(false)
+// M4: 客户端截止倒计时
+const deadlinePassed = ref(false)
+let deadlineTimer: ReturnType<typeof setInterval> | null = null
+
+function checkDeadline() {
+  if (!currentOpenRound.value?.deadline) { deadlinePassed.value = false; return }
+  deadlinePassed.value = new Date() > new Date(currentOpenRound.value.deadline)
+}
 
 const currentOpenRound = computed(() => rounds.value.find(r => r.status === 'open'))
 const currentOpenMyQuote = computed(() => currentOpenRound.value ? myQuotes.value[currentOpenRound.value.id] : undefined)
@@ -99,7 +107,13 @@ async function handleSubmit() {
     for (const q of list) map[q.roundId] = q
     myQuotes.value = map
   } catch (e: any) {
-    ElMessage.error(e?.response?.data?.error || '提交失败')
+    // L4: P2002 唯一约束冲突（双 tab 并发）或后端 ALREADY_QUOTED → 友好提示
+    const errMsg = e?.response?.data?.error || e?.response?.data?.code
+    if (errMsg === 'ALREADY_QUOTED' || e?.response?.status === 400) {
+      ElMessage.warning('本轮已提交报价，不可重复提交')
+    } else {
+      ElMessage.error(errMsg || '提交失败')
+    }
   } finally {
     submitting.value = false
   }
@@ -120,7 +134,20 @@ const statusColors: Record<string, string> = {
   pending: '#909399', open: '#409eff', sealed: '#e6a23c', published: '#67c23a', closed: '#909399',
 }
 
-onMounted(fetchData)
+onMounted(() => {
+  fetchData()
+  // M4: 每 10 秒检查截止时间
+  deadlineTimer = setInterval(checkDeadline, 10000)
+  checkDeadline()
+})
+onUnmounted(() => { if (deadlineTimer) clearInterval(deadlineTimer) })
+
+// L8: 输入价格后导航离开提示
+onBeforeRouteLeave(() => {
+  if (quotePrice.value != null && !submitting.value && !currentOpenMyQuote.value) {
+    return window.confirm('您已输入报价但尚未提交，确定离开吗？')
+  }
+})
 </script>
 
 <template>
@@ -191,7 +218,7 @@ onMounted(fetchData)
             <div class="flex justify-end">
               <el-button
                 type="primary" :icon="Lock" :loading="submitting"
-                :disabled="quotePrice == null"
+                :disabled="quotePrice == null || deadlinePassed"
                 @click="handleSubmit"
               >
                 提交密封报价

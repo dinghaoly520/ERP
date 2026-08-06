@@ -32,6 +32,7 @@ import {
   type OpeningDisputedPayload,
   type OpeningDisputeResolvedPayload,
   type OpeningCompletedPayload,
+  type RoundStatusChangePayload,
 } from '@water-erp/shared';
 
 /** Roles that may see individual presence / supervision / anomalies (command center). */
@@ -408,5 +409,10 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     for (const sid of this.supplierSocketsIn(supplierId, projectId)) {
       this.server.to(sid).emit(BID_EVENT.OPENING_DISPUTE_RESOLVED, payload);
     }
+  }
+
+  // H2: 轮次状态变更广播——project 房间（所有参与者）
+  notifyRoundStatusChange(projectId: string, payload: RoundStatusChangePayload) {
+    this.server.to(`project:${projectId}`).emit(BID_EVENT.ROUND_STATUS_CHANGE, payload);
   }
 }

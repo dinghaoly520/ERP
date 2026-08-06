@@ -3690,6 +3690,9 @@ export class BidService {
       });
     } catch {}
 
+    // H2: WS 广播轮次状态变更
+    this.gateway?.notifyRoundStatusChange(projectId, { projectId, roundId: round.id, roundNo, status: 'open', timestamp: Date.now() });
+
     return round;
   }
 
@@ -3699,7 +3702,9 @@ export class BidService {
     if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
     if (round.status !== 'open') throw new ConflictException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
 
-    return this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'sealed' } });
+    const updated = await this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'sealed' } });
+    this.gateway?.notifyRoundStatusChange(projectId, { projectId, roundId, roundNo: round.roundNo, status: 'sealed', timestamp: Date.now() });
+    return updated;
   }
 
   /** 公布报价(开标) */
@@ -3710,7 +3715,9 @@ export class BidService {
 
     // 开标: 所有 sealed 报价 → opened
     await this.prisma.bidQuote.updateMany({ where: { roundId, status: 'sealed' }, data: { status: 'opened' } });
-    return this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'published' } });
+    const updated = await this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'published' } });
+    this.gateway?.notifyRoundStatusChange(projectId, { projectId, roundId, roundNo: round.roundNo, status: 'published', timestamp: Date.now() });
+    return updated;
   }
 
   /**
@@ -3788,6 +3795,8 @@ export class BidService {
       return { roundNo: round.roundNo };
     });
 
+    // H2+L7: WS 广播 + 返回详情
+    this.gateway?.notifyRoundStatusChange(projectId, { projectId, roundId, roundNo: result.roundNo, status: 'closed', timestamp: Date.now() });
     return { closed: true, proceedToEvaluation, roundNo: result.roundNo };
   }
 
