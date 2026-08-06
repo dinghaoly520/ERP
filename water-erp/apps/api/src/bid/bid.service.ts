@@ -650,7 +650,13 @@ export class BidService {
     project: { id: string; projectCode: string; name: string; procurementMethod: string; openTime: Date; deadline: Date; stage: string },
     session: { host: string; supervisor: string | null; decryptWindowStart: Date; decryptWindowEnd: Date; status: string },
   ) {
-    const [suppliers, records, logs] = await Promise.all([
+    // H9: 查询项目 roundMode，多轮项目包含报价历史
+    const projectDetail = await this.prisma.bidProject.findUnique({
+      where: { id: project.id },
+      select: { roundMode: true },
+    });
+
+    const [suppliers, records, logs, bidRounds] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: project.id },
         select: { supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true },
@@ -665,6 +671,12 @@ export class BidService {
         select: { time: true, role: true, action: true, target: true, result: true, riskFlag: true },
         orderBy: { time: 'asc' },
       }),
+      // H9: 多轮报价历史
+      projectDetail?.roundMode ? this.prisma.bidRound.findMany({
+        where: { projectId: project.id },
+        include: { quotes: { select: { bidSupplierId: true, quotePrice: true, submittedAt: true, status: true } } },
+        orderBy: { roundNo: 'asc' },
+      }) : Promise.resolve([]),
     ]);
     const active = suppliers.filter(s => s.submitStatus !== '已撤回');
     const summary = {
@@ -695,6 +707,11 @@ export class BidService {
       suppliers,
       openingRecords: records,
       supervisionLogs: logs,
+      bidRounds: bidRounds.length > 0 ? bidRounds.map(r => ({
+        roundNo: r.roundNo, roundType: r.roundType, status: r.status,
+        deadline: r.deadline?.toISOString() ?? null,
+        quotes: r.quotes,
+      })) : undefined,
       summary,
     };
     const fingerprint = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');

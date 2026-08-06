@@ -123,7 +123,15 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                   )}
                   {isLast && r.status === 'published' && (
                     <>
-                      <button onClick={() => withBusy(async () => { await closeRound(bidProjectId, r.id, false); await createRound(bidProjectId, { roundType: r.roundType }); })}
+                      <button onClick={() => withBusy(async () => {
+                        // M3: closeRound + createRound 非原子——分步执行+错误恢复
+                        await closeRound(bidProjectId, r.id, false);
+                        try {
+                          await createRound(bidProjectId, { roundType: r.roundType });
+                        } catch {
+                          toast.error('轮次已关闭，但创建下一轮失败。请点击「创建首轮报价」重试。');
+                        }
+                      })}
                         disabled={busy} className="neu-btn-soft !h-[30px] !text-xs">
                         <Plus size={12} /> 下一轮
                       </button>

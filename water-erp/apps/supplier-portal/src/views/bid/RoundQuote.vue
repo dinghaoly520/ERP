@@ -237,7 +237,7 @@ onMounted(fetchData)
                     <td class="px-3 py-2 font-medium" :class="q.bidSupplierId === myBidSupplierId ? 'text-blue-700' : ''">
                       {{ q.bidSupplierId === myBidSupplierId ? '本企业' : '其他供应商' }}
                     </td>
-                    <td class="px-3 py-2 text-right font-mono font-semibold">{{ Number(q.quotePrice).toLocaleString() }}</td>
+                    <td class="px-3 py-2 text-right font-mono font-semibold">{{ formatPrice(q.quotePrice) }}</td>
                   </tr>
                 </tbody>
               </table>
