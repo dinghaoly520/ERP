@@ -2666,3 +2666,117 @@ describe('startOpening 指派前置闸门 (R2) — Task 4', () => {
     }
   });
 });
+
+/* ── AI 辅助评标进度聚合（getAiAnalysisProgress）── */
+
+describe('BidService — getAiAnalysisProgress', () => {
+  let service: BidService;
+  let prisma: any;
+  const NOW = new Date('2026-08-06T12:00:00Z');
+  const fresh = (minAgo: number) => new Date(NOW.getTime() - minAgo * 60_000);
+
+  const mkTask = (over: any = {}) => ({
+    id: 't1', projectId: 'p1', status: 'ANALYZING', updatedAt: fresh(2), completedAt: null,
+    bidderResults: [],
+    ...over,
+  });
+  const mkBidder = (over: any = {}) => ({
+    id: 'br1', taskId: 't1', bidSupplierId: 'bs1', status: 'SCORING', updatedAt: fresh(2),
+    bidSupplier: { supplierName: '甲公司' },
+    ...over,
+  });
+
+  beforeEach(async () => {
+    prisma = { aiBidAnalysisTask: { findUnique: jest.fn() } };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('无分析任务 → exists=false 且零值无异常', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(null);
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.exists).toBe(false);
+    expect(res.total).toBe(0);
+    expect(res.anomaly.hasAnomaly).toBe(false);
+  });
+
+  it('正常进行中 → 计数正确且无异常', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ bidderResults: [
+      mkBidder({ id: 'br1', status: 'COMPLETED', bidSupplierId: 'bs1', bidSupplier: { supplierName: '甲公司' } }),
+      mkBidder({ id: 'br2', status: 'SCORING', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' }, updatedAt: fresh(3) }),
+      mkBidder({ id: 'br3', status: 'PENDING', bidSupplierId: 'bs3', bidSupplier: { supplierName: '丙公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.exists).toBe(true);
+    expect(res.total).toBe(3);
+    expect(res.completed).toBe(1);
+    expect(res.failed).toBe(0);
+    expect(res.bidders).toHaveLength(3);
+    expect(res.anomaly.hasAnomaly).toBe(false);
+  });
+
+  it('存在 FAILED → failedNames 命中', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'COMPLETED_WITH_ERRORS', bidderResults: [
+      mkBidder({ id: 'br1', status: 'COMPLETED', bidSupplier: { supplierName: '甲公司' } }),
+      mkBidder({ id: 'br2', status: 'FAILED', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.failed).toBe(1);
+    expect(res.anomaly.hasAnomaly).toBe(true);
+    expect(res.anomaly.failedNames).toEqual(['乙公司']);
+  });
+
+  it('中间态停摆超 30 分钟 → stuckNames 命中；未超时不算', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ bidderResults: [
+      mkBidder({ id: 'br1', status: 'OCR_PROCESSING', updatedAt: fresh(40), bidSupplier: { supplierName: '甲公司' } }),
+      mkBidder({ id: 'br2', status: 'EXTRACTING', updatedAt: fresh(5), bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.stuckNames).toEqual(['甲公司']);
+    expect(res.anomaly.hasAnomaly).toBe(true);
+  });
+
+  it('task PENDING 停摆 + 全部 bidder PENDING → allPending', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'PENDING', updatedAt: fresh(45), bidderResults: [
+      mkBidder({ id: 'br1', status: 'PENDING', bidSupplier: { supplierName: '甲公司' } }),
+      mkBidder({ id: 'br2', status: 'PENDING', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.allPending).toBe(true);
+    expect(res.anomaly.hasAnomaly).toBe(true);
+  });
+
+  it('有 bidder 已启动过则不算 allPending', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'TENDER_PROCESSING', updatedAt: fresh(45), bidderResults: [
+      mkBidder({ id: 'br1', status: 'PENDING', bidSupplier: { supplierName: '甲公司' } }),
+      mkBidder({ id: 'br2', status: 'COMPLETED', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.allPending).toBe(false);
+  });
+
+  it('task FAILED → taskFailed', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'FAILED', bidderResults: [] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.taskFailed).toBe(true);
+    expect(res.anomaly.hasAnomaly).toBe(true);
+  });
+
+  it('全部 COMPLETED → 无异常', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'COMPLETED', completedAt: fresh(1), bidderResults: [
+      mkBidder({ id: 'br1', status: 'COMPLETED', bidSupplier: { supplierName: '甲公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.completed).toBe(1);
+    expect(res.anomaly.hasAnomaly).toBe(false);
+  });
+});

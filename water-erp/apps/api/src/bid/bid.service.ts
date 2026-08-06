@@ -39,6 +39,9 @@ import { PriceFormulaService } from './price-formula.service';
 import { getScoreTemplate } from './evaluation-method.config';
 import { StorageService } from '../storage/storage.service';
 
+/** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
+const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
+
 @Injectable()
 export class BidService {
   constructor(
@@ -1399,6 +1402,55 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '系统', target: project.name, action: '重新启动AI辅助分析', result: '旧结果已清除，重新入队', riskFlag: '无' },
     }).catch(() => {});
+  }
+
+  /**
+   * AI 辅助评标进度聚合（:3007 评标管理进度卡片轮询，3s）。
+   * 异常判定在后端完成：FAILED / 中间态停摆 / task FAILED / allPending（疑似 worker 未运行）。
+   * `now` 可注入以便测试。
+   */
+  async getAiAnalysisProgress(projectId: string, now: Date = new Date()) {
+    const emptyAnomaly = { hasAnomaly: false, failedNames: [] as string[], stuckNames: [] as string[], taskFailed: false, allPending: false };
+    const task = await this.prisma.aiBidAnalysisTask.findUnique({
+      where: { projectId },
+      include: { bidderResults: { include: { bidSupplier: { select: { supplierName: true } } } } },
+    });
+    if (!task) {
+      return { exists: false, taskStatus: null, updatedAt: null, total: 0, completed: 0, failed: 0, bidders: [], anomaly: emptyAnomaly };
+    }
+    const isStuck = (d: Date | null) => !!d && now.getTime() - new Date(d).getTime() > AI_STUCK_THRESHOLD_MS;
+    const TERMINAL = new Set(['COMPLETED', 'FAILED']);
+    const failed = task.bidderResults.filter((b) => b.status === 'FAILED');
+    const stuck = task.bidderResults.filter((b) => b.status !== 'PENDING' && !TERMINAL.has(b.status) && isStuck(b.updatedAt));
+    const taskFailed = task.status === 'FAILED';
+    const allPending = !taskFailed
+      && (task.status === 'PENDING' || task.status === 'TENDER_PROCESSING')
+      && task.bidderResults.length > 0
+      && task.bidderResults.every((b) => b.status === 'PENDING')
+      && isStuck(task.updatedAt);
+    const anomaly = {
+      hasAnomaly: failed.length > 0 || stuck.length > 0 || taskFailed || allPending,
+      failedNames: failed.map((b) => b.bidSupplier.supplierName),
+      stuckNames: stuck.map((b) => b.bidSupplier.supplierName),
+      taskFailed,
+      allPending,
+    };
+    return {
+      exists: true,
+      taskStatus: task.status,
+      updatedAt: task.updatedAt?.toISOString() ?? null,
+      total: task.bidderResults.length,
+      completed: task.bidderResults.filter((b) => b.status === 'COMPLETED').length,
+      failed: failed.length,
+      bidders: task.bidderResults.map((b) => ({
+        id: b.id,
+        bidSupplierId: b.bidSupplierId,
+        name: b.bidSupplier.supplierName,
+        status: b.status,
+        updatedAt: b.updatedAt.toISOString(),
+      })),
+      anomaly,
+    };
   }
 
   /**
