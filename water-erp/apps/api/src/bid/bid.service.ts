@@ -1082,10 +1082,16 @@ export class BidService {
   async startEvaluation(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, procurementMethod: true },
+      select: { stage: true, name: true, procurementMethod: true, roundMode: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'EVALUATING');
+
+    // H3: 多轮报价项目——将最终轮报价写入 BidOpeningRecord.amount 供公式引擎使用
+    // （closeRound 不再做此操作，价格写入归 startEvaluation 管辖）
+    if (project.roundMode) {
+      await this.syncMultiRoundPrices(id);
+    }
 
     // P2: Prevent deadlock — ensure at least one expert is assigned
     const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
@@ -2547,7 +2553,7 @@ export class BidService {
       for (const r of openingRecs) {
         if (r.amount) {
           const price = parseFloat(String(r.amount).replace(/,/g, ''));
-          if (!isNaN(price) && price > 0) bidPrices.set(r.bidSupplierId!, price);
+          if (!isNaN(price) && price >= 0) bidPrices.set(r.bidSupplierId!, price);
         }
       }
 
@@ -3673,26 +3679,82 @@ export class BidService {
     return this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'published' } });
   }
 
-  /** 结束轮次(进入下一轮或评标) */
-  async closeRound(projectId: string, roundId: string, proceedToEvaluation: boolean, actorId?: string) {
-    const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
-    if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
-    if (round.status !== 'published') throw new ConflictException({ error: '轮次未公布', code: 'ROUND_NOT_PUBLISHED' });
+  /**
+   * H3+C1: 多轮报价项目——将最终轮（最后一轮 published/closed）报价
+   * 同步写入 BidOpeningRecord.amount，供 generateEvaluationResults 使用。
+   * 缺 record 时创建（C1 fix），全量操作在事务中（C2 fix）。
+   */
+  private async syncMultiRoundPrices(projectId: string): Promise<void> {
+    const lastRound = await this.prisma.bidRound.findFirst({
+      where: { projectId, status: { in: ['published', 'closed'] } },
+      orderBy: { roundNo: 'desc' },
+    });
+    if (!lastRound) return; // 无已公布轮次，跳过
 
-    await this.prisma.bidRound.update({ where: { id: roundId }, data: { status: 'closed' } });
+    const quotes = await this.prisma.bidQuote.findMany({ where: { roundId: lastRound.id } });
+    if (quotes.length === 0) return;
 
-    if (proceedToEvaluation) {
-      // 将最终轮报价写入 BidOpeningRecord.amount 供公式引擎使用
-      const quotes = await this.prisma.bidQuote.findMany({ where: { roundId } });
+    await this.prisma.$transaction(async (tx) => {
+      const existingRecs = await tx.bidOpeningRecord.findMany({
+        where: { projectId, bidSupplierId: { in: quotes.map(q => q.bidSupplierId) } },
+        select: { id: true, bidSupplierId: true },
+      });
+      const recMap = new Map(existingRecs.map(r => [r.bidSupplierId!, r.id]));
+
       for (const q of quotes) {
-        const existing = await this.prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: q.bidSupplierId } });
-        if (existing) {
-          await this.prisma.bidOpeningRecord.update({ where: { id: existing.id }, data: { amount: String(q.quotePrice) } });
+        const existId = recMap.get(q.bidSupplierId);
+        if (existId) {
+          await tx.bidOpeningRecord.update({ where: { id: existId }, data: { amount: String(q.quotePrice) } });
+        } else {
+          // C1 fix: 缺 record 时创建
+          const sup = await tx.bidSupplier.findUnique({ where: { id: q.bidSupplierId }, select: { supplierName: true } });
+          await tx.bidOpeningRecord.create({
+            data: {
+              projectId, bidSupplierId: q.bidSupplierId,
+              supplierName: sup?.supplierName ?? '—',
+              amount: String(q.quotePrice),
+              period: '', qualityTarget: '', bondStatus: '',
+              confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
+            },
+          });
         }
       }
-    }
 
-    return { closed: true, proceedToEvaluation };
+      await tx.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '系统', target: projectId, action: `多轮报价最终价格同步（R${lastRound.roundNo} → 开标记录）`, result: `${quotes.length}家报价已写入`, riskFlag: '低' },
+      });
+    });
+  }
+
+  /** 结束轮次(进入下一轮或结束报价) */
+  async closeRound(projectId: string, roundId: string, proceedToEvaluation: boolean, actorId?: string) {
+    // C1+C2: 事务化，防止部分失败导致数据不一致
+    const result = await this.prisma.$transaction(async (tx) => {
+      const round = await tx.bidRound.findUnique({ where: { id: roundId } });
+      if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
+      if (round.status !== 'published') throw new ConflictException({ error: '轮次未公布', code: 'ROUND_NOT_PUBLISHED' });
+
+      // H10: proceedToEvaluation 时校验为最后一轮
+      if (proceedToEvaluation) {
+        const lastRound = await tx.bidRound.findFirst({ where: { projectId }, orderBy: { roundNo: 'desc' } });
+        if (lastRound && round.roundNo !== lastRound.roundNo) {
+          throw new BadRequestException({ error: '只能从最后一轮结束报价', code: 'NOT_LAST_ROUND' });
+        }
+      }
+
+      await tx.bidRound.update({ where: { id: roundId }, data: { status: 'closed' } });
+
+      // H3: 不在此处写 BidOpeningRecord——价格写入移至 startEvaluation
+      // （:3007 不持有阶段流转，closeRound 只关闭轮次）
+
+      await tx.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '开标主持人', target: `R${round.roundNo}`, action: `关闭报价轮次 R${round.roundNo}`, result: proceedToEvaluation ? '最终轮·报价结束' : '进入下一轮准备', riskFlag: '低' },
+      });
+
+      return { roundNo: round.roundNo };
+    });
+
+    return { closed: true, proceedToEvaluation, roundNo: result.roundNo };
   }
 
   /** 供应商提交报价 */

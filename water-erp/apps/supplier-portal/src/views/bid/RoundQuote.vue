@@ -180,7 +180,7 @@ onMounted(fetchData)
               <el-form-item label="报价(元)">
                 <el-input-number
                   v-model="quotePrice"
-                  :min="0"
+                  :min="0.01"
                   :precision="2"
                   placeholder="请输入报价金额"
                   class="!w-64"

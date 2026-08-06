@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Gavel, Plus, Lock, Eye, CheckCircle2, Loader2, Clock } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   createRound, closeRound, listRounds, publishRound, sealRound,
 } from '@/lib/api/bid';
@@ -53,7 +54,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   const withBusy = async (fn: () => Promise<void>) => {
     setBusy(true);
     try { await fn(); await load(); onChanged(); }
-    catch { /* toast handled by parent */ }
+    catch (e: any) { toast.error(e?.message || '操作失败，请重试'); }
     finally { setBusy(false); }
   };
 
@@ -126,9 +127,12 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                         disabled={busy} className="neu-btn-soft !h-[30px] !text-xs">
                         <Plus size={12} /> 下一轮
                       </button>
-                      <button onClick={() => withBusy(async () => { await closeRound(bidProjectId, r.id, true); })}
+                      <button onClick={() => withBusy(async () => {
+                        await closeRound(bidProjectId, r.id, false);
+                        toast.info('最终轮报价已锁定。请前往采购管理工作台(:3005)启动评标。');
+                      })}
                         disabled={busy} className="neu-btn-primary !h-[30px] !text-xs">
-                        <CheckCircle2 size={12} /> 结束·进入评标
+                        <CheckCircle2 size={12} /> 结束报价
                       </button>
                     </>
                   )}
