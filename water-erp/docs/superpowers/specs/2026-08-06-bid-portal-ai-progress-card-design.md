@@ -77,8 +77,8 @@
 
 - `STUCK_THRESHOLD_MS = 30 * 60 * 1000`（常量；单家 OCR+LLM 约 5-15 分钟，30 分钟安全）。
   判定基于 `updatedAt`（Prisma `@updatedAt` 自动维护）。
-- `allPending`：task 存在且 `task.status ∈ {PENDING, TENDER_PROCESSING}` 且
-  `updatedAt` 停摆超阈值且无 bidder 进入过中间态/终态。
+- `allPending`：task 存在且 `task.status ∈ {PENDING, TENDER_PROCESSING, ANALYZING}` 且
+  `updatedAt` 停摆超阈值且全部 bidder 为 PENDING（覆盖 worker 在入队循环中死亡的场景）。
 - 权限：本端点无显式 @Roles，但 BidController 类级 `@Roles('admin', 'bid_host', 'leader', 'staff')` 对所有路由生效，故实际仅这四类角色可访问（比 spec 早期版本"任何已登录用户可看"更严，符合 :3007 登录角色范围）。
 - **运维要求**：端点路径加入 `operation-log/operation-log.filter.ts` 高频轮询排除列表
   （GET-only），否则 3s 轮询刷爆 OperationLog。
