@@ -79,7 +79,7 @@
   判定基于 `updatedAt`（Prisma `@updatedAt` 自动维护）。
 - `allPending`：task 存在且 `task.status ∈ {PENDING, TENDER_PROCESSING}` 且
   `updatedAt` 停摆超阈值且无 bidder 进入过中间态/终态。
-- 权限：无 @Roles（与评标管理 tab 只读定位一致，任何已登录用户可看）。
+- 权限：本端点无显式 @Roles，但 BidController 类级 `@Roles('admin', 'bid_host', 'leader', 'staff')` 对所有路由生效，故实际仅这四类角色可访问（比 spec 早期版本"任何已登录用户可看"更严，符合 :3007 登录角色范围）。
 - **运维要求**：端点路径加入 `operation-log/operation-log.filter.ts` 高频轮询排除列表
   （GET-only），否则 3s 轮询刷爆 OperationLog。
 
@@ -107,7 +107,7 @@ worker 无需改动：bidder.processor 按 bidderResultId 处理，收尾 `check
 ### 3. 权限补齐
 
 - 新 retry 端点与现有 rerun 端点均加 `@Roles('admin', 'bid_host', 'leader', 'staff')`
-  （:3007 登录者为 admin/bid_host；rerun 目前无任何角色限制，属安全缺口，顺手补齐）。
+  （:3007 登录者为 admin/bid_host；BidController 已有类级 `@Roles('admin', 'bid_host', 'leader', 'staff')`，方法级 @Roles 为显式补齐，冗余但无害）。
 
 ## 前端设计（apps/bid-portal）
 
@@ -165,6 +165,6 @@ Props：`projectId: string; stage: BidStage`。
 | 风险 | 对策 |
 |------|------|
 | 3s 轮询刷爆操作日志 | filter 排除列表（GET-only）|
-| 重试与 worker 并发竞争 | jobId 带时间戳；worker 按状态幂等处理；重试前置校验排除正在正常推进的家 |
+| 重试与 worker 并发竞争 | jobId 带时间戳（防与等待中旧 job 去重冲突）；bidder.processor 无状态守卫、无条件全流程重跑，故重试一个仍存活的卡住 job 会让同 bidderResultId 产生两个并发 job（结果收敛于整行覆写，但代价是双倍 OCR/LLM 且可能孤立报告 FileAsset 行）。worker 按设计不动；重试前置校验排除正在正常推进的家可降低概率，30 分钟停摆阈值只在确实卡住时触发 |
 | rerun/retry 误触 | 仅异常态显示按钮 + rerun 二次确认 + 角色守卫 |
 | STUCK 阈值误报（超长标书） | 30 分钟已留余量；阈值集中为常量便于调整 |
