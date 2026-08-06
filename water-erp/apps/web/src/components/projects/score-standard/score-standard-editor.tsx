@@ -25,6 +25,7 @@ import {
   getBidProjectDetail,
   listScoreItems,
   publishScoreStandard,
+  updateBidProject,
   updateScoreItem,
   type BidProjectRef,
   type BidScoreItem,
@@ -52,6 +53,9 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const [bpId, setBpId] = useState<string | null>(bidProject?.id ?? null);
   const [stage, setStage] = useState('');
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
+  // Phase 1：条款派生草稿开关（项目级；off=专家端不生成派生草稿，得分点映射亦隐藏）
+  const [clauseDeriveEnabled, setClauseDeriveEnabled] = useState(false);
+  const [toggling, setToggling] = useState(false);
   const [items, setItems] = useState<BidScoreItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -79,6 +83,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         setBpId(bp.id);
         setStage(detail.stage);
         setPublishedAt(detail.scoreStandardPublishedAt ?? null);
+        setClauseDeriveEnabled(!!detail.clauseDeriveEnabled);
         setItems(its);
       } catch {
         if (!cancelled) toast.error('评分标准加载失败');
@@ -111,6 +116,23 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     }
     onChanged?.();
   }, [bpId, onChanged]);
+
+  // Phase 1：条款派生草稿开关切换（项目级，管理端控制；专家端据此决定是否生成派生草稿）
+  const handleToggleClauseDerive = async () => {
+    if (!bpId || toggling) return;
+    const next = !clauseDeriveEnabled;
+    setToggling(true);
+    try {
+      await updateBidProject(bpId, { clauseDeriveEnabled: next });
+      setClauseDeriveEnabled(next);
+      onChanged?.();
+      toast.success(next ? '已开启「条款派生草稿」' : '已关闭「条款派生草稿」');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setToggling(false);
+    }
+  };
 
   const handlePublish = async () => {
     if (!bpId) return;
@@ -305,16 +327,34 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   const tableBlock = (
     <>
       {/* ── Summary ── */}
-      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl neu-table-card-header px-4 py-3 text-sm">
-        <span className="text-[var(--muted-foreground)]">
-          评分项：<span className="font-mono font-bold text-[var(--foreground)]">{items.length}</span> 项
-        </span>
-        <span className="text-[var(--muted-foreground)]">
-          打分项满分合计：<span className="font-mono font-bold text-[var(--accent-strong)]">{scoredTotal}</span> 分
-        </span>
-        <span className="text-[var(--muted-foreground)]/70">
-          （含 {items.length - items.filter((i) => Number(i.maxScore) > 0).length} 项通过性审查）
-        </span>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-xl neu-table-card-header px-4 py-3 text-sm">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <span className="text-[var(--muted-foreground)]">
+            评分项：<span className="font-mono font-bold text-[var(--foreground)]">{items.length}</span> 项
+          </span>
+          <span className="text-[var(--muted-foreground)]">
+            打分项满分合计：<span className="font-mono font-bold text-[var(--accent-strong)]">{scoredTotal}</span> 分
+          </span>
+          <span className="text-[var(--muted-foreground)]/70">
+            （含 {items.length - items.filter((i) => Number(i.maxScore) > 0).length} 项通过性审查）
+          </span>
+        </div>
+        {/* Phase 1：条款派生草稿开关（项目级；管理端控制） */}
+        <button
+          type="button"
+          onClick={handleToggleClauseDerive}
+          disabled={!bpId || toggling}
+          title="开启后，专家在「条款响应核对」提出异议/存疑时，系统按本项目「得分点↔条款」映射在打分草稿预填（异议→扣分草案、存疑→仅备注），专家可修改后提交，不会跳过提交。映射在下方得分点行维护。"
+          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition disabled:opacity-50 ${
+            clauseDeriveEnabled
+              ? 'border-[oklch(0.5_0.16_258_/_0.25)] text-[var(--accent-strong)]'
+              : 'border-[oklch(0.6_0.04_258_/_0.18)] text-[var(--muted-foreground)]'
+          }`}
+        >
+          <span className={`inline-block h-2 w-2 rounded-full ${clauseDeriveEnabled ? 'bg-[var(--accent-strong)]' : 'bg-[oklch(0.7_0.01_264)]'}`} />
+          条款派生草稿
+          <span className="font-mono">{clauseDeriveEnabled ? '已开启' : '未开启'}</span>
+        </button>
       </div>
 
       <div className="overflow-x-auto">
@@ -437,7 +477,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                     {open && !isEdit && bpId && (
                       <tr className="border-t oklch(0.6 0.04 258 / 0.08) bg-[oklch(0.985_0.003_265)]">
                         <td colSpan={5} className="px-4 pb-4 pt-1">
-                          <ScorePointsEditor projectId={bpId} item={it} points={points} onChanged={reloadItems} locked={locked} />
+                          <ScorePointsEditor projectId={bpId} item={it} points={points} onChanged={reloadItems} locked={locked} linkingEnabled={clauseDeriveEnabled} />
                         </td>
                       </tr>
                     )}

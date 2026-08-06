@@ -2,8 +2,9 @@
 'use client';
 import { useMemo, useState, useEffect } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2 } from 'lucide-react';
-import type { RequirementResponse, BidRequirementReview } from '@water-erp/shared';
+import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3 } from 'lucide-react';
+import type { RequirementResponse, BidRequirementReview, BidScoreItem } from '@water-erp/shared';
+import { CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { api } from '@/lib/api';
 
 interface ReqItem {
@@ -22,6 +23,13 @@ const CAT_LABEL: Record<string, string> = {
   qualification: '资格要求',
   technical: '技术要求',
   commercial: '商务要求',
+};
+
+// Phase 0：条款类别 → 评分类别（与后端 getMyScores 的 UPPER 映射一致；★实质性条款另映射 RESPONSIVE 响应性评审）
+const CAT_TO_SCORE: Record<string, string[]> = {
+  qualification: ['QUALIFICATION'],
+  technical: ['TECHNICAL'],
+  commercial: ['BUSINESS'],
 };
 
 const STATUS_CFG: Record<string, { label: string; c: string; icon: any }> = {
@@ -44,6 +52,10 @@ export function RequirementComparePanel({
   responses,
   reviews,
   tenderDocUrl,
+  scoreItems,
+  scoreStatus,
+  onGoScoring,
+  onVerdictSaved,
 }: {
   projectId: string;
   supplierId: string;
@@ -52,6 +64,14 @@ export function RequirementComparePanel({
   reviews: BidRequirementReview[];
   /** 招标文件解密下载 URL（模式 2 iframe src）；为空时隐藏「招标文件」tab */
   tenderDocUrl?: string;
+  /** Phase 0：项目评分项全集（同类别只读指引，精确条款↔得分点映射为后续阶段） */
+  scoreItems: BidScoreItem[];
+  /** Phase 0：当前供应商各评分项状态（committed 已提交 / draft 草稿 / empty 未填） */
+  scoreStatus: Record<string, { state: 'committed' | 'draft' | 'empty'; score: number; passed?: boolean }>;
+  /** 跳转平板打分页（预选当前供应商） */
+  onGoScoring: () => void;
+  /** Phase 1：专家提交 verdict 成功后通知父组件（用于驱动派生草稿：异议→扣分、存疑→备注） */
+  onVerdictSaved?: (item: { id: string; category: string; isStarred: boolean; content: string }, verdict: 'ack' | 'dispute' | 'doubt') => void;
 }) {
   const [local, setLocal] = useState<Record<string, BidRequirementReview>>(
     () => Object.fromEntries(reviews.map((r) => [r.requirementId, r])),
@@ -104,6 +124,10 @@ export function RequirementComparePanel({
         verdict,
         note: next.note,
       });
+      // Phase 1：成功落库后通知父组件驱动派生草稿（仅 dispute/doubt 有意义，ack 不回调）
+      if (verdict !== 'ack') {
+        onVerdictSaved?.({ id: item.id, category: item.category, isStarred: !!item.isStarred, content: item.content }, verdict);
+      }
     } catch {
       // 回滚到点击前的 verdict —— 否则 UI 显示新值而 server 仍是旧值，专家以为标注成功实为数据丢失
       setLocal((cur) => ({ ...cur, [item.id]: prevReview }));
@@ -411,6 +435,65 @@ export function RequirementComparePanel({
                     className="neu-input mt-2 !min-h-[70px] !p-2 !text-[11px]"
                   />
                 )}
+              </div>
+
+              {/* ── 相关评分项 — Phase 0 同类别只读指引（精确条款↔得分点映射为后续阶段）── */}
+              <div className="pt-2">
+                <hr className="wb-section-rule mb-2" />
+                <div className="mb-1.5 text-[10px] font-semibold tracking-wide text-[var(--muted-foreground)]">
+                  相关评分项（同类别）
+                </div>
+                {(() => {
+                  const cats = selectedItem.isStarred
+                    ? [...(CAT_TO_SCORE[selectedItem.category] ?? []), 'RESPONSIVE']
+                    : (CAT_TO_SCORE[selectedItem.category] ?? []);
+                  const matched = scoreItems.filter((si) => cats.includes(si.category));
+                  if (matched.length === 0) {
+                    return <p className="text-[10px] text-[var(--muted-foreground)]">该类别暂无评分项</p>;
+                  }
+                  return (
+                    <div className="space-y-1.5">
+                      {matched.map((si) => {
+                        const st = scoreStatus[si.id];
+                        const passFail = isPassFailCategory(si.category);
+                        return (
+                          <div key={si.id} className="rounded-[10px] bg-[oklch(1_0_0/0.55)] px-2.5 py-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[var(--foreground)]" title={si.name}>
+                                {si.name}
+                              </span>
+                              {st?.state === 'committed' ? (
+                                <span className="exp-pill shrink-0 !gap-0.5 !px-1.5 !py-0 !text-[9px]" style={{ '--c': 'var(--success)' } as React.CSSProperties}>
+                                  <CheckCircle size={9} strokeWidth={2} />
+                                  {passFail ? (st.passed === true ? '通过' : st.passed === false ? '不通过' : '已提交') : `${st.score} 分`}
+                                </span>
+                              ) : st?.state === 'draft' ? (
+                                <span className="exp-pill shrink-0 !px-1.5 !py-0 !text-[9px]" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>
+                                  草稿{!passFail && st.score > 0 ? ` ${st.score}` : ''}
+                                </span>
+                              ) : (
+                                <span className="shrink-0 text-[9px] text-[var(--muted-foreground)]">未填</span>
+                              )}
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-1 text-[9px] text-[var(--muted-foreground)]">
+                              <span className="exp-pill !px-1 !py-0 !text-[8px]" style={{ '--c': CATEGORY_COLOR[si.category] || 'var(--accent-strong)' } as React.CSSProperties}>
+                                {CATEGORY_LABEL[si.category] || si.category}
+                              </span>
+                              {passFail ? <span>通过性审查</span> : <span>满分 {Number(si.maxScore)} 分</span>}
+                              {(si.points?.length ?? 0) > 0 && <span>· {si.points!.length} 个得分点</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                <button onClick={onGoScoring} className="neu-btn-soft mt-2 w-full !h-8 !text-[11px]">
+                  <Edit3 size={12} strokeWidth={1.5} /> 去打分平板
+                </button>
+                <p className="mt-1 text-center text-[9px] text-[var(--muted-foreground)]">
+                  同类别指引 · 精确条款↔评分点映射见后续版本
+                </p>
               </div>
             </div>
           ) : (

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsInt, Min, Max, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsInt, Min, Max, IsBoolean, IsOptional, IsArray } from 'class-validator';
 
 export class CreateScorePointDto {
   @IsString()
@@ -22,4 +22,10 @@ export class CreateScorePointDto {
   @IsBoolean()
   @IsOptional()
   objective?: boolean;
+
+  /** Phase 1：关联招标条款 requirementId 列表（N:M 指引） */
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  linkedRequirementIds?: string[];
 }

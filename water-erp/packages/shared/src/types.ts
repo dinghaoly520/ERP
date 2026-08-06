@@ -77,6 +77,8 @@ export interface BidProject {
   scope?: string;
   qualification?: string;
   contact?: string;
+  /** Phase 1：条款派生草稿开关（项目级；管理端控制；off=专家端不生成派生草稿） */
+  clauseDeriveEnabled?: boolean;
   roundMode?: string | null;
   currentRoundNo?: number;
   _count?: { suppliers: number };
@@ -125,6 +127,10 @@ export interface BidScorePoint {
   fullScore: number | string;
   seq: number;
   evidenceHint: string | null;
+  /** 招标文件章节名（AI 提取得分点时记录） */
+  evidenceSection?: string | null;
+  /** Phase 1：关联招标条款 requirementId 列表（N:M 指引；用于条款核对→打分草稿派生） */
+  linkedRequirementIds?: string[] | null;
   objective: boolean;
   createdAt: string;
 }

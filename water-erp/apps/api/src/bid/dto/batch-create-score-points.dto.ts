@@ -28,6 +28,12 @@ export class ScorePointInputDto {
   @Max(1)
   @IsOptional()
   confidence?: number;
+
+  /** Phase 1：关联招标条款 requirementId 列表（N:M 指引；管理员在评分标准编制时维护） */
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  linkedRequirementIds?: string[];
 }
 
 export class BatchCreateScorePointsDto {

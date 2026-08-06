@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, Save, RotateCcw, AlertTriangle } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { validateSupplierScores } from '@/lib/score-validation';
 import {
@@ -22,6 +22,10 @@ type ScoreEntry = {
   reason: string;
   passed?: boolean;
   points?: Record<string, { checked: boolean; awardedScore: number }>;
+  /** Phase 1：派生来源（pointId → {verdict, requirementId}），由桌面端条款核对 verdict 派生写入草稿 */
+  derivedPoints?: Record<string, { verdict: 'dispute' | 'doubt'; requirementId: string }>;
+  /** Phase 1：派生来源（item 级，pass-fail/slider 无 points 的项用） */
+  derivedItem?: { verdict: 'dispute' | 'doubt'; requirementId: string };
 };
 
 const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
@@ -56,6 +60,7 @@ export default function TabletEvaluatePage() {
 
   // ── 评分草稿（localStorage 暂存 + 自动恢复）──
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
+  const [serverDraft, setServerDraft] = useState<Record<string, ScoreEntry> | null>(null); // Phase 1：服务端草稿 fallback（跨设备恢复）
   const [draftDismissed, setDraftDismissed] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,20 +134,25 @@ export default function TabletEvaluatePage() {
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
-  // ── 草稿：项目加载后检查是否有未恢复的本地草稿 ──
+  // ── 草稿：项目加载后检查本地草稿；无本地则 fallback 服务端草稿（跨设备恢复）──
   useEffect(() => {
     if (!draftStorageKey || !project) return;
     try {
       const raw = localStorage.getItem(draftStorageKey);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as {
-        scores: Record<string, ScoreEntry>;
-        savedAt: number;
-      };
-      const count = Object.keys(draft.scores ?? {}).length;
-      if (count > 0) setDraftAvailable({ count, savedAt: draft.savedAt });
-    } catch { /* corrupt draft — ignore */ }
-  }, [draftStorageKey, project]);
+      if (raw) {
+        const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
+        const count = Object.keys(draft.scores ?? {}).length;
+        if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); return; }
+      }
+    } catch { /* 本地草稿损坏 → 继续 fallback 服务端 */ }
+    api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft`)
+      .then((d) => {
+        if (!d || !d.scores) return;
+        const count = Object.keys(d.scores).length;
+        if (count > 0) { setServerDraft(d.scores); setDraftAvailable({ count, savedAt: d.savedAt ?? Date.now() }); }
+      })
+      .catch(() => { /* 服务端草稿可选 — ignore */ });
+  }, [draftStorageKey, project, projectId]);
 
   // ── 草稿自动暂存（scores 变化后 2 秒防抖）──
   useEffect(() => {
@@ -189,22 +199,24 @@ export default function TabletEvaluatePage() {
     if (!draftStorageKey) return;
     try {
       const raw = localStorage.getItem(draftStorageKey);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as {
-        scores: Record<string, ScoreEntry>;
-        savedAt: number;
-      };
-      setScores((prev) => ({ ...prev, ...draft.scores }));
-      toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分`);
-    } catch {
-      toast.error('草稿已损坏，无法恢复');
+      if (raw) {
+        const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
+        setScores((prev) => ({ ...prev, ...draft.scores }));
+        toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分`);
+        setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
+        return;
+      }
+    } catch { /* 本地损坏 → fallback 服务端 */ }
+    if (serverDraft) {
+      setScores((prev) => ({ ...prev, ...serverDraft }));
+      toast.success(`已恢复 ${Object.keys(serverDraft).length} 项评分（来自服务端草稿）`);
     }
-    setDraftAvailable(null);
-    setDraftDismissed(true);
-  }, [draftStorageKey]);
+    setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
+  }, [draftStorageKey, serverDraft]);
 
   const discardDraft = useCallback(() => {
     if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+    setServerDraft(null);
     setDraftAvailable(null);
     setDraftDismissed(true);
   }, [draftStorageKey]);
@@ -228,6 +240,18 @@ export default function TabletEvaluatePage() {
       setActiveSupplier(project.suppliers[0].id);
     }
   }, [project, activeSupplier]);
+
+  // Phase 0：桌面端条款响应核对「去打分平板」跳转携带 ?supplier= → 预选该供应商。
+  // 只应用一次（presetApplied 闸门），不覆盖专家之后的手动切换；声明在默认选中 effect 之后以便覆盖默认值。
+  const presetApplied = useRef(false);
+  useEffect(() => {
+    if (!project || presetApplied.current) return;
+    presetApplied.current = true;
+    const preset = new URLSearchParams(window.location.search).get('supplier');
+    if (preset && project.suppliers.some((s) => s.id === preset)) {
+      setActiveSupplier(preset);
+    }
+  }, [project]);
 
   // 桌面端声明过的冲突/废标集合 —— 从 project 元数据 hydrate
   const conflictedSupplierIds = useMemo(
@@ -466,9 +490,16 @@ export default function TabletEvaluatePage() {
                             data-score-item={item.id}
                             className="rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3"
                           >
-                            <h4 className="mb-2.5 text-sm font-bold text-[var(--foreground)]">
-                              {item.name}
-                            </h4>
+                            <div className="mb-2.5 flex items-center gap-1.5">
+                              <h4 className="text-sm font-bold text-[var(--foreground)]">
+                                {item.name}
+                              </h4>
+                              {val?.derivedItem && (
+                                <span className="exp-pill !text-[10px]" style={{ '--c': val.derivedItem.verdict === 'dispute' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}>
+                                  <AlertTriangle size={9} strokeWidth={2} /> {val.derivedItem.verdict === 'dispute' ? '异议派生' : '存疑派生'}
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2.5">
                               {[
                                 { v: true, label: '通过' },
@@ -519,9 +550,16 @@ export default function TabletEvaluatePage() {
                           className="rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3"
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
-                            <h4 className="text-sm font-bold text-[var(--foreground)]">
-                              {item.name}
-                            </h4>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <h4 className="text-sm font-bold text-[var(--foreground)]">
+                                {item.name}
+                              </h4>
+                              {val?.derivedItem && (
+                                <span className="exp-pill shrink-0 !text-[10px]" style={{ '--c': val.derivedItem.verdict === 'dispute' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}>
+                                  <AlertTriangle size={9} strokeWidth={2} /> {val.derivedItem.verdict === 'dispute' ? '异议派生' : '存疑派生'}
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">
                               满分 {max}
                             </span>
@@ -533,6 +571,7 @@ export default function TabletEvaluatePage() {
                               value={val?.points ?? {}}
                               readOnly={readOnly}
                               compact
+                              derivedByPoint={val?.derivedPoints}
                               selectedPointId={activePointId}
                               onPointClick={handlePointClick}
                               onChange={(pid, pv) =>

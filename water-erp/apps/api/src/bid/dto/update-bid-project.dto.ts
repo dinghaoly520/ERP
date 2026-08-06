@@ -13,4 +13,6 @@ export class UpdateBidProjectDto {
   @IsString() @IsOptional() qualityRequirement?: string;
   @IsBoolean() @IsOptional() bondRequired?: boolean;
   @IsNumber() @IsOptional() bondAmount?: number;
+  /** Phase 1：条款派生草稿开关（管理端按项目控制） */
+  @IsBoolean() @IsOptional() clauseDeriveEnabled?: boolean;
 }

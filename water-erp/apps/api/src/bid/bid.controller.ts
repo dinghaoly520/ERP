@@ -22,6 +22,7 @@ import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateScorePointDto } from './dto/create-score-point.dto';
 import { UpdateScorePointDto } from './dto/update-score-point.dto';
 import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
+import { UpdateLinkedRequirementsDto } from './dto/update-linked-requirements.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
@@ -599,6 +600,24 @@ export class BidController {
     @Body() dto: BatchCreateScorePointsDto,
   ) {
     return this.bidService.batchCreateScorePoints(id, itemId, dto);
+  }
+
+  @Patch('projects/:id/score-items/:itemId/points/:pointId/linked-requirements')
+  @ApiOperation({ summary: 'Phase 1：得分点↔招标条款映射（独立于发布锁；前置：clauseDeriveEnabled 已开启）' })
+  @Roles('leader', 'staff', 'admin')
+  updateLinkedRequirements(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Param('pointId') pointId: string,
+    @Body() dto: UpdateLinkedRequirementsDto,
+  ) {
+    return this.bidService.updateLinkedRequirements(id, itemId, pointId, dto.linkedRequirementIds);
+  }
+
+  @Get('projects/:id/tender-requirements')
+  @ApiOperation({ summary: 'Phase 1：列出本项目招标条款（来源 AI 招标分析，与条款响应核对同源）' })
+  listTenderRequirements(@Param('id') id: string) {
+    return this.bidService.getTenderRequirements(id);
   }
 
   @Get('projects/:id/clarifications')

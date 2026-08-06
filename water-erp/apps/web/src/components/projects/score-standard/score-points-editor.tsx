@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Trash2, GripVertical, Sparkles, X } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Sparkles, X, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   createScorePoint,
@@ -9,11 +9,16 @@ import {
   deleteScorePoint,
   extractScorePoints,
   batchCreateScorePoints,
+  updateLinkedRequirements,
+  getTenderRequirements,
   type BidScorePoint,
   type BidScoreItem,
   type ScorePointSuggestion,
 } from '@/lib/api/bid';
 import { SuggestionRow } from './suggestion-row';
+
+// Phase 1：条款类别标签（与 requirement-matcher 的 category 一致）
+const REQ_CAT_LABEL: Record<string, string> = { qualification: '资格', technical: '技术', commercial: '商务' };
 
 interface Props {
   projectId: string;
@@ -21,9 +26,11 @@ interface Props {
   points: BidScorePoint[];
   onChanged: () => void; // 增删改后通知父组件刷新
   locked?: boolean; // 评分标准已发布/项目已进 EVALUATING/ARCHIVED 时禁用修改
+  /** Phase 1：条款派生草稿开关（项目级）——off 时隐藏「关联条款」入口（映射对本项目无意义） */
+  linkingEnabled?: boolean;
 }
 
-export function ScorePointsEditor({ projectId, item, points, onChanged, locked }: Props) {
+export function ScorePointsEditor({ projectId, item, points, onChanged, locked, linkingEnabled }: Props) {
   const isPassFail = item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE';
   const isPrice = item.category === 'PRICE'; // 价格分按公式计算,不提取得分点
   const [draft, setDraft] = useState({ name: '', fullScore: 0, evidenceHint: '', objective: true });
@@ -123,6 +130,49 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
     onChanged();
   }
 
+  // ── Phase 1：得分点↔招标条款映射（独立于发布锁；lazy-load 条款列表）──
+  const [linkingPoint, setLinkingPoint] = useState<BidScorePoint | null>(null);
+  const [requirements, setRequirements] = useState<Array<{ requirementId: string; category: string; tenderContent: string; isStarred: boolean }> | null>(null);
+  const [requirementsLoading, setRequirementsLoading] = useState(false);
+  const [linkDraft, setLinkDraft] = useState<Record<string, boolean>>({});
+
+  async function openLinks(p: BidScorePoint) {
+    setLinkingPoint(p);
+    const init: Record<string, boolean> = {};
+    (p.linkedRequirementIds ?? []).forEach((id) => { init[id] = true; });
+    setLinkDraft(init);
+    if (requirements === null) {
+      setRequirementsLoading(true);
+      try {
+        setRequirements(await getTenderRequirements(projectId));
+      } catch {
+        setRequirements([]);
+        toast.error('加载招标条款失败');
+      } finally {
+        setRequirementsLoading(false);
+      }
+    }
+  }
+
+  async function saveLinks() {
+    if (!linkingPoint) return;
+    const ids = Object.keys(linkDraft).filter((k) => linkDraft[k]);
+    const prevLinked = linkingPoint.linkedRequirementIds ?? [];
+    // 乐观更新本地 + 反映 count 徽标
+    setLocalPoints((prev) => prev.map((x) => (x.id === linkingPoint.id ? { ...x, linkedRequirementIds: ids } : x)));
+    setLinkingPoint(null);
+    if (ids.length === prevLinked.length && ids.every((id) => prevLinked.includes(id))) return; // 无变化
+    try {
+      await updateLinkedRequirements(projectId, item.id, linkingPoint.id, ids);
+      onChanged();
+      toast.success(`已关联 ${ids.length} 条招标条款`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 读 e?.message 回退提示
+    } catch (e: any) {
+      setLocalPoints((prev) => prev.map((x) => (x.id === linkingPoint.id ? { ...x, linkedRequirementIds: prevLinked } : x)));
+      toast.error(e?.message ?? '保存映射失败');
+    }
+  }
+
   return (
     <div className="mt-2 rounded-xl border border-[oklch(0.92_0.004_265)] bg-[oklch(0.98_0.003_265)] p-3">
       {/* 合计提示 + AI 提取按钮 */}
@@ -158,6 +208,17 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
             <span className="text-[oklch(0.45_0.01_265)] w-6">{idx + 1}.</span>
             <span className="flex-1 font-medium text-[oklch(0.18_0.012_265)]">{p.name}</span>
             {p.evidenceHint && <span className="text-xs text-[oklch(0.55_0.01_264)]">{p.evidenceHint}</span>}
+            {/* Phase 1：关联招标条款（映射编辑不受发布锁限制；linkingEnabled=项目开关 off 时隐藏） */}
+            {linkingEnabled && (
+              <button
+                onClick={() => openLinks(p)}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-[oklch(0.45_0.02_258)] hover:bg-[oklch(0.96_0.01_258)]"
+                title="关联招标条款（条款核对→打分草稿派生依据；可随时修改，不受发布锁限制）"
+              >
+                <Link2 size={13} />
+                {(p.linkedRequirementIds?.length ?? 0) > 0 ? `${p.linkedRequirementIds!.length} 条款` : '关联条款'}
+              </button>
+            )}
             <button
               onClick={() => toggleObjective(p)}
               className={`rounded px-2 py-0.5 text-xs ${p.objective ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}
@@ -261,6 +322,63 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked }
               <div className="flex gap-2">
                 <button onClick={() => setSuggestions(null)} className="rounded-lg px-3 py-1 text-sm text-[oklch(0.5_0.01_264)]">取消</button>
                 {!locked && <button onClick={handleImportSelected} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">导入选中的 {suggestions.filter((s) => s.selected).length} 项</button>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 1：关联招标条款弹窗 */}
+      {linkingPoint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-4 shadow-xl">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[oklch(0.18_0.012_265)]">
+                关联招标条款 · <span className="font-mono">{linkingPoint.name}</span>
+              </h3>
+              <button onClick={() => setLinkingPoint(null)} className="text-[oklch(0.6_0.01_264)] hover:text-red-600"><X size={16} /></button>
+            </div>
+            <p className="mb-2 text-xs text-[oklch(0.55_0.01_264)]">
+              勾选与该得分点相关的招标条款。专家在「条款响应核对」提出异议/存疑时，系统按此映射在打分草稿预填（异议→扣分草案、存疑→仅备注），专家可修改后提交。
+            </p>
+            <div className="max-h-96 space-y-1 overflow-y-auto">
+              {requirementsLoading ? (
+                <div className="py-10 text-center text-xs text-[oklch(0.55_0.01_264)]">加载招标条款…</div>
+              ) : (requirements ?? []).length === 0 ? (
+                <div className="py-10 text-center text-xs text-[oklch(0.55_0.01_264)]">未检索到招标条款（可能尚未完成 AI 招标分析，或该项目无条款数据）</div>
+              ) : (
+                ['qualification', 'technical', 'commercial'].map((c) => {
+                  const list = (requirements ?? []).filter((r) => r.category === c);
+                  if (list.length === 0) return null;
+                  return (
+                    <div key={c} className="mb-2">
+                      <div className="sticky top-0 bg-white py-1 text-xs font-bold text-[oklch(0.4_0.02_258)]">
+                        {REQ_CAT_LABEL[c] ?? c}（{list.length}）
+                      </div>
+                      {list.map((r) => (
+                        <label key={r.requirementId} className="flex items-start gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[oklch(0.98_0.003_265)]">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={!!linkDraft[r.requirementId]}
+                            onChange={() => setLinkDraft((prev) => ({ ...prev, [r.requirementId]: !prev[r.requirementId] }))}
+                          />
+                          <span className="text-[oklch(0.2_0.01_265)]">
+                            {r.isStarred && <span className="mr-1 font-bold text-amber-600">★</span>}
+                            {r.tenderContent || <span className="text-[oklch(0.6_0.01_264)]">（无内容）</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-xs text-[oklch(0.5_0.01_264)]">已选 {Object.values(linkDraft).filter(Boolean).length} 条</span>
+              <div className="flex gap-2">
+                <button onClick={() => setLinkingPoint(null)} className="rounded-lg px-3 py-1 text-sm text-[oklch(0.5_0.01_264)]">取消</button>
+                <button onClick={saveLinks} className="rounded-lg bg-[oklch(0.55_0.18_258)] px-3 py-1 text-sm text-white">保存</button>
               </div>
             </div>
           </div>
