@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Req, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -139,8 +139,8 @@ export class BidController {
 
   @Get('projects/:id/rounds/:roundId/quotes')
   @ApiOperation({ summary: '查询轮次报价' })
-  getRoundQuotes(@Param('id') id: string, @Param('roundId') roundId: string, @CurrentUser('sub') userId?: string) {
-    return this.bidService.getRoundQuotes(id, roundId, 'staff');
+  getRoundQuotes(@Param('id') id: string, @Param('roundId') roundId: string, @Req() req: any) {
+    return this.bidService.getRoundQuotes(id, roundId, req.user?.role ?? 'staff');
   }
 
   @Patch('projects/:id')

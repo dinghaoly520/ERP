@@ -3508,9 +3508,11 @@ export class BidService {
       // 废标联动：同事务内置 invalid + 高风险监督日志 + B3 决议记录
       if (invalidateTarget) {
         await tx.bidSupplier.update({ where: { id: invalidateTarget.id }, data: { bidValidity: 'invalid' } });
-        await tx.bidInvalidBid.create({
-          data: { projectId, supplierId: invalidateTarget.id, scoreItemId: '__dispute__', failCount: 0, totalCount: 0, status: 'invalid', reason: `异议裁决废标：${dto.response}`, actorId: actorId ?? null },
-        }).catch(() => {});
+        await tx.bidInvalidBid.upsert({
+          where: { projectId_supplierId_scoreItemId: { projectId, supplierId: invalidateTarget.id, scoreItemId: '__dispute__' } },
+          update: { reason: `异议裁决废标：${dto.response}`, actorId: actorId ?? null },
+          create: { projectId, supplierId: invalidateTarget.id, scoreItemId: '__dispute__', failCount: 0, totalCount: 0, status: 'invalid', reason: `异议裁决废标：${dto.response}`, actorId: actorId ?? null },
+        });
         await tx.bidSupervisionLog.create({
           data: {
             projectId, time: now, role: '采购管理员', target: invalidateTarget.supplierName,
@@ -3562,9 +3564,11 @@ export class BidService {
     await this.prisma.$transaction(async (tx) => {
       await tx.bidSupplier.update({ where: { id: supplierId }, data: { bidValidity: 'invalid' } });
       // B3: 创建结构化废标决议记录（原因 + 操作人）
-      await tx.bidInvalidBid.create({
-        data: { projectId, supplierId, scoreItemId: '__manual__', failCount: 0, totalCount: 0, status: 'invalid', reason, actorId },
-      }).catch(() => {});
+      await tx.bidInvalidBid.upsert({
+        where: { projectId_supplierId_scoreItemId: { projectId, supplierId, scoreItemId: '__manual__' } },
+        update: { reason, actorId },
+        create: { projectId, supplierId, scoreItemId: '__manual__', failCount: 0, totalCount: 0, status: 'invalid', reason, actorId },
+      });
       await tx.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '采购管理员', target: supplier.supplierName,
           action: '手动废标', result: `原因: ${reason}`, riskFlag: '高风险' },
@@ -3632,6 +3636,11 @@ export class BidService {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, roundMode: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (!project.roundMode) throw new BadRequestException({ error: '该项目不是多轮报价模式', code: 'NOT_MULTI_ROUND' });
+    // H5: 阶段守卫——仅 OPENING 阶段可创建轮次
+    if (project.stage !== 'OPENING') throw new ConflictException({ error: '当前阶段不可创建报价轮次', code: 'STAGE_NOT_OPENING' });
+    // H5: 并发守卫——不允许同时存在多个 open 轮次
+    const openRound = await this.prisma.bidRound.findFirst({ where: { projectId, status: 'open' } });
+    if (openRound) throw new ConflictException({ error: `第${openRound.roundNo}轮仍在进行中，请先截止并公布`, code: 'ROUND_STILL_OPEN' });
 
     const lastRound = await this.prisma.bidRound.findFirst({ where: { projectId }, orderBy: { roundNo: 'desc' } });
     const roundNo = (lastRound?.roundNo ?? 0) + 1;
@@ -3770,11 +3779,13 @@ export class BidService {
     const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: bidSupplierId, projectId } });
     if (!supplier) throw new ForbiddenException({ error: '供应商不属于该项目', code: 'NOT_PROJECT_SUPPLIER' });
 
-    return this.prisma.bidQuote.upsert({
-      where: { roundId_bidSupplierId: { roundId, bidSupplierId } },
-      update: { quotePrice, submittedAt: new Date() },
-      create: { roundId, bidSupplierId, quotePrice },
-    });
+    // H4: 严格一报制——与供应商端一致，upsert 改为 create + P2002 catch
+    try {
+      return await this.prisma.bidQuote.create({ data: { roundId, bidSupplierId, quotePrice } });
+    } catch (e: any) {
+      if (e?.code === 'P2002') throw new BadRequestException({ error: '该供应商本轮已提交报价', code: 'ALREADY_QUOTED' });
+      throw e;
+    }
   }
 
   /** 获取轮次报价(仅 published 轮次对供应商可见) */
