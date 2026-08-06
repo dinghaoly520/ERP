@@ -19,7 +19,10 @@ import { BidBackupModule } from '../bid-backup/bid-backup.module';
     AuthModule,
     PrismaModule,
     NotificationModule,
-    BullModule.registerQueue({ name: QUEUE_NAMES.TENDER_PROCESSING }),
+    BullModule.registerQueue(
+      { name: QUEUE_NAMES.TENDER_PROCESSING },
+      { name: QUEUE_NAMES.BIDDER_PROCESSING }, // 单家重试 AI 分析（retryAiBidders）
+    ),
     AiBidAnalysisModule, // ← 为了注入 PlaintextFetcherService（Task 1: AI 提取得分点）
     BidBackupModule,
   ],

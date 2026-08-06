@@ -10,6 +10,8 @@ import { PriceFormulaService } from './price-formula.service';
 import { StorageService } from '../storage/storage.service';
 import { assertBidStageTransition } from './bid-state';
 import { sealField, openField } from '../common/crypto/field-crypto';
+import { getQueueToken } from '@nestjs/bullmq';
+import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
 
 // bid.service 多处暴露点（getWorkspace/getOpeningRecordDraft）用 openField 拆封 bidPrice。
 // KMS_SECRET 在 jest 同进程可能被其他 spec 污染，此处显式自洽设置。
@@ -2778,5 +2780,95 @@ describe('BidService — getAiAnalysisProgress', () => {
     const res = await service.getAiAnalysisProgress('p1', NOW);
     expect(res.completed).toBe(1);
     expect(res.anomaly.hasAnomaly).toBe(false);
+  });
+});
+
+/* ── AI 单家重试（retryAiBidders）── */
+
+describe('BidService — retryAiBidders', () => {
+  let service: BidService;
+  let prisma: any;
+  let bidderQueue: { add: jest.Mock };
+  const NOW = Date.now();
+  const mkBidder = (over: any = {}) => ({
+    id: 'br1', taskId: 't1', bidSupplierId: 'bs1', status: 'FAILED',
+    updatedAt: new Date(NOW - 2 * 60_000),
+    bidSupplier: { supplierName: '甲公司' },
+    ...over,
+  });
+
+  beforeEach(async () => {
+    bidderQueue = { add: jest.fn().mockResolvedValue({ id: 'job' }) };
+    prisma = {
+      bidProject: { findUnique: jest.fn(async () => ({ stage: 'EVALUATING', name: '测试项目' })) },
+      aiBidAnalysisTask: {
+        findUnique: jest.fn(async () => ({
+          id: 't1', projectId: 'p1', status: 'COMPLETED_WITH_ERRORS', bidderResults: [mkBidder()],
+        })),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      aiBidderResult: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: getQueueToken(QUEUE_NAMES.BIDDER_PROCESSING), useValue: bidderQueue },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('阶段非 EVALUATING → 拒绝', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('评标阶段') });
+    expect(bidderQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('无分析任务 → 拒绝', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(null);
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('未找到') });
+  });
+
+  it('task 状态 COMPLETED（全部成功）→ 拒绝', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'COMPLETED', bidderResults: [mkBidder({ status: 'COMPLETED' })] });
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('不支持') });
+  });
+
+  it('无可重试对象（bidder 全正常）→ 拒绝', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'ANALYZING', bidderResults: [mkBidder({ status: 'COMPLETED' }), mkBidder({ id: 'br2', status: 'SCORING', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } })] });
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('无可重试') });
+  });
+
+  it('指定 ids → 仅重置并入队该 bidder；task 置回 ANALYZING', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'COMPLETED_WITH_ERRORS', bidderResults: [
+      mkBidder({ id: 'br1', status: 'FAILED', bidSupplier: { supplierName: '甲公司' } }),
+      mkBidder({ id: 'br2', status: 'FAILED', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } }),
+    ] });
+    const res = await service.retryAiBidders('p1', ['br1'], 'u1');
+    expect(res.retried).toEqual([{ id: 'br1', name: '甲公司' }]);
+    expect(prisma.aiBidderResult.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['br1'] } }, data: expect.objectContaining({ status: 'PENDING', processedAt: null }) }));
+    expect(bidderQueue.add).toHaveBeenCalledTimes(1);
+    expect(bidderQueue.add).toHaveBeenCalledWith('process', { bidderResultId: 'br1', taskId: 't1' }, expect.objectContaining({ attempts: 3 }));
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
+  });
+
+  it('不传 ids → 重试全部 FAILED + 卡住家（PENDING 与正常中间态不参与）', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'ANALYZING', bidderResults: [
+      mkBidder({ id: 'br1', status: 'FAILED', bidSupplier: { supplierName: '甲公司' } }),
+      mkBidder({ id: 'br2', status: 'OCR_PROCESSING', updatedAt: new Date(NOW - 40 * 60_000), bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } }),
+      mkBidder({ id: 'br3', status: 'SCORING', updatedAt: new Date(NOW - 3 * 60_000), bidSupplierId: 'bs3', bidSupplier: { supplierName: '丙公司' } }),
+      mkBidder({ id: 'br4', status: 'PENDING', bidSupplierId: 'bs4', bidSupplier: { supplierName: '丁公司' } }),
+    ] });
+    const res = await service.retryAiBidders('p1', undefined, 'u1');
+    expect(res.retried.map((r: any) => r.id).sort()).toEqual(['br1', 'br2']);
+    expect(bidderQueue.add).toHaveBeenCalledTimes(2);
   });
 });

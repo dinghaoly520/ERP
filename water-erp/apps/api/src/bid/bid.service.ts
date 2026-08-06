@@ -55,6 +55,9 @@ export class BidService {
     @Optional()
     @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
     private readonly tenderQueue?: Queue,
+    @Optional()
+    @InjectQueue(QUEUE_NAMES.BIDDER_PROCESSING)
+    private readonly bidderQueue?: Queue,
   ) {}
 
   private readonly logger = new Logger(BidService.name);
@@ -1402,6 +1405,71 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '系统', target: project.name, action: '重新启动AI辅助分析', result: '旧结果已清除，重新入队', riskFlag: '无' },
     }).catch(() => {});
+  }
+
+  /**
+   * AI 单家重试：重置 FAILED / 中间态卡住的 bidderResult 并重入队（不清空其它已完成结果）。
+   * 不传 bidderResultIds 时重试全部可重试家。worker 无需改动——bidder.processor 按
+   * bidderResultId 全流程重跑，收尾 checkTaskCompletion 全部终态后重新生成报告并复位 task 终态。
+   */
+  async retryAiBidders(projectId: string, bidderResultIds: string[] | undefined, actorId?: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, name: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', message: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'EVALUATING') {
+      throw new BadRequestException({ error: '项目不在评标阶段，无法重试 AI 分析', message: '项目不在评标阶段，无法重试 AI 分析', code: 'PROJECT_NOT_EVALUATING' });
+    }
+    const task = await this.prisma.aiBidAnalysisTask.findUnique({
+      where: { projectId },
+      include: { bidderResults: { include: { bidSupplier: { select: { supplierName: true } } } } },
+    });
+    if (!task) throw new BadRequestException({ error: '未找到 AI 分析任务', message: '未找到 AI 分析任务', code: 'TASK_NOT_FOUND' });
+    if (task.status !== 'ANALYZING' && task.status !== 'COMPLETED_WITH_ERRORS') {
+      throw new ConflictException({ error: `当前任务状态（${task.status}）不支持单家重试`, message: `当前任务状态（${task.status}）不支持单家重试`, code: 'TASK_STATE_NOT_RETRYABLE' });
+    }
+    const nowMs = Date.now();
+    const retryable = task.bidderResults.filter((b) =>
+      b.status === 'FAILED'
+      || (b.status !== 'PENDING' && b.status !== 'COMPLETED' && nowMs - new Date(b.updatedAt).getTime() > AI_STUCK_THRESHOLD_MS),
+    );
+    const targets = bidderResultIds && bidderResultIds.length > 0
+      ? retryable.filter((b) => bidderResultIds.includes(b.id))
+      : retryable;
+    if (targets.length === 0) {
+      throw new BadRequestException({ error: '无可重试的分析项（仅失败或卡住的可重试）', message: '无可重试的分析项（仅失败或卡住的可重试）', code: 'NO_RETRYABLE_BIDDERS' });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.aiBidderResult.updateMany({
+        where: { id: { in: targets.map((t) => t.id) } },
+        data: { status: 'PENDING', processedAt: null },
+      });
+      await tx.aiBidAnalysisTask.update({ where: { id: task.id }, data: { status: 'ANALYZING', completedAt: null } });
+    });
+
+    // 入队（jobId 带时间戳防与等待中的旧 job 冲突；worker 未运行时 job 持久 Redis，恢复后自动消费）
+    if (this.bidderQueue) {
+      for (const t of targets) {
+        await this.bidderQueue.add('process', { bidderResultId: t.id, taskId: task.id }, {
+          jobId: `bidderResult-retry-${t.id}-${Date.now()}`,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: { age: 7 * 24 * 3600 },
+          removeOnFail: { age: 30 * 24 * 3600 },
+        });
+      }
+    } else {
+      this.logger.warn(`bidderQueue unavailable, retried ${targets.length} bidders not enqueued for project ${projectId}`);
+    }
+
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '系统', target: project.name, action: '重试AI辅助分析', result: `${targets.length}家：${targets.map((t) => t.bidSupplier.supplierName).join('、')}`, riskFlag: '无' },
+    }).catch(() => {});
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: { userId: actorId, action: 'BID_AI_RETRY_BIDDERS', resourceType: `BidProject:${projectId}`, details: { bidderResultIds: targets.map((t) => t.id) } },
+      }).catch(() => {});
+    }
+    return { retried: targets.map((t) => ({ id: t.id, name: t.bidSupplier.supplierName })) };
   }
 
   /**
