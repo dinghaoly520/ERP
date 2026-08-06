@@ -78,6 +78,9 @@ model User {
   chatSent     ChatMessage[] @relation("ChatMessageSender")
   chatReceived ChatMessage[] @relation("ChatMessageReceiver")
 
+  // ── 开标主持人指派：被派到的项目（硬分流 R1）──
+  assignedBidProjects  BidProject[] @relation("BidProjectAssignedHost")
+
   @@unique([username, role])
 }
 
@@ -300,6 +303,11 @@ model BidProject {
   leaderCoSignedAt         DateTime? // C2: 末签时间
   evaluationDeadline       DateTime? // E2: 评标截止时间(超时告警)
   isExtractionOnly         Boolean                    @default(false) // 自定义抽取影子项目：仅承载专家抽取/通知/确认，不出现在项目管理列表
+  // ── 开标主持人指派（R1 硬分流）── null = 未指派（:3007 不可见，:3005 公开池）
+  assignedHostUserId        String?
+  assignedAt                DateTime?
+  assignedByUserId          String?    // 操作留痕：指派人 userId
+  assignedHostUser          User?      @relation("BidProjectAssignedHost", fields: [assignedHostUserId], references: [id], onDelete: SetNull)
   suppliers                BidSupplier[]
   openingSession           BidOpeningSession?
   openingRecords           BidOpeningRecord[]
