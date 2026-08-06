@@ -9,6 +9,7 @@ import type { PlannedItem } from "@/components/work-arrangements/task-notificati
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
 import { HistoryDrawer } from "@/components/work-arrangements/history-drawer";
 import { ReminderBanner } from "@/components/work-arrangements/reminder-banner";
+import { ProjectBriefCard } from "@/components/work-arrangements/project-brief-card";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 import { fetchProjectManagementList } from "@/lib/api/project-management";
 import {
@@ -269,6 +270,62 @@ export function WorkArrangementsPage({
   const [overdueTasks, setOverdueTasks] = useState<WorkArrangementItem[]>([]);
   const [isOverview, setIsOverview] = useState(true);
   const [statKey, setStatKey] = useState<WorkbenchStatKey | null>(null);
+
+  // ── 两面板等高水平：每次数据变化时重置 auto 取自然高度，以较矮者为基准 ──
+  const containerRef = useRef<HTMLDivElement>(null);
+  const leftColRef = useRef<HTMLDivElement>(null);
+  const rightColRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const left = leftColRef.current;
+    const right = rightColRef.current;
+    if (!container || !left || !right) return;
+
+    // 延迟一小段等子组件完成渲染布局
+    const timer = setTimeout(() => {
+      // 先解除约束，让两列各自回到自然高度
+      container.style.height = 'auto';
+      // 强制回流，确保 scrollHeight 是自然内容高度
+      void container.offsetHeight;
+
+      const leftH = left.offsetParent ? left.scrollHeight : Infinity;
+      const rightH = right.scrollHeight;
+      // 两列为空时跳过（刚挂载、数据未到）
+      if (leftH === 0 && rightH === 0) return;
+
+      const base = Math.min(leftH, rightH);
+      const rect = container.getBoundingClientRect();
+      const viewMax = window.innerHeight - rect.top - 28;
+      const target = Math.max(160, Math.min(base, viewMax));
+      container.style.height = `${target}px`;
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [allItems, dailyPlan]);
+
+  // 窗口缩放时重置并同步
+  useEffect(() => {
+    const onResize = () => {
+      const container = containerRef.current;
+      const left = leftColRef.current;
+      const right = rightColRef.current;
+      if (!container || !left || !right) return;
+
+      container.style.height = 'auto';
+      void container.offsetHeight;
+      const leftH = left.offsetParent ? left.scrollHeight : Infinity;
+      const rightH = right.scrollHeight;
+      if (leftH === 0 && rightH === 0) return;
+      const base = Math.min(leftH, rightH);
+      const rect = container.getBoundingClientRect();
+      const viewMax = window.innerHeight - rect.top - 28;
+      const target = Math.max(160, Math.min(base, viewMax));
+      container.style.height = `${target}px`;
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const overdueCount = useMemo(
     () => getOverdueTasks(allItems).length,
@@ -917,23 +974,23 @@ export function WorkArrangementsPage({
           </div>
         ) : null}
 
-        <div className="relative flex min-h-0 gap-4 items-start">
-          {/* 左列占位 */}
-          <div className="w-[calc(40%-0.5rem)] shrink-0 hidden xl:block" aria-hidden />
-          {/* 左列 absolute — 高度严格等于右列 */}
-          <div className="absolute left-0 top-0 bottom-0 w-[calc(40%-0.5rem)] hidden xl:block">
+        <div
+          ref={containerRef}
+          className="relative flex gap-4 xl:items-stretch"
+        >
+          {/* 桌面端左列 — 与右列并排，同高 */}
+          <div ref={leftColRef} className="w-[calc(40%-0.5rem)] shrink-0 hidden xl:flex flex-col">
             <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => setShowHistoryDrawer(true)} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
           </div>
-          {/* 移动端左列全宽 */}
+          {/* 移动端左列全宽 — 不参与并排高度约束 */}
           <div className="w-full xl:hidden">
             <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={highlightedTaskIds} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => setShowHistoryDrawer(true)} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
           </div>
-          {/* 右列 — 自然高度 */}
-          <div className="flex-1 min-w-0 flex flex-col gap-4">
+          {/* 右列 — 与左列共享等高约束 */}
+          <div ref={rightColRef} className="flex-1 min-w-0 flex flex-col">
             <TaskNotificationCenter
               dailyPlan={dailyPlan}
               refreshingPlan={refreshingPlan}
-              showProjectBrief={currentUser?.role === 'leader' || currentUser?.role === 'admin'}
               onRefreshPlan={() => void loadDailyPlan()}
               onSelectTimeBlock={(taskIds) => {
                 setHighlightedTaskIds(taskIds);
@@ -944,6 +1001,11 @@ export function WorkArrangementsPage({
             />
           </div>
         </div>
+
+        {/* 项目简报 — 占据完整宽度，位于页面最下方 */}
+        {(currentUser?.role === 'leader' || currentUser?.role === 'admin') && dailyPlan && (
+          <ProjectBriefCard dailyPlan={dailyPlan} />
+        )}
 
         {errorMessage ? (
           <div className="flex items-center justify-between px-4 py-3 text-sm text-[color:var(--danger)]">

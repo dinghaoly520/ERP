@@ -353,9 +353,13 @@ export class ExpertAdminService {
     });
     if (!project) throw new NotFoundException('项目不存在');
 
-    // 供应商名集合（回避校验）
+    // 供应商名集合（回避校验）——仅已确认参与的供应商才需回避，
+    // 未回复/已拒绝的供应商不会参与投标，其关联专家不应被排除
     const supplierNames = new Set(
-      project.suppliers.map(s => s.supplier?.name || s.supplierName).filter(Boolean) as string[],
+      project.suppliers
+        .filter(s => s.confirmStatus === 'CONFIRMED')
+        .map(s => s.supplier?.name || s.supplierName)
+        .filter(Boolean) as string[],
     );
 
     // 合规候选：bid_expert + 可用 + 未分配本项目 + 工作单位不在参与供应商中
@@ -490,12 +494,14 @@ export class ExpertAdminService {
       requiredSpecialties = dto.manualQuotas?.length
         ? dto.manualQuotas.map(q => ({ specialty: q.specialty, count: q.count, reason: q.reason ?? '', employer: q.employer }))
         : this.ruleComposition(candidates, totalNeeded);
-      analysis = `⚠ AI 服务暂不可用（${errMsg.includes('超时') ? '响应超时' : errMsg.includes('503') ? '服务繁忙' : '连接异常'}），已使用规则引擎按履职等级、偏离度、职称与负荷综合评分${extractMode === 'merit_best' ? '择优' : '随机'}组建。请稍后重试以获取 AI 分析。`;
+      const isTimeout = errMsg.includes('超时') || errMsg.includes('timed out');
+      const is503 = errMsg.includes('503') || errMsg.includes('Service Unavailable');
+      analysis = `⚠ AI 服务暂不可用（${isTimeout ? '响应超时' : is503 ? '服务繁忙' : '连接异常'}），已使用规则引擎按履职等级、职称与负荷综合评分${extractMode === 'merit_best' ? '择优' : '随机'}组建。请稍后重试以获取 AI 分析。`;
       for (const c of candidates) {
         scoreMap.set(c.id, {
           matchScore: this.extendedRuleScore(c),
           fitSpecialty: c.specialty,
-          reason: `${c.title || ''}，履职等级 ${c.evaluationLevel ?? '—'}、偏离 ${c.scoreDeviation != null ? (c.scoreDeviation > 0 ? '+' : '') + c.scoreDeviation : '—'}、负荷 ${c.currentLoadStatus || '-'}。`,
+          reason: `${c.title || ''}，履职等级 ${c.evaluationLevel ?? '—'}、负荷 ${c.currentLoadStatus || '-'}。`,
         });
       }
     }
@@ -505,7 +511,7 @@ export class ExpertAdminService {
         scoreMap.set(c.id, {
           matchScore: extractMode === 'merit_best' ? this.extendedRuleScore(c) : 50,
           fitSpecialty: c.specialty,
-          reason: `${c.title || ''}，履职等级 ${c.evaluationLevel ?? '—'}、偏离 ${c.scoreDeviation != null ? (c.scoreDeviation > 0 ? '+' : '') + c.scoreDeviation : '—'}、负荷 ${c.currentLoadStatus || '-'}。`,
+          reason: `${c.title || ''}，履职等级 ${c.evaluationLevel ?? '—'}、负荷 ${c.currentLoadStatus || '-'}。`,
         });
       }
     }
@@ -563,6 +569,8 @@ export class ExpertAdminService {
     }
 
     // 部门限定配额抽取（需求方代表）：按工作单位匹配部门，专业可选作附加过滤
+    // 记录每笔部门配额抽取出的专家实际专业，供 requiredSpecialties 显示「专业·需求方代表」
+    const employerDrawnSpecs = new Map<string, string[]>();
     for (const q of employerQuotas) {
       const emp = q.employer!.trim();
       const specFilter = (q.specialty || '').trim();
@@ -580,7 +588,9 @@ export class ExpertAdminService {
       if (pool.length === 0) shortages.push({ specialty: label, needed: q.count, available: 0 });
       else if (pool.length < q.count) shortages.push({ specialty: label, needed: q.count, available: pool.length });
       const drawn = this.drawByMode(pool, Math.min(q.count, pool.length), extractMode, scoreMap);
-      for (const c of drawn) { usedIds.add(c.id); selected.push(this.toSelection(c, specFilter || '需求方代表', '正选', scoreMap)); }
+      const drawnSpecs = drawn.map(c => c.specialty);
+      employerDrawnSpecs.set(emp, drawnSpecs);
+      for (const c of drawn) { usedIds.add(c.id); selected.push(this.toSelection(c, specFilter || c.specialty, '正选', scoreMap)); }
     }
 
     // 候补：每个专业配额各抽 1 位候补（放宽到全部候选含 D/E，作后备用）
@@ -605,7 +615,12 @@ export class ExpertAdminService {
       analysis,
       requiredSpecialties: [
         ...quotas,
-        ...employerQuotas.map(q => ({ ...q, specialty: (q.specialty || '').trim() || `${q.employer}·需求方代表`, reason: q.reason || `需求方代表：从「${q.employer}」抽取` })),
+        ...employerQuotas.map(q => {
+          const filterSpec = (q.specialty || '').trim();
+          const drawnSpecs = employerDrawnSpecs.get(q.employer!.trim()) || [];
+          const specLabel = filterSpec || (drawnSpecs.length > 0 ? [...new Set(drawnSpecs)].join('、') + '·需求方代表' : '需求方代表');
+          return { ...q, specialty: specLabel, reason: q.reason || `需求方代表：从「${q.employer}」抽取` };
+        }),
       ],
       eligiblePool: eligible.length,
       candidatePool: candidates.map(c => ({
@@ -646,9 +661,13 @@ export class ExpertAdminService {
     if (!project) throw new NotFoundException('项目不存在');
     if (!dto.experts?.length && !dto.candidates?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
 
-    // 供应商名集合（回避校验）
+    // 供应商名集合（回避校验）——仅已确认参与的供应商才需回避，
+    // 未回复/已拒绝的供应商不会参与投标，其关联专家不应被排除
     const supplierNames = new Set(
-      project.suppliers.map(s => s.supplier?.name || s.supplierName).filter(Boolean) as string[],
+      project.suppliers
+        .filter(s => s.confirmStatus === 'CONFIRMED')
+        .map(s => s.supplier?.name || s.supplierName)
+        .filter(Boolean) as string[],
     );
 
     await this.prisma.$transaction(async (tx) => {
@@ -687,7 +706,10 @@ export class ExpertAdminService {
           create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending' },
         });
       }
-      // 候补专家创建为 expertRole=候补
+      // 候补专家：先清除旧候补记录（避免重复操作导致候补堆积），再写入新一批
+      if (dto.candidates?.length) {
+        await tx.bidExpert.deleteMany({ where: { projectId, expertRole: '候补' } });
+      }
       for (const c of dto.candidates ?? []) {
         await tx.bidExpert.upsert({
           where: { projectId_userId: { projectId, userId: c.userId } },
@@ -713,6 +735,87 @@ export class ExpertAdminService {
     });
 
     return { success: true, count: (dto.experts?.length ?? 0) + (dto.candidates?.length ?? 0), expertIds: (dto.experts ?? []).map(e => e.userId) };
+  }
+
+  /** AI 选定评审组长：综合职称、专业、单位等，LLM 给出推荐 */
+  async aiSelectLeader(projectId: string) {
+    const experts = await this.prisma.bidExpert.findMany({
+      where: { projectId, expertRole: '正选', invitationStatus: 'confirmed' },
+      include: { user: { select: { expertProfile: { select: { title: true, employer: true, education: true } } } } },
+    });
+    if (experts.length === 0) throw new BadRequestException('暂无已确认参加的专家');
+
+    // 构建专家摘要送 LLM
+    const lines = experts.map((e, i) => {
+      const p = e.user?.expertProfile;
+      return `e${i} | ${e.expertName} | 专业:${e.major} | ${p?.title || '—'} | 学历:${p?.education || '—'} | ${p?.employer || '—'}`;
+    }).join('\n');
+
+    const system = [
+      '你是评标组长选定助手。根据专家的职称、学历、专业、工作单位等维度，',
+      '推荐最合适的评审组长（通常选职称最高、学历最高、综合资历最深的专家）。',
+      '只输出 JSON：{"leaderId":"e0","reason":"≤40字说明为什么推荐此人"}',
+    ].join('');
+    const userPrompt = `已确认参加的专家：\n${lines}`;
+
+    let leaderId: string | null = null;
+    let reason = '';
+    try {
+      const raw = await this.llm.chat(system, userPrompt, 0.2, undefined, undefined, { timeoutMs: 15_000, retries: 1 });
+      const json = raw?.match(/\{[\s\S]*\}/);
+      if (json) {
+        const parsed = JSON.parse(json[0]);
+        const idx = String(parsed.leaderId || '').match(/\d+/)?.[0];
+        if (idx != null && +idx < experts.length) { leaderId = experts[+idx].userId; reason = String(parsed.reason || '').slice(0, 80); }
+      }
+    } catch {
+      // AI 不可用 → 规则兜底
+      const titleRank = (t?: string | null) => /正高|研究员/.test(t || '') ? 4 : /高级|副高/.test(t || '') ? 3 : /中级|工程师/.test(t || '') ? 2 : 1;
+      const eduRank = (e?: string | null) => /博士/.test(e || '') ? 4 : /硕士/.test(e || '') ? 3 : /本科/.test(e || '') ? 2 : 1;
+      let best = experts[0]; let bestScore = -1;
+      for (const e of experts) {
+        const p = e.user?.expertProfile;
+        const score = titleRank(p?.title) * 10 + eduRank(p?.education);
+        if (score > bestScore) { bestScore = score; best = e; }
+      }
+      leaderId = best.userId; reason = `规则推荐：${best.expertName}（${best.user?.expertProfile?.title || '—'}、${best.user?.expertProfile?.education || '—'}）`;
+    }
+
+    if (!leaderId) throw new Error('AI 未能选出组长，请手动切换');
+
+    // 写入 DB
+    await this.prisma.$transaction([
+      this.prisma.bidExpert.updateMany({ where: { projectId, isLead: true }, data: { isLead: false } }),
+      this.prisma.bidExpert.update({ where: { projectId_userId: { projectId, userId: leaderId } }, data: { isLead: true } }),
+    ]);
+
+    const expert = experts.find(e => e.userId === leaderId);
+    return { leaderId, leaderName: expert?.expertName ?? '', reason };
+  }
+
+  /** 设置/切换评审组长：取消旧组长，设置新组长 */
+  async setLeader(projectId: string, userId: string) {
+    // 校验目标专家存在于该项目
+    const target = await this.prisma.bidExpert.findUnique({
+      where: { projectId_userId: { projectId, userId } },
+    });
+    if (!target) throw new NotFoundException('该专家不属于本项目');
+    if (target.expertRole !== '正选') throw new BadRequestException('仅正选专家可设为组长');
+
+    await this.prisma.$transaction([
+      // 取消所有现有组长
+      this.prisma.bidExpert.updateMany({
+        where: { projectId, isLead: true },
+        data: { isLead: false },
+      }),
+      // 设置新组长
+      this.prisma.bidExpert.update({
+        where: { projectId_userId: { projectId, userId } },
+        data: { isLead: true },
+      }),
+    ]);
+
+    return { success: true, leaderId: userId };
   }
 
   /** 查询项目专家邀请状态（正选+候补） */
@@ -766,7 +869,10 @@ export class ExpertAdminService {
       include: { suppliers: { include: { supplier: { select: { name: true } } } } },
     });
     const supplierNames = new Set(
-      (project?.suppliers ?? []).map(s => s.supplier?.name || s.supplierName).filter(Boolean) as string[],
+      (project?.suppliers ?? [])
+        .filter(s => s.confirmStatus === 'CONFIRMED')
+        .map(s => s.supplier?.name || s.supplierName)
+        .filter(Boolean) as string[],
     );
 
     // 候补候选：已确认(confirmed)与待确认(pending)都纳入，优先从已确认者中递补（他们已同意参加）

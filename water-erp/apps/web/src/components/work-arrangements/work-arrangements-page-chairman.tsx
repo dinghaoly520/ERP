@@ -5,6 +5,7 @@ import { WorkbenchOverview } from "@/components/work-arrangements/workbench-over
 import { SchedulePanel } from "@/components/work-arrangements/schedule-panel";
 import { TaskDetailModal } from "@/components/work-arrangements/task-detail-modal";
 import { AiAssistPanel } from "@/components/work-arrangements/ai-assist-panel";
+import { ProjectBriefCard } from "@/components/work-arrangements/project-brief-card";
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
 import { fetchProjectManagementList } from "@/lib/api/project-management";
@@ -462,9 +463,14 @@ export function WorkArrangementsPageChairman({
           <SchedulePanel selectedDate={selectedDate} items={allItems} tasksForSelectedDate={displayTasks} unscheduledItems={unscheduledItems} selectedItemId={selectedItemId} highlightedTaskIds={[]} overdueCount={overdueCount} isOverview={isOverview} onDateSelect={handleDateSelect} onSelectTask={handleSelectTask} onCreateNew={handleCreateNew} onShowHistory={() => {}} onShowOverdue={handleShowOverdue} onToggleOverview={handleToggleOverview}/>
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-4">
-          <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={true} showProjectBrief={true} onSelectTimeBlock={() => {}} onRefreshPlan={handleRefreshPlan} />
+          <AiAssistPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} isChairman={true} onSelectTimeBlock={() => {}} onRefreshPlan={handleRefreshPlan} />
         </div>
       </div>
+
+      {/* 项目简报 — 占据完整宽度，位于页面最下方 */}
+      {dailyPlan && (
+        <ProjectBriefCard dailyPlan={dailyPlan} />
+      )}
 
       {errorMessage && (
         <div className="fixed bottom-6 right-6 z-50 rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">

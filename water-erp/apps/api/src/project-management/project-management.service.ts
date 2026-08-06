@@ -671,14 +671,17 @@ export class ProjectManagementService {
       return project;
     });
 
-    // Trigger analysis for the initiation stage (non-blocking)
-    try {
-      await this.refreshProjectAnalysis(createdProject.id);
-    } catch {
+    // Trigger analysis for the initiation stage (fire-and-forget) — must NOT be
+    // awaited: refreshProjectAnalysis can take minutes (PDF parse + LLM), and
+    // blocking here makes the create endpoint appear to hang, which tempts the
+    // user to resubmit. The resubmit reuses the same demand/initiation
+    // objectKey and trips the Attachment unique constraint → 500 → confusing
+    // "登录失败" dialog even though the first transaction committed.
+    void this.refreshProjectAnalysis(createdProject.id).catch(() => {
       this.logger.warn(
         `Project ${createdProject.id} created but analysis failed; it will be retried later.`,
       );
-    }
+    });
 
     return createdProject;
   }

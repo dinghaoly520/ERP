@@ -277,14 +277,13 @@ function NotificationRow({
 interface TaskNotificationCenterProps {
   dailyPlan: WorkArrangementDailyPlan | null;
   refreshingPlan: boolean;
-  showProjectBrief?: boolean;
   onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
   onAddToCalendar: (items: PlannedItem[]) => void;
 }
 
 export function TaskNotificationCenter({
-  dailyPlan, refreshingPlan, showProjectBrief = false,
+  dailyPlan, refreshingPlan,
   onRefreshPlan, onSelectTimeBlock, onAddToCalendar,
 }: TaskNotificationCenterProps) {
   const router = useRouter();
@@ -315,7 +314,7 @@ export function TaskNotificationCenter({
 
   return (
     <>
-      <section className="wb-panel">
+      <section className="wb-panel flex-1">
         <div className="wb-panel-header flex items-center justify-between">
           <span className="text-[15px] font-bold text-[#18243a]">任务通知</span>
           {allItems.length > 0 && (
@@ -330,7 +329,7 @@ export function TaskNotificationCenter({
             暂无通知
           </div>
         ) : (
-          <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col min-h-0 overflow-y-auto">
             {shownGroups.map((g) =>
               g.kind === 'single' ? (
                 <NotificationRow key={g.key} item={g.item} onClick={() => handleNotificationClick(g.item, router)} />
@@ -358,7 +357,6 @@ export function TaskNotificationCenter({
         <div className="wb-panel-body">
           <AiPlanningPanel
             dailyPlan={dailyPlan} refreshingPlan={refreshingPlan}
-            showProjectBrief={showProjectBrief}
             onRefreshPlan={() => onRefreshPlan()}
             onSelectTimeBlock={onSelectTimeBlock}
           />

@@ -65,10 +65,11 @@ export function WorkDateTaskList({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto pr-1 space-y-3">
         {items.length > 0 ? (
-          items.map(item => (
+          items.map((item, idx) => (
             <TaskCard
               key={item.id}
               item={item}
+              index={idx + 1}
               selected={item.id === selectedItemId}
               highlighted={highlightedTaskIds.includes(item.id)}
               onSelect={() => onSelectTask(item.id)}
@@ -89,10 +90,11 @@ export function WorkDateTaskList({
               </span>
               <div className="h-px flex-1 bg-gray-200" />
             </div>
-            {unscheduledItems.map(item => (
+            {unscheduledItems.map((item, idx) => (
               <TaskCard
                 key={item.id}
                 item={item}
+                index={items.length + idx + 1}
                 selected={item.id === selectedItemId}
                 highlighted={highlightedTaskIds.includes(item.id)}
                 onSelect={() => onSelectTask(item.id)}
@@ -107,11 +109,13 @@ export function WorkDateTaskList({
 
 function TaskCard({
   item,
+  index,
   selected,
   highlighted,
   onSelect,
 }: {
   item: WorkArrangementItem;
+  index: number;
   selected: boolean;
   highlighted: boolean;
   onSelect: () => void;
@@ -177,6 +181,14 @@ function TaskCard({
         <div>截止：{formatDateTimeLabel(item.dueAt)}</div>
         <div>提醒：{formatDateTimeLabel(item.reminderAt)}</div>
       </div>
+
+      {/* 右下角序号 */}
+      <span
+        className="absolute bottom-3 right-3 flex h-5 w-5 items-center justify-center rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[10px] font-bold tabular-nums text-[color:var(--accent)]"
+        aria-hidden="true"
+      >
+        {index}
+      </span>
     </button>
   );
 }

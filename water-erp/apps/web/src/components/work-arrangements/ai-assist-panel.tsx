@@ -2,11 +2,10 @@
 
 import { RefreshCw } from 'lucide-react';
 import { WorkbenchPlanningPanel } from '@/components/work-arrangements/workbench-planning-panel';
-import { ProjectBriefCard } from '@/components/work-arrangements/project-brief-card';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 
-export function AiAssistPanel({ dailyPlan, refreshingPlan, isChairman, showProjectBrief, onSelectTimeBlock, onRefreshPlan }: {
-  dailyPlan: WorkArrangementDailyPlan|null; refreshingPlan: boolean; isChairman: boolean; showProjectBrief: boolean;
+export function AiAssistPanel({ dailyPlan, refreshingPlan, isChairman, onSelectTimeBlock, onRefreshPlan }: {
+  dailyPlan: WorkArrangementDailyPlan|null; refreshingPlan: boolean; isChairman: boolean;
   onSelectTimeBlock:(ids:string[])=>void; onRefreshPlan:()=>void;
 }) {
   return (
@@ -21,7 +20,6 @@ export function AiAssistPanel({ dailyPlan, refreshingPlan, isChairman, showProje
       </div>
       <div className="wb-panel-body">
         <WorkbenchPlanningPanel dailyPlan={dailyPlan} refreshingPlan={refreshingPlan} onSelectTimeBlock={onSelectTimeBlock} onRefreshPlan={onRefreshPlan} showAiScheduling={!isChairman} isChairman={isChairman}/>
-        {showProjectBrief && dailyPlan ? <div className="mt-4"><ProjectBriefCard dailyPlan={dailyPlan}/></div> : null}
       </div>
     </section>
   );

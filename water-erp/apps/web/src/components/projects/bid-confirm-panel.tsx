@@ -569,9 +569,10 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   <EmptyHint text="尚未组建专家组。请先在「专家抽取」步骤完成抽取并通知。" />
                 ) : (
                   (() => {
-                    // 正选（排除已拒绝）+ 候补（全部展示）。已拒绝的正选不显示，候补始终显示供替换选择。
+                    // 正选（排除已拒绝）+ 候补（排除已拒绝的，其余展示）
+                    // 候补在 DB 中 invitationStatus 默认为 pending（不要求 RSVP 确认），有记录即已选定
                     const activeExperts = workspace.experts.filter(
-                      e => (e.expertRole === '候补') || (e.expertRole !== '候补' && e.invitationStatus !== 'declined'),
+                      e => e.invitationStatus !== 'declined',
                     );
                     const hasAlts = workspace.experts.some(x => x.expertRole === '候补');
                     if (activeExperts.length === 0) {

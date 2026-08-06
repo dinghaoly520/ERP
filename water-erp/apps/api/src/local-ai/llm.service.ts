@@ -3,6 +3,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import * as https from 'https';
 import { ConfigService } from '@nestjs/config';
 
 /**
@@ -333,6 +334,53 @@ export class LlmService {
     return this.retryBaseMs * 2 ** (attempt - 1) + Math.random() * this.retryBaseMs;
   }
 
+  /** 使用 Node 原生 https 模块直连（绕过 undici IPv6 超时问题） */
+  private deepseekRequest(
+    baseUrl: string,
+    apiKey: string,
+    body: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<{ ok: boolean; status: number; content: string; errorText: string; retryAfter: string | null }> {
+    return new Promise((resolve, reject) => {
+      const url = new URL(`${baseUrl}/chat/completions`);
+      const payload = JSON.stringify(body);
+      const req = https.request({
+        hostname: url.hostname,
+        port: 443,
+        path: url.pathname + url.search,
+        method: 'POST',
+        family: 4, // 强制 IPv4，绕过 undici/IPv6 DNS 超时
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Length': Buffer.byteLength(payload),
+        },
+        timeout: 0, // 由外部 AbortController 控制超时
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('end', () => resolve({
+          ok: res.statusCode != null && res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode ?? 0,
+          content: (() => { try { return JSON.parse(data).choices?.[0]?.message?.content ?? ''; } catch { return ''; } })(),
+          errorText: data,
+          retryAfter: res.headers['retry-after'] ?? null,
+        }));
+      });
+      req.on('error', (err) => {
+        if ((err as NodeJS.ErrnoException).code === 'ECONNRESET' && signal?.aborted) return;
+        reject(err);
+      });
+      req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
+      if (signal) {
+        signal.addEventListener('abort', () => { req.destroy(); }, { once: true });
+        if (signal.aborted) { req.destroy(); return; }
+      }
+      req.write(payload);
+      req.end();
+    });
+  }
+
   /** 单次 HTTP 请求（无重试）；超时/网络错误标记 retryable，调用方 abort 原样上抛 */
   private async requestOnce(p: {
     messages: ChatMessage[];
@@ -361,36 +409,26 @@ export class LlmService {
     p.signal?.addEventListener('abort', onCallerAbort, { once: true });
 
     try {
-      const response = await fetch(`${provider.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${provider.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: p.model ?? provider.model,
-          temperature: p.temperature,
-          max_tokens: p.maxTokens,
-          ...(p.responseFormat ? { response_format: p.responseFormat } : {}),
-          ...(p.seed != null ? { seed: p.seed } : {}),
-          messages: p.messages,
-        }),
-        signal: controller.signal,
-      });
+      const response = await this.deepseekRequest(provider.baseUrl, provider.apiKey, {
+        model: p.model ?? provider.model,
+        temperature: p.temperature,
+        max_tokens: p.maxTokens,
+        ...(p.responseFormat ? { response_format: p.responseFormat } : {}),
+        ...(p.seed != null ? { seed: p.seed } : {}),
+        messages: p.messages,
+      }, controller.signal);
 
       if (!response.ok) {
-        const errorText = await response.text();
         throw new LlmHttpError(
           response.status,
-          errorText,
+          response.errorText,
           response.status === 429 || response.status >= 500
-            ? parseRetryAfter(response.headers.get('retry-after'))
+            ? parseRetryAfter(response.retryAfter)
             : undefined,
         );
       }
 
-      const data = await response.json();
-      return data.choices?.[0]?.message?.content ?? '';
+      return response.content;
     } catch (err) {
       if (err instanceof LlmHttpError) throw err;
       // 调用方主动取消：原样上抛（不重试）

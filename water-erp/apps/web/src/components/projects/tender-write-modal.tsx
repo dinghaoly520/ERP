@@ -77,9 +77,11 @@ type Props = {
   project: ProjectManagementItem | null;
   /** 文件上传至项目阶段成功后回调，供父面板即时刷新附件列表（无需手动刷新页面） */
   onAttachmentUploaded?: (result: UploadStageAttachmentResult) => void;
+  /** 导出上传完成后回调，供父面板刷新项目基本信息（projectOverview/documentAcquireTime 等） */
+  onUpdated?: () => Promise<void> | void;
 };
 
-export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTitle, project, onAttachmentUploaded }: Props) {
+export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTitle, project, onAttachmentUploaded, onUpdated }: Props) {
   const [exporting, setExporting] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -370,6 +372,9 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           try { await updateProjectExtractedInfo(project.id, infoUpdate as any); } catch { /* 同步失败不阻塞 */ }
         }
+        // 刷新父组件项目数据，使基本信息中刚写入的 projectOverview / documentAcquireTime
+        // / evaluationMethod 等字段即时显示，避免必须手动刷新页面。
+        try { await onUpdated?.(); } catch { /* 刷新失败不阻塞导出 */ }
         toast.success('采购文件已上传至项目采购文件阶段');
       } catch {
         // 上传失败不阻塞导出
@@ -380,7 +385,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       setExporting(false);
       setShowExportDialog(false);
     }
-  }, [selectedType, currentDraft, project, onAttachmentUploaded]);
+  }, [selectedType, currentDraft, project, onAttachmentUploaded, onUpdated]);
 
   /** 导出并导入审查：生成 DOCX → 上传审查服务 → 启动审查 → 打开审查窗口。 */
   const handleExportAndReview = useCallback(async () => {

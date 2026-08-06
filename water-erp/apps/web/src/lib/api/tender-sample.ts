@@ -104,7 +104,21 @@ export async function generateFieldContent(payload: {
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error('AI 生成失败，请稍后重试');
+    // 把服务端真实错误透传出来，避免永远显示笼统的"AI 生成失败"
+    // 让用户/开发者能区分 DeepSeek 限流、超时、JSON 解析失败等不同原因
+    let detail = '';
+    try {
+      const body = await response.json();
+      detail = Array.isArray(body?.message) ? body.message[0] : body?.message ?? '';
+    } catch {
+      try {
+        detail = (await response.text()).trim();
+      } catch {
+        /* ignore */
+      }
+    }
+    const suffix = detail ? `（${detail.slice(0, 120)}）` : '';
+    throw new Error(`AI 生成失败，请稍后重试${suffix}`);
   }
   return response.json();
 }

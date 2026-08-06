@@ -9,7 +9,6 @@ import {
   Lightbulb,
 } from 'lucide-react';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
-import { ProjectBriefCard } from '@/components/work-arrangements/project-brief-card';
 
 function formatTimeSlot(raw: string): string {
   if (!raw) return '--:--';
@@ -23,7 +22,6 @@ function formatTimeSlot(raw: string): string {
 interface AiPlanningPanelProps {
   dailyPlan: WorkArrangementDailyPlan | null;
   refreshingPlan: boolean;
-  showProjectBrief?: boolean;
   onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
 }
@@ -32,7 +30,6 @@ interface AiPlanningPanelProps {
 export function AiPlanningPanel({
   dailyPlan,
   refreshingPlan,
-  showProjectBrief = false,
   onRefreshPlan,
   onSelectTimeBlock,
 }: AiPlanningPanelProps) {
@@ -223,13 +220,6 @@ export function AiPlanningPanel({
               </div>
             </>
           )}
-
-          {/* Section 3: 项目简报 */}
-          {showProjectBrief && dailyPlan ? (
-            <div className="mt-4">
-              <ProjectBriefCard dailyPlan={dailyPlan} />
-            </div>
-          ) : null}
         </>
       ) : (
         <div className="py-8 text-center text-sm text-[color:var(--muted-foreground)]">

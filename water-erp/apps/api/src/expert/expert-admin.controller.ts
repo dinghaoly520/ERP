@@ -86,6 +86,18 @@ export class ExpertAdminController {
     return this.expertAdminService.confirmExtraction(dto.projectId, dto, req.user?.sub);
   }
 
+  @Patch('extract/leader')
+  @ApiOperation({ summary: '设置/切换评审组长（取消旧组长 isLead，设置新组长）' })
+  setLeader(@Body() dto: { projectId: string; userId: string }) {
+    return this.expertAdminService.setLeader(dto.projectId, dto.userId);
+  }
+
+  @Post('extract/ai-leader')
+  @ApiOperation({ summary: 'AI 选定评审组长（综合职称/经验/偏离度等推荐）' })
+  aiSelectLeader(@Body() dto: { projectId: string }) {
+    return this.expertAdminService.aiSelectLeader(dto.projectId);
+  }
+
   @Post('extract/notify')
   @ApiOperation({ summary: '抽取确认后发送通知（OA/短信/电话多渠道）' })
   sendExtractionNotify(@Body() dto: ExtractionNotifyDto) {

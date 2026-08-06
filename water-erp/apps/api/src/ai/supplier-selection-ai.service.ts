@@ -93,8 +93,8 @@ export class SupplierSelectionAiService {
         undefined,
         {
           model: this.config.get<string>('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
-          maxTokens: 8000, // 推理模型先输出 reasoning_content 再输出 content；40-80 家候选需充足 token
-          timeoutMs: 90_000,
+          maxTokens: 16000, // 候选池 110 家时 prompt 很长，需充足 token 预算保证 JSON 完整输出
+          timeoutMs: 180_000, // 候选池大时 LLM 处理耗时更长，默认 90s 容易超时降级
         },
       );
 

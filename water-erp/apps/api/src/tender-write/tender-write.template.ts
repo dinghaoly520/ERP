@@ -1182,11 +1182,12 @@ function mergeSplitPlaceholders(xml: string): string {
 
   while ((paragraphMatch = paragraphPattern.exec(result)) !== null) {
     const paragraph = paragraphMatch[0];
-    if (!paragraph.includes('{{')) {
+    // 跳过不含 { 的段落。{{ 可能被 Word 拆成 { + { 跨 <w:r>
+    if (!paragraph.includes('{')) {
       continue;
     }
 
-    const runs = Array.from(
+    let runs = Array.from(
       paragraph.matchAll(/<w:r(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g),
     ).map((match: RegExpMatchArray) => ({
       start: match.index ?? 0,
@@ -1199,6 +1200,50 @@ function mergeSplitPlaceholders(xml: string): string {
 
     let changed = false;
     let nextParagraph = paragraph;
+
+    // ── Pre-pass: 合并被 Word 拆开的 { + { → {{ 和 } + } → }} ──
+    const preReplacements: { start: number; end: number; xml: string }[] = [];
+    for (let i = 0; i < runs.length - 1; i++) {
+      if ((runs[i].xml.match(/<w:t[^>]*>/g) ?? []).length !== 1) continue;
+      if ((runs[i + 1].xml.match(/<w:t[^>]*>/g) ?? []).length !== 1) continue;
+
+      if (runs[i].text === '{' && runs[i + 1].text === '{') {
+        const rPrMatch = runs[i].xml.match(/<w:rPr[^>]*>[\s\S]*?<\/w:rPr>/);
+        const rPr = rPrMatch ? rPrMatch[0] : '';
+        const merged = rPr
+          ? `<w:r>${rPr}<w:t xml:space="preserve">{{</w:t></w:r>`
+          : `<w:r><w:t xml:space="preserve">{{</w:t></w:r>`;
+        preReplacements.push({ start: runs[i].start, end: runs[i + 1].end, xml: merged });
+        i++;
+      } else if (runs[i].text === '}' && runs[i + 1].text === '}') {
+        const rPrMatch = runs[i].xml.match(/<w:rPr[^>]*>[\s\S]*?<\/w:rPr>/);
+        const rPr = rPrMatch ? rPrMatch[0] : '';
+        const merged = rPr
+          ? `<w:r>${rPr}<w:t xml:space="preserve">}}</w:t></w:r>`
+          : `<w:r><w:t xml:space="preserve">}}</w:t></w:r>`;
+        preReplacements.push({ start: runs[i].start, end: runs[i + 1].end, xml: merged });
+        i++;
+      }
+    }
+    if (preReplacements.length > 0) {
+      for (let i = preReplacements.length - 1; i >= 0; i--) {
+        const r = preReplacements[i];
+        nextParagraph =
+          nextParagraph.substring(0, r.start) + r.xml + nextParagraph.substring(r.end);
+      }
+      changed = true;
+      runs = Array.from(
+        nextParagraph.matchAll(/<w:r(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g),
+      ).map((match: RegExpMatchArray) => ({
+        start: match.index ?? 0,
+        end: (match.index ?? 0) + match[0].length,
+        xml: match[0],
+        text: Array.from(match[0].matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g))
+          .map((textMatch: RegExpMatchArray) => textMatch[1])
+          .join(''),
+      }));
+    }
+
     const runReplacements: { start: number; end: number; xml: string }[] = [];
 
     for (let runIndex = 0; runIndex < runs.length; runIndex++) {

@@ -3,11 +3,10 @@
 import { useEffect, useState, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prersvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prersvpLinks, getExtractionHistory, listSpecialties, listExperts, getBidProjectDetail, generateNotification, getProjectInvitations, confirmInvitation, declineInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type CandidatePoolItem, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis } from '@/lib/api/expert';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { StepTrack } from '@/components/step-track';
-import { STAGE_LABEL } from '@water-erp/shared';
 import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send } from 'lucide-react';
 
 
@@ -90,7 +89,7 @@ export function ExpertExtractPage({
   // 需求方代表配置
   const [needDemandRep, setNeedDemandRep] = useState(false);
   const [demandRepMode, setDemandRepMode] = useState<'designated' | 'department' | null>(null);
-  const [demandRepPersons, setDemandRepPersons] = useState<{ userId: string; name: string; specialty: string }[]>([]);
+  const [demandRepPersons, setDemandRepPersons] = useState<{ userId: string; name: string; specialty: string; title?: string | null; employer?: string | null; reason?: string; evaluationLevel?: string }[]>([]);
   const [demandRepCount, setDemandRepCount] = useState(1); // 需求方代表人数（>100万可选 1 或 2；≤100万固定 1）
   const [demandRepDept, setDemandRepDept] = useState('');
   const [demandRepDeptSpecialty, setDemandRepDeptSpecialty] = useState('');
@@ -127,6 +126,12 @@ export function ExpertExtractPage({
   const [notifyExpertList, setNotifyExpertList] = useState<ExtractionSelected[]>([]);
   // 候补专家通知状态
   const [candidateNotifiedIds, setCandidateNotifiedIds] = useState<string[]>([]);
+  // 工作人员代为操作的专家 userId 集合（确认参加/无法参加）
+  const [staffActionIds, setStaffActionIds] = useState<Set<string>>(new Set());
+  // 步骤5 组长选定/切换（从 DB isLead 恢复，关闭页面重进不丢失）
+  const [step5LeaderId, setStep5LeaderId] = useState<string | null>(null);
+  const [selectingLeader, setSelectingLeader] = useState(false);
+  const [aiSelectingLeader, setAiSelectingLeader] = useState(false);
   // 预排除专家（随机抽取 / 综合择优模式下可用）
   const [excludedExpertIds, setExcludedExpertIds] = useState<string[]>([]);
   const [excludedExpertMap, setExcludedExpertMap] = useState<Map<string, { name: string; specialty: string }>>(new Map());
@@ -147,6 +152,13 @@ export function ExpertExtractPage({
   const [retrospect, setRetrospect] = useState<{ loading: boolean; data: Awaited<ReturnType<typeof retrospectExtraction>> | null } | null>(null);
   // 专家确认状态
   const [invitationData, setInvitationData] = useState<Awaited<ReturnType<typeof getProjectInvitations>> | null>(null);
+  // 从 DB isLead 恢复组长状态（关闭页面重进时不丢失）
+  useEffect(() => {
+    const leadExpert = invitationData?.experts.find(e => e.isLead);
+    if (leadExpert) {
+      setStep5LeaderId(prev => prev ?? leadExpert.userId);
+    }
+  }, [invitationData]);
   // 自定义项目（文件上传 + AI 分析 + 影子项目）
   const [projectSource, setProjectSource] = useState<'existing' | 'custom'>('existing');
   const [customFiles, setCustomFiles] = useState<{ id: string; name: string; size: number }[]>([]);
@@ -165,6 +177,8 @@ export function ExpertExtractPage({
   const originalConfirmedIdsRef = useRef<Set<string>>(new Set());
   // 上次补选用户确认的专业配额（跳过 configuring 直接抽取，直到该专业池空）
   const lastReQuotasRef = useRef<{ specialty: string; count: number }[]>([]);
+  // AI 配额缓存：按可分配席位数 key，记录已生成的配额结果（切回同一席位数时直接恢复，不走 AI）
+  const quotaCacheRef = useRef<Map<number, SpecialtyQuota[]>>(new Map());
   // 由调用方传入的 defaultPid 在一次匹配成功后标记为已消费，避免后续 deps 变化重复触发
   const defaultPidAppliedRef = useRef(false);
   // 会话恢复标记：本次 pid 由 localStorage 恢复写入时记录，[pid] effect 对该 pid 跳过一次重置
@@ -218,6 +232,94 @@ export function ExpertExtractPage({
     return () => clearInterval(timer);
   }, [step, pid, reDraft]);
 
+  // ── modal 模式状态恢复 ──
+  // 两个独立 effect，不互等，消除 localStorage ↔ invitationData 加载竞态：
+  //   ① pid 就绪后立即查 localStorage（上次抽取状态）→ 成功则恢复
+  //   ② 仅当 localStorage 无数据时，从 invitationData 还原已有分配专家
+
+  // ① modal 模式 localStorage 恢复（pid 就绪即触发，不依赖 invitationData）
+  const lskeyForPid = `${storageKey}-${pid}`;
+  const modalLocalRestoredRef = useRef(false);
+  useEffect(() => {
+    if (defaultPid === undefined) return; // standalone 页面走自己的 localStorage
+    if (!pid || modalLocalRestoredRef.current) return;
+    // 等一步：pid 刚 setState，React 可能还没 re-render 到 invitationData 加载
+    // 但 localStorage 读是同步的，直接读即可
+    try {
+      const raw = localStorage.getItem(lskeyForPid);
+      if (!raw) return; // 无 localStorage → 留给 invitationData fallback
+      const snap = JSON.parse(raw);
+      if (snap.pid !== pid || !snap.preview) return;
+      modalLocalRestoredRef.current = true;
+      if (snap.extractMode) setExtractMode(snap.extractMode);
+      if (snap.quotas?.length) setQuotas(snap.quotas);
+      if (snap.selectedExperts?.length) {
+        // 分离需求方代表：旧快照不含 demandRepPersons，需求方代表混在 selectedExperts 中
+        const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表');
+        const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
+        if (drs.length > 0 && !snap.needDemandRep) {
+          setNeedDemandRep(true);
+          setDemandRepMode('designated');
+          setDemandRepCount(drs.length);
+          setDemandRepPersons(drs.map((s: ExtractionSelected) => ({ userId: s.userId, name: s.name, specialty: s.specialty !== '需求方代表' ? s.specialty : '', title: s.title, employer: s.employer })));
+        }
+        setSelectedExperts(nonDrs);
+      }
+      if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
+      if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
+      setPreview(snap.preview);
+      if (snap.done) setDone(snap.done);
+      if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
+      if (snap.step3Confirmed) setStep3Confirmed(snap.step3Confirmed);
+      if (snap.step) setStep(snap.step);
+      if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
+      if (snap.totalSeats) setTotalSeats(snap.totalSeats);
+      if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
+      if (snap.reHistory?.length) setReHistory(snap.reHistory);
+      if (snap.altPreview) setAltPreview(snap.altPreview);
+      if (snap.altSelected?.length) setAltSelected(snap.altSelected);
+      if (snap.altNotified) setAltNotified(snap.altNotified);
+    } catch { localStorage.removeItem(lskeyForPid); }
+  }, [pid, lskeyForPid, defaultPid]);
+
+  // ② modal 模式 invitationData 兜底（仅无 localStorage 时还原已分配专家）
+  const invitationRestoredRef = useRef(false);
+  useEffect(() => {
+    if (defaultPid === undefined) return;
+    if (!pid || !invitationData || modalLocalRestoredRef.current || invitationRestoredRef.current) return;
+    if (!invitationData?.experts?.length) return;
+    invitationRestoredRef.current = true;
+    const main = invitationData.experts.filter(e => e.expertRole === '正选');
+    const alt = invitationData.experts.filter(e => e.expertRole === '候补');
+    if (main.length === 0 && alt.length === 0) return;
+    // 补全 originalConfirmedIdsRef（步骤4/5 依赖此过滤）
+    originalConfirmedIdsRef.current = new Set(main.map(e => e.userId));
+    const toSelected = (e: typeof invitationData.experts[number]): ExtractionSelected => ({
+      userId: e.userId, name: e.expertName,
+      specialty: e.major,
+      title: e.title, employer: e.employer,
+      matchScore: 100,
+      reason: '已有专家',
+      role: e.expertRole as '正选' | '候补',
+    });
+    const mainSelected = main.map(toSelected);
+    const altSelected = alt.map(toSelected);
+    setSelectedExperts(mainSelected);
+    setAlternativeExperts(altSelected);
+    setPreview({
+      engine: 'rules', model: '', extractMode: 'specialty_match',
+      analysis: '项目已有分配专家',
+      requiredSpecialties: [],
+      eligiblePool: main.length + alt.length,
+      candidatePool: [],
+      selected: mainSelected,
+      alternatives: altSelected,
+      shortages: [],
+      suggestedLeaderId: null,
+      generatedAt: new Date().toISOString(),
+    });
+  }, [pid, invitationData, demandRepPersons, defaultPid]);
+
   // 步骤6：进入时自动抽取候补专家（仅首次，已抽过时直接展示）
   useEffect(() => {
     if (step !== 6 || !pid || altPreview) return;
@@ -226,8 +328,7 @@ export function ExpertExtractPage({
   }, [step, pid, altPreview]);
 
   // 状态变更时自动保存到 localStorage（页面切换后恢复）
-  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified });
-  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified };
+  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
   useEffect(() => {
     const save = () => {
       const s = stateRef.current;
@@ -240,7 +341,10 @@ export function ExpertExtractPage({
   }, [storageKey, notifyMessages]);
 
   // 初始化时从 localStorage 恢复状态（按项目唯一性匹配）
+  // 仅 standalone 页面执行 —— modal 内嵌时 defaultPid 被显式传入（null 或 string），
+  // 不应恢复 localStorage 中其他项目的旧会话（包括 pid/配额/专家/步骤等全部状态）。
   useEffect(() => {
+    if (defaultPid !== undefined) return; // modal 模式（null 亦表示"正在解析"，不恢复）
     try {
       // 确定要恢复的项目：URL 指定 > 上次会话
       const urlPid = q.get('projectId');
@@ -254,7 +358,17 @@ export function ExpertExtractPage({
       if (snap.pid) { restoredPidRef.current = snap.pid; setPid(snap.pid); }
       if (snap.extractMode) setExtractMode(snap.extractMode);
       if (snap.quotas?.length) setQuotas(snap.quotas);
-      if (snap.selectedExperts?.length) setSelectedExperts(snap.selectedExperts);
+      if (snap.selectedExperts?.length) {
+        const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表');
+        const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
+        if (drs.length > 0 && !snap.needDemandRep) {
+          setNeedDemandRep(true);
+          setDemandRepMode('designated');
+          setDemandRepCount(drs.length);
+          setDemandRepPersons(drs.map((s: ExtractionSelected) => ({ userId: s.userId, name: s.name, specialty: s.specialty !== '需求方代表' ? s.specialty : '', title: s.title, employer: s.employer })));
+        }
+        setSelectedExperts(nonDrs);
+      }
       if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
       if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
       if (snap.preview) setPreview(snap.preview);
@@ -276,6 +390,8 @@ export function ExpertExtractPage({
       if (snap.altPreview) setAltPreview(snap.altPreview);
       if (snap.altSelected?.length) setAltSelected(snap.altSelected);
       if (snap.altNotified) setAltNotified(snap.altNotified);
+      if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
+      if (snap.totalSeats) setTotalSeats(snap.totalSeats);
     } catch { localStorage.removeItem(LAST_PID_KEY); }
   }, []);
   useEffect(() => {
@@ -328,7 +444,7 @@ export function ExpertExtractPage({
     setPreview(null);
     setDone(false);
     notifySentRef.current = false;
-    // 重置需求方代表配置（预算/项目变化时 demandRepCount 可能不再适用）
+    // 重置需求方代表配置（切换项目时重置为默认不选）
     setNeedDemandRep(false);
     setDemandRepMode(null);
     setDemandRepPersons([]);
@@ -337,6 +453,7 @@ export function ExpertExtractPage({
     setDemandRepDeptSpecialty('');
     setError('');
     lastReQuotasRef.current = [];
+    quotaCacheRef.current.clear();
   }, [pid]);
   useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s }).then(l => ({ s, c: Array.isArray(l) ? l.length : 0 })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
 
@@ -484,33 +601,36 @@ export function ExpertExtractPage({
     }
     return undefined;
   }, [projects, pid, pd]);
-  // ── 预算驱动的委员会席位 ──
-  const budgetNum = pd?.budget != null && String(pd.budget).trim() !== '' ? Number(pd.budget) : null;
-  const isLargeBudget = budgetNum != null && !Number.isNaN(budgetNum) && budgetNum > 1_000_000;
-  const totalSeats = isLargeBudget ? 7 : 5; // >100万 7 席；≤100万（含未填）5 席
+  // ── 委员会席位数（用户主动选择 3/5/7）──
+  const [totalSeats, setTotalSeats] = useState<3 | 5 | 7>(5);
   const demandRepSeats = needDemandRep ? demandRepCount : 0;
-  const workerRepSeats = isLargeBudget ? 1 : 0; // >100万 固定 1 席职工代表
-  const expertSeats = Math.max(0, totalSeats - demandRepSeats - workerRepSeats); // 专业专家可分配席位
+  const expertSeats = Math.max(0, totalSeats - demandRepSeats); // 专业专家可分配席位
   const quotaSum = quotas.reduce((s, q) => s + q.count, 0); // 所有专业行的人数和（含未选专业的占位行，与 addQ/adjustQuota 调配一致）
   const seatsBalanced = quotaSum === expertSeats && expertSeats > 0;
-  // 把配额总和拉到 expertSeats（均匀分配：优先补 count<2 的专业，每专业≤2；多余再溢出到 count≥2 的）；用于初始/选项目/切席位/AI 配额等场景
-  const clampToExpertSeats = (list: SpecialtyQuota[]): SpecialtyQuota[] => {
+  // 配额适配 expertSeats：少→裁减；多→均分到已有专业（新专业由 AI 推荐决定，此处不增减专业）
+  const clampToExpertSeats = (list: SpecialtyQuota[], target = expertSeats): SpecialtyQuota[] => {
     if (list.length === 0) return list;
-    const sum = list.reduce((s, q) => s + q.count, 0);
-    if (sum === expertSeats) return list;
-    const next = [...list];
-    const diff = expertSeats - sum;
-    if (diff > 0) {
-      let remain = diff;
-      // 第一遍：优先补 count<2 的专业到 2
+    const filled = list.filter(q => q.specialty.trim());
+    const empties = list.filter(q => !q.specialty.trim());
+    if (filled.length === 0) return list;
+    const sum = filled.reduce((s, q) => s + q.count, 0);
+    if (sum === target) return list;
+    const next = [...filled];
+    const diff = target - sum;
+    if (diff < 0) {
+      // 缩减
+      let remain = -diff;
       for (let i = 0; i < next.length && remain > 0; i++) {
-        if (next[i].count < 2) {
-          const add = Math.min(remain, 2 - next[i].count);
-          next[i] = { ...next[i], count: next[i].count + add };
-          remain -= add;
-        }
+        while (next[i].count > 2 && remain > 0) { next[i] = { ...next[i], count: next[i].count - 1 }; remain--; }
       }
-      // 第二遍：如果还有余，均分给各专业（每轮一个，从不超2的优先）
+      for (let i = 0; i < next.length && remain > 0; i++) {
+        while (next[i].count > 1 && remain > 0) { next[i] = { ...next[i], count: next[i].count - 1 }; remain--; }
+      }
+      while (remain > 0 && next.length > 1) { const last = next.pop()!; remain -= last.count; }
+      if (remain > 0 && next.length === 1) { next[0] = { ...next[0], count: Math.max(1, next[0].count - remain) }; }
+    } else {
+      // 增加：均分到已有专业
+      let remain = diff;
       while (remain > 0) {
         let done = false;
         for (let i = 0; i < next.length && remain > 0; i++) {
@@ -518,29 +638,66 @@ export function ExpertExtractPage({
           remain--;
           done = true;
         }
-        if (!done) break; // 兜底：如果 next 长度异常
-      }
-    } else if (diff < 0) {
-      let remain = -diff;
-      // 从 count>2 的专业减，再不行从 count>1 的专业减
-      while (remain > 0) {
-        let mi = -1, mc = 0;
-        for (let i = 0; i < next.length; i++) if (next[i].count > 2 && next[i].count > mc) { mi = i; mc = next[i].count; }
-        if (mi < 0) {
-          // 没有 >2 的，退而求其次找 >1 的
-          for (let i = 0; i < next.length; i++) if (next[i].count > 1 && next[i].count > mc) { mi = i; mc = next[i].count; }
-        }
-        if (mi < 0) break;
-        const take = Math.min(remain, next[mi].count - 1);
-        next[mi] = { ...next[mi], count: next[mi].count - take };
-        remain -= take;
+        if (!done) break;
       }
     }
-    return next;
+    return [...next, ...empties];
   };
-  // 可分配席位变化时（初始/选项目/切需求方代表/切人数），自动把配额总和拉到 expertSeats
+  // 配额缩减（仅减少，由 clampToExpertSeats 内在消减分支驱动；不丢用户所选专业）
+  const trimQuotas = (list: SpecialtyQuota[], target: number): SpecialtyQuota[] => {
+    if (list.length === 0) return list;
+    const filled = list.filter(q => q.specialty.trim());
+    const empties = list.filter(q => !q.specialty.trim());
+    if (filled.length === 0) return list;
+    const sum = filled.reduce((s, q) => s + q.count, 0);
+    if (sum <= target) return list;
+    const next = [...filled];
+    let remain = sum - target;
+    // 先降 count>2 → 2
+    for (let i = 0; i < next.length && remain > 0; i++) {
+      while (next[i].count > 2 && remain > 0) { next[i] = { ...next[i], count: next[i].count - 1 }; remain--; }
+    }
+    // 再降 count>1 → 1
+    for (let i = 0; i < next.length && remain > 0; i++) {
+      while (next[i].count > 1 && remain > 0) { next[i] = { ...next[i], count: next[i].count - 1 }; remain--; }
+    }
+    // 仍不够→删末尾专业
+    while (remain > 0 && next.length > 1) { const last = next.pop()!; remain -= last.count; }
+    // 兜底：只剩 1 个专业时截到 target
+    if (remain > 0 && next.length === 1) {
+      next[0] = { ...next[0], count: Math.max(1, next[0].count - remain) };
+    }
+    return [...next, ...empties];
+  };
+
+  // expertSeats 变化时的自动响应：减少→裁剪/恢复缓存；增加→缓存命中直接恢复，未命中则防抖 AI
+  const prevExpertSeatsRef = useRef(expertSeats);
+  const aiQuotaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    setQuotas(prev => clampToExpertSeats(prev));
+    const prev = prevExpertSeatsRef.current;
+    prevExpertSeatsRef.current = expertSeats;
+    if (prev === expertSeats) return;
+    if (expertSeats < prev) {
+      // 缩减：取消排队 AI 请求，有缓存直接恢复，无缓存则裁剪
+      if (aiQuotaTimerRef.current) { clearTimeout(aiQuotaTimerRef.current); aiQuotaTimerRef.current = null; setQuotaAnalyzing(false); }
+      const cached = quotaCacheRef.current.get(expertSeats);
+      if (cached) {
+        setQuotas(cached);
+      } else {
+        setQuotas(prevQ => clampToExpertSeats(prevQ));
+      }
+    } else if (expertSeats > prev && pid && quotas.some(q => q.specialty.trim())) {
+      // 增加：缓存命中直接恢复；未命中则防抖 600ms 后 AI 推荐
+      const cached = quotaCacheRef.current.get(expertSeats);
+      if (cached) {
+        setQuotas(cached);
+        if (aiQuotaTimerRef.current) { clearTimeout(aiQuotaTimerRef.current); aiQuotaTimerRef.current = null; setQuotaAnalyzing(false); }
+      } else {
+        setQuotaAnalyzing(true);
+        if (aiQuotaTimerRef.current) clearTimeout(aiQuotaTimerRef.current);
+        aiQuotaTimerRef.current = setTimeout(() => { aiQuotaTimerRef.current = null; aiQuota(); }, 600);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expertSeats]);
   const demandRepOk = !needDemandRep || (demandRepMode === 'designated' ? demandRepPersons.length === demandRepCount : demandRepMode === 'department' ? !!demandRepDept : false);
@@ -616,7 +773,9 @@ export function ExpertExtractPage({
       }
       const newQuotas = Array.from(merged.entries()).map(([specialty, count]) => ({ specialty, count }));
       if (newQuotas.length > 0) {
-        setQuotas(clampToExpertSeats(newQuotas));
+        const clamped = clampToExpertSeats(newQuotas);
+        quotaCacheRef.current.set(expertSeats, clamped);
+        setQuotas(clamped);
         toast.success(`已根据项目信息生成 ${newQuotas.length} 个专业配额，请核对后开始抽取`, { id: 'ai-quota' });
       } else {
         toast.warning('库内无匹配专业，请手动配置', { id: 'ai-quota' });
@@ -628,19 +787,19 @@ export function ExpertExtractPage({
     }
   };
 
-  // 切换需求方代表：同步把专业配额总和自动调整到新的可分配席位数（避免「可分配 4 席、已配 5 席」的矛盾态）
+  // 切换需求方代表：同步把专业配额总和自动调整到新的可分配席位数
   const toggleDemandRep = (next: boolean) => {
     if (next === needDemandRep) return;
     setNeedDemandRep(next);
     if (!next) { setDemandRepMode(null); setDemandRepPersons([]); setDemandRepCount(1); setDemandRepDept(''); setDemandRepDeptSpecialty(''); setDemandRepSearch(''); }
-    const newFixed = (next ? demandRepCount : 0) + workerRepSeats;
+    const newFixed = next ? demandRepCount : 0;
     const newExpert = Math.max(0, totalSeats - newFixed);
     setQuotas(prev => {
       const filled = prev.filter(q => q.specialty.trim());
       const empties = prev.filter(q => !q.specialty.trim());
       const list = filled.length ? filled : [{ specialty: '', count: 1 } as SpecialtyQuota];
       let sum = list.reduce((s, q) => s + q.count, 0);
-      let target = Math.max(newExpert, list.length); // 至少每专业 1 席
+      let target = Math.max(newExpert, list.length);
       if (target < sum) {
         let reduce = sum - target;
         for (let i = list.length - 1; i >= 0 && reduce > 0; i--) { const t = Math.min(list[i].count - 1, reduce); list[i] = { ...list[i], count: list[i].count - t }; reduce -= t; }
@@ -651,13 +810,12 @@ export function ExpertExtractPage({
       return [...list, ...empties];
     });
   };
-  // 切换需求方代表人数（仅 >100万 可选 1/2）：同步截断已选指定代表 + 重平衡专业配额
-  const changeDemandRepCount = (n: 1 | 2) => {
+  // 切换需求方代表人数（0-2 人）：同步截断已选指定代表 + 重平衡专业配额
+  const changeDemandRepCount = (n: number) => {
     if (n === demandRepCount) return;
     setDemandRepCount(n);
     setDemandRepPersons(prev => prev.slice(0, n));
-    const newFixed = n + workerRepSeats;
-    const newExpert = Math.max(0, totalSeats - newFixed);
+    const newExpert = Math.max(0, totalSeats - n);
     setQuotas(prev => {
       const filled = prev.filter(q => q.specialty.trim());
       const empties = prev.filter(q => !q.specialty.trim());
@@ -775,12 +933,21 @@ export function ExpertExtractPage({
       if (demandRepMode === 'designated' && demandRepPersons.length !== demandRepCount) { setError(`请指定 ${demandRepCount} 名需求方代表（已选 ${demandRepPersons.length} 名）`); return; }
       if (demandRepMode === 'department' && !demandRepDept) { setError('请选择需求方代表部门'); return; }
     }
-    setError(''); setLoading(true); setPreview(null); setDone(false); setLeadExpertId(null); setStep3Confirmed(false); setConfirmedExpertIds([]); setNotifyExpertList([]); setNotifyResults(null); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); lastReQuotasRef.current = []; setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); updateMessages(new Map());
+    setError(''); setLoading(true);
+    // 清空之前抽取的全部内容（含 invitationData 还原态），再开始新一轮抽取
+    setPreview(null); setSelectedExperts([]); setAlternativeExperts([]);
+    setDone(false); setLeadExpertId(null); setStep3Confirmed(false);
+    setConfirmedExpertIds([]); setNotifyExpertList([]); setNotifyResults(null);
+    notifySentRef.current = false; originalConfirmedIdsRef.current = new Set();
+    lastReQuotasRef.current = []; setReHistory([]);
+    setAltPreview(null); setAltSelected([]); setAltNotified(false);
+    invitationRestoredRef.current = false;
+    modalLocalRestoredRef.current = false;
+    updateMessages(new Map());
     toast.loading('AI 正在分析项目需求并抽取专家组...', { id: 'extract-loading' });
 
-    // 组装抽取配额：常规席位（职工代表>100万 + 各专业配额）；部门需求方代表走 employer 限定配额
+    // 组装抽取配额：各专业配额；部门需求方代表走 employer 限定配额
     const manualQuotas: { specialty: string; count: number; employer?: string }[] = [];
-    if (isLargeBudget) manualQuotas.push({ specialty: '职工代表', count: 1 });
     for (const qq of quotas.filter(q => q.specialty.trim())) manualQuotas.push({ specialty: qq.specialty, count: qq.count });
     const regularQuotaCount = manualQuotas.length; // 候补 = 每个专业 1 位
     const allQuotas = (needDemandRep && demandRepMode === 'department')
@@ -792,8 +959,21 @@ export function ExpertExtractPage({
       const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: 0, extractMode, manualQuotas: allQuotas });
       if (!result?.selected) throw new Error('服务器返回数据异常');
       setPreview(result);
-      setSelectedExperts([...result.selected]);
-      setAlternativeExperts([...result.alternatives]);
+      // 部门模式：抽取结果末尾 demandRepCount 人为需求方代表，从 selectedExperts 中分离
+      if (needDemandRep && demandRepMode === 'department' && demandRepCount > 0) {
+        const all = [...result.selected];
+        const dps = all.splice(-demandRepCount);
+        setSelectedExperts(all);
+        setAlternativeExperts([...result.alternatives]);
+        setDemandRepPersons(dps.map(s => ({
+          userId: s.userId, name: s.name,
+          specialty: s.specialty, title: s.title, employer: s.employer,
+          reason: s.reason, evaluationLevel: s.evaluationLevel,
+        })));
+      } else {
+        setSelectedExperts([...result.selected]);
+        setAlternativeExperts([...result.alternatives]);
+      }
       setStep(2); // 重新抽取 → 审核调整（初始专家组）
       toast.dismiss('extract-loading');
     } catch (e: any) {
@@ -804,18 +984,43 @@ export function ExpertExtractPage({
     }
   };
 
-  // 指定的需求方代表（作为正选成员，不参与 AI 抽取；支持 1-2 人）
-  const demandRepItems: ExtractionSelected[] = (needDemandRep && demandRepMode === 'designated')
-    ? demandRepPersons.map(p => ({ userId: p.userId, name: p.name, specialty: p.specialty || '需求方代表', matchScore: 100, reason: '指定需求方代表', role: '正选' as const }))
+  // 需求方代表（正选成员，不参与 AI 抽取；designated 来自手动指定，department 来自抽取分离）
+  const demandRepItems: ExtractionSelected[] = needDemandRep
+    ? demandRepPersons.map(p => ({
+        userId: p.userId, name: p.name,
+        specialty: p.specialty || '需求方代表',
+        title: p.title, employer: p.employer,
+        matchScore: 100,
+        reason: p.reason || (demandRepMode === 'designated' ? '指定需求方代表' : '部门抽取需求方代表'),
+        role: '正选' as const,
+        evaluationLevel: p.evaluationLevel,
+      }))
     : [];
+  // 需求方代表 userId 集合 —— 用于在各步骤表格中标注身份（姓名后追加「（需求方代表）」）
+  const demandRepIdSet = useMemo(() => new Set(demandRepPersons.map(p => p.userId)), [demandRepPersons]);
+  // 需求方代表 userId → 真实专业（demandRepPersons 配置时选取的专业）
+  const demandRepSpecialtyMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of demandRepPersons) m.set(p.userId, p.specialty || '');
+    return m;
+  }, [demandRepPersons]);
+  /** 格式化专家姓名：需求方代表追加「（需求方代表）」后缀 */
+  const fmtExpertName = (userId: string, name: string) => demandRepIdSet.has(userId) ? `${name}（需求方代表）` : name;
+  /** 取专家专业：需求方代表用配置时选取的真实专业，避免显示为"需求方代表"占位 */
+  const fmtExpertSpecialty = (userId: string, fallback: string) => demandRepIdSet.has(userId) ? (demandRepSpecialtyMap.get(userId) || fallback) : fallback;
 
-  // 步骤4正选专家列表（含指定需求方代表）
-  // 补选前用原始正选，补选后用补选专家；步骤1-4始终用原始数据
+  // 步骤4正选专家列表（含指定需求方代表，按 userId 去重）
   const step4Experts = useMemo(() => {
-    return [...selectedExperts, ...demandRepItems];
+    const seen = new Set<string>();
+    const merged = [...selectedExperts, ...demandRepItems];
+    return merged.filter(e => {
+      if (seen.has(e.userId)) return false;
+      seen.add(e.userId);
+      return true;
+    });
   }, [selectedExperts, demandRepItems]);
 
-  // 步骤2 展示用：按步骤1「内容二」专业配额顺序排序的正选/候补视图（仅展示，不改原数组）
+  // 步骤2 展示用：按专业配额顺序排序的正选/候补视图（仅展示，不改原数组）
   const quotaOrderMap = useMemo(() => {
     const m = new Map<string, number>();
     // 按库内人数降序（与步骤1 配额行展示顺序一致），不在库内的专业排最后
@@ -838,11 +1043,44 @@ export function ExpertExtractPage({
     return m;
   }, [reHistory]);
 
+  /** AI 选定组长：调用后端 AI 综合分析专家职称/经验/偏离度等维度 */
+  const aiSelectLeader = async () => {
+    if (!pid) return;
+    setAiSelectingLeader(true);
+    try {
+      const res = await aiSelectLeaderApi(pid);
+      setStep5LeaderId(res.leaderId);
+      toast.success(`AI 已选定 ${res.leaderName} 为评审组长`, { description: res.reason });
+    } catch (e: any) {
+      toast.error(e?.message || 'AI 组长选定失败');
+    } finally {
+      setAiSelectingLeader(false);
+    }
+  };
+
+  /** 手动切换组长 */
+  const manualSetLeader = async (userId: string) => {
+    if (!pid) return;
+    try {
+      await setLeader(pid, userId);
+      setStep5LeaderId(userId);
+      setSelectingLeader(false);
+      const expert = invitationData?.experts.find(e => e.userId === userId);
+      toast.success(`已切换 ${expert?.expertName || '专家'} 为评审组长`);
+    } catch (e: any) {
+      toast.error(e?.message || '切换组长失败');
+    }
+  };
+
   const confirm = async () => {
     if (!pid || selectedExperts.length === 0) return;
     setConfirming(true);
     try {
-      const exps = [...selectedExperts, ...demandRepItems].map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: false }));
+      const exps = [...selectedExperts, ...demandRepItems].map(s => ({
+        userId: s.userId, expertName: s.name,
+        major: s.specialty,
+        isLead: false,
+      }));
       const result = await confirmExtraction({ projectId: pid, experts: exps });
       const ids = result.expertIds || exps.map(e => e.userId);
       setConfirmedExpertIds(ids);
@@ -864,6 +1102,9 @@ export function ExpertExtractPage({
   };
 
   const [rsvpLinks, setRsvpLinks] = useState<Record<string, string>>({});
+
+  // 保持 stateRef 同步最新渲染值（必须在所有 useState 之后，供 beforeunload 保存使用）
+  stateRef.current = { pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepDept, demandRepDeptSpecialty, totalSeats };
 
   /** 打开补选弹窗：AI 分析项目 → 推荐补选专业与人数 → 用户调整 → 开始抽取。
    *  如果上次用户已手动调整过配额且池仍有可用专家，则跳过 configuring，直接用旧配额抽取。 */
@@ -905,26 +1146,81 @@ export function ExpertExtractPage({
     try {
       // AI 分析项目 → 推荐补选专业配额
       const aiRes = await analyzeProjectSpecialties(pid);
+      let quotas: SpecialtyQuota[] = [];
       if (aiRes?.requiredSpecialties?.length) {
         const matchSpec = (sp: string): string => { const t = sp.trim(); if (!t) return ''; if (specs.includes(t)) return t; return specs.find(x => x.includes(t) || t.includes(x)) || ''; };
         const merged = new Map<string, number>();
         for (const s of aiRes.requiredSpecialties) { const key = matchSpec(s.specialty); if (key) merged.set(key, (merged.get(key) ?? 0) + Math.max(1, s.count)); }
         let remaining = shortfall;
-        const quotas: SpecialtyQuota[] = [];
+        // 需求方代表补选：按原配置的部门+专业生成 employer 限定配额，而非用专家真实专业
+        const declinedDemandRepIds = allMain.filter(e => e.invitationStatus === 'declined' && demandRepIdSet.has(e.userId));
+        const declinedNormalExperts = allMain.filter(e => e.invitationStatus === 'declined' && !demandRepIdSet.has(e.userId));
+
+        // 需求方代表补选配额（走 employer 限定，与初次抽取一致）
+        const reEmployerQuotas: { specialty: string; count: number; employer?: string }[] = [];
+        if (declinedDemandRepIds.length > 0 && demandRepMode === 'department' && demandRepDept) {
+          reEmployerQuotas.push({
+            specialty: demandRepDeptSpecialty || '',
+            count: declinedDemandRepIds.length,
+            employer: demandRepDept,
+          });
+          remaining -= declinedDemandRepIds.length;
+        }
+
+        // 普通专家补选：按已拒绝专家的专业计数分配配额
+        const declinedCounts = new Map<string, number>();
+        for (const e of declinedNormalExperts) {
+          const m = e.major || '综合';
+          declinedCounts.set(m, (declinedCounts.get(m) ?? 0) + 1);
+        }
+        for (const [spec, cnt] of declinedCounts) {
+          if (remaining <= 0) break;
+          const take = Math.min(cnt, remaining);
+          quotas.push({ specialty: spec, count: take });
+          remaining -= take;
+        }
+        // 再按 AI 推荐专业补满剩余席位
         for (const [spec, count] of Array.from(merged.entries()).sort((a, b) => b[1] - a[1])) {
           if (remaining <= 0) break;
+          if (quotas.some(q => q.specialty === spec)) continue; // 已在 declined 中分配
           const take = Math.min(count, remaining);
           quotas.push({ specialty: spec, count: take });
           remaining -= take;
         }
-        const declinedSpecs = new Set(allMain.filter(e => e.invitationStatus === 'declined').map(e => e.major || '综合'));
-        for (const spec of declinedSpecs) { if (!quotas.some(q => q.specialty === spec) && remaining > 0) { quotas.push({ specialty: spec, count: 1 }); remaining--; } }
-        if (quotas.length > 0) {
-          updateDraft({ phase: 'configuring', quotas });
-          return;
-        }
       }
-      updateDraft({ phase: 'configuring', quotas: [{ specialty: '', count: 0 }] });
+      // 过滤掉库内已无可抽专家的专业，仅保留池内有人的专业
+      quotas = quotas.filter(q => {
+        const pc = pool.get(q.specialty) ?? 0;
+        const invited = invitationData.experts.filter(e => e.major === q.specialty).length;
+        return pc - invited > 0;
+      });
+      if (quotas.length === 0) {
+        toast.warning('相关专业的专家库已无可抽专家，无法补选');
+        setReDraft(null);
+        return;
+      }
+      // 库内还有专家 → 直接抽取，不再弹配置对话框
+      const allReQuotas = [...quotas, ...reEmployerQuotas];
+      const totalNeeded = allReQuotas.reduce((s, q) => s + q.count, 0);
+      const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
+      const manualQuotas = allReQuotas.map(q => ({ specialty: q.specialty, count: q.count, employer: q.employer }));
+      updateDraft({ quotas: allReQuotas.map(q => ({ specialty: q.specialty, count: q.count })) });
+      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(quotas.length, 9), extractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
+      if (!result?.selected) throw new Error('返回数据异常');
+      // 分离部门抽取的需求方代表（末尾 reEmployerQuotas 总人数）
+      const repCount = reEmployerQuotas.reduce((s, q) => s + q.count, 0);
+      if (repCount > 0) {
+        const all = [...result.selected];
+        const dps = all.splice(-repCount);
+        updateDraft({ phase: 'review', preview: result, selected: [...all], alternatives: [...result.alternatives] });
+        // 补选出的需求方代表追加到 demandRepPersons（保持部门模式标记）
+        setDemandRepPersons(prev => [...prev.filter(p => !declinedDemandRepIds.some(d => d.userId === p.userId)), ...dps.map(s => ({ userId: s.userId, name: s.name, specialty: s.specialty, title: s.title, employer: s.employer, reason: s.reason, evaluationLevel: s.evaluationLevel }))]);
+      } else {
+        updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
+      }
+      if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
+      // 记住本次配额（下次补选直接用）——仅普通专业，需求方代表配额由 demandRepDept 驱动
+      lastReQuotasRef.current = quotas.map(q => ({ specialty: q.specialty, count: q.count }));
     } catch (e: any) {
       toast.error(e?.message || 'AI 分析失败');
       setReDraft(null);
@@ -1137,7 +1433,11 @@ export function ExpertExtractPage({
     if (!pid || selectedExperts.length === 0) return;
     setConfirming(true); setError('');
     try {
-      const exps = [...selectedExperts, ...demandRepItems].map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: false }));
+      const exps = [...selectedExperts, ...demandRepItems].map(s => ({
+        userId: s.userId, expertName: s.name,
+        major: s.specialty,
+        isLead: false,
+      }));
       const result = await confirmExtraction({ projectId: pid, experts: exps });
       const ids = result.expertIds || exps.map(e => e.userId);
       setConfirmedExpertIds(ids);
@@ -1278,7 +1578,7 @@ export function ExpertExtractPage({
     setShowReplaceModal(false);
     setReplaceTarget(null);
   };
-  const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); lastReQuotasRef.current = []; setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
+  const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); lastReQuotasRef.current = []; quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
 
   // ── 配置卡片 ──
   // ── 替换/添加弹窗 ──
@@ -1352,7 +1652,7 @@ export function ExpertExtractPage({
               <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">专家抽取规则</h3>
               <ol className="space-y-2 text-xs text-[var(--muted-foreground)] leading-relaxed">
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：预算＞100万设 7 席（含固定 1 席职工代表），≤100万设 5 席；需求方代表可选（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：可选择 3 / 5 / 7 人委员会；需求方代表可选 0-2 人（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级(A/B/C/D)、出勤/质量/廉洁三维度评分、评分偏离度、历史经验与当前负荷</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>手动调整：抽取后可替换/移除/添加专家，灵活组建最终专家组</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
@@ -1394,7 +1694,7 @@ export function ExpertExtractPage({
           <div className="neu-table-card p-5 space-y-4">
             <div className="flex items-center gap-2">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-extrabold text-white">1</span>
-              <div><span className="text-sm font-bold text-[var(--foreground)]">抽取配置</span>{(pid || defaultProjectTitle) && <span className="ml-2 text-xs text-[var(--muted-foreground)]">委员会 {totalSeats} 席（{isLargeBudget ? '预算＞100万' : '预算≤100万'}）</span>}</div>
+              <div><span className="text-sm font-bold text-[var(--foreground)]">抽取配置</span>{(pid || defaultProjectTitle) && <span className="ml-2 text-xs text-[var(--muted-foreground)]">委员会 {totalSeats} 席</span>}</div>
             </div>
 
             {/* 项目上下文：未选项目 → 来源选择；已选 → 项目摘要 */}
@@ -1507,17 +1807,15 @@ export function ExpertExtractPage({
                   <span className="text-sm font-bold text-[var(--foreground)]">{defaultProjectTitle || sel?.name}</span>
                   {sel && <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-semibold text-[var(--accent-strong)]">{sel.projectCode}</span>}
                   {sel && <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-semibold text-[var(--accent-strong)]">{sel.procurementMethod}</span>}
-                  {sel && <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-semibold text-[var(--accent-strong)]">{STAGE_LABEL[sel.stage] || sel.stage}</span>}
                 </div>
-                {pd?.suppliers?.length > 0 && <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">⚠ 参与供应商（将自动回避）：{pd.suppliers.map(s => s.supplierName).join('、')}</div>}
-                {pd?.experts?.length > 0 && <div className="rounded-lg bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--success)]">✓ 已分配专家：{pd.experts.map(e => `${e.expertName}（${e.major}）`).join('、')}</div>}
+                {pd?.suppliers?.filter(s => s.confirmStatus === 'CONFIRMED').length > 0 && <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">⚠ 已确认参与的供应商（将自动回避）：{pd.suppliers.filter(s => s.confirmStatus === 'CONFIRMED').map(s => s.supplierName).join('、')}</div>}
               </div>
             )}
 
             {/* 抽取配置区（项目确定后显示） */}
             {(pid || defaultProjectTitle) && (
             <>
-            {/* 委员会席位构成（预算驱动） */}
+            {/* 委员会席位构成（用户主动选择） */}
             <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] p-4 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-[var(--accent)]">
@@ -1525,30 +1823,33 @@ export function ExpertExtractPage({
                 </div>
                 <div className="flex items-center gap-1.5">
                   {demandRepSeats > 0 && <span className="rounded bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--accent)]">需求方代表 × {demandRepSeats}</span>}
-                  {workerRepSeats > 0 && <span className="rounded bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--warning)]">职工代表 × {workerRepSeats}</span>}
                   <span className="rounded bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--success)]">专业专家 × {expertSeats}</span>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded-lg bg-[var(--surface)] px-2.5 py-1 font-semibold text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
-                  项目预算：{budgetNum != null ? `¥ ${budgetNum.toLocaleString('zh-CN')}` : '未设置'}
-                </span>
-                <span className="rounded-lg bg-[var(--surface)] px-2.5 py-1 font-semibold text-[var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
-                  委员会总席位：<strong className="text-[var(--accent)]">{totalSeats} 席</strong>
-                  <span className="ml-1 text-[10px] font-normal text-[var(--muted-foreground)]">（{isLargeBudget ? '预算＞100万' : '预算≤100万'}）</span>
-                </span>
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">总席位</span>
+                <div className="neu-tab-bar">
+                  {([3, 5, 7] as const).map(n => (
+                    <button
+                      key={n}
+                      onClick={() => { setTotalSeats(n); if (needDemandRep && demandRepCount >= n) { setDemandRepCount(Math.max(0, n - 1)); setDemandRepPersons(prev => prev.slice(0, Math.max(0, n - 1))); } }}
+                      className={`neu-tab px-3.5 py-1.5 text-xs font-bold ${totalSeats === n ? 'is-active' : ''}`}
+                    >
+                      {n} 人
+                    </button>
+                  ))}
+                </div>
               </div>
-
             </div>
 
-            {/* 内容一 / 内容二：左右布局（窄屏自动堆叠） */}
+            {/* 需求方代表 + 专业配额：左右布局（窄屏自动堆叠） */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-              {/* 左列：内容一 */}
+              {/* 左列：需求方代表 */}
               <div className="neu-table-card p-4">
-            {/* 内容一：需求方代表（可选） */}
+            {/* 需求方代表（可选） */}
             <div className="space-y-3">
               <div className="space-y-2">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)] block">内容一 · 需求方代表（可选{isLargeBudget ? `，占 ${demandRepCount} 席` : '，占 1 席'}）</span>
+                <span className="text-xs font-semibold text-[var(--muted-foreground)] block">需求方代表（可选，占 {demandRepCount} 席）</span>
                 <div className="flex justify-end">
                 <div className="neu-tab-bar">
                   <button
@@ -1569,16 +1870,15 @@ export function ExpertExtractPage({
 
               {needDemandRep && (
                 <>
-                  {/* 人数选择（仅预算＞100万） */}
-                  {isLargeBudget && (
-                    <div className="flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-3 py-2">
-                      <span className="text-xs font-semibold text-[var(--foreground)]">代表人数</span>
-                      <div className="ml-auto neu-tab-bar">
-                        <button onClick={() => changeDemandRepCount(1)} className={`neu-tab px-3 py-1 text-xs font-bold ${demandRepCount === 1 ? 'is-active' : ''}`}>1 人</button>
-                        <button onClick={() => changeDemandRepCount(2)} className={`neu-tab px-3 py-1 text-xs font-bold ${demandRepCount === 2 ? 'is-active' : ''}`}>2 人</button>
-                      </div>
+                  {/* 人数选择（0-2 人，不超过剩余席位） */}
+                  <div className="flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-3 py-2">
+                    <span className="text-xs font-semibold text-[var(--foreground)]">代表人数</span>
+                    <div className="ml-auto neu-tab-bar">
+                      {[1, 2].filter(n => n <= totalSeats - 1).map(n => (
+                        <button key={n} onClick={() => changeDemandRepCount(n)} className={`neu-tab px-3 py-1 text-xs font-bold ${demandRepCount === n ? 'is-active' : ''}`}>{n} 人</button>
+                      ))}
                     </div>
-                  )}
+                  </div>
                   {/* 两种方式二选一 */}
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -1624,7 +1924,7 @@ export function ExpertExtractPage({
                                 <div className="flex items-center gap-2"><span className="text-sm font-bold text-[var(--foreground)]">{e.displayName}</span>{e.expertProfile?.specialty && <span className="text-xs text-[var(--muted-foreground)]">{e.expertProfile.specialty}</span>}</div>
                                 <div className="text-[11px] text-[var(--muted-foreground)] truncate">{e.expertProfile?.employer || ''}</div>
                               </div>
-                              <button onClick={() => { setDemandRepPersons(prev => prev.some(x => x.userId === e.id) ? prev : [...prev, { userId: e.id, name: e.displayName, specialty: e.expertProfile?.specialty ?? '' }]); setDemandRepSearch(''); }} className="neu-btn-xs is-info shrink-0 ml-2">选定</button>
+                              <button onClick={() => { setDemandRepPersons(prev => prev.some(x => x.userId === e.id) ? prev : [...prev, { userId: e.id, name: e.displayName, specialty: e.expertProfile?.specialty ?? '', title: e.expertProfile?.title, employer: e.expertProfile?.employer }]); setDemandRepSearch(''); }} className="neu-btn-xs is-info shrink-0 ml-2">选定</button>
                             </div>
                           ))}
                         </div>
@@ -1654,13 +1954,13 @@ export function ExpertExtractPage({
               </div>
               </div>
 
-              {/* 右列：内容二 */}
+              {/* 右列：专业配额 */}
               <div className="neu-table-card p-4">
-            {/* 内容二：抽取专家（专业配额，必填） */}
+            {/* 抽取专家（专业配额，必填） */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">
-                  内容二 · 抽取专家（专业配额，可分配 <strong className="text-[var(--foreground)]">{expertSeats}</strong> 席，已配 <strong className={seatsBalanced ? 'text-[var(--success)]' : 'text-[var(--warning)]'}>{quotaSum}</strong> 席）
+                  抽取专家（专业配额，可分配 <strong className="text-[var(--foreground)]">{expertSeats}</strong> 席，已配 <strong className={seatsBalanced ? 'text-[var(--success)]' : 'text-[var(--warning)]'}>{quotaSum}</strong> 席）
                 </span>
                 <div className="flex items-center gap-2">
                   <button onClick={aiQuota} disabled={quotaAnalyzing || !pid} className="neu-btn-xs is-info" title="读取项目需求/立项/采购文件生成专业配额">
@@ -1692,13 +1992,6 @@ export function ExpertExtractPage({
             </div>
             </div>
 
-            {/* 职工代表席位（预算＞100万 自动固定 1 席；置于两列网格下方，全宽） */}
-            {isLargeBudget && (
-              <div className="flex items-center gap-2 rounded-xl bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5 text-xs font-semibold text-[var(--warning)] shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-                <ShieldCheck size={14} className="shrink-0" />
-                <span>职工代表席位：预算超过 100 万，固定 <strong>1 席职工代表</strong>（抽取时自动从「职工代表」专业中抽取）。</span>
-              </div>
-            )}
 
             {/* 抽取方式：标签与按钮同处一个右对齐组件 */}
             <div className="flex justify-end">
@@ -1761,29 +2054,37 @@ export function ExpertExtractPage({
 
                 {preview.shortages.length > 0 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3 text-sm text-[var(--warning)]"><AlertTriangle size={16} className="inline mr-2" />专业候选人不足{preview.shortages.map(s => `：${s.specialty} 需${s.needed}人/仅${s.available}人`).join('')}</div>}
 
-                {/* 指定需求方代表（固定成员，不参与抽取；1-2 人） */}
-                {demandRepItems.map(item => (
-                  <div key={item.userId} className="flex items-center gap-3 rounded-xl bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.4)]">
-                    <UserCircle size={18} className="shrink-0 text-[var(--accent)]" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2"><span className="text-sm font-bold text-[var(--foreground)]">{item.name}</span><StatusBadge tone="blue">{item.specialty}</StatusBadge><StatusBadge tone="purple">需求方代表</StatusBadge></div>
-                      <p className="text-[11px] text-[var(--muted-foreground)]">指定需求方代表 · 确认组建时将作为正选成员加入</p>
-                    </div>
-                  </div>
-                ))}
-
-                {/* 正选专家组（可调整） */}
+                {/* 正选专家组（含需求方代表，可调整） */}
                 <div className="neu-table-card p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">正选专家组 · {selectedExperts.length} 人</span>
+                    <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">专家组 · {selectedExperts.length + demandRepItems.length} 人</span>
                     <button onClick={() => { setReplaceTarget(null); setReplaceSearch(''); setShowReplaceModal(true); }} className="neu-btn-xs"><Plus size={12} />添加专家</button>
                   </div>
-                  {sortedSelectedExperts.map((s, i) => (
+                  {/* 需求方代表（置顶，姓名后缀标注身份，格式与专家一致：专业+正选+等级+理由） */}
+                  {demandRepItems.map((item, i) => (
+                    <div key={item.userId} className={`flex items-start gap-3 mt-3 ${i > 0 || sortedSelectedExperts.filter(s => !demandRepIdSet.has(s.userId)).length > 0 ? 'border-b border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] pb-3' : ''}`}>
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">
+                        <UserCircle size={15} />
+                      </span>
+                      <div className="min-w-0 flex-1 py-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-[var(--foreground)]">{fmtExpertName(item.userId, item.name)}</span>
+                          {item.title && <StatusBadge tone="gray">{item.title}</StatusBadge>}
+                          <StatusBadge tone="blue">{fmtExpertSpecialty(item.userId, item.specialty)}</StatusBadge>
+                          <StatusBadge tone="green">正选</StatusBadge>
+                          {item.evaluationLevel && <StatusBadge tone={item.evaluationLevel === 'A' ? 'green' : item.evaluationLevel === 'B' ? 'blue' : item.evaluationLevel === 'D' ? 'orange' : item.evaluationLevel === 'E' ? 'red' : 'gray'}>{item.evaluationLevel}</StatusBadge>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => setDemandRepPersons(prev => prev.filter(p => p.userId !== item.userId))} className="neu-btn-xs is-danger" title="移除"><X size={11} /></button>
+                      </div>
+                    </div>
+                  ))}
+                  {sortedSelectedExperts.filter(s => !demandRepIdSet.has(s.userId)).map((s, i) => (
                     <div key={s.userId} className={`flex items-start gap-3 mt-3 ${i > 0 ? 'border-t border-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] pt-3' : ''}`}>
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{i + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)]" onClick={() => router.push('/expert/' + s.userId)}>{s.name}</span><StatusBadge tone="blue">{s.specialty}</StatusBadge><StatusBadge tone="green">正选</StatusBadge>{s.evaluationLevel && <StatusBadge tone={s.evaluationLevel === 'A' ? 'green' : s.evaluationLevel === 'B' ? 'blue' : s.evaluationLevel === 'D' ? 'orange' : s.evaluationLevel === 'E' ? 'red' : 'gray'}>{s.evaluationLevel}</StatusBadge>}</div>
-                        <p className="text-xs text-[var(--muted-foreground)] mt-1 mb-1">{s.reason}</p>
+                      <div className="min-w-0 flex-1 py-0.5">
+                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span>{s.title && <StatusBadge tone="gray">{s.title}</StatusBadge>}<StatusBadge tone="blue">{s.specialty}</StatusBadge><StatusBadge tone="green">正选</StatusBadge>{s.evaluationLevel && <StatusBadge tone={s.evaluationLevel === 'A' ? 'green' : s.evaluationLevel === 'B' ? 'blue' : s.evaluationLevel === 'D' ? 'orange' : s.evaluationLevel === 'E' ? 'red' : 'gray'}>{s.evaluationLevel}</StatusBadge>}</div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button onClick={() => openReplace(s.userId, 'selected')} className="neu-btn-xs" title="替换"><Pencil size={11} /></button>
@@ -1921,7 +2222,7 @@ export function ExpertExtractPage({
                     }}
                     className="neu-btn-xs is-info"
                   >
-                    <Sparkles size={11} />AI 生成全部通知
+                    <Sparkles size={11} />AI 生成
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1931,8 +2232,8 @@ export function ExpertExtractPage({
                       onClick={() => setNotifyActiveExpert(e.userId)}
                       className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold shadow-[inset_0_1px_0_oklch(1_0_0/0.6),1px_1px_3px_oklch(0.55_0.03_258/0.1)] transition-colors ${e.userId === notifyActiveExpert ? 'bg-[var(--accent)] text-white' : 'bg-[var(--neu-raised-bg)] text-[var(--foreground)] hover:bg-[color-mix(in_oklch,var(--accent)_8%,var(--neu-raised-bg))]'}`}
                     >
-                      <span>{e.name || '未知'}</span>
-                      <span className="text-xs font-normal opacity-70">{e.specialty}</span>
+                      <span>{fmtExpertName(e.userId, e.name || '未知')}</span>
+                      <span className="text-xs font-normal opacity-70">{fmtExpertSpecialty(e.userId, e.specialty)}</span>
                     </button>
                   ))}
                 </div>
@@ -1996,7 +2297,7 @@ export function ExpertExtractPage({
                 const totalDeclined = allMain.filter(e => e.invitationStatus === 'declined').length;
                 const reached = totalConfirmed >= totalSeats;
                 return (
-                <div className={`rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-3 ${reached ? 'bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-[var(--success)]' : 'bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] text-[var(--foreground)]'}`}>
+                <div className={`rounded-xl pl-4 pr-6 py-2.5 text-xs font-bold flex items-center gap-3 ${reached ? 'bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-[var(--success)]' : 'bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] text-[var(--foreground)]'}`}>
                   <Check size={14} className={reached ? '' : 'text-[var(--accent)]'} />
                   <span>{reached ? '专家组已满员' : '专家组组建进度'}</span>
                   <span className="ml-1">{totalConfirmed} / {totalSeats} 席</span>
@@ -2010,19 +2311,31 @@ export function ExpertExtractPage({
               })()}
 
               <div className="neu-table-card">
-                <div className="flex items-center gap-3 py-2 mb-3 border-b border-[color-mix(in_oklch,var(--success)_20%,transparent)]">
+                <div className="flex items-center gap-3 py-2 pr-2 mb-3 border-b border-[color-mix(in_oklch,var(--success)_20%,transparent)]">
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[11px] font-extrabold text-[var(--success)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
                     {invitationData.experts.filter(e=>e.expertRole==='正选' && originalConfirmedIdsRef.current.has(e.userId)).length}</div>
                   <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">正选评审专家</span>
                   {(() => {
                     const experts = invitationData.experts.filter(e=>e.expertRole==='正选' && originalConfirmedIdsRef.current.has(e.userId));
                     const confirmedByMajor = new Map<string,number>();
-                    experts.filter(e=>e.invitationStatus==='confirmed').forEach(e=>{const m=e.major||'综合';confirmedByMajor.set(m,(confirmedByMajor.get(m)||0)+1);});
+                    const totalByMajor = new Map<string,number>();
+                    // 需求方代表：不按真实专业归入普通专业计数，独立展示
+                    let repConfirmed = 0, repTotal = 0;
+                    experts.forEach(e=>{
+                      if (demandRepIdSet.has(e.userId)) {
+                        repTotal++;
+                        if(e.invitationStatus==='confirmed') repConfirmed++;
+                        return; // 不计入专业分布
+                      }
+                      const m=e.major||'综合';
+                      totalByMajor.set(m,(totalByMajor.get(m)||0)+1);
+                      if(e.invitationStatus==='confirmed') confirmedByMajor.set(m,(confirmedByMajor.get(m)||0)+1);
+                    });
+                    const nonDemandMajors = [...new Set(experts.filter(e=>!demandRepIdSet.has(e.userId)).map(e=>e.major))].filter(Boolean);
                     return (
                   <div className="flex items-center gap-1.5">
-                    {quotas.filter(q=>q.specialty&&q.count>0).map(q=>{const done=confirmedByMajor.get(q.specialty)||0;return(<span key={q.specialty} className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${done>=q.count?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>{q.specialty} {done}/{q.count}</span>);})}
-                    {isLargeBudget && <span className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${(confirmedByMajor.get('职工代表')||0)>=1?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>职工代表 {confirmedByMajor.get('职工代表')||0}/1</span>}
-                    {needDemandRep && (() => { const repConfirmed = demandRepItems.filter(r => experts.some(e => e.userId === r.userId && e.invitationStatus === 'confirmed')).length; const repTotal = demandRepItems.length || demandRepCount; return <span className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${repConfirmed>=repTotal?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>需求方代表 {repConfirmed}/{repTotal}</span>; })()}
+                    {nonDemandMajors.map(m=>{const done=confirmedByMajor.get(m)||0;const total=totalByMajor.get(m)||0;return(<span key={m} className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${done>=total?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>{m} {done}/{total}</span>);})}
+                    {needDemandRep && repTotal > 0 && <span className={`rounded-[6px] px-2 py-0.5 text-[10px] font-bold ${repConfirmed>=repTotal?'bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]':'bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]'}`}>需求方代表 {repConfirmed}/{repTotal}</span>}
                   </div>
                     );
                   })()}
@@ -2038,13 +2351,13 @@ export function ExpertExtractPage({
                     <tbody>
                       {invitationData.experts.filter(e=>e.expertRole==='正选' && originalConfirmedIdsRef.current.has(e.userId)).sort((a,b)=>(a.invitationStatus==='declined'?1:0)-(b.invitationStatus==='declined'?1:0)).map(e => (
                         <tr key={e.id}>
-                          <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span></td>
-                          <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
+                          <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{fmtExpertName(e.userId, e.expertName)}</span></td>
+                          <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.major)}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
                           <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
-                          <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{e.rsvpRespondedAt?(e.rsvpNo||'—'):'—'}</td>
-                          <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
+                          <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
+                          <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2109,8 +2422,8 @@ export function ExpertExtractPage({
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                                   <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
                                   <td className="text-center">{e.invitationStatus==='confirmed'?<StatusBadge tone="green">确认参加</StatusBadge>:e.invitationStatus==='pending'?<StatusBadge tone="blue">待回复</StatusBadge>:(e.rsvpExpiresAt && e.rsvpRespondedAt && new Date(e.rsvpRespondedAt).getTime() >= new Date(e.rsvpExpiresAt).getTime() ? <StatusBadge tone="red">超时拒绝</StatusBadge> : <StatusBadge tone="red">无法参加</StatusBadge>)}</td>
-                                  <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{e.rsvpRespondedAt?(e.rsvpNo||'—'):'—'}</td>
-                                  <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
+                                  <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
+                                  <td className="text-center">{e.invitationStatus==='pending'&&(<div className="flex justify-center gap-1"><button onClick={async()=>{try{await confirmInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已确认')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-success">确认参加</button><button onClick={async()=>{try{const res=await declineInvitation(pid,e.userId);setStaffActionIds(prev=>new Set(prev).add(e.userId));setInvitationData(await getProjectInvitations(pid));toast.success(e.expertName+' 已标记无法参加')}catch(err:any){toast.error(err?.message||'操作失败')}}} className="neu-btn-xs is-danger">无法参加</button></div>)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2169,28 +2482,52 @@ export function ExpertExtractPage({
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[11px] font-extrabold text-[var(--success)] shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
                     {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length}</div>
                   <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">最终专家组成员</span>
-                  <div className="flex gap-1.5 ml-auto">
-                    <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--success)]">{invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'confirmed').length} 已确认</span>
-                    {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'pending').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--warning)]">{invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'pending').length} 待回复</span>}
-                    {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'declined').length > 0 && <span className="rounded-[6px] bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold text-[var(--danger)]">{invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus === 'declined').length} 已拒绝</span>}
+                  {/* 组长选定 / 切换 */}
+                  <div className="ml-auto flex items-center gap-2 mr-2">
+                    {step5LeaderId ? (
+                      <button onClick={() => setSelectingLeader(s => !s)} className="neu-btn-xs is-info">
+                        <RefreshCw size={12} className="inline mr-0.5" />切换组长
+                      </button>
+                    ) : (
+                      <button onClick={aiSelectLeader} disabled={aiSelectingLeader} className="neu-btn-xs is-info">
+                        {aiSelectingLeader ? <><RefreshCw size={12} className="animate-spin inline mr-0.5" />AI 分析中…</> : <><Sparkles size={12} className="inline mr-0.5" />AI 选定组长</>}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full table-fixed">
-                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">来源</th><th className="text-center">回复状态</th><th className="text-center">回执号</th></tr></thead>
+                    <thead><tr><th className="text-center">专家</th><th className="text-center">专业</th><th className="text-center">职称</th><th className="text-center">部门</th><th className="text-center">来源</th><th className="text-center">回复状态</th><th className="text-center">回执号</th>{selectingLeader && <th className="text-center">操作</th>}</tr></thead>
                     <tbody>
-                      {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus !== 'declined').sort((a, b) => (a.invitationStatus === 'confirmed' ? -1 : 1) - (b.invitationStatus === 'confirmed' ? -1 : 1)).map(e => {
+                      {invitationData.experts.filter(e => e.expertRole === '正选' && e.invitationStatus !== 'declined').sort((a, b) => {
+                        // 组长排第一，其次已确认在前
+                        const la = step5LeaderId === a.userId ? 0 : 1;
+                        const lb = step5LeaderId === b.userId ? 0 : 1;
+                        if (la !== lb) return la - lb;
+                        return (a.invitationStatus === 'confirmed' ? -1 : 1) - (b.invitationStatus === 'confirmed' ? -1 : 1);
+                      }).map(e => {
                         const isOriginal = originalConfirmedIdsRef.current.has(e.userId);
                         const roundNo = reHistoryRoundMap.get(e.userId);
+                        const isLeader = step5LeaderId === e.userId;
                         return (
-                        <tr key={e.id}>
-                          <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{e.expertName}</span></td>
-                          <td className="text-center text-sm text-[var(--muted-foreground)]">{e.major}</td>
+                        <tr key={e.id} className={isLeader ? 'bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]' : ''}>
+                          <td className="text-center">
+                            <span className="text-sm font-bold text-[var(--foreground)]">{fmtExpertName(e.userId, e.expertName)}</span>
+                            {isLeader && <StatusBadge tone="purple">组长</StatusBadge>}
+                          </td>
+                          <td className="text-center text-sm text-[var(--muted-foreground)]">{fmtExpertSpecialty(e.userId, e.major)}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.title || '—'}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{e.employer || '—'}</td>
                           <td className="text-center">{isOriginal ? <StatusBadge tone="green">正选</StatusBadge> : <StatusBadge tone="blue">第{roundNo || '?'}次补选</StatusBadge>}</td>
                           <td className="text-center">{e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
-                          <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—'}</td>
+                          <td className="text-center text-[11px] font-mono text-[var(--muted-foreground)]">{staffActionIds.has(e.userId) ? '工作人员代为确认' : (e.rsvpRespondedAt ? (e.rsvpNo || '—') : '—')}</td>
+                          {selectingLeader && (
+                            <td className="text-center">
+                              <button onClick={() => manualSetLeader(e.userId)} disabled={isLeader || e.invitationStatus !== 'confirmed'} className="neu-btn-xs is-info">
+                                {isLeader ? '当前组长' : '设为组长'}
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       )})}
                     </tbody>
@@ -2199,8 +2536,11 @@ export function ExpertExtractPage({
               </div>
 
               <div className="flex justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                <button onClick={() => setStep(4)} className="neu-btn-soft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 上一步：专家确认与补选</button>
-                <button onClick={() => setStep(6)} className="neu-btn-soft is-info">下一步：候补专家抽取与确认<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+                <button onClick={() => { setSelectingLeader(false); setStep(4); }} className="neu-btn-soft"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg> 上一步：专家确认与补选</button>
+                <div className="flex items-center gap-3">
+                  {!step5LeaderId && <span className="text-[11px] text-[var(--warning)]">请先选定组长</span>}
+                  <button onClick={() => setStep(6)} disabled={!step5LeaderId} className="neu-btn-soft is-info">下一步：候补专家抽取与确认<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+                </div>
               </div>
             </>
           )}
@@ -2242,7 +2582,7 @@ export function ExpertExtractPage({
                     <tbody>
                       {altSelected.map((s, i) => (
                         <tr key={s.userId}>
-                          <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)] cursor-pointer hover:text-[var(--accent)]" onClick={() => router.push('/expert/' + s.userId)}>{s.name}</span></td>
+                          <td className="text-center"><span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span></td>
                           <td className="text-center text-sm text-[var(--muted-foreground)]">{s.specialty}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{s.title || '—'}</td>
                           <td className="text-center text-xs text-[var(--muted-foreground)]">{s.employer || '—'}</td>

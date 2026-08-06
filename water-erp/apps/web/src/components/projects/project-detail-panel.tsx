@@ -451,9 +451,18 @@ export function ProjectDetailPanel({
 
   // 自动触发步骤检查：阶段切换时优先使用缓存，缓存未命中时请求 API
   // 未开始的阶段（NOT_STARTED）不触发步骤检查
+  // 无附件的阶段不触发步骤检查——没有文件就没有审查依据
   const runComplianceAudit = useCallback((force = false) => {
     // 缓存 key 含 round，避免多轮采购时不同轮次同一 stageKey 冲突
     const cacheKey = `${item.id}:${selectedStage.stageKey}:${selectedRound}`;
+    // 当前阶段没有任何附件：没有审查依据，不进行步骤检查，并清掉旧缓存
+    if (!selectedStage.attachments || selectedStage.attachments.length === 0) {
+      complianceCache.current.delete(cacheKey);
+      setComplianceAudit(null);
+      setComplianceError(null);
+      setComplianceLoading(false);
+      return;
+    }
     // 先判定是否有可分析的文件内容：没有则不进行步骤检查，并清掉该阶段旧缓存，
     // 避免在"无文件 / 分析被清空 / 分析失败"时误展示历史结论（含旧缓存里的善意推断结论）。
     // 该判定必须早于缓存读取，否则同 cacheKey 的旧缓存会先命中并覆盖清空意图。
@@ -827,7 +836,8 @@ export function ProjectDetailPanel({
     }
   };
 
-  // AI 提取并优化"申请立项事由 / 对供方的主要要求"：结果预填进双字段编辑态，由用户确认/微调后保存，不直接覆盖。
+  // AI 提取并优化"申请立项事由 / 对供方的主要要求"：直接持久化结果并刷新，
+  // 不再进入编辑态让用户确认——AI 输出即终值，用户想微调可点字段右侧铅笔。
   const handleAiOptimizeInitiation = async () => {
     setAiExtracting('initiation');
     try {
@@ -838,30 +848,16 @@ export function ProjectDetailPanel({
         setAiResult({ type: 'warning', message: 'AI 未能从采购需求/采购立项文件中提炼出相关内容，请检查是否已上传并分析文件。' });
         return;
       }
-      setEditValues((prev) => ({
-        ...prev,
-        projectReason: pr || prev.projectReason || localItem.projectReason || '',
-        supplierRequirements: sr || prev.supplierRequirements || localItem.supplierRequirements || '',
-      }));
-      setEditingField('initiationAi'); // 双字段同时进入编辑态供确认（编辑态本身即反馈，不弹模态以免遮挡保存按钮）
+      // 持久化：未提取到的字段回退到原值，避免空值覆盖已有内容
+      await updateProjectExtractedInfo(item.id, {
+        projectReason: pr || localItem.projectReason || '',
+        supplierRequirements: sr || localItem.supplierRequirements || '',
+      });
+      await onUpdated();
     } catch (e) {
       setAiResult({ type: 'error', message: e instanceof Error ? e.message : 'AI 提取并优化失败' });
     } finally {
       setAiExtracting(null);
-    }
-  };
-
-  // 保存 AI 预填/手动编辑后的"申请立项事由 + 对供方的主要要求"（一次写两字段）
-  const handleSaveInitiation = async () => {
-    try {
-      await updateProjectExtractedInfo(item.id, {
-        projectReason: (editValues.projectReason || '').trim(),
-        supplierRequirements: (editValues.supplierRequirements || '').trim(),
-      });
-      setEditingField(null);
-      await onUpdated();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '保存失败。');
     }
   };
 
@@ -882,7 +878,9 @@ export function ProjectDetailPanel({
   // 阶段附件发生变化（新增 / 替换）后的统一处理，避免需手动刷新页面才可见：
   //  - 拿到上传结果（客户端上传）时即时注入 localItem，文件立即可见；
   //  - 服务端创建/替换（无 result）时由弹窗的 onPublished/onFileReplaced 回流更新列表；
-  //  - 若当前正查看该阶段，同步刷新「文件分析」与「步骤检查」（含对新/改文件的分析内容）。
+  //  - 始终刷新后端文件分析 + 步骤检查缓存（即使当前没选中该阶段），
+  //    这样从弹窗（如采购文件编写）回到该阶段时缓存已就绪、不会报"没有文件内容"。
+  //  - UI 态（analysis / complianceAudit / loading）仅当选中的正是该阶段时才更新。
   const handleStageAttachmentChanged = useCallback(
     (stageKey: ProjectWorkflowStageKey, result?: UploadStageAttachmentResult) => {
       if (result) {
@@ -895,34 +893,37 @@ export function ProjectDetailPanel({
           ),
         }));
       }
-      if (selectedStageKey === stageKey) {
+      const isCurrentStage = selectedStageKey === stageKey;
+      if (isCurrentStage) {
         setAnalysisLoading(true);
         setAnalysisError(null);
-        // 清缓存后等分析完成再触发合规检查——否则后端 auditStageCompliance
-        // 读到的分析缓存还是旧版本/空，全部显示"未检测到采购文件"
-        complianceCache.current.delete(`${item.id}:${stageKey}:${selectedRound}`);
-        analyzeProjectManagementItem(item.id, stageKey)
-          .then((next) => setAnalysis(next))
-          .catch((e) => setAnalysisError(e instanceof Error ? e.message : 'AI 分析暂不可用。'))
-          .finally(() => {
-            setAnalysisLoading(false);
-            // 文件分析已完成（后端缓存已更新）→ 直接发起合规检查
+      }
+      // 清缓存后等分析完成再触发合规检查——否则后端 auditStageCompliance
+      // 读到的分析缓存还是旧版本/空，全部显示"未检测到采购文件"
+      complianceCache.current.delete(`${item.id}:${stageKey}:${selectedRound}`);
+      analyzeProjectManagementItem(item.id, stageKey)
+        .then((next) => { if (isCurrentStage) setAnalysis(next); })
+        .catch((e) => { if (isCurrentStage) setAnalysisError(e instanceof Error ? e.message : 'AI 分析暂不可用。'); })
+        .finally(() => {
+          if (isCurrentStage) setAnalysisLoading(false);
+          // 文件分析已完成（后端缓存已更新）→ 直接发起合规检查
+          if (isCurrentStage) {
             setComplianceLoading(true);
             setComplianceError(null);
-            auditStageCompliance(item.id, stageKey, true)
-              .then((result) => {
-                const isFallback = result.results.every(r => r.evidence.includes('AI 审查服务暂不可用'));
-                if (!isFallback) {
-                  complianceCache.current.set(`${item.id}:${stageKey}:${selectedRound}`, result);
-                }
-                setComplianceAudit(result);
-              })
-              .catch((err) => { setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
-              .finally(() => setComplianceLoading(false));
-          });
-      }
+          }
+          auditStageCompliance(item.id, stageKey, true)
+            .then((auditResult) => {
+              const isFallback = auditResult.results.every(r => r.evidence.includes('AI 审查服务暂不可用'));
+              if (!isFallback) {
+                complianceCache.current.set(`${item.id}:${stageKey}:${selectedRound}`, auditResult);
+              }
+              if (isCurrentStage) setComplianceAudit(auditResult);
+            })
+            .catch((err) => { if (isCurrentStage) setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
+            .finally(() => { if (isCurrentStage) setComplianceLoading(false); });
+        });
     },
-    [item.id, selectedStageKey, runComplianceAudit],
+    [item.id, selectedStageKey, selectedRound],
   );
 
   // 采购方式 / 采购类别下拉选项 —— 确保当前值始终在选项中（历史数据可能不在标准枚举内）
@@ -1254,21 +1255,6 @@ export function ProjectDetailPanel({
                     )}
                   </div>
                   <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">合同编号</span>
-                    {editingField === 'contractNumber' ? (
-                      <div className="mt-0.5 flex items-center gap-1.5">
-                        <input type="text" value={editValues.contractNumber} onChange={(e) => setEditValues((prev) => ({ ...prev, contractNumber: e.target.value }))} className="workbench-input !h-[28px] !text-xs" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('contractNumber'); if (e.key === 'Escape') setEditingField(null); }} />
-                        <button type="button" onClick={() => void handleSaveField('contractNumber')} className="neu-btn-xs"><Save size={13} /></button>
-                        <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => handleStartEdit('contractNumber', extractedInfoOverride?.contractNumber ?? (item.contractNumber || item.demandContractNumber || ''))} className="group mt-0.5 flex items-center gap-1">
-                        <span className="text-[color:var(--foreground)]">{extractedInfoOverride?.contractNumber ?? item.contractNumber ?? item.demandContractNumber ?? '无'}</span>
-                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </button>
-                    )}
-                  </div>
-                  <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">部门编号</span>
                     <div className="mt-0.5 text-[color:var(--foreground)]">{item.departmentNumber || '无'}</div>
                   </div>
@@ -1286,21 +1272,17 @@ export function ProjectDetailPanel({
                       {aiExtracting === 'initiation' ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />} AI 提取并优化
                     </button>
                   </div>
-                  {editingField === 'projectReason' || editingField === 'initiationAi' ? (
+                  {editingField === 'projectReason' ? (
                     <div className="mt-1 flex items-start gap-2">
                       <textarea
                         value={editValues.projectReason}
                         onChange={(e) => setEditValues((prev) => ({ ...prev, projectReason: e.target.value }))}
                         className="workbench-input !text-xs flex-1 min-h-[64px] leading-6"
                         placeholder="申请立项事由"
-                        autoFocus={editingField === 'projectReason'}
+                        autoFocus
                       />
-                      {editingField === 'projectReason' && (
-                        <>
-                          <button type="button" onClick={() => void handleSaveField('projectReason')} className="neu-btn-xs mt-1"><Save size={13} /></button>
-                          <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs mt-1"><X size={13} /></button>
-                        </>
-                      )}
+                      <button type="button" onClick={() => void handleSaveField('projectReason')} className="neu-btn-xs mt-1"><Save size={13} /></button>
+                      <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs mt-1"><X size={13} /></button>
                     </div>
                   ) : (
                     <button type="button" onClick={() => handleStartEdit('projectReason', localItem.projectReason ?? null)} disabled={stageLocked} className="group mt-1 block w-full text-left">
@@ -1311,33 +1293,23 @@ export function ProjectDetailPanel({
                 </div>
                 <div className="mt-3">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">对供方的主要要求</span>
-                  {editingField === 'supplierRequirements' || editingField === 'initiationAi' ? (
+                  {editingField === 'supplierRequirements' ? (
                     <div className="mt-1 flex items-start gap-2">
                       <textarea
                         value={editValues.supplierRequirements}
                         onChange={(e) => setEditValues((prev) => ({ ...prev, supplierRequirements: e.target.value }))}
                         className="workbench-input !text-xs flex-1 min-h-[64px] leading-6"
                         placeholder="对供方的主要要求"
-                        autoFocus={editingField === 'supplierRequirements'}
+                        autoFocus
                       />
-                      {editingField === 'supplierRequirements' && (
-                        <>
-                          <button type="button" onClick={() => void handleSaveField('supplierRequirements')} className="neu-btn-xs mt-1"><Save size={13} /></button>
-                          <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs mt-1"><X size={13} /></button>
-                        </>
-                      )}
+                      <button type="button" onClick={() => void handleSaveField('supplierRequirements')} className="neu-btn-xs mt-1"><Save size={13} /></button>
+                      <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs mt-1"><X size={13} /></button>
                     </div>
                   ) : (
                     <button type="button" onClick={() => handleStartEdit('supplierRequirements', localItem.supplierRequirements ?? null)} disabled={stageLocked} className="group mt-1 block w-full text-left">
                       <span className={`text-sm leading-6 ${localItem.supplierRequirements ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{localItem.supplierRequirements || '无'}</span>
                       {!stageLocked && <Pencil size={10} className="inline opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)] ml-1" />}
                     </button>
-                  )}
-                  {editingField === 'initiationAi' && (
-                    <div className="mt-2 flex items-center justify-end gap-1.5">
-                      <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={12} />取消</button>
-                      <button type="button" onClick={() => void handleSaveInitiation()} className="neu-btn-xs is-info"><Save size={12} />保存两项</button>
-                    </div>
                   )}
                 </div>
               </div>
@@ -1487,6 +1459,21 @@ export function ProjectDetailPanel({
                   <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">合同</span>
                 </div>
                 <div className="space-y-3">
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">合同编号</span>
+                    {editingField === 'contractNumber' ? (
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        <input type="text" value={editValues.contractNumber} onChange={(e) => setEditValues((prev) => ({ ...prev, contractNumber: e.target.value }))} className="workbench-input !h-[28px] !text-xs" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('contractNumber'); if (e.key === 'Escape') setEditingField(null); }} />
+                        <button type="button" onClick={() => void handleSaveField('contractNumber')} className="neu-btn-xs"><Save size={13} /></button>
+                        <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => handleStartEdit('contractNumber', extractedInfoOverride?.contractNumber ?? (item.contractNumber || item.demandContractNumber || ''))} className="group mt-0.5 flex items-center gap-1">
+                        <span className="text-[color:var(--foreground)]">{extractedInfoOverride?.contractNumber ?? item.contractNumber ?? item.demandContractNumber ?? '无'}</span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
+                      </button>
+                    )}
+                  </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">支付及履约内容</span>
                     {editingField === 'paymentPerformance' ? (
@@ -1856,6 +1843,7 @@ export function ProjectDetailPanel({
           projectTitle={item.title}
           project={item}
           onAttachmentUploaded={(result) => handleStageAttachmentChanged('TENDER_DOCUMENT', result)}
+          onUpdated={onUpdated}
         />
       )}
 

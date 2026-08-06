@@ -127,6 +127,16 @@ export function confirmExtraction(data: { projectId: string; experts: { userId: 
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }
 
+/** 设置/切换评审组长 */
+export function setLeader(projectId: string, userId: string) {
+  return api.patch<{ success: boolean; leaderId: string }>('/expert-admin/extract/leader', { projectId, userId });
+}
+
+/** AI 选定评审组长 */
+export function aiSelectLeaderApi(projectId: string) {
+  return api.post<{ leaderId: string; leaderName: string; reason: string }>('/expert-admin/extract/ai-leader', { projectId });
+}
+
 /** 自定义抽取：分析已上传文件，AI 从项目背景推断所需专业/人数 */
 export interface ExtractionFileAnalysis {
   suggestedName: string;
@@ -235,7 +245,7 @@ export interface BidProjectDetail {
   procurementMethod: string; openTime: string; deadline: string; riskNote?: string | null;
   budget?: string | number | null;
   projectManagementItemId?: string | null;
-  suppliers: { supplierId: string | null; supplierName: string }[];
+  suppliers: { supplierId: string | null; supplierName: string; confirmStatus?: string }[];
   experts: { userId: string; expertName: string; major: string }[];
 }
 export function getBidProjectDetail(id: string) {
