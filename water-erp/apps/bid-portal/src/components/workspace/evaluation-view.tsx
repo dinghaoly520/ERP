@@ -28,6 +28,7 @@ import { CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, isPassFailCategory } fro
 import type { BidProjectDetail } from '@/lib/types';
 import { useBidProjectContext } from '@/contexts/bid-project-context';
 import { listEvaluationResults, type EvaluationResultRow } from '@/lib/api/bid';
+import AiAnalysisCard from './ai-analysis-card';
 
 /* ── Local types ── */
 type ExpertInfo = BidProjectDetail['experts'][number];
@@ -382,6 +383,8 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
   return (
     <div className="space-y-6">
       {/* ═══ Progress dashboard ═══ */}
+      {/* ═══ AI 辅助评标进度（只读 tab 的窄例外：补救操作不改阶段）═══ */}
+      <AiAnalysisCard projectId={projectId} stage={project.stage} />
       {dashMetrics && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {/* 评分进度 */}

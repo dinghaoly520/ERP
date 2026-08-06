@@ -71,8 +71,8 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
     const tick = async () => {
       const p = await load();
       if (cancelled) return;
-      // 停止条件：task 存在且终态（COMPLETED/COMPLETED_WITH_ERRORS/FAILED/CANCELLED）——终态不再变化
-      if (p?.exists && p.taskStatus && !['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(p.taskStatus)) {
+      // 停止条件：task 存在且终态且无异常——异常终态继续轮询（用户重试/重新分析后状态复位即自动继续刷新）
+      if (p?.exists && p.taskStatus && !['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(p.taskStatus) && !p.anomaly.hasAnomaly) {
         if (timer) { clearInterval(timer); timer = null; }
       }
     };
