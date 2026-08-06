@@ -31,6 +31,8 @@ describe('shouldExclude', () => {
     expect(shouldExclude('GET', '/api/tender-review/review/tasks/abc123', DEFAULT_EXCLUDE_PATHS)).toBe(true);
     expect(shouldExclude('GET', '/api/tender-review/rules/extract/tasks/t1', DEFAULT_EXCLUDE_PATHS)).toBe(true);
     expect(shouldExclude('GET', '/api/expert-admin/invitations/p1', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+    // 「高频轮询 GET 排除」用例内追加：
+    expect(shouldExclude('GET', '/api/bid/projects/p1/ai-analysis-progress', DEFAULT_EXCLUDE_PATHS)).toBe(true);
   });
 
   it('方法限定：写操作仍被记录（GET-only 模式不吞写审计）', () => {
@@ -43,6 +45,9 @@ describe('shouldExclude', () => {
     expect(shouldExclude('POST', '/api/expert-admin/invitations/p1/u1/decline', DEFAULT_EXCLUDE_PATHS)).toBe(false);
     // 同路径 GET 仍排除
     expect(shouldExclude('GET', '/api/expert-admin/invitations/p1/u1/confirm', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+    // 「方法限定」用例内追加（该前缀下还有 retry POST，必须保留审计）：
+    expect(shouldExclude('POST', '/api/bid/projects/p1/retry-ai-bidders', DEFAULT_EXCLUDE_PATHS)).toBe(false);
+    expect(shouldExclude('GET', '/api/bid/projects/p1', DEFAULT_EXCLUDE_PATHS)).toBe(false);
   });
 
   it('字符串前缀模式仍匹配任意方法（向后兼容）', () => {

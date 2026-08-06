@@ -27,6 +27,7 @@ export const DEFAULT_EXCLUDE_PATHS: ExcludePattern[] = [
   { method: 'GET', path: '/api/tender-review/review/tasks' }, // 2s 轮询审查任务状态
   { method: 'GET', path: '/api/expert-admin/invitations/' }, // 5s 轮询专家邀请状态
   { method: 'GET', path: '/api/ai-bid-analysis/tasks' }, // 3s/1.5s 轮询分析进度（controller 待补，面向未来）
+  { method: 'GET', path: /^\/api\/bid\/projects\/[^/]+\/ai-analysis-progress$/ }, // 3s 轮询 AI 评标进度（:3007 卡片）；同前缀写端点（retry/rerun）保留审计
 ];
 
 /**

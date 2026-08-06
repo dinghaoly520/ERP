@@ -421,6 +421,10 @@ export class BidController {
   @ApiOperation({ summary: '评标结果汇总' })
   listEvaluationResults(@Param('id') id: string) { return this.bidService.listEvaluationResults(id); }
 
+  @Get('projects/:id/ai-analysis-progress')
+  @ApiOperation({ summary: 'AI 辅助评标进度聚合（:3007 进度卡片轮询；异常判定在后端）' })
+  getAiAnalysisProgress(@Param('id') id: string) { return this.bidService.getAiAnalysisProgress(id); }
+
   @Post('projects/:id/evaluation-results/generate')
   @ApiOperation({ summary: '生成评标结果与候选人' })
   generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.generateEvaluationResults(id, userId); }
