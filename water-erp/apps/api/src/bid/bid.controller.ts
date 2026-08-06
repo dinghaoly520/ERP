@@ -14,6 +14,7 @@ import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
+import { AssignHostDto } from './dto/assign-host.dto';
 import { ArchiveAllDto } from './dto/archive-all.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
@@ -46,17 +47,44 @@ export class BidController {
   cryptoHealth() { return verifyKmsHealth(process.env.KMS_SECRET!); }
 
   @Get('projects')
-  @ApiOperation({ summary: '项目列表（可选阶段过滤）' })
-  listProjects(@Query('stage') stage?: string | string[]) {
+  @ApiOperation({ summary: '项目列表（可选阶段过滤；bid_host 仅看派给自己的）' })
+  listProjects(
+    @Query('stage') stage?: string | string[],
+    @CurrentUser('sub') userId?: string,
+    @Req() req?: any,
+  ) {
     const stages = stage
       ? (Array.isArray(stage) ? stage : [stage])
       : undefined;
-    return this.bidService.listProjects(stages);
+    const actor = userId && req?.user?.role ? { id: userId, role: req.user.role } : undefined;
+    return this.bidService.listProjects(stages, actor);
   }
 
   @Get('projects/dashboard')
-  @ApiOperation({ summary: 'Dashboard 聚合：项目列表 + 就绪状态 + 阶段分布' })
-  getProjectsDashboard() { return this.bidService.getProjectsDashboard(); }
+  @ApiOperation({ summary: 'Dashboard 聚合（bid_host 仅看派给自己的）' })
+  getProjectsDashboard(
+    @CurrentUser('sub') userId?: string,
+    @Req() req?: any,
+  ) {
+    const actor = userId && req?.user?.role ? { id: userId, role: req.user.role } : undefined;
+    return this.bidService.getProjectsDashboard(actor);
+  }
+
+  @Get('hosts')
+  @Roles('leader', 'staff', 'admin')
+  @ApiOperation({ summary: '列出可指派的开标主持人（:3005 选择器）' })
+  listHosts() { return this.bidService.listHosts(); }
+
+  @Patch('projects/:id/assigned-host')
+  @Roles('leader', 'staff', 'admin')
+  @ApiOperation({ summary: '指派/改派开标主持人（OpeningSession 存在前可改）' })
+  assignHost(
+    @Param('id') id: string,
+    @Body() body: AssignHostDto,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return this.bidService.assignHost(id, body.userId ?? null, actorId);
+  }
 
   @Get('projects/:id/ai-adoption')
   @ApiOperation({ summary: 'P1-E：项目级 AI 建议采纳率（专家 vs AI 评分 delta）' })

@@ -362,6 +362,7 @@ export class BidService {
         expertDisputes: { orderBy: { createdAt: 'desc' } },
         archiveItems: true,
         bidRounds: { orderBy: { roundNo: 'asc' } }, // L6: 含轮次数据，省一次 API round-trip
+        assignedHostUser: { select: { id: true, username: true, displayName: true } }, // 开标主持人指派（R1）
       },
     });
     if (!project) return null;

@@ -486,6 +486,9 @@ export interface BidProjectDetail {
     weight?: number | null;
   }>;
   archiveItems: BidArchiveItemInfo[];
+  // ── 开标主持人指派（R1 硬分流）──
+  assignedHostUserId?: string | null;
+  assignedHostUser?: { id: string; username: string; displayName: string } | null;
   supervisionLogs?: Array<{ time: string; role: string; target: string; action: string; result: string; riskFlag: string }>; // G2
   expertDisputes?: Array<{ // D2: 专家异议工单（采购端裁决用）
     id: string; expertName: string; type: string; // scoring | procedure | other
@@ -497,6 +500,19 @@ export interface BidProjectDetail {
 
 export function getBidProjectDetail(bidProjectId: string) {
   return api.get<BidProjectDetail>(`/bid/projects/${bidProjectId}`);
+}
+
+/** 列出可指派的开标主持人账号（:3005 选择器用） */
+export function listBidHosts() {
+  return api.get<Array<{ id: string; username: string; displayName: string }>>('/bid/hosts');
+}
+
+/** 指派/改派/清除开标主持人。userId=null 清除指派 */
+export function assignBidHost(projectId: string, userId: string | null) {
+  return api.patch<{ id: string; assignedHostUser: { id: string; username: string; displayName: string } | null }>(
+    `/bid/projects/${projectId}/assigned-host`,
+    { userId },
+  );
 }
 
 /* ── 评标管理 ── */
