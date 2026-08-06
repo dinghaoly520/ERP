@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bot, CheckCircle2, AlertTriangle, RefreshCw, Loader, X, ShieldAlert } from 'lucide-react';
+import { Bot, AlertTriangle, RefreshCw, Loader, X, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getAiAnalysisProgress, retryAiBidders, rerunAiAnalysis,
@@ -64,6 +64,12 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
   }, [projectId]);
 
   useEffect(() => {
+    // 阶段门控：非 EVALUATING（OPENING/ARCHIVED/ABORTED 回看）只拉一次快照，不轮询、不显示补救按钮
+    if (stage !== 'EVALUATING') {
+      stoppedRef.current = false;
+      void load().finally(() => { stoppedRef.current = true; });
+      return () => { stoppedRef.current = true; };
+    }
     stoppedRef.current = false;
     let timer: ReturnType<typeof setInterval> | null = null;
     let cancelled = false;
@@ -80,7 +86,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
     void tick();
     timer = setInterval(tick, POLL_MS);
     return () => { cancelled = true; stoppedRef.current = true; if (timer) clearInterval(timer); };
-  }, [load]);
+  }, [load, stage]);
 
   const doRetry = async () => {
     setBusy('retry');
@@ -127,8 +133,10 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
   const { total, completed, failed, anomaly, taskStatus } = progress;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   const inProgress = taskStatus === 'PENDING' || taskStatus === 'TENDER_PROCESSING' || taskStatus === 'ANALYZING';
-  const showRetry = anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0;
-  const showRerun = anomaly.taskFailed || anomaly.allPending || showRetry;
+  // 补救按钮仅在 EVALUATING 阶段可用（ARCHIVED/ABORTED 回看为只读快照）
+  const actionsEnabled = stage === 'EVALUATING';
+  const showRetry = actionsEnabled && (anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
+  const showRerun = actionsEnabled && (anomaly.taskFailed || anomaly.allPending || anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
 
   return (
     <div className={`neu-card-static p-4 ${anomaly.hasAnomaly ? 'bg-[oklch(0.97_0.03_83_/_0.35)]' : ''}`}>

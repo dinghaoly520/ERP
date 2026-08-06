@@ -2781,6 +2781,25 @@ describe('BidService — getAiAnalysisProgress', () => {
     expect(res.completed).toBe(1);
     expect(res.anomaly.hasAnomaly).toBe(false);
   });
+
+  it('task ANALYZING + 全部 bidder PENDING + 停摆 → allPending（worker 入队循环中死亡场景）', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'ANALYZING', updatedAt: fresh(45), bidderResults: [
+      mkBidder({ id: 'br1', status: 'PENDING', bidSupplier: { supplierName: '甲公司' } }),
+      mkBidder({ id: 'br2', status: 'PENDING', bidSupplierId: 'bs2', bidSupplier: { supplierName: '乙公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.allPending).toBe(true);
+    expect(res.anomaly.hasAnomaly).toBe(true);
+  });
+
+  it('task ANALYZING + 全部 bidder PENDING 但 updatedAt 新鲜 → 不算 allPending', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(mkTask({ status: 'ANALYZING', updatedAt: fresh(2), bidderResults: [
+      mkBidder({ id: 'br1', status: 'PENDING', bidSupplier: { supplierName: '甲公司' } }),
+    ] }));
+    const res = await service.getAiAnalysisProgress('p1', NOW);
+    expect(res.anomaly.allPending).toBe(false);
+    expect(res.anomaly.hasAnomaly).toBe(false);
+  });
 });
 
 /* ── AI 单家重试（retryAiBidders）── */
@@ -2858,6 +2877,7 @@ describe('BidService — retryAiBidders', () => {
     expect(bidderQueue.add).toHaveBeenCalledTimes(1);
     expect(bidderQueue.add).toHaveBeenCalledWith('process', { bidderResultId: 'br1', taskId: 't1' }, expect.objectContaining({ attempts: 3 }));
     expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
+    expect(prisma.aiBidAnalysisTask.update).toHaveBeenCalledWith({ where: { id: 't1' }, data: expect.objectContaining({ status: 'ANALYZING', completedAt: null }) });
   });
 
   it('不传 ids → 重试全部 FAILED + 卡住家（PENDING 与正常中间态不参与）', async () => {
@@ -2870,5 +2890,11 @@ describe('BidService — retryAiBidders', () => {
     const res = await service.retryAiBidders('p1', undefined, 'u1');
     expect(res.retried.map((r: any) => r.id).sort()).toEqual(['br1', 'br2']);
     expect(bidderQueue.add).toHaveBeenCalledTimes(2);
+  });
+
+  it('入队失败（Redis 异常）→ ENQUEUE_FAILED 归一化错误', async () => {
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue({ id: 't1', projectId: 'p1', status: 'COMPLETED_WITH_ERRORS', bidderResults: [mkBidder({ id: 'br1', status: 'FAILED', bidSupplier: { supplierName: '甲公司' } })] });
+    bidderQueue.add.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('入队失败') });
   });
 });

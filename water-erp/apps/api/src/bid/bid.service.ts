@@ -610,6 +610,7 @@ export class BidService {
         ...(dto.qualityRequirement !== undefined && { qualityRequirement: dto.qualityRequirement }),
         ...(dto.bondRequired !== undefined && { bondRequired: dto.bondRequired }),
         ...(dto.bondAmount !== undefined && { bondAmount: dto.bondAmount }),
+        ...(dto.clauseDeriveEnabled !== undefined && { clauseDeriveEnabled: dto.clauseDeriveEnabled }),
       },
     });
   }
@@ -1448,14 +1449,19 @@ export class BidService {
 
     // 入队（jobId 带时间戳防与等待中的旧 job 冲突；worker 未运行时 job 持久 Redis，恢复后自动消费）
     if (this.bidderQueue) {
-      for (const t of targets) {
-        await this.bidderQueue.add('process', { bidderResultId: t.id, taskId: task.id }, {
-          jobId: `bidderResult-retry-${t.id}-${Date.now()}`,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: { age: 7 * 24 * 3600 },
-          removeOnFail: { age: 30 * 24 * 3600 },
-        });
+      try {
+        for (const t of targets) {
+          await this.bidderQueue.add('process', { bidderResultId: t.id, taskId: task.id }, {
+            jobId: `bidderResult-retry-${t.id}-${Date.now()}`,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: { age: 7 * 24 * 3600 },
+            removeOnFail: { age: 30 * 24 * 3600 },
+          });
+        }
+      } catch (err) {
+        this.logger.error(`Failed to enqueue retry for task ${task.id}: ${(err as Error).message}`);
+        throw new BadRequestException({ error: '入队失败，请稍后重试', code: 'ENQUEUE_FAILED', message: '入队失败，请稍后重试' });
       }
     } else {
       this.logger.warn(`bidderQueue unavailable, retried ${targets.length} bidders not enqueued for project ${projectId}`);
@@ -1492,7 +1498,7 @@ export class BidService {
     const stuck = task.bidderResults.filter((b) => b.status !== 'PENDING' && !TERMINAL.has(b.status) && isStuck(b.updatedAt));
     const taskFailed = task.status === 'FAILED';
     const allPending = !taskFailed
-      && (task.status === 'PENDING' || task.status === 'TENDER_PROCESSING')
+      && ['PENDING', 'TENDER_PROCESSING', 'ANALYZING'].includes(task.status)
       && task.bidderResults.length > 0
       && task.bidderResults.every((b) => b.status === 'PENDING')
       && isStuck(task.updatedAt);
@@ -4444,6 +4450,7 @@ export class BidService {
           seq: dto.seq ?? 0,
           evidenceHint: dto.evidenceHint ?? null,
           objective: dto.objective ?? true,
+          ...(dto.linkedRequirementIds !== undefined && { linkedRequirementIds: dto.linkedRequirementIds }),
         },
       });
     });
@@ -4469,6 +4476,7 @@ export class BidService {
           ...(dto.seq !== undefined && { seq: dto.seq }),
           ...(dto.evidenceHint !== undefined && { evidenceHint: dto.evidenceHint }),
           ...(dto.objective !== undefined && { objective: dto.objective }),
+          ...(dto.linkedRequirementIds !== undefined && { linkedRequirementIds: dto.linkedRequirementIds }),
         },
       });
     });
@@ -4502,9 +4510,65 @@ export class BidService {
           evidenceSection: p.evidenceSection ?? null,
           confidence: p.confidence ?? null,
           objective: p.objective ?? true,
+          ...(p.linkedRequirementIds !== undefined && { linkedRequirementIds: p.linkedRequirementIds }),
         })),
       });
     });
+  }
+
+  /**
+   * Phase 1：得分点↔招标条款映射（独立于发布锁）。
+   * 仅 linkedRequirementIds 指引元数据，不参与评分计算；管理端即便评分标准已发布、
+   * 专家已开始打分，仍可维护映射。前置：项目须开启 clauseDeriveEnabled 开关。
+   */
+  async updateLinkedRequirements(projectId: string, itemId: string, pointId: string, linkedRequirementIds: string[]) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { clauseDeriveEnabled: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (!project.clauseDeriveEnabled) {
+      throw new BadRequestException({ error: '请先在评分标准面板开启「条款派生草稿」开关', code: 'CLAUSE_DERIVE_DISABLED' });
+    }
+    const point = await this.prisma.bidScorePoint.findFirst({
+      where: { id: pointId, scoreItem: { id: itemId, projectId } },
+    });
+    if (!point) throw new BadRequestException({ error: '得分点不存在', code: 'NOT_FOUND' });
+    return this.prisma.bidScorePoint.update({
+      where: { id: pointId },
+      data: { linkedRequirementIds },
+    });
+  }
+
+  /**
+   * Phase 1：列出本项目招标条款（来源 AiBidAnalysisTask.requirements，与条款响应核对同源）。
+   * 返回扁平化 [{requirementId, category, tenderContent, isStarred}] 供管理端映射多选。
+   */
+  async getTenderRequirements(projectId: string) {
+    const task = await this.prisma.aiBidAnalysisTask.findUnique({
+      where: { projectId },
+      select: { requirements: true },
+    });
+    const req = (task?.requirements ?? null) as
+      | {
+          qualificationRequirements?: Array<{ id: string; content: string }>;
+          technicalRequirements?: Array<{ id: string; content: string; isStarred?: boolean }>;
+          commercialRequirements?: Array<{ id: string; content: string }>;
+        }
+      | null;
+    if (!req) return [];
+    const out: Array<{ requirementId: string; category: 'qualification' | 'technical' | 'commercial'; tenderContent: string; isStarred: boolean }> = [];
+    const seen = new Set<string>();
+    for (const r of req.qualificationRequirements ?? []) {
+      if (r.id && !seen.has(r.id)) { seen.add(r.id); out.push({ requirementId: r.id, category: 'qualification', tenderContent: r.content ?? '', isStarred: false }); }
+    }
+    for (const r of req.technicalRequirements ?? []) {
+      if (r.id && !seen.has(r.id)) { seen.add(r.id); out.push({ requirementId: r.id, category: 'technical', tenderContent: r.content ?? '', isStarred: !!r.isStarred }); }
+    }
+    for (const r of req.commercialRequirements ?? []) {
+      if (r.id && !seen.has(r.id)) { seen.add(r.id); out.push({ requirementId: r.id, category: 'commercial', tenderContent: r.content ?? '', isStarred: false }); }
+    }
+    return out;
   }
 
   /** 应用标准评分模板（幂等：按 name 去重，已存在的项不重复创建）。立即解除新建项目的评标死锁。 */
