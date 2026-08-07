@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { MessageSquarePlus } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { MessageSquare, MessageSquarePlus } from 'lucide-react';
 
 export interface PointDecisionValue { checked: boolean; awardedScore: number; note?: string }
 export interface PointDef { id: string; name: string; fullScore: number | string; objective: boolean; evidenceHint?: string | null; seq: number }
@@ -28,8 +28,9 @@ interface Props {
  */
 export function PointChecklistScoring({ points, value, onChange, readOnly, compact, hideNotes, selectedPointId, onPointClick }: Props) {
   const sorted = [...points].sort((a, b) => a.seq - b.seq);
-  // 手动展开的批注框（无批注的小点默认折叠，点击「批注」展开）
+  // 手动展开的批注框（无批注的小点默认折叠，点击行内批注图标展开）
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  const noteRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   return (
     <div className="space-y-2">
       {sorted.map(p => {
@@ -63,6 +64,28 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
               ) : (
                 <span className="exp-pill shrink-0" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>主观</span>
               )}
+              {/* 批注入口：行内左侧图标（纵向成列、可扫读）；有批注=主题色底，点击展开/聚焦批注框 */}
+              {!hideNotes && (!readOnly || hasNote) && (
+                <button
+                  type="button"
+                  title={hasNote ? '批注' : '添加批注'}
+                  aria-label={`${p.name} 批注`}
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (noteExpanded) noteRefs.current[p.id]?.focus();
+                    else setOpenIds(prev => { const n = new Set(prev); n.add(p.id); return n; });
+                  }}
+                  onKeyDown={e => e.stopPropagation()}
+                  className={`flex shrink-0 items-center justify-center rounded-md transition ${compact ? 'h-5 w-5' : 'h-6 w-6'} ${
+                    hasNote
+                      ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent-strong)]'
+                      : 'text-[var(--muted-foreground)] hover:bg-[oklch(0.96_0.01_258/0.6)] hover:text-[var(--accent-strong)]'
+                  }`}>
+                  {hasNote
+                    ? <MessageSquare size={compact ? 12 : 14} strokeWidth={1.5} />
+                    : <MessageSquarePlus size={compact ? 12 : 14} strokeWidth={1.5} />}
+                </button>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</div>
                 {p.evidenceHint && <div className="truncate text-xs text-[var(--muted-foreground)]">{p.evidenceHint}</div>}
@@ -79,6 +102,7 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
             {!hideNotes && noteExpanded && (
               <div className={compact ? 'px-2 pb-1.5' : 'px-3 pb-2'}>
                 <textarea
+                  ref={el => { noteRefs.current[p.id] = el; }}
                   value={v.note ?? ''}
                   disabled={readOnly}
                   autoFocus={openIds.has(p.id)}
@@ -93,17 +117,6 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
                   }}
                   className="neu-input !min-h-[30px] !w-full !py-1 !text-xs disabled:opacity-60"
                   aria-label={`${p.name} 批注`} />
-              </div>
-            )}
-            {!hideNotes && !readOnly && !noteExpanded && (
-              <div className={compact ? 'px-2 pb-1' : 'px-3 pb-1.5'}>
-                <button
-                  type="button"
-                  onClick={() => setOpenIds(prev => { const n = new Set(prev); n.add(p.id); return n; })}
-                  className="inline-flex items-center gap-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--accent-strong)]"
-                  aria-label={`展开 ${p.name} 批注`}>
-                  <MessageSquarePlus size={compact ? 11 : 12} strokeWidth={1.5} /> 批注
-                </button>
               </div>
             )}
           </div>
