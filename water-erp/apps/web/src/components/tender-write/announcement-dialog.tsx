@@ -100,7 +100,7 @@ function getBidders(draftRecord: Record<string, string>): Array<{ name: string; 
   const count = parseInt(draftRecord.bidderCount || "0", 10);
   const bidders: Array<{ name: string; price: string }> = [];
   // If bidderCount is set, use it; otherwise fall back to detecting non-empty fields
-  const limit = count > 0 ? count : 20;
+  const limit = count > 0 ? count : 3;
   for (let i = 1; i <= limit; i++) {
     const name = draftRecord[`bidder${i}Name`] ?? "";
     const price = draftRecord[`bidder${i}Price`] ?? "";

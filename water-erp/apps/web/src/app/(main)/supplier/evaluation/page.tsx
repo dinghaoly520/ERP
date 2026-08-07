@@ -170,15 +170,36 @@ export default function SupplierEvaluationPage() {
         </div>
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 items-stretch">
-          {GRADES.map(lv => (
-            <div key={lv} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">
-                {lv}级 · {LEVEL_LABEL[lv]}
-              </span>
-              <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{evalStats.levelCounts[lv]}</span>
-              <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">&nbsp;</span>
+          {GRADES.map(lv => {
+            const count = evalStats.levelCounts[lv];
+            const percent = evalStats.total > 0 ? Math.round((count / evalStats.total) * 100) : 0;
+            return (
+            <div key={lv} className="kpi-card group relative flex h-full flex-col gap-2 overflow-hidden p-3">
+              {/* 顶部等级色条 */}
+              <span aria-hidden className="absolute inset-x-0 top-0 h-[3px]" style={{ background: GRADE_COLOR[lv] }} />
+              {/* 等级字母 + 标签 */}
+              <div className="flex items-center gap-1.5">
+                <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-[10px] font-black text-white" style={{ backgroundColor: GRADE_COLOR[lv] }}>{lv}</span>
+                <span className="truncate text-[10px] font-semibold tracking-wide text-[var(--muted-foreground)]">{LEVEL_LABEL[lv]}</span>
+              </div>
+              {/* 大号彩色数字 */}
+              <div className="flex items-baseline gap-1">
+                <span className="text-[1.6rem] font-black leading-none tracking-[-0.04em] tabular-nums" style={{ color: GRADE_COLOR[lv] }}>{count}</span>
+                <span className="text-[10px] font-medium text-[var(--muted-foreground)]">家</span>
+              </div>
+              {/* 占比 + 迷你进度条 */}
+              <div className="mt-auto">
+                <div className="mb-1 flex items-center justify-between text-[9px] font-medium tabular-nums text-[var(--muted-foreground)]">
+                  <span>占比</span>
+                  <span>{percent}%</span>
+                </div>
+                <div className="h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${percent}%`, backgroundColor: GRADE_COLOR[lv] }} />
+                </div>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         </div>
       </div>

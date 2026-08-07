@@ -66,6 +66,45 @@ const routeToModule: Record<string, string> = {
 // shell 模式下包裹层是 min-h-full 的 block，flex-1 失效 → 内部 panel 塌成内容高度、填不到页面底部。
 const childrenScrollRoutes = new Set(["/tender-write", "/assistant", "/tender-review"]);
 
+// 供应商 / 专家下的已知子路径（非这些段即视为详情页 :id）
+const SUPPLIER_SUB_PATHS = new Set([
+  "approval",
+  "repository",
+  "selection",
+  "evaluation",
+  "dashboard",
+  "elimination",
+  "qualification-alerts",
+]);
+const EXPERT_SUB_PATHS = new Set([
+  "entry",
+  "repository",
+  "extract",
+  "evaluation",
+  "ranking",
+  "retirement",
+  "statistics",
+]);
+
+function resolveActiveKey(pathname: string): string {
+  // 详情页：/supplier/:id → 供应商库、/expert/:id → 专家库
+  // 详情页路由在 routeToKey 中无精确条目，会被兜底的 /supplier、/expert 误匹配到审批/入口；
+  // 这里提前识别，让左侧工具栏保持在「库」上。
+  const supplierDetail = pathname.match(/^\/supplier\/([^/]+)$/);
+  if (supplierDetail && !SUPPLIER_SUB_PATHS.has(supplierDetail[1])) {
+    return "supplier-repo";
+  }
+  const expertDetail = pathname.match(/^\/expert\/([^/]+)$/);
+  if (expertDetail && !EXPERT_SUB_PATHS.has(expertDetail[1])) {
+    return "expert-repo";
+  }
+  return (
+    Object.entries(routeToKey).find(
+      ([route]) => pathname === route || pathname.startsWith(`${route}/`),
+    )?.[1] ?? "dashboard"
+  );
+}
+
 function AssistantLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { setPageContext } = useAssistant();
@@ -75,10 +114,7 @@ function AssistantLayoutInner({ children }: { children: ReactNode }) {
     setPageContext({ currentPage: pathname, currentModule: module });
   }, [pathname, setPageContext]);
 
-  const activeKey =
-    Object.entries(routeToKey).find(
-      ([route]) => pathname === route || pathname.startsWith(`${route}/`),
-    )?.[1] ?? "dashboard";
+  const activeKey = resolveActiveKey(pathname);
 
   const isChildrenScrollMode =
     childrenScrollRoutes.has(pathname) ||
