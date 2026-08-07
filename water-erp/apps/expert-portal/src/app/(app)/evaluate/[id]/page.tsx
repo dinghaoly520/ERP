@@ -1692,7 +1692,7 @@ export default function ExpertEvaluatePage() {
           {step === 'report' && (
             <ReportStep report={report} busy={busy} onConfirmReport={handleConfirmReport}
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
-              onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} />
+              onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId} />
           )}
             </div>
           </div>

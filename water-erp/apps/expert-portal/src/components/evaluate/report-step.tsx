@@ -3,6 +3,7 @@
 import { Check, AlertTriangle, BarChart3, Gavel, ClipboardList } from 'lucide-react';
 import type { EvaluationReport } from '@/lib/types';
 import { CATEGORY_LABEL, CATEGORY_COLOR, isPassFailCategory } from '@water-erp/shared';
+import { QuoteHistoryPanel } from './quote-history-panel';
 
 interface MotionItem {
   id: string; title: string; description?: string | null;
@@ -25,11 +26,12 @@ interface ReportStepProps {
   motions?: MotionItem[];
   disputes?: DisputeItem[];
   myExpertId?: string;
+  projectId?: string;
 }
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
-export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], myExpertId }: ReportStepProps) {
+export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], myExpertId, projectId }: ReportStepProps) {
   // 个人异议标注按 supplierName 分组（嵌入对应供应商卡片）
   const disputedBySupplier = new Map<string, EvaluationReport['myDisputedReviews']>();
   if (report?.myDisputedReviews) {
@@ -105,6 +107,9 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
               </div>
             </div>
           </div>
+
+          {/* 多轮报价历史（谈判/竞价采购项目，报价完成后可见） */}
+          {projectId && <QuoteHistoryPanel projectId={projectId} />}
 
           {/* 按供应商展示评分 + 该供应商的异议条款标注 */}
           {report.supplierScores.map((ss, i) => {

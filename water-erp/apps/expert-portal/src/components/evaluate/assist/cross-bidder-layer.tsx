@@ -8,6 +8,7 @@ import { RankBadge } from './shared/rank-badge';
 import { RadarChart } from './charts/radar-chart';
 import type { RadarAxis } from './charts/radar-chart';
 import { CATEGORY_LABEL } from './charts/score-breakdown-bars';
+import { QuoteHistoryPanel } from '../quote-history-panel';
 import { ScoreBarChart } from './charts/score-bar-chart';
 import type { ScoreBarChartData } from './charts/score-bar-chart';
 import { PriceComparisonChart } from './charts/price-comparison-chart';
@@ -306,6 +307,9 @@ export function CrossBidderLayer({
       <p className="text-center text-[10px] text-[var(--muted-foreground)]">
         以上排名与数据由 AI 分析引擎生成，最终评审结果以专家人工评分为准。
       </p>
+
+      {/* 多轮报价历史（谈判/竞价采购项目） */}
+      <QuoteHistoryPanel projectId={projectId} defaultCollapsed />
     </div>
   );
 }

@@ -1,8 +1,9 @@
-import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, Logger, Inject } from '@nestjs/common';
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
@@ -33,6 +34,7 @@ export class ExpertService {
     private plaintextFetcher: PlaintextFetcherService,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
+    @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis,
   ) {}
 
   /* ── 个人资料 ── */
@@ -947,6 +949,39 @@ export class ExpertService {
     };
   }
 
+  /** 多轮报价历史（专家只读）—— 仅返回 published/closed 轮次 + 供应商名 + 报价 */
+  async getQuoteHistory(userId: string, projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project) throw new ForbiddenException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    const rounds = await this.prisma.bidRound.findMany({
+      where: { projectId, status: { in: ['published', 'closed'] } },
+      orderBy: { roundNo: 'asc' },
+      include: { quotes: { orderBy: { quotePrice: 'asc' } } },
+    });
+
+    // 批量查供应商名
+    const supplierIds = [...new Set(rounds.flatMap(r => r.quotes.map(q => q.bidSupplierId)))];
+    const suppliers = await this.prisma.bidSupplier.findMany({
+      where: { id: { in: supplierIds } },
+      select: { id: true, supplierName: true },
+    });
+    const nameMap = new Map(suppliers.map(s => [s.id, s.supplierName]));
+
+    return rounds.map(r => ({
+      roundNo: r.roundNo,
+      roundType: r.roundType,
+      status: r.status,
+      deadline: r.deadline,
+      quotes: r.quotes.map(q => ({
+        supplierName: nameMap.get(q.bidSupplierId) ?? '—',
+        quotePrice: String(q.quotePrice),
+      })),
+    }));
+  }
+
   /* ── 专家打分 ── */
 
   async submitScores(userId: string, projectId: string, dto: BatchScoreDto) {
@@ -1667,6 +1702,30 @@ export class ExpertService {
   async getScoreDraft(userId: string, projectId: string) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
     return expert?.scoreDraft ?? null;
+  }
+
+  /** E：桌面端「去打分平板」跨设备联动——写入 focus hint（Redis，TTL 120s）。 */
+  async setFocusHint(userId: string, projectId: string, body: { supplierId: string; scoreItemId?: string; pointId?: string }) {
+    if (!this.redis) throw new BadRequestException({ error: 'Redis 未配置，跨设备联动不可用', code: 'REDIS_UNAVAILABLE' });
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { id: true } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    const key = `expert:focus:${expert.id}:${projectId}`;
+    const seqKey = `expert:focus:seq:${expert.id}:${projectId}`;
+    const seq = await this.redis!.incr(seqKey);
+    await this.redis!.set(key, JSON.stringify({ ...body, seq, at: Date.now() }), 'EX', 120);
+    await this.redis!.expire(seqKey, 120);
+    return { ok: true, seq };
+  }
+
+  /** E：平板端轮询读取 focus hint（无则 null）。 */
+  async getFocusHint(userId: string, projectId: string) {
+    if (!this.redis) return null;
+    const redis = this.redis;
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { id: true } });
+    if (!expert) return null;
+    const raw = await redis.get(`expert:focus:${expert.id}:${projectId}`);
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
   }
 
   /** D2: 创建异议工单（仅组长） */

@@ -261,6 +261,15 @@ export class ExpertController {
     return this.expertService.getAssistCompare(userId, projectId);
   }
 
+  /** 多轮报价历史（专家只读，仅 published/closed 轮次） */
+  @Get('projects/:projectId/quote-history')
+  getQuoteHistory(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.expertService.getQuoteHistory(userId, projectId);
+  }
+
   @Get('projects/:projectId/assist/:supplierId')
   getAssistData(
     @CurrentUser('sub') userId: string,
@@ -371,6 +380,24 @@ export class ExpertController {
   @Get('projects/:projectId/score-draft')
   getScoreDraft(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
     return this.expertService.getScoreDraft(userId, projectId);
+  }
+
+  /* ── E: 「去打分平板」跨设备联动（Redis focus hint）── */
+
+  @Post('projects/:projectId/focus-hint')
+  @ApiOperation({ summary: '桌面端发送打分项定位到平板（Redis，TTL 120s）' })
+  setFocusHint(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Body() body: { supplierId: string; scoreItemId?: string; pointId?: string },
+  ) {
+    return this.expertService.setFocusHint(userId, projectId, body);
+  }
+
+  @Get('projects/:projectId/focus-hint')
+  @ApiOperation({ summary: '平板端轮询打分项定位（无则 null）' })
+  getFocusHint(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
+    return this.expertService.getFocusHint(userId, projectId);
   }
 
   /* ── 核对评分（draft → verified）── */

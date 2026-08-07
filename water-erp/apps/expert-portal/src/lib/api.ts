@@ -167,3 +167,17 @@ export async function getMemoInkUrl(
     `/expert/projects/${projectId}/memos/${memoId}/ink`,
   );
 }
+
+// ── 多轮报价历史（专家只读）──
+
+export interface QuoteHistoryRound {
+  roundNo: number;
+  roundType: string;
+  status: string;
+  deadline: string | null;
+  quotes: Array<{ supplierName: string; quotePrice: string }>;
+}
+
+export async function getQuoteHistory(projectId: string): Promise<QuoteHistoryRound[]> {
+  return api.get<QuoteHistoryRound[]>(`/expert/projects/${projectId}/quote-history`);
+}
