@@ -1,5 +1,8 @@
 'use client';
 
+import { useState } from 'react';
+import { MessageSquarePlus } from 'lucide-react';
+
 export interface PointDecisionValue { checked: boolean; awardedScore: number; note?: string }
 export interface PointDef { id: string; name: string; fullScore: number | string; objective: boolean; evidenceHint?: string | null; seq: number }
 
@@ -25,13 +28,17 @@ interface Props {
  */
 export function PointChecklistScoring({ points, value, onChange, readOnly, compact, hideNotes, selectedPointId, onPointClick }: Props) {
   const sorted = [...points].sort((a, b) => a.seq - b.seq);
+  // 手动展开的批注框（无批注的小点默认折叠，点击「批注」展开）
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   return (
     <div className="space-y-2">
       {sorted.map(p => {
         const v = value[p.id] ?? { checked: false, awardedScore: 0 };
         const max = Number(p.fullScore);
         const isSelected = selectedPointId === p.id;
-        const showNote = !hideNotes && (!readOnly || Boolean((v.note ?? '').trim()));
+        const hasNote = Boolean((v.note ?? '').trim());
+        // 批注折叠态：有批注默认展开；无批注默认折叠（点击展开）；readOnly 仅有内容时展示
+        const noteExpanded = readOnly ? hasNote : (hasNote || openIds.has(p.id));
         return (
           <div key={p.id}
             className={`rounded-[10px] transition ${
@@ -68,18 +75,35 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
                 aria-label={`${p.name} 得分`} />
               <span className="shrink-0 text-xs text-[var(--muted-foreground)]">/ {max}</span>
             </div>
-            {/* 逐小点批注框（得分点级 note）：与整项「评分理由」并存，readOnly 时仅有内容才展示 */}
-            {showNote && (
+            {/* 逐小点批注框（得分点级 note）：与整项「评分理由」并存；默认折叠，有批注自动展开；readOnly 仅有内容时展示 */}
+            {!hideNotes && noteExpanded && (
               <div className={compact ? 'px-2 pb-1.5' : 'px-3 pb-2'}>
                 <textarea
                   value={v.note ?? ''}
                   disabled={readOnly}
+                  autoFocus={openIds.has(p.id)}
                   placeholder="小点批注（可选）"
                   onClick={e => e.stopPropagation()}
                   onKeyDown={e => e.stopPropagation()}
                   onChange={e => onChange(p.id, { ...v, note: e.target.value })}
+                  onBlur={() => {
+                    // 清空内容后失焦 → 收回折叠态
+                    if ((v.note ?? '').trim()) return;
+                    setOpenIds(prev => { if (!prev.has(p.id)) return prev; const n = new Set(prev); n.delete(p.id); return n; });
+                  }}
                   className="neu-input !min-h-[30px] !w-full !py-1 !text-xs disabled:opacity-60"
                   aria-label={`${p.name} 批注`} />
+              </div>
+            )}
+            {!hideNotes && !readOnly && !noteExpanded && (
+              <div className={compact ? 'px-2 pb-1' : 'px-3 pb-1.5'}>
+                <button
+                  type="button"
+                  onClick={() => setOpenIds(prev => { const n = new Set(prev); n.add(p.id); return n; })}
+                  className="inline-flex items-center gap-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--accent-strong)]"
+                  aria-label={`展开 ${p.name} 批注`}>
+                  <MessageSquarePlus size={compact ? 11 : 12} strokeWidth={1.5} /> 批注
+                </button>
               </div>
             )}
           </div>
