@@ -21,7 +21,7 @@ export interface AnnouncementItem {
 
 export const ANNOUNCEMENT_TABS = [
   { key: '', label: '全部' },
-  { key: 'BID_NOTICE', label: '招标公告', color: '#064ea2' },
+  { key: 'BID_NOTICE', label: '采购公告', color: '#064ea2' },
   { key: 'WIN_NOTICE', label: '中标公示', color: '#18a56c' },
   { key: 'POLICY', label: '政策法规', color: '#d43030' },
   { key: 'PLATFORM', label: '平台通知', color: '#f5a623' },
@@ -29,7 +29,7 @@ export const ANNOUNCEMENT_TABS = [
 
 /* ── 类型→标签/颜色 映射 ── */
 const TYPE_META: Record<string, { tag: string; color: string }> = {
-  BID_NOTICE: { tag: '招标公告', color: '#064ea2' },
+  BID_NOTICE: { tag: '采购公告', color: '#064ea2' },
   WIN_NOTICE: { tag: '中标公示', color: '#18a56c' },
   POLICY:     { tag: '政策法规', color: '#d43030' },
   PLATFORM:   { tag: '平台通知', color: '#f5a623' },
@@ -117,9 +117,9 @@ export async function fetchAnnouncementsServer(apiBase: string): Promise<Announc
 /* ── 本地兜底数据（API 不可用时使用） ── */
 
 export const ANNOUNCEMENTS: AnnouncementItem[] = [
-  // ── 招标公告 ──
+  // ── 采购公告 ──
   {
-    id: '1', type: 'BID_NOTICE', tag: '招标公告', color: '#064ea2',
+    id: '1', type: 'BID_NOTICE', tag: '采购公告', color: '#064ea2',
     date: '2026-06-10', urgent: true,
     title: '向家坝灌区北总干渠二期工程土建施工招标公告',
     desc: '本项目为向家坝灌区北总干渠二期工程，建设内容包括明渠开挖、隧洞衬砌、渡槽架设及沿线配套建筑物，总长 42.6 公里，设计灌溉面积 48.2 万亩...',
@@ -178,7 +178,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 本公告未尽事宜以正式招标文件为准。招标人保留对招标文件进行澄清、修改和补充的权利，相关信息将在蜀水云采平台统一发布。`,
   },
   {
-    id: '2', type: 'BID_NOTICE', tag: '招标公告', color: '#064ea2',
+    id: '2', type: 'BID_NOTICE', tag: '采购公告', color: '#064ea2',
     date: '2026-06-08', urgent: false,
     title: '紫坪铺水库大坝安全监测系统升级改造项目招标',
     desc: '紫坪铺水库大坝安全监测系统升级改造项目，包括渗流监测、变形监测、地震监测等系统的更新换代...',
@@ -228,7 +228,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 本公告未尽事宜以正式招标文件为准。招标人保留对招标文件进行澄清、修改和补充的权利，相关信息将在蜀水云采平台统一发布。`,
   },
   {
-    id: '3', type: 'BID_NOTICE', tag: '招标公告', color: '#064ea2',
+    id: '3', type: 'BID_NOTICE', tag: '采购公告', color: '#064ea2',
     date: '2026-06-03', urgent: false,
     title: '都江堰灌区数字化管理平台（二期）建设项目招标',
     desc: '都江堰灌区数字化管理平台二期建设，包括水资源调度、灌溉管理、工程安全等数字化模块...',
@@ -272,7 +272,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 本公告未尽事宜以正式招标文件为准。招标人保留对招标文件进行澄清、修改和补充的权利，相关信息将在蜀水云采平台统一发布。`,
   },
   {
-    id: '4', type: 'BID_NOTICE', tag: '招标公告', color: '#064ea2',
+    id: '4', type: 'BID_NOTICE', tag: '采购公告', color: '#064ea2',
     date: '2026-05-27', urgent: false,
     title: '引大济岷工程预应力钢筒混凝土管（PCCP）采购招标',
     desc: '引大济岷工程所需 DN2400 ~ DN3000 预应力钢筒混凝土管（PCCP）采购，总长约 45 公里...',
@@ -307,7 +307,7 @@ export const ANNOUNCEMENTS: AnnouncementItem[] = [
 本公告未尽事宜以正式招标文件为准。招标人保留对招标文件进行澄清、修改和补充的权利，相关信息将在蜀水云采平台统一发布。`,
   },
   {
-    id: '5', type: 'BID_NOTICE', tag: '招标公告', color: '#064ea2',
+    id: '5', type: 'BID_NOTICE', tag: '采购公告', color: '#064ea2',
     date: '2026-05-20', urgent: false,
     title: '亭子口灌区一期工程机电设备安装施工招标公告',
     desc: '亭子口灌区一期工程机电设备安装施工，包括泵站设备、闸门启闭机、电气控制设备等安装调试...',

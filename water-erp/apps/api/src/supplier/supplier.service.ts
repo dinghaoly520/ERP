@@ -49,6 +49,18 @@ export class SupplierService {
     private llm: LlmService,
   ) {}
 
+  /**
+   * 生成供应商编号 SUP-000001（6 位递增数字）。
+   * 使用 PG 序列 supplier_no_seq 原子递增，并发注册安全。
+   * 序列在迁移 20260807000000_supplier_no 中创建。
+   */
+  private async generateSupplierNo(tx: Prisma.TransactionClient): Promise<string> {
+    const [row] = await tx.$queryRaw<Array<{ supplier_no: string }>>`
+      SELECT 'SUP-' || lpad(nextval('supplier_no_seq')::text, 6, '0') AS supplier_no
+    `;
+    return row.supplier_no;
+  }
+
   async register(dto: RegisterSupplierDto) {
     // 检查信用代码是否重复
     const existingCreditCode = await this.prisma.supplier.findUnique({
@@ -88,9 +100,11 @@ export class SupplierService {
         },
       });
 
+      const supplierNo = await this.generateSupplierNo(tx);
       const supplier = await tx.supplier.create({
         data: {
           userId: user.id,
+          supplierNo,
           name: dto.name,
           normalizedName,
           creditCode: dto.creditCode,
@@ -283,6 +297,7 @@ export class SupplierService {
           name: dto.name,
           normalizedName,
           creditCode: dto.creditCode.trim(),
+          supplierNo: await this.generateSupplierNo(tx),
           // 临时供应商必填字段留空（DB NOT NULL 用空串满足），不写入占位/虚假内容；
           // 审批通过后由供应商在企业信息中自行补全。
           enterpriseType: '',
@@ -514,6 +529,8 @@ export class SupplierService {
     for (const item of items) {
       // 字段名 _avgGrade 与前端（供应商库 / 评价页）读取一致；此前误写 _avgScore 致评价页平均等级列恒空。
       item._avgGrade = gradeMap.get(item.id) ?? null;
+      // 最近一次评价等级：evaluations 已在查询中 take:1，取首个即可
+      item._latestEvalLevel = item.evaluations?.[0]?.finalGrade ?? null;
     }
   }
 
@@ -1769,14 +1786,40 @@ export class SupplierService {
     return { totalTargets: supplierIds.length, sent: results.length, notFound, results };
   }
 
-  /* ━━━ 供应商关注/收藏（模型已移除，保留接口兼容）━━━ */
+  /* ━━━ 供应商关注/收藏 ━━ */
 
-  async toggleFavorite(_supplierId: string, _userId: string) {
-    return { favorited: false };
+  async toggleFavorite(supplierId: string, userId: string) {
+    const existing = await this.prisma.supplierFavorite.findFirst({
+      where: { supplierId, userId },
+    });
+    if (existing) {
+      await this.prisma.supplierFavorite.delete({ where: { id: existing.id } });
+      return { favorited: false };
+    }
+    await this.prisma.supplierFavorite.create({ data: { supplierId, userId } });
+    return { favorited: true };
   }
 
-  async getFavorites(_userId: string) {
-    return [];
+  async getFavorites(userId: string) {
+    const favs = await this.prisma.supplierFavorite.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (favs.length === 0) return [];
+    const supplierIds = favs.map(f => f.supplierId);
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: supplierIds } },
+      include: { classification: { select: { id: true, name: true } } },
+    });
+    const sMap = new Map(suppliers.map(s => [s.id, s]));
+    return favs.map(f => {
+      const s = sMap.get(f.supplierId);
+      return {
+        id: f.id,
+        supplierId: f.supplierId,
+        supplier: s ? { id: s.id, name: s.name, enterpriseType: s.enterpriseType, classification: s.classification } : null,
+      };
+    }).filter(f => f.supplier);
   }
 
   /* ━━━ 近期动态 ━━━ */
@@ -1861,18 +1904,48 @@ export class SupplierService {
     }));
   }
 
-  /* ━━━ 文件档案 CRUD（模型已移除，保留接口兼容）━━━ */
+  /* ━━━ 文件档案 CRUD ━━ */
 
-  async listDocuments(_supplierId: string) {
-    return [];
+  async listDocuments(supplierId: string) {
+    const docs = await this.prisma.supplierDocument.findMany({
+      where: { supplierId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (docs.length === 0) return [];
+    const uploaderIds = [...new Set(docs.map(d => d.uploaderId))];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: uploaderIds } },
+      select: { id: true, displayName: true },
+    });
+    const uMap = new Map(users.map(u => [u.id, u]));
+    return docs.map(d => ({
+      id: d.id, type: d.type, name: d.name, fileUrl: d.fileUrl,
+      fileSize: d.fileSize, note: d.note, createdAt: d.createdAt.toISOString(),
+      uploader: { displayName: uMap.get(d.uploaderId)?.displayName ?? '—' },
+    }));
   }
 
-  async uploadDocument(_supplierId: string, _dto: any, _userId: string) {
-    throw new BadRequestException('文件档案功能已移除');
+  async uploadDocument(
+    supplierId: string,
+    dto: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string },
+    userId: string,
+  ) {
+    return this.prisma.supplierDocument.create({
+      data: {
+        supplierId,
+        type: dto.type ?? 'other',
+        name: dto.name,
+        fileUrl: dto.fileUrl,
+        fileSize: dto.fileSize ?? null,
+        note: dto.note ?? null,
+        uploaderId: userId,
+      },
+    });
   }
 
-  async deleteDocument(_id: string) {
-    return null;
+  async deleteDocument(id: string) {
+    await this.prisma.supplierDocument.delete({ where: { id } }).catch(() => {});
+    return { success: true };
   }
 
   // ── 谈判采购配置下发 ──

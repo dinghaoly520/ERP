@@ -16,6 +16,9 @@ import {
 } from '@/utils/bid-crypto'
 
 const route = useRoute(); const router = useRouter(); const bidStore = useBidStore(); const supplierStore = useSupplierStore()
+// 保留来源上下文（from=list 表示从可投标项目进入），返回时正确还原
+const fromList = computed(() => route.query.from === 'list')
+function backToDetail() { router.push({ path: `/bids/${projectId.value}`, query: fromList.value ? { from: 'list' } : {} }) }
 const maxUploadSizeMB = Number(import.meta.env.VITE_MAX_UPLOAD_SIZE_MB) || 50
 const maxUploadSize = maxUploadSizeMB * 1024 * 1024
 const loading = ref(true); const error = ref(false); const submitting = ref(false); const saving = ref(false)
@@ -193,7 +196,7 @@ onMounted(async () => {
     await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile()])
     if (project.value && !['DOWNLOAD', 'SUBMIT'].includes(project.value.stage)) {
       ElMessage.warning('该项目当前不在投标阶段')
-      router.push(`/bids/${projectId.value}`)
+      router.push(`/bids/${projectId.value}`)  // 草稿保存后的跳转保留原逻辑
       return
     }
     try {
@@ -328,7 +331,7 @@ async function confirmSubmit() {
 
 <template>
   <div class="page-container" v-loading="loading">
-    <button type="button" class="neu-link back-link" @click="router.push(`/bids/${projectId}`)"><el-icon><ArrowLeft /></el-icon>返回项目详情</button>
+    <button type="button" class="neu-link back-link" @click="backToDetail()"><el-icon><ArrowLeft /></el-icon>返回项目详情</button>
     <div v-if="error" class="sp-error-block">
       <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
       <div class="sp-error-text">数据加载失败</div>

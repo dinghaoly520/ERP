@@ -1874,6 +1874,8 @@ export function SupplierSelectionPage({
                 <div className="flex items-center gap-2 text-[10px] font-semibold text-[var(--muted-foreground)]">
                   <button onClick={() => handleBatchAdd()} className="neu-btn-xs gap-1"><ListPlus size={12} />全部加入</button>
                   <span className="text-[var(--muted-foreground)]/40">|</span>
+                  <button onClick={() => setShowCompare(true)} className="neu-btn-xs gap-1"><Columns3 size={12} />对比</button>
+                  <span className="text-[var(--muted-foreground)]/40">|</span>
                   <button onClick={() => { setAddMoreCount(1); setAddMoreOpen(true); }} disabled={addMoreLoading} className="neu-btn-xs gap-1">
                     <Plus size={12} />{addMoreLoading ? '增选中…' : '增选'}
                   </button>
@@ -2666,6 +2668,8 @@ export function SupplierSelectionPage({
                   </div>
                   <div className="flex items-center gap-2 mt-3">
                     <button onClick={() => { const toAdd = rerunResult.recommendations; setRerunShortlist(prev => { const nm = new Map(prev); for (const r of toAdd) nm.set(r.supplierId, { item: r, note: '' }); return nm; }); }} className="neu-btn-xs gap-1"><ListPlus size={12} />全部加入</button>
+                    <span className="text-[var(--muted-foreground)]/40">|</span>
+                    <button onClick={() => setShowCompare(true)} className="neu-btn-xs gap-1"><Columns3 size={12} />对比</button>
                     <span className="text-[var(--muted-foreground)]/40">|</span>
                     <button onClick={() => setShowRerunManualAdd(v => !v)} className={`neu-btn-xs gap-1 ${showRerunManualAdd ? 'is-active' : ''}`}>
                       <Search size={12} />手动补充

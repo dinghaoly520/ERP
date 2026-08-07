@@ -115,16 +115,16 @@ function SupplierApprovalPage() {
     setData(d => ({ ...d, items: d.items.filter(x => (x as Supplier).id !== s.id) }));
     setActionModal(null);
     setActionReason('');
-    let cancelled = false;
-    toast(`${label}「${s.name}」`, { description: '4 秒内可撤销', duration: 4000, action: { label: '撤销', onClick: () => { cancelled = true; setData(d => ({ ...d, items: prevItems })); } } });
-    await new Promise(r => setTimeout(r, 4200));
-    if (cancelled) return;
+    toast.success(`${label}「${s.name}」`);
     try {
       if (type === 'approve') await approveSupplier(s.id);
       else if (type === 'reject') await rejectSupplier(s.id, reason);
       else if (type === 'return') await returnSupplier(s.id, reason);
-      loadData(); loadCounts();
-    } catch (e: any) { toast.error(e?.message || '操作失败'); loadData(); loadCounts(); }
+    } catch (e: any) {
+      toast.error(e?.message || '操作失败');
+      setData(d => ({ ...d, items: prevItems }));
+    }
+    loadCounts();
   };
 
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize));

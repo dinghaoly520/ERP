@@ -4,22 +4,23 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { AlertTriangle, Trash2, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
 import { getEliminationCandidates, confirmEliminate } from '@/lib/api/supplier';
 import type { EliminationCandidate } from '@/lib/api/supplier';
-import { Modal } from '@/components/workbench';
+import { Modal, TableSkeleton } from '@/components/workbench';
 
 export default function EliminationPage() {
   const router = useRouter();
   const [candidates, setCandidates] = useState<EliminationCandidate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errored, setErrored] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [confirmModal, setConfirmModal] = useState<EliminationCandidate | null>(null);
   const [reason, setReason] = useState('');
 
   const loadData = async () => {
-    setLoading(true);
-    try { setCandidates(await getEliminationCandidates()); } catch {}
+    setLoading(true); setErrored(false);
+    try { setCandidates(await getEliminationCandidates()); } catch { setErrored(true); }
     setLoading(false);
   };
 
@@ -75,7 +76,7 @@ export default function EliminationPage() {
             <div className="page-hero__icon"><Trash2 size={17} /></div>
             <div>
               <div className="page-hero__title">淘汰候选</div>
-              <div className="page-hero__sub">系统自动扫描连续 3 次绩效评分 ≤ 60 的供应商，需人工确认淘汰</div>
+              <div className="page-hero__sub">系统自动扫描连续 3 次评价为 E 级（不合格）的供应商，需人工确认淘汰</div>
             </div>
           </div>
           <div className="page-hero__right">
@@ -96,8 +97,16 @@ export default function EliminationPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">加载中...</div>
+      {errored ? (
+        <div className="neu-table-card p-5">
+          <div className="flex flex-col items-center gap-3 py-10">
+            <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
+            <p className="text-sm font-semibold text-[var(--danger)]">淘汰候选加载失败</p>
+            <button onClick={loadData} className="neu-btn-soft"><RefreshCw size={15} />重试</button>
+          </div>
+        </div>
+      ) : loading ? (
+        <div className="neu-table-card"><TableSkeleton cols={3} rows={5} /></div>
       ) : candidates.length === 0 ? (
         <div className="neu-table-card py-12 text-center">
           <AlertTriangle size={32} className="mx-auto mb-3 text-[var(--muted-foreground)]/30" />

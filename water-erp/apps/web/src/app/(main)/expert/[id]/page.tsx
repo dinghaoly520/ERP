@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief } from '@/lib/api/expert';
 import { AlertBanner, Breadcrumb, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -29,8 +29,48 @@ interface ExpertDetail {
 const STAGE_FALLBACK_COLOR = 'var(--muted-foreground)';
 const levelTone: Record<string, 'green' | 'blue' | 'orange' | 'red'> = { A: 'green', B: 'blue', C: 'orange', D: 'orange', E: 'red' };
 
-type Tab = 'overview' | 'timeline' | 'portrait' | 'evaluations' | 'ai-adoption' | 'risk' | 'violations' | 'notify';
+/** 基本信息字段行：图标 + 标签 + 值（支持等宽与 ReactNode 如徽章） */
+function InfoField({
+  icon: Icon,
+  label,
+  value,
+  mono = false,
+  full = false,
+}: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  value?: React.ReactNode;
+  mono?: boolean;
+  full?: boolean;
+}) {
+  const empty = value == null || (typeof value === 'string' && !value.trim());
+  return (
+    <div className={`flex items-start gap-2.5 ${full ? 'col-span-full' : ''}`}>
+      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]">
+        <Icon size={13} />
+      </span>
+      <div className="min-w-0 flex-1 pt-px">
+        <p className="mb-0.5 text-[10px] font-medium leading-none text-[var(--muted-foreground)]">{label}</p>
+        <div className={`text-[13px] font-semibold leading-snug text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'text-[var(--muted-foreground)]' : ''}`}>
+          {empty ? '—' : value}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 区块标题：小号大写 + 图标 */
+function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ size?: number }>; children: React.ReactNode }) {
+  return (
+    <h3 className="mb-4 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]">
+      <Icon size={13} />{children}
+    </h3>
+  );
+}
+
+type Tab = 'info' | 'overview' | 'timeline' | 'portrait' | 'evaluations' | 'ai-adoption' | 'risk' | 'violations' | 'notify';
 const TABS: { key: Tab; label: string; icon: any }[] = [
+  { key: 'info', label: '基本信息', icon: User },
   { key: 'overview', label: '评审项目', icon: TrendingUp },
   { key: 'timeline', label: '大事记', icon: Award },
   { key: 'portrait', label: '专家画像', icon: TrendingUp },
@@ -62,7 +102,7 @@ export default function ExpertDetailPage() {
   const [expert, setExpert] = useState<ExpertDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>('info');
   const [tabLoading, setTabLoading] = useState(false);
   const loadedTabsRef = useRef<Set<Tab>>(new Set(['overview']));
 
@@ -219,6 +259,9 @@ export default function ExpertDetailPage() {
   );
   if (!expert) return <div className="py-24 text-center text-[13px] text-[var(--muted-foreground)]">专家不存在</div>;
 
+  // 编号藏在 notes 里（"编号: A001431, ..."），解析出来挂标题栏
+  const expertNo = expert.expertProfile?.notes?.match(/编号\s*[:：]\s*([^\s,，、]+)/)?.[1];
+
   return (
     <div>
       <Breadcrumb items={[{ label: '专家库', path: '/expert/repository' }, { label: expert?.displayName || '详情' }]} />
@@ -230,7 +273,12 @@ export default function ExpertDetailPage() {
           <div className="page-hero__left">
             <div className="page-hero__icon"><Award size={17} /></div>
             <div>
-              <div className="page-hero__title">{expert.displayName}</div>
+              <div className="page-hero__title">
+                {expert.displayName}
+                {expertNo && (
+                  <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 align-middle text-[13px] font-bold tabular-nums text-[var(--accent)]" title="专家编号">{expertNo}</span>
+                )}
+              </div>
               <div className="page-hero__sub">
                 {expert.expertProfile?.specialty && <span>{expert.expertProfile.specialty}</span>}
                 {expert.expertProfile?.title && <span className="ml-2">· {expert.expertProfile.title}</span>}
@@ -285,6 +333,70 @@ export default function ExpertDetailPage() {
       </div>
 
       {/* Tab content */}
+      {tab === 'info' && expert && (() => {
+        const p = expert.expertProfile || {};
+        const availabilityTone = p.availability === '可用' ? 'green' : p.availability === '占用' ? 'orange' : 'gray';
+        return (
+          <div className="space-y-5">
+            {/* ══ 职业信息 ══ */}
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={Briefcase}>职业信息</SectionTitle>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                <InfoField icon={Briefcase} label="专业领域" value={p.specialty} />
+                <InfoField icon={Award} label="职称" value={p.title} />
+                <InfoField icon={GraduationCap} label="学历" value={p.education} />
+                <InfoField icon={Award} label="执业资格编号" value={p.licenseNo} mono />
+              </div>
+              {/* 工作单位 + 所属部门 成对相邻 */}
+              <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-[var(--border)] pt-4 md:grid-cols-2">
+                <InfoField icon={Building2} label="工作单位" value={p.employer} />
+                <InfoField icon={Building2} label="所属部门" value={expert.department?.name} />
+              </div>
+            </section>
+
+            {/* ══ 身份信息 + 联系方式（双列）══ */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <section className="neu-card-static !rounded-2xl p-5">
+                <SectionTitle icon={IdCard}>身份信息</SectionTitle>
+                <div className="grid grid-cols-1 gap-y-4">
+                  <InfoField icon={User} label="姓名" value={expert.displayName} />
+                  <InfoField icon={Hash} label="身份证号" value={p.idNumber} mono />
+                  <InfoField icon={Users} label="民族" value={p.ethnicity} />
+                </div>
+              </section>
+
+              <section className="neu-card-static !rounded-2xl p-5">
+                <SectionTitle icon={Phone}>联系方式</SectionTitle>
+                <div className="grid grid-cols-1 gap-y-4">
+                  <InfoField icon={Phone} label="手机号码" value={p.phone} mono />
+                  <InfoField icon={Mail} label="邮箱" value={expert.email} />
+                  <InfoField icon={User} label="可用状态" value={p.availability ? <StatusBadge tone={availabilityTone as any}>{p.availability}</StatusBadge> : null} />
+                </div>
+              </section>
+            </div>
+
+            {/* ══ 账户与归属 ══ */}
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={Building2}>账户与归属</SectionTitle>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                <InfoField icon={Hash} label="登录用户名" value={expert.username} mono />
+                <InfoField icon={User} label="账户状态" value={<StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '正常' : '已停用'}</StatusBadge>} />
+              </div>
+              {p.notes && (
+                <div className="mt-4 border-t border-[var(--border)] pt-4">
+                  <InfoField icon={FileText} label="履职备注" value={p.notes} full />
+                </div>
+              )}
+            </section>
+
+            {/* ══ 系统元信息 footer ══ */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-[var(--muted-foreground)]">
+              <span className="inline-flex items-center gap-1"><Calendar size={11} /> 入库于 {new Date(expert.createdAt).toLocaleDateString('zh-CN')}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {tab === 'overview' && (
         <div className="neu-table-card">
           <div className="overflow-hidden">

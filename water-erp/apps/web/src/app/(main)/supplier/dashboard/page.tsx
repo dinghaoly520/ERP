@@ -32,7 +32,11 @@ function deriveInsights(
   const approved = stats.approved || 0;
   const pending = stats.pending || 0;
   const inactive = (stats.disabled || 0) + (stats.blacklist || 0);
-  const classified = classifications.reduce((s, c) => s + (c._count?.suppliers ?? 0), 0);
+  // 多分类场景下_sum可能超total（同一供应商归属多个分类），取min防溢出
+  const classified = Math.min(
+    classifications.reduce((s, c) => s + (c._count?.suppliers ?? 0), 0),
+    total,
+  );
   const sortedByCount = [...classifications].sort((a, b) => (b._count?.suppliers ?? 0) - (a._count?.suppliers ?? 0));
 
   /* ── 1. 资源池活力 ── */
@@ -72,7 +76,7 @@ function deriveInsights(
       list.push({
         type: 'warning',
         title: `评估渗透率仅 ${coveragePct.toFixed(0)}%（${evalStats.total} 次 / ${approved} 家），存在大面积评估盲区`,
-        body: `已入库供应商中仅 ${coveragePct.toFixed(0)}% 被评估过，剩余 ${approved - evalStats.total} 家（${(100 - coveragePct).toFixed(0)}%）的履约表现完全未知。选取供应商时无法基于历史数据筛选。`,
+        body: `已入库供应商中仅 ${coveragePct.toFixed(0)}% 被评估过，剩余至少 ${Math.max(0, approved - evalStats.total)} 家（${(100 - coveragePct).toFixed(0)}%）的履约表现完全未知。选取供应商时无法基于历史数据筛选。`,
         suggestion: `对已入库但未评估的供应商启动首轮评价——优先覆盖已参与过项目的供应商，目标覆盖至少 60%。`,
       });
     } else if (evalStats.excellentRatio < 40) {
@@ -328,6 +332,10 @@ export default function SupplierDashboardPage() {
   const actionLabels: Record<string, string> = {
     SUPPLIER_APPROVED: '审核通过', SUPPLIER_REJECTED: '审核不通过', SUPPLIER_RETURNED: '退回补正',
     SUPPLIER_DISABLED: '停用', SUPPLIER_BLACKLIST: '拉黑', SUPPLIER_ELIMINATED: '淘汰',
+    SUPPLIER_RESTORED: '恢复正常', SUPPLIER_RESUBMITTED: '重新提交', SUPPLIER_REACTIVATED: '重新激活',
+    SUPPLIER_CHANGE_APPROVED: '变更审批通过', SUPPLIER_CHANGE_REJECTED: '变更驳回',
+    SUPPLIER_CONVERTED_REGULAR: '转正式供应商', SUPPLIER_EVALUATION_CREATED: '履约评价',
+    SUPPLIER_TAGS_UPDATED: '业务标签更新', SUPPLIER_TAGS_BACKFILL: '业务标签回填',
   };
   const maxCatCount = Math.max(1, ...classifications.map(c => c._count?.suppliers ?? 0));
 

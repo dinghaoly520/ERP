@@ -304,6 +304,7 @@ export class ImportsService {
         let awardedSupplierId: string | null = null;
         if (row.awardedSupplierName) {
           // TODO: ERP Supplier requires userId — imports create name-only records; revisit after supplier import flow redesign
+          const [awardNoRow] = await (tx as any).$queryRaw`SELECT 'SUP-' || lpad(nextval('supplier_no_seq')::text, 6, '0') AS supplier_no`;
           const awardedSupplier = await (tx as any).supplier.upsert({
             where: {
               normalizedName: normalizeName(row.awardedSupplierName),
@@ -314,6 +315,7 @@ export class ImportsService {
             create: {
               name: row.awardedSupplierName,
               normalizedName: normalizeName(row.awardedSupplierName),
+              supplierNo: awardNoRow.supplier_no,
               enterpriseType: '企业',
               legalPerson: '',
               registeredAddress: '',
@@ -344,6 +346,7 @@ export class ImportsService {
 
         for (const [index, supplierName] of row.supplierNames.entries()) {
           // TODO: ERP Supplier requires userId — see note above
+          const [supNoRow] = await (tx as any).$queryRaw`SELECT 'SUP-' || lpad(nextval('supplier_no_seq')::text, 6, '0') AS supplier_no`;
           const supplier = await (tx as any).supplier.upsert({
             where: {
               normalizedName: normalizeName(supplierName),
@@ -354,6 +357,7 @@ export class ImportsService {
             create: {
               name: supplierName,
               normalizedName: normalizeName(supplierName),
+              supplierNo: supNoRow.supplier_no,
               enterpriseType: '企业',
               legalPerson: '',
               registeredAddress: '',

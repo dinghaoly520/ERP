@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, importCsv } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
+import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-dialog';
+import { ExpertEntryDialog } from '@/components/expert/expert-entry-dialog';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
 import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, Upload, AlertTriangle } from 'lucide-react';
 
@@ -39,6 +41,10 @@ export default function ExpertRepositoryPage() {
   // 启用/停用二次确认
   const [confirmToggle, setConfirmToggle] = useState<ExpertListItem | null>(null);
   const [toggling, setToggling] = useState(false);
+  // 评价弹窗（由操作列「评价」按钮触发）
+  const [evalTarget, setEvalTarget] = useState<ExpertListItem | null>(null);
+  // 录入专家弹窗
+  const [showEntryModal, setShowEntryModal] = useState(false);
   // 批量操作二次确认
   const [confirmBatch, setConfirmBatch] = useState(false);
 
@@ -145,7 +151,16 @@ export default function ExpertRepositoryPage() {
   const total = experts.length;
   const available = experts.filter(e => e.isActive && e.expertProfile?.availability === '可用').length;
   const inProgress = experts.reduce((s, e) => s + e.bidExperts.filter(a => a.project.stage !== 'ARCHIVED').length, 0);
-  const completed = experts.reduce((s, e) => s + e.bidExperts.filter(a => a.progress >= 100).length, 0);
+  const totalEvals = experts.reduce((s, e) => s + e._count.expertEvaluations, 0);
+  const gradeDistribution = useMemo(() => {
+    const dist = { A: 0, B: 0, C: 0, D: 0, E: 0, '-': 0 };
+    for (const e of experts) {
+      const g = e.avgGrade || e.latestEval?.level;
+      if (g) dist[g as keyof typeof dist] = (dist[g as keyof typeof dist] ?? 0) + 1;
+      else dist['-']++;
+    }
+    return dist;
+  }, [experts]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -164,12 +179,12 @@ export default function ExpertRepositoryPage() {
           </div>
         </div>
         <div className="page-hero__divider">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 items-stretch">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 items-stretch">
           {[
             ['专家总数', total, '录入总量'],
             ['可用', available, '可参与评审'],
             ['参与项目中', inProgress, '正在评审'],
-            ['履职完成', completed, '已完成项目'],
+            ['总评价次数', totalEvals, '累计评价'],
           ].map(([label, value, sub]) => (
             <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
@@ -177,6 +192,20 @@ export default function ExpertRepositoryPage() {
               <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub}</span>
             </div>
           ))}
+          <div className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">优良率</span>
+            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">
+              {(() => { const graded = gradeDistribution.A + gradeDistribution.B + gradeDistribution.C + gradeDistribution.D + gradeDistribution.E; return graded > 0 ? Math.round((gradeDistribution.A + gradeDistribution.B) / graded * 100) : 0; })()}%
+            </span>
+            <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight flex items-center gap-1.5">
+              {(['A','B','C','D','E'] as const).map(g => (
+                <span key={g} className="inline-flex items-baseline gap-0.5">
+                  <span className="font-bold" style={{color: g==='A'?'#059669':g==='B'?'#0a5eb8':g==='C'?'#d97706':g==='D'?'#ca8a04':'#dc2626'}}>{g}</span>
+                  <span className="tabular-nums">{gradeDistribution[g]}</span>
+                </span>
+              ))}
+            </span>
+          </div>
         </div>
         </div>
       </div>
@@ -195,7 +224,7 @@ export default function ExpertRepositoryPage() {
         ) : (
           <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
         )}
-        <Link href="/expert/entry" className="neu-btn-xs"><PlusCircle size={12} />录入专家</Link>
+        <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>
         <label className="neu-btn-xs cursor-pointer"><Upload size={12} />导入CSV<input type="file" accept=".csv" onChange={handleCsvFile} className="hidden" /></label>
         <button onClick={doExport} className="neu-btn-xs"><Download size={12} />导出CSV</button>
         {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); setPage(1); }} className="neu-btn-xs">重置</button>}
@@ -270,6 +299,7 @@ export default function ExpertRepositoryPage() {
                 <th className="text-center">参评项目</th>
                 <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <th className="text-center">最近评价</th>
+                <th className="text-center">平均等级</th>
                 <th className="text-center">状态</th>
                 <th className="text-center">操作</th>
               </tr>
@@ -278,7 +308,7 @@ export default function ExpertRepositoryPage() {
               {loading ? (
                 <TableSkeleton cols={batchMode ? 9 : 8} rows={5} />
               ) : errored ? (
-                <tr><td colSpan={batchMode ? 9 : 8} className="px-4 py-16">
+                <tr><td colSpan={batchMode ? 10 : 9} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
                     <p className="text-sm font-semibold text-[var(--danger)]">专家列表加载失败</p>
@@ -286,11 +316,11 @@ export default function ExpertRepositoryPage() {
                   </div>
                 </td></tr>
               ) : pagedExperts.length === 0 ? (
-                <tr><td colSpan={batchMode ? 9 : 8} className="px-4 py-16">
+                <tr><td colSpan={batchMode ? 10 : 9} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><UsersRound size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无专家</p>
-                    <button onClick={() => router.push('/expert/entry')} className="neu-btn-xs is-info">前往录入专家 →</button>
+                    <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs is-info">前往录入专家 →</button>
                   </div>
                 </td></tr>
               ) : pagedExperts.map(e => {
@@ -316,9 +346,13 @@ export default function ExpertRepositoryPage() {
                     <td className="text-center"><span className="text-sm font-semibold text-[var(--foreground)] tabular-nums">{activeProjects.length}</span><span className="text-xs text-[var(--muted-foreground)] ml-1">/{e.bidExperts.length}</span></td>
                     <td className="text-center text-sm font-semibold text-[var(--foreground)] tabular-nums">{e._count.expertEvaluations}</td>
                     <td className="text-center">{e.latestEval ? <StatusBadge tone={e.latestEval.level === 'A' ? 'green' : e.latestEval.level === 'B' ? 'blue' : e.latestEval.level === 'C' ? 'orange' : e.latestEval.level === 'D' ? 'orange' : 'red'}>{e.latestEval.level}级</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
+                    <td className="text-center">{e.avgGrade ? <StatusBadge tone={e.avgGrade === 'A' ? 'green' : e.avgGrade === 'B' ? 'blue' : e.avgGrade === 'C' ? 'orange' : e.avgGrade === 'D' ? 'orange' : 'red'}>{e.avgGrade}级</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
                     <td className="text-center"><StatusBadge tone={e.isActive ? 'green' : 'gray'}>{e.isActive ? '可用' : '已停用'}</StatusBadge></td>
                     <td onClick={e => e.stopPropagation()} className="text-center">
-                      <button onClick={() => setConfirmToggle(e)} className={e.isActive ? 'neu-btn-xs is-warning' : 'neu-btn-xs is-success'}>{e.isActive ? '停用' : '启用'}</button>
+                      <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
+                        <button onClick={() => setEvalTarget(e)} className="neu-btn-xs is-info">履职评价</button>
+                        <button onClick={() => setConfirmToggle(e)} className={e.isActive ? 'neu-btn-xs is-warning' : 'neu-btn-xs is-success'}>{e.isActive ? '停用' : '启用'}</button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -385,6 +419,12 @@ export default function ExpertRepositoryPage() {
           </div>
         </div>
       )}
+
+      {/* ══════ 评价弹窗 ══════ */}
+      <ExpertEvaluationDialog expert={evalTarget} onClose={() => setEvalTarget(null)} onSubmitted={load} />
+
+      {/* ══════ 录入专家弹窗 ══════ */}
+      <ExpertEntryDialog open={showEntryModal} onClose={() => setShowEntryModal(false)} onSubmitted={load} />
     </div>
   );
 }

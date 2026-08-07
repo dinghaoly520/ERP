@@ -55,7 +55,7 @@ function AnnouncementsContent() {
         {/* 标题 */}
         <div className="mb-[clamp(28px,3vw,40px)] text-center">
           <h1 className="text-[clamp(28px,3vw,40px)] font-black text-[#18243a] mb-1.5" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>信息公告</h1>
-          <p className="text-sm text-[#8a96aa]">招标公告 · 中标公示 · 政策法规 · 平台通知</p>
+          <p className="text-sm text-[#8a96aa]">采购公告 · 中标公示 · 政策法规 · 平台通知</p>
         </div>
 
         {/* Tab 切换 + 搜索 */}

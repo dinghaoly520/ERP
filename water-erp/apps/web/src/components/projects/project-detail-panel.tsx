@@ -1111,21 +1111,22 @@ export function ProjectDetailPanel({
                   </div>
                   <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">采购需求及立项</span>
                 </div>
+                {/* 项目名称 — 核心标识，突出展示（脱离 grid） */}
+                <div className="mb-3 rounded-[12px] px-3.5 py-3" style={{ background: "color-mix(in oklch,var(--accent-soft) 14%, transparent)", boxShadow: "inset 0 1px 0 oklch(1 0 0 / 0.5)" }}>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目名称</span>
+                  {editingField === 'title' ? (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <input type="text" value={editValues.title} onChange={(e) => setEditValues((prev) => ({ ...prev, title: e.target.value }))} className="workbench-input !h-[30px] !text-sm flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('title'); if (e.key === 'Escape') setEditingField(null); }} />
+                      <button type="button" onClick={() => void handleSaveField('title')} className="neu-btn-xs"><Save size={13} /></button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => handleStartEdit('title', item.title)} className="group mt-1 flex w-full items-center gap-1.5 text-left">
+                      <span className="text-[15px] font-bold tracking-[-0.02em] text-[color:var(--foreground)]">{item.title || <span className="text-[color:var(--muted-foreground)]/50">未命名项目</span>}</span>
+                      <Pencil size={11} className="shrink-0 text-[color:var(--muted-foreground)] opacity-0 transition group-hover:opacity-100" />
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="col-span-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目名称</span>
-                    {editingField === 'title' ? (
-                      <div className="mt-0.5 flex items-center gap-1.5">
-                        <input type="text" value={editValues.title} onChange={(e) => setEditValues((prev) => ({ ...prev, title: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('title'); if (e.key === 'Escape') setEditingField(null); }} />
-                        <button type="button" onClick={() => void handleSaveField('title')} className="neu-btn-xs"><Save size={13} /></button>
-                      </div>
-                    ) : (
-                      <button type="button" onClick={() => handleStartEdit('title', item.title)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
-                        <span className="font-semibold text-[color:var(--foreground)]">{item.title || <span className="text-[color:var(--muted-foreground)]/50">未命名项目</span>}</span>
-                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
-                      </button>
-                    )}
-                  </div>
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">申请人</span>
                     {editingField === 'requesterName' ? (
@@ -1206,7 +1207,7 @@ export function ProjectDetailPanel({
                       </div>
                     ) : (
                       <button type="button" onClick={() => handleStartEdit('budgetAmount', item.budgetAmount)} className="group mt-0.5 flex items-center gap-1 w-full text-left">
-                        <span className="font-black tracking-[-0.02em] tabular-nums text-[color:var(--foreground)]">{item.budgetAmount.toLocaleString('zh-CN')} <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">元</span></span>
+                        <span className="text-[15px] font-black tracking-[-0.02em] tabular-nums text-[color:var(--accent)]">{item.budgetAmount.toLocaleString('zh-CN')} <span className="text-[10px] font-semibold text-[color:var(--muted-foreground)]">元</span></span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 shrink-0 text-[color:var(--muted-foreground)]" />
                       </button>
                     )}

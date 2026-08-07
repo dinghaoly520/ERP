@@ -73,7 +73,7 @@ function MessageList({
         </div>
       )}
 
-      {displayMessages.map((msg) => {
+      {displayMessages.map((msg, idx) => {
         const isLastBot = msg === lastBotMsg && msg.role === "assistant";
         const llmSuggestions = isLastBot ? extractSuggestions(lastBotActions) : undefined;
         const fallbacks = isLastBot && !llmSuggestions && msg.content
@@ -81,7 +81,7 @@ function MessageList({
           : undefined;
         return (
           <ChatMessage
-            key={msg.id}
+            key={`${msg.id}-${idx}`}
             message={msg}
             followUps={llmSuggestions ?? fallbacks}
             onSendFollowUp={(text) => void onSend(text)}

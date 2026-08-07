@@ -320,6 +320,7 @@ ${toolList}
 
     // Execute each tool, aggregate cards for LLM summary
     let successCount = 0;
+    const dataSnippets: string[] = [];
     for (const tc of toolCalls) {
       const tool = this.toolRegistry.get(tc.tool);
       if (!tool) {
@@ -332,6 +333,13 @@ ${toolList}
         for (const c of result.citations) citations.push(c);
       }
       if (result.success) successCount++;
+      // 安全网：部分工具的 list/detail 动作只返回 data、不产出 cards，
+      // 而 service 只消费 cards → 真实实体名（供应商/专家/公告/项目详情）会被丢弃，
+      // 模型只能凭汇总数字写宏观散文。这里把 data 序列化进上下文兜底。
+      if (result.success && result.data != null && !result.cards?.length) {
+        const snippet = this.serializeDataForLlm(tc.tool, result.data);
+        if (snippet) dataSnippets.push(snippet);
+      }
     }
 
     this.logger.log(
@@ -354,7 +362,7 @@ ${toolList}
       overviewText = '【数据库实时查询结果 —— 这些就是你回答时必须使用的数字，一个字不能改】\n' + items.join('\n') + '\n\n';
     }
 
-    const toolSummary = `${overviewText}以下是各模块状态分布表——用于支撑你展开分析，丰富细节：\n${JSON.stringify(
+    const toolSummary = `${overviewText}${dataSnippets.length ? '【实体清单/详情 —— 数据库查到的真实记录，回答必须引用其中的名称、编号等具体信息，不得泛泛而谈】\n' + dataSnippets.join('\n') + '\n\n' : ''}以下是各模块状态分布表——用于支撑你展开分析，丰富细节：\n${JSON.stringify(
       (cards as Array<Record<string, unknown>>)
         .filter((c) => c.type === 'table' && !(c.title as string || '').includes('全局概览'))
         .slice(0, 4)
@@ -365,7 +373,7 @@ ${toolList}
             return rest;
           }),
         })),
-    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n1. 开篇第一句必须原样写出上面的关键数字，例如"系统共有 1 个采购项目、17 个招标项目、504 家在库供应商"——数字一个不能改。\n2. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n3. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
+    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。\n2. 涉及统计/数量时，必须原样引用上面的关键数字，例如"系统共有 1 个采购项目、24 个招标项目"——数字一个不能改。\n3. 后续每段也必须引用上面的具体数字，不能只说"有多条记录"。\n4. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。`;
 
     try {
       // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
@@ -534,6 +542,39 @@ ${toolList}
       .replace(/[ \t]{2,}/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
+  }
+
+  /**
+   * 把工具的 data 负载（list/detail 结果）序列化成紧凑文本，喂给第二轮 LLM。
+   * 兜底用：仅当工具返回了 data 但未产出 cards 时调用——避免真实实体名（项目/
+   * 供应商/专家/公告）被 service 丢弃，导致模型只能凭汇总数字编宏观散文。
+   */
+  private serializeDataForLlm(toolName: string, data: unknown): string {
+    const trunc = (s: unknown): unknown =>
+      typeof s === 'string' ? (s.length > 80 ? s.slice(0, 80) + '…' : s) : s;
+    const trimObj = (obj: Record<string, unknown>): Record<string, unknown> => {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (v == null || k === 'id') continue;
+        if (typeof v === 'object' && !Array.isArray(v)) {
+          // 嵌套对象（如 department）——只取 name/displayName/title 一层
+          const name = (v as Record<string, unknown>).name ?? (v as Record<string, unknown>).displayName ?? (v as Record<string, unknown>).title;
+          if (name != null) out[k] = trunc(name);
+          continue;
+        }
+        out[k] = trunc(v);
+      }
+      return out;
+    };
+    try {
+      const arr = Array.isArray(data) ? data : [data];
+      const rows = arr.slice(0, 15).map((item) =>
+        item && typeof item === 'object' ? trimObj(item as Record<string, unknown>) : item,
+      );
+      return `[${toolName} 返回 ${arr.length} 条]\n${JSON.stringify(rows).slice(0, 1500)}`;
+    } catch {
+      return '';
+    }
   }
 
   /**

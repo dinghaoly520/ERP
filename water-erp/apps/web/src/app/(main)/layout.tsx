@@ -26,14 +26,15 @@ const routeToKey: Record<string, string> = {
   // 供应商管理
   "/supplier/approval": "supplier-approval",
   "/supplier/repository": "supplier-repo",
+  "/supplier/dashboard": "supplier-repo",
   "/supplier/selection": "supplier-select",
-  "/supplier/evaluation": "supplier-eval",
+  "/supplier/elimination": "supplier-repo",
+  "/supplier/qualification-alerts": "supplier-repo",
   "/supplier": "supplier-approval",
   // 专家管理
   "/expert/entry": "expert-entry",
   "/expert/repository": "expert-repo",
   "/expert/extract": "expert-extract",
-  "/expert/evaluation": "expert-eval",
   "/expert": "expert-entry",
   // 集中目录管理：catalog=管理主页(9页签)、central-catalog=只读健康度概览，各自独立侧边键。
   // central-catalog 前缀更长，必须放在 /mall-management 之前，否则被通配吃到 mall-catalog（高亮跑偏到「目录管理」）。

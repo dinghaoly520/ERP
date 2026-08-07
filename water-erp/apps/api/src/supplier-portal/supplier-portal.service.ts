@@ -967,7 +967,7 @@ export class SupplierPortalService {
       select: { name: true },
     });
     const submissions = await this.prisma.supplierBidSubmission.findMany({
-      where: { supplierId },
+      where: { supplierId, status: { not: 'draft' } },
       orderBy: { createdAt: 'desc' },
       include: {
         project: {

@@ -17,7 +17,7 @@ import {
 
 /* ── 类型/状态映射 ── */
 const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
-  BID_NOTICE: { label: '招标公示', tone: 'blue' },
+  BID_NOTICE: { label: '采购公示', tone: 'blue' },
   WIN_NOTICE: { label: '中标公示', tone: 'green' },
   POLICY: { label: '政策法规', tone: 'orange' },
   PLATFORM: { label: '平台通知', tone: 'gray' },
@@ -140,7 +140,7 @@ export default function NoticePage() {
             </div>
             <div>
               <div className="page-hero__title">信息发布中心</div>
-              <div className="page-hero__sub">招标公示、中标公示、政策法规、平台通知的起草与发布管理</div>
+              <div className="page-hero__sub">采购公示、中标公示、政策法规、平台通知的起草与发布管理</div>
             </div>
           </div>
 
@@ -383,7 +383,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
       description={announcement.title}
     >
       {loading ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">加载中...</p> :
-       !result || !result.project ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">该招标公示未关联招标项目，暂无投标数据。</p> : (
+       !result || !result.project ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">该采购公示未关联采购项目，暂无投标数据。</p> : (
         <div className="space-y-5">
           <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="flex items-center justify-between"><strong className="text-[var(--foreground)]">{result.project.name}</strong><span className="text-xs text-[var(--muted-foreground)]">截止 {new Date(result.project.deadline).toLocaleDateString('zh-CN')}</span></div>

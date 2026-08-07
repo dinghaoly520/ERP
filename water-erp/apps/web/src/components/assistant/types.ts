@@ -9,6 +9,26 @@ export type Conversation = {
   _count: { messages: number };
 };
 
+export type AssistantCard =
+  | { type: 'table'; title: string; columns: Array<{ key: string; label: string }>; rows: unknown[]; viz?: VizDeclaration }
+  | { type: 'chart'; title: string; chartType: string; option: Record<string, unknown>; caption?: string }
+  | { type: 'metric'; title: string; value: string; trend?: string };
+
+export type VizDeclaration = {
+  kind: string;
+  category?: string;
+  value: string;
+  timeField?: string;
+  seriesField?: string;
+  topN?: number;
+};
+
+export type AssistantCitation = {
+  type: string;
+  title: string;
+  entityId: string;
+};
+
 export type Message = {
   id: string;
   conversationId: string;
@@ -17,6 +37,8 @@ export type Message = {
   toolCalls: unknown;
   toolResult: unknown;
   actions: AssistantAction[] | null;
+  cards?: AssistantCard[] | null;
+  citations?: AssistantCitation[] | null;
   createdAt: string;
 };
 

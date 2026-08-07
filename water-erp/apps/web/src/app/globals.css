@@ -7930,6 +7930,101 @@ a {
   color: rgba(180, 60, 60, 0.9);
 }
 
+/* ---- 数据卡片 (backend cards: table + ECharts chart) ---- */
+
+.asst-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* 表格卡片 — 内嵌新拟态 */
+.asst-card-table {
+  overflow: hidden;
+  border-radius: 14px;
+  background: linear-gradient(175deg, oklch(1 0 0 / 0.92), oklch(0.965 0.012 255 / 0.88));
+  border: 1px solid oklch(0.68 0.03 255 / 0.35);
+  box-shadow: 3px 3px 8px oklch(0.42 0.05 252 / 0.08), -2px -2px 6px oklch(1 0 0 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.asst-card-table-header {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foreground);
+  border-bottom: 1px solid rgba(120, 160, 240, 0.12);
+  letter-spacing: 0.01em;
+}
+.asst-card-table-body {
+  overflow-x: auto;
+  padding: 2px 0;
+}
+.asst-card-table-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.asst-card-table-body th {
+  padding: 7px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  border-bottom: 1px solid rgba(120, 160, 240, 0.08);
+  white-space: nowrap;
+}
+.asst-card-table-body td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  color: var(--foreground);
+}
+.asst-card-table-body .asst-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.asst-card-table-body .asst-row-total {
+  font-weight: 700;
+  border-top: 1px solid rgba(120, 160, 240, 0.18);
+  background: rgba(120, 160, 240, 0.04);
+}
+
+/* ECharts 图表卡片 */
+.asst-card-chart {
+  overflow: hidden;
+  border-radius: 14px;
+  background: linear-gradient(175deg, oklch(1 0 0 / 0.92), oklch(0.965 0.012 255 / 0.88));
+  border: 1px solid oklch(0.68 0.03 255 / 0.35);
+  box-shadow: 3px 3px 8px oklch(0.42 0.05 252 / 0.08), -2px -2px 6px oklch(1 0 0 / 0.7), inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.asst-card-chart-title {
+  padding: 10px 14px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foreground);
+  letter-spacing: 0.01em;
+}
+.asst-card-chart-body {
+  padding: 4px 8px 6px;
+}
+.asst-card-chart-caption {
+  padding: 0 14px 10px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+
+.asst-chart-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px dashed rgba(120, 160, 240, 0.15);
+}
+
 /* ---- 思考中指示器 ---- */
 .asst-thinking-row {
   display: flex;

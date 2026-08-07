@@ -134,6 +134,31 @@ export class BidTool implements AssistantTool {
         riskNote: true, _count: { select: { suppliers: true } },
       },
     });
-    return { success: true, data: projects };
+    // 必须产出 cards：AssistantService.handleNormalChat 只消费 result.cards，data 会被丢弃。
+    // 无 cards 则真实招标项目名到不了第二轮 LLM，助手只能拿汇总数字写宏观散文。
+    return {
+      success: true,
+      data: projects,
+      cards: [
+        {
+          type: 'table',
+          title: `招标项目清单（${projects.length}个）`,
+          columns: [
+            { key: 'projectCode', label: '编号' },
+            { key: 'name', label: '名称' },
+            { key: 'stage', label: '阶段' },
+            { key: 'procurementMethod', label: '采购方式' },
+            { key: 'supplierCount', label: '供应商数' },
+          ],
+          rows: projects.map((p: any) => ({
+            projectCode: p.projectCode,
+            name: p.name,
+            stage: t(STAGE_LABEL, p.stage),
+            procurementMethod: p.procurementMethod || '-',
+            supplierCount: p._count?.suppliers ?? 0,
+          })),
+        },
+      ],
+    };
   }
 }

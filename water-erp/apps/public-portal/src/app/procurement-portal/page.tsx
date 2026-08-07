@@ -9,7 +9,7 @@ const STAGES: StageData[] = [
   { no: '02', en: 'BUDGET', title: '预算审批', color: '#a3d9a5', desc: '归口管理与财务联合审核预算来源与金额合理性，全程留痕可追溯。', roles: ['归口管理', '财务部'] },
   { no: '03', en: 'METHOD', title: '方式选定', color: '#c4b5e3', desc: '依据金额与性质，系统智能推荐采购方式：公开招标、邀请招标、谈判采购、询价或单一来源。', roles: ['采购管理'] },
   { no: '04', en: 'DOCUMENT', title: '文件编制', color: '#7dd3d6', desc: '在线编制采购文件与评审标准，AI 辅助生成条款，模板复用、一键校验合规。', roles: ['采购管理', 'AI 辅助'] },
-  { no: '05', en: 'PUBLISH', title: '公告发布', color: '#f9c7a1', desc: '一键发布招标公告，同步推送供应商库与公共门户，定向触达合格供应商。', roles: ['采购管理'] },
+  { no: '05', en: 'PUBLISH', title: '公告发布', color: '#f9c7a1', desc: '一键发布采购公告，同步推送供应商库与公共门户，定向触达合格供应商。', roles: ['采购管理'] },
   { no: '06', en: 'OPENING', title: '在线开标', color: '#f5a3b7', desc: '电子开标、远程解密，全程音视频留痕，主持人与监督人在线见证。', roles: ['开标主持', '监督人'] },
   { no: '07', en: 'EVALUATION', title: '专家评审', color: '#b0c4f0', desc: '专家在线独立打分，AI 异常检测实时预警围标串标、报价异常。', roles: ['评审专家', 'AI 检测'] },
   { no: '08', en: 'AWARD', title: '定标公示', color: '#f7d48b', desc: '确定中标候选人并发布公示，公示期内接受异议，无异议后定标。', roles: ['采购管理', '定标委员会'] },

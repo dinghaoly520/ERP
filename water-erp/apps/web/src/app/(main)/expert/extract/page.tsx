@@ -10,7 +10,7 @@ import { StepTrack } from '@/components/step-track';
 import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send } from 'lucide-react';
 
 
-interface SpecialtyQuota { specialty: string; count: number; }
+interface SpecialtyQuota { specialty: string; count: number; employer?: string }
 
 type ExtractMode = 'specialty_match' | 'random' | 'merit_best' | 'manual';
 type ApiExtractMode = Exclude<ExtractMode, 'manual'>;
@@ -956,7 +956,7 @@ export function ExpertExtractPage({
     const totalNeeded = allQuotas.reduce((s, q) => s + q.count, 0);
 
     try {
-      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: 0, extractMode, manualQuotas: allQuotas });
+      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: 0, extractMode: extractMode as ApiExtractMode, manualQuotas: allQuotas });
       if (!result?.selected) throw new Error('服务器返回数据异常');
       setPreview(result);
       // 部门模式：抽取结果末尾 demandRepCount 人为需求方代表，从 selectedExperts 中分离
@@ -968,7 +968,7 @@ export function ExpertExtractPage({
         setDemandRepPersons(dps.map(s => ({
           userId: s.userId, name: s.name,
           specialty: s.specialty, title: s.title, employer: s.employer,
-          reason: s.reason, evaluationLevel: s.evaluationLevel,
+          reason: s.reason, evaluationLevel: s.evaluationLevel ?? undefined,
         })));
       } else {
         setSelectedExperts([...result.selected]);
@@ -1131,7 +1131,7 @@ export function ExpertExtractPage({
         const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
         setReDraft({ phase: 'extracting', preview: null, selected: [], alternatives: [], quotas: lastReQuotasRef.current.map(q => ({ ...q })), confirmed: false, notified: false, expertIds: [], roundNo });
         try {
-          const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(lastReQuotasRef.current.length, 9), extractMode, manualQuotas: lastReQuotasRef.current, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
+          const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(lastReQuotasRef.current.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas: lastReQuotasRef.current, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
           if (!result?.selected) throw new Error('返回数据异常');
           updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
           if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
@@ -1147,17 +1147,19 @@ export function ExpertExtractPage({
       // AI 分析项目 → 推荐补选专业配额
       const aiRes = await analyzeProjectSpecialties(pid);
       let quotas: SpecialtyQuota[] = [];
+      let declinedDemandRepIds: any[] = [];
+      let reEmployerQuotas: { specialty: string; count: number; employer?: string }[] = [];
       if (aiRes?.requiredSpecialties?.length) {
         const matchSpec = (sp: string): string => { const t = sp.trim(); if (!t) return ''; if (specs.includes(t)) return t; return specs.find(x => x.includes(t) || t.includes(x)) || ''; };
         const merged = new Map<string, number>();
         for (const s of aiRes.requiredSpecialties) { const key = matchSpec(s.specialty); if (key) merged.set(key, (merged.get(key) ?? 0) + Math.max(1, s.count)); }
         let remaining = shortfall;
         // 需求方代表补选：按原配置的部门+专业生成 employer 限定配额，而非用专家真实专业
-        const declinedDemandRepIds = allMain.filter(e => e.invitationStatus === 'declined' && demandRepIdSet.has(e.userId));
+        declinedDemandRepIds = allMain.filter(e => e.invitationStatus === 'declined' && demandRepIdSet.has(e.userId));
         const declinedNormalExperts = allMain.filter(e => e.invitationStatus === 'declined' && !demandRepIdSet.has(e.userId));
 
         // 需求方代表补选配额（走 employer 限定，与初次抽取一致）
-        const reEmployerQuotas: { specialty: string; count: number; employer?: string }[] = [];
+        reEmployerQuotas = [];
         if (declinedDemandRepIds.length > 0 && demandRepMode === 'department' && demandRepDept) {
           reEmployerQuotas.push({
             specialty: demandRepDeptSpecialty || '',
@@ -1205,7 +1207,7 @@ export function ExpertExtractPage({
       const excludedIds = Array.from(new Set(invitationData.experts.map(e => e.userId)));
       const manualQuotas = allReQuotas.map(q => ({ specialty: q.specialty, count: q.count, employer: q.employer }));
       updateDraft({ quotas: allReQuotas.map(q => ({ specialty: q.specialty, count: q.count })) });
-      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(quotas.length, 9), extractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
+      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(quotas.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
       // 分离部门抽取的需求方代表（末尾 reEmployerQuotas 总人数）
       const repCount = reEmployerQuotas.reduce((s, q) => s + q.count, 0);
@@ -1214,7 +1216,7 @@ export function ExpertExtractPage({
         const dps = all.splice(-repCount);
         updateDraft({ phase: 'review', preview: result, selected: [...all], alternatives: [...result.alternatives] });
         // 补选出的需求方代表追加到 demandRepPersons（保持部门模式标记）
-        setDemandRepPersons(prev => [...prev.filter(p => !declinedDemandRepIds.some(d => d.userId === p.userId)), ...dps.map(s => ({ userId: s.userId, name: s.name, specialty: s.specialty, title: s.title, employer: s.employer, reason: s.reason, evaluationLevel: s.evaluationLevel }))]);
+        setDemandRepPersons(prev => [...prev.filter(p => !declinedDemandRepIds.some(d => d.userId === p.userId)), ...dps.map(s => ({ userId: s.userId, name: s.name, specialty: s.specialty, title: s.title, employer: s.employer, reason: s.reason, evaluationLevel: s.evaluationLevel ?? undefined }))]);
       } else {
         updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
       }
@@ -1246,7 +1248,7 @@ export function ExpertExtractPage({
     const manualQuotas: { specialty: string; count: number }[] = quotas.map(q => ({ specialty: q.specialty, count: q.count }));
     updateDraft({ phase: 'extracting' });
     try {
-      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(manualQuotas.length, 9), extractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
+      const result = await previewExtraction({ projectId: pid, totalNeeded, alternatives: Math.min(manualQuotas.length, 9), extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
       updateDraft({ phase: 'review', preview: result, selected: [...result.selected], alternatives: [...result.alternatives] });
       if (result.suggestedLeaderId) setLeadExpertId(result.suggestedLeaderId);
@@ -1356,6 +1358,7 @@ export function ExpertExtractPage({
       preview: h.preview,
       selected: [...h.selected],
       alternatives: [...h.alternatives],
+      quotas: [],
       confirmed: true,
       notified: h.notified,
       expertIds: [...h.expertIds],
@@ -1397,7 +1400,7 @@ export function ExpertExtractPage({
       }
       const totalNeeded = manualQuotas.length;
       const excludedIds = [...allInvited];
-      const result = await previewExtraction({ projectId: pid, totalNeeded, extractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
+      const result = await previewExtraction({ projectId: pid, totalNeeded, extractMode: extractMode as ApiExtractMode, manualQuotas, excludedUserIds: excludedIds.length > 0 ? excludedIds : undefined });
       if (!result?.selected) throw new Error('返回数据异常');
       setAltPreview(result);
       setAltSelected([...result.selected]);
@@ -1808,7 +1811,7 @@ export function ExpertExtractPage({
                   {sel && <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-semibold text-[var(--accent-strong)]">{sel.projectCode}</span>}
                   {sel && <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-semibold text-[var(--accent-strong)]">{sel.procurementMethod}</span>}
                 </div>
-                {pd?.suppliers?.filter(s => s.confirmStatus === 'CONFIRMED').length > 0 && <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">⚠ 已确认参与的供应商（将自动回避）：{pd.suppliers.filter(s => s.confirmStatus === 'CONFIRMED').map(s => s.supplierName).join('、')}</div>}
+                {(pd?.suppliers?.filter(s => s.confirmStatus === 'CONFIRMED')?.length ?? 0) > 0 && <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">⚠ 已确认参与的供应商（将自动回避）：{pd!.suppliers!.filter(s => s.confirmStatus === 'CONFIRMED').map(s => s.supplierName).join('、')}</div>}
               </div>
             )}
 

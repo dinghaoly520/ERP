@@ -79,7 +79,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [userName, setUserName] = useState("");
 
   const abortControllerRef = useRef<AbortController | null>(null);
-  const streamingRef = useRef<{ content: string; actions: Array<Record<string, unknown>> }>({ content: "", actions: [] });
+  const streamingRef = useRef<{ content: string; actions: AssistantAction[] }>({ content: "", actions: [] });
 
   const setPageContext = useCallback(
     (partial: Partial<AssistantPageContext>) => {
@@ -268,7 +268,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             streamingActions: [...s.streamingActions, action],
           }));
         },
-        onDone: (messageId) => {
+        onDone: (messageId, cards, citations) => {
           abortControllerRef.current = null;
           // 从 ref 捕获流式内容（setState 异步更新，chatState 可能还是旧值）
           const finalText = streamingRef.current.content;
@@ -283,6 +283,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
               toolResult: null,
               actions:
                 finalActions.length > 0 ? finalActions : null,
+              cards: (cards && cards.length > 0 ? cards : null) as any,
+              citations: (citations && citations.length > 0 ? citations : null) as any,
               createdAt: new Date().toISOString(),
             };
             return {

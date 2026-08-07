@@ -170,15 +170,6 @@ export function MemberListDialog({ onClose, onSelectPeer }: MemberListDialogProp
                       <span className="text-[13.5px] font-semibold text-[color:var(--foreground)] truncate">
                         {u.displayName}
                       </span>
-                      <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-[6px] shrink-0"
-                        style={{
-                          backgroundColor: 'var(--accent-tint)',
-                          color: 'var(--accent-strong)',
-                        }}
-                      >
-                        {roleLabel(u.role)}
-                      </span>
                     </div>
                     <div className="text-[11px] text-[color:var(--muted-foreground)] truncate">
                       {u.department?.name ?? '未设置部门'}

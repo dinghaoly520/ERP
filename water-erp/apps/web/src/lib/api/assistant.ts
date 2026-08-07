@@ -64,14 +64,14 @@ export type SendCallbacks = {
   onToolCall: (tool: string, args: Record<string, unknown>) => void;
   onToolResult: (tool: string, result: unknown, success: boolean) => void;
   onAction: (action: AssistantAction) => void;
-  onDone: (messageId: string) => void;
+  onDone: (messageId: string, cards?: unknown[], citations?: unknown[]) => void;
   onError: (message: string) => void;
 };
 
 interface ChatResponse {
   conversationId: string;
   answer: string;
-  cards?: Array<{ type: string; title?: string }>;
+  cards?: unknown[];
   citations?: unknown[];
   pendingActions?: unknown[];
 }
@@ -101,7 +101,12 @@ export async function sendMessage(
 
     const data: ChatResponse = await response.json();
     callbacks.onToken(data.answer);
-    callbacks.onDone(data.conversationId);
+    // 后端 ChatResponse 不返回 messageId —— 本地生成唯一 id 作为 React key。
+    // 切勿传 data.conversationId：同一会话内多条 assistant 消息会共用会话 cuid 作 id，
+    // 导致 React "two children with the same key" 报错。
+    const msgId = globalThis.crypto?.randomUUID?.()
+      ?? `msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    callbacks.onDone(msgId, data.cards, data.citations);
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       return;

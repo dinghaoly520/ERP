@@ -124,6 +124,34 @@ export class ProcurementTool implements AssistantTool {
         department: { select: { name: true } },
       },
     });
-    return { success: true, data: projects };
+    // 必须产出 cards：AssistantService.handleNormalChat 只消费 result.cards 构建
+    // 第二轮 LLM 上下文，data 字段会被丢弃。若无 cards，真实项目名永远到不了模型，
+    // 助手只能拿 global_overview 的汇总数字编宏观散文，点不出具体项目名。
+    return {
+      success: true,
+      data: projects,
+      cards: [
+        {
+          type: 'table',
+          title: `采购项目清单（${projects.length}个）`,
+          columns: [
+            { key: 'projectCode', label: '编号' },
+            { key: 'title', label: '名称' },
+            { key: 'status', label: '状态' },
+            { key: 'budget', label: '预算' },
+            { key: 'procurementMethod', label: '采购方式' },
+            { key: 'department', label: '部门' },
+          ],
+          rows: projects.map((p) => ({
+            projectCode: p.projectCode,
+            title: p.title,
+            status: t(PROCUREMENT_STATUS_LABEL, p.status),
+            budget: p.budget ? `¥${p.budget}` : '-',
+            procurementMethod: p.procurementMethod || '-',
+            department: p.department?.name || '-',
+          })),
+        },
+      ],
+    };
   }
 }

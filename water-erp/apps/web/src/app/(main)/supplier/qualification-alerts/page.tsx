@@ -65,6 +65,7 @@ export default function QualificationAlertsPage() {
             </div>
           </div>
           <div className="page-hero__right">
+            <button onClick={() => { load(); toast.success('已刷新'); }} disabled={loading} className="neu-btn-xs gap-1"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /></button>
             {dismissedCount > 0 && (
               <button onClick={unDismissAll} className="neu-btn-xs">恢复全部</button>
             )}

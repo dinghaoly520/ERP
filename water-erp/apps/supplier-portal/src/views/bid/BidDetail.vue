@@ -119,7 +119,7 @@ function formatContent(raw: string): string {
 
 onMounted(async () => { try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile(), loadNotice()]); loadBidDoc(); loadOverview() } catch { error.value = true } finally { loading.value = false } })
 async function retryLoad() { error.value = false; loading.value = true; try { await Promise.all([bidStore.fetchProject(projectId.value), supplierStore.fetchProfile(), loadNotice()]); loadBidDoc(); loadOverview() } catch { error.value = true } finally { loading.value = false } }
-function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.status !== 'APPROVED') { ElMessage.warning('只有已入库供应商可以提交标书'); return } router.push(`/bids/${projectId.value}/submit`) }
+function goToSubmit() { if (!supplierStore.profile || supplierStore.profile?.status !== 'APPROVED') { ElMessage.warning('只有已入库供应商可以提交标书'); return } router.push({ path: `/bids/${projectId.value}/submit`, query: isListMode.value ? { from: 'list' } : {} }) }
 </script>
 
 <template>

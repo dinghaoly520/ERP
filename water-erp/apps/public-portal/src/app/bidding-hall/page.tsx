@@ -6,7 +6,7 @@ import { FlowTrack, FlowBackdrop, type StageData } from '@/components/flow-stage
 
 const STAGES: StageData[] = [
   { no: '01', en: 'REGISTER', title: '注册入库', color: '#7ec8e3', desc: '提交企业资质与营业执照，平台审核通过后正式入驻供应商库，获得投标资格。', roles: ['供应商', '平台审核'] },
-  { no: '02', en: 'DISCOVER', title: '查看可投标项目', color: '#a3d9a5', desc: '浏览招标公告，订阅关键词与品类，第一时间获取匹配的采购商机推送。', roles: ['供应商'] },
+  { no: '02', en: 'DISCOVER', title: '查看可投标项目', color: '#a3d9a5', desc: '浏览采购公告，订阅关键词与品类，第一时间获取匹配的采购商机推送。', roles: ['供应商'] },
   { no: '03', en: 'QUALIFY', title: '资格确认', color: '#7dd3d6', desc: '对照公告资格条件自检，确认满足后下载招标文件，研读技术与商务要求。', roles: ['供应商'] },
   { no: '04', en: 'COMPOSE', title: '编制投标', color: '#c4b5e3', desc: '按要求编制技术、商务投标文件，使用 CA 数字证书加密与电子签章。', roles: ['供应商', 'CA 签章'] },
   { no: '05', en: 'SUBMIT', title: '在线递交', color: '#f9c7a1', desc: '在截止前在线递交加密投标文件，系统实时回执确认，逾期自动锁定。', roles: ['供应商'] },

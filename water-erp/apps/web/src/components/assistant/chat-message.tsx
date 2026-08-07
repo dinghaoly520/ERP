@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { AssistantAction, Message } from "./types";
+import type { AssistantAction, AssistantCard, Message } from "./types";
 import { MiniSprite } from "./mini-sprite";
+import { ChartRenderer } from "./chart-renderer";
+import { BarChart3, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 // ---- Markdown 渲染 ----
@@ -119,9 +122,17 @@ export function ChatMessage({
   const isUser = message.role === "user";
   const displayActions = actions ?? (message.actions as AssistantAction[] | undefined);
 
-  // Separate chart actions (rendered inside bubble) from other actions (rendered outside)
-  const chartActions = isUser ? [] : (displayActions?.filter((a) => a.type === "chart") ?? []);
+  const chartActions = isUser
+    ? []
+    : (displayActions?.filter((a) => a.type === "chart") ?? []);
   const otherActions = displayActions?.filter((a) => a.type !== "chart") ?? [];
+  const cards = (message.cards as AssistantCard[]) ?? [];
+  // 图表/表格走弹窗，指标卡保持内联（不占空间）
+  const richCards = cards.filter((c) => c.type === "chart" || c.type === "table");
+  const metricCards = cards.filter((c) => c.type === "metric");
+  const hasRich = chartActions.length > 0 || richCards.length > 0;
+
+  const [chartModalOpen, setChartModalOpen] = useState(false);
 
   return (
     <div className={`asst-message-row ${isUser ? "asst-message-row-user" : ""}`}>
@@ -129,16 +140,22 @@ export function ChatMessage({
       {!isUser && <MiniSprite size={28} animated />}
 
       <div className={`asst-message-col ${isUser ? "asst-message-col-user" : "asst-message-col-bot"}`}>
-        {/* Message bubble — charts embedded inside for bot messages */}
+        {/* 对话气泡：仅放文字 + 指标卡 + 查看图表按钮 */}
         <div className={`asst-bubble ${isUser ? "asst-bubble-user" : "asst-bubble-bot"}`}>
           {isUser ? message.content : <MarkdownContent content={message.content} />}
-          {/* Charts inside the bubble */}
-          {chartActions.length > 0 && (
-            <div className="asst-chart-group">
-              {chartActions.map((action, i) => (
-                <InlineChart key={i} action={action as ChartAction} />
-              ))}
-            </div>
+
+          {/* 指标卡保持内联（紧凑） */}
+          {!isUser && metricCards.length > 0 && <DataCards cards={metricCards} />}
+
+          {/* 有图表/表格时显示按钮，不直接渲染 */}
+          {!isUser && hasRich && (
+            <button
+              onClick={() => setChartModalOpen(true)}
+              className="asst-followup"
+              aria-label="查看数据图表"
+            >
+              <BarChart3 size={13} /> 查看图表
+            </button>
           )}
         </div>
 
@@ -155,7 +172,97 @@ export function ChatMessage({
         {!isUser && followUps && onSendFollowUp && (
           <FollowUpButtons items={followUps} onSend={onSendFollowUp} />
         )}
+
+        {/* 图表弹窗 — 点击「查看图表」按钮后展开 */}
+        {chartModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-[var(--background)]/70 backdrop-blur-sm" onClick={() => setChartModalOpen(false)} />
+            <div className="relative w-full max-w-[min(720px,92vw)] max-h-[85vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)]" role="dialog" aria-modal="true">
+              <div className="mb-5 flex items-center justify-between">
+                <span className="text-sm font-bold text-[var(--foreground)]">数据图表</span>
+                <button onClick={() => setChartModalOpen(false)} className="neu-btn-xs"><X size={14} /></button>
+              </div>
+              {chartActions.map((a, i) => (
+                <div key={`cht-${i}`} className="mb-4">
+                  <InlineChart action={a as ChartAction} />
+                </div>
+              ))}
+              {richCards.length > 0 && <DataCards cards={richCards} />}
+            </div>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ---- Data Cards (ECharts + Tables from backend) ----
+
+function DataCards({ cards }: { cards: AssistantCard[] }) {
+  return (
+    <div className="asst-card-stack">
+      {cards.map((card, i) => {
+        if (card.type === 'table') return <CardTable key={`tbl-${i}`} card={card} />;
+        if (card.type === 'chart') return <CardChart key={`cht-${i}`} card={card} />;
+        if (card.type === 'metric') return (
+          <div key={`met-${i}`} className="asst-metric-card" style={{ '--card-accent': '#2563EB', '--card-accent-soft': 'rgba(37,99,235,0.1)' } as React.CSSProperties}>
+            <div className="asst-metric-card-glow" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(37,99,235,0.1), transparent 70%)' }} />
+            <div className="asst-metric-card-label">{card.title}</div>
+            <div className="asst-metric-card-value-row">
+              <span className="asst-metric-card-value">{card.value}</span>
+            </div>
+          </div>
+        );
+        return null;
+      })}
+    </div>
+  );
+}
+
+function CardTable({ card }: { card: AssistantCard & { type: 'table' } }) {
+  const numericKeys = new Set(
+    card.columns.filter((c) => /count|value|budget|num|数量|数值|人数|预算|占比|pct/i.test(c.key)).map((c) => c.key),
+  );
+  return (
+    <div className="asst-card-table">
+      <div className="asst-card-table-header">{card.title}</div>
+      <div className="asst-card-table-body">
+        <table>
+          <thead>
+            <tr>
+              {card.columns.map((c) => (
+                <th key={c.key} className={numericKeys.has(c.key) ? 'asst-td-num' : ''}>{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(card.rows as Array<Record<string, unknown>>).map((row, j) => {
+              const isTotal = row._total === true;
+              return (
+                <tr key={j} className={isTotal ? 'asst-row-total' : ''}>
+                  {card.columns.map((c) => (
+                    <td key={c.key} className={numericKeys.has(c.key) ? 'asst-td-num' : ''}>
+                      {String(row[c.key] ?? '-')}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CardChart({ card }: { card: AssistantCard & { type: 'chart' } }) {
+  return (
+    <div className="asst-card-chart">
+      {card.title && <div className="asst-card-chart-title">{card.title}</div>}
+      <div className="asst-card-chart-body">
+        <ChartRenderer option={card.option} height={card.chartType === 'pie' ? 260 : 280} />
+      </div>
+      {card.caption && <div className="asst-card-chart-caption">{card.caption}</div>}
     </div>
   );
 }

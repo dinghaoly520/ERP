@@ -19,12 +19,16 @@ export class ProcurementsService {
   private readonly logger = new Logger(ProcurementsService.name);
 
   /** ERP Supplier 模型需要 user/enterpriseType 等必填字段 */
-  private makeSupplier(name: string) {
+  private async makeSupplier(name: string) {
     const nn = this.normalizeName(name);
     const uid = createHash('sha256').update(`supplier_${nn}`).digest('hex').slice(0, 24);
+    const [row] = await this.prisma.$queryRaw<Array<{ supplier_no: string }>>`
+      SELECT 'SUP-' || lpad(nextval('supplier_no_seq')::text, 6, '0') AS supplier_no
+    `;
     return {
       name,
       normalizedName: nn,
+      supplierNo: row.supplier_no,
       enterpriseType: '有限责任公司',
       legalPerson: name,
       registeredAddress: '（待补充）',
@@ -234,7 +238,7 @@ export class ProcurementsService {
       const supplier = await this.prisma.supplier.upsert({
         where: { normalizedName: this.normalizeName(dto.awardedSupplierName) },
         update: { name: dto.awardedSupplierName },
-        create: this.makeSupplier(dto.awardedSupplierName),
+        create: await this.makeSupplier(dto.awardedSupplierName),
       });
       awardedSupplierId = supplier.id;
     }
@@ -297,7 +301,7 @@ export class ProcurementsService {
         const supplier = await this.prisma.supplier.upsert({
           where: { normalizedName: this.normalizeName(name) },
           update: { name },
-          create: this.makeSupplier(name),
+          create: await this.makeSupplier(name),
         });
         await this.prisma.roundParticipant.create({
           data: {
@@ -344,7 +348,7 @@ export class ProcurementsService {
       const supplier = await this.prisma.supplier.upsert({
         where: { normalizedName: this.normalizeName(dto.awardedSupplierName) },
         update: { name: dto.awardedSupplierName },
-        create: this.makeSupplier(dto.awardedSupplierName),
+        create: await this.makeSupplier(dto.awardedSupplierName),
       });
       awardedSupplierId = supplier.id;
     }

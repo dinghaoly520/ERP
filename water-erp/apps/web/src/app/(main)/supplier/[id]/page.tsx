@@ -9,7 +9,7 @@ import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supp
 import { AlertBanner, type AlertSeverity, Breadcrumb, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
 
@@ -25,6 +25,45 @@ const STATUS_TONE: Record<string, 'green' | 'blue' | 'orange' | 'red' | 'gray'> 
 };
 const CHANGE_TONE: Record<string, 'blue' | 'green' | 'red'> = { PENDING: 'blue', APPROVED: 'green', REJECTED: 'red' };
 const GRADE_TONE: Record<string, string> = { A: 'green', B: 'blue', C: 'orange', D: 'yellow', E: 'red' };
+
+/** 基本信息字段行：图标 + 标签 + 值，支持等宽（信用代码/电话）与跨列（长文本） */
+function InfoField({
+  icon: Icon,
+  label,
+  value,
+  mono = false,
+  full = false,
+}: {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  value?: string | null;
+  mono?: boolean;
+  full?: boolean;
+}) {
+  const empty = !value || !value.trim();
+  return (
+    <div className={`flex items-start gap-2.5 ${full ? 'col-span-full' : ''}`}>
+      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]">
+        <Icon size={13} />
+      </span>
+      <div className="min-w-0 flex-1 pt-px">
+        <p className="mb-0.5 text-[10px] font-medium leading-none text-[var(--muted-foreground)]">{label}</p>
+        <p className={`text-[13px] font-semibold leading-snug text-[var(--foreground)] ${mono ? 'font-mono tracking-tight' : ''} ${empty ? 'text-[var(--muted-foreground)]' : ''}`}>
+          {empty ? '—' : value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** 区块标题：小号大写 + 图标 */
+function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ size?: number }>; children: React.ReactNode }) {
+  return (
+    <h3 className="mb-4 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]">
+      <Icon size={13} />{children}
+    </h3>
+  );
+}
 
 export default function SupplierDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -244,7 +283,10 @@ export default function SupplierDetailPage() {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl font-bold tracking-[-0.02em] text-[var(--foreground)]">{supplier.name}</h1>
+              <h1 className="text-xl font-bold tracking-[-0.02em] text-[var(--foreground)]">
+                {supplier.name}
+                <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 align-middle text-[12px] font-bold tabular-nums text-[var(--accent)]" title="供应商编号">{supplier.supplierNo}</span>
+              </h1>
               <StatusBadge tone={stTone}>{stLabel}</StatusBadge>
               {supplier.user?.isActive !== undefined && (
                 <StatusBadge tone={supplier.user.isActive ? 'green' : 'red'}>{supplier.user.isActive ? '账户已激活' : '账户未激活'}</StatusBadge>
@@ -407,90 +449,95 @@ export default function SupplierDetailPage() {
       <div>
         {/* ── 基本信息 ── */}
         {activeTab === 'info' && (
-          <div className="space-y-6">
-            <div className="neu-card-static !rounded-2xl p-5 space-y-6">
-              {/* 企业信息分组 */}
-              <div>
-                <h3 className="text-[11px] font-extrabold text-[var(--muted-foreground)] uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <Building2 size={13} />企业信息
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+          <div className="space-y-5">
+            {/* ══ 企业工商信息 ══ */}
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={Building2}>企业工商信息</SectionTitle>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                <InfoField icon={Building2} label="企业名称" value={supplier.name} />
+                <InfoField icon={Building2} label="企业类型" value={normalizeEnterpriseType(supplier.enterpriseType)} />
+                <InfoField icon={ShieldCheck} label="法定代表人" value={supplier.legalPerson} />
+                <InfoField icon={Hash} label="统一社会信用代码" value={supplier.creditCode} mono />
+              </div>
+              {/* 长文本字段跨整行 */}
+              <div className="mt-4 space-y-4 border-t border-[var(--border)] pt-4">
+                <InfoField icon={MapPin} label="注册地址" value={supplier.registeredAddress} full />
+                <InfoField icon={Briefcase} label="经营范围" value={supplier.businessScope} full />
+              </div>
+            </section>
+
+            {/* ══ 业务标签 + 主要联系人（双列）══ */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {/* 业务标签 */}
+              <section className="neu-card-static !rounded-2xl p-5">
+                <SectionTitle icon={Briefcase}>业务标签</SectionTitle>
+                {(supplier as any).tags?.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {(supplier as any).tags.map((tag: string, i: number) => (
+                      <span key={i} className="biz-tag">{tag}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--muted-foreground)]">暂无业务标签，供应商可通过变更申请补充</p>
+                )}
+              </section>
+
+              {/* 主要联系人 */}
+              <section className="neu-card-static !rounded-2xl p-5">
+                <SectionTitle icon={User}>主要联系人</SectionTitle>
+                {primaryContact ? (
+                  <div>
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-sm font-black text-[var(--accent)]">{primaryContact.name[0]}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-[var(--foreground)]">{primaryContact.name}</p>
+                        {primaryContact.position && <span className="text-[11px] text-[var(--muted-foreground)]">{primaryContact.position}</span>}
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2.5 border-t border-[var(--border)] pt-3">
+                      <InfoField icon={Phone} label="联系电话" value={primaryContact.phone} mono />
+                      {primaryContact.email && <InfoField icon={Mail} label="邮箱" value={primaryContact.email} />}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--muted-foreground)]">暂无主要联系人</p>
+                )}
+              </section>
+            </div>
+
+            {/* ══ 评价概览 ══ */}
+            {evaluations.length > 0 && (
+              <section className="neu-card-static !rounded-2xl p-5">
+                <SectionTitle icon={Award}>评价概览</SectionTitle>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
                   {[
-                    ['企业名称', supplier.name],
-                    ['统一社会信用代码', supplier.creditCode || '—'],
-                    ['企业类型', normalizeEnterpriseType(supplier.enterpriseType)],
-                    ['法定代表人', supplier.legalPerson],
-                    ['注册地址', supplier.registeredAddress || '—'],
-                    ['经营范围', supplier.businessScope || '—'],
-                    ['注册时间', new Date(supplier.createdAt).toLocaleDateString('zh-CN')],
-                    ['最后更新', new Date(supplier.updatedAt).toLocaleDateString('zh-CN')],
-                  ].map(([label, value]) => (
-                    <div key={label as string}>
-                      <p className="text-[11px] text-[var(--muted-foreground)] mb-0.5">{label}</p>
-                      <p className="text-[13px] font-semibold text-[var(--foreground)]">{value}</p>
+                    { label: '评价次数', value: evaluations.length, color: 'var(--accent)' },
+                    { label: '主要等级', value: mostCommonGrade || '—', color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' },
+                    { label: 'A 级', value: evalLevelCounts.A, color: 'var(--success)' },
+                    { label: 'B 级', value: evalLevelCounts.B, color: 'var(--accent)' },
+                    { label: 'C 级', value: evalLevelCounts.C, color: 'var(--warning)' },
+                    { label: 'D 级', value: evalLevelCounts.D, color: '#ca8a04' },
+                    { label: 'E 级', value: evalLevelCounts.E, color: 'var(--danger)' },
+                  ].map(s => (
+                    <div key={s.label} className="neu-card-static !rounded-xl p-3 text-center">
+                      <p className="text-[10px] text-[var(--muted-foreground)] mb-1">{s.label}</p>
+                      <p className="text-xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</p>
                     </div>
                   ))}
                 </div>
+              </section>
+            )}
 
-                {/* 业务标签（与 :3004 企业信息页对齐——始终展示，空态引导） */}
-                <div className="mt-5 pt-4 border-t border-[var(--border)]">
-                  <p className="text-[11px] text-[var(--muted-foreground)] mb-2">业务标签</p>
-                  {(supplier as any).tags?.length > 0 ? (
-                    <div className="flex flex-wrap gap-2.5">
-                      {(supplier as any).tags.map((tag: string, i: number) => (
-                        <span key={i} className="biz-tag">{tag}</span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[12px] text-[var(--muted-foreground)]">暂无业务标签，供应商可通过变更申请补充</p>
-                  )}
-                </div>
-              </div>
-
-              {/* 评价概览（如已有评价） */}
-              {evaluations.length > 0 && (
-                <div className="border-t border-[var(--border)] pt-6">
-                  <h3 className="text-[11px] font-extrabold text-[var(--muted-foreground)] uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <Award size={13} />评价概览
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-                    {[
-                      { label: '评价次数', value: evaluations.length, color: 'var(--accent)' },
-                      { label: '主要等级', value: mostCommonGrade || '—', color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' },
-                      { label: 'A 级', value: evalLevelCounts.A, color: 'var(--success)' },
-                      { label: 'B 级', value: evalLevelCounts.B, color: 'var(--accent)' },
-                      { label: 'C 级', value: evalLevelCounts.C, color: 'var(--warning)' },
-                      { label: 'D 级', value: evalLevelCounts.D, color: '#ca8a04' },
-                      { label: 'E 级', value: evalLevelCounts.E, color: 'var(--danger)' },
-                    ].map(s => (
-                      <div key={s.label} className="neu-card-static !rounded-xl p-3 text-center">
-                        <p className="text-[10px] text-[var(--muted-foreground)] mb-1">{s.label}</p>
-                        <p className="text-xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 主要联系人（如有） */}
-              {primaryContact && (
-                <div className="border-t border-[var(--border)] pt-6">
-                  <h3 className="text-[11px] font-extrabold text-[var(--muted-foreground)] uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <Phone size={13} />主要联系人
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
-                    <span><span className="text-[var(--muted-foreground)]">姓名：</span><strong className="text-[var(--foreground)]">{primaryContact.name}</strong></span>
-                    {primaryContact.position && <span><span className="text-[var(--muted-foreground)]">职位：</span><strong className="text-[var(--foreground)]">{primaryContact.position}</strong></span>}
-                    <span><span className="text-[var(--muted-foreground)]">电话：</span><strong className="text-[var(--foreground)] font-mono">{primaryContact.phone}</strong></span>
-                    {primaryContact.email && <span><span className="text-[var(--muted-foreground)]">邮箱：</span><strong className="text-[var(--foreground)]">{primaryContact.email}</strong></span>}
-                  </div>
-                </div>
-              )}
+            {/* ══ 系统元信息（弱化 footer）══ */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-[var(--muted-foreground)]">
+              <span className="inline-flex items-center gap-1"><Calendar size={11} /> 注册于 {new Date(supplier.createdAt).toLocaleDateString('zh-CN')}</span>
+              <span className="opacity-40">·</span>
+              <span className="inline-flex items-center gap-1"><RotateCcw size={11} /> 最后更新 {new Date(supplier.updatedAt).toLocaleDateString('zh-CN')}</span>
             </div>
 
-            {/* 生命周期时间线 */}
+            {/* ══ 生命周期时间线 ══ */}
             <section className="neu-card-static !rounded-2xl p-5">
-              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)] mb-4">生命周期</h3>
+              <SectionTitle icon={RotateCcw}>生命周期</SectionTitle>
               <SupplierTimeline supplierId={id as string} />
             </section>
           </div>

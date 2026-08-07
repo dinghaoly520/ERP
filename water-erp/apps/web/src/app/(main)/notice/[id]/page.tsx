@@ -22,7 +22,7 @@ const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> =
   BID_NOTICE: 'blue', WIN_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray',
 };
 const typeLabel: Record<AnnouncementType, string> = {
-  BID_NOTICE: '招标公示', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知',
+  BID_NOTICE: '采购公示', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 const statusTone: Record<AnnouncementStatus, 'green' | 'gray'> = {
   DRAFT: 'gray', PUBLISHED: 'green', ARCHIVED: 'gray',
@@ -327,7 +327,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   const saveDraft = async () => { const s = await save('DRAFT'); if (s) { toast.success('草稿已保存'); onSaved(s); } };
   const publish = async () => {
     if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) { toast.error('请设置定时发布时间'); return; }
-    if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !confirm('该招标公示尚未上传招标文件，确认直接发布？')) return;
+    if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !confirm('该采购公示尚未上传采购文件，确认直接发布？')) return;
     const s = await save('PUBLISHED');
     if (s) {
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');

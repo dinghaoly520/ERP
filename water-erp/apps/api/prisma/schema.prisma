@@ -964,6 +964,7 @@ enum ChangeStatus {
 model Supplier {
   id                 String         @id @default(cuid())
   userId             String         @unique
+  supplierNo         String         @unique // 供应商编号（SUP-000001，由 PG 序列 supplier_no_seq 生成）
   name               String
   normalizedName     String         @unique
   creditCode         String?        @unique
@@ -1166,6 +1167,30 @@ model SupplierChangeRecord {
 
   @@index([supplierId])
   @@index([status])
+}
+
+model SupplierDocument {
+  id         String   @id @default(cuid())
+  supplierId String
+  type       String   @default("other")
+  name       String
+  fileUrl    String
+  fileSize   Int?
+  note       String?
+  uploaderId String
+  createdAt  DateTime @default(now())
+
+  @@index([supplierId])
+}
+
+model SupplierFavorite {
+  id         String   @id @default(cuid())
+  supplierId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  @@unique([supplierId, userId])
+  @@index([userId])
 }
 
 model Notification {

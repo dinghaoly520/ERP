@@ -4,7 +4,7 @@ import { PublicAssistantAvatar } from './avatar';
 import type { PublicAssistantContext } from './types';
 
 const QUICK_QUESTIONS = [
-  '招标公告一般包含哪些内容？',
+  '采购公告一般包含哪些内容？',
   '供应商注册需要准备什么材料？',
   '如何解读中标结果公示？',
   '电子采购平台的评标流程是怎样的？',
@@ -22,7 +22,7 @@ function buildContextHint(context: PublicAssistantContext) {
   if (context.recentAnnouncements.length > 0) {
     const types = [...new Set(context.recentAnnouncements.map((a) => a.type))];
     const typeLabels: Record<string, string> = {
-      BID_NOTICE: '招标公告',
+      BID_NOTICE: '采购公告',
       WIN_NOTICE: '中标公告',
       POLICY: '政策法规',
       PLATFORM: '平台公告',

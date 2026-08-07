@@ -12,7 +12,9 @@ import {
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import type { SupplierInvitation } from '@/lib/api/supplier';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
-import { Building2, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban } from 'lucide-react';
+import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
+import { ClassificationManagerDialog } from '@/components/supplier/classification-manager-dialog';
+import { Building2, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
@@ -85,6 +87,10 @@ export default function SupplierRepositoryPage() {
   const [statusModal, setStatusModal] = useState<{ type: 'disable' | 'blacklist'; supplier: Supplier } | null>(null);
   const [statusReason, setStatusReason] = useState('');
   const [statusLoading, setStatusLoading] = useState(false);
+  // 评价弹窗（由操作列「评价」按钮触发）
+  const [evalTarget, setEvalTarget] = useState<Supplier | null>(null);
+  // 分类管理弹窗
+  const [showClassMgr, setShowClassMgr] = useState(false);
 
   // ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）──
   const [invitations, setInvitations] = useState<SupplierInvitation[]>([]);
@@ -316,6 +322,7 @@ export default function SupplierRepositoryPage() {
         </div>
         <button onClick={() => { setSearch(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
 
+        <button onClick={() => setShowClassMgr(true)} className="neu-btn-xs gap-1"><Tags size={12} />分类管理</button>
         <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
         <button onClick={() => exportSuppliersToExcel(data.items)} title="仅导出当前筛选结果（当前页数据）" className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
       </div>
@@ -361,20 +368,22 @@ export default function SupplierRepositoryPage() {
             <thead>
               <tr>
                 <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === data.items.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < data.items.length; }} onChange={toggleAll} /></th>
-                <th style={{ width: 130 }}>企业名称</th>
+                <th style={{ width: 100 }}>企业名称</th>
                 <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
                 <th style={{ width: 140 }}>企业类型</th>
-                <th className="text-center" style={{ width: 100 }}>状态</th>
-                <th className="text-center" style={{ width: 112 }}>评价等级</th>
+                <th className="text-center" style={{ width: 84 }}>评价次数</th>
+                <th className="text-center" style={{ width: 96 }}>平均等级</th>
+                <th className="text-center" style={{ width: 96 }}>最近评价</th>
                 <th className="text-center" style={{ width: 96 }}>入库时间</th>
-                <th className="text-center" style={{ width: 200 }}>操作</th>
+                <th className="text-center" style={{ width: 100 }}>状态</th>
+                <th className="text-center" style={{ width: 240 }}>操作</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={8} rows={5} />
+                <TableSkeleton cols={10} rows={5} />
               ) : data.items.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-16">
+                <tr><td colSpan={10} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
@@ -399,7 +408,7 @@ export default function SupplierRepositoryPage() {
                     </td>
                     <td className="text-center font-mono text-xs text-[var(--muted-foreground)] max-w-[160px] truncate" title={s.creditCode || ''}>{s.creditCode || '—'}</td>
                     <td className="text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
-                    <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
+                    <td className="text-center"><span className="neu-tab-count">{s._count?.evaluations ?? 0}</span></td>
                     <td className="text-center">
                       {s._avgGrade ? (
                         <div className="flex items-center justify-center gap-1.5" title={`平均评价等级 ${s._avgGrade}（${LEVEL_LABEL[s._avgGrade] ?? ''}）`}>
@@ -410,12 +419,20 @@ export default function SupplierRepositoryPage() {
                         <span className="text-sm text-[var(--muted-foreground)]">—</span>
                       )}
                     </td>
+                    <td className="text-center">
+                      {s._latestEvalLevel ? (
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[s._latestEvalLevel] ?? 'var(--muted-foreground)' }}>{s._latestEvalLevel}</span>
+                      ) : (
+                        <span className="text-sm text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{new Date(s.createdAt).toLocaleDateString('zh-CN')}</td>
+                    <td className="text-center"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge></td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
-                        <button onClick={() => router.push(`/supplier/${s.id}`)} className="neu-btn-xs is-info">详情</button>
                         {s.status === 'APPROVED' && (
                           <>
+                            <button onClick={() => setEvalTarget(s)} className="neu-btn-xs is-info">评价</button>
                             <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }} className="neu-btn-xs is-warning">停用</button>
                             <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }} className="neu-btn-xs is-danger">黑名单</button>
                           </>
@@ -474,6 +491,10 @@ export default function SupplierRepositoryPage() {
           <textarea value={statusReason} onChange={e => setStatusReason(e.target.value)} placeholder="请填写原因..." className="neu-input w-full h-24 resize-none text-sm" />
         </Modal>
       )}
+
+      {/* ══════ 评价弹窗 ══════ */}
+      <SupplierEvaluationDialog supplier={evalTarget} onClose={() => setEvalTarget(null)} onSubmitted={loadData} />
+      <ClassificationManagerDialog open={showClassMgr} onClose={() => setShowClassMgr(false)} />
     </div>
   );
 }

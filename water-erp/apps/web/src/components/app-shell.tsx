@@ -16,6 +16,7 @@ import {
   UserRound,
   Building2,
   Users,
+  Boxes,
   Megaphone,
   MessageSquare,
   ShoppingBag,
@@ -87,21 +88,12 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    key: "supplier-mgmt",
-    label: "供应商管理",
-    icon: Building2,
+    key: "resource-mgmt",
+    label: "资源管理",
+    icon: Boxes,
     items: [
-      { key: "supplier-repo", label: "供应商库", href: "/supplier/repository", icon: Building2, meta: "资源池管理" },
-      { key: "supplier-eval", label: "供应商评价", href: "/supplier/evaluation", icon: Building2, meta: "绩效管理" },
-    ],
-  },
-  {
-    key: "expert-mgmt",
-    label: "专家管理",
-    icon: Users,
-    items: [
-      { key: "expert-repo", label: "专家库", href: "/expert/repository", icon: Users, meta: "专家资源" },
-      { key: "expert-eval", label: "专家评价", href: "/expert/evaluation", icon: Users, meta: "履职考核" },
+      { key: "supplier-repo", label: "供应商管理", href: "/supplier/repository", icon: Building2, meta: "资源池管理" },
+      { key: "expert-repo", label: "专家管理", href: "/expert/repository", icon: Users, meta: "专家资源" },
     ],
   },
   {
