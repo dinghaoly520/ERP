@@ -530,6 +530,7 @@ export function RequirementComparePanel({
                                         points={[{ id: pt.id, name: pt.name, fullScore: pt.fullScore, objective: pt.objective, evidenceHint: pt.evidenceHint, seq: pt.seq }]}
                                         value={cur?.points ?? {}}
                                         onChange={(pid, pv) => onPointChange?.(si.id, pid, pv)}
+                                        hideNotes
                                       />
                                     ) : (
                                       // N:1 仅提示（不可单条打分）

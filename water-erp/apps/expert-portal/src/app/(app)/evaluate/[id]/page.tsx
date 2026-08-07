@@ -295,7 +295,7 @@ export default function ExpertEvaluatePage() {
                 const cur = next[k] ?? { score: 0, reason: '' };
                 next[k] = {
                   ...cur,
-                  points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore) } },
+                  points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
                 };
               }
               return next;
