@@ -2,7 +2,7 @@
 'use client';
 import { useMemo, useState, useEffect } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, MessageSquarePlus } from 'lucide-react';
+import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, MessageSquarePlus, Loader2 } from 'lucide-react';
 import type { RequirementResponse, BidRequirementReview, BidScoreItem } from '@water-erp/shared';
 import { CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { api } from '@/lib/api';
@@ -103,6 +103,7 @@ export function RequirementComparePanel({
   // C：左栏卡片展开态（clauseId → expanded）；D：右栏 AI判断揭示态 + 批注录入目标
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [aiRevealed, setAiRevealed] = useState<Record<string, boolean>>({});
+  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
   const [annotatingPoint, setAnnotatingPoint] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState('');
 
@@ -410,11 +411,21 @@ export function RequirementComparePanel({
                 )}
               </div>
 
-              {/* AI 判断（动作按钮：点了才显示，不预置折叠区块） */}
+              {/* AI 判断（动作按钮：点击后假装加载 ~1s 再显示，强化「专家调用 AI」语义） */}
               <div className="pt-1">
-                {!aiRevealed[selectedItem.id] ? (
+                {aiLoading[selectedItem.id] ? (
+                  <div className="flex items-center gap-1.5 rounded-[10px] bg-[oklch(0.96_0.01_258/0.4)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
+                    <Loader2 size={12} className="animate-spin text-[var(--accent-strong)]" /> AI 分析中…
+                  </div>
+                ) : !aiRevealed[selectedItem.id] ? (
                   <button
-                    onClick={() => setAiRevealed((p) => ({ ...p, [selectedItem.id]: true }))}
+                    onClick={() => {
+                      setAiLoading((p) => ({ ...p, [selectedItem.id]: true }));
+                      setTimeout(() => {
+                        setAiLoading((p) => ({ ...p, [selectedItem.id]: false }));
+                        setAiRevealed((p) => ({ ...p, [selectedItem.id]: true }));
+                      }, 900 + Math.random() * 500);
+                    }}
                     className="neu-btn-xs !gap-1 !text-[11px]"
                     title="查看 AI 对本条款的判断（仅供参考）"
                   >
