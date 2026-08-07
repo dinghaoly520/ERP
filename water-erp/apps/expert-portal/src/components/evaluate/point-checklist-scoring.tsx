@@ -64,7 +64,18 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
               ) : (
                 <span className="exp-pill shrink-0" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>主观</span>
               )}
-              {/* 批注入口：行内左侧图标（纵向成列、可扫读）；有批注=主题色底，点击展开/聚焦批注框 */}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</div>
+                {p.evidenceHint && <div className="truncate text-xs text-[var(--muted-foreground)]">{p.evidenceHint}</div>}
+              </div>
+              <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}
+                onClick={e => e.stopPropagation()}
+                onKeyDown={e => e.stopPropagation()}
+                onChange={e => onChange(p.id, { ...v, awardedScore: Math.max(0, Math.min(Number(e.target.value) || 0, max)) })}
+                className="exp-score-input shrink-0 !h-[34px] !w-[64px] !text-[13px] disabled:opacity-60"
+                aria-label={`${p.name} 得分`} />
+              <span className="shrink-0 text-xs text-[var(--muted-foreground)]">/ {max}</span>
+              {/* 批注入口：行尾图标（[0] / 5 右侧）；有批注=主题色底，点击展开/聚焦批注框 */}
               {!hideNotes && (!readOnly || hasNote) && (
                 <button
                   type="button"
@@ -86,17 +97,6 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
                     : <MessageSquarePlus size={compact ? 12 : 14} strokeWidth={1.5} />}
                 </button>
               )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</div>
-                {p.evidenceHint && <div className="truncate text-xs text-[var(--muted-foreground)]">{p.evidenceHint}</div>}
-              </div>
-              <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}
-                onClick={e => e.stopPropagation()}
-                onKeyDown={e => e.stopPropagation()}
-                onChange={e => onChange(p.id, { ...v, awardedScore: Math.max(0, Math.min(Number(e.target.value) || 0, max)) })}
-                className="exp-score-input shrink-0 !h-[34px] !w-[64px] !text-[13px] disabled:opacity-60"
-                aria-label={`${p.name} 得分`} />
-              <span className="shrink-0 text-xs text-[var(--muted-foreground)]">/ {max}</span>
             </div>
             {/* 逐小点批注框（得分点级 note）：与整项「评分理由」并存；默认折叠，有批注自动展开；readOnly 仅有内容时展示 */}
             {!hideNotes && noteExpanded && (
