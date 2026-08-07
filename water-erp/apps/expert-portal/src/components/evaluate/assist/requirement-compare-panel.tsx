@@ -410,20 +410,27 @@ export function RequirementComparePanel({
                 )}
               </div>
 
-              {/* AI 判断（逐条折叠：默认隐藏，专家按需揭示） */}
+              {/* AI 判断（动作按钮：点了才显示，不预置折叠区块） */}
               <div className="pt-1">
-                <hr className="wb-section-rule mb-2" />
-                <button
-                  onClick={() => setAiRevealed((p) => ({ ...p, [selectedItem.id]: !p[selectedItem.id] }))}
-                  className="flex w-full items-center gap-1 text-[10px] font-semibold tracking-wide text-[var(--muted-foreground)] hover:text-[var(--accent-strong)]"
-                >
-                  <Sparkles size={11} /> AI 判断
-                  <span className="ml-auto flex items-center gap-0.5">
-                    {aiRevealed[selectedItem.id] ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  </span>
-                </button>
-                {aiRevealed[selectedItem.id] && (
-                  <div className="mt-2">
+                {!aiRevealed[selectedItem.id] ? (
+                  <button
+                    onClick={() => setAiRevealed((p) => ({ ...p, [selectedItem.id]: true }))}
+                    className="neu-btn-xs !gap-1 !text-[11px]"
+                    title="查看 AI 对本条款的判断（仅供参考）"
+                  >
+                    <Sparkles size={12} /> AI 判断
+                  </button>
+                ) : (
+                  <div className="rounded-[10px] bg-[oklch(0.96_0.01_258/0.4)] p-2.5">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-[var(--muted-foreground)]"><Sparkles size={10} className="mr-1 inline" />AI 判断（仅供参考）</span>
+                      <button
+                        onClick={() => setAiRevealed((p) => ({ ...p, [selectedItem.id]: false }))}
+                        className="text-[10px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                      >
+                        收起
+                      </button>
+                    </div>
                     {selectedResp ? (
                       (() => {
                         const sc = STATUS_CFG[selectedResp.status];
