@@ -1,6 +1,7 @@
 'use client';
 
-import { Check, AlertTriangle, BarChart3, Gavel, ClipboardList } from 'lucide-react';
+import { useState } from 'react';
+import { Check, AlertTriangle, BarChart3, Gavel, ClipboardList, ChevronRight, ChevronDown } from 'lucide-react';
 import type { EvaluationReport } from '@/lib/types';
 import { CATEGORY_LABEL, CATEGORY_COLOR, isPassFailCategory } from '@water-erp/shared';
 import { QuoteHistoryPanel } from './quote-history-panel';
@@ -32,6 +33,14 @@ interface ReportStepProps {
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
 export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], myExpertId, projectId }: ReportStepProps) {
+  // 逐项明细折叠态（默认折叠，点击 item 行展开）
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const toggleItem = (key: string) => setExpandedItems(prev => {
+    const n = new Set(prev);
+    if (n.has(key)) n.delete(key); else n.add(key);
+    return n;
+  });
+
   // 个人异议标注按 supplierName 分组（嵌入对应供应商卡片）
   const disputedBySupplier = new Map<string, EvaluationReport['myDisputedReviews']>();
   if (report?.myDisputedReviews) {
@@ -165,6 +174,92 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
                       })}
                     </div>
                   </>
+                )}
+
+                {/* 逐项评分明细（默认折叠；展开显示 reason + 得分点 checklist） */}
+                {Object.entries(ss.categoryScores).some(([, d]) => d.items.length > 0) && (
+                  <div className="border-t border-[color-mix(in_oklch,var(--foreground)_4%,transparent)] px-5 py-3">
+                    <div className="mb-2 flex items-center gap-1.5 text-[var(--muted-foreground)]">
+                      <ClipboardList size={12} strokeWidth={1.5} />
+                      <span className="text-xs font-bold tracking-wide">逐项评分明细</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {Object.entries(ss.categoryScores).map(([cat, data]) => (
+                        <div key={cat}>
+                          <div className="mb-1 flex items-center gap-1.5">
+                            <span className="exp-category-chip !h-2 !w-2" style={{ '--cat': CATEGORY_COLOR[cat] || 'var(--accent-strong)' } as React.CSSProperties} />
+                            <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">{CATEGORY_LABEL[cat] || cat}</span>
+                          </div>
+                          <div className="space-y-0.5">
+                            {data.items.map((item, idx) => {
+                              const itemKey = `${i}-${cat}-${idx}`;
+                              const hasDetail = Boolean(item.reason || item.points?.length);
+                              const expanded = expandedItems.has(itemKey);
+                              const passFail = isPassFailCategory(cat);
+                              return (
+                                <div key={idx} className="rounded-md hover:bg-[oklch(0.97_0.005_258/0.5)]">
+                                  <div
+                                    role={hasDetail ? 'button' : undefined}
+                                    tabIndex={hasDetail ? 0 : undefined}
+                                    onClick={() => hasDetail && toggleItem(itemKey)}
+                                    onKeyDown={e => { if (hasDetail && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleItem(itemKey); } }}
+                                    className={`flex items-center gap-2 px-2 py-1 ${hasDetail ? 'cursor-pointer' : ''}`}
+                                  >
+                                    {hasDetail ? (
+                                      expanded
+                                        ? <ChevronDown size={12} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />
+                                        : <ChevronRight size={12} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />
+                                    ) : (
+                                      <span className="w-3 shrink-0" />
+                                    )}
+                                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--foreground)]">{item.name}</span>
+                                    {passFail ? (
+                                      <span className={`shrink-0 text-xs font-bold ${item.passed === false ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`}>
+                                        {item.passed === false ? '不通过' : '通过'}
+                                      </span>
+                                    ) : (
+                                      <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--foreground)]">
+                                        {item.score}<span className="text-[var(--muted-foreground)]"> / {item.maxScore}</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                  {expanded && hasDetail && (
+                                    <div className="ml-5 space-y-1 pb-1.5 pl-2">
+                                      {item.reason && (
+                                        <div className="text-xs text-[var(--muted-foreground)]">
+                                          <span className="font-semibold">理由：</span>{item.reason}
+                                        </div>
+                                      )}
+                                      {(item.points?.length ?? 0) > 0 && (
+                                        <div className="space-y-0.5">
+                                          {item.points!.map((p, pi) => (
+                                            <div key={pi} className="flex items-start gap-1.5 text-[11px]">
+                                              <span className={`mt-px font-bold ${p.checked ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
+                                                {p.checked ? '✓' : '✗'}
+                                              </span>
+                                              <span className="min-w-0 flex-1 text-[var(--foreground)]">{p.name}</span>
+                                              <span className="shrink-0 font-mono tabular-nums text-[var(--muted-foreground)]">
+                                                {p.awardedScore} / {p.fullScore}
+                                              </span>
+                                              {p.note && (
+                                                <span className="ml-1 max-w-[40%] shrink-0 truncate text-[var(--warning)]" title={p.note}>
+                                                  ⟨{p.note}⟩
+                                                </span>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* 该供应商的异议条款标注（嵌入，有上下文） */}

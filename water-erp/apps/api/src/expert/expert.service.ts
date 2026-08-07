@@ -1563,11 +1563,36 @@ export class ExpertService {
     );
     const allVerified = activeSuppliers.length > 0 && activeSuppliers.every(s => reviewBySupplier.get(s.id)?.status === 'verified');
 
+    // 证据链：查 pointDecisions + 得分点元数据，供报告展示逐点明细（复用 getMyScores 的查询模式）
+    const [pointDecisions, scorePoints] = await Promise.all([
+      this.prisma.bidScorePointDecision.findMany({
+        where: { expertId: expert.id },
+        select: { pointId: true, supplierId: true, checked: true, awardedScore: true, note: true },
+      }),
+      this.prisma.bidScorePoint.findMany({
+        where: { scoreItemId: { in: project.scoreItems.map(i => i.id) } },
+        select: { id: true, scoreItemId: true, name: true, fullScore: true, seq: true },
+        orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }],
+      }),
+    ]);
+    // pointId → 元数据（name/fullScore/scoreItemId）
+    const pointMeta = new Map(scorePoints.map(p => [p.id, p]));
+    // `${supplierId}:${scoreItemId}` → 得分点明细（按 seq 排序）
+    const decisionsByItem = new Map<string, { name: string; checked: boolean; awardedScore: number; fullScore: number; note?: string }[]>();
+    for (const d of pointDecisions) {
+      const meta = pointMeta.get(d.pointId);
+      if (!meta) continue; // 防御：孤儿 decision（point 已删）
+      const key = `${d.supplierId}:${meta.scoreItemId}`;
+      const arr = decisionsByItem.get(key) ?? [];
+      arr.push({ name: meta.name, checked: d.checked, awardedScore: Number(d.awardedScore), fullScore: Number(meta.fullScore), note: d.note || undefined });
+      decisionsByItem.set(key, arr);
+    }
+
     // 按供应商分组汇总评分
     const supplierScores = project.suppliers.map(supplier => {
       const records = bySupplier.get(supplier.id) || [];
       const totalScore = records.reduce((sum, r) => sum + Number(r.score), 0);
-      const categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; passed?: boolean; reason?: string }[] }> = {};
+      const categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; passed?: boolean; reason?: string; points?: { name: string; checked: boolean; awardedScore: number; fullScore: number; note?: string }[] }[] }> = {};
 
       for (const record of records) {
         const cat = record.scoreItem.category;
@@ -1580,6 +1605,7 @@ export class ExpertService {
           maxScore: Number(record.scoreItem.maxScore),
           passed: (record as any).passed ?? undefined,
           reason: record.reason || undefined,
+          points: decisionsByItem.get(`${supplier.id}:${record.scoreItem.id}`),
         });
       }
 

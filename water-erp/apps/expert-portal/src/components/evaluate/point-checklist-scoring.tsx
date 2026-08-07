@@ -87,7 +87,7 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
                     else setOpenIds(prev => { const n = new Set(prev); n.add(p.id); return n; });
                   }}
                   onKeyDown={e => e.stopPropagation()}
-                  className={`flex shrink-0 items-center justify-center rounded-md transition ${compact ? 'h-5 w-5' : 'h-6 w-6'} ${
+                  className={`flex shrink-0 items-center justify-center rounded-md transition h-8 w-8 ${
                     hasNote
                       ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent-strong)]'
                       : 'text-[var(--muted-foreground)] hover:bg-[oklch(0.96_0.01_258/0.6)] hover:text-[var(--accent-strong)]'

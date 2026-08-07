@@ -323,7 +323,7 @@ export interface EvaluationReport {
     totalScore: number;
     bidPrice?: string;
     perSupplierComplete: boolean;
-    categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; passed?: boolean; reason?: string }[] }>;
+    categoryScores: Record<string, { total: number; max: number; items: { name: string; score: number; maxScore: number; passed?: boolean; reason?: string; points?: { name: string; checked: boolean; awardedScore: number; fullScore: number; note?: string }[] }[] }>;
   }[];
   scoreItems: BidScoreItem[];
   canConfirm: boolean;

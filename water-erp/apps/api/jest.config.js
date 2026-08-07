@@ -11,6 +11,8 @@ module.exports = {
   moduleNameMapper: {
     "^@water-erp/config$": "<rootDir>/../../../packages/config/src/index.ts",
     "^@water-erp/shared$": "<rootDir>/../../../packages/shared/src/index.ts",
+    // ESM-only 依赖桩化（cuid2 → @noble/hashes 全链 ESM，ts-jest allowJs 转译不稳定）
+    "^@paralleldrive/cuid2$": "<rootDir>/../test/mocks/cuid2.cjs",
   },
   // 转译 ESM 依赖：jest 默认忽略整个 node_modules，ESM-only 包(如 htmlparser2 全家)经
   // sanitize-html 引入时以原始 ESM 加载会报 "Cannot use import statement outside a module"。
@@ -20,7 +22,7 @@ module.exports = {
   // allowlist 包(htmlparser2 全家)两条都不命中 → 交给 ts-jest 转译。
   // allowJs(仅 jest 范围) 让 ts-jest 真正编译这些 ESM .js 为 CJS，不污染 build 用 tsconfig。
   transformIgnorePatterns: [
-    "node_modules/\\.pnpm/(?!(htmlparser2|entities|domelementtype|domhandler|domutils|dom-serializer)@)",
-    "node_modules/(?!(htmlparser2|entities|domelementtype|domhandler|domutils|dom-serializer|\\.pnpm)/)",
+    "node_modules/\\.pnpm/(?!(htmlparser2|entities|domelementtype|domhandler|domutils|dom-serializer|@paralleldrive\\+cuid2|@noble\\+hashes)@)",
+    "node_modules/(?!(htmlparser2|entities|domelementtype|domhandler|domutils|dom-serializer|@paralleldrive/cuid2|@noble/hashes|\\.pnpm)/)",
   ],
 };

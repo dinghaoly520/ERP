@@ -65,6 +65,7 @@ describe('ExpertService', () => {
       aiBidderResult: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $transaction: jest.fn(async (arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
+      $queryRaw: jest.fn(),
     };
 
     ai = { analyzeBid: jest.fn() };
@@ -516,6 +517,38 @@ describe('ExpertService', () => {
       // BidScoreRecord.score = 15 + 5 = 20
       expect(prisma.bidScoreRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
         update: expect.objectContaining({ score: 20 }),
+      }));
+    });
+
+    it('submitScores：pointDecisions 含 note → 落库带 note（create + update 均含）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        id: 'exp1', userId: 'u1', projectId: 'p1', reportConfirmed: false,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true, conflictedSupplierIds: [], expertName: '刘',
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1', maxScore: 15, category: 'TECHNICAL' }]);
+      prisma.bidScorePoint.findMany.mockResolvedValue([
+        { id: 'pt1', scoreItemId: 'si1', objective: true, fullScore: 15 },
+      ]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'sup1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'submitted' }]);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidScorePointDecision.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.upsert.mockResolvedValue({});
+      prisma.bidScoreRecord.count.mockResolvedValue(1);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([{ score: 15 }]);
+
+      await service.submitScores('u1', 'p1', {
+        supplierName: '甲',
+        scores: [{
+          scoreItemId: 'si1', supplierId: 'sup1', reason: '',
+          pointDecisions: [
+            { pointId: 'pt1', checked: true, awardedScore: 15, note: '符合要求，见标书第 12 页' },
+          ],
+        }],
+      } as any);
+
+      expect(prisma.bidScorePointDecision.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ note: '符合要求，见标书第 12 页' }),
+        update: expect.objectContaining({ note: '符合要求，见标书第 12 页' }),
       }));
     });
 
@@ -1157,6 +1190,20 @@ describe('ExpertService', () => {
       expect(out.disputesBySupplier).toEqual({});
       // 也不应出现在 disputeCategoriesBySupplier
       expect(Object.keys(out.disputeCategoriesBySupplier)).toHaveLength(0);
+    });
+
+    it('pointDecisions 回填含 note 字段', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', userId: 'u1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidScorePointDecision.findMany.mockResolvedValue([
+        { pointId: 'pt1', supplierId: 'sup1', checked: true, awardedScore: 15, note: '符合要求' },
+        { pointId: 'pt2', supplierId: 'sup1', checked: false, awardedScore: 0, note: null },
+      ]);
+      prisma.bidRequirementReview = { findMany: jest.fn().mockResolvedValue([]) };
+      const out = await service.getMyScores('u1', 'proj-1');
+      expect(out.pointDecisions).toHaveLength(2);
+      expect(out.pointDecisions[0]).toMatchObject({ pointId: 'pt1', note: '符合要求' });
+      expect(out.pointDecisions[1]).toMatchObject({ pointId: 'pt2', note: null });
     });
   });
 
