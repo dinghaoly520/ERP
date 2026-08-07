@@ -16,7 +16,7 @@ import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep } from '@/components/evaluate/report-step';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
-import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
+import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
 import { openingHallApi } from '@/lib/opening-hall';
@@ -35,6 +35,14 @@ const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: numb
 ];
 
 // CATEGORY_LABEL, CATEGORY_COLOR 从 @water-erp/shared 导入（单一来源）
+
+/** 评分条目内存态。 */
+type ScoreEntry = {
+  score: number;
+  reason: string;
+  passed?: boolean;
+  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
+};
 
 export default function ExpertEvaluatePage() {
   const router = useRouter();
@@ -151,7 +159,7 @@ export default function ExpertEvaluatePage() {
   const [assistLoading, setAssistLoading] = useState(false);
   // P0-1: scores keyed by `${supplierId}:${scoreItemId}` (composite) — never flat by scoreItemId.
   // Task 7: `points` 子记录按 pointId 存 checklist 决策（checked + awardedScore）；onChange 时 Σ→score rollup。
-  const [scores, setScores] = useState<Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>>({});
+  const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
   const [report, setReport] = useState<EvaluationReport | null>(null);
 
   const [confidentialityAgreed, setConfidentialityAgreed] = useState(false);
@@ -287,7 +295,7 @@ export default function ExpertEvaluatePage() {
                 const cur = next[k] ?? { score: 0, reason: '' };
                 next[k] = {
                   ...cur,
-                  points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore) } },
+                  points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
                 };
               }
               return next;
@@ -365,15 +373,42 @@ export default function ExpertEvaluatePage() {
     setDraftAvailable(null);
     setDraftDismissed(true);
   };
-  const saveDraftNow = () => {
+  const saveDraftNow = (snapshot?: Record<string, ScoreEntry>) => {
     if (!draftStorageKey) return;
+    const payload = snapshot ?? scores;
     try {
-      localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
+      localStorage.setItem(draftStorageKey, JSON.stringify({ scores: payload, savedAt: Date.now() }));
     } catch { /* quota — ignore */ }
-    api.post(`/expert/projects/${projectId}/score-draft`, { scores, savedAt: Date.now() })
+    api.post(`/expert/projects/${projectId}/score-draft`, { scores: payload, savedAt: Date.now() })
       .then(() => toast.success('草稿已保存（已同步到服务端）'))
       .catch(() => toast.success('草稿已保存（本地）'));
   };
+
+  // D：条款核对就地打分（仅草稿，写入 scores + 立即落库；supplierId 隐含 activeSupplier）
+  const handlePointChange = useCallback((scoreItemId: string, pointId: string, value: PointDecisionValue) => {
+    if (!activeSupplier) return;
+    const k = scoreKey(activeSupplier, scoreItemId);
+    const cur = scores[k] ?? { score: 0, reason: '' };
+    const points = { ...(cur.points ?? {}), [pointId]: value };
+    const si = project?.scoreItems.find((s) => s.id === scoreItemId);
+    const score = (si?.points ?? []).reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
+    const next = { ...scores, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed } };
+    setScores(next);
+    saveDraftNow(next);
+  }, [activeSupplier, scores, project]);
+
+  // D：得分点级批注（写 points[pointId].note 草稿）
+  const handlePointNote = useCallback((scoreItemId: string, pointId: string, note: string) => {
+    if (!activeSupplier) return;
+    const k = scoreKey(activeSupplier, scoreItemId);
+    const cur = scores[k] ?? { score: 0, reason: '' };
+    const points = { ...(cur.points ?? {}) };
+    const existing = points[pointId] ?? { checked: false, awardedScore: 0 };
+    points[pointId] = { ...existing, note };
+    const next = { ...scores, [k]: { ...cur, points } };
+    setScores(next);
+    saveDraftNow(next);
+  }, [activeSupplier, scores]);
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
@@ -386,6 +421,27 @@ export default function ExpertEvaluatePage() {
   }, [project]);
 
   const expert = project?.myExpertRecord;
+
+  // Phase 0：条款响应核对右栏「相关评分项」状态（同类别只读指引）——
+  // committed=已提交（myScores 有记录）/ draft=有未提交内存编辑 / empty=未填
+  const scoreStatusByItem = useMemo(() => {
+    const map: Record<string, { state: 'committed' | 'draft' | 'empty'; score: number; passed?: boolean }> = {};
+    if (!project || !activeSupplier) return map;
+    const committed = new Set(
+      project.myScores.filter((r) => r.supplierId === activeSupplier).map((r) => r.scoreItemId),
+    );
+    for (const si of project.scoreItems) {
+      const entry = scores[scoreKey(activeSupplier, si.id)];
+      if (committed.has(si.id)) {
+        map[si.id] = { state: 'committed', score: entry?.score ?? 0, passed: entry?.passed };
+      } else if (entry && ((entry.reason || '').trim() || entry.score > 0 || typeof entry.passed === 'boolean')) {
+        map[si.id] = { state: 'draft', score: entry.score ?? 0, passed: entry.passed };
+      } else {
+        map[si.id] = { state: 'empty', score: 0 };
+      }
+    }
+    return map;
+  }, [project, activeSupplier, scores]);
 
   // Smart initial step: after project loads, jump to the most relevant step
   // based on expert progress (only runs once per page load)
@@ -629,7 +685,7 @@ export default function ExpertEvaluatePage() {
         // Task 7: checklist 模式 —— 附 pointDecisions，后端据其核定 score。
         return {
           scoreItemId: si.id, supplierId: activeSupplier, score: entry?.score ?? 0, reason: entry?.reason ?? '',
-          pointDecisions: Object.entries(entry?.points ?? {}).map(([pointId, d]) => ({ pointId, checked: d.checked, awardedScore: d.awardedScore })),
+          pointDecisions: Object.entries(entry?.points ?? {}).map(([pointId, d]) => ({ pointId, checked: d.checked, awardedScore: d.awardedScore, note: d.note })),
         };
       }
       return { scoreItemId: si.id, supplierId: activeSupplier, score: entry?.score ?? 0, reason: entry?.reason ?? '' };
@@ -1345,6 +1401,20 @@ export default function ExpertEvaluatePage() {
                 responses={assistData?.requirementResponses ?? []}
                 reviews={assistData?.reviews ?? []}
                 tenderDocUrl={project?.tenderDocument?.downloadUrl}
+                scoreItems={project.scoreItems}
+                scoreStatus={scoreStatusByItem}
+                onGoScoring={async (target) => {
+                  // E：不跳转桌面，发送 focus hint 到平板（跨设备联动）
+                  try {
+                    await api.post(`/expert/projects/${projectId}/focus-hint`, { supplierId: activeSupplier, ...target });
+                    toast.success('已发送到平板，请在平板上查看');
+                  } catch {
+                    toast.error('发送到平板失败，请重试');
+                  }
+                }}
+                scores={scores}
+                onPointChange={handlePointChange}
+                onPointNote={handlePointNote}
               />
             </div>
           )}
@@ -1652,7 +1722,7 @@ export default function ExpertEvaluatePage() {
                       )}
                       <div className="flex items-center gap-3">
                         {!scoreLocked && (
-                          <button onClick={saveDraftNow} disabled={busy} className="neu-btn-soft">
+                          <button onClick={() => saveDraftNow()} disabled={busy} className="neu-btn-soft">
                             保存草稿
                           </button>
                         )}

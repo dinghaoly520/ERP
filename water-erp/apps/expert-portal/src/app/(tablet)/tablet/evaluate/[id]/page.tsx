@@ -21,7 +21,7 @@ type ScoreEntry = {
   score: number;
   reason: string;
   passed?: boolean;
-  points?: Record<string, { checked: boolean; awardedScore: number }>;
+  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
 };
 
 const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
@@ -53,9 +53,13 @@ export default function TabletEvaluatePage() {
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
+  // E：跨设备联动——桌面端「去打分平板」focus hint 触发的闪烁项
+  const [flashItemId, setFlashItemId] = useState<string | null>(null);
+  const lastFocusSeq = useRef(0);
 
   // ── 评分草稿（localStorage 暂存 + 自动恢复）──
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
+  const [serverDraft, setServerDraft] = useState<Record<string, ScoreEntry> | null>(null); // Phase 1：服务端草稿 fallback（跨设备恢复）
   const [draftDismissed, setDraftDismissed] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,7 +116,7 @@ export default function TabletEvaluatePage() {
                 const cur = next[k] ?? { score: 0, reason: '' };
                 next[k] = {
                   ...cur,
-                  points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore) } },
+                  points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
                 };
               }
               return next;
@@ -129,20 +133,25 @@ export default function TabletEvaluatePage() {
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
-  // ── 草稿：项目加载后检查是否有未恢复的本地草稿 ──
+  // ── 草稿：项目加载后检查本地草稿；无本地则 fallback 服务端草稿（跨设备恢复）──
   useEffect(() => {
     if (!draftStorageKey || !project) return;
     try {
       const raw = localStorage.getItem(draftStorageKey);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as {
-        scores: Record<string, ScoreEntry>;
-        savedAt: number;
-      };
-      const count = Object.keys(draft.scores ?? {}).length;
-      if (count > 0) setDraftAvailable({ count, savedAt: draft.savedAt });
-    } catch { /* corrupt draft — ignore */ }
-  }, [draftStorageKey, project]);
+      if (raw) {
+        const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
+        const count = Object.keys(draft.scores ?? {}).length;
+        if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); return; }
+      }
+    } catch { /* 本地草稿损坏 → 继续 fallback 服务端 */ }
+    api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft`)
+      .then((d) => {
+        if (!d || !d.scores) return;
+        const count = Object.keys(d.scores).length;
+        if (count > 0) { setServerDraft(d.scores); setDraftAvailable({ count, savedAt: d.savedAt ?? Date.now() }); }
+      })
+      .catch(() => { /* 服务端草稿可选 — ignore */ });
+  }, [draftStorageKey, project, projectId]);
 
   // ── 草稿自动暂存（scores 变化后 2 秒防抖）──
   useEffect(() => {
@@ -189,22 +198,24 @@ export default function TabletEvaluatePage() {
     if (!draftStorageKey) return;
     try {
       const raw = localStorage.getItem(draftStorageKey);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as {
-        scores: Record<string, ScoreEntry>;
-        savedAt: number;
-      };
-      setScores((prev) => ({ ...prev, ...draft.scores }));
-      toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分`);
-    } catch {
-      toast.error('草稿已损坏，无法恢复');
+      if (raw) {
+        const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
+        setScores((prev) => ({ ...prev, ...draft.scores }));
+        toast.success(`已恢复 ${Object.keys(draft.scores).length} 项评分`);
+        setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
+        return;
+      }
+    } catch { /* 本地损坏 → fallback 服务端 */ }
+    if (serverDraft) {
+      setScores((prev) => ({ ...prev, ...serverDraft }));
+      toast.success(`已恢复 ${Object.keys(serverDraft).length} 项评分（来自服务端草稿）`);
     }
-    setDraftAvailable(null);
-    setDraftDismissed(true);
-  }, [draftStorageKey]);
+    setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
+  }, [draftStorageKey, serverDraft]);
 
   const discardDraft = useCallback(() => {
     if (draftStorageKey) localStorage.removeItem(draftStorageKey);
+    setServerDraft(null);
     setDraftAvailable(null);
     setDraftDismissed(true);
   }, [draftStorageKey]);
@@ -228,6 +239,50 @@ export default function TabletEvaluatePage() {
       setActiveSupplier(project.suppliers[0].id);
     }
   }, [project, activeSupplier]);
+
+  // Phase 0：桌面端条款响应核对「去打分平板」跳转携带 ?supplier= → 预选该供应商。
+  // 只应用一次（presetApplied 闸门），不覆盖专家之后的手动切换；声明在默认选中 effect 之后以便覆盖默认值。
+  const presetApplied = useRef(false);
+  useEffect(() => {
+    if (!project || presetApplied.current) return;
+    presetApplied.current = true;
+    const preset = new URLSearchParams(window.location.search).get('supplier');
+    if (preset && project.suppliers.some((s) => s.id === preset)) {
+      setActiveSupplier(preset);
+    }
+  }, [project]);
+
+  // E：跨设备联动——轮询桌面端「去打分平板」focus hint（2.5s；页面隐藏时仍轮询但不滚动）
+  useEffect(() => {
+    if (!project) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const hint = await api.get<{ supplierId: string; scoreItemId?: string; pointId?: string; seq: number; at: number } | null>(
+          `/expert/projects/${projectId}/focus-hint`,
+        );
+        if (hint && hint.seq > lastFocusSeq.current) {
+          lastFocusSeq.current = hint.seq;
+          if (project.suppliers.some((s) => s.id === hint.supplierId)) setActiveSupplier(hint.supplierId);
+          // 等 supplier 切换渲染后再滚动 + 闪烁
+          setTimeout(() => {
+            if (hint.scoreItemId && typeof document !== 'undefined') {
+              const el = document.querySelector(`[data-score-item="${hint.scoreItemId}"]`);
+              el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setFlashItemId(hint.scoreItemId!);
+              setTimeout(() => setFlashItemId((cur) => (cur === hint.scoreItemId ? null : cur)), 2500);
+            }
+            if (hint.pointId) { setActivePointId(hint.pointId); setActivePointName(''); }
+          }, 350);
+        }
+      } catch { /* hint 可选 — ignore */ }
+      timer = setTimeout(poll, 2500);
+    };
+    poll();
+    return () => { stopped = true; if (timer) clearTimeout(timer); };
+  }, [project, projectId]);
 
   // 桌面端声明过的冲突/废标集合 —— 从 project 元数据 hydrate
   const conflictedSupplierIds = useMemo(
@@ -302,6 +357,7 @@ export default function TabletEvaluatePage() {
               pointId,
               checked: d.checked,
               awardedScore: d.awardedScore,
+              note: d.note,
             })),
           };
         }
@@ -464,7 +520,7 @@ export default function TabletEvaluatePage() {
                           <div
                             key={item.id}
                             data-score-item={item.id}
-                            className="rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3"
+                            className={`rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3 transition ${flashItemId === item.id ? '!bg-[oklch(0.96_0.06_71/0.5)] shadow-[0_0_0_2px_var(--warning)] animate-pulse' : ''}`}
                           >
                             <h4 className="mb-2.5 text-sm font-bold text-[var(--foreground)]">
                               {item.name}
@@ -516,7 +572,7 @@ export default function TabletEvaluatePage() {
                         <div
                           key={item.id}
                           data-score-item={item.id}
-                          className="rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3"
+                          className={`rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3 transition ${flashItemId === item.id ? '!bg-[oklch(0.96_0.06_71/0.5)] shadow-[0_0_0_2px_var(--warning)] animate-pulse' : ''}`}
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <h4 className="text-sm font-bold text-[var(--foreground)]">

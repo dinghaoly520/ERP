@@ -167,6 +167,8 @@ export interface BidScorePoint {
   evidenceHint: string | null;
   objective: boolean;
   createdAt: string;
+  /** Phase 1：关联招标条款 requirementId 列表（N:M 指引） */
+  linkedRequirementIds?: string[] | null;
 }
 
 export function listScorePoints(bidProjectId: string, itemId: string) {
@@ -185,7 +187,7 @@ export function updateScorePoint(
   bidProjectId: string,
   itemId: string,
   pointId: string,
-  data: { name?: string; fullScore?: number; evidenceHint?: string; objective?: boolean },
+  data: { name?: string; fullScore?: number; evidenceHint?: string; objective?: boolean; linkedRequirementIds?: string[] },
 ) {
   return api.patch<BidScorePoint>(`/bid/projects/${bidProjectId}/score-items/${itemId}/points/${pointId}`, data);
 }
@@ -235,6 +237,34 @@ export function batchCreateScorePoints(
     `/bid/projects/${bidProjectId}/score-items/${itemId}/points/batch`,
     { points },
   );
+}
+
+/** Phase 1：更新得分点↔招标条款映射（独立于发布锁；前置：clauseDeriveEnabled 已开启） */
+export function updateLinkedRequirements(
+  bidProjectId: string,
+  itemId: string,
+  pointId: string,
+  linkedRequirementIds: string[],
+) {
+  return api.patch<BidScorePoint>(
+    `/bid/projects/${bidProjectId}/score-items/${itemId}/points/${pointId}/linked-requirements`,
+    { linkedRequirementIds },
+  );
+}
+
+/** Phase 1：列出本项目招标条款（与条款响应核对同源），用于管理端映射多选 */
+export function getTenderRequirements(bidProjectId: string) {
+  return api.get<Array<{ requirementId: string; category: 'qualification' | 'technical' | 'commercial'; tenderContent: string; isStarred: boolean }>>(
+    `/bid/projects/${bidProjectId}/tender-requirements`,
+  );
+}
+
+/** 通用项目更新 */
+export function updateBidProject(
+  bidProjectId: string,
+  data: { name?: string; budget?: number },
+) {
+  return api.patch<BidProjectDetail>(`/bid/projects/${bidProjectId}`, data);
 }
 
 /* ── 评分模板（整套评分标准 + 得分点的保存 / 复用）── */

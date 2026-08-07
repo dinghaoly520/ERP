@@ -556,6 +556,7 @@ model BidScorePoint {
   evidenceHint    String?
   evidenceSection String? // 招标文件章节名（AI 提取时记录）
   confidence      Decimal?                @db.Decimal(3, 2) // 0-1 信心分（AI 提取时记录）
+  linkedRequirementIds Json? // Phase 1：关联招标条款 requirementId 列表（N:M 指引；映射编辑不受发布锁限制）
   objective       Boolean                 @default(true)
   scoreItem       BidScoreItem            @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
   decisions       BidScorePointDecision[]

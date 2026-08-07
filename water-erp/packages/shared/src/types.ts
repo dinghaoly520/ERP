@@ -125,6 +125,10 @@ export interface BidScorePoint {
   fullScore: number | string;
   seq: number;
   evidenceHint: string | null;
+  /** 招标文件章节名（AI 提取得分点时记录） */
+  evidenceSection?: string | null;
+  /** Phase 1：关联招标条款 requirementId 列表（N:M 指引；用于条款核对→打分草稿派生） */
+  linkedRequirementIds?: string[] | null;
   objective: boolean;
   createdAt: string;
 }
