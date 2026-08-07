@@ -77,8 +77,6 @@ export interface BidProject {
   scope?: string;
   qualification?: string;
   contact?: string;
-  /** Phase 1：条款派生草稿开关（项目级；管理端控制；off=专家端不生成派生草稿） */
-  clauseDeriveEnabled?: boolean;
   roundMode?: string | null;
   currentRoundNo?: number;
   _count?: { suppliers: number };

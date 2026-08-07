@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Send, Save, RotateCcw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { validateSupplierScores } from '@/lib/score-validation';
 import {
@@ -21,11 +21,7 @@ type ScoreEntry = {
   score: number;
   reason: string;
   passed?: boolean;
-  points?: Record<string, { checked: boolean; awardedScore: number }>;
-  /** Phase 1：派生来源（pointId → {verdict, requirementId}），由桌面端条款核对 verdict 派生写入草稿 */
-  derivedPoints?: Record<string, { verdict: 'dispute' | 'doubt'; requirementId: string }>;
-  /** Phase 1：派生来源（item 级，pass-fail/slider 无 points 的项用） */
-  derivedItem?: { verdict: 'dispute' | 'doubt'; requirementId: string };
+  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
 };
 
 const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
@@ -57,6 +53,9 @@ export default function TabletEvaluatePage() {
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
+  // E：跨设备联动——桌面端「去打分平板」focus hint 触发的闪烁项
+  const [flashItemId, setFlashItemId] = useState<string | null>(null);
+  const lastFocusSeq = useRef(0);
 
   // ── 评分草稿（localStorage 暂存 + 自动恢复）──
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
@@ -253,6 +252,38 @@ export default function TabletEvaluatePage() {
     }
   }, [project]);
 
+  // E：跨设备联动——轮询桌面端「去打分平板」focus hint（2.5s；页面隐藏时仍轮询但不滚动）
+  useEffect(() => {
+    if (!project) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const hint = await api.get<{ supplierId: string; scoreItemId?: string; pointId?: string; seq: number; at: number } | null>(
+          `/expert/projects/${projectId}/focus-hint`,
+        );
+        if (hint && hint.seq > lastFocusSeq.current) {
+          lastFocusSeq.current = hint.seq;
+          if (project.suppliers.some((s) => s.id === hint.supplierId)) setActiveSupplier(hint.supplierId);
+          // 等 supplier 切换渲染后再滚动 + 闪烁
+          setTimeout(() => {
+            if (hint.scoreItemId && typeof document !== 'undefined') {
+              const el = document.querySelector(`[data-score-item="${hint.scoreItemId}"]`);
+              el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setFlashItemId(hint.scoreItemId!);
+              setTimeout(() => setFlashItemId((cur) => (cur === hint.scoreItemId ? null : cur)), 2500);
+            }
+            if (hint.pointId) { setActivePointId(hint.pointId); setActivePointName(''); }
+          }, 350);
+        }
+      } catch { /* hint 可选 — ignore */ }
+      timer = setTimeout(poll, 2500);
+    };
+    poll();
+    return () => { stopped = true; if (timer) clearTimeout(timer); };
+  }, [project, projectId]);
+
   // 桌面端声明过的冲突/废标集合 —— 从 project 元数据 hydrate
   const conflictedSupplierIds = useMemo(
     () => new Set(project?.myExpertRecord?.conflictedSupplierIds ?? []),
@@ -326,6 +357,7 @@ export default function TabletEvaluatePage() {
               pointId,
               checked: d.checked,
               awardedScore: d.awardedScore,
+              note: d.note,
             })),
           };
         }
@@ -488,18 +520,11 @@ export default function TabletEvaluatePage() {
                           <div
                             key={item.id}
                             data-score-item={item.id}
-                            className="rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3"
+                            className={`rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3 transition ${flashItemId === item.id ? '!bg-[oklch(0.96_0.06_71/0.5)] shadow-[0_0_0_2px_var(--warning)] animate-pulse' : ''}`}
                           >
-                            <div className="mb-2.5 flex items-center gap-1.5">
-                              <h4 className="text-sm font-bold text-[var(--foreground)]">
-                                {item.name}
-                              </h4>
-                              {val?.derivedItem && (
-                                <span className="exp-pill !text-[10px]" style={{ '--c': val.derivedItem.verdict === 'dispute' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}>
-                                  <AlertTriangle size={9} strokeWidth={2} /> {val.derivedItem.verdict === 'dispute' ? '异议派生' : '存疑派生'}
-                                </span>
-                              )}
-                            </div>
+                            <h4 className="mb-2.5 text-sm font-bold text-[var(--foreground)]">
+                              {item.name}
+                            </h4>
                             <div className="flex items-center gap-2.5">
                               {[
                                 { v: true, label: '通过' },
@@ -547,19 +572,12 @@ export default function TabletEvaluatePage() {
                         <div
                           key={item.id}
                           data-score-item={item.id}
-                          className="rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3"
+                          className={`rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3 transition ${flashItemId === item.id ? '!bg-[oklch(0.96_0.06_71/0.5)] shadow-[0_0_0_2px_var(--warning)] animate-pulse' : ''}`}
                         >
                           <div className="mb-2 flex items-center justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-1.5">
-                              <h4 className="text-sm font-bold text-[var(--foreground)]">
-                                {item.name}
-                              </h4>
-                              {val?.derivedItem && (
-                                <span className="exp-pill shrink-0 !text-[10px]" style={{ '--c': val.derivedItem.verdict === 'dispute' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}>
-                                  <AlertTriangle size={9} strokeWidth={2} /> {val.derivedItem.verdict === 'dispute' ? '异议派生' : '存疑派生'}
-                                </span>
-                              )}
-                            </div>
+                            <h4 className="text-sm font-bold text-[var(--foreground)]">
+                              {item.name}
+                            </h4>
                             <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">
                               满分 {max}
                             </span>
@@ -571,7 +589,6 @@ export default function TabletEvaluatePage() {
                               value={val?.points ?? {}}
                               readOnly={readOnly}
                               compact
-                              derivedByPoint={val?.derivedPoints}
                               selectedPointId={activePointId}
                               onPointClick={handlePointClick}
                               onChange={(pid, pv) =>

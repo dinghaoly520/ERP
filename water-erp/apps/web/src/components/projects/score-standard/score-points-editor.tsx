@@ -26,11 +26,9 @@ interface Props {
   points: BidScorePoint[];
   onChanged: () => void; // 增删改后通知父组件刷新
   locked?: boolean; // 评分标准已发布/项目已进 EVALUATING/ARCHIVED 时禁用修改
-  /** Phase 1：条款派生草稿开关（项目级）——off 时隐藏「关联条款」入口（映射对本项目无意义） */
-  linkingEnabled?: boolean;
 }
 
-export function ScorePointsEditor({ projectId, item, points, onChanged, locked, linkingEnabled }: Props) {
+export function ScorePointsEditor({ projectId, item, points, onChanged, locked }: Props) {
   const isPassFail = item.category === 'QUALIFICATION' || item.category === 'RESPONSIVE';
   const isPrice = item.category === 'PRICE'; // 价格分按公式计算,不提取得分点
   const [draft, setDraft] = useState({ name: '', fullScore: 0, evidenceHint: '', objective: true });
@@ -208,17 +206,15 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
             <span className="text-[oklch(0.45_0.01_265)] w-6">{idx + 1}.</span>
             <span className="flex-1 font-medium text-[oklch(0.18_0.012_265)]">{p.name}</span>
             {p.evidenceHint && <span className="text-xs text-[oklch(0.55_0.01_264)]">{p.evidenceHint}</span>}
-            {/* Phase 1：关联招标条款（映射编辑不受发布锁限制；linkingEnabled=项目开关 off 时隐藏） */}
-            {linkingEnabled && (
-              <button
-                onClick={() => openLinks(p)}
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-[oklch(0.45_0.02_258)] hover:bg-[oklch(0.96_0.01_258)]"
-                title="关联招标条款（条款核对→打分草稿派生依据；可随时修改，不受发布锁限制）"
-              >
-                <Link2 size={13} />
-                {(p.linkedRequirementIds?.length ?? 0) > 0 ? `${p.linkedRequirementIds!.length} 条款` : '关联条款'}
-              </button>
-            )}
+            {/* 关联招标条款（映射编辑不受发布锁限制；专家端条款核对就地打分/批注的依据） */}
+            <button
+              onClick={() => openLinks(p)}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-[oklch(0.45_0.02_258)] hover:bg-[oklch(0.96_0.01_258)]"
+              title="关联招标条款（专家端条款核对就地打分/批注依据；可随时修改，不受发布锁限制）"
+            >
+              <Link2 size={13} />
+              {(p.linkedRequirementIds?.length ?? 0) > 0 ? `${p.linkedRequirementIds!.length} 条款` : '关联条款'}
+            </button>
             <button
               onClick={() => toggleObjective(p)}
               className={`rounded px-2 py-0.5 text-xs ${p.objective ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}

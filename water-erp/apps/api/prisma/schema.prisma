@@ -283,7 +283,6 @@ model BidProject {
   downloadDeadline         DateTime? // 采购文件下载截止（公告截止时间）；超时不可下载
   stage                    BidStage                   @default(DOWNLOAD)
   scoreStandardPublishedAt DateTime?
-  clauseDeriveEnabled      Boolean                    @default(false) // Phase 1：条款派生草稿开关（管理端按项目控制；off=专家端不生成派生草稿）
   riskNote                 String?
   budget                   Decimal?                   @db.Decimal(14, 2)
   ceilingPrice             Decimal?                   @db.Decimal(14, 2) // P1: 最高限价/控制价(逐项目可编辑)

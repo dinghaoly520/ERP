@@ -1,5 +1,4 @@
 'use client';
-import { AlertTriangle } from 'lucide-react';
 
 export interface PointDecisionValue { checked: boolean; awardedScore: number; note?: string }
 export interface PointDef { id: string; name: string; fullScore: number | string; objective: boolean; evidenceHint?: string | null; seq: number }
@@ -14,8 +13,6 @@ interface Props {
   selectedPointId?: string | null;
   /** 点击得分点行 → 选中用于手写备忘 */
   onPointClick?: (pointId: string, pointName: string) => void;
-  /** Phase 1：派生来源标记（pointId → {verdict, requirementId}），用于在行尾展示「异议/存疑派生」轻量徽标 */
-  derivedByPoint?: Record<string, { verdict: 'dispute' | 'doubt'; requirementId: string }>;
 }
 
 /**
@@ -24,7 +21,7 @@ interface Props {
  * - subjective point → .exp-score-input 数值输入
  * 桌面端与 tablet 端复用（compact 切换紧凑布局）。
  */
-export function PointChecklistScoring({ points, value, onChange, readOnly, compact, selectedPointId, onPointClick, derivedByPoint }: Props) {
+export function PointChecklistScoring({ points, value, onChange, readOnly, compact, selectedPointId, onPointClick }: Props) {
   const sorted = [...points].sort((a, b) => a.seq - b.seq);
   return (
     <div className="space-y-2">
@@ -32,7 +29,6 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
         const v = value[p.id] ?? { checked: false, awardedScore: 0 };
         const max = Number(p.fullScore);
         const isSelected = selectedPointId === p.id;
-        const derived = derivedByPoint?.[p.id];
         return (
           <div key={p.id} role="button" tabIndex={0}
             onClick={() => onPointClick?.(p.id, p.name)}
@@ -56,18 +52,7 @@ export function PointChecklistScoring({ points, value, onChange, readOnly, compa
               <span className="exp-pill shrink-0" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>主观</span>
             )}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</span>
-                {derived && (
-                  <span
-                    className="exp-pill shrink-0 !text-[10px]"
-                    title={derived.verdict === 'dispute' ? '异议派生：来自条款响应核对异议，已预填扣分草稿，可修改' : '存疑派生：来自条款响应核对待核实，仅备注'}
-                    style={{ '--c': derived.verdict === 'dispute' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}
-                  >
-                    <AlertTriangle size={9} strokeWidth={2} /> {derived.verdict === 'dispute' ? '异议派生' : '存疑派生'}
-                  </span>
-                )}
-              </div>
+              <div className="truncate text-sm font-medium text-[var(--foreground)]">{p.name}</div>
               {p.evidenceHint && <div className="truncate text-xs text-[var(--muted-foreground)]">{p.evidenceHint}</div>}
             </div>
             <input type="number" min={0} max={max} step={0.5} value={v.awardedScore} disabled={readOnly}

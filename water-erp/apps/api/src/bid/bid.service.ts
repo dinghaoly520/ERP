@@ -610,7 +610,6 @@ export class BidService {
         ...(dto.qualityRequirement !== undefined && { qualityRequirement: dto.qualityRequirement }),
         ...(dto.bondRequired !== undefined && { bondRequired: dto.bondRequired }),
         ...(dto.bondAmount !== undefined && { bondAmount: dto.bondAmount }),
-        ...(dto.clauseDeriveEnabled !== undefined && { clauseDeriveEnabled: dto.clauseDeriveEnabled }),
       },
     });
   }
@@ -4517,19 +4516,11 @@ export class BidService {
   }
 
   /**
-   * Phase 1：得分点↔招标条款映射（独立于发布锁）。
+   * 得分点↔招标条款映射（独立于发布锁）。
    * 仅 linkedRequirementIds 指引元数据，不参与评分计算；管理端即便评分标准已发布、
-   * 专家已开始打分，仍可维护映射。前置：项目须开启 clauseDeriveEnabled 开关。
+   * 专家已开始打分，仍可维护映射。
    */
   async updateLinkedRequirements(projectId: string, itemId: string, pointId: string, linkedRequirementIds: string[]) {
-    const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId },
-      select: { clauseDeriveEnabled: true },
-    });
-    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    if (!project.clauseDeriveEnabled) {
-      throw new BadRequestException({ error: '请先在评分标准面板开启「条款派生草稿」开关', code: 'CLAUSE_DERIVE_DISABLED' });
-    }
     const point = await this.prisma.bidScorePoint.findFirst({
       where: { id: pointId, scoreItem: { id: itemId, projectId } },
     });

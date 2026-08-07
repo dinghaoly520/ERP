@@ -259,10 +259,10 @@ export function getTenderRequirements(bidProjectId: string) {
   );
 }
 
-/** Phase 1：通用项目更新（含 clauseDeriveEnabled 开关） */
+/** 通用项目更新 */
 export function updateBidProject(
   bidProjectId: string,
-  data: { clauseDeriveEnabled?: boolean; name?: string; budget?: number },
+  data: { name?: string; budget?: number },
 ) {
   return api.patch<BidProjectDetail>(`/bid/projects/${bidProjectId}`, data);
 }
@@ -496,7 +496,6 @@ export interface BidProjectDetail {
   riskNote?: string | null;
   qualityRequirement?: string | null;
   scoreStandardPublishedAt?: string | null;
-  clauseDeriveEnabled?: boolean; // Phase 1：条款派生草稿开关（管理端按项目控制）
   evaluationDeadline?: string | null; // E2: 评标截止时间
   suppliers: BidProjectSupplierInfo[];
   openingSession: BidOpeningSessionInfo | null;

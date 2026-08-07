@@ -16,7 +16,7 @@ import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
 import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep } from '@/components/evaluate/report-step';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
-import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
+import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
 import { openingHallApi } from '@/lib/opening-hall';
@@ -36,16 +36,12 @@ const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: numb
 
 // CATEGORY_LABEL, CATEGORY_COLOR 从 @water-erp/shared 导入（单一来源）
 
-/** 评分条目内存态。Phase 1 增 derivedPoints/derivedItem：条款核对 verdict 派生来源（草稿预填，专家可改，不跳过提交）。 */
+/** 评分条目内存态。 */
 type ScoreEntry = {
   score: number;
   reason: string;
   passed?: boolean;
-  points?: Record<string, { checked: boolean; awardedScore: number }>;
-  /** Phase 1：派生来源（pointId → {verdict, requirementId}），dispute/doubt verdict 派生时写入 */
-  derivedPoints?: Record<string, { verdict: 'dispute' | 'doubt'; requirementId: string }>;
-  /** Phase 1：派生来源（item 级，pass-fail/slider 无 points 的项用） */
-  derivedItem?: { verdict: 'dispute' | 'doubt'; requirementId: string };
+  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
 };
 
 export default function ExpertEvaluatePage() {
@@ -388,62 +384,31 @@ export default function ExpertEvaluatePage() {
       .catch(() => toast.success('草稿已保存（本地）'));
   };
 
-  /**
-   * Phase 1：条款核对 verdict 派生草稿（仅项目开启 clauseDeriveEnabled 时生效）。
-   * 非对称规则：dispute→映射得分点预填 0 分 + 通过性项 passed=false 草案；doubt→仅备注/徽标，不改分。
-   * 仅对未提交（myScores 无记录）的条目派生；已派生或专家已手填的值不覆盖。
-   * verdict 成功落库后由 compare-panel 回调；草稿立即 saveDraftNow 落服务端+本地。
-   */
-  const handleVerdictSaved = useCallback((item: { id: string; category: string; isStarred: boolean; content: string }, verdict: 'ack' | 'dispute' | 'doubt') => {
-    if (verdict === 'ack' || !project || !activeSupplier) return;
-    if (!project.clauseDeriveEnabled) return; // 项目开关未开 → 不派生
-    // 找到关联该条款 requirementId 的得分点（跨所有评分项）
-    const matched = (project.scoreItems ?? []).flatMap((si) =>
-      (si.points ?? [])
-        .filter((pt) => (pt.linkedRequirementIds ?? []).includes(item.id))
-        .map((pt) => ({ itemId: si.id, pointId: pt.id, maxScore: Number(pt.fullScore), category: si.category })),
-    );
-    if (matched.length === 0) return; // 无映射 → 不派生（Phase 0 同类别指引仍存在）
-    const committed = new Set((project.myScores ?? []).filter((r) => r.supplierId === activeSupplier).map((r) => r.scoreItemId));
-    const req = activeSupplier; // 捕获当前 activeSupplier 到闭包
-    setScores((prev) => {
-      const next = { ...prev };
-      const clauseSnippet = item.content.length > 40 ? item.content.slice(0, 40) + '…' : item.content;
-      const derivedReason = verdict === 'dispute'
-        ? `【异议派生】条款"${clauseSnippet}"被标注为异议，已预填扣分草案，请核实修改。`
-        : `【存疑派生】条款"${clauseSnippet}"待核实，仅备注提示，未改动分数。`;
-      for (const m of matched) {
-        const k = scoreKey(req, m.itemId);
-        if (committed.has(m.itemId)) continue; // 已提交 → 不覆盖
-        const cur = next[k] ?? { score: 0, reason: '' };
-        const derivedMeta = { verdict, requirementId: item.id };
-        if (m.category === 'QUALIFICATION' || m.category === 'RESPONSIVE') {
-          // 通过性项：dispute → passed=false 草案（仅当未裁定）；doubt → 不改 passed
-          const passed = verdict === 'dispute' ? (cur.passed === undefined ? false : cur.passed) : cur.passed;
-          next[k] = { ...cur, passed, reason: (cur.reason || '').trim() ? cur.reason : derivedReason, derivedItem: derivedMeta };
-        } else {
-          // 数值项：dispute → 映射得分点 awardedScore=0 草案（仅当该点未手填）；doubt → 仅徽标
-          const points = { ...(cur.points ?? {}) };
-          const derivedPoints = { ...(cur.derivedPoints ?? {}) };
-          for (const m2 of matched.filter((x) => x.itemId === m.itemId)) {
-            const existing = points[m2.pointId];
-            const untouched = !existing || (existing.awardedScore === 0 && !existing.checked);
-            if (untouched) {
-              if (verdict === 'dispute') points[m2.pointId] = { checked: false, awardedScore: 0 };
-              derivedPoints[m2.pointId] = derivedMeta;
-            }
-          }
-          const rollup = (project.scoreItems.find((si) => si.id === m.itemId)?.points ?? [])
-            .reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
-          next[k] = { ...cur, points, score: rollup, reason: (cur.reason || '').trim() ? cur.reason : derivedReason, derivedPoints };
-        }
-      }
-      return next;
-    });
-    // 立即落库（用最新 scores 闭包不可靠，延迟一拍让 setScores 生效后由 autosave 触发——
-    // 但 autosave 仅在 step==='scoring' 触发；条款核对步 step==='compare'，故显式 saveDraftNow 一拍后落库）
-    setTimeout(() => saveDraftNow(), 0);
-  }, [project, activeSupplier]);
+  // D：条款核对就地打分（仅草稿，写入 scores + 立即落库；supplierId 隐含 activeSupplier）
+  const handlePointChange = useCallback((scoreItemId: string, pointId: string, value: PointDecisionValue) => {
+    if (!activeSupplier) return;
+    const k = scoreKey(activeSupplier, scoreItemId);
+    const cur = scores[k] ?? { score: 0, reason: '' };
+    const points = { ...(cur.points ?? {}), [pointId]: value };
+    const si = project?.scoreItems.find((s) => s.id === scoreItemId);
+    const score = (si?.points ?? []).reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
+    const next = { ...scores, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed } };
+    setScores(next);
+    saveDraftNow(next);
+  }, [activeSupplier, scores, project]);
+
+  // D：得分点级批注（写 points[pointId].note 草稿）
+  const handlePointNote = useCallback((scoreItemId: string, pointId: string, note: string) => {
+    if (!activeSupplier) return;
+    const k = scoreKey(activeSupplier, scoreItemId);
+    const cur = scores[k] ?? { score: 0, reason: '' };
+    const points = { ...(cur.points ?? {}) };
+    const existing = points[pointId] ?? { checked: false, awardedScore: 0 };
+    points[pointId] = { ...existing, note };
+    const next = { ...scores, [k]: { ...cur, points } };
+    setScores(next);
+    saveDraftNow(next);
+  }, [activeSupplier, scores]);
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
@@ -720,7 +685,7 @@ export default function ExpertEvaluatePage() {
         // Task 7: checklist 模式 —— 附 pointDecisions，后端据其核定 score。
         return {
           scoreItemId: si.id, supplierId: activeSupplier, score: entry?.score ?? 0, reason: entry?.reason ?? '',
-          pointDecisions: Object.entries(entry?.points ?? {}).map(([pointId, d]) => ({ pointId, checked: d.checked, awardedScore: d.awardedScore })),
+          pointDecisions: Object.entries(entry?.points ?? {}).map(([pointId, d]) => ({ pointId, checked: d.checked, awardedScore: d.awardedScore, note: d.note })),
         };
       }
       return { scoreItemId: si.id, supplierId: activeSupplier, score: entry?.score ?? 0, reason: entry?.reason ?? '' };
@@ -1438,8 +1403,18 @@ export default function ExpertEvaluatePage() {
                 tenderDocUrl={project?.tenderDocument?.downloadUrl}
                 scoreItems={project.scoreItems}
                 scoreStatus={scoreStatusByItem}
-                onGoScoring={() => router.push(`/tablet/evaluate/${projectId}?supplier=${activeSupplier}`)}
-                onVerdictSaved={handleVerdictSaved}
+                onGoScoring={async (target) => {
+                  // E：不跳转桌面，发送 focus hint 到平板（跨设备联动）
+                  try {
+                    await api.post(`/expert/projects/${projectId}/focus-hint`, { supplierId: activeSupplier, ...target });
+                    toast.success('已发送到平板，请在平板上查看');
+                  } catch {
+                    toast.error('发送到平板失败，请重试');
+                  }
+                }}
+                scores={scores}
+                onPointChange={handlePointChange}
+                onPointNote={handlePointNote}
               />
             </div>
           )}
@@ -1582,14 +1557,7 @@ export default function ExpertEvaluatePage() {
                                 const verdict = val?.passed;
                                 return (
                                   <div key={item.id} data-score-item={item.id} className={`neu-card-static !rounded-[14px] p-4 ${reasonMissing ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.7),2px_2px_6px_oklch(0.55_0.03_258/0.1),-2px_-2px_6px_oklch(1_0_0/0.8),inset_0_0_0_1.5px_color-mix(in_oklch,var(--danger)_55%,transparent)]' : ''}`}>
-                                    <div className="mb-3 flex items-center gap-2">
-                                      <h4 className="font-semibold text-[var(--foreground)]">{item.name}</h4>
-                                      {val?.derivedItem && (
-                                        <span className="exp-pill !text-[10px]" style={{ '--c': val.derivedItem.verdict === 'dispute' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}>
-                                          <AlertTriangle size={9} strokeWidth={2} /> {val.derivedItem.verdict === 'dispute' ? '异议派生' : '存疑派生'}
-                                        </span>
-                                      )}
-                                    </div>
+                                    <h4 className="mb-3 font-semibold text-[var(--foreground)]">{item.name}</h4>
                                     <div className="mb-3 flex items-center gap-3">
                                       <button type="button"
                                         onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: true } }))}
@@ -1648,7 +1616,6 @@ export default function ExpertEvaluatePage() {
                                     <PointChecklistScoring
                                       points={itemPoints}
                                       value={val?.points ?? {}}
-                                      derivedByPoint={val?.derivedPoints}
                                       onChange={(pid, pv) => setScores(prev => {
                                         const cur = prev[k] ?? { score: 0, reason: '' };
                                         const points = { ...(cur.points ?? {}), [pid]: pv };
@@ -1681,14 +1648,7 @@ export default function ExpertEvaluatePage() {
                               return (
                                 <div key={item.id} data-score-item={item.id} className={`neu-card-static !rounded-[14px] p-4 ${reasonMissing ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.7),2px_2px_6px_oklch(0.55_0.03_258/0.1),-2px_-2px_6px_oklch(1_0_0/0.8),inset_0_0_0_1.5px_color-mix(in_oklch,var(--danger)_55%,transparent)]' : ''}`}>
                                   <div className="mb-3 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="font-semibold text-[var(--foreground)]">{item.name}</h4>
-                                      {val?.derivedItem && (
-                                        <span className="exp-pill !text-[10px]" style={{ '--c': val.derivedItem.verdict === 'dispute' ? 'var(--danger)' : 'var(--warning)' } as React.CSSProperties}>
-                                          <AlertTriangle size={9} strokeWidth={2} /> {val.derivedItem.verdict === 'dispute' ? '异议派生' : '存疑派生'}
-                                        </span>
-                                      )}
-                                    </div>
+                                    <h4 className="font-semibold text-[var(--foreground)]">{item.name}</h4>
                                     <span className="text-sm text-[var(--muted-foreground)]">满分 {max}</span>
                                   </div>
                                   <div className="mb-3 flex items-center gap-4">
