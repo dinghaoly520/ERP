@@ -2,7 +2,7 @@
 'use client';
 import { useMemo, useState, useEffect } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, MessageSquarePlus, Loader2 } from 'lucide-react';
+import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, MessageSquarePlus, Loader2, Gavel, ClipboardList } from 'lucide-react';
 import type { RequirementResponse, BidRequirementReview, BidScoreItem } from '@water-erp/shared';
 import { CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { api } from '@/lib/api';
@@ -373,25 +373,39 @@ export function RequirementComparePanel({
         </Panel>
         <PanelResizeHandle className="w-1.5 cursor-col-resize bg-transparent transition-colors hover:bg-[var(--accent)]/30" />
 
-        {/* ━━━ 右栏 1/4：AI 响应 + 标注 ━━━ */}
+        {/* ━━━ 右栏 1/4：响应与标注（cgzxui 重构：三区分隔——专家标注凸起 / AI 判断浅底 / 评分项平铺） ━━━ */}
         <Panel defaultSize={25} minSize={15} className="px-0">
         <aside className="neu-card-static flex h-full flex-col overflow-hidden">
-          <header className="px-3 py-2">
-            <span className="text-sm font-bold text-[var(--foreground)]">响应与标注</span>
+          {/* 头部：选中条款上下文（类别 chip + 截断内容） */}
+          <header className="shrink-0 border-b border-[oklch(0.6_0.04_258/0.12)] px-3 py-2.5">
+            <div className="flex items-center gap-1.5">
+              <FileText size={13} strokeWidth={1.5} className="shrink-0 text-[var(--accent-strong)]" />
+              <span className="text-sm font-bold text-[var(--foreground)]">响应与标注</span>
+            </div>
+            {selectedItem && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="exp-category-chip !h-2 !w-2 shrink-0" style={{ '--cat': selectedItem.category === 'qualification' ? CATEGORY_COLOR['QUALIFICATION'] : selectedItem.category === 'technical' ? CATEGORY_COLOR['TECHNICAL'] : CATEGORY_COLOR['BUSINESS'] } as React.CSSProperties} />
+                <span className="shrink-0 text-[9px] font-semibold text-[var(--muted-foreground)]">{CAT_LABEL[selectedItem.category]}</span>
+                <p className="min-w-0 flex-1 truncate text-[11px] leading-tight text-[var(--foreground)]">{selectedItem.content}</p>
+              </div>
+            )}
           </header>
+
           {selectedItem ? (
             <div className="flex-1 space-y-3 overflow-y-auto p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {/* 专家标注（上移：专家判断先行） */}
-              <div>
-                <div className="mb-1.5 text-[10px] font-semibold tracking-wide text-[var(--muted-foreground)]">
-                  专家标注
+              {/* ── ① 专家标注（主动作区：凸起容器）── */}
+              <section className="exp-category-group !p-3">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Gavel size={12} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />
+                  <span className="text-[10px] font-bold tracking-wide text-[var(--foreground)]">专家标注</span>
+                  <span className="wb-section-rule ml-1 flex-1" />
                 </div>
                 <div className="flex gap-1.5">
                   {VERDICT_CFG.map((v) => (
                     <button
                       key={v.key}
                       onClick={() => setVerdict(selectedItem, v.key)}
-                      className={`neu-btn-xs !px-2 !py-1 !text-[11px] ${
+                      className={`neu-btn-xs flex-1 !px-2 !py-1.5 !text-[11px] ${
                         selectedReview?.verdict === v.key ? `${v.activeCls} ${v.activeBg}` : ''
                       }`}
                     >
@@ -406,15 +420,21 @@ export function RequirementComparePanel({
                     onBlur={() => saveNote(selectedItem)}
                     placeholder="备注（可选，失焦保存）"
                     rows={3}
-                    className="neu-input mt-2 !min-h-[70px] !p-2 !text-[11px]"
+                    className="neu-input mt-2 !min-h-[64px] !p-2 !text-[11px]"
                   />
                 )}
-              </div>
+              </section>
 
-              {/* AI 判断（动作按钮：点击后假装加载 ~1s 再显示，强化「专家调用 AI」语义） */}
-              <div className="pt-1">
+              {/* ── ② AI 判断（参考区：浅底区分，视觉上从属于专家判断）── */}
+              <section className="rounded-[14px] bg-[oklch(0.96_0.01_258/0.3)] p-3">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Sparkles size={12} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />
+                  <span className="text-[10px] font-bold tracking-wide text-[var(--muted-foreground)]">AI 判断</span>
+                  <span className="rounded bg-[oklch(0.52_0.13_251/0.1)] px-1 py-px text-[8px] font-bold text-[var(--accent)]">仅供参考</span>
+                  <span className="wb-section-rule ml-1 flex-1" />
+                </div>
                 {aiLoading[selectedItem.id] ? (
-                  <div className="flex items-center gap-1.5 rounded-[10px] bg-[oklch(0.96_0.01_258/0.4)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
+                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
                     <Loader2 size={12} className="animate-spin text-[var(--accent-strong)]" /> AI 分析中…
                   </div>
                 ) : !aiRevealed[selectedItem.id] ? (
@@ -429,19 +449,10 @@ export function RequirementComparePanel({
                     className="neu-btn-xs !gap-1 !text-[11px]"
                     title="查看 AI 对本条款的判断（仅供参考）"
                   >
-                    <Sparkles size={12} /> AI 判断
+                    <Sparkles size={12} /> 查看 AI 判断
                   </button>
                 ) : (
-                  <div className="rounded-[10px] bg-[oklch(0.96_0.01_258/0.4)] p-2.5">
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-[var(--muted-foreground)]"><Sparkles size={10} className="mr-1 inline" />AI 判断（仅供参考）</span>
-                      <button
-                        onClick={() => setAiRevealed((p) => ({ ...p, [selectedItem.id]: false }))}
-                        className="text-[10px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                      >
-                        收起
-                      </button>
-                    </div>
+                  <div>
                     {selectedResp ? (
                       (() => {
                         const sc = STATUS_CFG[selectedResp.status];
@@ -474,15 +485,22 @@ export function RequirementComparePanel({
                     ) : (
                       <span className="text-[10px] text-[var(--muted-foreground)]">AI 响应定位中</span>
                     )}
+                    <button
+                      onClick={() => setAiRevealed((p) => ({ ...p, [selectedItem.id]: false }))}
+                      className="mt-2 text-[10px] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    >
+                      收起 ↑
+                    </button>
                   </div>
                 )}
-              </div>
+              </section>
 
-              {/* 相关评分项（基数驱动：1:1 就地打分 / N:1 仅批注 / 通过性项只读 / 未映射同类别只读） */}
-              <div className="pt-1">
-                <hr className="wb-section-rule mb-2" />
-                <div className="mb-1.5 text-[10px] font-semibold tracking-wide text-[var(--muted-foreground)]">
-                  相关评分项
+              {/* ── ③ 相关评分项（联动区：hairline 分隔 + 平铺）── */}
+              <section>
+                <div className="mb-2 flex items-center gap-1.5">
+                  <ClipboardList size={12} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />
+                  <span className="text-[10px] font-bold tracking-wide text-[var(--foreground)]">相关评分项</span>
+                  <span className="wb-section-rule ml-1 flex-1" />
                 </div>
                 {(() => {
                   const linked = linkedPointsOf(selectedItem.id);
@@ -503,7 +521,7 @@ export function RequirementComparePanel({
                         // G：通过性项不在此操作（异议回路覆盖），仅显只读行
                         if (passFail) {
                           return (
-                            <div key={si.id} className="rounded-[10px] bg-[oklch(1_0_0/0.55)] px-2.5 py-1.5">
+                            <div key={si.id} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(1_0_0/0.4)] px-2.5 py-1.5">
                               <div className="flex items-center gap-1.5">
                                 <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[var(--foreground)]" title={si.name}>{si.name}</span>
                                 <span className="shrink-0 text-[9px] text-[var(--muted-foreground)]">通过性·异议回路</span>
@@ -512,7 +530,7 @@ export function RequirementComparePanel({
                           );
                         }
                         return (
-                          <div key={si.id} className="rounded-[10px] bg-[oklch(1_0_0/0.55)] px-2.5 py-2">
+                          <div key={si.id} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(1_0_0/0.4)] px-2.5 py-2">
                             <div className="mb-1.5 flex items-center gap-1.5">
                               <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[var(--foreground)]" title={si.name}>{si.name}</span>
                               <span className="shrink-0 text-[9px] text-[var(--muted-foreground)]">满分 {Number(si.maxScore)}</span>
@@ -581,7 +599,7 @@ export function RequirementComparePanel({
                               const st = scoreStatus[si.id];
                               const passFail = isPassFailCategory(si.category);
                               return (
-                                <div key={si.id} className="flex items-center gap-1.5 rounded-[8px] bg-[oklch(1_0_0/0.35)] px-2 py-1">
+                                <div key={si.id} className="flex items-center gap-1.5 rounded-[8px] bg-[oklch(1_0_0/0.25)] px-2 py-1">
                                   <span className="min-w-0 flex-1 truncate text-[10px] text-[var(--foreground)]" title={si.name}>{si.name}</span>
                                   {st?.state === 'committed' ? (
                                     <span className="shrink-0 text-[9px] text-[var(--success)]">
@@ -606,14 +624,14 @@ export function RequirementComparePanel({
                     const linked = linkedPointsOf(selectedItem.id).find((l) => !isPassFailCategory(l.item.category));
                     onGoScoring(linked ? { scoreItemId: linked.item.id, pointId: linked.point.id } : undefined);
                   }}
-                  className="neu-btn-soft mt-2 w-full !h-8 !text-[11px]"
+                  className="neu-btn-soft mt-2.5 w-full !h-8 !text-[11px]"
                 >
                   <Edit3 size={12} strokeWidth={1.5} /> 去打分平板
                 </button>
-                <p className="mt-1 text-center text-[9px] text-[var(--muted-foreground)]">
+                <p className="mt-1.5 text-center text-[9px] leading-relaxed text-[var(--muted-foreground)]">
                   1:1 映射可就地打分（草稿）· N:1 仅批注 · 通过性项走异议回路
                 </p>
-              </div>
+              </section>
             </div>
           ) : (
             <div className="flex flex-1 items-center justify-center text-[10px] text-[var(--muted-foreground)]">
