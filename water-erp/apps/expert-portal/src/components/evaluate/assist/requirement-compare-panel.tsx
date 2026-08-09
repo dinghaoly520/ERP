@@ -382,13 +382,6 @@ export function RequirementComparePanel({
               <FileText size={13} strokeWidth={1.5} className="shrink-0 text-[var(--accent-strong)]" />
               <span className="text-sm font-bold text-[var(--foreground)]">响应与标注</span>
             </div>
-            {selectedItem && (
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <span className="exp-category-chip !h-2 !w-2 shrink-0" style={{ '--cat': selectedItem.category === 'qualification' ? CATEGORY_COLOR['QUALIFICATION'] : selectedItem.category === 'technical' ? CATEGORY_COLOR['TECHNICAL'] : CATEGORY_COLOR['BUSINESS'] } as React.CSSProperties} />
-                <span className="shrink-0 text-[9px] font-semibold text-[var(--muted-foreground)]">{CAT_LABEL[selectedItem.category]}</span>
-                <p className="min-w-0 flex-1 truncate text-[11px] leading-tight text-[var(--foreground)]">{selectedItem.content}</p>
-              </div>
-            )}
           </header>
 
           {selectedItem ? (
@@ -628,9 +621,6 @@ export function RequirementComparePanel({
                 >
                   <Edit3 size={12} strokeWidth={1.5} /> 去打分平板
                 </button>
-                <p className="mt-1.5 text-center text-[9px] leading-relaxed text-[var(--muted-foreground)]">
-                  1:1 映射可就地打分（草稿）· N:1 仅批注 · 通过性项走异议回路
-                </p>
               </section>
             </div>
           ) : (
