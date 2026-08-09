@@ -229,9 +229,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         )}
 
-        <section className="flex h-full min-h-0 flex-1 overflow-visible px-1">
-          <main className="relative z-10 flex h-full min-h-0 flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">
-            <div className="relative min-h-0 flex-1 overflow-y-auto">
+        <section className="flex h-full min-h-0 min-w-0 flex-1 overflow-visible px-1">
+          <main className="relative z-10 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-visible p-3.5 sm:p-4 lg:p-4">
+            <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto">
               {authError && (
                 <div className="mb-3">
                   <div className="exp-alert exp-alert--warn flex items-center gap-3">

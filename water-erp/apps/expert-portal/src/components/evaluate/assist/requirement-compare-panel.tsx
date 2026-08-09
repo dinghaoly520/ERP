@@ -200,7 +200,7 @@ export function RequirementComparePanel({
   const grouped = ['qualification', 'technical', 'commercial'] as const;
 
   return (
-    <div className={isFs ? 'fixed inset-0 z-50 space-y-2 bg-[var(--background)] p-4' : 'relative space-y-2'}>
+    <div className={isFs ? 'fixed inset-0 z-50 space-y-2 bg-[var(--background)] p-4' : 'relative space-y-2 overflow-hidden'}>
       <button onClick={toggleFs} title={isFs ? '退出全屏' : '全屏'}
         className="neu-btn-xs is-square fixed bottom-4 right-12 z-[60] !h-9 !w-9">
         {isFs ? <Minimize2 size={15} strokeWidth={1.5} /> : <Maximize2 size={15} strokeWidth={1.5} />}
