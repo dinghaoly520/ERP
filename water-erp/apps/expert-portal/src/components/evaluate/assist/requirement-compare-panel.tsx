@@ -2,7 +2,7 @@
 'use client';
 import { useMemo, useState, useEffect } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, MessageSquarePlus, Loader2, Gavel, ClipboardList } from 'lucide-react';
+import { Star, ExternalLink, CheckCircle, AlertCircle, HelpCircle, XCircle, FileText, Maximize2, Minimize2, Edit3, ChevronRight, ChevronDown, Sparkles, Loader2, Gavel, BarChart3 } from 'lucide-react';
 import type { RequirementResponse, BidRequirementReview, BidScoreItem } from '@water-erp/shared';
 import { CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory } from '@water-erp/shared';
 import { api } from '@/lib/api';
@@ -61,7 +61,6 @@ export function RequirementComparePanel({
   onGoScoring,
   scores,
   onPointChange,
-  onPointNote,
 }: {
   projectId: string;
   supplierId: string;
@@ -104,16 +103,14 @@ export function RequirementComparePanel({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [aiRevealed, setAiRevealed] = useState<Record<string, boolean>>({});
   const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
-  const [annotatingPoint, setAnnotatingPoint] = useState<string | null>(null);
-  const [noteDraft, setNoteDraft] = useState('');
 
-  // D：查找映射到选中条款的得分点（跨评分项），返回 {item, point, clauseCount}
-  const linkedPointsOf = (clauseId: string) =>
-    scoreItems.flatMap((si) =>
-      (si.points ?? [])
-        .filter((pt) => (pt.linkedRequirementIds ?? []).includes(clauseId))
-        .map((pt) => ({ item: si, point: pt, clauseCount: (pt.linkedRequirementIds ?? []).length })),
-    );
+  // 评分进度仪表盘：按类别展开态
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const toggleCat = (cat: string) => setExpandedCats(prev => {
+    const n = new Set(prev);
+    if (n.has(cat)) n.delete(cat); else n.add(cat);
+    return n;
+  });
 
   const flat: ReqItem[] = useMemo(
     () => [
@@ -190,6 +187,20 @@ export function RequirementComparePanel({
   const selectedItem = flat.find((i) => i.id === effectiveSelectedId) ?? null;
   const selectedResp = selectedItem ? respBy(selectedItem.id) : null;
   const selectedReview = selectedItem ? local[selectedItem.id] : undefined;
+
+  // 自动展开选中条款对应的评分类别
+  useEffect(() => {
+    if (!selectedItem) return;
+    const cats = selectedItem.isStarred
+      ? [...(CAT_TO_SCORE[selectedItem.category] ?? []), 'RESPONSIVE']
+      : (CAT_TO_SCORE[selectedItem.category] ?? []);
+    if (cats.length === 0) return;
+    setExpandedCats(prev => {
+      const n = new Set(prev);
+      for (const c of cats) n.add(c);
+      return n;
+    });
+  }, [selectedItem?.id]);
 
   // ── 中栏 iframe src：选中条款变化 → src 更新（Fix 7 解密端点 + #page=N 原生跳页）──
   const iframeSrc =
@@ -488,139 +499,159 @@ export function RequirementComparePanel({
                 )}
               </section>
 
-              {/* ── ③ 相关评分项（联动区：hairline 分隔 + 平铺）── */}
+              {/* ── ③ 评分进度仪表盘（类别进度条 + 通过性就地打分 + 非通过性只读）── */}
               <section>
                 <div className="mb-2 flex items-center gap-1.5">
-                  <ClipboardList size={12} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />
-                  <span className="text-[10px] font-bold tracking-wide text-[var(--foreground)]">相关评分项</span>
+                  <BarChart3 size={12} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />
+                  <span className="text-[10px] font-bold tracking-wide text-[var(--foreground)]">评分进度</span>
                   <span className="wb-section-rule ml-1 flex-1" />
                 </div>
                 {(() => {
-                  const linked = linkedPointsOf(selectedItem.id);
-                  const linkedItemIds = new Set(linked.map((l) => l.item.id));
-                  const grouped = new Map<string, { si: BidScoreItem; pts: Array<{ pt: NonNullable<BidScoreItem['points']>[number]; clauseCount: number }> }>();
-                  for (const l of linked) {
-                    const e = grouped.get(l.item.id);
-                    if (e) e.pts.push({ pt: l.point, clauseCount: l.clauseCount });
-                    else grouped.set(l.item.id, { si: l.item, pts: [{ pt: l.point, clauseCount: l.clauseCount }] });
-                  }
+                  const ALL_CATS = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'] as const;
+                  // 计算每类别进度（得分点粒度）
+                  const catData = ALL_CATS.map(cat => {
+                    const items = scoreItems.filter(si => si.category === cat);
+                    let done = 0, total = 0;
+                    for (const si of items) {
+                      const pts = si.points ?? [];
+                      total += pts.length;
+                      const key = `${supplierId}:${si.id}`;
+                      const cur = scores[key];
+                      const st = scoreStatus[si.id];
+                      if (st?.state === 'committed') {
+                        done += pts.length;
+                      } else if (cur?.points && Object.keys(cur.points).length > 0) {
+                        done += Object.keys(cur.points).length;
+                      } else if (cur?.passed === true && isPassFailCategory(cat)) {
+                        done += pts.filter(p => p.objective).length;
+                      }
+                    }
+                    return { cat, items, done, total };
+                  });
+                  const totalDone = catData.reduce((s, c) => s + c.done, 0);
+                  const totalAll = catData.reduce((s, c) => s + c.total, 0);
+
                   return (
-                    <div className="space-y-2">
-                      {/* 精确映射项（可操作） */}
-                      {[...grouped.values()].map(({ si, pts }) => {
-                        const key = `${supplierId}:${si.id}`;
-                        const cur = scores[key];
-                        const passFail = isPassFailCategory(si.category);
-                        // G：通过性项不在此操作（异议回路覆盖），仅显只读行
-                        if (passFail) {
-                          return (
-                            <div key={si.id} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(1_0_0/0.4)] px-2.5 py-1.5">
-                              <div className="flex items-center gap-1.5">
-                                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[var(--foreground)]" title={si.name}>{si.name}</span>
-                                <span className="shrink-0 text-[9px] text-[var(--muted-foreground)]">通过性·异议回路</span>
-                              </div>
-                            </div>
-                          );
-                        }
+                    <div className="space-y-1.5">
+                      {/* 总进度 */}
+                      <div className="mb-1 flex items-center justify-between text-[10px]">
+                        <span className="text-[var(--muted-foreground)]">总进度</span>
+                        <span className="font-mono font-bold tabular-nums text-[var(--foreground)]">{totalDone} / {totalAll}</span>
+                      </div>
+
+                      {/* 按类别进度条 */}
+                      {catData.map(({ cat, items, done, total }) => {
+                        if (items.length === 0) return null;
+                        const catColor = CATEGORY_COLOR[cat] || 'var(--accent-strong)';
+                        const catLabel = CATEGORY_LABEL[cat] || cat;
+                        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                        const isExpanded = expandedCats.has(cat);
+                        const passFail = isPassFailCategory(cat);
                         return (
-                          <div key={si.id} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(1_0_0/0.4)] px-2.5 py-2">
-                            <div className="mb-1.5 flex items-center gap-1.5">
-                              <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[var(--foreground)]" title={si.name}>{si.name}</span>
-                              <span className="shrink-0 text-[9px] text-[var(--muted-foreground)]">满分 {Number(si.maxScore)}</span>
-                            </div>
-                            <div className="space-y-1.5">
-                              {pts.map(({ pt, clauseCount }) => {
-                                const ptId = `${si.id}:${pt.id}`;
-                                const sole = clauseCount === 1;
-                                const existingNote = cur?.points?.[pt.id]?.note ?? '';
-                                return (
-                                  <div key={pt.id}>
-                                    {sole ? (
-                                      // 1:1 就地打分（草稿）
-                                      <PointChecklistScoring
-                                        points={[{ id: pt.id, name: pt.name, fullScore: pt.fullScore, objective: pt.objective, evidenceHint: pt.evidenceHint, seq: pt.seq }]}
-                                        value={cur?.points ?? {}}
-                                        onChange={(pid, pv) => onPointChange?.(si.id, pid, pv)}
-                                        hideNotes
-                                      />
-                                    ) : (
-                                      // N:1 仅提示（不可单条打分）
-                                      <div className="rounded-[8px] bg-[oklch(0.96_0.01_258/0.4)] px-2 py-1.5 text-[10px] text-[var(--muted-foreground)]">
-                                        {pt.name} · 需综合 {clauseCount} 条条款，请去打分页汇总
+                          <div key={cat}>
+                            {/* 类别行：chip + 名称 + 进度条 + 数字 */}
+                            <button
+                              type="button"
+                              onClick={() => toggleCat(cat)}
+                              className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left transition hover:bg-[oklch(0.96_0.01_258/0.4)]"
+                            >
+                              {isExpanded
+                                ? <ChevronDown size={11} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />
+                                : <ChevronRight size={11} strokeWidth={1.5} className="shrink-0 text-[var(--muted-foreground)]" />}
+                              <span className="exp-category-chip !h-2 !w-2 shrink-0" style={{ '--cat': catColor } as React.CSSProperties} />
+                              <span className="w-14 shrink-0 truncate text-[10px] font-semibold text-[var(--foreground)]">{catLabel}</span>
+                              {/* 进度条 */}
+                              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[oklch(0.9_0.01_258/0.6)]">
+                                <span className="block h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: catColor }} />
+                              </span>
+                              <span className="w-8 shrink-0 text-right font-mono text-[9px] tabular-nums text-[var(--muted-foreground)]">{done}/{total}</span>
+                            </button>
+
+                            {/* 展开内容 */}
+                            {isExpanded && (
+                              <div className="ml-4 space-y-1.5 pb-1">
+                                {items.map(si => {
+                                  const key = `${supplierId}:${si.id}`;
+                                  const cur = scores[key];
+                                  const st = scoreStatus[si.id];
+
+                                  if (passFail) {
+                                    // 通过性项：就地打分（PointChecklistScoring compact）
+                                    const siPoints = (si.points ?? []).map(p => ({ id: p.id, name: p.name, fullScore: p.fullScore, objective: p.objective, evidenceHint: p.evidenceHint, seq: p.seq }));
+                                    // effective value：先看 points 存储，无则从 passed 回退
+                                    const valueMap: Record<string, PointDecisionValue> = {};
+                                    for (const pt of siPoints) {
+                                      const stored = cur?.points?.[pt.id];
+                                      if (stored) valueMap[pt.id] = stored;
+                                      else if (cur?.passed === true) valueMap[pt.id] = { checked: true, awardedScore: Number(pt.fullScore) };
+                                      else valueMap[pt.id] = { checked: false, awardedScore: 0 };
+                                    }
+                                    // 计算 passed 状态（用于 badge）
+                                    const objectivePts = siPoints.filter(p => p.objective);
+                                    const allChecked = objectivePts.length > 0 && objectivePts.every(p => valueMap[p.id]?.checked === true);
+                                    const anyUnchecked = objectivePts.some(p => valueMap[p.id]?.checked === false);
+                                    const passedDisplay = st?.state === 'committed' ? st.passed : (allChecked ? true : anyUnchecked ? false : undefined);
+
+                                    return (
+                                      <div key={si.id} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(1_0_0/0.35)] px-2 py-1.5">
+                                        <div className="mb-1 flex items-center gap-1">
+                                          <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-[var(--foreground)]" title={si.name}>{si.name}</span>
+                                          {passedDisplay === true && <span className="shrink-0 text-[9px] font-bold text-[var(--success)]">通过</span>}
+                                          {passedDisplay === false && <span className="shrink-0 text-[9px] font-bold text-[var(--danger)]">不通过</span>}
+                                          {passedDisplay === undefined && st?.state !== 'committed' && <span className="shrink-0 text-[9px] text-[var(--muted-foreground)]">未评</span>}
+                                        </div>
+                                        {siPoints.length > 0 && (
+                                          <PointChecklistScoring
+                                            points={siPoints}
+                                            value={valueMap}
+                                            onChange={(pid, pv) => onPointChange?.(si.id, pid, pv)}
+                                            compact
+                                            hideNotes
+                                          />
+                                        )}
                                       </div>
-                                    )}
-                                    {/* 批注（得分点级 note）：1:1 可选 / N:1 主要手段 */}
-                                    <div className="mt-1">
-                                      {annotatingPoint === ptId ? (
-                                        <textarea
-                                          autoFocus
-                                          value={noteDraft}
-                                          onChange={(e) => setNoteDraft(e.target.value)}
-                                          onBlur={() => { onPointNote?.(si.id, pt.id, noteDraft); setAnnotatingPoint(null); }}
-                                          placeholder="批注写入打分备注（失焦保存）"
-                                          rows={2}
-                                          className="neu-input !min-h-[44px] !p-1.5 !text-[10px]"
-                                        />
+                                    );
+                                  }
+
+                                  // 非通过性项：只读状态 + 点击跳平板
+                                  return (
+                                    <div
+                                      key={si.id}
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => {
+                                        const firstPt = (si.points ?? [])[0];
+                                        onGoScoring(firstPt ? { scoreItemId: si.id, pointId: firstPt.id } : { scoreItemId: si.id });
+                                      }}
+                                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onGoScoring({ scoreItemId: si.id }); } }}
+                                      className="flex cursor-pointer items-center gap-1.5 rounded-[8px] bg-[oklch(1_0_0/0.25)] px-2 py-1 transition hover:bg-[oklch(0.96_0.01_258/0.4)]"
+                                    >
+                                      <span className="min-w-0 flex-1 truncate text-[10px] text-[var(--foreground)]" title={si.name}>{si.name}</span>
+                                      {st?.state === 'committed' ? (
+                                        <span className="shrink-0 text-[9px] text-[var(--success)]">{st.score}分</span>
+                                      ) : st?.state === 'draft' ? (
+                                        <span className="shrink-0 text-[9px] text-[var(--warning)]">草稿 {st.score}</span>
                                       ) : (
-                                        <button
-                                          onClick={() => { setAnnotatingPoint(ptId); setNoteDraft(existingNote); }}
-                                          className={`inline-flex items-center gap-0.5 text-[10px] hover:underline ${existingNote ? 'text-[var(--accent-strong)]' : 'text-[var(--muted-foreground)]'}`}
-                                        >
-                                          <MessageSquarePlus size={10} /> {existingNote ? '批注已写' : '批注'}
-                                        </button>
+                                        <span className="shrink-0 text-[9px] text-[var(--muted-foreground)]">未填</span>
                                       )}
                                     </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
 
-                      {/* 同类别其余项（只读指引） */}
-                      {(() => {
-                        const cats = selectedItem.isStarred
-                          ? [...(CAT_TO_SCORE[selectedItem.category] ?? []), 'RESPONSIVE']
-                          : (CAT_TO_SCORE[selectedItem.category] ?? []);
-                        const others = scoreItems.filter((si) => cats.includes(si.category) && !linkedItemIds.has(si.id));
-                        if (others.length === 0) return null;
-                        return (
-                          <div className="space-y-1 pt-1">
-                            <div className="text-[9px] text-[var(--muted-foreground)]">同类别其他项</div>
-                            {others.map((si) => {
-                              const st = scoreStatus[si.id];
-                              const passFail = isPassFailCategory(si.category);
-                              return (
-                                <div key={si.id} className="flex items-center gap-1.5 rounded-[8px] bg-[oklch(1_0_0/0.25)] px-2 py-1">
-                                  <span className="min-w-0 flex-1 truncate text-[10px] text-[var(--foreground)]" title={si.name}>{si.name}</span>
-                                  {st?.state === 'committed' ? (
-                                    <span className="shrink-0 text-[9px] text-[var(--success)]">
-                                      {passFail ? (st.passed === true ? '通过' : st.passed === false ? '不通过' : '已提交') : `${st.score}分`}
-                                    </span>
-                                  ) : st?.state === 'draft' ? (
-                                    <span className="shrink-0 text-[9px] text-[var(--warning)]">草稿{!passFail && st.score > 0 ? ` ${st.score}` : ''}</span>
-                                  ) : (
-                                    <span className="shrink-0 text-[9px] text-[var(--muted-foreground)]">未填</span>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
+                      <button
+                        onClick={() => onGoScoring()}
+                        className="neu-btn-soft mt-2 w-full !h-8 !text-[11px]"
+                      >
+                        <Edit3 size={12} strokeWidth={1.5} /> 去打分平板
+                      </button>
                     </div>
                   );
                 })()}
-                <button
-                  onClick={() => {
-                    const linked = linkedPointsOf(selectedItem.id).find((l) => !isPassFailCategory(l.item.category));
-                    onGoScoring(linked ? { scoreItemId: linked.item.id, pointId: linked.point.id } : undefined);
-                  }}
-                  className="neu-btn-soft mt-2.5 w-full !h-8 !text-[11px]"
-                >
-                  <Edit3 size={12} strokeWidth={1.5} /> 去打分平板
-                </button>
               </section>
             </div>
           ) : (

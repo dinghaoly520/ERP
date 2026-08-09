@@ -679,6 +679,16 @@ export default function ExpertEvaluatePage() {
       const entry = scores[scoreKey(activeSupplier, si.id)];
       const hasPoints = (si.points ?? []).length > 0;
       if (isPassFailCategory(si.category)) {
+        // 通过性项有 points → 必须发 pointDecisions（后端 recomputeItemFromDecisions 算 passed）
+        if (hasPoints) {
+          const ptEntries = Object.entries(entry?.points ?? {});
+          return {
+            scoreItemId: si.id, supplierId: activeSupplier, reason: entry?.reason ?? '',
+            pointDecisions: ptEntries.length > 0
+              ? ptEntries.map(([pid, d]) => ({ pointId: pid, checked: d.checked, awardedScore: d.awardedScore }))
+              : (si.points ?? []).map(p => ({ pointId: p.id, checked: entry?.passed === true, awardedScore: entry?.passed === true ? Number(p.fullScore) : 0 })),
+          };
+        }
         return { scoreItemId: si.id, supplierId: activeSupplier, passed: entry?.passed, reason: entry?.reason ?? '' };
       }
       if (hasPoints) {

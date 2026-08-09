@@ -340,6 +340,17 @@ export default function TabletEvaluatePage() {
         const entry = scores[k];
         const itemPoints = (si.points ?? []).map(p => ({ id: p.id }));
         if (isPassFailCategory(si.category)) {
+          if (itemPoints.length > 0) {
+            const ptEntries = Object.entries(entry?.points ?? {});
+            return {
+              scoreItemId: si.id,
+              supplierId: activeSupplier,
+              reason: entry?.reason ?? '',
+              pointDecisions: ptEntries.length > 0
+                ? ptEntries.map(([pid, d]) => ({ pointId: pid, checked: d.checked, awardedScore: d.awardedScore, note: d.note }))
+                : (si.points ?? []).map(p => ({ pointId: p.id, checked: entry?.passed === true, awardedScore: entry?.passed === true ? Number(p.fullScore) : 0 })),
+            };
+          }
           return {
             scoreItemId: si.id,
             supplierId: activeSupplier,
