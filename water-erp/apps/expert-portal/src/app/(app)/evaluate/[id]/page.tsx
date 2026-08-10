@@ -392,7 +392,13 @@ export default function ExpertEvaluatePage() {
     const points = { ...(cur.points ?? {}), [pointId]: value };
     const si = project?.scoreItems.find((s) => s.id === scoreItemId);
     const score = (si?.points ?? []).reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
-    const next = { ...scores, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed } };
+    // 通过性项：从客观分点重算 passed（与评分 tab checkbox onChange 逻辑一致）
+    let passed = cur.passed;
+    if (si && isPassFailCategory(si.category)) {
+      const objectivePts = (si.points ?? []).filter(p => p.objective);
+      passed = objectivePts.length > 0 && objectivePts.every(p => points[p.id]?.checked === true);
+    }
+    const next = { ...scores, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed } };
     setScores(next);
     saveDraftNow(next);
   }, [activeSupplier, scores, project]);
