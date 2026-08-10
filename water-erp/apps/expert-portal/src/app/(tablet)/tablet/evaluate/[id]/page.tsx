@@ -82,10 +82,11 @@ export default function TabletEvaluatePage() {
         }
         setProject(p);
         const existing: Record<string, ScoreEntry> = {};
-        p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; reason?: string }) => {
+        p.myScores.forEach((rec: { supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string }) => {
           existing[scoreKey(rec.supplierId, rec.scoreItemId)] = {
             score: Number(rec.score),
             reason: rec.reason || '',
+            ...(rec.passed !== null && rec.passed !== undefined ? { passed: rec.passed } : {}),
           };
         });
         // P0-B：合并而非覆盖——保留其他供应商尚未提交的内存编辑，仅用服务端值覆盖已提交供应商
