@@ -424,17 +424,14 @@ export default function ExpertEvaluatePage() {
   // 得分点选中（联动备忘抽屉）
   const handlePointClickDesk = useCallback(
     (pointId: string, pointName: string) => {
-      const newId = activePointId === pointId ? null : pointId;
-      setActivePointId(newId);
-      setActivePointName(newId ? pointName : '');
-      if (newId && project) {
-        const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === newId));
+      setActivePointId(pointId);
+      setActivePointName(pointName);
+      if (project) {
+        const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === pointId));
         setActiveScoreItemId(item?.id ?? null);
-      } else {
-        setActiveScoreItemId(null);
       }
     },
-    [activePointId, project],
+    [project],
   );
 
   const handleMemoCountChange = useCallback((pid: string, count: number) => {

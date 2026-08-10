@@ -415,22 +415,17 @@ export default function TabletEvaluatePage() {
     }
   };
 
-  // 点击得分点：切换选中 → MemoPanel 内部自动保存/加载
+  // 点击得分点：始终选中（不 toggle 取消）→ MemoPanel 绑定该得分点
   const handlePointClick = useCallback(
     (pointId: string, pointName: string) => {
-      // toggle selection
-      const newId = activePointId === pointId ? null : pointId;
-      setActivePointId(newId);
-      setActivePointName(newId ? pointName : '');
-      // find the scoreItemId containing this point
-      if (newId && project) {
-        const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === newId));
+      setActivePointId(pointId);
+      setActivePointName(pointName);
+      if (project) {
+        const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === pointId));
         setActiveScoreItemId(item?.id ?? null);
-      } else {
-        setActiveScoreItemId(null);
       }
     },
-    [activePointId, project],
+    [project],
   );
 
   const handleMemoCountChange = useCallback((pid: string, count: number) => {
