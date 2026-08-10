@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, listMemos } from '@/lib/api';
 import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
@@ -80,6 +80,11 @@ export default function ExpertEvaluatePage() {
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
   // P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
   const [memoOpen, setMemoOpen] = useState(false);
+  // Task 6: 得分点选中（联动备忘抽屉）—— 桌面允许无选中点的项目/供应商级备忘
+  const [activePointId, setActivePointId] = useState<string | null>(null);
+  const [activePointName, setActivePointName] = useState<string>('');
+  const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
+  const [pointMemoCounts, setPointMemoCounts] = useState<Record<string, number>>({});
   // D1: 开标大厅公聊消息
   const [hallMessages, setHallMessages] = useState<HallMessagePayload[]>([]);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -416,7 +421,37 @@ export default function ExpertEvaluatePage() {
     saveDraftNow(next);
   }, [activeSupplier, scores]);
 
+  // 得分点选中（联动备忘抽屉）
+  const handlePointClickDesk = useCallback(
+    (pointId: string, pointName: string) => {
+      const newId = activePointId === pointId ? null : pointId;
+      setActivePointId(newId);
+      setActivePointName(newId ? pointName : '');
+      if (newId && project) {
+        const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === newId));
+        setActiveScoreItemId(item?.id ?? null);
+      } else {
+        setActiveScoreItemId(null);
+      }
+    },
+    [activePointId, project],
+  );
+
   useEffect(() => { loadProject(); }, [loadProject]);
+
+  // 批量加载当前供应商的 memo 计数（按 scorePointId reduce）
+  useEffect(() => {
+    if (!activeSupplier) return;
+    listMemos(projectId, activeSupplier)
+      .then(list => {
+        const counts: Record<string, number> = {};
+        for (const m of list) {
+          if (m.scorePointId) counts[m.scorePointId] = (counts[m.scorePointId] ?? 0) + 1;
+        }
+        setPointMemoCounts(counts);
+      })
+      .catch(() => { /* silent */ });
+  }, [activeSupplier, projectId]);
 
   // Sync phone verification state from project data
   useEffect(() => {
@@ -1637,6 +1672,9 @@ export default function ExpertEvaluatePage() {
                                             const allChecked = objectivePts.length > 0 && objectivePts.every(p => points[p.id]?.checked === true);
                                             return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: allChecked } };
                                           })}
+                                          selectedPointId={activePointId}
+                                          onPointClick={handlePointClickDesk}
+                                          pointMemoCounts={pointMemoCounts}
                                         />
                                       </div>
                                     )}
@@ -1692,7 +1730,11 @@ export default function ExpertEvaluatePage() {
                                         // rollup: Σ awardedScore → item.score（类别小计 + submit payload 都读 score）
                                         const score = itemPoints.reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
                                         return { ...prev, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed } };
-                                      })} />
+                                      })}
+                                      selectedPointId={activePointId}
+                                      onPointClick={handlePointClickDesk}
+                                      pointMemoCounts={pointMemoCounts}
+                                    />
                                     <textarea placeholder="评分理由（可选）" value={val?.reason || ''}
                                       onFocus={() => onReasonFocus(k)}
                                       onBlur={onReasonBlur}
@@ -1857,6 +1899,11 @@ export default function ExpertEvaluatePage() {
                       {project?.suppliers.find(s => s.id === activeSupplier)?.supplierName || '当前供应商'}
                     </span>
                   )}
+                  {activePointName && (
+                    <span className="exp-pill ml-1 max-w-[120px] truncate" style={{ '--c': 'var(--accent-strong)' } as React.CSSProperties}>
+                      {activePointName}
+                    </span>
+                  )}
                 </h2>
                 <button
                   type="button"
@@ -1873,7 +1920,11 @@ export default function ExpertEvaluatePage() {
                   <MemoPanel
                     projectId={projectId}
                     supplierId={activeSupplier}
+                    scorePointId={activePointId ?? undefined}
+                    scorePointName={activePointName || undefined}
+                    scoreItemId={activeScoreItemId ?? undefined}
                     sourceDevice="desktop"
+                    onMemoCountChange={(pid, count) => setPointMemoCounts(prev => ({ ...prev, [pid]: count }))}
                   />
                 ) : (
                   <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">请先在左侧选择供应商</p>
