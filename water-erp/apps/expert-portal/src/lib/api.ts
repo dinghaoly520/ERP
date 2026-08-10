@@ -110,10 +110,12 @@ export async function listMemos(
   projectId: string,
   supplierId?: string,
   scorePointId?: string,
+  scoreItemId?: string,
 ): Promise<ExpertMemo[]> {
   const params = new URLSearchParams();
   if (supplierId) params.set('supplierId', supplierId);
   if (scorePointId) params.set('scorePointId', scorePointId);
+  if (scoreItemId) params.set('scoreItemId', scoreItemId);
   const qs = params.toString();
   return api.get<ExpertMemo[]>(
     `/expert/projects/${projectId}/memos${qs ? `?${qs}` : ''}`,
