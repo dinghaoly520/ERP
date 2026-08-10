@@ -451,12 +451,7 @@ export function MemoPanel({
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-[var(--foreground)]">
           <PenLine size={15} strokeWidth={1.6} className="shrink-0 text-[var(--accent-strong)]" />
-          <span className="truncate">{scorePointName ? `${scorePointName} · 批注记录` : '专家备忘'}</span>
-          {scorePointName && (
-            <span className="exp-pill max-w-[160px] truncate" style={{ '--c': 'var(--accent-strong)' } as React.CSSProperties}>
-              {scorePointName}
-            </span>
-          )}
+          <span className="truncate">备注</span>
         </h3>
         <div className="neu-tab-bar flex-shrink-0">
           <button type="button" onClick={() => setMode('handwriting')} aria-pressed={mode === 'handwriting'}
