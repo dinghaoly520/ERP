@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
-import { api, ApiError, listMemos } from '@/lib/api';
-import { validateSupplierScores } from '@/lib/score-validation';
+import { ArrowLeft, Save, RotateCcw } from 'lucide-react';
+import { api, listMemos } from '@/lib/api';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
@@ -38,7 +37,7 @@ const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${s
  *   - 异议条款联动 / 实时 WS 状态板
  *
  * 鉴权：(tablet)/layout.tsx 完成；cookie + X-Portal 由 api 客户端处理。
- * 安全：handleSubmitScores 仅对解密成功 + 未撤回 + 未废标的供应商提交。
+ * 平板仅产生草稿（localStorage + 服务端 draft），正式提交请在桌面专家打分 tab 完成。
  */
 export default function TabletEvaluatePage() {
   const router = useRouter();
@@ -50,7 +49,6 @@ export default function TabletEvaluatePage() {
   const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
-  const [busy, setBusy] = useState(false);
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
@@ -355,75 +353,6 @@ export default function TabletEvaluatePage() {
     return g;
   }, [project]);
 
-  const handleSubmit = async () => {
-    if (!project || !activeSupplier || !canScoreActiveSupplier || scoreLocked) return;
-    // P1-15：提交前校验评分完整性（与桌面端一致）
-    const missing = validateSupplierScores(project.scoreItems, scores, activeSupplier);
-    if (missing.length > 0) {
-      toast.error(missing[0].message);
-      return;
-    }
-    setBusy(true);
-    try {
-      const supplierName = activeSupplierRecord?.supplierName || '';
-      const payload = project.scoreItems.map(si => {
-        const k = scoreKey(activeSupplier, si.id);
-        const entry = scores[k];
-        const itemPoints = (si.points ?? []).map(p => ({ id: p.id }));
-        if (isPassFailCategory(si.category)) {
-          if (itemPoints.length > 0) {
-            const ptEntries = Object.entries(entry?.points ?? {});
-            return {
-              scoreItemId: si.id,
-              supplierId: activeSupplier,
-              reason: entry?.reason ?? '',
-              pointDecisions: ptEntries.length > 0
-                ? ptEntries.map(([pid, d]) => ({ pointId: pid, checked: d.checked, awardedScore: d.awardedScore, note: d.note }))
-                : (si.points ?? []).map(p => ({ pointId: p.id, checked: entry?.passed === true, awardedScore: entry?.passed === true ? Number(p.fullScore) : 0 })),
-            };
-          }
-          return {
-            scoreItemId: si.id,
-            supplierId: activeSupplier,
-            passed: entry?.passed,
-            reason: entry?.reason ?? '',
-          };
-        }
-        if (itemPoints.length > 0) {
-          return {
-            scoreItemId: si.id,
-            supplierId: activeSupplier,
-            score: entry?.score ?? 0,
-            reason: entry?.reason ?? '',
-            pointDecisions: Object.entries(entry?.points ?? {}).map(([pointId, d]) => ({
-              pointId,
-              checked: d.checked,
-              awardedScore: d.awardedScore,
-              note: d.note,
-            })),
-          };
-        }
-        return {
-          scoreItemId: si.id,
-          supplierId: activeSupplier,
-          score: entry?.score ?? 0,
-          reason: entry?.reason ?? '',
-        };
-      });
-      await api.post(`/expert/projects/${projectId}/scores`, { scores: payload, supplierName });
-      toast.success(`${supplierName} 评分提交成功`);
-      // P0-B：不再整键删除草稿（会误删其他供应商未提交分）；合并刷新后自动暂存按剩余未提交分重写
-      setDraftAvailable(null);
-      setDraftDismissed(true);
-      loadProject(activeSupplier);
-    } catch (e) {
-      const err = e as ApiError;
-      toast.error(err?.message || '提交失败');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   // 点击得分点：始终选中（不 toggle 取消）→ MemoPanel 绑定该得分点
   const handlePointClick = useCallback(
     (pointId: string, pointName: string) => {
@@ -516,7 +445,7 @@ export default function TabletEvaluatePage() {
           )}
           {!verificationComplete && !scoreLocked && (
             <div className="exp-alert exp-alert--warn mb-3">
-              请先完成身份核验、回避确认与 AI 辅助评标声明后再提交评分。
+              请先完成身份核验、回避确认与 AI 辅助评标声明后再录入评分。
             </div>
           )}
 
@@ -777,30 +706,30 @@ export default function TabletEvaluatePage() {
         </Panel>
       </PanelGroup>
 
-      {/* 操作栏：重置 / 暂存 / 提交（平板大按钮 !h-12） */}
-      <div className="flex flex-shrink-0 items-center justify-center gap-3">
+      {/* 操作栏：重置 / 暂存（平板仅草稿，正式提交请在桌面端完成） */}
+      <div className="flex flex-shrink-0 flex-col items-center gap-2">
         {!scoreLocked && (
-          <>
+          <div className="flex items-center justify-center gap-3">
             {/* 重置当前供应商评分（P2：二次确认，防触屏误触清空） */}
             <button
               type="button"
               onClick={() => setResetConfirmOpen(true)}
-              disabled={busy || !canScoreActiveSupplier}
+              disabled={!canScoreActiveSupplier}
               className="neu-btn-soft is-danger !h-12 !px-6"
             >
               <RotateCcw size={16} strokeWidth={1.7} />
               重置
             </button>
 
-            {/* 暂存评分到本地 */}
+            {/* 暂存草稿到本地 + 服务端（跨设备同步到桌面端） */}
             <button
               type="button"
               onClick={saveDraft}
-              disabled={busy || draftSaving || !canScoreActiveSupplier}
-              className="neu-btn-soft !h-12 !px-6"
+              disabled={draftSaving || !canScoreActiveSupplier}
+              className="neu-btn-primary !h-12 !px-8"
             >
               <Save size={16} strokeWidth={1.7} />
-              {draftSaving ? '暂存中…' : '暂存'}
+              {draftSaving ? '暂存中…' : '暂存草稿'}
             </button>
             <ConfirmDialog
               open={resetConfirmOpen}
@@ -812,18 +741,11 @@ export default function TabletEvaluatePage() {
               onConfirm={() => { resetCurrentSupplier(); setResetConfirmOpen(false); }}
               onCancel={() => setResetConfirmOpen(false)}
             />
-          </>
+          </div>
         )}
-
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={busy || !canScoreActiveSupplier || scoreLocked || !verificationComplete}
-          className="neu-btn-primary !h-12 !px-8"
-        >
-          {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={1.7} />}
-          {busy ? '提交中…' : scoreLocked ? '评分已锁定' : !verificationComplete ? '请先完成核验' : '提交'}
-        </button>
+        <p className="text-[10px] text-[var(--muted-foreground)]">
+          草稿自动同步至桌面端 · 请前往桌面专家打分 tab 正式提交
+        </p>
       </div>
     </div>
   );
