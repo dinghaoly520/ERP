@@ -400,6 +400,16 @@ export class ExpertController {
     return this.expertService.getFocusHint(userId, projectId);
   }
 
+  @Get('projects/:projectId/focus-hint/ack')
+  @ApiOperation({ summary: '桌面端查询平板是否已接收 focus hint（ACK 回执）' })
+  getFocusHintAck(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Query('seq') seq: string,
+  ) {
+    return this.expertService.getFocusHintAck(userId, projectId, Number(seq));
+  }
+
   /* ── 核对评分（draft → verified）── */
 
   @Post('projects/:projectId/suppliers/:supplierId/score-review/verify')

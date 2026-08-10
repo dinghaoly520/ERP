@@ -1751,7 +1751,21 @@ export class ExpertService {
     if (!expert) return null;
     const raw = await redis.get(`expert:focus:${expert.id}:${projectId}`);
     if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
+    try {
+      const hint = JSON.parse(raw);
+      // ACK：平板已成功读取本 seq 的 hint（幂等，多次轮询重复写同一 key 无副作用）
+      await redis.set(`expert:focus:ack:${expert.id}:${projectId}:${hint.seq}`, '1', 'EX', 30);
+      return hint;
+    } catch { return null; }
+  }
+
+  /** 桌面端查询平板是否已接收 focus hint（ACK 回执）。 */
+  async getFocusHintAck(userId: string, projectId: string, seq: number) {
+    if (!this.redis) return { acked: false };
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { id: true } });
+    if (!expert) return { acked: false };
+    const ack = await this.redis.get(`expert:focus:ack:${expert.id}:${projectId}:${seq}`);
+    return { acked: !!ack };
   }
 
   /** D2: 创建异议工单（仅组长） */

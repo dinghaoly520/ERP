@@ -1414,12 +1414,31 @@ export default function ExpertEvaluatePage() {
                 scoreItems={project.scoreItems}
                 scoreStatus={scoreStatusByItem}
                 onGoScoring={async (target) => {
-                  // E：不跳转桌面，发送 focus hint 到平板（跨设备联动）
+                  // E：发送 focus hint 到平板 + ACK 回执轮询（确认平板实际收到）
+                  const toastId = toast.loading('正在发送到平板…');
                   try {
-                    await api.post(`/expert/projects/${projectId}/focus-hint`, { supplierId: activeSupplier, ...target });
-                    toast.success('已发送到平板，请在平板上查看');
+                    const res = await api.post<{ ok: boolean; seq: number }>(
+                      `/expert/projects/${projectId}/focus-hint`,
+                      { supplierId: activeSupplier, ...target },
+                    );
+                    // 轮询 ACK：4 次 × 2s = 8s 窗口
+                    let acked = false;
+                    for (let i = 0; i < 4; i++) {
+                      await new Promise(r => setTimeout(r, 2000));
+                      try {
+                        const ack = await api.get<{ acked: boolean }>(
+                          `/expert/projects/${projectId}/focus-hint/ack?seq=${res.seq}`,
+                        );
+                        if (ack?.acked) { acked = true; break; }
+                      } catch { /* 网络抖动 — 视为未确认，继续轮询 */ }
+                    }
+                    if (acked) {
+                      toast.success('平板已接收，请在平板上查看', { id: toastId });
+                    } else {
+                      toast.warning('未检测到平板接收，请确认平板已登录同一账号并打开评审页', { id: toastId });
+                    }
                   } catch {
-                    toast.error('发送到平板失败，请重试');
+                    toast.error('发送到平板失败，请重试', { id: toastId });
                   }
                 }}
                 scores={scores}

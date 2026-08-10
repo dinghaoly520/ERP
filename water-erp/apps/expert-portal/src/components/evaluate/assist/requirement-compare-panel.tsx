@@ -43,8 +43,7 @@ const STATUS_CFG: Record<string, { label: string; c: string; icon: any }> = {
   not_found: { label: '未提及', c: 'var(--muted-foreground)', icon: AlertCircle },
 };
 
-const VERDICT_CFG: { key: 'ack' | 'dispute' | 'doubt'; label: string; activeCls: string; activeBg: string }[] = [
-  { key: 'ack', label: '认可', activeCls: 'is-success', activeBg: '!bg-[oklch(0.96_0.05_164/0.5)]' },
+const VERDICT_CFG: { key: 'dispute' | 'doubt'; label: string; activeCls: string; activeBg: string }[] = [
   { key: 'dispute', label: '异议', activeCls: 'is-danger', activeBg: '!bg-[oklch(0.96_0.05_27/0.5)]' },
   { key: 'doubt', label: '存疑', activeCls: 'is-warning', activeBg: '!bg-[oklch(0.96_0.05_83/0.5)]' },
 ];
@@ -452,10 +451,11 @@ export function RequirementComparePanel({
                         setAiRevealed((p) => ({ ...p, [selectedItem.id]: true }));
                       }, 900 + Math.random() * 500);
                     }}
-                    className="neu-btn-xs !gap-1 !text-[11px]"
+                    className="neu-btn-xs justify-center !px-2 !py-1.5 !text-[11px]"
+                    style={{ width: 'calc(50% - 3px)' }}
                     title="查看 AI 对本条款的判断（仅供参考）"
                   >
-                    <Sparkles size={12} /> 查看 AI 判断
+                    查看
                   </button>
                 ) : (
                   <div>
