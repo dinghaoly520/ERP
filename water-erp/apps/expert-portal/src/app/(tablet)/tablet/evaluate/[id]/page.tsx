@@ -528,6 +528,7 @@ export default function TabletEvaluatePage() {
                       if (passFail) {
                         const verdict = val?.passed;
                         const pfPoints = (item.points ?? []).map(p => ({ id: p.id, name: p.name, fullScore: p.fullScore, objective: p.objective, evidenceHint: p.evidenceHint, seq: p.seq }));
+                        const hasPoints = pfPoints.length > 0;
                         // effective value: stored points → passed fallback → default unchecked
                         const pfValueMap: Record<string, PointDecisionValue> = {};
                         for (const pt of pfPoints) {
@@ -536,42 +537,50 @@ export default function TabletEvaluatePage() {
                           else if (verdict === true) pfValueMap[pt.id] = { checked: true, awardedScore: Number(pt.fullScore) };
                           else pfValueMap[pt.id] = { checked: false, awardedScore: 0 };
                         }
-                        const setAllPoints = (checked: boolean) => {
-                          const points: Record<string, PointDecisionValue> = {};
-                          for (const pt of pfPoints) points[pt.id] = { checked, awardedScore: checked ? Number(pt.fullScore) : 0 };
-                          setScores(prev => ({ ...prev, [k]: { ...prev[k], score: 0, reason: prev[k]?.reason || '', passed: checked, points } }));
-                        };
                         return (
                           <div
                             key={item.id}
                             data-score-item={item.id}
                             className={`rounded-[14px] bg-[oklch(1_0_0/0.55)] p-3 transition ${flashItemId === item.id ? '!bg-[oklch(0.96_0.06_71/0.5)] shadow-[0_0_0_2px_var(--warning)] animate-pulse' : ''}`}
                           >
-                            <h4 className="mb-2.5 text-sm font-bold text-[var(--foreground)]">
-                              {item.name}
-                            </h4>
-                            <div className="flex items-center gap-2.5">
-                              {[
-                                { v: true, label: '通过' },
-                                { v: false, label: '不通过' },
-                              ].map(opt => {
-                                const selected = verdict === opt.v;
-                                return (
-                                  <button
-                                    key={String(opt.v)}
-                                    type="button"
-                                    disabled={readOnly}
-                                    onClick={() => setAllPoints(opt.v)}
-                                    className={`${selected ? 'neu-btn-primary' : 'neu-btn-soft'} ${opt.v ? 'is-success' : 'is-danger'} !h-12 flex-1`}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                );
-                              })}
+                            <div className="mb-2.5 flex items-center justify-between gap-2">
+                              <h4 className="text-sm font-bold text-[var(--foreground)]">
+                                {item.name}
+                              </h4>
+                              {hasPoints && (
+                                <span className={`shrink-0 text-xs font-bold ${verdict === true ? 'text-[var(--success)]' : verdict === false ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
+                                  {verdict === true ? '✓ 通过' : verdict === false ? '✗ 不通过' : '未评'}
+                                </span>
+                              )}
                             </div>
-                            {/* 得分点分条 checklist（有 points 时展示） */}
-                            {pfPoints.length > 0 && (
-                              <div className="mt-2.5">
+                            {!hasPoints && (
+                              <div className="flex items-center gap-2.5">
+                                {[
+                                  { v: true, label: '通过' },
+                                  { v: false, label: '不通过' },
+                                ].map(opt => {
+                                  const selected = verdict === opt.v;
+                                  return (
+                                    <button
+                                      key={String(opt.v)}
+                                      type="button"
+                                      disabled={readOnly}
+                                      onClick={() =>
+                                        setScores(prev => ({
+                                          ...prev,
+                                          [k]: { score: 0, reason: prev[k]?.reason || '', passed: opt.v },
+                                        }))
+                                      }
+                                      className={`${selected ? 'neu-btn-primary' : 'neu-btn-soft'} ${opt.v ? 'is-success' : 'is-danger'} !h-12 flex-1`}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {hasPoints && (
+                              <div>
                                 <PointChecklistScoring
                                   points={pfPoints}
                                   value={pfValueMap}
@@ -599,7 +608,7 @@ export default function TabletEvaluatePage() {
                                   const v = e.target.value;
                                   setScores(prev => ({
                                     ...prev,
-                                    [k]: { score: 0, reason: v, passed: false },
+                                    [k]: { score: 0, reason: v, passed: false, points: prev[k]?.points },
                                   }));
                                 }}
                                 disabled={readOnly}

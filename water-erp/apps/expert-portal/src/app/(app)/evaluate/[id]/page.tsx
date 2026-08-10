@@ -1585,6 +1585,7 @@ export default function ExpertEvaluatePage() {
                               if (passFail) {
                                 const verdict = val?.passed;
                                 const pfPoints = (item.points ?? []).map(p => ({ id: p.id, name: p.name, fullScore: p.fullScore, objective: p.objective, evidenceHint: p.evidenceHint, seq: p.seq }));
+                                const hasPoints = pfPoints.length > 0;
                                 // effective value: stored points → passed fallback → default unchecked
                                 const pfValueMap: Record<string, PointDecisionValue> = {};
                                 for (const pt of pfPoints) {
@@ -1593,29 +1594,31 @@ export default function ExpertEvaluatePage() {
                                   else if (verdict === true) pfValueMap[pt.id] = { checked: true, awardedScore: Number(pt.fullScore) };
                                   else pfValueMap[pt.id] = { checked: false, awardedScore: 0 };
                                 }
-                                // 批量勾选辅助
-                                const setAllPoints = (checked: boolean) => {
-                                  const points: Record<string, PointDecisionValue> = {};
-                                  for (const pt of pfPoints) points[pt.id] = { checked, awardedScore: checked ? Number(pt.fullScore) : 0 };
-                                  setScores(prev => ({ ...prev, [k]: { ...prev[k], score: 0, reason: prev[k]?.reason || '', passed: checked, points } }));
-                                };
                                 return (
                                   <div key={item.id} data-score-item={item.id} className={`neu-card-static !rounded-[14px] p-4 ${reasonMissing ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.7),2px_2px_6px_oklch(0.55_0.03_258/0.1),-2px_-2px_6px_oklch(1_0_0/0.8),inset_0_0_0_1.5px_color-mix(in_oklch,var(--danger)_55%,transparent)]' : ''}`}>
-                                    <h4 className="mb-3 font-semibold text-[var(--foreground)]">{item.name}</h4>
-                                    <div className="mb-3 flex items-center gap-3">
-                                      <button type="button"
-                                        onClick={() => setAllPoints(true)}
-                                        className={`neu-btn-soft is-success ${verdict === true ? '!bg-[oklch(0.96_0.05_164/0.5)]' : ''}`}>
-                                        {verdict === true && <Check size={14} strokeWidth={2.5} />}通过
-                                      </button>
-                                      <button type="button"
-                                        onClick={() => setAllPoints(false)}
-                                        className={`neu-btn-soft is-danger ${verdict === false ? '!bg-[oklch(0.96_0.05_27/0.5)]' : ''}`}>
-                                        {verdict === false && <X size={14} strokeWidth={2.5} />}不通过
-                                      </button>
+                                    <div className="mb-3 flex items-center justify-between">
+                                      <h4 className="font-semibold text-[var(--foreground)]">{item.name}</h4>
+                                      {hasPoints ? (
+                                        <span className={`text-sm font-bold ${verdict === true ? 'text-[var(--success)]' : verdict === false ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}`}>
+                                          {verdict === true ? '✓ 通过' : verdict === false ? '✗ 不通过' : '未评'}
+                                        </span>
+                                      ) : null}
                                     </div>
-                                    {/* 得分点分条 checklist（有 points 时展示） */}
-                                    {pfPoints.length > 0 && (
+                                    {!hasPoints && (
+                                      <div className="mb-3 flex items-center gap-3">
+                                        <button type="button"
+                                          onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: true } }))}
+                                          className={`neu-btn-soft is-success ${verdict === true ? '!bg-[oklch(0.96_0.05_164/0.5)]' : ''}`}>
+                                          {verdict === true && <Check size={14} strokeWidth={2.5} />}通过
+                                        </button>
+                                        <button type="button"
+                                          onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: false } }))}
+                                          className={`neu-btn-soft is-danger ${verdict === false ? '!bg-[oklch(0.96_0.05_27/0.5)]' : ''}`}>
+                                          {verdict === false && <X size={14} strokeWidth={2.5} />}不通过
+                                        </button>
+                                      </div>
+                                    )}
+                                    {hasPoints && (
                                       <div className="mb-3">
                                         <PointChecklistScoring
                                           points={pfPoints}
@@ -1637,7 +1640,7 @@ export default function ExpertEvaluatePage() {
                                         onBlur={onReasonBlur}
                                         onChange={e => {
                                           const v = e.target.value;
-                                          setScores(prev => ({ ...prev, [k]: { score: 0, reason: v, passed: false } }));
+                                          setScores(prev => ({ ...prev, [k]: { score: 0, reason: v, passed: false, points: prev[k]?.points } }));
                                           if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                         }}
                                         className="neu-input !min-h-[64px] !text-sm"
