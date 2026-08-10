@@ -15,6 +15,7 @@ import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 
 // 与 (app) evaluate 页面一致的 score 条目结构（精简版，不含 passed/points 之外的 UI 态）
 type ScoreEntry = {
@@ -136,6 +137,14 @@ export default function TabletEvaluatePage() {
   }, [projectId, router]);
 
   useEffect(() => { loadProject(); }, [loadProject]);
+
+  // WS 实时同步：其他专家提交评分后自动刷新
+  useExpertWebSocket(projectId, {
+    onScoresSubmitted: (d) => {
+      if (project?.myExpertRecord?.id && d.expertId === project.myExpertRecord.id) return;
+      loadProject();
+    },
+  });
 
   // ── 草稿：项目加载后检查本地草稿；无本地则 fallback 服务端草稿（跨设备恢复）──
   useEffect(() => {

@@ -33,6 +33,7 @@ import {
   type OpeningDisputeResolvedPayload,
   type OpeningCompletedPayload,
   type RoundStatusChangePayload,
+  type ScoresSubmittedPayload,
 } from '@water-erp/shared';
 
 /** Roles that may see individual presence / supervision / anomalies (command center). */
@@ -414,5 +415,11 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // H2: 轮次状态变更广播——project 房间（所有参与者）
   notifyRoundStatusChange(projectId: string, payload: RoundStatusChangePayload) {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.ROUND_STATUS_CHANGE, payload);
+  }
+
+  /** 评分提交里程碑：广播到专家房（所有本项目专家），不含分数值 */
+  notifyScoresSubmitted(projectId: string, expertId: string, supplierId: string) {
+    const payload: ScoresSubmittedPayload = { projectId, expertId, supplierId, timestamp: Date.now() };
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.SCORES_SUBMITTED, payload);
   }
 }

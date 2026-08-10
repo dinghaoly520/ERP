@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import type { ConnectionState, ExpertPresenceAggregatePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload } from '@water-erp/shared';
+import type { ConnectionState, ExpertPresenceAggregatePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload } from '@water-erp/shared';
 import { BID_EVENT } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 
@@ -22,6 +22,8 @@ interface Handlers {
   onHallMessage?: (d: HallMessagePayload) => void;
   /** G1: 重连后回调——组件可执行全量数据刷新补偿丢失的事件 */
   onReconnected?: () => void;
+  /** 评分提交通知（不含分数值）——同项目其他专家提交了评分，接收端自行刷新 */
+  onScoresSubmitted?: (d: ScoresSubmittedPayload) => void;
 }
 
 export function useExpertWebSocket(projectId: string | undefined, handlers: Handlers) {
@@ -53,6 +55,7 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     on(BID_EVENT.CLARIFICATION_REPLIED, 'onClarificationReplied');
     on(BID_EVENT.BID_VALIDITY_CHANGE, 'onBidValidityChange');
     on(BID_EVENT.HALL_MESSAGE_NEW, 'onHallMessage');
+    on(BID_EVENT.SCORES_SUBMITTED, 'onScoresSubmitted');
   }
 
   const clearHeartbeatTimers = useCallback(() => {

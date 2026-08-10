@@ -32,6 +32,7 @@ import { UpdateAgreementsDto } from './dto/update-agreements.dto';
 import { CreateMemoDto } from './dto/create-memo.dto';
 import { UpdateMemoDto } from './dto/update-memo.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { BidGateway } from '../bid/bid.gateway';
 import { Public } from '../common/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { UseGuards } from '@nestjs/common';
@@ -45,6 +46,7 @@ export class ExpertController {
     private expertAdminService: ExpertAdminService,
     private memoService: ExpertMemoService,
     private prisma: PrismaService,
+    private bidGateway: BidGateway,
   ) {}
 
   /* ── 个人资料 ── */
@@ -309,12 +311,21 @@ export class ExpertController {
     summary: '提交评分（按供应商批量）',
     description: '每次调用提交一个供应商的全部评分项。**需提交全部 5 类评分项**（含资格性审查/符合性审查，可打 0 分）方可达到 progress=100% 并确认报告。supplierName 为供应商企业全称，scores 数组中每项包含 scoreItemId/supplierId/score/reason。',
   })
-  submitScores(
+  async submitScores(
     @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Body() dto: BatchScoreDto,
   ) {
-    return this.expertService.submitScores(userId, projectId, dto);
+    const result = await this.expertService.submitScores(userId, projectId, dto);
+    // WS 广播评分提交里程碑（不含分数值）→ 同项目其他专家端自行刷新
+    try {
+      const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+      const supplierId = dto.scores?.[0]?.supplierId;
+      if (expert && supplierId) {
+        this.bidGateway.notifyScoresSubmitted(projectId, expert.id, supplierId);
+      }
+    } catch { /* WS 非关键路径——静默降级 */ }
+    return result;
   }
 
   @Get('projects/:projectId/my-scores')

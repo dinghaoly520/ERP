@@ -60,6 +60,10 @@ export function RequirementComparePanel({
   onGoScoring,
   scores,
   onPointChange,
+  onPointNote,
+  pointMemoCounts,
+  selectedPointId,
+  onPointClick,
 }: {
   projectId: string;
   supplierId: string;
@@ -80,6 +84,12 @@ export function RequirementComparePanel({
   onPointChange?: (scoreItemId: string, pointId: string, value: PointDecisionValue) => void;
   /** 得分点级批注回调（写 points[pointId].note 草稿） */
   onPointNote?: (scoreItemId: string, pointId: string, note: string) => void;
+  /** 批注角标计数（pointId → 批注条数）——平板/桌面统一批注系统 */
+  pointMemoCounts?: Record<string, number>;
+  /** 当前选中的得分点 id（高亮，联动备忘抽屉） */
+  selectedPointId?: string | null;
+  /** 点击得分点 → 选中并打开备忘抽屉 */
+  onPointClick?: (pointId: string, pointName: string) => void;
 }) {
   const [local, setLocal] = useState<Record<string, BidRequirementReview>>(
     () => Object.fromEntries(reviews.map((r) => [r.requirementId, r])),
@@ -608,7 +618,9 @@ export function RequirementComparePanel({
                                             value={valueMap}
                                             onChange={(pid, pv) => onPointChange?.(si.id, pid, pv)}
                                             compact
-                                            hideNotes
+                                            selectedPointId={selectedPointId}
+                                            onPointClick={onPointClick}
+                                            pointMemoCounts={pointMemoCounts}
                                           />
                                         )}
                                       </div>

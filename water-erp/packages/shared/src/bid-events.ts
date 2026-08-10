@@ -32,6 +32,8 @@ export const BID_EVENT = {
   OPENING_DISPUTE_RESOLVED: 'opening:dispute:resolved',
   OPENING_COMPLETED: 'opening:completed',
   ROUND_STATUS_CHANGE: 'round:status:change',
+  /** 评分已提交（不含分数值——仅里程碑通知，接收端自行刷新获取数据） */
+  SCORES_SUBMITTED: 'scores:submitted',
 } as const;
 
 // ── 载荷类型 ──
@@ -208,5 +210,13 @@ export interface RoundStatusChangePayload {
   roundId: string;
   roundNo: number;
   status: string; // open | sealed | published | closed
+  timestamp: number;
+}
+
+/** 评分已提交里程碑（不含分数值）。接收端自行 reload 获取数据。 */
+export interface ScoresSubmittedPayload {
+  projectId: string;
+  expertId: string;
+  supplierId: string;
   timestamp: number;
 }

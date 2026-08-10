@@ -156,6 +156,11 @@ export default function ExpertEvaluatePage() {
       });
       setUnreadMessageCount(prev => prev + 1);
     },
+    onScoresSubmitted: (d) => {
+      // 忽略自己的提交（避免重复刷新）
+      if (project?.myExpertRecord?.id && d.expertId === project.myExpertRecord.id) return;
+      loadProject();
+    },
   });
 
   const [documents, setDocuments] = useState<Record<string, DecryptedDocuments | null>>({});
@@ -1486,6 +1491,12 @@ export default function ExpertEvaluatePage() {
                 scores={scores}
                 onPointChange={handlePointChange}
                 onPointNote={handlePointNote}
+                pointMemoCounts={pointMemoCounts}
+                selectedPointId={activePointId}
+                onPointClick={(pid, pname) => {
+                  handlePointClickDesk(pid, pname);
+                  setMemoOpen(true);
+                }}
               />
             </div>
           )}
