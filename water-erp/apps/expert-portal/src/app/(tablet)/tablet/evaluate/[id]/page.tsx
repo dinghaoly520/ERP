@@ -12,7 +12,7 @@ import {
 import type { ExpertProjectDetail } from '@/lib/types';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
-import { PointChecklistScoring } from '@/components/evaluate/point-checklist-scoring';
+import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 
@@ -527,6 +527,20 @@ export default function TabletEvaluatePage() {
 
                       if (passFail) {
                         const verdict = val?.passed;
+                        const pfPoints = (item.points ?? []).map(p => ({ id: p.id, name: p.name, fullScore: p.fullScore, objective: p.objective, evidenceHint: p.evidenceHint, seq: p.seq }));
+                        // effective value: stored points → passed fallback → default unchecked
+                        const pfValueMap: Record<string, PointDecisionValue> = {};
+                        for (const pt of pfPoints) {
+                          const stored = val?.points?.[pt.id];
+                          if (stored) pfValueMap[pt.id] = stored;
+                          else if (verdict === true) pfValueMap[pt.id] = { checked: true, awardedScore: Number(pt.fullScore) };
+                          else pfValueMap[pt.id] = { checked: false, awardedScore: 0 };
+                        }
+                        const setAllPoints = (checked: boolean) => {
+                          const points: Record<string, PointDecisionValue> = {};
+                          for (const pt of pfPoints) points[pt.id] = { checked, awardedScore: checked ? Number(pt.fullScore) : 0 };
+                          setScores(prev => ({ ...prev, [k]: { ...prev[k], score: 0, reason: prev[k]?.reason || '', passed: checked, points } }));
+                        };
                         return (
                           <div
                             key={item.id}
@@ -547,12 +561,7 @@ export default function TabletEvaluatePage() {
                                     key={String(opt.v)}
                                     type="button"
                                     disabled={readOnly}
-                                    onClick={() =>
-                                      setScores(prev => ({
-                                        ...prev,
-                                        [k]: { score: 0, reason: prev[k]?.reason || '', passed: opt.v },
-                                      }))
-                                    }
+                                    onClick={() => setAllPoints(opt.v)}
                                     className={`${selected ? 'neu-btn-primary' : 'neu-btn-soft'} ${opt.v ? 'is-success' : 'is-danger'} !h-12 flex-1`}
                                   >
                                     {opt.label}
@@ -560,6 +569,28 @@ export default function TabletEvaluatePage() {
                                 );
                               })}
                             </div>
+                            {/* 得分点分条 checklist（有 points 时展示） */}
+                            {pfPoints.length > 0 && (
+                              <div className="mt-2.5">
+                                <PointChecklistScoring
+                                  points={pfPoints}
+                                  value={pfValueMap}
+                                  readOnly={readOnly}
+                                  compact
+                                  selectedPointId={activePointId}
+                                  onPointClick={handlePointClick}
+                                  onChange={(pid, pv) =>
+                                    setScores(prev => {
+                                      const cur = prev[k] ?? { score: 0, reason: '' };
+                                      const points = { ...(cur.points ?? pfValueMap), [pid]: pv };
+                                      const objectivePts = pfPoints.filter(p => p.objective);
+                                      const allChecked = objectivePts.length > 0 && objectivePts.every(p => points[p.id]?.checked === true);
+                                      return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: allChecked } };
+                                    })
+                                  }
+                                />
+                              </div>
+                            )}
                             {verdict === false && (
                               <textarea
                                 placeholder="不通过理由（必填）"
