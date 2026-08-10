@@ -59,6 +59,13 @@ export function MemoPanel({
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   // 删除备忘二次确认弹窗：存待删备忘 id
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  // 切换得分点时未保存内容确认：存待保存的旧得分点上下文
+  const [switchConfirm, setSwitchConfirm] = useState<{
+    prevSupplierId: string | undefined;
+    prevScorePointId: string | undefined;
+    prevScoreItemId: string | undefined;
+    dataURL: string;
+  } | null>(null);
   const [currentColor, setCurrentColor] = useState('#000000');
   const [currentWeight, setCurrentWeight] = useState(6);
   const [eraseMode, setEraseMode] = useState(false);
@@ -72,6 +79,8 @@ export function MemoPanel({
   const pendingBlob = useRef<Blob | null>(null);
   // 得分点 → 墨迹缓存（strokes 矢量 + blob 位图）。恢复优先用 strokes（支持全屏矢量转移）
   const inkCache = useRef<Map<string, { strokes: Stroke[]; blob: Blob }>>(new Map());
+  // 画布脏标记（用户画了新内容但未保存）—— 切换得分点时用此判断是否需要提示保存
+  const canvasDirtyRef = useRef(false);
   // memos 列表的 ref 镜像，供异步闭包读取最新值（避免 stale closure）
   const memosRef = useRef<ExpertMemo[]>([]);
   useEffect(() => { memosRef.current = memos; }, [memos]);
@@ -102,13 +111,49 @@ export function MemoPanel({
     }
   }, [scorePointId, memos.length, onMemoCountChange]);
 
-  // 切换（供应商, 得分点）→ 清屏 + 恢复新得分点墨迹
-  const prevRef = useRef({ supplierId, scorePointId });
+  // 切换（供应商, 得分点）→ 检查未保存内容 → 清屏 + 恢复新得分点墨迹（自动加载最新一条）
+  const prevRef = useRef({ supplierId, scorePointId, scoreItemId });
   const switchToken = useRef(0);
+  const switchGuardRef = useRef(false); // 防止等待用户确认期间 effect 重入
+
+  /** 恢复指定得分点的墨迹到画布（优先缓存，兜底 API 取最新一条） */
+  const restorePointInk = useCallback(async (token: number, key: string, sid: string | undefined, spid: string | undefined) => {
+    const c = activeCanvas();
+    if (!c || mode !== 'handwriting' || !spid) return;
+    const cached = inkCache.current.get(key);
+    if (cached?.strokes.length) {
+      c.restoreStrokes(cached.strokes);
+      canvasDirtyRef.current = false;
+      return;
+    }
+    if (cached?.blob) {
+      await c.restoreBlob(cached.blob);
+      canvasDirtyRef.current = false;
+      return;
+    }
+    // API 兜底：取最新一条 ink 备忘
+    try {
+      const list = await listMemos(projectId, sid, spid, scoreItemId);
+      if (switchToken.current !== token) return;
+      const latestInk = list.find(m => m.inkFileId);
+      if (latestInk?.inkFileId) {
+        const { url } = await getMemoInkUrl(projectId, latestInk.id);
+        const res = await fetch(url);
+        if (res.ok) {
+          const blob = await res.blob();
+          inkCache.current.set(key, { strokes: [], blob });
+          if (switchToken.current === token) {
+            await c.restoreBlob(blob);
+            canvasDirtyRef.current = false;
+          }
+        }
+      }
+    } catch { /* restore silent */ }
+  }, [mode, projectId, scoreItemId]);
+
   useEffect(() => {
     const prev = prevRef.current;
-    const cur = { supplierId, scorePointId };
-    prevRef.current = cur;
+    const cur = { supplierId, scorePointId, scoreItemId };
     const prevKey = `${prev.supplierId}:${prev.scorePointId}`;
     const curKey = `${cur.supplierId}:${cur.scorePointId}`;
     if (prevKey === curKey) {
@@ -121,39 +166,74 @@ export function MemoPanel({
       }
       return;
     }
+    // 防止等待用户确认期间重入
+    if (switchGuardRef.current) return;
+
+    // 检查是否有未保存的手写内容
+    const c = activeCanvas();
+    if (mode === 'handwriting' && c && !c.isEmpty() && canvasDirtyRef.current) {
+      // 拦截切换 → 弹确认框
+      switchGuardRef.current = true;
+      const dataURL = c.captureDataURL();
+      setSwitchConfirm({
+        prevSupplierId: prev.supplierId,
+        prevScorePointId: prev.scorePointId,
+        prevScoreItemId: prev.scoreItemId,
+        dataURL,
+      });
+      return;
+    }
+
+    // 正常切换
+    prevRef.current = cur;
+    canvasDirtyRef.current = false;
+    const token = ++switchToken.current;
+    c?.clear();
+    restorePointInk(token, curKey, cur.supplierId, cur.scorePointId).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scorePointId, supplierId]);
+
+  /** 切换确认：保存到旧得分点 → 继续切换 */
+  const handleSwitchSave = async () => {
+    if (!switchConfirm) return;
+    const { prevSupplierId, prevScorePointId, prevScoreItemId, dataURL } = switchConfirm;
+    try {
+      const blob = await (await fetch(dataURL)).blob();
+      await createMemo(projectId, {
+        inkBlob: blob,
+        sourceDevice: `${sourceDevice}_handwriting`,
+        supplierId: prevSupplierId,
+        scoreItemId: prevScoreItemId,
+        scorePointId: prevScorePointId,
+      });
+      if (prevScorePointId) inkCache.current.set(`${prevSupplierId}:${prevScorePointId}`, { strokes: [], blob });
+      toast.success('手写内容已保存');
+      await load();
+    } catch { toast.error('保存失败'); }
+    // 继续切换
+    finishSwitch();
+  };
+
+  /** 切换确认：丢弃 → 继续切换 */
+  const handleSwitchDiscard = () => {
+    toast.info('已丢弃未保存内容');
+    finishSwitch();
+  };
+
+  /** 完成被拦截的切换 */
+  const finishSwitch = () => {
+    if (!switchConfirm) return;
+    setSwitchConfirm(null);
+    switchGuardRef.current = false;
+    const cur = { supplierId, scorePointId, scoreItemId };
+    prevRef.current = cur;
+    canvasDirtyRef.current = false;
+    const curKey = `${cur.supplierId}:${cur.scorePointId}`;
     const token = ++switchToken.current;
     const c = activeCanvas();
     c?.clear();
-
-    // 恢复新得分点墨迹
-    (async () => {
-      if (switchToken.current !== token) return;
-      if (mode === 'handwriting' && scorePointId) {
-        const cached = inkCache.current.get(curKey);
-        if (cached?.strokes.length) {
-          c?.restoreStrokes(cached.strokes);
-        } else if (cached?.blob) {
-          await c?.restoreBlob(cached.blob);
-        } else {
-          // API 兜底
-          try {
-            const list = await listMemos(projectId, supplierId, scorePointId, scoreItemId);
-            const latestInk = list.find(m => m.inkFileId);
-            if (latestInk?.inkFileId) {
-              const { url } = await getMemoInkUrl(projectId, latestInk.id);
-              const res = await fetch(url);
-              if (res.ok) {
-                const blob = await res.blob();
-                inkCache.current.set(curKey, { strokes: [], blob });
-                if (switchToken.current === token) await c?.restoreBlob(blob);
-              }
-            }
-          } catch { /* restore silent */ }
-        }
-      }
-    })().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scorePointId, supplierId]);
+    restorePointInk(token, curKey, cur.supplierId, cur.scorePointId).catch(() => {});
+  };
 
   // 全屏 vs 内嵌 的缩放比例：坐标 0.4（字占左上角），笔触 0.45（视觉粗细一致）
   // 互逆：进全屏 *0.4/*0.45，出全屏 *2.5/*2.222 还原
@@ -234,6 +314,7 @@ export function MemoPanel({
         // 更新本地缓存（复合键：供应商+得分点）
         if (scorePointId) inkCache.current.set(`${supplierId}:${scorePointId}`, { strokes, blob });
         c?.clear();
+        canvasDirtyRef.current = false;
       } else {
         const trimmed = text.trim();
         if (!trimmed) { toast.warning('请输入备忘内容'); return; }
@@ -409,6 +490,7 @@ export function MemoPanel({
           </button>
         </div>
         <AtramentCanvas ref={fullscreenCanvasRef} width={800} height={560} fillContainer
+          onDirtyChange={(d) => { canvasDirtyRef.current = d; }}
           className="min-h-0 flex-1 !rounded-none"
           onNonPenHint={() => toast.info('手写模式请使用触控笔')} />
       </div>,
@@ -430,6 +512,7 @@ export function MemoPanel({
         danger
         onConfirm={() => {
           activeCanvas()?.clear();
+          canvasDirtyRef.current = false;
           setClearConfirmOpen(false);
         }}
         onCancel={() => setClearConfirmOpen(false)}
@@ -447,6 +530,15 @@ export function MemoPanel({
           if (id) await handleDelete(id);
         }}
         onCancel={() => setDeleteTargetId(null)}
+      />
+      <ConfirmDialog
+        open={switchConfirm !== null}
+        title="当前手写内容未保存"
+        message="切换得分点将丢失未保存的手写内容，是否先保存？"
+        confirmText="保存"
+        cancelText="不保存"
+        onConfirm={() => void handleSwitchSave()}
+        onCancel={() => handleSwitchDiscard()}
       />
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-[var(--foreground)]">
@@ -478,7 +570,7 @@ export function MemoPanel({
                 {/* 工具栏（略缩页：去缩放，清屏占位） */}
                 {renderToolbar({ zoom: false })}
                 <div className="relative select-none [-webkit-touch-callout:none]" onContextMenu={e => e.preventDefault()}>
-                  <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} onNonPenHint={() => toast.info('手写模式请使用触控笔')} />
+                  <AtramentCanvas ref={inlineCanvasRef} height={compact ? 260 : 420} onNonPenHint={() => toast.info('手写模式请使用触控笔')} onDirtyChange={(d) => { canvasDirtyRef.current = d; }} />
                   <button type="button" onClick={enterFullscreen}
                     className="neu-btn-xs is-square absolute right-2 top-2 !h-10 !w-10"
                     title="全屏手写">
