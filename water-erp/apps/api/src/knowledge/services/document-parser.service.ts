@@ -87,6 +87,26 @@ export class DocumentParserService {
     // If we have enough text per page, it's likely a native PDF (not scanned)
     // Use this text directly for more accurate field extraction
     if (charsPerPage >= MIN_CHARS_PER_PAGE) {
+      // 字符密度达标，但嵌入式字体 ToUnicode 映射缺失时 pdf-parse 会产生 U+FFFD 替换字符（中文丢字）。
+      // 检测到乱码则回退 OCR（若可用）以恢复正确文本
+      if (this.hasGarbledText(text)) {
+        this.logger.warn(
+          `pdf-parse text contains replacement chars (U+FFFD) — font ToUnicode likely missing, trying OCR recovery`,
+        );
+        if (await this.ocrService.isAvailable()) {
+          try {
+            const ocrResult = await this.ocrService.ocrPdf(buffer);
+            if (ocrResult.text.trim() && !this.hasGarbledText(ocrResult.text)) {
+              this.logger.log(
+                `OCR recovered ${ocrResult.text.length} chars, replacing garbled pdf-parse output`,
+              );
+              return ocrResult.text;
+            }
+          } catch (err) {
+            this.logger.warn(`OCR recovery failed: ${err}`);
+          }
+        }
+      }
       this.logger.log('Using pdf-parse text (native PDF detected)');
       return text;
     }
@@ -141,7 +161,21 @@ export class DocumentParserService {
     this.logger.log(
       `pdf-parse extracted ${text.length} chars from ${data.numpages || 1} pages`,
     );
+    if (this.hasGarbledText(text)) {
+      this.logger.warn(
+        `pdf-parse fallback contains replacement chars (U+FFFD) — OCR service unavailable, extracted text may have missing Chinese characters`,
+      );
+    }
     return text;
+  }
+
+  /**
+   * 检测文本是否含 pdf-parse 字体映射缺失产生的替换字符（U+FFFD）。
+   * 嵌入式子集字体若无 ToUnicode CMap，个别中文会被替换为 U+FFFD（渲染为 � 或 ???），
+   * 此类乱码应触发 OCR 回退或在 AI 摘要阶段由上下文还原。
+   */
+  private hasGarbledText(text: string): boolean {
+    return text.includes('�') || /\?{3,}/.test(text);
   }
 
   private async parseDoc(buffer: Buffer): Promise<string> {

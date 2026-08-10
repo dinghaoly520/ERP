@@ -580,10 +580,10 @@ export function ProjectDetailPanel({
 
   // 文件分析：组件挂载或切换阶段时加载（使用缓存）
   // 上传后的分析由 uploadStageFiles 直接调用，避免 useEffect 竞态
-  const loadAnalysis = useCallback(() => {
+  const loadAnalysis = useCallback((refresh = false) => {
     setAnalysisLoading(true);
     setAnalysisError(null);
-    analyzeProjectManagementItem(item.id, selectedStage.stageKey)
+    analyzeProjectManagementItem(item.id, selectedStage.stageKey, refresh)
       .then((nextAnalysis) => { setAnalysis(nextAnalysis); })
       .catch((error) => { setAnalysisError(error instanceof Error ? error.message : 'AI 分析暂不可用。'); })
       .finally(() => { setAnalysisLoading(false); });
@@ -1652,7 +1652,7 @@ export function ProjectDetailPanel({
                   <button
                     type="button"
                     disabled={analysisLoading || stageLocked || stageFileAnalysis.length === 0}
-                    onClick={() => { loadAnalysis(); }}
+                    onClick={() => { loadAnalysis(true); }}
                     className="neu-btn-xs is-info"
                   >
                     <RefreshCw size={12} className={analysisLoading ? 'animate-spin' : ''} />重新分析

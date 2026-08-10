@@ -32,16 +32,16 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 const PROMPT_TEMPLATE = `【项目概况】
-（描述项目名称、建设地点、规模、投资概算）
+（点明采购事项及所属行业领域，作为供应商寻源的方向参照）
 
 【采购范围】
-（本次采购的具体范围和工作内容）
+（说明需要供应商提供什么、其经营范围应覆盖哪些业务）
 
 【资质要求】
-（需要供应商具备的资质，如：建筑工程施工总承包一级、水利行业甲级等）
+（供应商应具备的企业类型、行业资质、业绩门槛、技术能力）
 
 【特殊要求】
-（工期要求、质量等级、环保要求、业绩门槛等）`;
+（对供应商的服务响应、交付周期、质保等能力要求）`;
 
 // 向导步骤定义 — 从项目管理进入且为竞争性谈判时，确认通知后插入「附件选择」
 const STEPS = [
@@ -162,6 +162,9 @@ function BusinessTagsPicker({
       )}
 
       {/* ── 第三层：可选词表（内凹滚动区）── */}
+      {!hasVocab && (
+        <p className="px-3 pb-3 text-[10px] leading-5 text-[var(--muted-foreground)]">暂无可选业务标签——供应商标签词表为空，请在「供应商管理」中先回填业务标签。</p>
+      )}
       {hasVocab && (
         <div className="px-3 pb-3">
           {showCustomAdd && (
@@ -249,7 +252,7 @@ export function SupplierSelectionPage({
   const [notifySending, setNotifySending] = useState(false);
   const [notifyActiveSupplier, setNotifyActiveSupplier] = useState<string>('');
   // 逐供应商个性化消息（key=sid, value={title,body}）。缺失时回退到模板。
-  const [notifyPerSupplier, setNotifyPerSupplier] = useState<Map<string, { title: string; body: string }>>(new Map());
+  const [notifyPerSupplier, setNotifyPerSupplier] = useState<Map<string, { title: string; body: string; phoneScript: string }>>(new Map());
   // 逐家无登录回执链接（RSVP）：generateNotificationContent 返回，{rsvpLink} 占位符替换源 + 发送时作站内信 link。
   const [notifyRsvpTokens, setNotifyRsvpTokens] = useState<Record<string, string>>({});
   // 回执看板（采购端查看供应商「参加/不参加」回执结果）
@@ -267,7 +270,7 @@ export function SupplierSelectionPage({
   const baseConfirmStep = neg ? 6 : 5;
   const attachStep = neg ? 5 : -1;
   // 多轮补选累积数据（须在动态步骤编号前声明）
-  const [rerunHistory, setRerunHistory] = useState<Array<{ shortlist: Map<string, { item: SupplierRecommendation; note: string }>; confirmations: Map<string, 'pending' | 'confirmed' | 'declined'>; notifyPerSupplier: Map<string, { title: string; body: string }> }>>([]);
+  const [rerunHistory, setRerunHistory] = useState<Array<{ shortlist: Map<string, { item: SupplierRecommendation; note: string }>; confirmations: Map<string, 'pending' | 'confirmed' | 'declined'>; notifyPerSupplier: Map<string, { title: string; body: string; phoneScript: string }> }>>([]);
   const previousRerunShortlist = useMemo(() => {
     const m = new Map<string, { item: SupplierRecommendation; note: string }>();
     for (const h of rerunHistory) { for (const [k, v] of h.shortlist) m.set(k, v); }
@@ -407,7 +410,7 @@ export function SupplierSelectionPage({
   const [rerunManualSuppliers, setRerunManualSuppliers] = useState<Supplier[]>([]);
   const [showRerunManualAdd, setShowRerunManualAdd] = useState(false);
   const [rerunManualLoading, setRerunManualLoading] = useState(false);
-  const [rerunNotifyPerSupplier, setRerunNotifyPerSupplier] = useState<Map<string, { title: string; body: string }>>(new Map());
+  const [rerunNotifyPerSupplier, setRerunNotifyPerSupplier] = useState<Map<string, { title: string; body: string; phoneScript: string }>>(new Map());
   const [rerunNotified, setRerunNotified] = useState(false);
   const [rerunConfirmations, setRerunConfirmations] = useState<Map<string, 'pending' | 'confirmed' | 'declined'>>(new Map());
   const [rerunNotifySending, setRerunNotifySending] = useState(false);
@@ -522,7 +525,7 @@ export function SupplierSelectionPage({
     setDetailLoading(false);
   };
 
-  useEffect(() => { listBidProjects().then(setProjects).catch(() => {}); getTagVocabulary(60).then(r => setTagVocab(r.items)).catch(() => {}); }, []);
+  useEffect(() => { listBidProjects().then(setProjects).catch(() => {}); getTagVocabulary(60).then(r => setTagVocab(r.items)).catch((e) => { console.warn('getTagVocabulary failed:', e); }); }, []);
 
   // 从项目管理弹窗进入时，自动将 projectId 解析为 BidProject id（规范 id 空间），
   // 确保 rsvp 行的创建/读取与开标确认面板始终一致。
@@ -572,8 +575,8 @@ export function SupplierSelectionPage({
           setShortlist(m);
         }
         if (state.notifyPerSupplierArr) {
-          const m = new Map<string, { title: string; body: string }>();
-          (state.notifyPerSupplierArr as [string, { title: string; body: string }][]).forEach(([k, v]) => m.set(k, v));
+          const m = new Map<string, { title: string; body: string; phoneScript: string }>();
+          (state.notifyPerSupplierArr as [string, { title: string; body: string; phoneScript: string }][]).forEach(([k, v]) => m.set(k, v));
           setNotifyPerSupplier(m);
         }
         if (state.notifyRsvpTokens) setNotifyRsvpTokens(state.notifyRsvpTokens);
@@ -589,8 +592,8 @@ export function SupplierSelectionPage({
             (h.shortlistArr as [string, any][]).forEach(([k, v]) => sl.set(k, v));
             const cm = new Map<string, 'pending' | 'confirmed' | 'declined'>();
             (h.confirmationsArr as [string, string][]).forEach(([k, v]) => cm.set(k, v as 'pending' | 'confirmed' | 'declined'));
-            const nps = new Map<string, { title: string; body: string }>();
-            if (Array.isArray(h.notifyPerSupplierArr)) (h.notifyPerSupplierArr as [string, { title: string; body: string }][]).forEach(([k, v]) => nps.set(k, v));
+            const nps = new Map<string, { title: string; body: string; phoneScript: string }>();
+            if (Array.isArray(h.notifyPerSupplierArr)) (h.notifyPerSupplierArr as [string, { title: string; body: string; phoneScript: string }][]).forEach(([k, v]) => nps.set(k, v));
             return { shortlist: sl, confirmations: cm, notifyPerSupplier: nps };
           }));
         }
@@ -607,8 +610,8 @@ export function SupplierSelectionPage({
           setRerunConfirmations(cm);
         }
         if (state.rerunNotifyPerSupplierArr) {
-          const m = new Map<string, { title: string; body: string }>();
-          (state.rerunNotifyPerSupplierArr as [string, { title: string; body: string }][]).forEach(([k, v]) => m.set(k, v));
+          const m = new Map<string, { title: string; body: string; phoneScript: string }>();
+          (state.rerunNotifyPerSupplierArr as [string, { title: string; body: string; phoneScript: string }][]).forEach(([k, v]) => m.set(k, v));
           setRerunNotifyPerSupplier(m);
         }
         // 恢复附件 + 下载方式 + 时间确认
@@ -923,6 +926,14 @@ export function SupplierSelectionPage({
     };
   }, [fileAnalysisContext, selectedProject, project]);
 
+  // 生成简短电话通知话术：提醒供应商查看短信或登录供应商门户点击链接确认是否参加。
+  // 与站内/短信正文（body）分开——电话需口语化、简短，仅作提醒，不复述正文细节。
+  const buildPhoneScript = (supplierName: string, ctx: ReturnType<typeof buildNotifyContext>) => {
+    const proj = ctx.projectName ? `【${ctx.projectName}】` : '本次采购';
+    const dl = ctx.deadline ? `，请于${ctx.deadline}前` : '';
+    return `您好，请问是${supplierName}吗？我是四川水发集团采购中心。我们正在就${proj}项目邀请贵司参与，稍后将向贵司发送短信通知。请您留意查收短信，或登录供应商门户点击确认链接${dl}确认是否参加。如有疑问欢迎致电咨询，谢谢！`;
+  };
+
   // 进入步骤 4（确认通知）时，若无内容自动 AI 生成（与补选步骤一致）
   const notifyAutoGenRef = useRef(false);
   useEffect(() => {
@@ -940,8 +951,9 @@ export function SupplierSelectionPage({
     try {
       const names = [...shortlist.values()].map(v => v.item.name);
       const ids = [...shortlist.keys()];
+      const ctx = buildNotifyContext();
       const res = await generateNotificationContent({
-        ...buildNotifyContext(),
+        ...ctx,
         supplierNames: names,
         supplierIds: ids,
         projectId: projectId || (project as any)?.id || null,
@@ -951,13 +963,14 @@ export function SupplierSelectionPage({
       setNotifyRsvpTokens(res.rsvpTokens || {});
       // 为每家供应商组装完整消息：抬头 + AI 正文（{rsvpLink} 逐家替换为专属回执链接）+ 落款
       const dateStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
-      const perSupplier = new Map<string, { title: string; body: string }>();
+      const perSupplier = new Map<string, { title: string; body: string; phoneScript: string }>();
       for (const [sid, { item: r }] of shortlist) {
         const link = (res.rsvpTokens || {})[sid] || '';
         const bodyWithLink = res.body.replace(/\{rsvpLink\}/g, link);
         perSupplier.set(sid, {
           title: res.title,
           body: `${r.name} 您好！\n\n${bodyWithLink}\n\n四川水发集团\n${dateStr}`,
+          phoneScript: buildPhoneScript(r.name, ctx),
         });
       }
       setNotifyPerSupplier(perSupplier);
@@ -986,21 +999,23 @@ export function SupplierSelectionPage({
         } catch {}
       }
       const ids = [...shortlist.keys()];
+      // 站内/短信共用正文 body；电话渠道单独发简短话术 phoneScript
+      const nonPhoneChannels = notifyChannels.filter(c => c !== 'phone');
+      const phoneChannels = notifyChannels.filter(c => c === 'phone');
       let totalSent = 0;
       let totalNotFound = 0;
       for (const sid of ids) {
         const msg = getSupplierMessage(sid);
         if (!msg.title.trim() || !msg.body.trim()) continue;
-        const r = await notifySuppliers({
-          supplierIds: [sid],
-          channels: notifyChannels,
-          type: 'SELECTION_NOTIFY',
-          title: msg.title,
-          content: msg.body,
-          link: notifyRsvpTokens[sid] || undefined, // 站内信点击直达该供应商专属回执页
-        });
-        totalSent += r.sent || 1;
-        totalNotFound += r.notFound || 0;
+        const link = notifyRsvpTokens[sid] || undefined; // 站内信点击直达该供应商专属回执页
+        if (nonPhoneChannels.length) {
+          const r = await notifySuppliers({ supplierIds: [sid], channels: nonPhoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.body, link });
+          totalSent += r.sent || 1; totalNotFound += r.notFound || 0;
+        }
+        if (phoneChannels.length) {
+          const r = await notifySuppliers({ supplierIds: [sid], channels: phoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.phoneScript || msg.body });
+          totalSent += r.sent || 1; totalNotFound += r.notFound || 0;
+        }
       }
       setNotified(true);
       setNotifyNotFound(totalNotFound);
@@ -1014,8 +1029,9 @@ export function SupplierSelectionPage({
   };
 
   // 取某供应商的实际通知内容（无内容时返回空串，不降级到模板——模板概念已移除）
-  const getSupplierMessage = (sid: string): { title: string; body: string } => {
-    return notifyPerSupplier.get(sid) ?? { title: '', body: '' };
+  const getSupplierMessage = (sid: string): { title: string; body: string; phoneScript: string } => {
+    const m = notifyPerSupplier.get(sid);
+    return m ? { title: m.title, body: m.body, phoneScript: m.phoneScript ?? '' } : { title: '', body: '', phoneScript: '' };
   };
 
   const handleShare = async () => {
@@ -1249,9 +1265,10 @@ export function SupplierSelectionPage({
     try {
       const sids = [...rerunShortlist.keys()];
       const snames = [...rerunShortlist.values()].map(({ item: r }) => r.name);
+      const ctx = buildNotifyContext();
       // 生成 RSVP 链接（与正选共用完整上下文，保证链接内容一致）
       const res = await generateNotificationContent({
-        ...buildNotifyContext(),
+        ...ctx,
         supplierNames: snames,
         supplierIds: sids,
         projectId: projectId || (project as any)?.id || null,
@@ -1264,7 +1281,7 @@ export function SupplierSelectionPage({
       // 延用确认通知中已有内容模板（取第一个已通知供应商的 body），仅替换名称和链接
       const existingMsg = [...notifyPerSupplier.values()][0];
       const tokens = { ...notifyRsvpTokens, ...(res.rsvpTokens || {}) };
-      const perSupplier = new Map<string, { title: string; body: string }>();
+      const perSupplier = new Map<string, { title: string; body: string; phoneScript: string }>();
       for (const [sid, { item: r }] of rerunShortlist) {
         const link = tokens[sid] || '';
         // 取已有模板 body，去掉第一行问候语（"XXX 您好！\n\n"），替换链接
@@ -1273,7 +1290,7 @@ export function SupplierSelectionPage({
         const bodyWithLink = templateBody.replace(/\{rsvpLink\}/g, link).replace(
           /https?:\/\/localhost:3004\/rsvp\?t=[A-Za-z0-9]+/g, link,
         );
-        perSupplier.set(sid, { title: existingMsg.title, body: `${r.name} 您好！\n\n${bodyWithLink}` });
+        perSupplier.set(sid, { title: existingMsg.title, body: `${r.name} 您好！\n\n${bodyWithLink}`, phoneScript: buildPhoneScript(r.name, ctx) });
       }
       setRerunNotifyPerSupplier(perSupplier);
     } catch {}
@@ -1298,20 +1315,22 @@ export function SupplierSelectionPage({
           if (res.rsvpTokens) setNotifyRsvpTokens(prev => ({ ...prev, ...res.rsvpTokens }));
         } catch {}
       }
+      // 站内/短信共用正文 body；电话渠道单独发简短话术 phoneScript
+      const nonPhoneChannels = notifyChannels.filter(c => c !== 'phone');
+      const phoneChannels = notifyChannels.filter(c => c === 'phone');
       let totalSent = 0;
       let totalNotFound = 0;
       for (const [sid, msg] of rerunNotifyPerSupplier) {
         if (!msg.title.trim() || !msg.body.trim()) continue;
-        const r = await notifySuppliers({
-          supplierIds: [sid],
-          channels: notifyChannels,
-          type: 'SELECTION_NOTIFY', // 与正选一致
-          title: msg.title,
-          content: msg.body,
-          link: notifyRsvpTokens[sid] || undefined, // 站内信点击直达回执页
-        }).catch(() => ({} as any));
-        totalSent += r.sent ?? 1;
-        totalNotFound += r.notFound || 0;
+        const link = notifyRsvpTokens[sid] || undefined; // 站内信点击直达回执页
+        if (nonPhoneChannels.length) {
+          const r = await notifySuppliers({ supplierIds: [sid], channels: nonPhoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.body, link }).catch(() => ({} as any));
+          totalSent += r.sent ?? 1; totalNotFound += r.notFound || 0;
+        }
+        if (phoneChannels.length) {
+          const r = await notifySuppliers({ supplierIds: [sid], channels: phoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.phoneScript || msg.body }).catch(() => ({} as any));
+          totalSent += r.sent ?? 1; totalNotFound += r.notFound || 0;
+        }
       }
       setRerunNotified(true);
       setRerunConfirmations(new Map([...rerunShortlist.keys()].map(sid => [sid, 'pending' as const])));
@@ -1757,29 +1776,29 @@ export function SupplierSelectionPage({
             {/* 1. 项目概况 */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[var(--foreground)]">项目概况</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">描述项目名称、建设地点、规模、投资概算等基础信息。</p>
+              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">点明采购事项及所属行业领域，作为供应商寻源的方向参照。</p>
               <AutoTextarea
                 value={reqOverview}
                 onChange={e => setReqOverview(e.target.value)}
-                placeholder="示例：1. 项目名称：便携式全液压岩心钻机（800型）采购\n2. 建设地点：四川省甘孜州\n3. 投资概算：约 580 万元\n4. 采购内容：2 台套 800 型全液压岩心钻机及配套钻具"
+                placeholder="示例：1. 本次寻源面向地质勘查装备制造领域的供应商\n2. 采购800型便携式全液压岩心钻机1台套\n3. 供应商经营范围应覆盖地质勘探设备、岩心钻机类产品\n4. 交付地：四川成都"
               />
             </div>
 
             {/* 2. 采购范围 */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[var(--foreground)]">采购范围</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">明确本次采购的具体范围、工作内容及交付要求。</p>
+              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">说明需要供应商提供什么、其经营范围应覆盖哪些业务。</p>
               <AutoTextarea
                 value={reqScope}
                 onChange={e => setReqScope(e.target.value)}
-                placeholder="示例：1. 800 型全液压岩心钻机主机 2 台\n2. 配套钻杆钻具及备品备件一批\n3. 现场安装调试及操作培训服务"
+                placeholder="示例：1. 供应商应提供800型全液压岩心钻机主机及配套钻具\n2. 经营范围覆盖地质勘探设备、岩心钻机类产品\n3. 含运输、安装调试及操作培训服务"
               />
             </div>
 
             {/* 3. 资质要求 */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[var(--foreground)]">资质要求</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">供应商需具备的资质证书、专业等级、业绩门槛等。</p>
+              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">供应商应具备的企业类型、行业资质、业绩门槛与技术能力。</p>
               <AutoTextarea
                 value={reqQualification}
                 onChange={e => setReqQualification(e.target.value)}
@@ -1790,7 +1809,7 @@ export function SupplierSelectionPage({
             {/* 4. 特殊要求 */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[var(--foreground)]">特殊要求</label>
-              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">工期、质量等级、环保要求、售后服务等特殊约束条件。</p>
+              <p className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">对供应商的服务响应、交付周期、质保等能力要求。</p>
               <AutoTextarea
                 value={reqSpecial}
                 onChange={e => setReqSpecial(e.target.value)}
@@ -2159,23 +2178,43 @@ export function SupplierSelectionPage({
 
             {/* ═══ 逐供应商通知（去除模板，直接展示每家供应商的通知内容） ═══ */}
             <div className="space-y-4">
-              {/* 渠道 + AI */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">通知渠道</span>
-                {[
-                  { key: 'in_app', label: '站内通知', icon: <MessageSquare size={12} /> },
-                  { key: 'sms', label: '短信通知', icon: <Bell size={12} /> },
-                  { key: 'phone', label: '电话通知', icon: <Phone size={12} /> },
-                ].map(ch => {
-                  const active = notifyChannels.includes(ch.key);
-                  return (
-                    <button key={ch.key}
-                      onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
-                      className={`neu-tab text-[11px] gap-1 ${active ? 'is-active' : ''}`}>
-                      {ch.icon}{ch.label}
-                    </button>
-                  );
-                })}
+              {/* 渠道 + AI —— 标签 + 分组按钮同一行卡片 */}
+              <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: 'color-mix(in oklch, var(--accent) 5%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
+                <span className="flex items-center gap-1.5 text-xs font-bold text-[var(--foreground)] flex-shrink-0">
+                  <Send size={12} className="text-[var(--accent)]" />
+                  通知渠道
+                </span>
+                <div className="flex gap-1.5 items-center flex-wrap">
+                  {/* 站内 + 短信：内容一致，归为一组 */}
+                  <div className="flex gap-1 rounded-[8px] p-0.5" style={{ background: 'oklch(1 0 0 / 0.45)' }}>
+                    {[
+                      { key: 'in_app', label: '站内', icon: <MessageSquare size={13} /> },
+                      { key: 'sms', label: '短信', icon: <Bell size={13} /> },
+                    ].map(ch => {
+                      const active = notifyChannels.includes(ch.key);
+                      return (
+                        <button key={ch.key}
+                          onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
+                          className={`neu-tab flex-row items-center gap-1.5 py-1.5 px-3 ${active ? 'is-active' : ''}`}>
+                          {ch.icon}<span className="text-[11px] font-semibold">{ch.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* 电话：内容独立（简短话术），单独一组 */}
+                  <div className="flex gap-1 rounded-[8px] p-0.5" style={{ background: 'oklch(1 0 0 / 0.45)' }}>
+                    {[{ key: 'phone', label: '电话通知', icon: <Phone size={13} /> }].map(ch => {
+                      const active = notifyChannels.includes(ch.key);
+                      return (
+                        <button key={ch.key}
+                          onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
+                          className={`neu-tab flex-row items-center gap-1.5 py-1.5 px-3 ${active ? 'is-active' : ''}`}>
+                          {ch.icon}<span className="text-[11px] font-semibold">{ch.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <span className="flex-1" />
                 <button onClick={handleNotifyAi} disabled={notifyAiLoading || shortlist.size === 0} className="neu-btn-xs gap-1">
                   <Sparkles size={10} />{notifyAiLoading ? 'AI 生成中…' : 'AI 生成'}
@@ -2212,14 +2251,29 @@ export function SupplierSelectionPage({
                       </div>
                       {/* 展开编辑区（有内容且当前选中） */}
                       {hasContent && isExpanded && (
-                        <div className="rounded-b-[14px] p-4 space-y-3 border-t" style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 3px 6px oklch(0.55 0.03 258 / 0.06), -1px -1px 3px oklch(1 0 0 / 0.75)', borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
-                          <input value={msg.title}
-                            onChange={e => setNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg, title: e.target.value }); return n; })}
-                            placeholder="通知标题"
-                            className="workbench-input w-full text-xs !h-8" />
-                          <textarea value={msg.body}
-                            onChange={e => setNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg, body: e.target.value }); return n; })}
-                            rows={10} className="neu-input w-full resize-y text-xs leading-relaxed !min-h-[200px]" />
+                        <div className="rounded-b-[14px] p-4 space-y-4 border-t" style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 3px 6px oklch(0.55 0.03 258 / 0.06), -1px -1px 3px oklch(1 0 0 / 0.75)', borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
+                          {/* 站内通知 / 短信通知 */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                              <MessageSquare size={11} /><Bell size={11} /><span>站内通知 / 短信通知</span>
+                            </div>
+                            <input value={msg.title}
+                              onChange={e => setNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg, title: e.target.value }); return n; })}
+                              placeholder="通知标题"
+                              className="workbench-input w-full text-xs !h-8" />
+                            <textarea value={msg.body}
+                              onChange={e => setNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg, body: e.target.value }); return n; })}
+                              rows={10} className="neu-input w-full resize-y text-xs leading-relaxed !min-h-[200px]" />
+                          </div>
+                          {/* 电话通知话术 */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                              <Phone size={11} /><span>电话通知话术</span>
+                            </div>
+                            <textarea value={msg.phoneScript}
+                              onChange={e => setNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg, phoneScript: e.target.value }); return n; })}
+                              rows={4} className="neu-input w-full resize-y text-xs leading-relaxed !min-h-[90px]" />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2974,23 +3028,43 @@ export function SupplierSelectionPage({
 
             <div className="wb-section-rule" />
 
-            {/* 渠道 + AI */}
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">通知渠道</span>
-              {[
-                { key: 'in_app', label: '站内通知', icon: <MessageSquare size={12} /> },
-                { key: 'sms', label: '短信通知', icon: <Bell size={12} /> },
-                { key: 'phone', label: '电话通知', icon: <Phone size={12} /> },
-              ].map(ch => {
-                const active = notifyChannels.includes(ch.key);
-                return (
-                  <button key={ch.key}
-                    onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
-                    className={`neu-tab text-[11px] gap-1 ${active ? 'is-active' : ''}`}>
-                    {ch.icon}{ch.label}
-                  </button>
-                );
-              })}
+            {/* 渠道 + AI —— 标签 + 分组按钮同一行卡片 */}
+            <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: 'color-mix(in oklch, var(--accent) 5%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
+              <span className="flex items-center gap-1.5 text-xs font-bold text-[var(--foreground)] flex-shrink-0">
+                <Send size={12} className="text-[var(--accent)]" />
+                通知渠道
+              </span>
+              <div className="flex gap-1.5 items-center flex-wrap">
+                {/* 站内 + 短信：内容一致，归为一组 */}
+                <div className="flex gap-1 rounded-[8px] p-0.5" style={{ background: 'oklch(1 0 0 / 0.45)' }}>
+                  {[
+                    { key: 'in_app', label: '站内', icon: <MessageSquare size={13} /> },
+                    { key: 'sms', label: '短信', icon: <Bell size={13} /> },
+                  ].map(ch => {
+                    const active = notifyChannels.includes(ch.key);
+                    return (
+                      <button key={ch.key}
+                        onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
+                        className={`neu-tab flex-row items-center gap-1.5 py-1.5 px-3 ${active ? 'is-active' : ''}`}>
+                        {ch.icon}<span className="text-[11px] font-semibold">{ch.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* 电话：内容独立（简短话术），单独一组 */}
+                <div className="flex gap-1 rounded-[8px] p-0.5" style={{ background: 'oklch(1 0 0 / 0.45)' }}>
+                  {[{ key: 'phone', label: '电话通知', icon: <Phone size={13} /> }].map(ch => {
+                    const active = notifyChannels.includes(ch.key);
+                    return (
+                      <button key={ch.key}
+                        onClick={() => setNotifyChannels(prev => active ? prev.filter(c => c !== ch.key) : [...prev, ch.key])}
+                        className={`neu-tab flex-row items-center gap-1.5 py-1.5 px-3 ${active ? 'is-active' : ''}`}>
+                        {ch.icon}<span className="text-[11px] font-semibold">{ch.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <span className="flex-1" />
               <button onClick={() => setRerunNotifyPerSupplier(new Map())} disabled={rerunNotifyPerSupplier.size === 0} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">
                 <X size={10} />清空
@@ -3022,14 +3096,29 @@ export function SupplierSelectionPage({
                       )}
                     </div>
                     {hasContent && isExpanded && (
-                      <div className="rounded-b-[14px] p-4 space-y-3 border-t" style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 3px 6px oklch(0.55 0.03 258 / 0.06), -1px -1px 3px oklch(1 0 0 / 0.75)', borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
-                        <input value={msg!.title}
-                          onChange={e => setRerunNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg!, title: e.target.value }); return n; })}
-                          placeholder="通知标题"
-                          className="workbench-input w-full text-xs !h-8" />
-                        <textarea value={msg!.body}
-                          onChange={e => setRerunNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg!, body: e.target.value }); return n; })}
-                          rows={10} className="neu-input w-full resize-y text-xs leading-relaxed !min-h-[200px]" />
+                      <div className="rounded-b-[14px] p-4 space-y-4 border-t" style={{ background: 'oklch(1 0 0 / 0.58)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 3px 6px oklch(0.55 0.03 258 / 0.06), -1px -1px 3px oklch(1 0 0 / 0.75)', borderColor: 'oklch(0.6 0.04 258 / 0.1)' }}>
+                        {/* 站内通知 / 短信通知 */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                            <MessageSquare size={11} /><Bell size={11} /><span>站内通知 / 短信通知</span>
+                          </div>
+                          <input value={msg!.title}
+                            onChange={e => setRerunNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg!, title: e.target.value }); return n; })}
+                            placeholder="通知标题"
+                            className="workbench-input w-full text-xs !h-8" />
+                          <textarea value={msg!.body}
+                            onChange={e => setRerunNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg!, body: e.target.value }); return n; })}
+                            rows={10} className="neu-input w-full resize-y text-xs leading-relaxed !min-h-[200px]" />
+                        </div>
+                        {/* 电话通知话术 */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                            <Phone size={11} /><span>电话通知话术</span>
+                          </div>
+                          <textarea value={msg!.phoneScript || ''}
+                            onChange={e => setRerunNotifyPerSupplier(prev => { const n = new Map(prev); n.set(sid, { ...msg!, phoneScript: e.target.value }); return n; })}
+                            rows={4} className="neu-input w-full resize-y text-xs leading-relaxed !min-h-[90px]" />
+                        </div>
                       </div>
                     )}
                   </div>

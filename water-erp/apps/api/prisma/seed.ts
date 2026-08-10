@@ -81,7 +81,6 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   // Level 0 —— 无外键 / 独立表
   ['Department', 'department'],
   ['SupplierClassification', 'supplierClassification'],
-  ['BidProject', 'bidProject'],
   ['Announcement', 'announcement'],
   ['CatalogCategory', 'catalogCategory'],
   ['CatalogItem', 'catalogItem'],
@@ -106,6 +105,8 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['PriceAlertRule', 'priceAlertRule'],
   ['Project', 'project'],
   ['ProjectManagementItem', 'projectManagementItem'],
+  // BidProject 依赖 ProjectManagementItem（projectManagementItemId）+ User（leaderUserId），须在其后
+  ['BidProject', 'bidProject'],
   ['ProcurementRound', 'procurementRound'],
   ['KnowledgeBase', 'knowledgeBase'],
   ['Contact', 'contact'],
@@ -244,6 +245,12 @@ async function main() {
   console.log('▶ 清空业务表（TRUNCATE … RESTART IDENTITY CASCADE）');
   const tableList = ALL_TABLES.map((t) => `"${t}"`).join(', ');
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE;`);
+
+  // 种子快照存在循环外键（ProcurementProject ↔ BidProject 互相引用），
+  // 无法纯拓扑排序。会话内切到 replica 角色 = 禁用所有 FK 触发器，允许任意顺序写入。
+  // session 级别，连接释放自动恢复，无需手动 RESET。
+  console.log('▶ 禁用外键检查（session_replication_role = replica）');
+  await prisma.$executeRawUnsafe(`SET session_replication_role = replica;`);
 
   console.log('▶ 按外键依赖顺序写入快照');
   for (const [tableName, delegate] of SEED_ORDER) {

@@ -522,7 +522,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                           {isNegotiation && <th style={{ width: 80 }}>回执情况</th>}
                           <th style={{ width: 70 }}>投递状态</th>
                           <th style={{ width: 130 }}>投递时间</th>
-                          <th style={{ width: 110 }}>报价</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -538,7 +537,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                               {isNegotiation && <td><StatusPill tone={rsvpTone}>{rsvpLabel}</StatusPill></td>}
                               <td><StatusPill tone={tone}>{label}</StatusPill></td>
                               <td className="tabular-nums text-[var(--muted-foreground)]">{r.submittedAt ? formatDateTime(r.submittedAt) : '—'}</td>
-                              <td className="tabular-nums text-[var(--foreground)]">{r.bidPrice ? `¥${Number(r.bidPrice).toLocaleString()}` : '—'}</td>
                             </tr>
                           );
                         })}

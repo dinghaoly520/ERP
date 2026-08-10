@@ -3523,7 +3523,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return result;
   }
 
-  async analyzeProject(projectId: string, stageKey?: string) {
+  async analyzeProject(projectId: string, stageKey?: string, forceRefresh = false) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
       include: {
@@ -3543,16 +3543,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
     let summary = '';
     let summaryFromCache = false;
 
-    try {
-      const cachedSummary = JSON.parse(
-        await readFile(summaryCachePath, 'utf8'),
-      ) as { summary?: string };
-      if (cachedSummary.summary?.trim()) {
-        summary = cachedSummary.summary;
-        summaryFromCache = true;
+    if (!forceRefresh) {
+      try {
+        const cachedSummary = JSON.parse(
+          await readFile(summaryCachePath, 'utf8'),
+        ) as { summary?: string };
+        if (cachedSummary.summary?.trim()) {
+          summary = cachedSummary.summary;
+          summaryFromCache = true;
+        }
+      } catch {
+        // will generate below if file analyses are available
       }
-    } catch {
-      // will generate below if file analyses are available
     }
 
     // Collect file analyses from relevant stages
@@ -3582,26 +3584,28 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
       // Try cache first (exact fingerprint match)
       const cachedByKey = new Map<string, { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>();
-      try {
-        const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
-          fingerprint?: string;
-          files?: Array<{
-            objectKey: string;
-            fileName: string;
-            stageMatch: string;
-            contentSummary: string;
-          }>;
-        };
-        if (cached.fingerprint === fingerprint && Array.isArray(cached.files)) {
-          stageFiles = cached.files;
-        } else if (Array.isArray(cached.files)) {
-          // Fingerprint mismatch but cache exists — record existing analyses by objectKey
-          for (const f of cached.files) {
-            cachedByKey.set(f.objectKey, f);
+      if (!forceRefresh) {
+        try {
+          const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
+            fingerprint?: string;
+            files?: Array<{
+              objectKey: string;
+              fileName: string;
+              stageMatch: string;
+              contentSummary: string;
+            }>;
+          };
+          if (cached.fingerprint === fingerprint && Array.isArray(cached.files)) {
+            stageFiles = cached.files;
+          } else if (Array.isArray(cached.files)) {
+            // Fingerprint mismatch but cache exists — record existing analyses by objectKey
+            for (const f of cached.files) {
+              cachedByKey.set(f.objectKey, f);
+            }
           }
+        } catch {
+          // No cache or invalid cache
         }
-      } catch {
-        // No cache or invalid cache
       }
 
       // Generate if no valid cache

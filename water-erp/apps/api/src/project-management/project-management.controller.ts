@@ -144,8 +144,9 @@ export class ProjectManagementController {
   analyzeProject(
     @Param('id') id: string,
     @Query('stageKey') stageKey?: string,
+    @Query('refresh') refresh?: string,
   ) {
-    return this.projectManagementService.analyzeProject(id, stageKey);
+    return this.projectManagementService.analyzeProject(id, stageKey, refresh === 'true');
   }
 
   @Post(':id/parse-announcement-fields')

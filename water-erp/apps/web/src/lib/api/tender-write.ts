@@ -32,7 +32,8 @@ export async function exportTenderDocument(payload: {
   const response = await fetch(`${API_BASE}/tender-write/export`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    // 裸 fetch 必须带 X-Portal 头，否则后端 portal-cookie 无法识别会话 → 401
+    headers: { "Content-Type": "application/json", "X-Portal": "web" },
     body: JSON.stringify(payload),
   });
 

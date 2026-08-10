@@ -433,9 +433,13 @@ export async function deleteProjectPermanently(projectId: string) {
 export async function analyzeProjectManagementItem(
   projectId: string,
   stageKey?: ProjectWorkflowStageKey,
+  refresh = false,
 ) {
-  const search = stageKey ? `?stageKey=${stageKey}` : '';
-  const response = await fetch(`${API_BASE}/project-management/${projectId}/analyze${search}`, {
+  const params = new URLSearchParams();
+  if (stageKey) params.set('stageKey', stageKey);
+  if (refresh) params.set('refresh', 'true');
+  const search = params.toString();
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/analyze${search ? `?${search}` : ''}`, {
     method: 'POST',
     credentials: 'include',
   });

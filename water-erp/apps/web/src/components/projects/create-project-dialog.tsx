@@ -99,7 +99,10 @@ export function CreateProjectDialog({
   const [showBudgetRationale, setShowBudgetRationale] = useState(false);
 
   // AI polish for 立项事由 / 供方要求
-  const [polishingField, setPolishingField] = useState<'projectReason' | 'supplierRequirements' | null>(null);
+  const [polishing, setPolishing] = useState<{ projectReason: boolean; supplierRequirements: boolean }>({
+    projectReason: false,
+    supplierRequirements: false,
+  });
 
   // Project attribution dropdown
   const [projectAttributions, setProjectAttributions] = useState<ProjectAttribution[]>([]);
@@ -194,12 +197,12 @@ export function CreateProjectDialog({
     setFieldComparisons([]);
     setAiCandidates({});
     setAiLoading(null);
+    setPolishing({ projectReason: false, supplierRequirements: false });
     setDemandExtracted(false);
     setInitiationExtracted(false);
     setBudgetReference(null);
     setAnalyzingBudget(false);
     setShowBudgetRationale(false);
-    setPolishingField(null);
     setProjectAttributions([]);
     setShowAttributionDropdown(false);
     setAttributionSearch('');
@@ -659,7 +662,7 @@ export function CreateProjectDialog({
       setErrorMessage(`请先填写${field === 'projectReason' ? '立项事由' : '供方要求'}的初步内容，再进行 AI 优化。`);
       return;
     }
-    setPolishingField(field);
+    setPolishing((prev) => ({ ...prev, [field]: true }));
     setErrorMessage(null);
     try {
       const { polished } = await polishInitiationField({
@@ -681,7 +684,7 @@ export function CreateProjectDialog({
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'AI 优化失败，请稍后重试。');
     } finally {
-      setPolishingField(null);
+      setPolishing((prev) => ({ ...prev, [field]: false }));
     }
   };
 
@@ -1041,10 +1044,10 @@ export function CreateProjectDialog({
             <button
               type="button"
               onClick={() => handlePolishField('projectReason')}
-              disabled={polishingField !== null}
+              disabled={polishing.projectReason}
               className="neu-btn-xs"
             >
-              {polishingField === 'projectReason' ? (
+              {polishing.projectReason ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <Sparkles size={12} />
@@ -1065,10 +1068,10 @@ export function CreateProjectDialog({
             <button
               type="button"
               onClick={() => handlePolishField('supplierRequirements')}
-              disabled={polishingField !== null}
+              disabled={polishing.supplierRequirements}
               className="neu-btn-xs"
             >
-              {polishingField === 'supplierRequirements' ? (
+              {polishing.supplierRequirements ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <Sparkles size={12} />

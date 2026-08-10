@@ -114,6 +114,24 @@ export function ExpertExtractPage({
   const [notifyMessages, setNotifyMessages] = useState<Map<string, string>>(new Map());
   const [notifyVersion, setNotifyVersion] = useState(0);
   const updateMessages = (next: Map<string, string>) => { setNotifyMessages(next); setNotifyVersion(v => v + 1); };
+  // 电话通知话术（与站内/短信正文分开——简短提醒，引导查收短信或登录OA确认）
+  const [phoneScripts, setPhoneScripts] = useState<Map<string, string>>(new Map());
+  const updatePhoneScripts = (next: Map<string, string>) => { setPhoneScripts(next); setNotifyVersion(v => v + 1); };
+  const buildExpertPhoneScript = (expertName: string) => {
+    const proj = sel?.name ? `【${sel.name}】` : '本次采购';
+    const ot = openTimeFormatted ? `，开标时间${openTimeFormatted}` : '';
+    return `您好，${expertName}老师，我是四川水发集团采购中心。我们已邀请您参加${proj}项目的评标工作${ot}。稍后将向您发送短信通知，请您留意查收短信，或登录OA确认是否能够出席。如有疑问欢迎致电咨询，谢谢！`;
+  };
+  // 统一切换通知渠道（适用于全部专家）
+  const toggleExpertChannel = (chKey: string) => {
+    const allExperts = step4Experts;
+    const current = new Set(notifyChannelsByExpert.get(allExperts[0]?.userId || '') || ['in_app', 'sms', 'phone']);
+    const updated = current.has(chKey) ? [...current].filter(c => c !== chKey) : [...current, chKey];
+    const newMap = new Map(notifyChannelsByExpert);
+    for (const e of allExperts) newMap.set(e.userId, updated.length > 0 ? updated : ['in_app']);
+    setNotifyChannelsByExpert(newMap);
+    if (!notifyActiveExpert && step4Experts[0]) setNotifyActiveExpert(step4Experts[0].userId);
+  };
   const [notifyActiveExpert, setNotifyActiveExpert] = useState<string>('');
   const [openTimeDate, setOpenTimeDate] = useState('');
   const [openTimeTime, setOpenTimeTime] = useState('');
@@ -275,6 +293,7 @@ export function ExpertExtractPage({
       if (snap.needDemandRep) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
       if (snap.totalSeats) setTotalSeats(snap.totalSeats);
       if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
+      if (snap.phoneScriptsArr?.length) setPhoneScripts(new Map(snap.phoneScriptsArr));
       if (snap.reHistory?.length) setReHistory(snap.reHistory);
       if (snap.altPreview) setAltPreview(snap.altPreview);
       if (snap.altSelected?.length) setAltSelected(snap.altSelected);
@@ -333,7 +352,7 @@ export function ExpertExtractPage({
     const save = () => {
       const s = stateRef.current;
       if (!s.pid) return;
-      localStorage.setItem(`${storageKey}-${s.pid}`, JSON.stringify({ ...s, notifyMessagesArr: [...notifyMessages.entries()] }));
+      localStorage.setItem(`${storageKey}-${s.pid}`, JSON.stringify({ ...s, notifyMessagesArr: [...notifyMessages.entries()], phoneScriptsArr: [...phoneScripts.entries()] }));
       localStorage.setItem(LAST_PID_KEY, s.pid);
     };
     window.addEventListener('beforeunload', save);
@@ -380,6 +399,7 @@ export function ExpertExtractPage({
       if (snap.candidateNotifiedIds?.length) setCandidateNotifiedIds(snap.candidateNotifiedIds);
       if (snap.manualExperts?.length) setManualExperts(snap.manualExperts);
       if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
+      if (snap.phoneScriptsArr?.length) setPhoneScripts(new Map(snap.phoneScriptsArr));
       if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
       if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
       if (snap.tn != null) setTn(snap.tn);
@@ -1464,14 +1484,19 @@ export function ExpertExtractPage({
     setNotifying(true);
     try {
       // 构造待发送任务（有文案 + 有渠道），跳过无文案/无渠道的专家
+      // 站内/短信共用正文（notifyMessages）；电话渠道单独发简短话术（phoneScripts）
       const tasks = confirmedExpertIds
-        .map(eid => {
+        .flatMap(eid => {
           const msg = notifyMessages.get(eid) || '';
           const channels = notifyChannelsByExpert.get(eid) || ['in_app', 'sms', 'phone'];
-          if (!msg || channels.length === 0) return null;
-          return { eid, msg, channels };
-        })
-        .filter((x): x is { eid: string; msg: string; channels: string[] } => x !== null);
+          if (channels.length === 0) return [];
+          const nonPhone = channels.filter(c => c !== 'phone');
+          const phoneChs = channels.filter(c => c === 'phone');
+          const out: Array<{ eid: string; msg: string; channels: string[] }> = [];
+          if (nonPhone.length && msg) out.push({ eid, msg, channels: nonPhone });
+          if (phoneChs.length) out.push({ eid, msg: phoneScripts.get(eid) || msg || '', channels: phoneChs });
+          return out;
+        });
 
       // 全员无文案时实际 0 条发送：不置完成态、不进步骤5，提示用户先生成文案
       if (tasks.length === 0) {
@@ -2157,35 +2182,42 @@ export function ExpertExtractPage({
                 {openTimeFormatted && <p className="text-[10px] text-[var(--accent)]/70 mt-1">已设置：{openTimeFormatted}</p>}
               </div>
 
-              {/* 通知渠道（统一，适用于全部专家，居左紧凑） */}
-              <div>
-                <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-2">通知渠道</span>
-                <div className="flex gap-2 w-fit">
-                  {[
-                    { key: 'in_app', icon: Bell, label: 'OA站内信' },
-                    { key: 'sms', icon: MessageSquare, label: '短信通知' },
-                    { key: 'phone', icon: Phone, label: '电话通知' },
-                  ].map(ch => {
-                    const active = getChannelsForExpert(notifyActiveExpert || step4Experts[0]?.userId || '').includes(ch.key);
-                    return (
-                      <button
-                        key={ch.key}
-                        onClick={() => {
-                          const allExperts = step4Experts;
-                          const current = new Set(notifyChannelsByExpert.get(allExperts[0]?.userId || '') || ['in_app', 'sms', 'phone']);
-                          const updated = current.has(ch.key) ? [...current].filter(c => c !== ch.key) : [...current, ch.key];
-                          const newMap = new Map(notifyChannelsByExpert);
-                          for (const e of allExperts) newMap.set(e.userId, updated.length > 0 ? updated : ['in_app']);
-                          setNotifyChannelsByExpert(newMap);
-                          if (!notifyActiveExpert && step4Experts[0]) setNotifyActiveExpert(step4Experts[0].userId);
-                        }}
-                        className={`neu-tab flex-col gap-1 py-2 px-4 ${active ? 'is-active' : ''}`}
-                      >
-                        <ch.icon size={16} />
-                        <span className="text-[11px]">{ch.label}</span>
-                      </button>
-                    );
-                  })}
+              {/* 通知渠道（统一，适用于全部专家）—— 标签 + 分组按钮同一行 */}
+              <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: 'color-mix(in oklch, var(--accent) 5%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
+                <span className="flex items-center gap-1.5 text-xs font-bold text-[var(--foreground)] flex-shrink-0">
+                  <Send size={12} className="text-[var(--accent)]" />
+                  通知渠道
+                </span>
+                <div className="flex gap-1.5 items-center flex-wrap">
+                  {/* 站内 + 短信：内容一致，归为一组 */}
+                  <div className="flex gap-1 rounded-[8px] p-0.5" style={{ background: 'oklch(1 0 0 / 0.45)' }}>
+                    {[
+                      { key: 'in_app', icon: Bell, label: 'OA站内信' },
+                      { key: 'sms', icon: MessageSquare, label: '短信通知' },
+                    ].map(ch => {
+                      const active = getChannelsForExpert(notifyActiveExpert || step4Experts[0]?.userId || '').includes(ch.key);
+                      return (
+                        <button key={ch.key} onClick={() => toggleExpertChannel(ch.key)}
+                          className={`neu-tab flex-row items-center gap-1.5 py-1.5 px-3 ${active ? 'is-active' : ''}`}>
+                          <ch.icon size={13} />
+                          <span className="text-[11px] font-semibold">{ch.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* 电话：内容独立（简短话术），单独一组 */}
+                  <div className="flex gap-1 rounded-[8px] p-0.5" style={{ background: 'oklch(1 0 0 / 0.45)' }}>
+                    {[{ key: 'phone', icon: Phone, label: '电话通知' }].map(ch => {
+                      const active = getChannelsForExpert(notifyActiveExpert || step4Experts[0]?.userId || '').includes(ch.key);
+                      return (
+                        <button key={ch.key} onClick={() => toggleExpertChannel(ch.key)}
+                          className={`neu-tab flex-row items-center gap-1.5 py-1.5 px-3 ${active ? 'is-active' : ''}`}>
+                          <ch.icon size={13} />
+                          <span className="text-[11px] font-semibold">{ch.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -2207,6 +2239,7 @@ export function ExpertExtractPage({
                         setRsvpLinks(links);
                         // 2. AI 生成通知模板
                         const newMessages = new Map(notifyMessages);
+                        const newScripts = new Map(phoneScripts);
                         const mainRes = await generateNotification({ projectName, expertName: '[[专家姓名]]', isLead: false, totalExperts: step4Experts.length, extractMode: MODE_LABELS[extractMode], openTime: openTimeFormatted, projectId: pid });
                         if (mainRes.generated && mainRes.content) {
                           for (const e of step4Experts) {
@@ -2215,9 +2248,11 @@ export function ExpertExtractPage({
                             // 有链接则替换，无则用明确提示文案（比 {RSVP_LINK} 占位符更直观）
                             content = content.replace(/\{RSVP_LINK\}/g, link || '【确认链接待生成，请刷新重试】');
                             newMessages.set(e.userId, content);
+                            newScripts.set(e.userId, buildExpertPhoneScript(e.name));
                           }
                         }
                         updateMessages(newMessages);
+                        updatePhoneScripts(newScripts);
                         const elapsed = Date.now() - t0;
                         if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
                         toast.success('已生成通知内容', { id: 'notif-all' });
@@ -2240,14 +2275,42 @@ export function ExpertExtractPage({
                     </button>
                   ))}
                 </div>
-                <textarea
-                  key={notifyVersion}
-                  value={notifyMessages.get(notifyActiveExpert && step4Experts.some(e => e.userId === notifyActiveExpert) ? notifyActiveExpert : step4Experts[0]?.userId || '') || ''}
-                  onChange={e => updateMessages(new Map(notifyMessages).set(notifyActiveExpert && step4Experts.some(e => e.userId === notifyActiveExpert) ? notifyActiveExpert : step4Experts[0]?.userId || '', e.target.value))}
-                  placeholder="点击上方专家姓名查看/编辑其通知内容"
-                  className="neu-input text-sm w-full min-h-[160px] resize-y"
-                  rows={8}
-                />
+                {/* 当前编辑的专家 id（取选中或首位） */}
+                {(() => {
+                  const editId = notifyActiveExpert && step4Experts.some(e => e.userId === notifyActiveExpert) ? notifyActiveExpert : step4Experts[0]?.userId || '';
+                  return (
+                    <div className="space-y-3">
+                      {/* 站内通知 / 短信通知（内容一致） */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                          <Bell size={11} /><MessageSquare size={11} /><span>站内通知 / 短信通知</span>
+                        </div>
+                        <textarea
+                          key={`body-${notifyVersion}`}
+                          value={notifyMessages.get(editId) || ''}
+                          onChange={e => updateMessages(new Map(notifyMessages).set(editId, e.target.value))}
+                          placeholder="点击上方专家姓名查看/编辑其通知内容"
+                          className="neu-input text-sm w-full min-h-[160px] resize-y"
+                          rows={8}
+                        />
+                      </div>
+                      {/* 电话通知话术 */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                          <Phone size={11} /><span>电话通知话术</span>
+                        </div>
+                        <textarea
+                          key={`phone-${notifyVersion}`}
+                          value={phoneScripts.get(editId) || ''}
+                          onChange={e => updatePhoneScripts(new Map(phoneScripts).set(editId, e.target.value))}
+                          placeholder="电话通知简短话术（提醒查看短信或登录OA确认）"
+                          className="neu-input text-sm w-full min-h-[90px] resize-y"
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
 
