@@ -154,11 +154,17 @@ export class VerificationService {
   ) {
     const key = this.codeKey(scene, userId, targetId);
 
-    // Dev bypass
+    // Dev bypass — 生产环境严禁启用
     if (
       process.env.SMS_DEBUG_BYPASS === 'true' &&
       code === DEBUG_BYPASS_CODE
     ) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new BadRequestException({
+          code: 'BYPASS_FORBIDDEN_IN_PRODUCTION',
+          error: 'SMS_DEBUG_BYPASS 不可在生产环境使用',
+        });
+      }
       // Mark phoneVerified in BidExpert for the sign-in scene
       if (scene === 'expert_sign_in') {
         await this.markPhoneVerified(userId, targetId);

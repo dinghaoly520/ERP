@@ -1277,15 +1277,24 @@ export class ExpertService {
         for (const itemId of Array.from(new Set(items))) {
           const verdict = await evaluateInvalidBid(this.prisma, projectId, s, itemId);
           if (verdict.disqualified) {
-            await this.prisma.bidInvalidBid.upsert({
-              where: { projectId_supplierId_scoreItemId: { projectId, supplierId: s, scoreItemId: itemId } },
-              update: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null, reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
-              create: { projectId, supplierId: s, scoreItemId: itemId, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
+            // #1: 旧 unique 约束已移除 → findFirst + create/update
+            const existingRec = await this.prisma.bidInvalidBid.findFirst({
+              where: { projectId, supplierId: s, scoreItemId: itemId },
             });
+            if (existingRec) {
+              await this.prisma.bidInvalidBid.update({
+                where: { id: existingRec.id },
+                data: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null, reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
+              });
+            } else {
+              await this.prisma.bidInvalidBid.create({
+                data: { projectId, supplierId: s, scoreItemId: itemId, source: 'passfail', failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
+              });
+            }
             this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' });
           } else {
             // 不过半：若之前 invalid 现恢复（票数变化，决策 B 接受跳变）
-            const existing = await this.prisma.bidInvalidBid.findUnique({ where: { projectId_supplierId_scoreItemId: { projectId, supplierId: s, scoreItemId: itemId } } });
+            const existing = await this.prisma.bidInvalidBid.findFirst({ where: { projectId, supplierId: s, scoreItemId: itemId } });
             if (existing?.status === 'invalid') {
               await this.prisma.bidInvalidBid.update({ where: { id: existing.id }, data: { status: 'revoked', revokedAt: new Date() } });
               this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'revoked' });

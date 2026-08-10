@@ -1192,9 +1192,24 @@ export class BidService {
     // 此处不做轮次守卫：谈判采购流程为 先评标 → 再多轮报价 → 最后生成结果
 
     // P2: Prevent deadlock — ensure at least one expert is assigned
-    const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
-    if (expertCount === 0) {
-      throw new BadRequestException({ error: '项目未分配评审专家，无法启动评标', code: 'NO_EXPERTS_ASSIGNED' });
+    // #15: 评标委员会组成法律合规校验（暂行规定第九条：5人以上单数）
+    const confirmedExperts = await this.prisma.bidExpert.count({
+      where: { projectId: id, invitationStatus: 'confirmed', expertRole: '正选' },
+    });
+    if (confirmedExperts === 0) {
+      throw new BadRequestException({ error: '项目未分配已确认的评审专家，无法启动评标', code: 'NO_EXPERTS_ASSIGNED' });
+    }
+    if (confirmedExperts < 3) {
+      throw new BadRequestException({
+        error: `评标委员会已确认正选专家仅 ${confirmedExperts} 人，依法须 5 人以上单数（小项目不少于 3 人）`,
+        code: 'INSUFFICIENT_COMMITTEE_SIZE',
+      });
+    }
+    if (confirmedExperts % 2 === 0) {
+      throw new BadRequestException({
+        error: `评标委员会已确认正选专家 ${confirmedExperts} 人，须为单数`,
+        code: 'EVEN_COMMITTEE_SIZE',
+      });
     }
 
     // G4: 至少一个解密成功且未撤回的供应商，否则评标阶段无供应商可评（死局）
@@ -2234,19 +2249,19 @@ export class BidService {
     return this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
   }
 
-  /** 注册主持人为当前操作者（并发检测）。返回是否已有其他主持人在操作。 */
+  /** 注册主持人为当前操作者（并发检测）。原子抢占——与 releaseActiveHost 同模式。 */
   async claimActiveHost(projectId: string, userId: string, userName: string): Promise<{ claimed: boolean; existingHost?: string }> {
+    // #10: 原子 updateMany 防止 TOCTOU 竞态（旧实现 findUnique+update 可并发双抢）
+    const res = await this.prisma.bidOpeningSession.updateMany({
+      where: { projectId, OR: [{ activeHostId: null }, { activeHostId: userId }] },
+      data: { activeHostId: userId, activeHostName: userName },
+    });
+    if (res.count > 0) return { claimed: true };
+    // 被他人占用 → 回读占用者
     const session = await this.prisma.bidOpeningSession.findUnique({
       where: { projectId }, select: { activeHostId: true, activeHostName: true },
     });
-    if (session?.activeHostId && session.activeHostId !== userId) {
-      return { claimed: false, existingHost: session.activeHostName ?? session.activeHostId };
-    }
-    await this.prisma.bidOpeningSession.update({
-      where: { projectId },
-      data: { activeHostId: userId, activeHostName: userName },
-    });
-    return { claimed: true };
+    return { claimed: false, existingHost: session?.activeHostName ?? session?.activeHostId ?? undefined };
   }
 
   /** 释放主持人操作者身份。仅当调用者是当前 activeHost 时才清除。 */
@@ -2643,6 +2658,11 @@ export class BidService {
     if (!project.leaderCoSigned) {
       throw new BadRequestException({ error: '评审报告尚未经组长末签', code: 'LEADER_NOT_COSIGNED' });
     }
+    // #7: 未裁决的专家异议阻塞结果生成
+    const openDisputes = await this.prisma.expertDispute.count({ where: { projectId, status: 'open' } });
+    if (openDisputes > 0) {
+      throw new BadRequestException({ error: `有 ${openDisputes} 个专家异议待裁决，无法生成评标结果`, code: 'OPEN_DISPUTES' });
+    }
 
     // 谈判/竞价项目：专家评标完成后进行多轮报价，生成结果前校验轮次已完成 + 同步最终报价
     if (project.roundMode) {
@@ -2809,6 +2829,25 @@ export class BidService {
       }
     }
 
+    // #16: 异常低价检测（《暂行规定》第二十一条）——低于有效报价均值 70% 写监督日志告警（不自动废标）
+    const validPrices = [...bidPrices.values()].filter(p => p > 0);
+    if (validPrices.length >= 3) {
+      const avgPrice = validPrices.reduce((s, p) => s + p, 0) / validPrices.length;
+      for (const [sid, price] of bidPrices) {
+        if (price > 0 && price < avgPrice * 0.7) {
+          const supName = activeSuppliers.find(s => s.id === sid)?.supplierName ?? sid;
+          await this.prisma.bidSupervisionLog.create({
+            data: {
+              projectId, time: new Date(), role: '系统', target: supName,
+              action: '异常低价告警',
+              result: `报价 ¥${price} 显著低于有效报价均值 ¥${avgPrice.toFixed(2)}（偏离 ${((1 - price / avgPrice) * 100).toFixed(1)}%），请评标委员会要求该供应商作出书面说明`,
+              riskFlag: '高风险',
+            },
+          }).catch((err) => { this.logger.warn({ msg: '异常低价告警写入监督日志失败', projectId, sid, err: String(err) }); });
+        }
+      }
+    }
+
     const ranked: { supplierId: string; supplierName: string; totalScore: number; averageScore: number; disqualified: boolean }[] = [];
     for (const supplier of activeSuppliers) {
       const records = recordsBySupplier.get(supplier.id) ?? [];
@@ -2851,7 +2890,14 @@ export class BidService {
     const qualifiedRanked = ranked.filter(r => !r.disqualified);
     const winnerCount = Math.min(this.DEFAULT_WINNER_COUNT, qualifiedRanked.length);
 
+    // #6: EXCEPTION 供应商显式告警——被排除的供应商（解密成功但 confirmStatus=EXCEPTION）
+    const excludedExceptionSuppliers = project.suppliers.filter(
+      s => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.confirmStatus === 'EXCEPTION',
+    );
+
     await this.prisma.$transaction(async (tx) => {
+      // #34: FOR UPDATE 行锁——防止并发 generateEvaluationResults 互相覆盖
+      await this.lockAndReassertStage(tx, projectId, 'EVALUATING');
       await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
       if (ranked.length > 0) {
         await tx.bidEvaluationResult.createMany({
@@ -2924,7 +2970,12 @@ export class BidService {
     this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无' });
     if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', resourceType: `BidProject:${projectId}`, details: { rankedCount: ranked.length } } });
 
-    return this.listEvaluationResults(projectId);
+    // #6: 返回值包含被排除的 EXCEPTION 供应商（供前端告警展示）
+    const result = await this.listEvaluationResults(projectId);
+    if (excludedExceptionSuppliers.length > 0) {
+      return { ...result, excludedSuppliers: excludedExceptionSuppliers.map(s => ({ supplierId: s.id, supplierName: s.supplierName, reason: '开标确认状态为异常(EXCEPTION)，未纳入排名' })) };
+    }
+    return result;
   }
 
   async submitScore(projectId: string, dto: CreateScoreDto, actorId?: string) {
@@ -2944,6 +2995,11 @@ export class BidService {
     // P1-5：代评锁定——专家已确认报告后不可再代评改分
     if (expert.reportConfirmed) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
+    }
+    // #2: 代评核验链——与专家自评同口径（signedIn + avoidanceConfirmed + aiConsentConfirmed + agreements）
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed
+        || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '该专家未完成身份核验/回避确认/AI声明/保密承诺/评标纪律，不可代评', code: 'VERIFICATION_REQUIRED' });
     }
     // P1: 回避校验——与专家自评同口径，代评不可对已声明冲突的供应商打分
     const expertConflicts = parseConflictedIds(expert.conflictedSupplierIds);
@@ -3027,6 +3083,18 @@ export class BidService {
             create: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId, checked: d.checked, awardedScore: d.awardedScore, note: d.note },
           });
         }
+      }
+      // #3: 评分修订历史——覆盖前写快照（防篡改取证，与 ExpertService.submitScores 同口径）
+      const existingRec = await tx.bidScoreRecord.findUnique({
+        where: { expertId_scoreItemId_supplierId: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId } },
+      });
+      if (existingRec) {
+        await tx.bidScoreRecordHistory.create({
+          data: {
+            recordId: existingRec.id, expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId,
+            score: existingRec.score, passed: existingRec.passed, reason: existingRec.reason, action: 'update',
+          },
+        });
       }
       // 利用唯一约束 upsert：存在则更新，不存在则创建
       const rec = await tx.bidScoreRecord.upsert({
@@ -3741,11 +3809,20 @@ export class BidService {
       // 废标联动：同事务内置 invalid + 高风险监督日志 + B3 决议记录
       if (invalidateTarget) {
         await tx.bidSupplier.update({ where: { id: invalidateTarget.id }, data: { bidValidity: 'invalid' } });
-        await tx.bidInvalidBid.upsert({
-          where: { projectId_supplierId_scoreItemId: { projectId, supplierId: invalidateTarget.id, scoreItemId: '__dispute__' } },
-          update: { reason: `异议裁决废标：${dto.response}`, actorId: actorId ?? null },
-          create: { projectId, supplierId: invalidateTarget.id, scoreItemId: '__dispute__', failCount: 0, totalCount: 0, status: 'invalid', reason: `异议裁决废标：${dto.response}`, actorId: actorId ?? null },
+        // #1: scoreItemId 可空 + 无 Prisma 管理 unique → findFirst + create/update
+        const existingInv = await tx.bidInvalidBid.findFirst({
+          where: { projectId, supplierId: invalidateTarget.id, source: 'dispute' },
         });
+        if (existingInv) {
+          await tx.bidInvalidBid.update({
+            where: { id: existingInv.id },
+            data: { reason: `异议裁决废标：${dto.response}`, actorId: actorId ?? null, status: 'invalid' },
+          });
+        } else {
+          await tx.bidInvalidBid.create({
+            data: { projectId, supplierId: invalidateTarget.id, source: 'dispute', failCount: 0, totalCount: 0, status: 'invalid', reason: `异议裁决废标：${dto.response}`, actorId: actorId ?? null },
+          });
+        }
         await tx.bidSupervisionLog.create({
           data: {
             projectId, time: now, role: '采购管理员', target: invalidateTarget.supplierName,
@@ -3802,14 +3879,29 @@ export class BidService {
     const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: supplierId, projectId } });
     if (!supplier) throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
 
+    // #23a: 阶段门控 — 仅评标阶段可手动废标
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'EVALUATING') {
+      throw new BadRequestException({ error: '项目不在评标阶段，无法手动废标', code: 'PROJECT_NOT_EVALUATING' });
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.bidSupplier.update({ where: { id: supplierId }, data: { bidValidity: 'invalid' } });
-      // B3: 创建结构化废标决议记录（原因 + 操作人）
-      await tx.bidInvalidBid.upsert({
-        where: { projectId_supplierId_scoreItemId: { projectId, supplierId, scoreItemId: '__manual__' } },
-        update: { reason, actorId },
-        create: { projectId, supplierId, scoreItemId: '__manual__', failCount: 0, totalCount: 0, status: 'invalid', reason, actorId },
+      // B3: 废标决议记录 — source='manual', findFirst+create/update 避免复合 unique 查 null
+      const existingManual = await tx.bidInvalidBid.findFirst({
+        where: { projectId, supplierId, source: 'manual' },
       });
+      if (existingManual) {
+        await tx.bidInvalidBid.update({
+          where: { id: existingManual.id },
+          data: { reason, actorId, status: 'invalid' },
+        });
+      } else {
+        await tx.bidInvalidBid.create({
+          data: { projectId, supplierId, source: 'manual', failCount: 0, totalCount: 0, status: 'invalid', reason, actorId },
+        });
+      }
       await tx.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '采购管理员', target: supplier.supplierName,
           action: '手动废标', result: `原因: ${reason}`, riskFlag: '高风险' },
@@ -5203,8 +5295,9 @@ export class BidService {
       throw new BadRequestException({ error: '已有专家确认评审报告，废标不可撤销', code: 'LOCKED' });
     }
 
-    const rec = await this.prisma.bidInvalidBid.findUnique({
-      where: { projectId_supplierId_scoreItemId: { projectId, supplierId, scoreItemId } },
+    // #1: 旧 unique 约束已移除 → findFirst 替代 findUnique
+    const rec = await this.prisma.bidInvalidBid.findFirst({
+      where: { projectId, supplierId, scoreItemId },
     });
     if (!rec || rec.status === 'revoked') {
       throw new BadRequestException({ error: '无有效废标记录', code: 'NOT_FOUND' });
