@@ -693,21 +693,10 @@ export default function TabletEvaluatePage() {
         </Panel>
       </PanelGroup>
 
-      {/* 操作栏：暂存 / 重置 / 提交（平板大按钮 !h-12） */}
+      {/* 操作栏：重置 / 暂存 / 提交（平板大按钮 !h-12） */}
       <div className="flex flex-shrink-0 items-center justify-center gap-3">
         {!scoreLocked && (
           <>
-            {/* 暂存评分到本地 */}
-            <button
-              type="button"
-              onClick={saveDraft}
-              disabled={busy || draftSaving || !canScoreActiveSupplier}
-              className="neu-btn-soft !h-12 !px-6"
-            >
-              <Save size={16} strokeWidth={1.7} />
-              {draftSaving ? '暂存中…' : '暂存'}
-            </button>
-
             {/* 重置当前供应商评分（P2：二次确认，防触屏误触清空） */}
             <button
               type="button"
@@ -717,6 +706,17 @@ export default function TabletEvaluatePage() {
             >
               <RotateCcw size={16} strokeWidth={1.7} />
               重置
+            </button>
+
+            {/* 暂存评分到本地 */}
+            <button
+              type="button"
+              onClick={saveDraft}
+              disabled={busy || draftSaving || !canScoreActiveSupplier}
+              className="neu-btn-soft !h-12 !px-6"
+            >
+              <Save size={16} strokeWidth={1.7} />
+              {draftSaving ? '暂存中…' : '暂存'}
             </button>
             <ConfirmDialog
               open={resetConfirmOpen}
