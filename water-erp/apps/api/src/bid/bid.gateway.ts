@@ -34,6 +34,7 @@ import {
   type OpeningCompletedPayload,
   type RoundStatusChangePayload,
   type ScoresSubmittedPayload,
+  type DraftSavedPayload,
 } from '@water-erp/shared';
 
 /** Roles that may see individual presence / supervision / anomalies (command center). */
@@ -421,5 +422,18 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   notifyScoresSubmitted(projectId: string, expertId: string, supplierId: string) {
     const payload: ScoresSubmittedPayload = { projectId, expertId, supplierId, timestamp: Date.now() };
     this.server.to(`experts:${projectId}`).emit(BID_EVENT.SCORES_SUBMITTED, payload);
+  }
+
+  /** 草稿保存限流：键 `${projectId}:${expertId}`，3s 内不重复发送 */
+  private draftSavedThrottle = new Map<string, number>();
+
+  /** 草稿保存通知：广播到专家房（仅同项目其他专家），不含草稿内容 */
+  notifyDraftSaved(projectId: string, expertId: string, device: 'tablet' | 'desktop') {
+    const key = `${projectId}:${expertId}`;
+    const last = this.draftSavedThrottle.get(key) ?? 0;
+    if (Date.now() - last < 3000) return;
+    this.draftSavedThrottle.set(key, Date.now());
+    const payload: DraftSavedPayload = { projectId, expertId, device, timestamp: Date.now() };
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.DRAFT_SAVED, payload);
   }
 }

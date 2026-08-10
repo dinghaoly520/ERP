@@ -161,6 +161,20 @@ export default function ExpertEvaluatePage() {
       if (project?.myExpertRecord?.id && d.expertId === project.myExpertRecord.id) return;
       loadProject();
     },
+    onDraftSaved: (d) => {
+      // 忽略自己设备保存的草稿，只处理对方设备
+      if (d.device === 'desktop') return;
+      // 从服务端拉取合并后的草稿
+      api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`)
+        .then(draft => {
+          if (draft?.scores && Object.keys(draft.scores).length > 0) {
+            const count = Object.keys(draft.scores).length;
+            setDraftAvailable({ count, savedAt: draft.savedAt ?? Date.now() });
+            toast.info(`平板端有新草稿（${count} 项），点击恢复可合并`, { duration: 4000 });
+          }
+        })
+        .catch(() => {});
+    },
   });
 
   const [documents, setDocuments] = useState<Record<string, DecryptedDocuments | null>>({});
@@ -339,7 +353,7 @@ export default function ExpertEvaluatePage() {
       }
     } catch { /* corrupt draft — ignore */ }
     // localStorage 无草稿，尝试从服务端恢复
-    api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft`)
+    api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`)
       .then(d => {
         if (d && d.scores && Object.keys(d.scores).length > 0) {
           setDraftAvailable({ count: Object.keys(d.scores).length, savedAt: d.savedAt ?? Date.now() });
@@ -360,7 +374,7 @@ export default function ExpertEvaluatePage() {
         localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
       } catch { /* quota / private mode — ignore */ }
       // E4/G3: 同步到服务端（失败静默降级到 localStorage）
-      api.post(`/expert/projects/${projectId}/score-draft`, { scores, savedAt: Date.now() }).catch(() => {});
+      api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores, savedAt: Date.now() }).catch(() => {});
     }, 2000);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
   }, [scores, draftStorageKey, step, projectId]);
@@ -379,7 +393,7 @@ export default function ExpertEvaluatePage() {
   };
   const discardDraft = () => {
     if (draftStorageKey) localStorage.removeItem(draftStorageKey);
-    api.post(`/expert/projects/${projectId}/score-draft`, { scores: {}, savedAt: Date.now() }).catch(() => {});
+    api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: {}, savedAt: Date.now() }).catch(() => {});
     setDraftAvailable(null);
     setDraftDismissed(true);
   };
@@ -389,7 +403,7 @@ export default function ExpertEvaluatePage() {
     try {
       localStorage.setItem(draftStorageKey, JSON.stringify({ scores: payload, savedAt: Date.now() }));
     } catch { /* quota — ignore */ }
-    api.post(`/expert/projects/${projectId}/score-draft`, { scores: payload, savedAt: Date.now() })
+    api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: payload, savedAt: Date.now() })
       .then(() => toast.success('草稿已保存（已同步到服务端）'))
       .catch(() => toast.success('草稿已保存（本地）'));
   };

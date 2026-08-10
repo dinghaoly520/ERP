@@ -384,13 +384,30 @@ export class ExpertController {
   /* ── G3: 评分草稿持久化 ── */
 
   @Post('projects/:projectId/score-draft')
-  saveScoreDraft(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() draft: Record<string, unknown>) {
-    return this.expertService.saveScoreDraft(userId, projectId, draft);
+  async saveScoreDraft(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Body() draft: Record<string, unknown>,
+    @Query('device') device?: string,
+  ) {
+    const d = (device === 'tablet' || device === 'desktop') ? device : 'desktop';
+    const result = await this.expertService.saveScoreDraft(userId, projectId, draft, d);
+    // WS 通知同项目其他专家端（自己的 device 不会收到——由客户端过滤）
+    try {
+      const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+      if (expert) this.bidGateway.notifyDraftSaved(projectId, expert.id, d);
+    } catch { /* WS 非关键路径 */ }
+    return result;
   }
 
   @Get('projects/:projectId/score-draft')
-  getScoreDraft(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertService.getScoreDraft(userId, projectId);
+  getScoreDraft(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Query('device') device?: string,
+  ) {
+    const d = (device === 'tablet' || device === 'desktop') ? device : undefined;
+    return this.expertService.getScoreDraft(userId, projectId, d);
   }
 
   /* ── E: 「去打分平板」跨设备联动（Redis focus hint）── */

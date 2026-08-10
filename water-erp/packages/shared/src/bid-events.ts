@@ -34,6 +34,7 @@ export const BID_EVENT = {
   ROUND_STATUS_CHANGE: 'round:status:change',
   /** 评分已提交（不含分数值——仅里程碑通知，接收端自行刷新获取数据） */
   SCORES_SUBMITTED: 'scores:submitted',
+  DRAFT_SAVED: 'draft:saved',
 } as const;
 
 // ── 载荷类型 ──
@@ -218,5 +219,13 @@ export interface ScoresSubmittedPayload {
   projectId: string;
   expertId: string;
   supplierId: string;
+  timestamp: number;
+}
+
+/** 草稿已保存（不含草稿内容）。接收端自行从服务端拉取合并。 */
+export interface DraftSavedPayload {
+  projectId: string;
+  expertId: string;
+  device: 'tablet' | 'desktop';
   timestamp: number;
 }

@@ -136,11 +136,26 @@ export default function TabletEvaluatePage() {
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
-  // WS 实时同步：其他专家提交评分后自动刷新
+  // WS 实时同步：其他专家提交评分 / 对方设备保存草稿后自动刷新
   useExpertWebSocket(projectId, {
     onScoresSubmitted: (d) => {
       if (project?.myExpertRecord?.id && d.expertId === project.myExpertRecord.id) return;
       loadProject();
+    },
+    onDraftSaved: (d) => {
+      // 忽略自己设备保存的草稿，只处理对方设备
+      if (d.device === 'tablet') return;
+      // 从服务端拉取合并后的草稿
+      api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=tablet`)
+        .then(draft => {
+          if (draft?.scores && Object.keys(draft.scores).length > 0) {
+            const count = Object.keys(draft.scores).length;
+            setDraftAvailable({ count, savedAt: draft.savedAt ?? Date.now() });
+            setServerDraft(draft.scores);
+            toast.info(`桌面端有新草稿（${count} 项），点击恢复可合并`, { duration: 4000 });
+          }
+        })
+        .catch(() => {});
     },
   });
 
@@ -155,7 +170,7 @@ export default function TabletEvaluatePage() {
         if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); return; }
       }
     } catch { /* 本地草稿损坏 → 继续 fallback 服务端 */ }
-    api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft`)
+    api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=tablet`)
       .then((d) => {
         if (!d || !d.scores) return;
         const count = Object.keys(d.scores).length;
@@ -180,7 +195,7 @@ export default function TabletEvaluatePage() {
         if (hasDraft) {
           localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
           // P2-5: 同步草稿到服务端（与桌面端一致，跨设备恢复）
-          api.post(`/expert/projects/${projectId}/score-draft`, { scores: draftScores, savedAt: Date.now() }).catch(() => {});
+          api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: draftScores, savedAt: Date.now() }).catch(() => {});
         } else {
           localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
         }

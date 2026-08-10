@@ -1724,19 +1724,45 @@ export class ExpertService {
     return updated;
   }
 
-  /** G3: 保存/加载评分草稿(服务端持久化,防 localStorage 丢失) */
-  async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>) {
+  /** G3: 保存/加载评分草稿(服务端持久化,防 localStorage 丢失)。
+   *  按 device 分槽存储，避免平板与桌面互相覆盖。 */
+  async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>, device?: 'tablet' | 'desktop') {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (expert.reportConfirmed) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     }
-    return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: draft as any } });
+    const deviceSlot = device === 'tablet' ? 'tablet' : 'desktop';
+    // 兼容旧扁平格式：若 scoreDraft 不含 device 分槽，初始化为空对象
+    const existing = (expert.scoreDraft as any) ?? {};
+    const merged = typeof existing.tablet === 'object' || typeof existing.desktop === 'object'
+      ? { ...existing, [deviceSlot]: draft }
+      : { desktop: existing, [deviceSlot]: draft };
+    return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: merged as any } });
   }
 
-  async getScoreDraft(userId: string, projectId: string) {
+  async getScoreDraft(userId: string, projectId: string, device?: 'tablet' | 'desktop') {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
-    return expert?.scoreDraft ?? null;
+    const raw = (expert?.scoreDraft ?? {}) as any;
+    // 兼容旧扁平格式 → 视为 desktop 草稿
+    if (!raw || (typeof raw.tablet !== 'object' && typeof raw.desktop !== 'object')) {
+      if (raw && typeof raw.scores === 'object') return raw; // 旧格式直接返回
+      return null;
+    }
+    // 新格式：合并 tablet + desktop 草稿，对本设备优先（同一 scoreKey 本设备的覆盖对方的）
+    const own = (device === 'tablet' ? raw.tablet : raw.desktop) ?? {};
+    const other = (device === 'tablet' ? raw.desktop : raw.tablet) ?? {};
+    const ownScores = own?.scores ?? {};
+    const otherScores = other?.scores ?? {};
+    const mergedScores = { ...otherScores, ...ownScores }; // 本设备覆盖
+    const mergedSavedAt = Math.max(
+      own?.savedAt ?? 0,
+      other?.savedAt ?? 0,
+    );
+    return {
+      scores: mergedScores,
+      savedAt: mergedSavedAt,
+    };
   }
 
   /** E：桌面端「去打分平板」跨设备联动——写入 focus hint（Redis，TTL 120s）。 */
