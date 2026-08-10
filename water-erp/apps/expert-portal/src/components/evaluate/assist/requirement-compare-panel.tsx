@@ -126,6 +126,22 @@ export function RequirementComparePanel({
   // 若当前选中在 flat 中已不存在（极端时序），回退到第一条
   const effectiveSelectedId = flat.some((i) => i.id === selectedId) ? selectedId : flat[0]?.id ?? '';
 
+  // 自动展开选中条款对应的评分类别（须在 early return 之前——Rules of Hooks）
+  useEffect(() => {
+    if (!effectiveSelectedId) return;
+    const item = flat.find(i => i.id === effectiveSelectedId);
+    if (!item) return;
+    const cats = item.isStarred
+      ? [...(CAT_TO_SCORE[item.category] ?? []), 'RESPONSIVE']
+      : (CAT_TO_SCORE[item.category] ?? []);
+    if (cats.length === 0) return;
+    setExpandedCats(prev => {
+      const n = new Set(prev);
+      for (const c of cats) n.add(c);
+      return n;
+    });
+  }, [effectiveSelectedId]);
+
   const respBy = (id: string) => responses.find((r) => r.requirementId === id);
 
   // ── Fix 2：verdict 提交 + 失败回滚（保留 functional update + prevReview 快照）──
@@ -187,20 +203,6 @@ export function RequirementComparePanel({
   const selectedItem = flat.find((i) => i.id === effectiveSelectedId) ?? null;
   const selectedResp = selectedItem ? respBy(selectedItem.id) : null;
   const selectedReview = selectedItem ? local[selectedItem.id] : undefined;
-
-  // 自动展开选中条款对应的评分类别
-  useEffect(() => {
-    if (!selectedItem) return;
-    const cats = selectedItem.isStarred
-      ? [...(CAT_TO_SCORE[selectedItem.category] ?? []), 'RESPONSIVE']
-      : (CAT_TO_SCORE[selectedItem.category] ?? []);
-    if (cats.length === 0) return;
-    setExpandedCats(prev => {
-      const n = new Set(prev);
-      for (const c of cats) n.add(c);
-      return n;
-    });
-  }, [selectedItem?.id]);
 
   // ── 中栏 iframe src：选中条款变化 → src 更新（Fix 7 解密端点 + #page=N 原生跳页）──
   const iframeSrc =
