@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
-  Eraser, ExternalLink, Keyboard, Loader2, Maximize2, Minimize2, ZoomIn, ZoomOut,
+  Eraser, ExternalLink, FilePlus, Keyboard, Loader2, Maximize2, Minimize2, ZoomIn, ZoomOut,
   PenLine, Save, Trash2, Undo2,
 } from 'lucide-react';
 import { AtramentCanvas, type AtramentCanvasHandle, type Stroke } from './atrament-canvas';
@@ -578,6 +578,11 @@ export function MemoPanel({
                   </button>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => { activeCanvas()?.clear(); canvasDirtyRef.current = false; }}
+                    className="neu-btn-soft !h-11"
+                    title="清空画布，开始新一条批注">
+                    <FilePlus size={14} strokeWidth={1.7} /> 新建
+                  </button>
                   <button type="button" onClick={doSave} disabled={saving}
                     className="neu-btn-primary !h-11 flex-1">
                     {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} strokeWidth={1.6} />}
