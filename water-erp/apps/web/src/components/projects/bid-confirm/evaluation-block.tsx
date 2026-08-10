@@ -10,17 +10,20 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck,
-  Clock, FileCheck, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, Users, X,
+  Clock, FileCheck, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, Users, X,
 } from 'lucide-react';
 import {
   generateEvaluationResults,
+  getExpertMemoInkUrlForAdmin,
   listEvaluationResults,
+  listExpertMemosForAdmin,
   SCORE_CATEGORY_LABELS,
   startEvaluation,
   type BidEvaluationResultInfo,
   type BidProjectDetail,
   type BidProjectExpertInfo,
   type BidProjectSupplierInfo,
+  type ExpertMemoForAdmin,
   type ScoreCategory,
 } from '@/lib/api/bid';
 
@@ -41,7 +44,7 @@ interface ExpertSupplierCell {
   totalScore: number;
   maxScore: number;
   scoredCount: number;
-  items: { name: string; category: ScoreCategory; score: number; maxScore: number; passed?: boolean | null; reason?: string | null }[];
+  items: { scoreItemId: string; name: string; category: ScoreCategory; score: number; maxScore: number; passed?: boolean | null; reason?: string | null }[];
 }
 type ExpertSupplierMatrix = Map<string, Map<string, ExpertSupplierCell>>;
 
@@ -63,6 +66,7 @@ function buildExpertSupplierMatrix(detail: BidProjectDetail): ExpertSupplierMatr
       cell.maxScore += Number(item.maxScore);
       cell.scoredCount += 1;
       cell.items.push({
+        scoreItemId: record.scoreItemId,
         name: item.name, category: item.category, score, maxScore: Number(item.maxScore),
         passed: record.passed, reason: record.reason,
       });
@@ -124,10 +128,35 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
   const [expandedCell, setExpandedCell] = useState<string | null>(null); // `${expertId}:${supplierId}`
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<0 | 1 | 2>(0);
+  const [annotationCell, setAnnotationCell] = useState<string | null>(null); // `${expertId}:${supplierId}:${scoreItemId}`
+  const [annotationMemos, setAnnotationMemos] = useState<ExpertMemoForAdmin[]>([]);
+  const [annotationLoading, setAnnotationLoading] = useState(false);
+  const [inkUrls, setInkUrls] = useState<Record<string, string>>({}); // memoId → presigned URL
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
     setTimeout(() => setFeedback(null), 3000);
+  };
+
+  const loadAnnotations = async (expertId: string, supplierId: string, scoreItemId: string) => {
+    const key = `${expertId}:${supplierId}:${scoreItemId}`;
+    setAnnotationCell(key);
+    setAnnotationLoading(true);
+    setAnnotationMemos([]);
+    setInkUrls({});
+    try {
+      const memos = await listExpertMemosForAdmin(bidProjectId, { expertId, supplierId, scoreItemId });
+      setAnnotationMemos(memos);
+      // lazy-load ink URLs
+      for (const m of memos) {
+        if (m.inkFileId) {
+          getExpertMemoInkUrlForAdmin(bidProjectId, m.id)
+            .then(({ url }) => setInkUrls(prev => ({ ...prev, [m.id]: url })))
+            .catch(() => {});
+        }
+      }
+    } catch { /* silent */ }
+    finally { setAnnotationLoading(false); }
   };
 
   const loadResults = useCallback(() => {
@@ -512,14 +541,32 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
                               <button type="button" onClick={() => setExpandedCell(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={11} /></button>
                             </div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
-                              {cell.items.map((it: ExpertSupplierCell['items'][number]) => (
-                                <span key={it.name} className="text-[10px] text-[var(--muted-foreground)]" title={it.reason ?? undefined}>
-                                  {it.name}{' '}
-                                  <b style={{ color: it.passed === false ? 'var(--danger)' : 'var(--foreground)' }}>
-                                    {PASS_FAIL_CATEGORIES.includes(it.category) ? (it.passed === false ? '不通过' : '通过') : `${it.score}/${it.maxScore}`}
-                                  </b>
-                                </span>
-                              ))}
+                              {cell.items.map((it: ExpertSupplierCell['items'][number]) => {
+                                const memoCount = annotationCell === `${expert.id}:${spId}:${it.scoreItemId}`
+                                  ? annotationMemos.filter(m => m.scoreItemId === it.scoreItemId).length
+                                  : 0;
+                                return (
+                                  <span key={it.scoreItemId} className="text-[10px] text-[var(--muted-foreground)]" title={it.reason ?? undefined}>
+                                    {it.name}{' '}
+                                    <b style={{ color: it.passed === false ? 'var(--danger)' : 'var(--foreground)' }}>
+                                      {PASS_FAIL_CATEGORIES.includes(it.category) ? (it.passed === false ? '不通过' : '通过') : `${it.score}/${it.maxScore}`}
+                                    </b>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); loadAnnotations(expert.id, spId, it.scoreItemId); }}
+                                      className={`ml-1 inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-semibold transition-colors ${
+                                        memoCount > 0
+                                          ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent-strong)]'
+                                          : 'text-[var(--muted-foreground)] hover:bg-[oklch(0.94_0.01_258/0.7)]'
+                                      }`}
+                                      title={memoCount > 0 ? `${memoCount} 条批注` : '查看批注'}
+                                    >
+                                      <MessageSquare size={9} strokeWidth={1.5} />
+                                      {memoCount > 0 && <span className="tabular-nums">{memoCount}</span>}
+                                    </button>
+                                  </span>
+                                );
+                              })}
                             </div>
                           </td>
                         </tr>
@@ -711,6 +758,57 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
           </div>
         </div>
       )}
+
+      {/* 批注查看弹窗 */}
+      {annotationCell && (() => {
+        const [exId, spId] = annotationCell.split(':');
+        const expertName = experts.find(e => e.id === exId)?.expertName ?? '';
+        const supplierName = suppliers.find(s => s.id === spId)?.supplierName ?? '';
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-6"
+            style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}
+            onClick={() => setAnnotationCell(null)}>
+            <div className="w-full max-w-[480px] rounded-[20px] bg-white p-5"
+              style={{ boxShadow: '3px 4px 16px oklch(0.46 0.07 258 / 0.18)' }}
+              onClick={e => e.stopPropagation()}>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-[var(--foreground)]">
+                  批注 · {expertName} → {supplierName}
+                </h3>
+                <button type="button" onClick={() => setAnnotationCell(null)}
+                  className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  <X size={16} />
+                </button>
+              </div>
+              {annotationLoading ? (
+                <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">加载中…</p>
+              ) : annotationMemos.length === 0 ? (
+                <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">暂无批注</p>
+              ) : (
+                <div className="max-h-80 space-y-2 overflow-y-auto">
+                  {annotationMemos.map(m => (
+                    <div key={m.id} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.3)] px-3 py-2">
+                      {m.contentText && (
+                        <p className="break-words text-xs text-[var(--foreground)]">{m.contentText}</p>
+                      )}
+                      {m.inkFileId && inkUrls[m.id] && (
+                        <img src={inkUrls[m.id]} alt="手写批注" className="mt-1 w-full rounded-lg" />
+                      )}
+                      {m.inkFileId && !inkUrls[m.id] && (
+                        <p className="text-[10px] italic text-[var(--muted-foreground)]">墨迹加载中…</p>
+                      )}
+                      <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                        {new Date(m.createdAt).toLocaleString('zh-CN')}
+                        {m.sourceDevice && ` · ${m.sourceDevice}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </section>
   );
 }
