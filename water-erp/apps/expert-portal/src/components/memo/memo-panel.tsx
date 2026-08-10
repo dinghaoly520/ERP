@@ -528,7 +528,7 @@ export function MemoPanel({
                 {m.contentText ? (
                   <p className="line-clamp-2 break-words text-xs text-[var(--foreground)]">{m.contentText}</p>
                 ) : m.inkFileId ? (
-                  <button type="button" onClick={() => openInkUrl(m.id)}
+                  <button type="button" onClick={e => { e.stopPropagation(); openInkUrl(m.id); }}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent-strong)] hover:underline">
                     <ExternalLink size={11} strokeWidth={1.7} /> 查看墨迹原图
                   </button>
@@ -540,7 +540,7 @@ export function MemoPanel({
                   {m.sourceDevice && ` · ${memoDeviceLabel(m.sourceDevice)}`}
                 </div>
               </div>
-              <button type="button" onClick={() => setDeleteTargetId(m.id)} aria-label="删除备忘"
+              <button type="button" onClick={e => { e.stopPropagation(); setDeleteTargetId(m.id); }} aria-label="删除备忘"
                 className="neu-btn-xs is-square is-danger shrink-0 !h-8 !w-8">
                 <Trash2 size={13} strokeWidth={1.7} />
               </button>
