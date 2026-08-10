@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, listMemos } from '@/lib/api';
 import { validateSupplierScores } from '@/lib/score-validation';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
@@ -53,6 +53,9 @@ export default function TabletEvaluatePage() {
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
+  // 得分点批注计数（按 scorePointId reduce）+ 当前选中得分点所属 scoreItemId
+  const [pointMemoCounts, setPointMemoCounts] = useState<Record<string, number>>({});
+  const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
   // E：跨设备联动——桌面端「去打分平板」focus hint 触发的闪烁项
   const [flashItemId, setFlashItemId] = useState<string | null>(null);
   const lastFocusSeq = useRef(0);
@@ -241,6 +244,20 @@ export default function TabletEvaluatePage() {
     }
   }, [project, activeSupplier]);
 
+  // 批量加载当前供应商的 memo 计数（按 scorePointId reduce）
+  useEffect(() => {
+    if (!activeSupplier) return;
+    listMemos(projectId, activeSupplier)
+      .then(list => {
+        const counts: Record<string, number> = {};
+        for (const m of list) {
+          if (m.scorePointId) counts[m.scorePointId] = (counts[m.scorePointId] ?? 0) + 1;
+        }
+        setPointMemoCounts(counts);
+      })
+      .catch(() => { /* silent */ });
+  }, [activeSupplier, projectId]);
+
   // Phase 0：桌面端条款响应核对「去打分平板」跳转携带 ?supplier= → 预选该供应商。
   // 只应用一次（presetApplied 闸门），不覆盖专家之后的手动切换；声明在默认选中 effect 之后以便覆盖默认值。
   const presetApplied = useRef(false);
@@ -275,7 +292,11 @@ export default function TabletEvaluatePage() {
               setFlashItemId(hint.scoreItemId!);
               setTimeout(() => setFlashItemId((cur) => (cur === hint.scoreItemId ? null : cur)), 2500);
             }
-            if (hint.pointId) { setActivePointId(hint.pointId); setActivePointName(''); }
+            if (hint.pointId) {
+              setActivePointId(hint.pointId);
+              setActivePointName('');
+              setActiveScoreItemId(hint.scoreItemId ?? null);
+            }
           }, 350);
         }
       } catch { /* hint 可选 — ignore */ }
@@ -397,10 +418,19 @@ export default function TabletEvaluatePage() {
   // 点击得分点：切换选中 → MemoPanel 内部自动保存/加载
   const handlePointClick = useCallback(
     (pointId: string, pointName: string) => {
-      setActivePointId(activePointId === pointId ? null : pointId);
-      setActivePointName(activePointId === pointId ? '' : pointName);
+      // toggle selection
+      const newId = activePointId === pointId ? null : pointId;
+      setActivePointId(newId);
+      setActivePointName(newId ? pointName : '');
+      // find the scoreItemId containing this point
+      if (newId && project) {
+        const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === newId));
+        setActiveScoreItemId(item?.id ?? null);
+      } else {
+        setActiveScoreItemId(null);
+      }
     },
-    [activePointId],
+    [activePointId, project],
   );
 
   if (loadError) {
@@ -589,6 +619,7 @@ export default function TabletEvaluatePage() {
                                   compact
                                   selectedPointId={activePointId}
                                   onPointClick={handlePointClick}
+                                  pointMemoCounts={pointMemoCounts}
                                   onChange={(pid, pv) =>
                                     setScores(prev => {
                                       const cur = prev[k] ?? { score: 0, reason: '' };
@@ -643,6 +674,7 @@ export default function TabletEvaluatePage() {
                               compact
                               selectedPointId={activePointId}
                               onPointClick={handlePointClick}
+                              pointMemoCounts={pointMemoCounts}
                               onChange={(pid, pv) =>
                                 setScores(prev => {
                                   const cur = prev[k] ?? { score: 0, reason: '' };
@@ -727,8 +759,11 @@ export default function TabletEvaluatePage() {
             supplierId={activeSupplier || undefined}
             scorePointId={activePointId ?? undefined}
             scorePointName={activePointName || undefined}
+            scoreItemId={activeScoreItemId ?? undefined}
             compact
             sourceDevice="tablet"
+            requirePointSelection
+            onMemoCountChange={(pid, count) => setPointMemoCounts(prev => ({ ...prev, [pid]: count }))}
           />
         </aside>
         </Panel>
