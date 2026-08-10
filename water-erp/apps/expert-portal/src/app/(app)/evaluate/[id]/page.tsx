@@ -437,6 +437,10 @@ export default function ExpertEvaluatePage() {
     [activePointId, project],
   );
 
+  const handleMemoCountChange = useCallback((pid: string, count: number) => {
+    setPointMemoCounts(prev => prev[pid] === count ? prev : { ...prev, [pid]: count });
+  }, []);
+
   useEffect(() => { loadProject(); }, [loadProject]);
 
   // 批量加载当前供应商的 memo 计数（按 scorePointId reduce）
@@ -1924,7 +1928,7 @@ export default function ExpertEvaluatePage() {
                     scorePointName={activePointName || undefined}
                     scoreItemId={activeScoreItemId ?? undefined}
                     sourceDevice="desktop"
-                    onMemoCountChange={(pid, count) => setPointMemoCounts(prev => ({ ...prev, [pid]: count }))}
+                    onMemoCountChange={handleMemoCountChange}
                   />
                 ) : (
                   <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">请先在左侧选择供应商</p>

@@ -272,6 +272,7 @@ export function MemoPanel({
   // 点击历史备忘 → 载入编辑区
   const recallMemo = async (memo: ExpertMemo) => {
     if (memo.inkFileId) {
+      setMode('handwriting');
       try {
         const { url } = await getMemoInkUrl(projectId, memo.id);
         const res = await fetch(url);

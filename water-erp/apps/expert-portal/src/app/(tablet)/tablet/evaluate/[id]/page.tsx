@@ -433,6 +433,10 @@ export default function TabletEvaluatePage() {
     [activePointId, project],
   );
 
+  const handleMemoCountChange = useCallback((pid: string, count: number) => {
+    setPointMemoCounts(prev => prev[pid] === count ? prev : { ...prev, [pid]: count });
+  }, []);
+
   if (loadError) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-4 text-[var(--muted-foreground)]">
@@ -763,7 +767,7 @@ export default function TabletEvaluatePage() {
             compact
             sourceDevice="tablet"
             requirePointSelection
-            onMemoCountChange={(pid, count) => setPointMemoCounts(prev => ({ ...prev, [pid]: count }))}
+            onMemoCountChange={handleMemoCountChange}
           />
         </aside>
         </Panel>

@@ -38,6 +38,13 @@ const CATEGORY_ORDER: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE', 'BUSINES
 const PASS_FAIL_CATEGORIES: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE'];
 const ANOMALY_THRESHOLD = 20; // 偏差 >20% 标异常
 
+function memoDeviceLabel(sourceDevice: string): string {
+  const [device, input] = sourceDevice.split('_');
+  const dl = device === 'desktop' ? '桌面' : device === 'tablet' ? '平板' : device;
+  const il = input === 'handwriting' ? '手写' : input === 'keyboard' ? '键盘' : input;
+  return `${dl}·${il}`;
+}
+
 /* ── 聚合工具（移植自 bid-portal evaluate/page.tsx）── */
 
 interface ExpertSupplierCell {
@@ -131,6 +138,7 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
   const [annotationCell, setAnnotationCell] = useState<string | null>(null); // `${expertId}:${supplierId}:${scoreItemId}`
   const [annotationMemos, setAnnotationMemos] = useState<ExpertMemoForAdmin[]>([]);
   const [annotationLoading, setAnnotationLoading] = useState(false);
+  const [annotationCounts, setAnnotationCounts] = useState<Record<string, number>>({});
   const [inkUrls, setInkUrls] = useState<Record<string, string>>({}); // memoId → presigned URL
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
@@ -155,6 +163,19 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
             .catch(() => {});
         }
       }
+    } catch { /* silent */ }
+    finally { setAnnotationLoading(false); }
+  };
+
+  const loadAnnotationCounts = async (expertId: string, supplierId: string) => {
+    setAnnotationLoading(true);
+    try {
+      const allMemos = await listExpertMemosForAdmin(bidProjectId, { expertId, supplierId });
+      const counts: Record<string, number> = {};
+      for (const m of allMemos) {
+        if (m.scoreItemId) counts[m.scoreItemId] = (counts[m.scoreItemId] ?? 0) + 1;
+      }
+      setAnnotationCounts(counts);
     } catch { /* silent */ }
     finally { setAnnotationLoading(false); }
   };
@@ -507,7 +528,11 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
                             {scored ? (
                               <button
                                 type="button"
-                                onClick={() => setExpandedCell(prev => (prev === key ? null : key))}
+                                onClick={() => setExpandedCell(prev => {
+                                  const next = prev === key ? null : key;
+                                  if (next) loadAnnotationCounts(expert.id, s.id);
+                                  return next;
+                                })}
                                 className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[11px] font-bold tabular-nums transition-colors hover:bg-[oklch(0.94_0.01_258_/_0.8)]"
                                 title="点击查看评分项明细"
                                 style={{
@@ -542,9 +567,7 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
                             </div>
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
                               {cell.items.map((it: ExpertSupplierCell['items'][number]) => {
-                                const memoCount = annotationCell === `${expert.id}:${spId}:${it.scoreItemId}`
-                                  ? annotationMemos.filter(m => m.scoreItemId === it.scoreItemId).length
-                                  : 0;
+                                const memoCount = annotationCounts[it.scoreItemId] ?? 0;
                                 return (
                                   <span key={it.scoreItemId} className="text-[10px] text-[var(--muted-foreground)]" title={it.reason ?? undefined}>
                                     {it.name}{' '}
@@ -799,7 +822,7 @@ export function EvaluationBlock({ bidProjectId, detail, onChanged }: Props) {
                       )}
                       <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
                         {new Date(m.createdAt).toLocaleString('zh-CN')}
-                        {m.sourceDevice && ` · ${m.sourceDevice}`}
+                        {m.sourceDevice && ` · ${memoDeviceLabel(m.sourceDevice)}`}
                       </div>
                     </div>
                   ))}
