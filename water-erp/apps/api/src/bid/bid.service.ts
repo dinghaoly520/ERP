@@ -37,7 +37,7 @@ import { buildArchiveAiUsage } from '../ai-bid-analysis/utils/archive-ai-usage';
 import { ClarificationAiService } from './clarification-ai.service';
 import { ScoreStandardValidator } from './score-standard-validator.service';
 import { PriceFormulaService } from './price-formula.service';
-import { getScoreTemplate } from './evaluation-method.config';
+import { getEvaluationDefault, getScoreTemplate } from './evaluation-method.config';
 import { StorageService } from '../storage/storage.service';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
@@ -485,6 +485,7 @@ export class BidService {
         name: dto.name,
         projectCode: `BID-${Date.now()}`,
         procurementMethod: dto.procurementMethod,
+        evaluationMethod: getEvaluationDefault(dto.procurementMethod).evaluationMethod,
         roundMode: dto.procurementMethod === '谈判采购' ? 'negotiation'
                   : dto.procurementMethod === '竞价采购' ? 'sealed_auction'
                   : null,
@@ -541,6 +542,7 @@ export class BidService {
         name: announcement.title,
         projectCode,
         procurementMethod,
+        evaluationMethod: getEvaluationDefault(procurementMethod).evaluationMethod,
         roundMode: procurementMethod === '谈判采购' ? 'negotiation'
                   : procurementMethod === '竞价采购' ? 'sealed_auction'
                   : null,
