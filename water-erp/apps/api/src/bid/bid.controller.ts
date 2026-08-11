@@ -28,6 +28,7 @@ import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
+import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
 
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
@@ -746,7 +747,7 @@ export class BidController {
   @ApiOperation({ summary: '审批延期评标（延长 evaluationDeadline）' })
   extendEvaluation(
     @Param('id') id: string,
-    @Body() dto: { extendHours: number; reason: string },
+    @Body() dto: ExtendEvaluationDto,
     @CurrentUser('sub') userId: string,
   ) {
     return this.bidService.extendEvaluationDeadline(id, dto.extendHours, dto.reason, userId);
