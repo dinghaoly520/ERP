@@ -28,6 +28,11 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
     headers: mergedHeaders,
   });
   if (!res.ok) {
+    // 401 全局兜底：JWT 过期 / 服务端踢人 / cookie 被清 → 直接跳登录页，
+    // 不让调用方的 .catch(() => {}) 静默吞掉鉴权失败。
+    if (res.status === 401 && typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
     let message = `请求失败 (${res.status})`;
     let body: Record<string, unknown> = {};
     try {

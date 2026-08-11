@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Clock } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Clock, Building2, ListChecks } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ExpertProject } from '@/lib/types';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
@@ -18,8 +18,25 @@ export default function TabletLandingPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<ExpertProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const hintRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // 首次进入落地页时闪烁红色提示（localStorage 记录，后续不再闪）
+    if (!localStorage.getItem('tablet-hint-seen')) {
+      localStorage.setItem('tablet-hint-seen', '1');
+      // 用 Web Animations API 直接驱动，不依赖 CSS class 热更新
+      if (hintRef.current) {
+        hintRef.current.animate(
+          [
+            { opacity: 1 }, { opacity: 0.2 },
+            { opacity: 1 }, { opacity: 0.2 },
+            { opacity: 1 }, { opacity: 0.2 },
+            { opacity: 1 },
+          ],
+          { duration: 2400, easing: 'ease-in-out' },
+        );
+      }
+    }
     api
       .get<ExpertProject[]>('/expert/projects')
       .then(setProjects)
@@ -33,11 +50,13 @@ export default function TabletLandingPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div>
+      {/* 标题 + 红色提示 */}
+      <div className="mb-8 space-y-2.5">
         <h1 className="text-[1.35rem] font-black tracking-[-0.01em] text-[var(--foreground)]">评标项目</h1>
-        <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-          选择项目进入开始打分界面
-        </p>
+        <div ref={hintRef} className="exp-alert flex items-center gap-2.5 !text-[13px]">
+          <AlertTriangle size={15} strokeWidth={1.8} className="shrink-0" />
+          <span>评分实时同步至桌面端 · 请在桌面端审阅并提交</span>
+        </div>
       </div>
 
       {loading ? (
@@ -62,49 +81,35 @@ export default function TabletLandingPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* 进行中的项目 */}
-          {activeProjects.length > 0 && (
-            <section>
-              <h2 className="mb-3.5 text-[1.05rem] font-bold tracking-[-0.01em] text-[var(--foreground)]">
-                进行中 · {activeProjects.length} 个
-              </h2>
-              <div className="space-y-4">
-                {activeProjects.map((ep) => {
-                  const sc = STAGE_COLOR[ep.project.stage] || 'var(--muted-foreground)';
-                  return (
-                    <ProjectCard
-                      key={ep.id}
-                      ep={ep}
-                      sc={sc}
-                      onEvaluate={() => router.push(`/tablet/evaluate/${ep.project.id}`)}
-                    />
-                  );
-                })}
-              </div>
-            </section>
-          )}
+          {activeProjects.map((ep) => {
+            const sc = STAGE_COLOR[ep.project.stage] || 'var(--muted-foreground)';
+            return (
+              <ProjectCard
+                key={ep.id}
+                ep={ep}
+                sc={sc}
+                onEvaluate={() => router.push(`/tablet/evaluate/${ep.project.id}`)}
+              />
+            );
+          })}
 
           {/* 其他项目 */}
           {inactiveProjects.length > 0 && (
-            <section>
-              <h2 className="mb-3.5 text-[1.05rem] font-bold tracking-[-0.01em] text-[var(--foreground)]">
-                其他 · {inactiveProjects.length} 个
-              </h2>
-              <div className="space-y-3 opacity-60">
-                {inactiveProjects.map((ep) => {
-                  const sc = STAGE_COLOR[ep.project.stage] || 'var(--muted-foreground)';
-                  return (
-                    <ProjectCard
-                      key={ep.id}
-                      ep={ep}
-                      sc={sc}
-                      disabled
-                    />
-                  );
-                })}
-              </div>
-            </section>
+            <div className="space-y-4 opacity-60">
+              {inactiveProjects.map((ep) => {
+                const sc = STAGE_COLOR[ep.project.stage] || 'var(--muted-foreground)';
+                return (
+                  <ProjectCard
+                    key={ep.id}
+                    ep={ep}
+                    sc={sc}
+                    disabled
+                  />
+                );
+              })}
+            </div>
           )}
         </div>
       )}
@@ -147,15 +152,26 @@ function ProjectCard({
             )}
           </div>
         </div>
-        <span className="exp-pill shrink-0" style={{ '--c': sc } as React.CSSProperties}>
-          {STAGE_LABEL[ep.project.stage] || ep.project.stage}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="exp-pill" style={{ '--c': sc } as React.CSSProperties}>
+            {STAGE_LABEL[ep.project.stage] || ep.project.stage}
+          </span>
+          {clickable && (
+            <ChevronRight size={18} strokeWidth={1.8} className="text-[var(--muted-foreground)]" />
+          )}
+        </div>
       </div>
 
       {/* 统计信息 */}
-      <div className="mb-4 flex items-center gap-7 text-sm text-[var(--muted-foreground)]">
-        <span>投标单位：{ep.project.suppliers?.length ?? 0} 家</span>
-        <span>评分项：{ep.project.scoreItems?.length ?? 0} 项</span>
+      <div className="mb-4 flex items-center gap-6 text-sm text-[var(--muted-foreground)]">
+        <span className="flex items-center gap-1.5">
+          <Building2 size={14} strokeWidth={1.7} className="shrink-0" />
+          {ep.project.suppliers?.length ?? 0} 家
+        </span>
+        <span className="flex items-center gap-1.5">
+          <ListChecks size={14} strokeWidth={1.7} className="shrink-0" />
+          {ep.project.scoreItems?.length ?? 0} 项
+        </span>
       </div>
 
       {/* 进度条 */}

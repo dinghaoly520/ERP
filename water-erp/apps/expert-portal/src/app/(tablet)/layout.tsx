@@ -6,6 +6,8 @@ import {
   AlertTriangle, ArrowLeft, LogOut, RefreshCw,
 } from 'lucide-react';
 import type { User } from '@/lib/types';
+import { useIdleTimeout } from '@/hooks/use-idle-timeout';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 /**
  * 平板触屏 layout（Phase ⑤ Task 6 · cgzxui 新拟态重构）
@@ -64,6 +66,21 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
     }).catch(() => {});
     router.replace(LOGIN_URL);
   };
+
+  // ── 空闲超时（15min 无操作 → 2min 预警倒计时 → 自动退出）──
+  const [extendRequested, setExtendRequested] = useState(false);
+  const { phase: idlePhase, remainingSeconds } = useIdleTimeout({
+    timeoutMs: 15 * 60 * 1000,
+    warningMs: 2 * 60 * 1000,
+    onTimeout: logout,
+  });
+  // extendRequested 信号翻转 → hook 内 resetActivity
+  useEffect(() => {
+    if (extendRequested) {
+      const t = setTimeout(() => setExtendRequested(false), 100);
+      return () => clearTimeout(t);
+    }
+  }, [extendRequested]);
 
   const registeredName = user?.displayName?.trim() || user?.username || '专家';
   const userInitial = registeredName.slice(0, 1);
@@ -128,6 +145,17 @@ export default function TabletLayout({ children }: { children: React.ReactNode }
       <main className={`flex-1 overflow-y-auto ${isEvaluatePage ? '' : 'p-4'}`}>
         {children}
       </main>
+
+      {/* 空闲超时预警弹窗 —— 倒计时到 0 自动退出，点「继续评标」重置计时器 */}
+      <ConfirmDialog
+        open={idlePhase === 'warning'}
+        title="即将自动退出"
+        message={`长时间未操作，为保护评分安全将在 ${remainingSeconds} 秒后自动退出`}
+        confirmText="继续评标"
+        cancelText="立即退出"
+        onConfirm={() => setExtendRequested(true)}
+        onCancel={logout}
+      />
     </div>
   );
 }

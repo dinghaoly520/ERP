@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, AlertTriangle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { api, listMemos } from '@/lib/api';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
@@ -250,20 +250,6 @@ export default function TabletEvaluatePage() {
     setDraftDismissed(true);
   }, [draftStorageKey]);
 
-  // 重置当前供应商所有评分
-  const resetCurrentSupplier = useCallback(() => {
-    if (!activeSupplier) return;
-    skipAutoSaveRef.current = true;
-    setScores((prev) => {
-      const next = { ...prev };
-      for (const k of Object.keys(next)) {
-        if (k.startsWith(`${activeSupplier}:`)) delete next[k];
-      }
-      return next;
-    });
-    toast.success('已重置当前供应商评分（不影响桌面端已同步的草稿）');
-  }, [activeSupplier]);
-
   // 默认选中第一家供应商
   useEffect(() => {
     if (project && project.suppliers.length > 0 && !activeSupplier) {
@@ -361,7 +347,6 @@ export default function TabletEvaluatePage() {
     !!project?.myExpertRecord?.signedIn &&
     !!project?.myExpertRecord?.avoidanceConfirmed &&
     !!project?.myExpertRecord?.aiConsentConfirmed;
-  const [resetConfirmOpen, setResetConfirmOpen] = useState(false); // P2：重置二次确认
   // 修改确认：拦截已有值的修改（平板防误触）
   const [pendingModify, setPendingModify] = useState<{
     scoreItemId: string;
@@ -788,61 +773,33 @@ export default function TabletEvaluatePage() {
         </Panel>
       </PanelGroup>
 
-      {/* 操作栏：重置（平板仅草稿，正式提交请在桌面端完成） */}
-      <div className="flex flex-shrink-0 flex-col items-center gap-2">
-        {!scoreLocked && (
-          <div className="flex items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => setResetConfirmOpen(true)}
-              disabled={!canScoreActiveSupplier}
-              className="neu-btn-soft is-danger !h-12 !px-6"
-            >
-              <RotateCcw size={16} strokeWidth={1.7} />
-              重置
-            </button>
-            <ConfirmDialog
-              open={resetConfirmOpen}
-              title="重置当前供应商评分"
-              message="将清空当前供应商已录入的全部评分（不影响桌面端已同步的草稿）。"
-              confirmText="重置"
-              cancelText="取消"
-              danger
-              onConfirm={() => { resetCurrentSupplier(); setResetConfirmOpen(false); }}
-              onCancel={() => setResetConfirmOpen(false)}
-            />
-            <ConfirmDialog
-              open={pendingModify !== null}
-              title="确认修改评分"
-              message={pendingModify ? `确定将「${pendingModify.pointName}」${
-                pendingModify.oldVal.checked && !pendingModify.newVal.checked ? '取消勾选'
-                : `从 ${pendingModify.oldVal.awardedScore} 分改为 ${pendingModify.newVal.awardedScore} 分`
-              }？` : ''}
-              confirmText="确认修改"
-              cancelText="取消"
-              danger
-              onConfirm={() => {
-                if (pendingModify) {
-                  pendingModify.applyFn(pendingModify.newVal);
-                  // undo toast
-                  toast(`已将「${pendingModify.pointName}」修改`, {
-                    action: {
-                      label: '撤销',
-                      onClick: () => pendingModify.applyFn(pendingModify.oldVal),
-                    },
-                    duration: 3000,
-                  });
-                }
-                setPendingModify(null);
-              }}
-              onCancel={() => setPendingModify(null)}
-            />
-          </div>
-        )}
-        <p className="text-[10px] text-[var(--muted-foreground)]">
-          评分实时同步至桌面端 · 请在桌面端审阅并提交
-        </p>
-      </div>
+      {/* 修改确认弹窗（单项改分防误触，与已删除的批量重置无关） */}
+      <ConfirmDialog
+        open={pendingModify !== null}
+        title="确认修改评分"
+        message={pendingModify ? `确定将「${pendingModify.pointName}」${
+          pendingModify.oldVal.checked && !pendingModify.newVal.checked ? '取消勾选'
+          : `从 ${pendingModify.oldVal.awardedScore} 分改为 ${pendingModify.newVal.awardedScore} 分`
+        }？` : ''}
+        confirmText="确认修改"
+        cancelText="取消"
+        danger
+        onConfirm={() => {
+          if (pendingModify) {
+            pendingModify.applyFn(pendingModify.newVal);
+            // undo toast
+            toast(`已将「${pendingModify.pointName}」修改`, {
+              action: {
+                label: '撤销',
+                onClick: () => pendingModify.applyFn(pendingModify.oldVal),
+              },
+              duration: 3000,
+            });
+          }
+          setPendingModify(null);
+        }}
+        onCancel={() => setPendingModify(null)}
+      />
       <SyncConflictModal
         open={conflictModalOpen}
         newItems={[]}
