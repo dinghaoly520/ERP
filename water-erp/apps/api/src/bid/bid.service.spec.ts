@@ -904,6 +904,90 @@ describe('BidService — stage transitions', () => {
       const created = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data[0];
       expect(created.disqualified).toBe(false);
     });
+
+    it('谈判采购: 合格供应商按最终报价升序排名, winner=1', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '谈判项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
+        procurementMethod: '谈判采购',
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's3', supplierName: '丙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([]);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      // 报价: 甲=100, 乙=80, 丙=120 → 排名应为 乙(80)<甲(100)<丙(120)
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', amount: '100' },
+        { bidSupplierId: 's2', amount: '80' },
+        { bidSupplierId: 's3', amount: '120' },
+      ]);
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({});
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+      prisma.auditLog.create.mockResolvedValue({});
+
+      await service.generateEvaluationResults('p1');
+
+      const data = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data;
+      expect(data).toHaveLength(3);
+      // rank 1 = 乙(80), rank 2 = 甲(100), rank 3 = 丙(120)
+      expect(data[0].supplierName).toBe('乙');
+      expect(data[0].rank).toBe(1);
+      expect(data[0].recommended).toBe(true); // winner=1
+      expect(data[1].supplierName).toBe('甲');
+      expect(data[1].rank).toBe(2);
+      expect(data[1].recommended).toBe(false);
+      expect(data[2].supplierName).toBe('丙');
+      expect(data[2].rank).toBe(3);
+      expect(data[2].recommended).toBe(false);
+    });
+
+    it('谈判采购: 废标供应商排末位, 不影响合格者按价排', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '谈判项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
+        procurementMethod: '谈判采购',
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }, { id: 'e2', expertRole: '正选', reportConfirmed: true }, { id: 'e3', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙(废标)', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'si_qual', category: 'QUALIFICATION' },
+      ]);
+      // 乙: 通过性 2/3 不通过 → 废标
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { supplierId: 's2', expertId: 'e1', score: 0, passed: false, scoreItemId: 'si_qual' },
+        { supplierId: 's2', expertId: 'e2', score: 0, passed: false, scoreItemId: 'si_qual' },
+        { supplierId: 's2', expertId: 'e3', score: 0, passed: true, scoreItemId: 'si_qual' },
+      ]);
+      // 甲报价 100, 乙报价 50 (更低但废标)
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', amount: '100' },
+        { bidSupplierId: 's2', amount: '50' },
+      ]);
+      prisma.bidInvalidBid.findMany.mockResolvedValue([]);
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({});
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+      prisma.auditLog.create.mockResolvedValue({});
+
+      await service.generateEvaluationResults('p1');
+
+      const data = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data;
+      // 甲 rank 1 (合格, 报价 100), 乙 rank 2 (废标, 即使报价更低)
+      expect(data[0].supplierName).toBe('甲');
+      expect(data[0].disqualified).toBe(false);
+      expect(data[0].recommended).toBe(true);
+      expect(data[1].supplierName).toBe('乙(废标)');
+      expect(data[1].disqualified).toBe(true);
+      expect(data[1].recommended).toBe(false);
+    });
   });
 
   describe('archiveAll', () => {

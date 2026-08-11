@@ -3032,15 +3032,28 @@ export class BidService {
 
       ranked.push({ supplierId: supplier.id, supplierName: supplier.supplierName, totalScore, averageScore, disqualified: !!passFailVerdicts.get(supplier.id) });
     }
-    // 合格者在前、废标者在后；同组内按 averageScore 降序；同分按供应商名确定性排序（P2：tiebreaker，结果可复现）
+    // 合格者在前、废标者在后
+    const isNegotiation = project.procurementMethod === '谈判采购';
     ranked.sort((a, b) => {
       if (a.disqualified !== b.disqualified) return a.disqualified ? 1 : -1;
+      if (isNegotiation) {
+        // 谈判采购: 合格组按最终报价升序（最低价中标），无报价者排末位
+        const priceA = bidPrices.get(a.supplierId);
+        const priceB = bidPrices.get(b.supplierId);
+        if (priceA == null && priceB == null) return a.supplierName.localeCompare(b.supplierName, 'zh-CN');
+        if (priceA == null) return 1;
+        if (priceB == null) return -1;
+        if (priceA !== priceB) return priceA - priceB;
+        return a.supplierName.localeCompare(b.supplierName, 'zh-CN');
+      }
+      // 其余方式: 同组内按 averageScore 降序；同分按供应商名确定性排序（P2：tiebreaker，结果可复现）
       if (b.averageScore !== a.averageScore) return b.averageScore - a.averageScore;
       return a.supplierName.localeCompare(b.supplierName, 'zh-CN');
     });
 
     const qualifiedRanked = ranked.filter(r => !r.disqualified);
-    const winnerCount = Math.min(this.DEFAULT_WINNER_COUNT, qualifiedRanked.length);
+    // 谈判采购最低价中标（1 名候选人）；其他方式沿用默认（3 名）
+    const winnerCount = Math.min(isNegotiation ? 1 : this.DEFAULT_WINNER_COUNT, qualifiedRanked.length);
 
     // #6: EXCEPTION 供应商显式告警——被排除的供应商（解密成功但 confirmStatus=EXCEPTION）
     const excludedExceptionSuppliers = project.suppliers.filter(
@@ -3083,7 +3096,7 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '系统', target: project.name,
-          action: '生成评标结果', result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无',
+          action: '生成评标结果', result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名${isNegotiation ? '，谈判采购·最低价中标' : `，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}`}）`, riskFlag: '无',
         },
       });
       for (const f of bondFlagged) {
@@ -3144,7 +3157,7 @@ export class BidService {
     } catch (e) {
       this.logger.error('评标快照生成失败（不阻塞结果生成）', e instanceof Error ? e.message : String(e));
     }
-    this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名${isNegotiation ? '，谈判采购·最低价中标' : `，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}`}）`, riskFlag: '无' });
     if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', resourceType: `BidProject:${projectId}`, details: { rankedCount: ranked.length } } });
 
     // #6: 返回值包含被排除的 EXCEPTION 供应商（供前端告警展示）
