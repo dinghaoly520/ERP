@@ -721,7 +721,7 @@ export class BidService {
         data: { projectId: id, time: now, role: existing.host, target: project.name, action: '完成开标·资料移交', result: '开标文件包已生成并移交采购管理工作台', riskFlag: '无' },
       });
       if (actorId) {
-        let integrityStamp = null;
+        let integrityStamp: { ts: string; sig: string } | null = null;
         try {
           integrityStamp = createIntegrityStamp(actorId, 'COMPLETE_OPENING', id);
         } catch { /* 签名失败不阻塞开标移交 */ }
