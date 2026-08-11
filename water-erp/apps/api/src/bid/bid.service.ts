@@ -4191,7 +4191,7 @@ export class BidService {
   }
 
   /** 创建新报价轮次 */
-  async createRound(projectId: string, roundType: string, deadline?: string, actorId?: string) {
+  async createRound(projectId: string, roundType: string, deadline?: string, actorId?: string, supplierIds?: string[]) {
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, roundMode: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (!project.roundMode) throw new BadRequestException({ error: '该项目不是多轮报价模式', code: 'NOT_MULTI_ROUND' });
@@ -4206,11 +4206,37 @@ export class BidService {
     const lastRound = await this.prisma.bidRound.findFirst({ where: { projectId }, orderBy: { roundNo: 'desc' } });
     const roundNo = (lastRound?.roundNo ?? 0) + 1;
 
+    // 确定本轮可参与的供应商
+    let finalEligibleIds: string[];
+    if (supplierIds && supplierIds.length > 0) {
+      // 显式指定：校验都属于项目且未废标
+      const specified = await this.prisma.bidSupplier.findMany({
+        where: { id: { in: supplierIds }, projectId },
+        select: { id: true, bidValidity: true, supplierName: true },
+      });
+      const invalidOnes = specified.filter(s => s.bidValidity === 'invalid');
+      if (invalidOnes.length > 0) {
+        throw new BadRequestException({
+          error: `以下供应商已废标，不可参与报价：${invalidOnes.map(s => s.supplierName).join('、')}`,
+          code: 'SUPPLIER_DISQUALIFIED',
+        });
+      }
+      finalEligibleIds = specified.map(s => s.id);
+    } else {
+      // 默认：所有 bidValidity !== 'invalid' 的供应商
+      const qualified = await this.prisma.bidSupplier.findMany({
+        where: { projectId, bidValidity: { not: 'invalid' } },
+        select: { id: true },
+      });
+      finalEligibleIds = qualified.map(s => s.id);
+    }
+
     const round = await this.prisma.bidRound.create({
       data: {
         projectId, roundNo, roundType,
         status: 'open',
         deadline: deadline ? new Date(deadline) : null,
+        eligibleSupplierIds: finalEligibleIds,
       },
     });
     await this.prisma.bidProject.update({ where: { id: projectId }, data: { currentRoundNo: roundNo } });
@@ -4348,6 +4374,16 @@ export class BidService {
     // 验证供应商属于该项目
     const supplier = await this.prisma.bidSupplier.findFirst({ where: { id: bidSupplierId, projectId } });
     if (!supplier) throw new ForbiddenException({ error: '供应商不属于该项目', code: 'NOT_PROJECT_SUPPLIER' });
+
+    // 校验供应商在轮次合格名单中（legacy 兼容：空数组=不限制）
+    if (round.eligibleSupplierIds && round.eligibleSupplierIds.length > 0
+        && !round.eligibleSupplierIds.includes(bidSupplierId)) {
+      throw new ForbiddenException({ error: '该供应商不在本轮可参与名单中', code: 'NOT_ELIGIBLE_FOR_ROUND' });
+    }
+    // 废标供应商不可报价
+    if (supplier.bidValidity === 'invalid') {
+      throw new ForbiddenException({ error: '供应商已废标，不可报价', code: 'SUPPLIER_DISQUALIFIED' });
+    }
 
     // H4: 严格一报制——与供应商端一致，upsert 改为 create + P2002 catch
     try {

@@ -123,6 +123,8 @@ describe('BidService — stage transitions', () => {
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
       expertDispute: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
       bidScoreRecordHistory: { create: jest.fn() },
+      bidRound: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+      bidQuote: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       projectManagementStage: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
       $queryRaw: jest.fn().mockResolvedValue([]),
@@ -3356,5 +3358,122 @@ describe('evaluation integrity package', () => {
     const fp1 = crypto.createHash('sha256').update(JSON.stringify(body1)).digest('hex');
     const fp2 = crypto.createHash('sha256').update(JSON.stringify(body2)).digest('hex');
     expect(fp1).not.toBe(fp2);
+  });
+});
+
+describe('createRound — 供应商准入', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn(), update: jest.fn() },
+      bidRound: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'r1', roundNo: 1 }), count: jest.fn().mockResolvedValue(0) },
+      bidSupplier: { findMany: jest.fn(), findFirst: jest.fn() },
+      bidQuote: { create: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      bidOpeningSession: { update: jest.fn() },
+      $queryRaw: jest.fn(),
+      $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn(), getOverCeilingSuppliers: jest.fn() } },
+        { provide: StorageService, useValue: {} },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('显式指定合格供应商 → 存入 eligibleSupplierIds', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation' });
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 's1', bidValidity: 'valid', supplierName: '甲' },
+      { id: 's2', bidValidity: null, supplierName: '乙' },
+    ]);
+    await service.createRound('p1', 'negotiation', undefined, 'u1', ['s1', 's2']);
+    expect(prisma.bidRound.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eligibleSupplierIds: ['s1', 's2'] }),
+      }),
+    );
+  });
+
+  it('指定废标供应商 → 抛错', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation' });
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 's1', bidValidity: 'invalid', supplierName: '甲(废标)' },
+    ]);
+    await expect(service.createRound('p1', 'negotiation', undefined, 'u1', ['s1']))
+      .rejects.toMatchObject({ response: { code: 'SUPPLIER_DISQUALIFIED' } });
+  });
+
+  it('不指定 supplierIds → 默认选所有非废标', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation' });
+    prisma.bidSupplier.findMany.mockResolvedValue([{ id: 's1' }, { id: 's2' }]);
+    await service.createRound('p1', 'negotiation', undefined, 'u1');
+    const call = prisma.bidRound.create.mock.calls[0][0];
+    expect(call.data.eligibleSupplierIds).toEqual(['s1', 's2']);
+  });
+});
+
+describe('submitQuote — 准入校验', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidRound: { findUnique: jest.fn() },
+      bidSupplier: { findFirst: jest.fn() },
+      bidQuote: { create: jest.fn() },
+      $queryRaw: jest.fn(),
+      $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn(), getOverCeilingSuppliers: jest.fn() } },
+        { provide: StorageService, useValue: {} },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('不在合格名单 → NOT_ELIGIBLE_FOR_ROUND', async () => {
+    prisma.bidRound.findUnique.mockResolvedValue({
+      id: 'r1', projectId: 'p1', status: 'open', deadline: null,
+      eligibleSupplierIds: ['s1', 's2'],
+    });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's3', bidValidity: 'valid' });
+    await expect(service.submitQuote('p1', 'r1', 's3', 100))
+      .rejects.toMatchObject({ response: { code: 'NOT_ELIGIBLE_FOR_ROUND' } });
+  });
+
+  it('废标供应商 → SUPPLIER_DISQUALIFIED', async () => {
+    prisma.bidRound.findUnique.mockResolvedValue({
+      id: 'r1', projectId: 'p1', status: 'open', deadline: null,
+      eligibleSupplierIds: ['s1'],
+    });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', bidValidity: 'invalid' });
+    await expect(service.submitQuote('p1', 'r1', 's1', 100))
+      .rejects.toMatchObject({ response: { code: 'SUPPLIER_DISQUALIFIED' } });
+  });
+
+  it('legacy 轮次 eligibleSupplierIds=[] → 不限制', async () => {
+    prisma.bidRound.findUnique.mockResolvedValue({
+      id: 'r1', projectId: 'p1', status: 'open', deadline: null,
+      eligibleSupplierIds: [],
+    });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', bidValidity: 'valid' });
+    prisma.bidQuote.create.mockResolvedValue({ id: 'q1' });
+    const result = await service.submitQuote('p1', 'r1', 's1', 100);
+    expect(result).toEqual({ id: 'q1' });
   });
 });

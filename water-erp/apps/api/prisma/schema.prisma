@@ -810,14 +810,15 @@ model AwardLetterDelivery {
 
 /// P2c: 报价轮次 — 谈判/竞价多轮报价
 model BidRound {
-  id          String   @id @default(cuid())
-  projectId   String
-  roundNo     Int
-  roundType   String   // 'negotiation' | 'final_quote' | 'sealed_auction'
-  status      String   @default("pending") // pending | open | sealed | published | closed
-  deadline    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  projectId            String
+  roundNo              Int
+  roundType            String   // 'negotiation' | 'final_quote' | 'sealed_auction'
+  status               String   @default("pending") // pending | open | sealed | published | closed
+  deadline             DateTime?
+  eligibleSupplierIds  String[] @default([]) // 参与本轮报价的 BidSupplier IDs（空=不限制，legacy 兼容）
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   project     BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   quotes      BidQuote[]

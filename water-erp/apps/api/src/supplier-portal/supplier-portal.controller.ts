@@ -476,6 +476,15 @@ export class SupplierPortalController {
     if (round.status !== 'open') throw new ForbiddenException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
     if (round.deadline && new Date(round.deadline) < new Date()) throw new BadRequestException({ error: '报价已截止', code: 'ROUND_DEADLINE_PASSED' });
 
+    // 校验供应商在轮次合格名单中（legacy 兼容：空数组=不限制）
+    if (round.eligibleSupplierIds?.length > 0 && !round.eligibleSupplierIds.includes(body.bidSupplierId)) {
+      throw new ForbiddenException({ error: '您不在本轮可参与名单中', code: 'NOT_ELIGIBLE_FOR_ROUND' });
+    }
+    // 废标供应商不可报价
+    if (bidSupplier.bidValidity === 'invalid') {
+      throw new ForbiddenException({ error: '已废标，不可报价', code: 'SUPPLIER_DISQUALIFIED' });
+    }
+
     // C4: 严格一报制——try-create-catch（原子操作，消除 TOCTOU 竞态）
     try {
       return await this.prisma.bidQuote.create({

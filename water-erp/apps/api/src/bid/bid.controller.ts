@@ -143,8 +143,8 @@ export class BidController {
   @Post('projects/:id/rounds')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '创建报价轮次' })
-  createRound(@Param('id') id: string, @Body() dto: { roundType: string; deadline?: string }, @CurrentUser('sub') userId?: string) {
-    return this.bidService.createRound(id, dto.roundType, dto.deadline, userId);
+  createRound(@Param('id') id: string, @Body() dto: { roundType: string; deadline?: string; supplierIds?: string[] }, @CurrentUser('sub') userId?: string) {
+    return this.bidService.createRound(id, dto.roundType, dto.deadline, userId, dto.supplierIds);
   }
 
   @Post('projects/:id/rounds/:roundId/seal')

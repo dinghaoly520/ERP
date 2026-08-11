@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Gavel, Plus, Lock, Eye, CheckCircle2, Loader2, Clock } from 'lucide-react';
+import { Gavel, Plus, Lock, Eye, CheckCircle2, Loader2, Clock, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   createRound, closeRound, listRounds, publishRound, sealRound,
@@ -22,6 +22,7 @@ type Props = {
 type Round = {
   id: string; roundNo: number; roundType: string; status: string;
   deadline: string | null;
+  eligibleSupplierIds?: string[];
   quotes?: Array<{ id: string; bidSupplierId: string; quotePrice: string; status: string }>;
 };
 
@@ -36,6 +37,8 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [showSupplierDialog, setShowSupplierDialog] = useState(false);
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
 
   const roundMode = detail?.roundMode as string | undefined;
   const suppliers = detail?.suppliers ?? [];
@@ -58,8 +61,22 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
     finally { setBusy(false); }
   };
 
-  const handleCreate = () => withBusy(async () => {
-    await createRound(bidProjectId, { roundType: roundMode === 'negotiation' ? 'negotiation' : 'sealed_auction' });
+  // 合格供应商（bidValidity !== 'invalid'）
+  const qualifiedSuppliers = suppliers.filter(s => s.bidValidity !== 'invalid');
+  const invalidSuppliers = suppliers.filter(s => s.bidValidity === 'invalid');
+
+  const openCreateDialog = () => {
+    // 默认勾选所有合格供应商
+    setSelectedSupplierIds(qualifiedSuppliers.map(s => s.id));
+    setShowSupplierDialog(true);
+  };
+
+  const handleCreateFromDialog = () => withBusy(async () => {
+    setShowSupplierDialog(false);
+    await createRound(bidProjectId, {
+      roundType: roundMode === 'negotiation' ? 'negotiation' : 'sealed_auction',
+      supplierIds: selectedSupplierIds,
+    });
   });
 
   return (
@@ -75,7 +92,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
           </h3>
         </div>
         {rounds.length === 0 && (
-          <button onClick={handleCreate} disabled={busy} className="neu-btn-primary !h-[32px] !text-xs">
+          <button onClick={openCreateDialog} disabled={busy} className="neu-btn-primary !h-[32px] !text-xs">
             <Plus size={13} /> 创建首轮报价
           </button>
         )}
@@ -127,7 +144,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                         // M3: closeRound + createRound 非原子——分步执行+错误恢复
                         await closeRound(bidProjectId, r.id, false);
                         try {
-                          await createRound(bidProjectId, { roundType: r.roundType });
+                          await createRound(bidProjectId, { roundType: r.roundType, supplierIds: r.eligibleSupplierIds });
                         } catch {
                           toast.error('轮次已关闭，但创建下一轮失败。请点击「创建首轮报价」重试。');
                         }
@@ -183,6 +200,56 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
             </div>
           );
           })}
+        </div>
+      )}
+      {/* 供应商选择弹窗 */}
+      {showSupplierDialog && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" style={{ background: 'oklch(0.975 0.012 258 / 0.72)', backdropFilter: 'blur(5px)' }}>
+          <div className="neu-card-static w-[480px] max-w-[90vw] rounded-2xl p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[var(--foreground)]">选择参与报价的供应商</h3>
+              <button onClick={() => setShowSupplierDialog(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="mb-3 text-xs text-[var(--muted-foreground)]">
+              合格供应商默认全选，可按需取消。废标供应商不可参与。
+            </p>
+            <div className="mb-4 max-h-[300px] space-y-2 overflow-y-auto">
+              {qualifiedSuppliers.map(s => (
+                <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] px-3 py-2 hover:bg-[color-mix(in_oklch,var(--accent)_4%,transparent)]">
+                  <input
+                    type="checkbox"
+                    checked={selectedSupplierIds.includes(s.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedSupplierIds(prev => [...prev, s.id]);
+                      else setSelectedSupplierIds(prev => prev.filter(id => id !== s.id));
+                    }}
+                    className="accent-[var(--accent)]"
+                  />
+                  <span className="text-sm text-[var(--foreground)]">{s.supplierName}</span>
+                  <span className="ml-auto text-xs text-[var(--success)]">✅ 合格</span>
+                </label>
+              ))}
+              {invalidSuppliers.map(s => (
+                <div key={s.id} className="flex items-center gap-2 rounded-lg border border-[color-mix(in_oklch,var(--foreground)_4%,transparent)] px-3 py-2 opacity-50">
+                  <input type="checkbox" disabled className="accent-[var(--accent)]" />
+                  <span className="text-sm text-[var(--muted-foreground)]">{s.supplierName}</span>
+                  <span className="ml-auto text-xs text-[var(--danger)]">🔒 已废标</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowSupplierDialog(false)} className="neu-btn-soft !h-[34px] !text-xs">取消</button>
+              <button
+                onClick={handleCreateFromDialog}
+                disabled={busy || selectedSupplierIds.length === 0}
+                className="neu-btn-primary !h-[34px] !text-xs"
+              >
+                创建轮次（{selectedSupplierIds.length} 家）
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
