@@ -201,6 +201,40 @@ const PUBLIC_ANNOUNCEMENT_RULES: StageComplianceCheckpoint[] = [
 ];
 
 /**
+ * 供应商邀请阶段（SUPPLIER_INVITATION）审查要点
+ *
+ * 依据：
+ * 1. 《采购管理办法》：谈判采购、询比采购应邀请不少于3家供应商参与
+ * 2. 《招标投标法》：供应商邀请方式与名单合规性
+ */
+const SUPPLIER_INVITATION_RULES: StageComplianceCheckpoint[] = [
+  {
+    name: '邀请名单合规性',
+    dimension: '组织合规',
+    criteria: '谈判采购、询比采购是否邀请了不少于3家符合资格条件的供应商参与。邀请名单是否完整、明确（含企业名称）。名单不足3家或信息缺失应判定为不通过。',
+    regulationRef: '《采购管理办法》：竞争性谈判/询比采购应邀请3家以上供应商参与',
+  },
+  {
+    name: '供应商资质匹配',
+    dimension: '准入复核',
+    criteria: '邀请的供应商是否与采购项目的标的类别、资质要求相匹配。邀请明显不符合项目需求的供应商应判定为警告或违规。',
+    regulationRef: '《招标投标法》：投标人应当具备承担招标项目的能力',
+  },
+  {
+    name: '邀请方式合规',
+    dimension: '程序合规',
+    criteria: '是否按照采购方式规定的程序发出邀请（直接邀请、公告邀请或随机抽取）。邀请方式与采购方式不匹配应判定为不通过。',
+    regulationRef: '《采购管理办法》：不同采购方式的供应商邀请程序要求',
+  },
+  {
+    name: '回避与公正性',
+    dimension: '公正性',
+    criteria: '受邀供应商与采购方不存在法定回避情形（利害关系、经济利益关系等）。存在回避情形未排除的应判定为违规。',
+    regulationRef: '《招标投标法实施条例》：与采购人存在利害关系可能影响公正性的应回避',
+  },
+];
+
+/**
  * 专家抽取阶段（EXPERT_SELECTION）审查要点
  *
  * 依据：
@@ -361,6 +395,7 @@ export const STAGE_COMPLIANCE_RULES: Record<string, StageComplianceCheckpoint[]>
   PROCUREMENT_DEMAND: PROCUREMENT_DEMAND_RULES,
   INITIATION: INITIATION_RULES,
   TENDER_DOCUMENT: TENDER_DOCUMENT_RULES,
+  SUPPLIER_INVITATION: SUPPLIER_INVITATION_RULES,
   PUBLIC_ANNOUNCEMENT: PUBLIC_ANNOUNCEMENT_RULES,
   EXPERT_SELECTION: EXPERT_SELECTION_RULES,
   BID_EVALUATION: BID_EVALUATION_RULES,
