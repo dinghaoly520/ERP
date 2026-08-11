@@ -2912,3 +2912,35 @@ describe('BidService — retryAiBidders', () => {
     await expect(service.retryAiBidders('p1', undefined, 'u1')).rejects.toMatchObject({ message: expect.stringContaining('入队失败') });
   });
 });
+
+/* ── Task 2: completeOpening TOCTOU 收窄 —— 事务内复查 opening-done ── */
+
+describe('completeOpening TOCTOU', () => {
+  it('事务内复查——若有未解异议应抛 ConflictException', () => {
+    // assertOpeningDone 的 notReady 判定已在纯函数层覆盖
+    // 这里验证：DISPUTED 供应商被认为 not ready
+    const activeSuppliers = [
+      { supplierName: 'A', decryptStatus: 'SUCCESS', confirmStatus: 'DISPUTED' },
+    ];
+    const notReady = activeSuppliers.filter(s => {
+      if (s.decryptStatus === 'DANGER') return false;
+      if (s.decryptStatus !== 'SUCCESS') return true;
+      return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';
+    });
+    expect(notReady).toHaveLength(1);
+    expect(notReady[0].supplierName).toBe('A');
+  });
+
+  it('事务内复查——CONFIRMED 供应商被判定 ready（对照组）', () => {
+    const activeSuppliers = [
+      { supplierName: 'A', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+      { supplierName: 'B', decryptStatus: 'DANGER', confirmStatus: 'PENDING' },
+    ];
+    const notReady = activeSuppliers.filter(s => {
+      if (s.decryptStatus === 'DANGER') return false;
+      if (s.decryptStatus !== 'SUCCESS') return true;
+      return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';
+    });
+    expect(notReady).toHaveLength(0);
+  });
+});

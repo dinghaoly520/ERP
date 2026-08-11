@@ -665,6 +665,25 @@ export class BidService {
 
     const session = await this.prisma.$transaction(async (tx) => {
       await this.lockAndReassertStage(tx, id, 'OPENING'); // 行锁复查：防并发归档/流标偷跑
+      // TOCTOU 收窄：事务内复查 opening-done（防 check → tx 间隙异议插入）
+      // assertOpeningDone 内部用 this.prisma（非 tx），在高隔离级别下读到的可能是事务前快照，
+      // 故在此用 tx 内联同样的 notReady 判定。FOR UPDATE 锁住 BidProject 行不锁 BidSupplier 行，
+      // 异议可并发修改 confirmStatus，须 tx 内重读。
+      const txSuppliers = await tx.bidSupplier.findMany({
+        where: { projectId: id, submitStatus: { not: '已撤回' } },
+        select: { supplierName: true, decryptStatus: true, confirmStatus: true },
+      });
+      const txNotReady = txSuppliers.filter(s => {
+        if (s.decryptStatus === 'DANGER') return false;                              // 解密异常已定性
+        if (s.decryptStatus !== 'SUCCESS') return true;                              // PENDING/RUNNING 未解密
+        return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';   // 解密成功但确认未闭环
+      });
+      if (txNotReady.length > 0) {
+        throw new ConflictException({
+          error: `事务内复查：开标尚未完成，${txNotReady.map(s => s.supplierName).join('、')} 未到终局态`,
+          code: 'OPENING_NOT_DONE_TX',
+        });
+      }
       const fresh = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
       if (fresh?.status === '开标完成') return fresh; // 并发幂等：后提交方走既有产物
       const now = new Date();
