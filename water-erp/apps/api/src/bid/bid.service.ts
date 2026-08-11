@@ -2797,8 +2797,8 @@ export class BidService {
     if (project.stage !== 'EVALUATING') {
       throw new BadRequestException({ error: '项目不在评标阶段', code: 'PROJECT_NOT_EVALUATING' });
     }
-    if (project.experts.some(e => !e.reportConfirmed)) {
-      throw new BadRequestException({ error: '仍有专家未确认评审报告', code: 'EXPERT_REPORTS_NOT_CONFIRMED' });
+    if (project.experts.filter(e => e.expertRole === '正选').some(e => !e.reportConfirmed)) {
+      throw new BadRequestException({ error: '仍有正选专家未确认评审报告', code: 'EXPERT_REPORTS_NOT_CONFIRMED' });
     }
     // C2: 组长末签闸门
     if (!project.leaderCoSigned) {

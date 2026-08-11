@@ -647,7 +647,7 @@ describe('BidService — stage transitions', () => {
     it('rejects until all experts confirm reports', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', stage: 'EVALUATING', name: '测试项目',
-        experts: [{ id: 'e1', reportConfirmed: false }, { id: 'e2', reportConfirmed: true }],
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: false }, { id: 'e2', expertRole: '正选', reportConfirmed: true }],
         suppliers: [],
       });
 
@@ -658,7 +658,7 @@ describe('BidService — stage transitions', () => {
     it('rejects when leader has not co-signed', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', stage: 'EVALUATING', name: '测试项目',
-        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }],
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }, { id: 'e2', expertRole: '正选', reportConfirmed: true }],
         suppliers: [],
       });
       await expect(service.generateEvaluationResults('p1'))
@@ -674,7 +674,7 @@ describe('BidService — stage transitions', () => {
     it('ranks suppliers by average score and recommends the top supplier', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
-        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }],
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }, { id: 'e2', expertRole: '正选', reportConfirmed: true }],
         suppliers: [
           { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
           { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
