@@ -3456,6 +3456,24 @@ export class BidService {
     return this.prisma.bidSupervisionLog.findMany({ where: { projectId }, orderBy: { time: 'desc' } });
   }
 
+  /** 获取评标完整性快照信息（指纹 + 下载链接），供验证端点使用 */
+  async getEvaluationHandover(projectId: string) {
+    const asset = await this.prisma.fileAsset.findFirst({
+      where: { category: 'bid_evaluation_handover',
+        key: { startsWith: `bid-evaluation-handover/${projectId}` } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!asset) return null;
+    return {
+      id: asset.id,
+      fileName: asset.originalName,
+      fingerprint: asset.sha256,
+      size: asset.size,
+      createdAt: asset.createdAt,
+      downloadUrl: `/api/upload/files/${asset.id}`,
+    };
+  }
+
   listArchives(projectId: string) {
     return this.prisma.bidArchiveItem.findMany({ where: { projectId } });
   }

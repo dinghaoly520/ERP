@@ -659,6 +659,10 @@ export class BidController {
   @ApiOperation({ summary: '独立验证归档哈希链完整性' })
   verifyArchiveIntegrity(@Param('id') id: string) { return this.bidService.verifyArchiveIntegrity(id); }
 
+  @Get('projects/:id/evaluation-handover')
+  @ApiOperation({ summary: '获取评标完整性快照信息（指纹 + 下载链接）' })
+  getEvaluationHandover(@Param('id') id: string) { return this.bidService.getEvaluationHandover(id); }
+
   @Post('projects/:id/archive-all')
   @ApiOperation({ summary: '一键归档（scope=opening 仅归档开标文件，不要求评标结果；full 完整归档）' })
   archiveAll(@Param('id') id: string, @Body() dto: ArchiveAllDto, @CurrentUser('sub') userId: string) {
