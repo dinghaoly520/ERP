@@ -1,7 +1,7 @@
 # 草稿实时同步 + 评分变更保护 + 评分历史 技术方案
 
-> **日期**：2026-08-11
-> **范围**：expert-portal 平板端 + 桌面端 + PointChecklistScoring 共享组件 + expert API
+> **日期**：2026-08-11（代码审核修订版）
+> **范围**：expert-portal 平板端 + 桌面端 + expert API
 > **前置**：批注与备忘统一改造（2026-08-10）已完成并 push
 
 ---
@@ -34,37 +34,61 @@
 
 ### 4.1 触发条件
 
-在 PointChecklistScoring 的 onChange 中检测"是否已有值"：
-
-- **Checkbox**：`v.checked === true` 时取消勾选 → 弹确认
-- **分数**：`v.awardedScore > 0` 时修改 → 弹确认
+- **Checkbox 取消勾选**：`v.checked === true` 时用户点击 → 弹确认
+- **分数修改**：`v.awardedScore > 0` 时用户改分数 → 弹确认
 - **新增**（unchecked→checked, 0→N）：不弹确认
 
-### 4.2 实现
+### 4.2 实现：父组件回滚模式（代码审核修正）
 
-PointChecklistScoring 新增 prop：
+**原方案**（`onBeforeModify` prop）不可行——`<input type="checkbox">` 的原生 `onChange` 事件无法异步取消，浏览器会立即切换状态。
+
+**修正方案**：PointChecklistScoring **不改**，在**父组件（平板页）的 onChange 回调**中处理：
+
+1. PointChecklistScoring 正常触发 `onChange(pointId, newVal)`——此时 React state 尚未更新
+2. 父组件收到 newVal，检测是否为修改（oldVal 有值且 newVal 与 oldVal 不同）
+3. 如果是修改：
+   - **不写入 scores**（或先写入再立即回滚）
+   - 设置 `pendingModify` state：`{ pointId, pointName, oldVal, newVal, scoreItemId }`
+   - 弹 ConfirmDialog
+4. 用户确认 → `setScores` 写入 newVal + undo toast
+5. 用户取消 → 不变（oldVal 仍在 scores 中）
+
+平板页的 PointChecklistScoring `onChange` 回调改为：
 
 ```typescript
-/** 平板修改二次确认回调：返回 true=允许修改，false=取消 */
-onBeforeModify?: (pointName: string, change: { type: 'uncheck' | 'score'; oldVal: string; newVal: string }) => boolean;
+const handlePointChangeTablet = (scoreItemId: string, pointId: string, newVal: PointDecisionValue) => {
+  const k = scoreKey(activeSupplier, scoreItemId);
+  const cur = scores[k];
+  const oldPointVal = cur?.points?.[pointId];
+  // 检测是否为修改（已有值 + 值不同）
+  const isModify = oldPointVal && (
+    oldPointVal.checked !== newVal.checked ||
+    oldPointVal.awardedScore !== newVal.awardedScore
+  );
+  if (isModify) {
+    // 拦截 → 弹确认
+    setPendingModify({ scoreItemId, pointId, pointName: /* lookup */, oldVal: oldPointVal, newVal });
+    return; // 不写入 scores
+  }
+  // 新增 → 正常写入
+  applyPointChange(scoreItemId, pointId, newVal);
+};
 ```
 
-- 平板页传入 `onBeforeModify` 实现（弹 ConfirmDialog）
-- 桌面页不传（默认放行）
-- 条款核对面板不传（桌面设备）
+> **注意**：checkbox 的 React 受控行为——如果父组件不更新 state，checkbox 视觉会自动回弹到旧值（因为 `value` prop 没变）。不需要手动回滚。
 
 ### 4.3 Undo Toast（所有设备）
 
-修改生效后，父组件 onChange handler 弹 toast：
+修改生效后，父组件弹 toast：
 
 ```typescript
 toast(`已将「${pointName}」${formatVal(oldVal)}→${formatVal(newVal)}`, {
-  action: { label: '撤销', onClick: () => applyChange(scoreItemId, pointId, oldVal) },
+  action: { label: '撤销', onClick: () => applyPointChange(scoreItemId, pointId, oldVal) },
   duration: 3000,
 });
 ```
 
-仅在 `isModification(oldVal, newVal)` 时触发（新增不弹 toast）。
+仅在修改时触发（新增不弹 toast）。桌面端同样有 undo toast，但不弹 ConfirmDialog。
 
 ## 5. 跨设备草稿实时同步
 
@@ -86,15 +110,21 @@ toast(`已将「${pointName}」${formatVal(oldVal)}→${formatVal(newVal)}`, {
 
 条款核对面板与桌面打分 tab 共享同一页面同一 `scores` 状态，无需 WS。
 
-### 5.2 接收端处理流程
+> **条款核对 tab 的 auto-save**：桌面端 auto-save effect 有 `step !== 'scoring'` 守卫（:367-368），只在打分 tab 才 2s 防抖自动保存。但条款核对 tab 通过 `saveDraftNow` 即时保存（不走防抖），也走 `POST /score-draft` 触发 WS。这是现有行为，不需要改。
 
-1. WS `DRAFT_SAVED`（过滤自己 device）
-2. `GET /score-draft?device=self` → 服务端返回 merge 后的 flat 草稿
-3. 客户端比对本地 `scores` vs 远程草稿：
+### 5.2 接收端处理流程（代码审核修正：区分初始加载 vs WS 实时同步）
+
+**初始加载**（页面首次打开 / `loadProject` 后）：
+- 保留现有草稿恢复横幅（检测 localStorage / 服务端草稿 → 显示「恢复 / 丢弃」横幅）
+- 这是专家恢复之前未完成工作的入口，不自动合并
+
+**WS 实时同步**（`onDraftSaved` 收到对方设备草稿）：
+1. `GET /score-draft?device=self` → 服务端返回 merge 后的 flat 草稿
+2. 客户端比对本地 `scores` vs 远程草稿：
    - **新增项**（本地无、远程有）→ 立即 `setScores` 静默合并
    - **修改/删减项**（双方都有但值不同）→ 存入 `draftConflicts` state
-4. 有冲突 → 顶部琥珀横幅
-5. 无冲突 → 完全静默
+3. 有冲突 → 顶部琥珀横幅
+4. 无冲突 → 完全静默
 
 ### 5.3 顶部横幅
 
@@ -106,6 +136,7 @@ toast(`已将「${pointName}」${formatVal(oldVal)}→${formatVal(newVal)}`, {
 
 - 琥珀色背景 + 左侧竖线，贯穿评分区顶部
 - 点击「处理」→ 打开裁决弹窗
+- 仅在 WS 实时同步检测到冲突时出现，初始加载恢复不使用此横幅
 
 ### 5.4 冲突裁决弹窗
 
@@ -138,7 +169,7 @@ toast(`已将「${pointName}」${formatVal(oldVal)}→${formatVal(newVal)}`, {
 - 「全部采用本设备」/「全部采用对方」批量操作
 - 关闭弹窗（× 或 backdrop）= 确认（保留 radio 当前选择）
 
-### 5.5 冲突检测算法
+### 5.5 冲突检测算法（代码审核修正：JSON.stringify 整体比较）
 
 ```typescript
 const newItems: DraftEntry[] = [];
@@ -149,14 +180,14 @@ for (const [key, remoteVal] of Object.entries(remoteDraft.scores)) {
     newItems.push({ key, val: remoteVal, source: 'remote' });
   } else {
     const localVal = localScores[key];
-    if (!shallowEqual(localVal, remoteVal)) {
+    // 整体比较：score + passed + reason + points 子对象
+    // shallowEqual 不够——两个不同的 points 组合可能 rollup 出相同的 score
+    if (JSON.stringify(localVal) !== JSON.stringify(remoteVal)) {
       conflicts.push({ key, localVal, remoteVal });
     }
   }
 }
 ```
-
-`shallowEqual` 比较 `score`、`passed`、`reason` 三个字段（不比较 `points` 子对象——得分点级变更通过正常打分 UI 处理，不进冲突弹窗）。
 
 ## 6. 平板操作栏调整
 
@@ -166,7 +197,12 @@ for (const [key, remoteVal] of Object.entries(remoteDraft.scores)) {
 | 「暂存草稿」按钮 | ❌ 删除 |
 | 底部提示 | 「评分实时同步至桌面端 · 请在桌面端审阅并提交」 |
 
-**重置防误同步**：`skipAutoSaveRef = true` 跳过下一次 auto-save，避免空值覆盖服务端草稿。
+**保留的 UI**（代码审核修正）：
+- 初始加载时的草稿恢复横幅（`draftAvailable` + 恢复/丢弃按钮）**保留**——专家打开平板时恢复之前的未完成工作
+- WS 触发的草稿同步**不再走横幅**——改为自动合并（新增静默）+ 冲突弹窗（修改提醒）
+- `saveDraft` / `draftSaving` 函数和状态**可删除**（仅被暂存按钮使用）
+
+**重置防误同步**：重置时设 `skipAutoSaveRef = true`，跳过下一次 auto-save，避免空值覆盖服务端草稿。
 
 ## 7. 评分历史抽屉
 
@@ -180,7 +216,7 @@ for (const [key, remoteVal] of Object.entries(remoteDraft.scores)) {
 GET /expert/projects/:projectId/score-history?supplierId=X
 ```
 
-返回当前专家对该供应商的全部 `BidScoreRecordHistory` + 当前 `BidScoreRecord`，关联 `BidScoreItem.name`。
+遵循 ExpertController 现有鉴权模式：`@CurrentUser('sub')` + service 层 `bidExpert.findFirst({ userId, projectId })`，不需要额外 `@Roles`。
 
 Service 方法：
 
@@ -244,19 +280,20 @@ async getScoreHistory(userId: string, projectId: string, supplierId: string) {
 
 ### 7.4 数据说明
 
-`BidScoreRecordHistory` 只在 `submitScores`（POST /scores）时写入。草稿阶段修改不记录历史——只有正式提交（含重新提交覆盖）才留下审计轨迹。
+`BidScoreRecordHistory` 只在 `submitScores`（POST /scores）时写入（:1186）。草稿阶段修改不记录历史——只有正式提交（含重新提交覆盖）才留下审计轨迹。
 
-## 8. 前端文件变更清单
+## 8. 前端文件变更清单（代码审核修正）
 
 | 文件 | 改动 |
 |------|------|
-| `components/evaluate/point-checklist-scoring.tsx` | 新增 `onBeforeModify` prop + 修改前检测逻辑 |
-| `app/(tablet)/tablet/evaluate/[id]/page.tsx` | 传入 `onBeforeModify`（弹 ConfirmDialog）+ undo toast + 删除暂存按钮 + 重置防误同步 + WS 草稿自动合并 + 冲突横幅 |
-| `app/(app)/evaluate/[id]/page.tsx` | undo toast + WS 草稿自动合并 + 冲突横幅 + 冲突弹窗 + 备忘→评分历史按钮改 + 评分历史抽屉 |
+| `app/(tablet)/tablet/evaluate/[id]/page.tsx` | 修改确认（父组件回滚模式）+ undo toast + 删除暂存按钮/saveDraft/draftSaving + 重置防误同步 + WS 草稿自动合并 + 冲突横幅 |
+| `app/(app)/evaluate/[id]/page.tsx` | undo toast + WS 草稿自动合并 + 冲突横幅 + 冲突弹窗 + 备忘→评分历史按钮 + 评分历史抽屉 |
 | `components/evaluate/sync-conflict-modal.tsx` | **新建**——冲突裁决弹窗组件 |
 | `components/evaluate/score-history-drawer.tsx` | **新建**——评分历史抽屉组件 |
 | `hooks/use-expert-websocket.ts` | 已有 `onDraftSaved` handler（无需改） |
 | `lib/api.ts` | 新增 `getScoreHistory(projectId, supplierId)` |
+
+> **PointChecklistScoring 不改**——修改确认逻辑在父组件 onChange 回调中处理，不需要新增 prop。
 
 ## 9. 后端文件变更清单
 
@@ -271,6 +308,6 @@ async getScoreHistory(userId: string, projectId: string, supplierId: string) {
 - ❌ 新增操作不弹确认（0→N 是正常打分流程）
 - ❌ 不做理由文本修改的确认（连续编辑打断感太强）
 - ❌ 不做操作历史栈（undo 只回退一步）
-- ❌ 不做得分点级冲突检测（粒度到 scoreItem 级）
 - ❌ 不做 Prisma migration（无 schema 变更）
 - ❌ 条款核对面板不需要 WS 同步（与桌面同页面共享 scores）
+- ❌ PointChecklistScoring 不加新 prop（修改确认在父组件处理）
