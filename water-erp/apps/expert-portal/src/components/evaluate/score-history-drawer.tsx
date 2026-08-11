@@ -15,22 +15,25 @@ interface Props {
 }
 
 export function ScoreHistoryDrawer({ open, projectId, supplierId: initialSupplierId, suppliers, onClose }: Props) {
-  const [selectedSupplier, setSelectedSupplier] = useState(initialSupplierId ?? suppliers[0]?.id ?? '');
+  const [innerSupplier, setInnerSupplier] = useState('');
   const [history, setHistory] = useState<ScoreHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Computed: always resolves to a valid supplier ID, no async state gap
+  const effectiveSupplier = innerSupplier || initialSupplierId || suppliers[0]?.id || '';
+
   useEffect(() => {
-    if (selectedSupplier) setSelectedSupplier(initialSupplierId ?? selectedSupplier);
+    setInnerSupplier(''); // reset inner pick on prop change
   }, [initialSupplierId]);
 
   useEffect(() => {
-    if (!open || !selectedSupplier) return;
+    if (!open || !effectiveSupplier) return;
     setLoading(true);
-    getScoreHistory(projectId, selectedSupplier)
+    getScoreHistory(projectId, effectiveSupplier)
       .then(setHistory)
       .catch(() => setHistory([]))
       .finally(() => setLoading(false));
-  }, [open, projectId, selectedSupplier]);
+  }, [open, projectId, effectiveSupplier]);
 
   if (!open) return null;
 
@@ -55,8 +58,8 @@ export function ScoreHistoryDrawer({ open, projectId, supplierId: initialSupplie
         </div>
         <div className="px-4 pb-3">
           <select
-            value={selectedSupplier}
-            onChange={e => setSelectedSupplier(e.target.value)}
+            value={effectiveSupplier}
+            onChange={e => setInnerSupplier(e.target.value)}
             className="neu-input !h-10 w-full text-sm"
           >
             {suppliers.map(s => (
