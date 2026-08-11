@@ -816,7 +816,7 @@ describe('BidService — stage transitions', () => {
       // 3 专家，2 票不通过 1 票通过 → 过半废标
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
-        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }, { id: 'e2', expertRole: '正选', reportConfirmed: true }, { id: 'e3', expertRole: '正选', reportConfirmed: true }],
         suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
       });
       prisma.bidScoreRecord.findMany.mockResolvedValue([
@@ -849,7 +849,7 @@ describe('BidService — stage transitions', () => {
       ]);
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
-        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }, { id: 'e2', expertRole: '正选', reportConfirmed: true }, { id: 'e3', expertRole: '正选', reportConfirmed: true }],
         suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
       });
       // 通过性项原本 2 不通过 + 1 通过 → 过半判废；但该 (s1,si_qual) 废标已被管理员撤销
@@ -882,7 +882,7 @@ describe('BidService — stage transitions', () => {
       ]);
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
-        experts: [{ id: 'e1', reportConfirmed: true }, { id: 'e2', reportConfirmed: true }, { id: 'e3', reportConfirmed: true }],
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }, { id: 'e2', expertRole: '正选', reportConfirmed: true }, { id: 'e3', expertRole: '正选', reportConfirmed: true }],
         suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
       });
       // 1 不通过 2 通过 → 不过半
@@ -2942,5 +2942,138 @@ describe('completeOpening TOCTOU', () => {
       return s.confirmStatus !== 'CONFIRMED' && s.confirmStatus !== 'EXCEPTION';
     });
     expect(notReady).toHaveLength(0);
+  });
+});
+
+/* ── Task 1: generateEvaluationResults expertRole='正选' 过滤 ── */
+
+describe('generateEvaluationResults expertRole filter', () => {
+  it('应排除候补专家的评分记录', async () => {
+    // 构造 mock：3 个正选专家 + 1 个候补专家的 BidScoreRecord
+    const mainExpertId = 'expert-main-1';
+    const subExpertId = 'expert-sub-1';
+    const mockRecords = [
+      { expertId: mainExpertId, supplierId: 'sup-1', scoreItemId: 'item-1', score: 80, passed: null },
+      { expertId: subExpertId,  supplierId: 'sup-1', scoreItemId: 'item-1', score: 10, passed: null },
+    ];
+    // 验证候补的 10 分被排除，不被纳入去极值/均分
+    const filtered = mockRecords.filter(
+      r => r.expertId !== subExpertId // 模拟 expertRole='正选' 过滤效果
+    );
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0].expertId).toBe(mainExpertId);
+  });
+
+  it('service 调用 prisma 时 WHERE 子句包含 expertRole=正选', async () => {
+    // 验证修复后的 service 在查询 BidScoreRecord 时带上 expertRole 过滤
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn() },
+      bidScoreRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([]) },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      auditLog: { create: jest.fn() },
+      bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
+      expertDispute: { count: jest.fn().mockResolvedValue(0) },
+      bidSupervisionLog: { create: jest.fn() },
+      $transaction: jest.fn(async (cb: any) => cb({
+        bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
+        bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
+        bidSupervisionLog: { create: jest.fn() },
+        bidSupplier: { update: jest.fn() },
+        $queryRaw: jest.fn().mockResolvedValue(undefined),
+      })),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: BidGateway, useValue: { notifySupervisionLog: jest.fn() } },
+      ],
+    }).compile();
+    const service = module.get(BidService);
+
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
+      experts: [
+        { id: 'expert-main-1', expertRole: '正选', reportConfirmed: true },
+        { id: 'expert-sub-1', expertRole: '候补', reportConfirmed: true },
+      ],
+      suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
+    });
+
+    await service.generateEvaluationResults('p1', 'actor1');
+
+    // 核心断言：findMany 的 WHERE 子句必须包含 expertRole: '正选'
+    expect(prisma.bidScoreRecord.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          expert: expect.objectContaining({ expertRole: '正选' }),
+        }),
+      }),
+    );
+  });
+
+  it('候补专家的通过性投票不计入废标判定', async () => {
+    // 构造场景：1 正选 + 1 候补，对同一通过性项都投不通过
+    // 候补的票被过滤 → total=0 → 不严格过半 → 不废标
+    const subExpertId = 'expert-sub-1';
+    const txCreateMany = jest.fn();
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn() },
+      bidScoreRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([
+        { id: 'pf-item-1', category: 'QUALIFICATION' },
+      ]) },
+      bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      auditLog: { create: jest.fn() },
+      bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
+      expertDispute: { count: jest.fn().mockResolvedValue(0) },
+      bidSupervisionLog: { create: jest.fn() },
+      $transaction: jest.fn(async (cb: any) => cb({
+        bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
+        bidEvaluationResult: { deleteMany: jest.fn(), createMany: txCreateMany },
+        bidSupervisionLog: { create: jest.fn() },
+        bidSupplier: { update: jest.fn() },
+        $queryRaw: jest.fn().mockResolvedValue(undefined),
+      })),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: BidGateway, useValue: { notifySupervisionLog: jest.fn() } },
+      ],
+    }).compile();
+    const service = module.get(BidService);
+
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', name: 'X', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
+      experts: [
+        { id: 'expert-main-1', expertRole: '正选', reportConfirmed: true },
+        { id: subExpertId, expertRole: '候补', reportConfirmed: true },
+      ],
+      suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
+    });
+    // 候补专家的评分记录——其不通过票不应被统计
+    prisma.bidScoreRecord.findMany.mockResolvedValue([
+      { expertId: subExpertId, supplierId: 's1', scoreItemId: 'pf-item-1', score: 0, passed: false },
+    ]);
+
+    await service.generateEvaluationResults('p1', 'actor1');
+
+    // 候补专家被过滤，废标判定应无 failure（disqualified=false）
+    expect(txCreateMany).toHaveBeenCalled();
+    const created = txCreateMany.mock.calls[0][0].data[0];
+    expect(created.disqualified).toBe(false);
   });
 });

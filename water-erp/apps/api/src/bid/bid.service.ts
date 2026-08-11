@@ -2723,7 +2723,10 @@ export class BidService {
     const activeSupplierIds = activeSuppliers.map(s => s.id);
     const allScoreRecords = activeSupplierIds.length > 0
       ? await this.prisma.bidScoreRecord.findMany({
-          where: { supplierId: { in: activeSupplierIds }, expert: { projectId } },
+          where: {
+            supplierId: { in: activeSupplierIds },
+            expert: { projectId, expertRole: '正选' },
+          },
         })
       : [];
     // Group records by supplierId for O(1) lookup
@@ -2772,6 +2775,7 @@ export class BidService {
         // 逐项统计
         const byItem = new Map<string, { fail: number; total: number }>();
         for (const r of records) {
+          if (!mainExpertIds.has(r.expertId)) continue; // 仅正选专家投票计入废标判定
           if (!passFailItemIds.has(r.scoreItemId) || r.passed === null || r.passed === undefined) continue;
           if (revokedKeys.has(`${supplier.id}:${r.scoreItemId}`)) continue; // H2: 已撤销废标不计入失败票
           const agg = byItem.get(r.scoreItemId) ?? { fail: 0, total: 0 };
