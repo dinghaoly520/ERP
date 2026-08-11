@@ -1016,7 +1016,6 @@ export default function ExpertEvaluatePage() {
                   )}
                 </div>
               ))}
-            </div>
           )}
           {/* Post new question */}
           <div className="space-y-2 pt-3">
@@ -1045,14 +1044,9 @@ export default function ExpertEvaluatePage() {
                   rows={4}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postClarification(); } }}
                   className="neu-input resize-y !text-xs" />
-              </div>
               <button onClick={postClarification} disabled={clarPosting} className="neu-btn-primary !h-[38px]">
                 {clarPosting ? '…' : '发送'}
               </button>
-            </div>
-          </div>
-          </div>
-        </div>
       )}
 
       {/* D1: 开标大厅消息面板（toggled from header） */}
@@ -1063,13 +1057,10 @@ export default function ExpertEvaluatePage() {
             <div className="flex items-center justify-between px-4 py-2">
               <span className="text-xs text-[var(--muted-foreground)]">按 Esc 或点击遮罩关闭</span>
               <button onClick={() => setShowMessages(false)} aria-label="关闭" className="neu-btn-xs is-square"><X size={14} strokeWidth={1.5} /></button>
-            </div>
             <HallMessagePanel
               messages={hallMessages}
               onOpen={() => setUnreadMessageCount(0)}
             />
-          </div>
-        </div>
       )}
 
       {/* 步骤指示器 — cgzxui .exp-steps：当前品牌蓝凸起 / 完成绿 / 未到禁用 */}
@@ -1098,10 +1089,8 @@ export default function ExpertEvaluatePage() {
                 {i < STEPS.length - 1 && (
                   <span className={`exp-step-connector ${completed ? 'is-done' : ''}`} />
                 )}
-              </div>
             );
           })}
-        </div>
       </div>
 
       {/* 主内容区：供应商侧边栏 + 内容（wb-panel 渐变底板，无外侧框线）
@@ -1140,7 +1129,6 @@ export default function ExpertEvaluatePage() {
                 : undefined
             }
           />
-        )}
 
         {/* 内容面板 */}
         <div className="flex-1 overflow-hidden min-h-0 min-w-0">
@@ -1471,7 +1459,6 @@ export default function ExpertEvaluatePage() {
                   </button>
                 </div>
               )}
-            </div>
           )}
 
           {/* ====== 标书获取 ====== */}
@@ -1491,7 +1478,6 @@ export default function ExpertEvaluatePage() {
                 projectId={projectId}
                 onRetry={() => activeSupplier && loadAssist(activeSupplier)}
               />
-            </div>
           )}
 
           {/* ====== 条款响应核对 ====== */}
@@ -1542,7 +1528,6 @@ export default function ExpertEvaluatePage() {
                 selectedPointId={activePointId}
                 onPointClick={handlePointClickDesk}
               />
-            </div>
           )}
 
           {/* ====== 专家打分 ====== */}
@@ -1575,7 +1560,6 @@ export default function ExpertEvaluatePage() {
                 >
                   <History size={14} strokeWidth={1.7} /> 评分历史
                 </button>
-              </div>
 
               {/* 委员会表决参考（打分时可见，供专家参考） */}
               {motions.length > 0 && (
@@ -1916,7 +1900,6 @@ export default function ExpertEvaluatePage() {
                   </div>
                 );
               })()}
-            </div>
           )}
 
 
@@ -1945,13 +1928,6 @@ export default function ExpertEvaluatePage() {
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
               onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId} />
           )}
-            </div>
-          </div>
-        </div>
-              </div>
-            </aside>
-          </div>
-        )}
         {/* 冲突裁决弹窗 */}
         <SyncConflictModal
           open={conflictModalOpen}
