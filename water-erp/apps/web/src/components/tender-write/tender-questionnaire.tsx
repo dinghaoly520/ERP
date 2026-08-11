@@ -15,6 +15,7 @@ export function TenderQuestionnaire({
   onTableChange,
   onFieldFocus,
   onSampleOpen,
+  onOpenSupplierSelect,
 }: {
   draft: ReadyTenderDraft;
   sections: TenderSectionConfig[];
@@ -23,6 +24,7 @@ export function TenderQuestionnaire({
   onTableChange?: (tableData: TableData | undefined) => void;
   onFieldFocus?: (fieldKey: TenderFieldKey) => void;
   onSampleOpen?: (fieldKey: TenderFieldKey, fieldLabel: string) => void;
+  onOpenSupplierSelect?: () => void;
 }) {
   const section =
     sections.find((item) => item.key === activeSectionKey) ?? sections[0];
@@ -36,6 +38,7 @@ export function TenderQuestionnaire({
         onTableChange={onTableChange}
         onFieldFocus={onFieldFocus}
         onSampleOpen={onSampleOpen}
+        onOpenSupplierSelect={onOpenSupplierSelect}
       />
     </div>
   );

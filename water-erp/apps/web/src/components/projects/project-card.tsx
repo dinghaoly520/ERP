@@ -37,8 +37,8 @@ export function ProjectCard({
             {PROJECT_MANAGEMENT_STATUS_LABELS[item.status]}
           </span>
           {item.createdByName && (
-            <span className="text-[10px] text-[color:var(--muted-foreground)] bg-[oklch(1_0_0_/_0.4)] rounded-full px-2 py-0.5">
-              {item.createdByName}
+            <span className="text-[11px] text-[color:var(--muted-foreground)] bg-[oklch(1_0_0_/_0.4)] rounded-full px-2 py-0.5">
+              经办人：{item.createdByName}
             </span>
           )}
         </div>

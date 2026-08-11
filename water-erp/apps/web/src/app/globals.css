@@ -23,23 +23,25 @@
   --danger-soft: color-mix(in oklch, var(--danger) 12%, transparent);
   --accent-tint: color-mix(in oklch, var(--accent) 7%, transparent);
   --accent-tint-strong: color-mix(in oklch, var(--accent) 13%, transparent);
-  /* 采购进度阶段色 — 派生自上游 :root 变量，单一溯源 */
-  --stage-demand: var(--accent);
-  --stage-demand-soft: var(--accent-soft);
-  --stage-initiation: var(--accent-strong);
-  --stage-initiation-soft: var(--accent-soft);
-  --stage-tender: var(--success);
-  --stage-tender-soft: color-mix(in oklch, var(--success) 12%, transparent);
-  --stage-announce: var(--success);
-  --stage-announce-soft: color-mix(in oklch, var(--success) 8%, transparent);
-  --stage-expert: var(--gold);
-  --stage-expert-soft: var(--gold-soft);
-  --stage-evaluation: var(--accent-strong);
-  --stage-evaluation-soft: var(--accent-soft);
-  --stage-award: var(--success);
-  --stage-award-soft: color-mix(in oklch, var(--success) 10%, transparent);
-  --stage-contract: var(--muted-foreground);
-  --stage-contract-soft: color-mix(in oklch, var(--muted-foreground) 12%, transparent);
+  /* 采购进度阶段色 — 每阶段唯一，驱动左栏图标、右栏hero、流程卡片文字 */
+  --stage-demand: oklch(0.52 0.13 248);
+  --stage-demand-soft: color-mix(in oklch, var(--stage-demand) 12%, transparent);
+  --stage-initiation: oklch(0.56 0.11 168);
+  --stage-initiation-soft: color-mix(in oklch, var(--stage-initiation) 12%, transparent);
+  --stage-tender: oklch(0.55 0.16 250);
+  --stage-tender-soft: color-mix(in oklch, var(--stage-tender) 12%, transparent);
+  --stage-supplier: oklch(0.60 0.14 78);
+  --stage-supplier-soft: color-mix(in oklch, var(--stage-supplier) 12%, transparent);
+  --stage-announce: oklch(0.58 0.12 188);
+  --stage-announce-soft: color-mix(in oklch, var(--stage-announce) 8%, transparent);
+  --stage-expert: oklch(0.58 0.14 285);
+  --stage-expert-soft: color-mix(in oklch, var(--stage-expert) 12%, transparent);
+  --stage-evaluation: oklch(0.64 0.14 44);
+  --stage-evaluation-soft: color-mix(in oklch, var(--stage-evaluation) 12%, transparent);
+  --stage-award: oklch(0.57 0.15 24);
+  --stage-award-soft: color-mix(in oklch, var(--stage-award) 10%, transparent);
+  --stage-contract: oklch(0.50 0.10 228);
+  --stage-contract-soft: color-mix(in oklch, var(--stage-contract) 12%, transparent);
   --stage-default: var(--muted-foreground);
   --stage-default-soft: color-mix(in oklch, var(--muted-foreground) 12%, transparent);
   --shadow-soft: 0 16px 34px rgba(50, 83, 141, 0.08);
@@ -1859,7 +1861,8 @@ a {
   .pm-list-card__sheen,
   .pm-stage-connector::after,
   .pm-stage-node--current::after,
-  .pm-stage-node--archive::after {
+  .pm-stage-node--archive::after,
+  .pm-stage-card::after {
     animation: none !important;
   }
 }
@@ -2209,43 +2212,97 @@ a {
 }
 
 .pm-stage-card__title {
-  transition: color 260ms var(--ease-out-quint);
+  transition:
+    color 260ms var(--ease-out-quint),
+    font-weight 260ms var(--ease-out-quint);
 }
 
-.pm-stage-accent--initiation {
-  color: oklch(0.58 0.12 163);
-}
-
-.pm-stage-accent--tender_document {
-  color: oklch(0.58 0.16 250);
-}
-
-.pm-stage-accent--public_announcement {
-  color: oklch(0.62 0.12 188);
-}
-
-.pm-stage-accent--expert_selection {
-  color: oklch(0.62 0.14 285);
-}
-
-.pm-stage-accent--bid_evaluation {
-  color: oklch(0.66 0.12 45);
-}
-
-.pm-stage-accent--award_decision {
-  color: oklch(0.6 0.15 28);
-}
-
-.pm-stage-accent--contract {
-  color: oklch(0.54 0.11 220);
-}
-
-.pm-stage-accent--archive {
-  color: oklch(0.58 0.14 88);
-}
+/* 采购流程阶段文字色 — 全部引用 --stage-* 变量，与左栏图标、右栏hero同源 */
+.pm-stage-accent--procurement_demand { color: var(--stage-demand); }
+.pm-stage-accent--initiation { color: var(--stage-initiation); }
+.pm-stage-accent--tender_document { color: var(--stage-tender); }
+.pm-stage-accent--supplier_invitation { color: var(--stage-supplier); }
+.pm-stage-accent--public_announcement { color: var(--stage-announce); }
+.pm-stage-accent--expert_selection { color: var(--stage-expert); }
+.pm-stage-accent--bid_evaluation { color: var(--stage-evaluation); }
+.pm-stage-accent--award_decision { color: var(--stage-award); }
+.pm-stage-accent--contract { color: var(--stage-contract); }
+.pm-stage-accent--archive { color: oklch(0.58 0.14 88); }
 
 .pm-stage-card[data-selected='true'] .pm-stage-card__title {
-  color: color-mix(in oklch, currentColor 82%, var(--foreground) 18%);
+  font-weight: 800;
+  /* 保持 pm-stage-accent--* 的原色相不变，不混 var(--foreground) 偏黑；
+     选中态的视觉重量由卡片抬升阴影 + glow 光环提供 */
+}
+
+/* ══════ 当前步骤 hero（详情面板右栏阶段焦点）══════ */
+.pm-current-step-hero {
+  position: relative;
+  --step-color: var(--accent);
+  --step-color-soft: var(--accent-soft);
+}
+
+.pm-current-step-hero__glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 55% 100% at 50% 0%,
+      color-mix(in oklch, var(--step-color, var(--accent)) 16%, transparent),
+      transparent 72%
+    );
+}
+
+.pm-current-step-hero__glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--step-color, var(--accent));
+  opacity: 0.68;
+}
+
+.pm-current-step-hero__dot {
+  display: inline-block;
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--step-color, var(--accent));
+  box-shadow: 0 0 6px color-mix(in oklch, var(--step-color, var(--accent)) 45%, transparent);
+}
+
+.pm-current-step-hero__dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  background: var(--step-color, var(--accent));
+  opacity: 0.3;
+  animation: pmStepPulse 2.4s var(--ease-out-quint) infinite;
+}
+
+@keyframes pmStepPulse {
+  0%, 100% {
+    transform: scale(0.8);
+    opacity: 0.14;
+  }
+  50% {
+    transform: scale(1.55);
+    opacity: 0.46;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-current-step-hero__dot::after {
+    animation: none;
+  }
 }
 
 .pm-list-card__sheen {
@@ -2281,99 +2338,226 @@ a {
 }
 
 .pm-stage-card {
+  --card-accent: var(--accent);
+  --card-accent-soft: color-mix(in oklch, var(--card-accent) 12%, transparent);
+
   position: relative;
   width: 100%;
   min-height: 188px;
   height: 100%;
   overflow: hidden;
-  border: 1px solid rgba(198, 212, 236, 0.72);
+  /* 阶段色边框 + 方向性 neumorphic 双影 + 内高光 */
+  border: 1.5px solid color-mix(in oklch, var(--card-accent) 36%, transparent);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(244, 248, 255, 0.82));
+    linear-gradient(180deg,
+      color-mix(in oklch, var(--card-accent) 2.5%, oklch(1 0 0 / 0.92)),
+      color-mix(in oklch, var(--card-accent) 1.5%, oklch(0.98 0.003 258 / 0.84))
+    );
   box-shadow:
-    0 14px 28px rgba(61, 91, 145, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+    inset 0 1px 0 oklch(1 0 0 / 0.76),
+    2px 3px 7px oklch(0.55 0.03 258 / 0.12),
+    -1px -1px 4px oklch(1 0 0 / 0.74),
+    0 0 10px color-mix(in oklch, var(--card-accent) 8%, transparent);
   backdrop-filter: blur(16px);
   transition:
-    transform 260ms var(--ease-out-quint),
-    box-shadow 260ms var(--ease-out-quint),
-    border-color 260ms var(--ease-out-quint);
+    transform 280ms var(--ease-out-quint),
+    box-shadow 280ms var(--ease-out-quint),
+    background 280ms var(--ease-out-quint),
+    border-color 280ms var(--ease-out-quint);
+}
+
+/* ─── 边框光影流转 — ::after 承载渐变扫光，仅在 border 区可见 ─── */
+.pm-stage-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.8px solid transparent;
+  background: linear-gradient(
+    105deg,
+    transparent 25%,
+    color-mix(in oklch, var(--card-accent) 55%, oklch(1 0 0 / 0.35)) 34%,
+    transparent 48%,
+    transparent 66%,
+    color-mix(in oklch, var(--card-accent) 42%, oklch(1 0 0 / 0.2)) 78%,
+    transparent 100%
+  ) border-box;
+  background-size: 320% 100%;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: pmBorderSweep 5.5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+  /* 重置 interactive-surface::after */
+  opacity: 1;
+  background-color: transparent;
+  transition: none;
+}
+
+@keyframes pmBorderSweep {
+  0%   { background-position: 220% 50%; }
+  100% { background-position: -100% 50%; }
 }
 
 .pm-stage-card[data-selected='true'] {
-  transform: translateY(-3px);
-  border-color: rgba(111, 153, 243, 0.58);
+  --card-accent-soft: color-mix(in oklch, var(--card-accent) 18%, transparent);
+  transform: translateY(-4px) scale(1.008);
+  border-color: color-mix(in oklch, var(--card-accent) 60%, transparent);
   background:
-    linear-gradient(180deg, rgba(251, 253, 255, 1), rgba(237, 245, 255, 0.94));
+    linear-gradient(180deg,
+      color-mix(in oklch, var(--card-accent) 8%, oklch(1 0 0 / 0.96)),
+      color-mix(in oklch, var(--card-accent) 4%, oklch(0.97 0.003 258 / 0.9))
+    );
   box-shadow:
-    0 24px 48px rgba(67, 97, 154, 0.18),
-    0 0 0 1px rgba(113, 152, 242, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 0 36px rgba(108, 152, 246, 0.1);
+    inset 0 1px 0 oklch(1 0 0 / 0.92),
+    3px 6px 16px oklch(0.48 0.04 258 / 0.18),
+    -2px -2px 6px oklch(1 0 0 / 0.88),
+    0 0 44px color-mix(in oklch, var(--card-accent) 18%, transparent),
+    0 0 0 2px color-mix(in oklch, var(--card-accent) 16%, transparent);
+}
+
+/* 选中态：扫光更快，亮点更饱和 */
+.pm-stage-card[data-selected='true']::after {
+  animation-duration: 3s;
+  border-width: 2px;
+  background: linear-gradient(
+    105deg,
+    transparent 25%,
+    color-mix(in oklch, var(--card-accent) 74%, oklch(1 0 0 / 0.2)) 34%,
+    transparent 48%,
+    transparent 66%,
+    color-mix(in oklch, var(--card-accent) 62%, oklch(1 0 0 / 0.1)) 78%,
+    transparent 100%
+  ) border-box;
+  background-size: 320% 100%;
 }
 
 .pm-stage-card--completed {
-  border-color: rgba(129, 194, 166, 0.38);
+  border-color: color-mix(in oklch, var(--card-accent) 28%, transparent);
   background:
     linear-gradient(180deg, rgba(250, 254, 252, 0.96), rgba(242, 251, 248, 0.82));
   box-shadow:
-    0 14px 28px rgba(78, 142, 121, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    inset 0 1px 0 oklch(1 0 0 / 0.82),
+    2px 3px 7px rgba(78, 142, 121, 0.10),
+    -1px -1px 4px oklch(1 0 0 / 0.7);
+}
+
+.pm-stage-card--completed::after {
+  animation-duration: 7s;
+  opacity: 0.55;
 }
 
 .pm-stage-card--completed[data-selected='true'] {
-  border-color: rgba(92, 181, 150, 0.52);
+  border-color: color-mix(in oklch, var(--success) 52%, transparent);
   background:
     linear-gradient(180deg, rgba(248, 254, 251, 0.98), rgba(238, 251, 246, 0.92));
   box-shadow:
-    0 24px 48px rgba(78, 142, 121, 0.14),
-    0 0 0 1px rgba(92, 181, 150, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    0 0 32px rgba(92, 181, 150, 0.08);
+    inset 0 1px 0 oklch(1 0 0 / 0.92),
+    3px 6px 16px rgba(78, 142, 121, 0.16),
+    -2px -2px 6px oklch(1 0 0 / 0.86),
+    0 0 36px rgba(92, 181, 150, 0.12);
 }
 
 .pm-stage-card--current {
-  border-color: rgba(111, 153, 243, 0.36);
+  border-color: color-mix(in oklch, var(--card-accent) 44%, transparent);
   background:
-    linear-gradient(180deg, rgba(247, 250, 255, 0.98), rgba(238, 245, 255, 0.84));
+    linear-gradient(180deg,
+      color-mix(in oklch, var(--card-accent) 6%, rgba(247, 250, 255, 0.98)),
+      color-mix(in oklch, var(--card-accent) 3.5%, rgba(238, 245, 255, 0.84))
+    );
   box-shadow:
-    0 18px 38px rgba(71, 105, 169, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    inset 0 1px 0 oklch(1 0 0 / 0.82),
+    2px 4px 10px oklch(0.5 0.03 258 / 0.14),
+    -1px -1px 5px oklch(1 0 0 / 0.8),
+    0 0 30px color-mix(in oklch, var(--card-accent) 12%, transparent);
+}
+
+.pm-stage-card--current[data-selected='true'] {
+  border-color: color-mix(in oklch, var(--card-accent) 62%, transparent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.93),
+    3px 7px 18px oklch(0.44 0.06 258 / 0.2),
+    -2px -2px 6px oklch(1 0 0 / 0.9),
+    0 0 50px color-mix(in oklch, var(--card-accent) 22%, transparent),
+    0 0 0 2px color-mix(in oklch, var(--card-accent) 14%, transparent);
 }
 
 .pm-stage-card--current:not([data-selected='true']) {
+  border-color: color-mix(in oklch, var(--card-accent) 40%, transparent);
   box-shadow:
-    0 18px 38px rgba(71, 105, 169, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 0 24px rgba(108, 152, 246, 0.06);
+    inset 0 1px 0 oklch(1 0 0 / 0.78),
+    2px 4px 10px oklch(0.5 0.03 258 / 0.12),
+    -1px -1px 4px oklch(1 0 0 / 0.76),
+    0 0 22px color-mix(in oklch, var(--card-accent) 10%, transparent);
+}
+
+.pm-stage-card--current:not([data-selected='true'])::after {
+  animation-duration: 4.5s;
 }
 
 .pm-stage-card--idle {
-  border-color: rgba(205, 216, 238, 0.5);
+  border-color: color-mix(in oklch, var(--card-accent) 16%, transparent);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(246, 249, 255, 0.72));
   box-shadow:
-    0 10px 22px rgba(61, 91, 145, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.76);
+    inset 0 1px 0 oklch(1 0 0 / 0.68),
+    2px 3px 6px rgba(61, 91, 145, 0.05),
+    -1px -1px 3px oklch(1 0 0 / 0.58);
+}
+
+.pm-stage-card--idle::after {
+  animation-duration: 9s;
+  opacity: 0.38;
 }
 
 .pm-stage-card--archive-done {
-  border-color: rgba(129, 194, 166, 0.46);
+  border-color: color-mix(in oklch, var(--success) 36%, transparent);
   background:
     linear-gradient(180deg, rgba(248, 254, 251, 0.96), rgba(240, 250, 246, 0.82));
   box-shadow:
-    0 20px 40px rgba(78, 142, 121, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 0 24px rgba(92, 181, 150, 0.06);
+    inset 0 1px 0 oklch(1 0 0 / 0.84),
+    2px 4px 12px rgba(78, 142, 121, 0.14),
+    -1px -1px 5px oklch(1 0 0 / 0.78),
+    0 0 28px rgba(92, 181, 150, 0.08);
+}
+
+.pm-stage-card--archive-done::after {
+  animation-duration: 8s;
+  opacity: 0.45;
+  background: linear-gradient(
+    105deg,
+    transparent 25%,
+    color-mix(in oklch, var(--success) 45%, oklch(1 0 0 / 0.3)) 34%,
+    transparent 100%
+  ) border-box;
 }
 
 .pm-stage-card--archive-ready {
-  border-color: rgba(228, 193, 115, 0.44);
+  border-color: color-mix(in oklch, var(--warning) 38%, transparent);
   background:
     linear-gradient(180deg, rgba(255, 251, 244, 0.97), rgba(252, 246, 233, 0.84));
   box-shadow:
-    0 20px 40px rgba(154, 120, 48, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 0 24px rgba(233, 194, 111, 0.06);
+    inset 0 1px 0 oklch(1 0 0 / 0.82),
+    2px 4px 12px rgba(154, 120, 48, 0.13),
+    -1px -1px 5px oklch(1 0 0 / 0.76),
+    0 0 28px rgba(233, 194, 111, 0.08);
+}
+
+.pm-stage-card--archive-ready::after {
+  animation-duration: 7s;
+  opacity: 0.5;
+  background: linear-gradient(
+    105deg,
+    transparent 25%,
+    color-mix(in oklch, var(--warning) 50%, oklch(1 0 0 / 0.3)) 34%,
+    transparent 100%
+  ) border-box;
 }
 
 .pm-stage-card__flow {
@@ -2384,10 +2568,11 @@ a {
   background: linear-gradient(
     115deg,
     rgba(255, 255, 255, 0) 10%,
-    rgba(255, 255, 255, 0.42) 30%,
-    rgba(159, 190, 255, 0.18) 46%,
-    rgba(255, 255, 255, 0.06) 58%,
-    rgba(255, 255, 255, 0) 74%
+    rgba(255, 255, 255, 0.38) 28%,
+    color-mix(in oklch, var(--card-accent) 14%, rgba(255, 255, 255, 0.5)) 44%,
+    color-mix(in oklch, var(--card-accent) 6%, rgba(255, 255, 255, 0.6)) 54%,
+    rgba(255, 255, 255, 0.04) 64%,
+    rgba(255, 255, 255, 0) 78%
   );
   transform: translate3d(-28%, 0, 0) rotate(8deg);
   animation: pmStageCardSweep 6.6s var(--ease-out-quint) infinite;
@@ -2410,16 +2595,16 @@ a {
   animation-duration: 8s;
 }
 
-/* Current cards get a stronger blue sweep */
+/* Current cards get a stronger per-stage accent sweep */
 .pm-stage-card--current .pm-stage-card__flow {
   background: linear-gradient(
     115deg,
     rgba(255, 255, 255, 0) 10%,
-    rgba(255, 255, 255, 0.48) 28%,
-    rgba(130, 175, 255, 0.22) 44%,
-    rgba(108, 152, 246, 0.12) 54%,
-    rgba(255, 255, 255, 0.06) 64%,
-    rgba(255, 255, 255, 0) 78%
+    rgba(255, 255, 255, 0.52) 26%,
+    color-mix(in oklch, var(--card-accent) 20%, rgba(255, 255, 255, 0.6)) 42%,
+    color-mix(in oklch, var(--card-accent) 10%, white 90%) 54%,
+    rgba(255, 255, 255, 0.06) 66%,
+    rgba(255, 255, 255, 0) 80%
   );
   opacity: 0.92;
 }
@@ -2489,24 +2674,27 @@ a {
 }
 
 .pm-stage-node--current {
-  background: rgba(111, 153, 243, 0.14);
-  color: var(--accent);
+  background: color-mix(in oklch, var(--card-accent) 15%, white 85%);
+  color: color-mix(in oklch, var(--card-accent) 85%, var(--foreground) 15%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.84),
-    0 0 14px rgba(111, 153, 243, 0.1);
+    0 0 16px color-mix(in oklch, var(--card-accent) 14%, transparent);
 }
 
 .pm-stage-card[data-selected='true'] .pm-stage-node--current {
-  background: color-mix(in oklch, var(--accent) 18%, white 82%);
-  color: var(--accent-strong);
+  transform: scale(1.06);
+  background: color-mix(in oklch, var(--card-accent) 20%, white 80%);
+  color: color-mix(in oklch, var(--card-accent) 88%, var(--foreground) 12%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 10px 22px rgba(83, 118, 186, 0.18),
-    0 0 22px rgba(108, 152, 246, 0.14);
+    0 12px 26px color-mix(in oklch, var(--card-accent) 20%, transparent),
+    0 0 26px color-mix(in oklch, var(--card-accent) 16%, transparent);
 }
 
 .pm-stage-node--current::after {
-  box-shadow: 0 0 0 1px rgba(111, 153, 243, 0.18), 0 0 10px rgba(111, 153, 243, 0.08);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--card-accent) 22%, transparent),
+    0 0 12px color-mix(in oklch, var(--card-accent) 10%, transparent);
   animation: pmNodePulse 3.2s var(--ease-out-quint) infinite;
   opacity: 1;
 }
@@ -2555,9 +2743,15 @@ a {
 }
 
 .pm-stage-progress--current {
-  background: color-mix(in oklch, var(--accent) 20%, white 80%);
-  color: color-mix(in oklch, var(--accent-strong) 78%, var(--foreground) 22%);
-  box-shadow: 0 0 10px rgba(111, 153, 243, 0.1);
+  background: var(--danger) !important;
+  color: white !important;
+  box-shadow: 0 0 12px color-mix(in oklch, var(--danger) 30%, transparent) !important;
+}
+
+.pm-stage-progress--selected {
+  background: var(--warning) !important;
+  color: white !important;
+  box-shadow: 0 0 12px color-mix(in oklch, var(--warning) 35%, transparent) !important;
 }
 
 .pm-stage-progress--idle {
@@ -5489,7 +5683,7 @@ a {
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  color: var(--accent);
+  color: color-mix(in oklch, var(--card-accent, var(--accent)) 85%, var(--foreground) 15%);
   background: oklch(1 0 0 / 0.72);
   box-shadow:
     2.5px 3px 6px oklch(0.48 0.05 258 / 0.14),
@@ -5497,12 +5691,15 @@ a {
     inset 0 1px 0 oklch(1 0 0 / 0.85);
   transition:
     transform 220ms var(--ease-out-quint),
-    box-shadow 220ms var(--ease-out-quint);
+    box-shadow 220ms var(--ease-out-quint),
+    color 220ms var(--ease-out-quint);
   cursor: pointer;
 }
 
 .pm-stage-action-btn:hover {
   transform: translateY(-2px);
+  color: color-mix(in oklch, var(--card-accent, var(--accent)) 95%, var(--foreground) 5%);
+  background: color-mix(in oklch, var(--card-accent, var(--accent)) 6%, oklch(1 0 0 / 0.88));
   box-shadow:
     3px 5px 10px oklch(0.42 0.07 258 / 0.18),
     -2px -2px 4px oklch(1 0 0 / 0.95),

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Sparkles, Star, Users } from 'lucide-react';
+import { BookOpen, Search, Sparkles, Star, Users } from 'lucide-react';
 import type { TenderFieldKey } from '@/lib/types/tender-write';
 
 // Fields that should not show favorite/sample/AI actions
@@ -37,6 +37,7 @@ export function TenderFieldActions({
   onFavoriteToggle,
   onAiGenerate,
   onContactOpen,
+  onSupplierSelect,
 }: {
   fieldKey: TenderFieldKey;
   currentValue: string;
@@ -48,6 +49,7 @@ export function TenderFieldActions({
   onFavoriteToggle: () => void;
   onAiGenerate: () => void;
   onContactOpen?: () => void;
+  onSupplierSelect?: () => void;
 }) {
   const [showTooltip, setShowTooltip] = useState<string | null>(null);
 
@@ -78,6 +80,20 @@ export function TenderFieldActions({
         >
           <Users size={14} />
           {showTooltip === 'contact' && <ActionTooltip>联系人</ActionTooltip>}
+        </button>
+      )}
+
+      {onSupplierSelect && (
+        <button
+          type="button"
+          onClick={onSupplierSelect}
+          aria-label="供应商抽选"
+          title="AI 分析项目需求，智能推荐匹配供应商"
+          {...bindTooltip('supplier')}
+          className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
+        >
+          <Search size={14} className="text-[rgba(76,111,189,1)]" />
+          {showTooltip === 'supplier' && <ActionTooltip>供应商抽选</ActionTooltip>}
         </button>
       )}
 

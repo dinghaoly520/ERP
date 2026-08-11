@@ -39,7 +39,7 @@ export class AnnouncementAiService {
         undefined,
         {
           model: this.config.get<string>('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
-          maxTokens: 420,
+          maxTokens: 512,
           timeoutMs: 60_000,
         },
       );
@@ -77,17 +77,28 @@ export class AnnouncementAiService {
     const clipped = summary.slice(0, maxLength);
     if (summary.length <= maxLength && /[。！？]$/.test(clipped)) return clipped;
 
-    const lastPunctuation = Math.max(
+    // 1. 优先在句末标点（。；！？）处截断，至少保留 120 字
+    const lastSentenceEnd = Math.max(
       clipped.lastIndexOf('。'),
       clipped.lastIndexOf('；'),
       clipped.lastIndexOf('！'),
       clipped.lastIndexOf('？'),
     );
-
-    if (lastPunctuation >= 120) {
-      return clipped.slice(0, lastPunctuation + 1).replace(/；$/, '。');
+    if (lastSentenceEnd >= 120) {
+      return clipped.slice(0, lastSentenceEnd + 1).replace(/；$/, '。');
     }
 
-    return `${clipped.replace(/[，、；：,;:]*$/, '')}。`;
+    // 2. 退而求其次：在逗号/分号处截断（至少保留 60 字），替换为句号
+    //    避免半句话被强行加句号（如 "交付周期以。" ← LLM 生成截断 + 旧兜底拼凑）
+    const lastClauseSep = Math.max(
+      clipped.lastIndexOf('，'),
+      clipped.lastIndexOf('；'),
+    );
+    if (lastClauseSep >= 60) {
+      return `${clipped.slice(0, lastClauseSep)}。`;
+    }
+
+    // 3. 无任何合理断点 → 去掉末尾标点，不强行加句号
+    return clipped.replace(/[，、；：,;:]*$/, '');
   }
 }

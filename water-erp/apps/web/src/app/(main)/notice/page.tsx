@@ -125,9 +125,6 @@ export default function NoticePage() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
   const totalViews = data.items.reduce((sum, i) => sum + (i.viewCount || 0), 0);
-  const missingBidDocs = data.items.filter(i =>
-    i.type === 'BID_NOTICE' && i.status === 'PUBLISHED' && !i.bidDocument
-  ).length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -156,12 +153,11 @@ export default function NoticePage() {
 
                 {/* hairline 分割线 + KPI 行 — 合并为单一容器，间距与项目管理统一 */}
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 items-stretch">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 items-stretch">
           <HeroStat label="已发布" value={published} sub="已生效可见" />
           <HeroStat label="待处理草稿" value={drafts} signal={drafts > 0 ? "warning" : undefined} sub={drafts > 0 ? "尽快发布" : "全部已发布"} />
           <HeroStat label="本月发布" value={publishedThisMonth} sub="本月新增公告" valueStr={publishedThisMonth.toString()} />
           <HeroStat label="浏览总量" value={totalViews} sub="累计曝光量" valueStr={totalViews >= 10000 ? `${(totalViews / 10000).toFixed(1)} 万` : totalViews.toLocaleString()} />
-          <HeroStat label="缺招标文件" value={missingBidDocs} signal={missingBidDocs > 0 ? "danger" : undefined} sub={missingBidDocs > 0 ? "需立即补齐" : "全部补齐"} />
         </div>
         </div>
       </div>

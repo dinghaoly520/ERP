@@ -356,6 +356,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   // 谈判采购没有"公告→供应商自行投递"链路，供应商以"受邀名单 + 回执"为准；
   // 其余方式（询比/邀请招标/竞价）以公告中供应商自行投递为准。
   const isNegotiation = project?.procurementMethod === '谈判采购';
+  const showRsvpColumn = project?.procurementMethod === '谈判采购' || project?.procurementMethod === '直接采购';
 
   // 统一行模型：谈判采购以受邀名单为骨架（合并投递数据），其余以投递供应商为骨架。
   type SupplierRow = {
@@ -519,7 +520,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                         <tr>
                           <th style={{ width: 140 }}>供应商</th>
                           <th style={{ width: 160 }}>业务标签</th>
-                          {isNegotiation && <th style={{ width: 80 }}>回执情况</th>}
+                          {showRsvpColumn && <th style={{ width: 80 }}>回执情况</th>}
                           <th style={{ width: 70 }}>投递状态</th>
                           <th style={{ width: 130 }}>投递时间</th>
                         </tr>
@@ -534,7 +535,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                             <tr key={r.key} className="row-clickable">
                               <td className="font-medium text-[var(--foreground)]">{r.supplierName}</td>
                               <td className="text-[var(--muted-foreground)]">{r.tags.length > 0 ? r.tags.join('、') : '—'}</td>
-                              {isNegotiation && <td><StatusPill tone={rsvpTone}>{rsvpLabel}</StatusPill></td>}
+                              {showRsvpColumn && <td><StatusPill tone={rsvpTone}>{rsvpLabel}</StatusPill></td>}
                               <td><StatusPill tone={tone}>{label}</StatusPill></td>
                               <td className="tabular-nums text-[var(--muted-foreground)]">{r.submittedAt ? formatDateTime(r.submittedAt) : '—'}</td>
                             </tr>

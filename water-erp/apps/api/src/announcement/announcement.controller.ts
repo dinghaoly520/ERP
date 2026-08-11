@@ -228,14 +228,14 @@ export class AnnouncementController {
     if (!ann) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
     if (!ann.content) throw new BadRequestException({ error: '公告无正文内容，无法生成摘要', code: 'NO_CONTENT' });
     const typeMap: Record<string, string> = { BID_NOTICE:'招标公告', WIN_NOTICE:'中标公示', POLICY:'政策法规', PLATFORM:'平台通知' };
-    const summary = await this.announcementAiService.summarize({
+    const aiSummary = await this.announcementAiService.summarize({
       title: ann.title,
       type: typeMap[ann.type] ?? ann.type,
       content: ann.content,
     });
-    if (!summary) throw new BadRequestException({ error: 'AI 摘要生成失败：模型服务暂时不可用（网络波动或上游限流），请稍后重试', code: 'AI_FAILED' });
-    await this.announcementService.update(id, { summary } as any);
-    return { summary };
+    if (!aiSummary) throw new BadRequestException({ error: 'AI 摘要生成失败：模型服务暂时不可用（网络波动或上游限流），请稍后重试', code: 'AI_FAILED' });
+    await this.announcementService.update(id, { aiSummary } as any);
+    return { aiSummary };
   }
 
   @Delete(':id')

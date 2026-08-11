@@ -194,13 +194,13 @@ function renderMeta(ann: AnnouncementListItem) {
 function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
   const [attachments, setAttachments] = useState<AnnouncementAttachment[]>([]);
   const [bidDoc, setBidDoc] = useState<BidDocumentManage | null>(null);
-  const [localSummary, setLocalSummary] = useState<string | undefined>(ann.summary);
+  const [localAiSummary, setLocalAiSummary] = useState<string | undefined>(ann.aiSummary);
   useEffect(() => {
     listAttachments(ann.id).then(setAttachments).catch(() => {});
     if (ann.type === 'BID_NOTICE') getBidDocument(ann.id).then(setBidDoc).catch(() => setBidDoc(null));
   }, [ann.id, ann.type]);
 
-  const summary = localSummary ?? ann.summary;
+  const aiSummary = localAiSummary ?? ann.aiSummary;
 
   const handleGenerateSummary = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -208,7 +208,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
     btn.disabled = true;
     try {
       const result = await generateSummary(ann.id);
-      if (result.summary) { setLocalSummary(result.summary); toast.success("摘要已生成"); }
+      if (result.aiSummary) { setLocalAiSummary(result.aiSummary); toast.success("摘要已生成"); }
       else { toast.error("AI 返回空摘要"); }
     } catch (err: any) { toast.error(err?.message || "生成失败"); }
     finally { btn.disabled = false; }
@@ -267,7 +267,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
               className="neu-btn-xs ml-auto shrink-0"
             ><Sparkles size={11} /> AI 摘要</button>
           </div>
-          <p className="text-[0.8rem] leading-relaxed text-[var(--foreground)] whitespace-pre-wrap break-words">{summary || '点击「AI 摘要」按钮生成'}</p>
+          <p className="text-[0.8rem] leading-relaxed text-[var(--foreground)] whitespace-pre-wrap break-words">{aiSummary || '点击「AI 摘要」按钮生成'}</p>
         </div>
       </div>
     </div>

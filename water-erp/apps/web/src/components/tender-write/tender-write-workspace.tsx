@@ -33,6 +33,9 @@ export function TenderWriteWorkspace({
   onSectionSelect,
   onChange,
   onTableChange,
+  onOpenSupplierSelect,
+  onAutoFillAll,
+  batchFilling,
 }: {
   documentType: ReadyTenderDocumentType;
   draft: ReadyTenderDraft;
@@ -42,6 +45,9 @@ export function TenderWriteWorkspace({
   onSectionSelect: (key: TenderSectionKey) => void;
   onChange: (key: TenderFieldKey, value: string) => void;
   onTableChange?: (tableData: TableData | undefined) => void;
+  onOpenSupplierSelect?: () => void;
+  onAutoFillAll?: () => void;
+  batchFilling?: boolean;
 }) {
   const [scrollToCenter, setScrollToCenter] = useState(false);
   const [focusedFieldKey, setFocusedFieldKey] = useState<string | undefined>(undefined);
@@ -145,6 +151,8 @@ export function TenderWriteWorkspace({
                   section={currentSection}
                   isFirst={isFirst}
                   isLast={isLast}
+                  onAutoFillAll={onAutoFillAll}
+                  batchFilling={batchFilling}
                   onPrevious={() =>
                     handleSectionSelect(
                       getAdjacentTenderSectionKey(
@@ -174,6 +182,7 @@ export function TenderWriteWorkspace({
                   onTableChange={onTableChange}
                   onFieldFocus={handleFieldFocus}
                   onSampleOpen={handleSampleOpen}
+                  onOpenSupplierSelect={onOpenSupplierSelect}
                 />
               </div>
             </div>

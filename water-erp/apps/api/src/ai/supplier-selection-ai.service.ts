@@ -49,6 +49,7 @@ export class SupplierSelectionAiService {
     requirement: string,
     candidates: SelectionCandidate[],
     maxCount: number,
+    projectContext?: Record<string, string>,
   ): Promise<SupplierSelectionLlmResult | undefined> {
     if (!this.llm.getModel() || candidates.length === 0) return undefined;
 
@@ -73,9 +74,17 @@ export class SupplierSelectionAiService {
         .join(' | ');
     });
 
+    const contextBlock = projectContext
+      ? Object.entries(projectContext)
+          .filter(([, v]) => v?.trim())
+          .map(([k, v]) => `【${k}】${v}`)
+          .join('\n')
+      : '';
+
     const system = [
       '你是四川水发集团招采系统的供应商智能推荐引擎。',
       '根据采购需求，从候选供应商清单中挑选最匹配的供应商，按匹配度从高到低排序，最多推荐 ' + maxCount + ' 家。',
+      (contextBlock ? '以下为项目完整背景信息，请结合背景信息深度理解采购的真实需求、标的物、预算规模和对供方的资质/能力要求，在此基础上判断供应商的匹配度：\n' + contextBlock : ''),
       '对每家给出：匹配度评分(0-100的整数)和一条20-50字的中文推荐理由，须综合其业务标签/经营范围/资质/分类与需求的相关性，并参考历史评价均分/等级与在建项目数体现择优（评分高、等级好者优先；无历史评价者不得虚构口碑）。',
       '严格基于候选清单中的已有信息判断，不得编造清单外不存在的供应商或能力。',
       '必须只输出一个 JSON 对象，不要输出任何其它文字或代码块标记，格式：',

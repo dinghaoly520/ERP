@@ -16,10 +16,15 @@ export class AnnouncementService {
     @Optional() private bidService?: BidService,
   ) {}
 
+  /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名） */
+  private static readonly TYPE_LABELS: Record<string, string> = {
+    BID_NOTICE: '招标公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知',
+  };
+
   async create(dto: CreateAnnouncementDto, authorId?: string) {
     const aiSummary = dto.aiSummary ?? await this.announcementAi.summarize({
       title: dto.title,
-      type: dto.type,
+      type: AnnouncementService.TYPE_LABELS[dto.type] ?? dto.type,
       content: dto.content,
     });
 
@@ -144,7 +149,7 @@ export class AnnouncementService {
       dto.title !== undefined || dto.content !== undefined || dto.type !== undefined
     );
     const aiSummary = dto.aiSummary ?? (shouldRegenerateSummary
-      ? await this.announcementAi.summarize({ title, type, content })
+      ? await this.announcementAi.summarize({ title, type: AnnouncementService.TYPE_LABELS[type] ?? type, content })
       : undefined);
 
     const targetStatus = dto.status ?? announcement.status;

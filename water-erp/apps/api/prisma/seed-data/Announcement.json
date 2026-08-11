@@ -9,7 +9,7 @@
     "summary": "川水发〔2026〕44号，四川水发集团法律事务部发布，2026-09-10生效",
     "publishDate": "2026-06-01T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 260,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -31,7 +31,7 @@
     "summary": "川水发〔2026〕48号，四川水发集团合规风控部发布，2026-08-09生效",
     "publishDate": "2026-06-25T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 445,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -53,7 +53,7 @@
     "summary": "评分项模板预填、智能校验各评分项分数之和与总分的一致性、新增评分备注和草稿保存...",
     "publishDate": "2026-08-02T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 319,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -76,7 +76,7 @@
     "summary": "川水发〔2026〕74号，四川水发集团法律事务部发布，2026-08-15生效",
     "publishDate": "2026-06-20T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 482,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -98,7 +98,7 @@
     "summary": "川水发〔2026〕73号，四川水发集团合规风控部发布，2026-09-10生效",
     "publishDate": "2026-06-25T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 408,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -120,7 +120,7 @@
     "summary": "川水发〔2026〕62号，四川水发集团法律事务部发布，2026-07-15生效",
     "publishDate": "2026-06-01T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 297,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -142,7 +142,7 @@
     "summary": "川水发〔2026〕50号，四川水发集团采购管理部发布，2026-08-12生效",
     "publishDate": "2026-06-16T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 556,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -164,7 +164,7 @@
     "summary": "川水发〔2026〕15号，四川水发集团合规风控部发布，2026-08-18生效",
     "publishDate": "2026-06-14T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 334,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -186,7 +186,7 @@
     "summary": "川水发〔2026〕50号，四川水发集团招标采购管理委员会发布，2026-07-01生效",
     "publishDate": "2026-06-26T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 223,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -208,7 +208,7 @@
     "summary": "要求使用主流浏览器最新版本访问电子开标大厅...",
     "publishDate": "2026-08-25T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 284,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -231,7 +231,7 @@
     "summary": "川水发〔2026〕16号，四川水发集团招标采购管理委员会发布，2026-08-28生效",
     "publishDate": "2026-06-18T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 593,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -253,7 +253,7 @@
     "summary": "川水发〔2026〕48号，四川水发集团法律事务部发布，2026-07-25生效",
     "publishDate": "2026-06-14T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 186,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -275,7 +275,7 @@
     "summary": "新增资质有效期自动监控引擎和三级递进提醒机制（邮件+短信+站内信），无需用户干预...",
     "publishDate": "2026-07-07T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 467,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -298,7 +298,7 @@
     "summary": "川水发〔2026〕76号，四川水发集团采购管理部发布，2026-07-12生效",
     "publishDate": "2026-06-08T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 519,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -320,7 +320,7 @@
     "summary": "从注册年限、合同履约、评价得分、变更频率、资质完整度、配合度等多个维度进行综合评分...",
     "publishDate": "2026-07-25T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 245,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -343,7 +343,7 @@
     "summary": "数据库索引优化、日志归档清理、应用安全补丁更新、中间件版本升级至最新稳定版...",
     "publishDate": "2026-07-12T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 430,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -366,7 +366,7 @@
     "summary": "新增资质材料在线补传功能、优化投标文件上传组件（支持断点续传）、修复报表导出乱码问题、完善操作日志审计功能...",
     "publishDate": "2026-07-21T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 208,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -389,7 +389,7 @@
     "summary": "取消纸质材料邮寄环节，支持在线提交扫描件进行CA证书绑定...",
     "publishDate": "2026-08-16T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 541,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -412,7 +412,7 @@
     "summary": "川水发〔2026〕65号，四川水发集团采购管理部发布，2026-08-02生效",
     "publishDate": "2026-06-21T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 371,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -434,7 +434,7 @@
     "summary": "完成短信网关和邮件服务器切换升级，提升消息送达率和稳定性...",
     "publishDate": "2026-07-09T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 393,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -457,7 +457,7 @@
     "summary": "加强账号安全管理，启用登录失败锁定和多因素认证功能...",
     "publishDate": "2026-08-24T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 618,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -480,7 +480,7 @@
     "summary": "新增项目全流程进度看板，支持里程碑标记和延期预警，无需审批直接使用...",
     "publishDate": "2026-07-15T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 578,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -503,7 +503,7 @@
     "summary": "iOS/Android/微信小程序三端同步试运行，覆盖公告浏览、项目报名、进度查询等核心功能...",
     "publishDate": "2026-07-27T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 504,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -526,7 +526,7 @@
     "summary": "年度集中采购目录修订维护，新增3个子类，部分品目因供应商退出将临时下架...",
     "publishDate": "2026-07-15T02:00:00.000Z",
     "isTop": false,
-    "viewCount": 358,
+    "viewCount": 0,
     "relatedProjectCode": null,
     "authorId": null,
     "metadata": {
@@ -549,7 +549,7 @@
     "summary": "四川水发集团岷江流域防洪治理工程勘察设计：谈判采购，预算28万元，需求部门水电科研院。",
     "publishDate": "2026-07-09T08:00:00.000Z",
     "isTop": true,
-    "viewCount": 192,
+    "viewCount": 0,
     "relatedProjectCode": "SC2-2026-0001",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -568,7 +568,7 @@
     "summary": "四川水发集团智慧水务大数据平台建设：谈判采购，预算28万元，需求部门信息技术部。",
     "publishDate": "2026-07-12T08:00:00.000Z",
     "isTop": true,
-    "viewCount": 401,
+    "viewCount": 0,
     "relatedProjectCode": "SC2-2026-0002",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -587,7 +587,7 @@
     "summary": "四川水发集团大坝安全监测设备采购：竞价采购，预算28万元，需求部门工程勘察院。",
     "publishDate": "2026-07-15T08:00:00.000Z",
     "isTop": true,
-    "viewCount": 505,
+    "viewCount": 0,
     "relatedProjectCode": "SC2-2026-0003",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -606,7 +606,7 @@
     "summary": "四川水发集团农村供水管网改造材料：竞价采购，预算95万元，需求部门供水事业部。",
     "publishDate": "2026-07-18T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 502,
+    "viewCount": 0,
     "relatedProjectCode": "SC9-2026-0004",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -625,7 +625,7 @@
     "summary": "四川水发集团OA系统升级改造服务：直接采购，预算12万元，需求部门综合管理部。",
     "publishDate": "2026-07-21T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 236,
+    "viewCount": 0,
     "relatedProjectCode": "SC1-2026-0005",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -644,7 +644,7 @@
     "summary": "四川水发集团流域水质在线监测仪表：直接采购，预算68万元，需求部门环保事业部。",
     "publishDate": "2026-07-24T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 231,
+    "viewCount": 0,
     "relatedProjectCode": "SC6-2026-0006",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -663,7 +663,7 @@
     "summary": "四川水发集团城市供水管网漏损检测系统：邀请招标，预算95万元，需求部门工程技术中心。",
     "publishDate": "2026-07-27T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 414,
+    "viewCount": 0,
     "relatedProjectCode": "SC9-2026-0007",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -682,7 +682,7 @@
     "summary": "四川水发集团智能化泵站改造工程：邀请招标，预算28万元，需求部门供水事业部。",
     "publishDate": "2026-07-30T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 308,
+    "viewCount": 0,
     "relatedProjectCode": "SC2-2026-0008",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -701,7 +701,7 @@
     "summary": "四川水发集团办公家具集中采购：询比采购，预算12万元，需求部门综合管理部。",
     "publishDate": "2026-08-02T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 461,
+    "viewCount": 0,
     "relatedProjectCode": "SC1-2026-0009",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -720,7 +720,7 @@
     "summary": "四川水发集团实验室检测设备采购：询比采购，预算68万元，需求部门水质检测中心。",
     "publishDate": "2026-08-05T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 378,
+    "viewCount": 0,
     "relatedProjectCode": "SC6-2026-0010",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -739,7 +739,7 @@
     "summary": "四川水发集团引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务：竞价采购，预算50万元，需求部门工程勘察院。",
     "publishDate": "2026-08-08T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 479,
+    "viewCount": 0,
     "relatedProjectCode": "SC5-2026-0011",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -758,7 +758,7 @@
     "summary": "重庆蜀通岩土工程有限公司以26.11万元中标岷江流域防洪治理工程勘察设计，工期60日历天。",
     "publishDate": "2026-08-15T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 338,
+    "viewCount": 0,
     "relatedProjectCode": "SC2-2026-0001",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -777,7 +777,7 @@
     "summary": "中科院成都信息技术股份有限公司以24.17万元中标智慧水务大数据平台建设，工期90日历天。",
     "publishDate": "2026-08-18T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 211,
+    "viewCount": 0,
     "relatedProjectCode": "SC2-2026-0002",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -796,7 +796,7 @@
     "summary": "四川省通信产业服务有限公司以24.80万元中标大坝安全监测设备采购，工期120日历天。",
     "publishDate": "2026-08-21T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 106,
+    "viewCount": 0,
     "relatedProjectCode": "SC2-2026-0003",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -815,7 +815,7 @@
     "summary": "四川水发建设有限公司以85.60万元中标农村供水管网改造材料，工期150日历天。",
     "publishDate": "2026-08-24T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 430,
+    "viewCount": 0,
     "relatedProjectCode": "SC9-2026-0004",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -834,7 +834,7 @@
     "summary": "成都华西物资供应有限公司以80.80万元中标城市供水管网漏损检测系统，工期180日历天。",
     "publishDate": "2026-08-27T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 329,
+    "viewCount": 0,
     "relatedProjectCode": "SC9-2026-0005",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -853,7 +853,7 @@
     "summary": "晨越建设项目管理集团股份有限公司以63.54万元中标实验室检测设备采购，工期210日历天。",
     "publishDate": "2026-08-30T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 182,
+    "viewCount": 0,
     "relatedProjectCode": "SC6-2026-0006",
     "authorId": "cmrmvzupb0",
     "metadata": {
@@ -872,7 +872,7 @@
     "summary": "成都中科宇图信息技术有限公司以45.08万元中标引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务，工期240日历天。",
     "publishDate": "2026-09-02T08:00:00.000Z",
     "isTop": false,
-    "viewCount": 179,
+    "viewCount": 0,
     "relatedProjectCode": "SC5-2026-0007",
     "authorId": "cmrmvzupb0",
     "metadata": {

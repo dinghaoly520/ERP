@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/announcement';
 import type { AnnouncementStatus } from '@/lib/api/announcement';
 import { uploadProjectStageAttachment, reprocProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
+import { generateFieldContent } from '@/lib/api/tender-sample';
 import { getSupplierList } from '@/lib/api/supplier';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption } from '@/lib/api/expert';
 import type { Supplier } from '@/lib/types';
@@ -99,6 +100,30 @@ function deadlineAfterDays(n: number): string {
   return `${y}-${m}-${day}T23:59`;
 }
 
+/** 从 datetime-local 字符串格式化为中文显示（YYYY-MM-DDTHH:MM → "YYYY年M月D日 HH:MM"） */
+function formatDateTimeDisplay(iso: string): string {
+  if (!iso) return '—';
+  const m = iso.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (m) return `${m[1]}年${parseInt(m[2])}月${parseInt(m[3])}日 ${m[4]}:${m[5]}`;
+  const d = iso.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (d) return `${d[1]}年${parseInt(d[2])}月${parseInt(d[3])}日`;
+  return iso;
+}
+
+/** 计算开标时间前 24 小时的 datetime-local 值 */
+function hoursBeforeOpenTime(openTimeIso: string, hours: number): string {
+  if (!openTimeIso) return '';
+  const dt = new Date(openTimeIso);
+  if (isNaN(dt.getTime())) return '';
+  dt.setHours(dt.getHours() - hours);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  const h = String(dt.getHours()).padStart(2, '0');
+  const min = String(dt.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d}T${h}:${min}`;
+}
+
 /** 中文日期 "2026年8月1日" → YYYY-MM-DD；已是数字格式则直接返回 */
 function toDateInputValue(text: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
@@ -111,6 +136,28 @@ function toDateInputValue(text: string): string {
   }
   return text;
 }
+
+/** 中文日期时间 "2026年3月26日15:00" → YYYY-MM-DDTHH:MM（datetime-local input 格式） */
+function toDatetimeLocalValue(text: string): string {
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)) return text;
+  // 匹配 "2026年03月26日15:00" 或 "2026年3月26日15:00"
+  const m = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+  if (m) {
+    return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}T${m[4].padStart(2, '0')}:${m[5]}`;
+  }
+  // fallback: date-only
+  return toDateInputValue(text);
+}
+
+/** sessionStorage key per project */
+function wizardStorageKey(projectId: string): string { return `ann-wizard-${projectId}`; }
+function loadWizardState(projectId: string): Record<string, any> | null {
+  try { const r = sessionStorage.getItem(wizardStorageKey(projectId)); return r ? JSON.parse(r) : null; } catch { return null; }
+}
+function saveWizardState(projectId: string, state: Record<string, any>) {
+  try { const prev = loadWizardState(projectId) || {}; sessionStorage.setItem(wizardStorageKey(projectId), JSON.stringify({ ...prev, ...state, _ts: Date.now() })); } catch {}
+}
+function clearWizardState(projectId: string) { try { sessionStorage.removeItem(wizardStorageKey(projectId)); } catch {} }
 
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document' }: Props) {
   // Wizard state
@@ -174,6 +221,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时重置表单值，符合模态惯例 */
   useEffect(() => {
     if (!isOpen || !project) return;
+
+    // ★ 检查 sessionStorage 缓存 —— 有则恢复，无则全新预填
+    const cachedWiz = loadWizardState(project.id);
+
     setLoading(true);
     setStep(1);
     setAnnId(null);
@@ -186,13 +237,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setAutoMatchName('');
     setPublishTiming('now');
     setScheduledDate('');
-    setPendingFiles([]);
+    setBusy(false);
+    setPendingFiles([]); // File 对象不可序列化，关闭即丢弃
 
     const tt = mapProcurementMethodToTenderType(project.procurementMethod);
-    if (!tt) {
-      setLoading(false);
-      return;
-    }
+    if (!tt) { setLoading(false); return; }
     setTenderType(tt);
     const meta = TENDER_DOCUMENT_TYPES.find((m) => m.type === tt) ?? TENDER_DOCUMENT_TYPES[0];
     setSelectedMeta(meta);
@@ -200,8 +249,41 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     const preTender = buildPrefillFromProject(project, tt) as ReadyTenderDraft;
     setTenderDraftForDialog(preTender);
 
+    // ★ 缓存命中 —— 恢复上次完整状态，跳过全新预填
+    if (cachedWiz?.draft) {
+      setStep(cachedWiz.step ?? 1);
+      setCategory((cachedWiz.category as AnnouncementCategory) ?? initialCategory);
+      setDraft(cachedWiz.draft as AnnouncementDraft);
+      setVisibility(cachedWiz.visibility ?? 'PUBLIC');
+      setRestrictedSupplierIds(cachedWiz.restrictedSupplierIds ?? []);
+      setPublishTiming(cachedWiz.publishTiming ?? 'now');
+      setScheduledDate(cachedWiz.scheduledDate ?? '');
+      setAnnouncementEndDate(cachedWiz.announcementEndDate ?? '');
+      setBidSubmissionDeadline(cachedWiz.bidSubmissionDeadline ?? '');
+      setDownloadMode(cachedWiz.downloadMode ?? 'free');
+      setDownloadPassword(cachedWiz.downloadPassword ?? '');
+      setPaidAmount(cachedWiz.paidAmount ?? '');
+      setAttachOn(cachedWiz.attachOn ?? false);
+      setTenderOn(cachedWiz.tenderOn ?? tenderFiles.length > 0);
+      setSelectedTenderObjectKey(cachedWiz.selectedTenderObjectKey ?? tenderFiles[0]?.objectKey ?? '');
+      setNotifyOnPublish(cachedWiz.notifyOnPublish ?? true);
+      if (tt === 'SINGLE_SOURCE') {
+        const sn = (cachedWiz.draft as Record<string, string>).supplierName?.trim();
+        if (sn) setAutoMatchName(sn);
+      }
+      setLoading(false);
+      // 后台 .docx 解析仅作增量
+      parseAnnouncementFields(project.id)
+        .then((parsed) => {
+          if (!parsed?.fields) return;
+          setDraft((prev) => prev ? ({ ...(prev as any), ...parsed.fields }) : prev);
+        }).catch(() => {});
+      return;
+    }
+
+    // ── 无缓存：全新预填 ──
+
     // ★ 同步锁定 procurement_document（项目管理入口只做采购文件公告）+ 项目数据预填
-    // 不依赖 .docx 解析，确保无论解析成功与否都直接进入编辑页、不显示分类选择
     const avail = getAvailableAnnouncementCategories(tt);
     const procCat = avail.find((c) => c === initialCategory);
     if (!procCat) {
@@ -218,16 +300,61 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     );
     setCategory(procCat);
 
-    // 从采购文件获取时间(documentAcquireTime)区间自动填入公示期限起/止
+    // ★ 增强预填：直接从项目数据填入公告字段（无需 AI）
+    // 判断是否直接采购（SINGLE_SOURCE）—— 直接采购有更多可自动填入的数据
+    const isSingleSource = tt === 'SINGLE_SOURCE';
+    {
+      const fd = filledDraft as Record<string, string>;
+      if (!fd.maxPriceNumeric?.trim() && project.budgetAmount != null) fd.maxPriceNumeric = String(project.budgetAmount);
+      if (!fd.projectOverview?.trim() && project.projectOverview?.trim()) fd.projectOverview = project.projectOverview;
+      if (!fd.qualificationRequirements?.trim() && project.supplierRequirements?.trim()) fd.qualificationRequirements = project.supplierRequirements;
+
+      // 采购时间 = 开标时间
+      if (!fd.procurementTime?.trim() && project.bidOpeningTime?.trim()) fd.procurementTime = project.bidOpeningTime;
+
+      // 落款日期 = 当前日期
+      if (!fd.signatureDate?.trim()) {
+        const today = new Date();
+        fd.signatureDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      }
+
+      // 直接采购：供应商名称补充来源
+      if (isSingleSource && !fd.supplierName?.trim()) {
+        // 优先级：awardedSupplier → 采购文件编写草稿
+        let sn = project.awardedSupplier?.trim();
+        if (!sn) {
+          try {
+            const raw = localStorage.getItem(`tender-write:project-drafts:v1:${project.id}`);
+            if (raw) sn = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
+          } catch {}
+        }
+        if (sn) fd.supplierName = sn;
+      }
+    }
+
+    // 从采购文件获取时间(documentAcquireTime)区间自动填入公示期限起/止（带 HH:MM）
+    // documentAcquireTime 格式如 "2026年03月23日09:00至2026年03月26日15:00"
+    // 分隔符可能是 "至" 或 "-"
     const acquireTime = project.documentAcquireTime?.trim();
     if (acquireTime) {
-      const dashIdx = acquireTime.lastIndexOf('-');
-      if (dashIdx > 0) {
-        const startRaw = acquireTime.slice(0, dashIdx).trim();
-        const endRaw = acquireTime.slice(dashIdx + 1).trim();
+      const sepMatch = acquireTime.match(/至|-|~/);
+      const sepIdx = sepMatch ? acquireTime.indexOf(sepMatch[0]) : -1;
+      if (sepIdx > 0) {
+        const startRaw = acquireTime.slice(0, sepIdx).trim();
+        const endRaw = acquireTime.slice(sepIdx + 1).trim();
         const fd = filledDraft as Record<string, string>;
         if (!fd.announcementStart) fd.announcementStart = toDateInputValue(startRaw);
-        if (!fd.announcementEnd) fd.announcementEnd = toDateInputValue(endRaw);
+        // 公示期限（止）保留完整日期时间（含时分）
+        if (!fd.announcementEnd) fd.announcementEnd = isSingleSource ? endRaw : toDateInputValue(endRaw);
+        // 自动计算天数
+        if (!fd.announcementDays) {
+          try {
+            const startDate = new Date(toDateInputValue(startRaw));
+            const endDate = new Date(toDateInputValue(endRaw));
+            const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (days > 0) fd.announcementDays = String(days);
+          } catch {}
+        }
       }
     }
 
@@ -240,23 +367,36 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     const isQuickDeadlineCategory = project.procurementMethod === '询比采购' || project.procurementMethod === '竞价采购';
     const inheritEnd = (filledDraft as Record<string, string>).announcementEnd ?? '';
     if (inheritEnd) {
-      // 从公示期限（止）带入，纯日期补默认时分 23:59
-      setAnnouncementEndDate(inheritEnd.length <= 10 ? `${inheritEnd}T23:59` : inheritEnd);
+      // 转换为 ISO 格式（datetime-local input 需要）
+      const isoEnd = isSingleSource ? toDatetimeLocalValue(inheritEnd) : (inheritEnd.length <= 10 ? `${inheritEnd}T23:59` : inheritEnd);
+      setAnnouncementEndDate(isoEnd);
     } else {
       setAnnouncementEndDate(deadlineAfterDays(isQuickDeadlineCategory ? 3 : 5));
     }
-    setBidSubmissionDeadline(deadlineAfterDays(isQuickDeadlineCategory ? 5 : 10));
+    // 标书投递截止时间 = 开标时间前 24 小时
+    if (!isSingleSource) {
+      const openTime = (filledDraft as Record<string, string>).procurementTime?.trim()
+        || (filledDraft as Record<string, string>).bidOpeningTime?.trim()
+        || project.bidOpeningTime?.trim()
+        || '';
+      const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
+      if (openTimeIso) {
+        setBidSubmissionDeadline(hoursBeforeOpenTime(openTimeIso, 24));
+      } else {
+        setBidSubmissionDeadline(deadlineAfterDays(isQuickDeadlineCategory ? 5 : 10));
+      }
+    }
 
-    // ★ 默认公告范围：全部可见（用户可手动切换为部分供应商可见）
+    // ★ 默认公告范围：全部可见
     setVisibility('PUBLIC');
 
-    // 流标公告：强制全部可见 + 立即发布（发布配置不含 Timing/关键时间/引用采购文件）
+    // 流标公告：强制全部可见 + 立即发布
     if (initialCategory === 'failed_bid') {
       setVisibility('PUBLIC');
       setPublishTiming('now');
     }
 
-    // ★ 加载投标项目中被邀供应商 → 自动预选为"部分可见"的已选供应商（切换为 RESTRICTED 时可用）
+    // ★ 加载投标项目中被邀供应商
     {
       const defaultRestricted =
         tt === 'COMPETITIVE_NEGOTIATION' || tt === 'INTERNAL_BIDDING' || tt === 'SINGLE_SOURCE';
@@ -278,14 +418,58 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       }
     }
 
-    // ★ 直接采购：自动读取公告中的拟定供应商（draft.supplierName，来自项目 awardedSupplier）
-    //   匹配供应商库并选中；供应商列表加载后由下方 useEffect 消费 autoMatchName
+    // ★ 直接采购：自动读取公告中的拟定供应商
     if (tt === 'SINGLE_SOURCE') {
       const sn = (filledDraft as Record<string, string>).supplierName || '';
       if (sn.trim()) setAutoMatchName(sn);
     }
 
-    // ★ Async: .docx 解析仅作额外字段叠加（失败不影响进入编辑页）
+    // ★ 直接采购：异步补充供应商地址 + AI 生成论证意见
+    if (isSingleSource) {
+      const sn = (filledDraft as Record<string, string>).supplierName?.trim();
+      if (sn) {
+        // 1. 供应商地址查库
+        getSupplierList({ status: 'APPROVED', search: sn, pageSize: 5 })
+          .then((r) => {
+            const match = r.items.find((s: any) => s.name === sn || s.name.includes(sn) || sn.includes(s.name));
+            if (match?.registeredAddress) {
+              setDraft((prev) => {
+                if (!prev) return prev;
+                const next = { ...(prev as Record<string, string>) };
+                if (!next.supplierAddress?.trim()) next.supplierAddress = match.registeredAddress;
+                return next as AnnouncementDraft;
+              });
+            }
+          }).catch(() => {});
+        // 2. AI 论证意见
+        if (!(filledDraft as Record<string, string>).argumentOpinion?.trim()) {
+          const argContext: Record<string, string> = {};
+          if (project?.title) argContext['项目名称'] = project.title;
+          if (project?.projectOverview) argContext['项目概况'] = project.projectOverview;
+          if (project?.projectReason) argContext['立项事由'] = project.projectReason;
+          argContext['拟定供应商'] = sn;
+          if (project?.supplierRequirements) argContext['供方要求'] = project.supplierRequirements;
+          generateFieldContent({
+            fieldKey: 'argumentOpinion' as any,
+            fieldLabel: '论证意见',
+            currentValue: '',
+            aiPrompt: '根据项目名称、采购内容和拟定供应商信息，生成单一来源直接采购的论证意见。说明采购必要性、为什么只能从该供应商处采购（如技术唯一性、专利专有性、地域专属性、服务延续性等论证理由）。论证语言正式专业，200-400字。不要使用#、*等符号。',
+            context: argContext,
+          }).then((res) => {
+            if (res?.content) {
+              setDraft((prev) => {
+                if (!prev) return prev;
+                const next = { ...(prev as Record<string, string>) };
+                if (!next.argumentOpinion?.trim()) next.argumentOpinion = res.content;
+                return next as AnnouncementDraft;
+              });
+            }
+          }).catch(() => {});
+        }
+      }
+    }
+
+    // ★ Async: .docx 解析仅作额外字段叠加
     parseAnnouncementFields(project.id)
       .then((parsed) => {
         if (!parsed?.fields) return;
@@ -295,9 +479,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           prev ? ({ ...prev, ...parsed.fields } as AnnouncementDraft) : prev,
         );
       })
-      .catch(() => {
-        /* .docx 解析可选，失败静默 */
-      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [isOpen, project]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -346,13 +528,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       return;
     }
     setStep(2);
+    if (project && draft) saveWizardState(project.id, { step: 2, category, draft: draft as Record<string, string> });
   };
 
   // Notification callback from embedded AnnouncementDialog
   const handleDraftChange = useCallback((d: AnnouncementDraft, cat: AnnouncementCategory) => {
     setDraft(d);
     setCategory(cat);
-  }, []);
+    if (project) saveWizardState(project.id, { draft: d as Record<string, string>, category: cat });
+  }, [project]);
 
   // 发布时上传本地暂存的附件（附件 API 需要 announcementId，故在 create 之后批量上传）
   const uploadPendingFiles = async (id: string) => {
@@ -489,6 +673,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           toast.error('再次采购失败：' + (e instanceof Error ? e.message : '未知错误'));
         }
       }
+      if (project) clearWizardState(project.id);
       onPublished();
       onClose();
     } catch (e) {
@@ -598,6 +783,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               initialCategory={category}
               initialDraft={draft}
               onDraftChange={handleDraftChange}
+              project={project}
             />
           ) : (
             /* Step 2: Publish Config */
@@ -724,10 +910,35 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               ) : <div />}
               </div>
 
-              {categoryConfig.showKeyTime && (
-              <div className="rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">关键时间</div>
-                <div className="grid grid-cols-2 gap-3">
+              {categoryConfig.showKeyTime && (() => {
+                const dr = (draft ?? {}) as Record<string, string>;
+                const pubStart = dr.announcementStart || '';
+                const pubEnd = announcementEndDate || dr.announcementEnd || '';
+                const openTime = dr.procurementTime || dr.bidOpeningTime || '';
+                const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
+                return (
+              <div className="rounded-[20px] p-5 space-y-4" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">关键事件</div>
+
+                {/* 关键事件时间线（只读展示） */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <div className="text-[10px] font-semibold text-[var(--muted-foreground)] mb-1">公示期限（起）</div>
+                    <div className="text-xs font-semibold text-[var(--foreground)]">{formatDateTimeDisplay(pubStart)}</div>
+                  </div>
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <div className="text-[10px] font-semibold text-[var(--muted-foreground)] mb-1">公示期限（止）</div>
+                    <div className="text-xs font-semibold text-[var(--foreground)]">{formatDateTimeDisplay(pubEnd)}</div>
+                  </div>
+                  <div className="rounded-xl px-3 py-2.5" style={{ background: 'color-mix(in oklch, var(--accent) 6%, oklch(1 0 0 / 0.5))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <div className="text-[10px] font-semibold text-[var(--accent)] mb-1">开标时间</div>
+                    <div className="text-xs font-semibold text-[var(--foreground)]">{formatDateTimeDisplay(openTimeIso)}</div>
+                  </div>
+                </div>
+
+                {/* 可编辑：公告截止 + 标书投递截止 */}
+                {tenderType !== 'SINGLE_SOURCE' && (
+                <div className="grid grid-cols-2 gap-3 pt-1" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
                   <div>
                     <div className="mb-1 flex items-center justify-between">
                       <span className="text-xs text-[var(--muted-foreground)]">公告截止时间</span>
@@ -740,19 +951,16 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     <input type="datetime-local" value={announcementEndDate} onChange={(e) => setAnnouncementEndDate(e.target.value)} className="workbench-input w-full text-sm" />
                   </div>
                   <div>
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-xs text-[var(--muted-foreground)]">投标截止时间</span>
-                      <div className="flex gap-1">
-                        {[5, 10].map((n) => (
-                          <button key={n} type="button" onClick={() => setBidSubmissionDeadline(deadlineAfterDays(n))} className={`neu-btn-xs !h-[24px] !px-2 !text-[11px] ${bidSubmissionDeadline === deadlineAfterDays(n) ? 'is-info' : ''}`}>{n}天</button>
-                        ))}
-                      </div>
+                    <div className="mb-1">
+                      <span className="text-xs text-[var(--muted-foreground)]">标书投递截止（开标前24h）</span>
                     </div>
                     <input type="datetime-local" value={bidSubmissionDeadline} onChange={(e) => setBidSubmissionDeadline(e.target.value)} className="workbench-input w-full text-sm" />
                   </div>
                 </div>
+                )}
               </div>
-              )}
+                );
+              })()}
 
               {/* Toggles */}
               {categoryConfig.showFullToggles ? (
@@ -916,7 +1124,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               </button>
             ) : (
               <>
-                <button onClick={() => setStep(1)} className="neu-btn-soft !h-[34px]">
+                <button onClick={() => { setStep(1); if (project && draft) saveWizardState(project.id, { step: 1 }); }} type="button" className="neu-btn-soft !h-[34px]">
                   <ChevronLeft size={14} /> 上一步
                 </button>
                 <button

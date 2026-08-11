@@ -218,5 +218,7 @@ export function buildAiGenerationContext(project: ProjectManagementItem): Record
     initiationDate: project.initiationDate || '',
     biddingUnits: project.biddingUnits || '',
     expertInfo: project.expertInfo || '',
+    projectOverview: project.projectOverview || '',
+    bidOpeningTime: project.bidOpeningTime || '',
   };
 }

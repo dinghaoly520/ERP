@@ -233,6 +233,7 @@ export function TenderSectionEditor({
   onTableChange,
   onFieldFocus,
   onSampleOpen,
+  onOpenSupplierSelect,
 }: {
   section: TenderSectionConfig;
   draft: ReadyTenderDraft;
@@ -240,6 +241,7 @@ export function TenderSectionEditor({
   onTableChange?: (tableData: TableDataType | undefined) => void;
   onFieldFocus?: (fieldKey: TenderFieldKey) => void;
   onSampleOpen?: (fieldKey: TenderFieldKey, fieldLabel: string) => void;
+  onOpenSupplierSelect?: () => void;
 }) {
   const [sampleDrawerState, setSampleDrawerState] = useState<{
     isOpen: boolean;
@@ -1044,6 +1046,7 @@ export function TenderSectionEditor({
                         )
                       }
                       onContactOpen={() => setContactPickerOpen(true)}
+                      onSupplierSelect={field.key === 'supplierName' && onOpenSupplierSelect ? () => onOpenSupplierSelect() : undefined}
                     />
                     <span
                       className={[

@@ -86,7 +86,7 @@ export function getAnnouncementStats() {
 }
 
 export function generateSummary(id: string) {
-  return api.post<{ summary: string }>(`/announcements/${id}/generate-summary`, {});
+  return api.post<{ aiSummary: string }>(`/announcements/${id}/generate-summary`, {});
 }
 
 export function createAnnouncement(data: {

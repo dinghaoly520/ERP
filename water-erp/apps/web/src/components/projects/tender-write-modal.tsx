@@ -33,6 +33,7 @@ import { uploadReviewDocument, executeReview } from '@/lib/api/review';
 import type { ReviewTask } from '@/lib/types/tender-review';
 import { fetchKnowledgeBases } from '@/lib/api/knowledge';
 import { uploadProjectStageAttachment, updateProjectExtractedInfo, type UploadStageAttachmentResult } from '@/lib/api/project-management';
+import { SupplierSelectModal } from '@/components/tender-write/supplier-select-modal';
 import { buildTenderSectionProgress } from '@/lib/tender-write/progress';
 import type {
   ReadyTenderDocumentType,
@@ -95,6 +96,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   const [reviewLoading, setReviewLoading] = useState(false);
   // 审查完成后：等待用户选择是否上传到项目阶段
   const [showReviewUploadDialog, setShowReviewUploadDialog] = useState(false);
+  const [supplierSelectOpen, setSupplierSelectOpen] = useState(false);
   const reviewPendingFileRef = useRef<{ blob: Blob; fileName: string } | null>(null);
   const [reviewUploading, setReviewUploading] = useState(false);
 
@@ -199,8 +201,13 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             context,
           });
           if (result.content) {
+            // 清理 AI 输出中的乱码字符（U+FFFD / 连续问号）
+            const cleaned = result.content
+              .replace(/�/g, '')
+              .replace(/\?{2,}(?=\s|$|。|，|；)/g, '')
+              .replace(/\s+$/, '');
             const isQuotationField = f.fieldKey === 'quotationLetter';
-            const tableData = isQuotationField ? parseQuotationTextToTable(result.content) : null;
+            const tableData = isQuotationField ? parseQuotationTextToTable(cleaned) : null;
             setDrafts((prev) => {
               const emptyFn = {
                 COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
@@ -217,11 +224,11 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                     ...base,
                     quotationLetterType: 'table',
                     quotationLetterTable: tableData,
-                    [f.fieldKey]: result.content,
+                    [f.fieldKey]: cleaned,
                   },
                 };
               }
-              return { ...prev, [typeKey]: { ...base, [f.fieldKey]: result.content } };
+              return { ...prev, [typeKey]: { ...base, [f.fieldKey]: cleaned } };
             });
           }
         } catch { /* single field failure doesn't stop */ }
@@ -323,6 +330,44 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     },
     [selectedType],
   );
+
+  // ---------- 智能填入未填项 ----------
+  const [batchFilling, setBatchFilling] = useState(false);
+  const handleAutoFillAll = useCallback(async () => {
+    if (!selectedType || !project) return;
+    const type = selectedType as TenderDocumentType;
+    const typeKey = selectedType as keyof TenderDraftsState;
+    const aiFields = getAiGenerationFields(type);
+    const context = buildAiGenerationContext(project);
+    const currentDraftRef = draftsRef.current[typeKey] as Record<string, string>;
+    const emptyFields = aiFields.filter((f) => {
+      const val = currentDraftRef?.[f.fieldKey];
+      return !val?.trim();
+    });
+    if (emptyFields.length === 0) {
+      toast.success('所有可 AI 生成的字段均已填写');
+      return;
+    }
+    setBatchFilling(true);
+    for (const f of emptyFields) {
+      try {
+        const result = await generateFieldContent({
+          fieldKey: f.fieldKey as TenderFieldKey,
+          fieldLabel: f.label,
+          currentValue: '',
+          aiPrompt: f.aiPrompt,
+          context,
+        });
+        if (result.content) {
+          const cleaned = result.content.replace(/�/g, '').replace(/\?{2,}(?=\s|$|。|，|；)/g, '').replace(/\s+$/, '');
+          updateDraft(f.fieldKey as TenderFieldKey, cleaned);
+        }
+      } catch { /* single field failure doesn't stop */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    setBatchFilling(false);
+    toast.success(`已填入 ${emptyFields.length} 个字段`);
+  }, [selectedType, project, updateDraft]);
 
   // ---------- 导出 / 审查 ----------
 
@@ -656,6 +701,9 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
               onSectionSelect={setActiveSectionKey}
               onChange={updateDraft}
               onTableChange={updateDraftTable}
+              onOpenSupplierSelect={() => setSupplierSelectOpen(true)}
+              onAutoFillAll={handleAutoFillAll}
+              batchFilling={batchFilling}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center">
@@ -857,6 +905,19 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             </div>
           </div>
         </div>
+      )}
+
+      {/* 供应商抽选弹窗（直接采购） */}
+      {supplierSelectOpen && project && (
+        <SupplierSelectModal
+          isOpen
+          projectId={project.id}
+          onClose={() => setSupplierSelectOpen(false)}
+          onSelect={(supplierName) => {
+            updateDraft('supplierName' as any, supplierName);
+            setSupplierSelectOpen(false);
+          }}
+        />
       )}
     </div>
   );

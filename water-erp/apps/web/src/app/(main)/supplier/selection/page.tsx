@@ -11,7 +11,7 @@ import type { SupplierRecommendation, SupplierSelectionResult } from '@/lib/api/
 import type { SupplierSelectionHistoryRecord } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
-import { analyzeProjectManagementItem } from '@/lib/api/project-management';
+import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, Share2, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, MousePointer2, ExternalLink, MapPin, Phone, Mail, User, Upload, Loader2, FileText, Calendar } from 'lucide-react';
 import { Modal } from '@/components/workbench';
@@ -58,6 +58,11 @@ const NEGOTIATION_STEPS = [
   { num: 4, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
   { num: 5, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
   { num: 6, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
+] as const;
+// 直接采购：已确定供应商 → 仅显示通知+确认两步，隐藏前置选取步骤
+const DIRECT_STEPS = [
+  { num: 1, label: '确认通知', desc: '发送通知 / 邀请 / 分享名单' },
+  { num: 2, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 // 补选模式下追加的步骤
 const RERUN_EXTRA_STEPS = [
@@ -261,11 +266,12 @@ export function SupplierSelectionPage({
   const [error, setError] = useState('');
   const [result, setResult] = useState<SupplierSelectionResult | null>(null);
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
-  const [step, setStepInner] = useState(1); // 向导步骤
-  const [maxStepReached, setMaxStepReached] = useState(1); // 历史最大步骤（允许回看后仍点击前进）
+  const [step, setStepInner] = useState(project?.procurementMethod === '直接采购' ? 4 : 1);
+  const [maxStepReached, setMaxStepReached] = useState(project?.procurementMethod === '直接采购' ? 4 : 1); // 历史最大步骤（允许回看后仍点击前进）
   const setStep = (s: number) => { setStepInner(s); setMaxStepReached(prev => Math.max(prev, s)); };
   // 谈判采购（从项目管理进入）在确认通知后增加附件选择步骤
   const neg = !!(project && project.procurementMethod === '谈判采购');
+  const isDirect = !!(project && project.procurementMethod === '直接采购');
   const [isRerun, setIsRerun] = useState(false);
   const baseConfirmStep = neg ? 6 : 5;
   const attachStep = neg ? 5 : -1;
@@ -294,7 +300,7 @@ export function SupplierSelectionPage({
   const isAnyRerunConfirm = step > baseConfirmStep && (step - baseConfirmStep) % 3 === 0;
   // 动态步骤轨道
   const steps = useMemo(() => {
-    const base: { num: number; label: string; desc: string }[] = [...(neg ? NEGOTIATION_STEPS : STEPS)].map(s => ({ ...s }));
+    const base: { num: number; label: string; desc: string }[] = [...(isDirect ? DIRECT_STEPS : neg ? NEGOTIATION_STEPS : STEPS)].map(s => ({ ...s }));
     if (!isRerun) return base;
     const baseRenumbered = base.map((s, i) => ({ ...s, num: i + 1 }));
     const lastIdx = baseRenumbered.length - 1;
@@ -558,8 +564,8 @@ export function SupplierSelectionPage({
         }
         if (state.projectId) setProjectId(state.projectId);
         if (state.result) setResult(state.result);
-        if (state.step) setStepInner(state.step);
-        if (state.maxStepReached) setMaxStepReached(state.maxStepReached);
+        if (state.step) setStepInner(isDirect ? Math.max(state.step, 4) : state.step);
+        if (state.maxStepReached) setMaxStepReached(isDirect ? Math.max(state.maxStepReached, 4) : state.maxStepReached);
         if (state.notified) setNotified(true);
         if (state.completed) setCompleted(true);
         if (typeof state.notifyNotFound === 'number') setNotifyNotFound(state.notifyNotFound);
@@ -625,6 +631,54 @@ export function SupplierSelectionPage({
       }
     } catch {}
   }, []);
+
+  // 直接采购：自动注入候选人列表。供应商名来源：awardedSupplier > 采购文件编写草稿 > 后端提取
+  const directInjectDone = useRef(false);
+  useEffect(() => {
+    if (directInjectDone.current) return;
+    if (!isDirect) return;
+    if (!project) return;
+    if (shortlist.size > 0) return; // 会话已恢复，不覆盖
+
+    // 来源 1：DB 已提取的 awardedSupplier
+    let supplierName = project.awardedSupplier?.trim();
+
+    // 来源 2：采购文件编写草稿（localStorage）
+    if (!supplierName) {
+      try {
+        const raw = localStorage.getItem(`tender-write:project-drafts:v1:${project.id}`);
+        if (raw) {
+          supplierName = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
+        }
+      } catch {}
+    }
+
+    if (supplierName) {
+      directInjectDone.current = true;
+      const sid = `direct-${project.id}`;
+      const m = new Map<string, { item: SupplierRecommendation; note: string }>();
+      m.set(sid, { item: { supplierId: sid, name: supplierName, matchScore: 100, reason: '直接采购已定供应商', activeProjects: 1 }, note: '' });
+      setShortlist(m);
+      return;
+    }
+
+    // 来源 3：后端异步提取
+    const tenderStage = project.stages?.find((s: any) => s.stageKey === 'TENDER_DOCUMENT');
+    if (tenderStage?.attachments?.length) {
+      extractTenderFields(project.id)
+        .then((result: any) => {
+          const name = result?.awardedSupplier?.trim();
+          if (name) {
+            directInjectDone.current = true;
+            const sid = `direct-${project.id}`;
+            const m = new Map<string, { item: SupplierRecommendation; note: string }>();
+            m.set(sid, { item: { supplierId: sid, name, matchScore: 100, reason: '直接采购已定供应商', activeProjects: 1 }, note: '' });
+            setShortlist(m);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isDirect, project?.id, shortlist.size]);
 
   // 输入状态变化时持久化到 localStorage（跳过首次渲染，避免覆盖恢复的状态）
   const firstPersistSkip = useRef(true);
@@ -760,12 +814,43 @@ export function SupplierSelectionPage({
     // 不强制跳步——首次进入停留在步骤 1，session 恢复由 restored effect 处理
   }, [defaultProjectTitle, projects]);
 
+  // 构建项目上下文供 AI 深度理解采购需求（提升推荐匹配度）
+  // requirementText 用于去重：已覆盖的内容不再重复传入
+  const buildProjectContext = useCallback((requirementText?: string): Record<string, string> | undefined => {
+    const ctx: Record<string, string> = {};
+    const req = (requirementText || '').trim();
+    // 判断 value 是否已被需求文本覆盖（子串匹配，任一方向）
+    const isCovered = (value: string) => {
+      if (!req || !value) return false;
+      const v = value.trim();
+      return v.length >= 8 && (req.includes(v) || v.includes(req));
+    };
+
+    // 元数据字段：始终传入（用户手写需求中极少包含）
+    if (project?.title) ctx['项目名称'] = project.title;
+    if (project?.procurementMethod) ctx['采购方式'] = project.procurementMethod;
+    if (project?.procurementCategory) ctx['采购类别'] = project.procurementCategory;
+    if (project?.requesterDepartment) ctx['需求部门'] = project.requesterDepartment;
+    if (project?.budgetAmount != null) ctx['预算金额'] = `${Number(project.budgetAmount).toLocaleString('zh-CN')} 元`;
+
+    // 内容字段：仅当需求文本未覆盖时才传入（避免重复膨胀 token）
+    if (project?.projectReason && !isCovered(project.projectReason)) ctx['立项事由'] = project.projectReason;
+    if (project?.supplierRequirements && !isCovered(project.supplierRequirements)) ctx['供方要求'] = project.supplierRequirements;
+    if (project?.projectOverview && !isCovered(project.projectOverview)) ctx['采购内容'] = project.projectOverview;
+    if (project?.biddingUnits && !isCovered(project.biddingUnits)) ctx['投标单位'] = project.biddingUnits;
+
+    // 文件分析摘要来自 docx 解析，用户需求文本中不包含 → 始终传入
+    if (fileAnalysisContext) ctx['文件分析摘要'] = fileAnalysisContext;
+
+    return Object.keys(ctx).length > 0 ? ctx : undefined;
+  }, [project, fileAnalysisContext]);
+
   const run = async () => {
     const text = buildRequirement();
     if (!text) { setError('请至少填写一项采购需求'); return; }
     setError(''); setLoading(true); setResult(null);
     try {
-      const res = await recommendSuppliers({ requirement: text, tags: selectedTags.length ? selectedTags : undefined, maxCount });
+      const res = await recommendSuppliers({ requirement: text, tags: selectedTags.length ? selectedTags : undefined, maxCount, projectContext: buildProjectContext(text) });
       setResult(res);
       setShortlist(new Map());
       setStep(3); // 自动跳转到审核候选步骤
@@ -790,6 +875,7 @@ export function SupplierSelectionPage({
         tags: selectedTags.length ? selectedTags : undefined,
         maxCount: addMoreCount,
         excludedSupplierIds: excludeIds,
+        projectContext: buildProjectContext(text),
       });
       if (res.recommendations.length > 0) {
         setResult(prev => prev ? { ...prev, recommendations: [...prev.recommendations, ...res.recommendations] } : res);
@@ -1212,7 +1298,7 @@ export function SupplierSelectionPage({
     const totalDeclined = [...allSupplierStatuses.values()].filter(s => s === 'declined').length;
     const need = totalDeclined + 1;
     const rerunReq = buildRequirement() || selectedProject?.name || project?.title || '';
-    recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds })
+    recommendSuppliers({ requirement: rerunReq, tags: selectedTags.length ? selectedTags : undefined, maxCount: need, excludedSupplierIds: excludeIds, projectContext: buildProjectContext(rerunReq) })
       .then(res => { setRerunResult(res); setRerunLoading(false); })
       .catch(() => { setRerunLoading(false); toast.error('补选推荐失败'); });
   };
@@ -1656,14 +1742,15 @@ export function SupplierSelectionPage({
       {/* ══ 步骤轨道 ══ */}
       <StepTrack
         steps={steps}
-        current={step}
-        onStepClick={(s) => setStep(s)}
+        current={isDirect ? step - 3 : step}
+        onStepClick={(s) => setStep(isDirect ? s + 3 : s)}
         reachable={(s) => {
-          if (s <= maxStepReached) return true;
-          if (s === 3 && !!result) return true;
+          const si = isDirect ? s + 3 : s;
+          if (si <= maxStepReached) return true;
+          if (!isDirect && s === 3 && !!result) return true;
           if (isRerun) {
-            if (s === rerunPickStep) return true;
-            if (s === rerunNotifyStep && rerunShortlist.size > 0) return true;
+            if (si === rerunPickStep) return true;
+            if (si === rerunNotifyStep && rerunShortlist.size > 0) return true;
             if (s === finalConfirmStep && rerunNotified) return true;
           }
           return false;
@@ -2550,9 +2637,6 @@ export function SupplierSelectionPage({
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：{neg ? '附件选择' : '确认通知'}
                 </button>
                 <div className="flex items-center gap-2">
-                  <button onClick={completeSelection} className="neu-btn-primary gap-2" title="结束本批次选取并记录结果">
-                    <Check size={14} />完成本批次选取
-                  </button>
                   {isRerun ? (
                     <button onClick={() => setStep(firstRerunPickStep)} className="neu-btn-soft gap-2">
                       下一步：补选候选<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>

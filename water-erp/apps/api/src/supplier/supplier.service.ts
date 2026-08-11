@@ -1957,7 +1957,7 @@ export class SupplierService {
     };
     await this.redis.set(key, JSON.stringify(payload), 'EX', 86400 * 30); // 30 天过期
 
-    // 配置写回 BidProject：openTime=开标时间，deadline=开标前半小时，downloadDeadline=获取截止
+    // 配置写回 BidProject：openTime=开标时间，deadline=开标前24小时，downloadDeadline=获取截止
     const bidOpening = new Date(dto.bidOpeningTime);
     const acquireEnd = new Date(dto.acquireEndTime);
     if (!isNaN(bidOpening.getTime())) {
@@ -1965,7 +1965,7 @@ export class SupplierService {
         where: { id: dto.projectId },
         data: {
           openTime: bidOpening,
-          deadline: new Date(bidOpening.getTime() - 30 * 60 * 1000),
+          deadline: new Date(bidOpening.getTime() - 24 * 60 * 60 * 1000),
           ...(acquireEnd && !isNaN(acquireEnd.getTime()) ? { downloadDeadline: acquireEnd } : {}),
         },
       }).catch(() => { /* 项目可能不存在，忽略 */ });

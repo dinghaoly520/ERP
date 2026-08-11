@@ -89,8 +89,8 @@ export function getSupplierStats() {
   return api.get<SupplierStats>('/supplier/stats');
 }
 
-// AI 智能推荐供应商（按采购需求）
-export function recommendSuppliers(data: { requirement: string; classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[] }) {
+// AI 智能推荐供应商（按采购需求 + 项目上下文）
+export function recommendSuppliers(data: { requirement: string; classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string> }) {
   return api.post<SupplierSelectionResult>('/ai/supplier-selection', data);
 }
 

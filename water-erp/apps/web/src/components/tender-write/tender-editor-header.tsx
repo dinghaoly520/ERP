@@ -1,3 +1,4 @@
+import { Sparkles, Loader2 } from 'lucide-react';
 import type { TenderSectionProgress } from '@/lib/types/tender-write';
 
 export function TenderEditorHeader({
@@ -6,12 +7,16 @@ export function TenderEditorHeader({
   onNext,
   isFirst,
   isLast,
+  onAutoFillAll,
+  batchFilling,
 }: {
   section: TenderSectionProgress;
   onPrevious: () => void;
   onNext: () => void;
   isFirst: boolean;
   isLast: boolean;
+  onAutoFillAll?: () => void;
+  batchFilling?: boolean;
 }) {
   const progressPercent = Math.round(
     (section.filledFields / Math.max(section.totalFields, 1)) * 100,
@@ -42,6 +47,31 @@ export function TenderEditorHeader({
           </h2>
         </div>
           <div className="flex shrink-0 items-center gap-2">
+            {onAutoFillAll && (
+              <button
+                type="button"
+                onClick={onAutoFillAll}
+                disabled={batchFilling}
+                className="group relative flex items-center gap-2 rounded-[10px] px-4 py-2 text-[12px] font-bold tracking-[-0.01em] transition-all duration-300 disabled:opacity-60"
+                style={{
+                  background: batchFilling
+                    ? 'linear-gradient(135deg, oklch(0.7 0.08 258), oklch(0.65 0.06 258))'
+                    : 'linear-gradient(135deg, oklch(0.55 0.18 258), oklch(0.48 0.16 258))',
+                  color: 'white',
+                  boxShadow: batchFilling
+                    ? 'inset 0 1px 0 oklch(1 0 0 / 0.3), 0 2px 8px oklch(0.4 0.1 258 / 0.25)'
+                    : 'inset 0 1px 0 oklch(1 0 0 / 0.35), 2px 3px 8px oklch(0.42 0.14 258 / 0.3), -1px -1px 4px oklch(1 0 0 / 0.15)',
+                }}
+                title="AI 自动填充所有未填写的字段"
+              >
+                {batchFilling ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Sparkles size={15} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
+                )}
+                {batchFilling ? '填入中…' : '智能填入未填项'}
+              </button>
+            )}
             <button
               type="button"
               onClick={onPrevious}

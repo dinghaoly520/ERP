@@ -7,6 +7,19 @@ import { Fragment, useState } from 'react';
 
 type ArchiveStepState = 'PENDING' | 'READY' | 'DONE';
 
+// 阶段 → CSS 变量映射，驱动卡片 per-stage 底色 / 节点 / 徽章 / 辉光
+const STAGE_ACCENT_VARS: Record<string, string> = {
+  procurement_demand: 'var(--stage-demand)',
+  initiation: 'var(--stage-initiation)',
+  tender_document: 'var(--stage-tender)',
+  supplier_invitation: 'var(--stage-supplier)',
+  public_announcement: 'var(--stage-announce)',
+  expert_selection: 'var(--stage-expert)',
+  bid_evaluation: 'var(--stage-evaluation)',
+  award_decision: 'var(--stage-award)',
+  contract: 'var(--stage-contract)',
+};
+
 type TimelineEntryBase = {
   key: string;
   orderLabel: string;
@@ -237,6 +250,7 @@ export function ProjectStageTimeline({
                         'pm-stage-card interactive-surface group relative flex min-h-[172px] min-w-0 flex-1 flex-col rounded-[28px] px-4 py-4 text-left',
                         entry.toneClassName,
                       ].join(' ')}
+                      style={{ '--card-accent': STAGE_ACCENT_VARS[stageKey] ?? 'var(--accent)' } as React.CSSProperties}
                     >
                       <span aria-hidden="true" className="pm-stage-card__flow" />
 
@@ -246,12 +260,16 @@ export function ProjectStageTimeline({
                             'pm-stage-node flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
                             entry.nodeClassName,
                           ].join(' ')}
+                          style={{ '--card-accent': STAGE_ACCENT_VARS[stageKey] ?? 'var(--accent)' } as React.CSSProperties}
                         >
                           {entry.orderLabel}
                         </span>
                         <div className="flex min-w-0 flex-col items-end gap-2 text-right">
-                          <span className={['pm-stage-progress', entry.progressClassName].join(' ')}>
-                            {entry.progressLabel}
+                          <span
+                            className={['pm-stage-progress', isSelected ? 'pm-stage-progress--selected' : entry.progressClassName].join(' ')}
+                            style={isSelected ? { background: 'oklch(0.78 0.122 83)', color: 'white' } : undefined}
+                          >
+                            {isSelected ? '当前选择' : entry.progressLabel}
                           </span>
                         </div>
                       </div>

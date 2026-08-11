@@ -27,6 +27,8 @@ import { createHash } from 'node:crypto';
 import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';
 import { encryptBuffer } from '../src/announcement/bid-document.crypto';
 import { wrapKey } from '../src/common/crypto/envelope-crypto';
+import { LlmService } from '../src/local-ai/llm.service';
+import { AnnouncementAiService } from '../src/announcement/announcement-ai.service';
 
 const prisma = new PrismaClient();
 const dataDir = join(__dirname, 'seed-data');
@@ -402,6 +404,42 @@ async function main() {
 
   // ═══ 招标文件持久化（让专家端「招标文件」预览端到端可解密）═══
   await ensureTenderFiles();
+
+  // ═══ 回填公告 AI 摘要 ═══
+  // 种子 JSON 通过 createMany 直接写入，绕过 AnnouncementService.create() 的自动 AI 摘要生成。
+  // 此步对 aiSummary 为空的公告补全摘要，使首页/详情页「AI 概览」对所有公告统一可见。
+  // 幂等：已有 aiSummary 的公告不重复生成；DeepSeek 未配置时静默跳过。
+  console.log('▶ 回填公告 AI 摘要（aiSummary 为空的公告）');
+  try {
+    // 轻量 ConfigService：seed 脚本无 NestJS DI，用 process.env 直通
+    const envConfig = { get: (k: string, d?: any) => (process.env[k] ?? d) } as any;
+    const llm = new LlmService(envConfig);
+    const aiSvc = new AnnouncementAiService(llm, envConfig);
+    if (aiSvc.isConfigured()) {
+      const typeMap: Record<string, string> = { BID_NOTICE: '招标公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知' };
+      const need = await prisma.announcement.findMany({
+        where: { OR: [{ aiSummary: null }, { aiSummary: '' }] },
+        select: { id: true, title: true, type: true, content: true },
+      });
+      let filled = 0;
+      for (const ann of need) {
+        const summary = await aiSvc.summarize({
+          title: ann.title,
+          type: typeMap[ann.type] ?? ann.type,
+          content: ann.content,
+        });
+        if (summary) {
+          await prisma.announcement.update({ where: { id: ann.id }, data: { aiSummary: summary } });
+          filled++;
+        }
+      }
+      console.log(`    AI 摘要回填: ${filled}/${need.length} 条${filled < need.length ? `（${need.length - filled} 条生成失败已跳过）` : ''}`);
+    } else {
+      console.log('    ⚠ DeepSeek 未配置（DEEPSEEK_API_KEY 缺失），跳过 AI 摘要回填');
+    }
+  } catch (e) {
+    console.warn(`    ⚠ AI 摘要回填失败: ${(e as Error).message}（不阻塞 seed）`);
+  }
 
   const counts = {
     用户: await prisma.user.count(),

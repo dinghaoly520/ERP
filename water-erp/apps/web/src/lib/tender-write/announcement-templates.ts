@@ -94,8 +94,8 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
   {
     key: "announcementStart",
     label: "公示期限（起）",
-    placeholder: "选择日期",
-    type: "date",
+    placeholder: "选择日期时间",
+    type: "datetime-local",
   },
   {
     key: "announcementEnd",
@@ -190,25 +190,27 @@ export const SINGLE_SOURCE_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] = [
   {
     key: "announcementStart",
     label: "公示期限（起）",
-    placeholder: "选择日期",
-    type: "date",
+    placeholder: "选择日期时间",
+    type: "datetime-local",
   },
   {
     key: "announcementEnd",
-    label: "公告截止时间",
-    placeholder: "选择日期",
-    type: "date",
+    label: "公示期限（止）",
+    placeholder: "选择日期时间",
+    type: "datetime-local",
   },
   {
     key: "announcementDays",
     label: "公示期限（天数）",
-    placeholder: "例如 5",
+    placeholder: "自动计算",
+    autoFill: "announcementDays",
   },
   {
     key: "procurementTime",
     label: "采购时间",
-    placeholder: "选择日期",
-    type: "date",
+    autoFill: "procurementTime",
+    placeholder: "选择日期时间",
+    type: "datetime-local",
   },
   {
     key: "signatureDate",
@@ -454,6 +456,11 @@ export const ANNOUNCEMENT_AUTO_FILL: Record<string, string> = {
   contactPhone: "contactPhone",
   contactEmail: "contactEmail",
   supplierName: "supplierName",
+  supplierAddress: "supplierAddress",
+  argumentOpinion: "argumentOpinion",
+  announcementDays: "announcementDays",
+  procurementTime: "procurementTime",
+  signatureDate: "signatureDate",
 };
 
 /**

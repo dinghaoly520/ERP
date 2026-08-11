@@ -1,7 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { FileDown, FileSearch, Plus, Trash2, ScrollText, FileCheck, Ban } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { toast } from "sonner";
+import { FileDown, FileSearch, Plus, Trash2, ScrollText, FileCheck, Ban, Sparkles, Loader2 } from "lucide-react";
+import type { ProjectManagementItem } from "@/lib/types/project-management";
 
 const CATEGORY_ICONS: Record<string, typeof ScrollText> = {
   procurement_document: ScrollText,
@@ -30,6 +32,7 @@ import {
   getAnnouncementFields,
   createEmptyAnnouncementDraft,
   applyAutoFill,
+  ANNOUNCEMENT_AUTO_FILL,
   numberToChineseAmount,
 } from "@/lib/tender-write/announcement-templates";
 import { AnnouncementPreviewDocument } from "./announcement-preview-document";
@@ -446,6 +449,7 @@ export function AnnouncementDialog({
   initialDraft = null,
   onDraftChange,
   hiddenFields = [],
+  project = null,
 }: {
   isOpen: boolean;
   tenderType: ReadyTenderDocumentType;
@@ -458,6 +462,8 @@ export function AnnouncementDialog({
   onDraftChange?: (draft: AnnouncementDraft, category: AnnouncementCategory) => void;
   /** 渲染时隐藏的字段 key（如 wizard 把某些字段移到发布配置单独编辑） */
   hiddenFields?: string[];
+  /** 项目数据（供"智能填入"直接取值，非 AI 生成） */
+  project?: ProjectManagementItem | null;
 }) {
   const [step, setStep] = useState<"select_category" | "edit">("select_category");
   const [category, setCategory] = useState<AnnouncementCategory | null>(null);
@@ -482,8 +488,11 @@ export function AnnouncementDialog({
 
   // Reset state when dialog opens with a new tender type
   /* eslint-disable react-hooks/set-state-in-effect -- modal/dialog form reset is intentional */
+  const initRef = useRef(false);
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) { initRef.current = false; return; }
+    if (initRef.current) return;
+    initRef.current = true;
     if (embedded && initialCategory && initialDraft) {
       setStep("edit");
       setCategory(initialCategory);
@@ -505,7 +514,7 @@ export function AnnouncementDialog({
     setGeneratingStates({});
     setSampleDrawerState(null);
     setAiError(null);
-  }, [isOpen, tenderType, embedded, initialCategory, initialDraft]);
+  }, [isOpen, embedded, initialCategory, initialDraft]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const fields = useMemo(() => {
@@ -532,10 +541,15 @@ export function AnnouncementDialog({
     if (embedded && onDraftChange) onDraftChange(filledDraft, cat);
   };
 
-  // Notify parent wizard of any subsequent draft changes
+  // Notify parent wizard of any subsequent draft changes (deep-compare to avoid infinite loop)
+  const lastNotifiedKey = useRef('');
   useEffect(() => {
     if (embedded && onDraftChange && draft && category) {
-      onDraftChange(draft, category);
+      const key = JSON.stringify({ d: draft, c: category });
+      if (key !== lastNotifiedKey.current) {
+        lastNotifiedKey.current = key;
+        onDraftChange(draft, category);
+      }
     }
   }, [draft, category, embedded, onDraftChange]);
 
@@ -628,7 +642,12 @@ export function AnnouncementDialog({
         context,
       });
       if (!result.content) throw new Error("AI返回的内容为空");
-      handleFieldChange(fieldKey, result.content);
+      // 清理 AI 输出中的乱码字符（U+FFFD / 连续问号）—— token 截断导致的中文字符损坏
+      const cleaned = result.content
+        .replace(/�/g, '')        // 移除 Unicode 替换字符
+        .replace(/\?{2,}(?=\s|$|。|，|；)/g, '') // 移除末尾连续问号（中文截断残留）
+        .replace(/\s+$/, '');           // 移除尾部空白
+      handleFieldChange(fieldKey, cleaned);
       await createFieldSample({
         fieldKey: fieldKey as TenderFieldKey,
         content: result.content,
@@ -642,6 +661,139 @@ export function AnnouncementDialog({
       setGeneratingStates((prev) => ({ ...prev, [fieldKey]: false }));
     }
   };
+
+  // ★ 智能填入未填项：项目数据直接填入 → tenderDraft 映射 → AI 生成剩余
+  const [batchFilling, setBatchFilling] = useState(false);
+  const handleAutoFillAll = useCallback(async () => {
+    if (!draft || !fields.length) return;
+    const draftRecord = draft as Record<string, string>;
+    const tenderRecord = tenderDraft as Record<string, string>;
+    const patch: Record<string, string> = {};
+
+    // Pass 1: 从项目数据直接填入（公告专属字段，tenderDraft 中不存在）
+    if (project) {
+      if (!draftRecord.supplierName?.trim()) {
+        let sn = project.awardedSupplier?.trim();
+        if (!sn) {
+          try {
+            const raw = localStorage.getItem(`tender-write:project-drafts:v1:${project.id}`);
+            if (raw) sn = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
+          } catch {}
+        }
+        if (sn) patch.supplierName = sn;
+      }
+      if (!draftRecord.procurementTime?.trim() && project.bidOpeningTime?.trim()) {
+        // 中文日期时间 "2026年3月24日9:00" → ISO "2026-03-24T09:00"
+        const m = project.bidOpeningTime.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+        if (m) {
+          patch.procurementTime = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
+        } else {
+          const dm = project.bidOpeningTime.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+          if (dm) patch.procurementTime = `${dm[1]}-${dm[2].padStart(2,'0')}-${dm[3].padStart(2,'0')}T09:00`;
+        }
+      }
+      // 修正：procurementTime 已有值但不符合 datetime-local 格式（YYYY-MM-DDTHH:MM）→ 重新转换
+      if (draftRecord.procurementTime?.trim() && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.procurementTime)) {
+        const raw = draftRecord.procurementTime;
+        const m = raw.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+        if (m) {
+          patch.procurementTime = `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
+        } else if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+          patch.procurementTime = `${raw}T09:00`;
+        }
+      }
+      if (!draftRecord.maxPriceNumeric?.trim() && project.budgetAmount != null) patch.maxPriceNumeric = String(project.budgetAmount);
+      if (!draftRecord.projectOverview?.trim() && project.projectOverview?.trim()) patch.projectOverview = project.projectOverview;
+      if (!draftRecord.signatureDate?.trim()) {
+        const today = new Date();
+        patch.signatureDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      }
+      // 公示期限起/止 + 天数：从 documentAcquireTime 解析
+      // documentAcquireTime 格式如 "2026年03月23日09:00至2026年03月26日15:00"
+      // 同时修正已有值但格式不符合 datetime-local 的字段
+      const needsStartFix = !draftRecord.announcementStart?.trim()
+        || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.announcementStart);
+      const needsEndFix = !draftRecord.announcementEnd?.trim()
+        || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.announcementEnd);
+      if (needsStartFix || needsEndFix) {
+        const at = project.documentAcquireTime?.trim();
+        if (at) {
+          // 支持 "至" / "-" / "~" 作为区间分隔符
+          const sepMatch = at.match(/至|-|~/);
+          const sepIdx = sepMatch ? at.indexOf(sepMatch[0]) : -1;
+          if (sepIdx > 0) {
+            const startRaw = at.slice(0, sepIdx).trim();
+            const endRaw = at.slice(sepIdx + 1).trim();
+            // 解析为 ISO 日期 + 保留时分
+            const toISODate = (s: string) => {
+              const m = s.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+              return m ? `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}` : s;
+            };
+            const toISODatetime = (s: string) => {
+              const m = s.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
+              if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
+              return toISODate(s);
+            };
+            if (needsStartFix) patch.announcementStart = toISODatetime(startRaw);
+            if (needsEndFix) patch.announcementEnd = toISODatetime(endRaw);
+            if (!draftRecord.announcementDays?.trim()) {
+              try {
+                const days = Math.round((new Date(toISODate(endRaw)).getTime() - new Date(toISODate(startRaw)).getTime()) / 86400000);
+                if (days > 0) patch.announcementDays = String(days);
+              } catch {}
+            }
+          }
+        }
+      }
+    }
+
+    // Pass 2: 从 tenderDraft 映射填入剩余空字段
+    for (const field of fields) {
+      if (hiddenFields.includes(field.key)) continue;
+      if (field.composite || field.toggle || field.quotationType) continue;
+      if (draftRecord[field.key]?.trim() || patch[field.key]) continue;
+      const tenderKey = ANNOUNCEMENT_AUTO_FILL[field.key];
+      if (tenderKey && tenderRecord[tenderKey]?.trim()) {
+        patch[field.key] = tenderRecord[tenderKey];
+      }
+    }
+
+    const directCount = Object.keys(patch).length;
+
+    // 应用直接填入
+    if (directCount > 0) {
+      setDraft((prev) => prev ? { ...prev, ...patch } as AnnouncementDraft : prev);
+    }
+
+    // Pass 3: 对仍为空且有 aiPrompt 的字段走 AI 生成
+    const mergedRecord = { ...draftRecord, ...patch };
+    const aiFields = fields.filter((f) => {
+      if (hiddenFields.includes(f.key)) return false;
+      if (f.composite || f.toggle || f.quotationType) return false;
+      const val = mergedRecord[f.key]?.trim();
+      return !val && !!f.aiPrompt;
+    });
+
+    if (directCount > 0) {
+      toast.success(`已直接填入 ${directCount} 个字段${aiFields.length > 0 ? '，正在 AI 生成剩余…' : ''}`);
+    }
+
+    if (aiFields.length === 0) {
+      if (directCount === 0) toast.info('所有字段均已填写');
+      return;
+    }
+
+    setBatchFilling(true);
+    for (const field of aiFields) {
+      setGeneratingStates((prev) => ({ ...prev, [field.key]: true }));
+      try {
+        await handleAiGenerate(field.key, field.label, '', field.aiPrompt);
+      } catch { /* 单字段失败不阻塞 */ }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    setBatchFilling(false);
+    if (aiFields.length > 0) toast.success(`AI 已生成 ${aiFields.length} 个字段`);
+  }, [draft, fields, hiddenFields, tenderDraft, project]);
 
   const handleContactSelect = (contact: { name: string; email: string; phone: string }) => {
     handleFieldChange("contactName", contact.name);
@@ -828,11 +980,38 @@ export function AnnouncementDialog({
             {/* Editor (left) */}
             <section className="flex min-h-0 flex-1 flex-col rounded-[20px] wb-panel">
               <div className="shrink-0 border-b border-[oklch(0.6_0.04_258_/_0.16)] px-5 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
-                  编辑区
-                </div>
-                <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
-                  {fields.filter((f) => draftRecord[f.key]?.trim()).length}/{fields.length} 项已填写
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color-mix(in_oklch,var(--accent)_50%,transparent)]">
+                      编辑区
+                    </div>
+                    <div className="mt-1 text-xs text-[color:var(--muted-foreground)]">
+                      {fields.filter((f) => draftRecord[f.key]?.trim()).length}/{fields.length} 项已填写
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleAutoFillAll()}
+                    disabled={batchFilling}
+                    className="group relative flex items-center gap-2 rounded-[10px] px-4 py-2 text-[12px] font-bold tracking-[-0.01em] transition-all duration-300 disabled:opacity-60"
+                    style={{
+                      background: batchFilling
+                        ? 'linear-gradient(135deg, oklch(0.7 0.08 258), oklch(0.65 0.06 258))'
+                        : 'linear-gradient(135deg, oklch(0.55 0.18 258), oklch(0.48 0.16 258))',
+                      color: 'white',
+                      boxShadow: batchFilling
+                        ? 'inset 0 1px 0 oklch(1 0 0 / 0.3), 0 2px 8px oklch(0.4 0.1 258 / 0.25)'
+                        : 'inset 0 1px 0 oklch(1 0 0 / 0.35), 2px 3px 8px oklch(0.42 0.14 258 / 0.3), -1px -1px 4px oklch(1 0 0 / 0.15)',
+                    }}
+                    title="AI 自动填充所有未填写的字段"
+                  >
+                    {batchFilling ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={15} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
+                    )}
+                    {batchFilling ? '填入中…' : '智能填入未填项'}
+                  </button>
                 </div>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto p-5 tender-scroll">
