@@ -946,10 +946,18 @@ export class BidService {
     const reasonPart = reason ? `，原因：${reason}` : '';
     const riskNote = `流标（${project.procurementMethod}，投标供应商 ${supplierCount} 家，${abortAt}${actorId ? `，操作人 ${actorId}` : ''}${reasonPart}）`;
 
-    const updated = await this.prisma.bidProject.update({
-      where: { id },
-      data: { stage: 'ABORTED', riskNote },
-      select: { id: true, stage: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockAndReassertStage(tx, id, 'ABORTED');
+      const result = await tx.bidProject.update({
+        where: { id },
+        data: { stage: 'ABORTED', riskNote },
+        select: { id: true, stage: true },
+      });
+      await tx.bidSupervisionLog.create({
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name,
+          action: '流标', result: riskNote, riskFlag: '高风险' },
+      });
+      return result;
     });
 
     // 通知 bid_host 流标
