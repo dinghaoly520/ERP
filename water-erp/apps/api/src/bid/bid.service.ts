@@ -826,6 +826,52 @@ export class BidService {
     return { ...body, fingerprint };
   }
 
+  /** 评标完整性快照：评审结果生成后、归档前的独立证据包（SHA-256 签名）。 */
+  private async buildEvaluationPackage(projectId: string) {
+    // BidScoreRecordHistory 无 expert 关系字段，先取项目专家 ID 再过滤
+    const expertIds = await this.prisma.bidExpert.findMany({
+      where: { projectId },
+      select: { id: true },
+    });
+    const expertIdSet = new Set(expertIds.map(e => e.id));
+
+    const [records, allHistory, pointDecisions, experts] = await Promise.all([
+      this.prisma.bidScoreRecord.findMany({
+        where: { expertId: { in: [...expertIdSet] } },
+        select: { expertId: true, supplierId: true, scoreItemId: true, score: true, passed: true, reason: true },
+      }),
+      this.prisma.bidScoreRecordHistory.findMany({
+        where: { expertId: { in: [...expertIdSet] } },
+        orderBy: { createdAt: 'asc' },
+        select: { expertId: true, supplierId: true, scoreItemId: true, score: true, passed: true, action: true, createdAt: true },
+      }),
+      this.prisma.bidScorePointDecision.findMany({
+        where: { expertId: { in: [...expertIdSet] } },
+        select: { expertId: true, pointId: true, supplierId: true, checked: true, awardedScore: true },
+      }),
+      this.prisma.bidExpert.findMany({
+        where: { projectId },
+        select: { expertName: true, expertRole: true, reportConfirmed: true, reportConfirmedAt: true, progress: true, totalScore: true },
+      }),
+    ]);
+    const body = {
+      packageType: 'BID_EVALUATION_HANDOVER',
+      packageVersion: 1,
+      generatedAt: new Date().toISOString(),
+      projectId,
+      expertConfirmations: experts.map(e => ({
+        expertName: e.expertName, expertRole: e.expertRole,
+        reportConfirmed: e.reportConfirmed, reportConfirmedAt: e.reportConfirmedAt?.toISOString() ?? null,
+        progress: e.progress, totalScore: Number(e.totalScore),
+      })),
+      scoreRecords: records.map(r => ({ ...r, score: Number(r.score) })),
+      scoreHistory: allHistory.map(h => ({ ...h, score: Number(h.score), createdAt: h.createdAt.toISOString() })),
+      pointDecisions: pointDecisions.map(d => ({ ...d, awardedScore: Number(d.awardedScore) })),
+    };
+    const fingerprint = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+    return { ...body, fingerprint };
+  }
+
   async openSubmission(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
@@ -3066,6 +3112,31 @@ export class BidService {
         });
       }
     });
+    // 评标完整性快照（生成结果后、归档前的独立证据包）
+    try {
+      const pkg = await this.buildEvaluationPackage(projectId);
+      const buffer = Buffer.from(JSON.stringify(pkg, null, 2), 'utf8');
+      const objectKey = `bid-evaluation-handover/${projectId}.json`;
+      await this.storage.upload(objectKey, buffer, 'application/json');
+      const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+      await this.prisma.fileAsset.create({
+        data: {
+          key: objectKey,
+          originalName: `评标包-${project.projectCode}.json`,
+          mimeType: 'application/json',
+          size: buffer.length,
+          sha256,
+          category: 'bid_evaluation_handover',
+          uploaderId: actorId ?? null,
+        },
+      });
+      await this.prisma.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '系统', target: project.name,
+          action: '评标完整性快照', result: `指纹 ${sha256.slice(0, 16)}…`, riskFlag: '无' },
+      }).catch(() => {});
+    } catch (e) {
+      this.logger.error('评标快照生成失败（不阻塞结果生成）', e instanceof Error ? e.message : String(e));
+    }
     this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '生成评标结果', target: project.name, result: `生成${ranked.length}家供应商排名（候选人 ${winnerCount} 名，专家组 ${panelSize} 人${panelSize >= 5 ? '，去极值' : ''}）`, riskFlag: '无' });
     if (actorId) await this.prisma.auditLog.create({ data: { userId: actorId, action: 'BID_RESULTS_GENERATED', resourceType: `BidProject:${projectId}`, details: { rankedCount: ranked.length } } });
 

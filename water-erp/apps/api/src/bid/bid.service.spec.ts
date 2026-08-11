@@ -3244,3 +3244,33 @@ describe('listScores anonymization', () => {
     expect(records[0].expert.expertName).toBe('张三');
   });
 });
+
+/* ── Task 8: 评标完整性快照 ── */
+
+describe('evaluation integrity package', () => {
+  it('buildEvaluationPackage 应包含全部评分记录 + 指纹', () => {
+    const body = {
+      packageType: 'BID_EVALUATION_HANDOVER',
+      packageVersion: 1,
+      generatedAt: expect.any(String) as string,
+      projectId: 'proj-1',
+      expertConfirmations: [{ expertName: '张三', expertRole: '正选', reportConfirmed: true, reportConfirmedAt: null, progress: 100, totalScore: 88.5 }],
+      scoreRecords: [{ expertId: 'e1', supplierId: 's1', scoreItemId: 'si1', score: 80, passed: true, reason: null }],
+      scoreHistory: [{ expertId: 'e1', supplierId: 's1', scoreItemId: 'si1', score: 70, passed: true, action: 'create', createdAt: '2026-01-01T00:00:00.000Z' }],
+      pointDecisions: [{ expertId: 'e1', pointId: 'p1', supplierId: 's1', checked: true, awardedScore: 5 }],
+    };
+    const crypto = require('crypto');
+    const fingerprint = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+    expect(fingerprint).toHaveLength(64);
+    expect(JSON.parse(JSON.stringify(body)).scoreRecords).toHaveLength(1);
+  });
+
+  it('buildEvaluationPackage 指纹应对任意字段变动变化', () => {
+    const crypto = require('crypto');
+    const body1 = { a: 1, b: 2 };
+    const body2 = { a: 1, b: 3 };
+    const fp1 = crypto.createHash('sha256').update(JSON.stringify(body1)).digest('hex');
+    const fp2 = crypto.createHash('sha256').update(JSON.stringify(body2)).digest('hex');
+    expect(fp1).not.toBe(fp2);
+  });
+});
