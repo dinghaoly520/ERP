@@ -1,10 +1,11 @@
 "use client";
 
-import { AlertTriangle, Archive, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
   analyzeProjectManagementItem,
+  analyzeProjectStep,
   completeProjectManagementItem,
   extractTenderFields,
   reprocProject,
@@ -296,6 +297,20 @@ function getArchiveStepDescription(state: ArchiveStepState, item: ProjectManagem
 }
 
 
+// ─── 阶段视觉映射：当前步骤 hero 用 — 按 stageKey 取专属图标 + 阶段色 ───
+type StageIcon = typeof FileText;
+const STAGE_HERO_VISUAL: Record<string, { Icon: StageIcon; colorVar: string }> = {
+  PROCUREMENT_DEMAND: { Icon: ClipboardList, colorVar: 'var(--stage-demand)' },
+  INITIATION: { Icon: ClipboardList, colorVar: 'var(--stage-initiation)' },
+  TENDER_DOCUMENT: { Icon: FileText, colorVar: 'var(--stage-tender)' },
+  SUPPLIER_INVITATION: { Icon: UserPlus, colorVar: 'var(--stage-supplier)' },
+  PUBLIC_ANNOUNCEMENT: { Icon: Megaphone, colorVar: 'var(--stage-announce)' },
+  EXPERT_SELECTION: { Icon: Shield, colorVar: 'var(--stage-expert)' },
+  BID_EVALUATION: { Icon: Gavel, colorVar: 'var(--stage-evaluation)' },
+  AWARD_DECISION: { Icon: Award, colorVar: 'var(--stage-award)' },
+  CONTRACT: { Icon: ScrollText, colorVar: 'var(--stage-contract)' },
+};
+
 export function ProjectDetailPanel({
   item,
   onClose,
@@ -399,6 +414,15 @@ export function ProjectDetailPanel({
   const canCompleteStage =
     isCurrentStage && selectedStage.status !== 'COMPLETED' && !stageLocked && !stageProcessing;
   const canArchive = archiveStepState === 'READY';
+
+	const heroVisual = STAGE_HERO_VISUAL[selectedStage.stageKey] ?? { Icon: UploadCloud, colorVar: 'var(--accent)' };
+	const stepPosition = useMemo(() => {
+	  const idx = localItem.stages.findIndex(
+	    (s) => s.stageKey === selectedStage.stageKey && (s.round ?? 1) === selectedRound,
+	  );
+	  return { number: idx >= 0 ? idx + 1 : selectedStage.stageOrder, total: localItem.stages.length };
+	}, [localItem.stages, selectedStage.stageKey, selectedRound, selectedStage.stageOrder]);
+	const { Icon: HeroIcon } = heroVisual;
   const focusAccentClassName = `pm-stage-accent--${selectedStage.stageKey.toLowerCase()}`;
 
   // 采购文件步骤中已上传的 .docx 附件（供阶段卡片编辑按钮使用）
@@ -1370,18 +1394,18 @@ export function ProjectDetailPanel({
                 </div>
               </div>
 
-              {/* ── 供应商邀请（谈判采购、询比采购）── */}
-              {(item.procurementMethod === '谈判采购' || item.procurementMethod === '询比采购') && (
+              {/* ── 供应商邀请/参与 ── */}
+              {['谈判采购', '询比采购', '直接采购', '邀请招标', '竞价采购'].includes(item.procurementMethod) && (
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                 <div className="flex items-center gap-2.5 mb-3">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]" style={{background:"var(--stage-announce-soft)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)"}}>
                     <UserPlus size={14} style={{color:"var(--stage-announce)"}} />
                   </div>
-                  <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">供应商邀请</span>
+                  <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{item.procurementMethod === '谈判采购' ? '供应商邀请' : '供应商参与'}</span>
                 </div>
                 <BiddingUnitsField
-                  label="邀请的供应商"
+                  label={item.procurementMethod === '谈判采购' ? '邀请的供应商' : '参与的供应商'}
                   value={extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null}
                   isEditing={editingField === 'invitedSuppliers'}
                   editValue={editValues.invitedSuppliers}
@@ -1519,25 +1543,59 @@ export function ProjectDetailPanel({
 
             {/* ── 右栏：wb-panel 玻璃容器（渐变 + 内高光 + 方向性三影）── */}
             <div className="wb-panel gap-5 px-5 py-5">
-              {/* 阶段标题行 —— cgzxui header bar */}
-              <div className="flex items-center justify-between gap-3 -mx-5 -mt-5 px-5 py-3.5 rounded-t-[20px]"
+              {/* ══════ 当前步骤 hero —— 阶段焦点面板 ══════ */}
+              <div
+                className="pm-current-step-hero -mx-5 -mt-5 mb-1 overflow-hidden rounded-t-[20px]"
                 style={{
-                  background: "linear-gradient(105deg, oklch(1 0 0 / 0.9) 0%, oklch(0.98 0.003 258 / 0.55) 60%)",
-                  borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)",
-                }}>
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-[10px]"
-                    style={{background:"color-mix(in oklch,var(--accent-soft) 45%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)"}}>
-                    <UploadCloud size={15} className="text-[color:var(--accent)]" />
+                  '--step-color': heroVisual.colorVar,
+                  '--step-color-soft': `color-mix(in oklch, ${heroVisual.colorVar} 10%, transparent)`,
+                  background:
+                    `linear-gradient(105deg, oklch(1 0 0 / 0.95) 0%, color-mix(in oklch, ${heroVisual.colorVar} 7%, oklch(0.98 0.003 258 / 0.5)) 65%)`,
+                  borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)',
+                } as React.CSSProperties}
+              >
+                <span className="pm-current-step-hero__glow" />
+                {/* eyebrow：当前步骤 + 步骤进度 */}
+                <div className="relative flex items-center justify-between gap-3 px-5 pt-4 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="pm-current-step-hero__dot" />
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: 'var(--step-color)' }}>
+                      当前步骤
+                    </span>
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">{selectedStage.stageName}</div>
-                  </div>
+                  <span className="text-[11px] font-semibold tabular-nums text-[color:var(--muted-foreground)]">
+                    第 {stepPosition.number} 步 / 共 {stepPosition.total} 步
+                  </span>
                 </div>
-                <span className="inline-flex shrink-0 items-center rounded-[5px] px-2 py-0.5 text-[10px] font-semibold tracking-[0.1em]"
-                  style={{background:"color-mix(in oklch,var(--accent-soft) 40%,transparent)",color:"var(--accent)"}}>
-                  {PROJECT_STAGE_STATUS_LABELS[selectedStage.status]}
-                </span>
+                {/* 主标题：大图标 + 阶段名 + 状态徽章 */}
+                <div className="relative flex items-center gap-3.5 px-5 pb-4">
+                  <div
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px]"
+                    style={{
+                      background: 'color-mix(in oklch, var(--step-color) 15%, transparent)',
+                      boxShadow:
+                        'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 5px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.8)',
+                    }}
+                  >
+                    <HeroIcon size={22} style={{ color: 'var(--step-color)' }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[1.05rem] font-bold leading-tight tracking-[-0.02em] text-[color:var(--foreground)]">
+                      {selectedStage.stageName}
+                    </div>
+                  </div>
+                  <span
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[11px] font-bold tracking-[0.04em]"
+                    style={{
+                      background: 'color-mix(in oklch, var(--step-color) 13%, transparent)',
+                      color: 'var(--step-color)',
+                      boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)',
+                    }}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--step-color)' }} />
+                    {PROJECT_STAGE_STATUS_LABELS[selectedStage.status]}
+                  </span>
+                </div>
               </div>
 
               {/* 阶段描述 */}

@@ -133,6 +133,15 @@ export async function extractTenderFields(projectId: string, field?: string) {
   return parseJsonResponse<Record<string, string | null>>(response);
 }
 
+/** 直接采购供应商抽选：读取项目各阶段文档，AI 推荐 3-5 家供应商 */
+export async function recommendSuppliersForProject(projectId: string) {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/recommend-suppliers`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return parseJsonResponse<{ suppliers: Array<{ name: string; reason: string; matchScore: number }>; contextSummary?: string }>(response);
+}
+
 export async function extractInitiationFields(file: File) {
   const formData = new FormData();
   formData.append('file', file);
@@ -548,6 +557,22 @@ export async function auditStageCompliance(
   });
 
   return parseJsonResponse<ComplianceAuditResponse>(response);
+}
+
+export async function analyzeProjectStep(
+  projectId: string,
+  stageKey: string,
+  refresh = false,
+): Promise<{ content: string; empty: boolean }> {
+  const params = new URLSearchParams();
+  params.set('stageKey', stageKey);
+  if (refresh) params.set('refresh', 'true');
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/analyze-step?${params.toString()}`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  return parseJsonResponse<{ content: string; empty: boolean }>(response);
 }
 
 /** AI 提取并优化"申请立项事由 / 对供方的主要要求"，仅返回优化文本，不写库（由调用方填编辑态、用户确认后保存）。 */
