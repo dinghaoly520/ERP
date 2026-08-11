@@ -1541,7 +1541,8 @@ export default function ExpertEvaluatePage() {
                 onPointNote={handlePointNote}
                 pointMemoCounts={pointMemoCounts}
                 selectedPointId={activePointId}
-                onPointClick={handlePointClickDesk}
+                onPointClick={(pid, pname) => {
+                }}
               />
             </div>
           )}
@@ -1936,7 +1937,7 @@ export default function ExpertEvaluatePage() {
                 )?.status as 'draft' | 'verified' | undefined
               }
               onVerified={loadProject}
-
+              
             />
           )}
 
@@ -1946,16 +1947,6 @@ export default function ExpertEvaluatePage() {
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
               onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId} />
           )}
-            </div>
-          </div>
-                  />
-                ) : (
-                  <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">请先在左侧选择供应商</p>
-                )}
-              </div>
-            </aside>
-          </div>
-        )}
         {/* 冲突裁决弹窗 */}
         <SyncConflictModal
           open={conflictModalOpen}
