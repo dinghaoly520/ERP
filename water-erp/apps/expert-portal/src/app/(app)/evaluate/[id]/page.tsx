@@ -9,7 +9,7 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores } from '@/lib/score-validation';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote, History } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, History } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
@@ -17,7 +17,6 @@ import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep } from '@/components/evaluate/report-step';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
-import { MemoPanel } from '@/components/memo/memo-panel';
 import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
 import { openingHallApi } from '@/lib/opening-hall';
 import type { HallMessagePayload } from '@water-erp/shared';
@@ -81,9 +80,7 @@ export default function ExpertEvaluatePage() {
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
-  // P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
-  const [memoOpen, setMemoOpen] = useState(false);
-  // Task 6: 得分点选中（联动备忘抽屉）—— 桌面允许无选中点的项目/供应商级备忘
+  // 得分点选中——桌面用于高亮 + 评分历史上下文
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
   const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
@@ -492,9 +489,6 @@ export default function ExpertEvaluatePage() {
     [project],
   );
 
-  const handleMemoCountChange = useCallback((pid: string, count: number) => {
-    setPointMemoCounts(prev => prev[pid] === count ? prev : { ...prev, [pid]: count });
-  }, []);
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
@@ -1546,10 +1540,7 @@ export default function ExpertEvaluatePage() {
                 onPointNote={handlePointNote}
                 pointMemoCounts={pointMemoCounts}
                 selectedPointId={activePointId}
-                onPointClick={(pid, pname) => {
-                  handlePointClickDesk(pid, pname);
-                  setMemoOpen(true);
-                }}
+                onPointClick={handlePointClickDesk}
               />
             </div>
           )}
@@ -1944,7 +1935,7 @@ export default function ExpertEvaluatePage() {
                 )?.status as 'draft' | 'verified' | undefined
               }
               onVerified={loadProject}
-              onOpenMemo={() => setMemoOpen(true)}
+              onOpenMemo={undefined}
             />
           )}
 
@@ -1957,56 +1948,6 @@ export default function ExpertEvaluatePage() {
             </div>
           </div>
         </div>
-
-        {/* ====== P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 可开启；键盘输入 + 查看平板墨迹）====== */}
-        {memoOpen && (step === 'scoring' || step === 'verify-score') && (
-          <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="备注面板">
-            {/* 点击遮罩关闭 */}
-            <div
-              className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
-              onClick={() => setMemoOpen(false)}
-              aria-label="关闭备注面板"
-              role="button"
-            />
-            <aside className="wb-panel relative z-10 flex h-full w-[400px] max-w-[90vw] flex-col !rounded-r-none">
-              <div className="flex shrink-0 items-center justify-between px-4 py-3">
-                <h2 className="flex items-center gap-1.5 text-sm font-bold text-[var(--foreground)]">
-                  <StickyNote size={14} strokeWidth={1.7} /> 备注
-                  {activeSupplier && (
-                    <span className="exp-pill ml-1" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>
-                      {project?.suppliers.find(s => s.id === activeSupplier)?.supplierName || '当前供应商'}
-                    </span>
-                  )}
-                  {activePointName && (
-                    <span className="exp-pill ml-1 max-w-[120px] truncate" style={{ '--c': 'var(--accent-strong)' } as React.CSSProperties}>
-                      {activePointName}
-                    </span>
-                  )}
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setMemoOpen(false)}
-                  aria-label="关闭"
-                  className="neu-btn-xs is-square"
-                >
-                  <X size={16} strokeWidth={1.7} />
-                </button>
-              </div>
-              <hr className="wb-section-rule shrink-0" />
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                {activeSupplier ? (
-                  <MemoPanel
-                    projectId={projectId}
-                    supplierId={activeSupplier}
-                    scorePointId={activePointId ?? undefined}
-                    scorePointName={activePointName || undefined}
-                    scoreItemId={activeScoreItemId ?? undefined}
-                    sourceDevice="desktop"
-                    onMemoCountChange={handleMemoCountChange}
-                  />
-                ) : (
-                  <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">请先在左侧选择供应商</p>
-                )}
               </div>
             </aside>
           </div>
