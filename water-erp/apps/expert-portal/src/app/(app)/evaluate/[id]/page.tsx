@@ -9,7 +9,7 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores } from '@/lib/score-validation';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote, History } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
@@ -22,6 +22,9 @@ import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
 import { openingHallApi } from '@/lib/opening-hall';
 import type { HallMessagePayload } from '@water-erp/shared';
 import { formatBytes } from '@/lib/utils';
+import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
+import { ScoreHistoryDrawer } from '@/components/evaluate/score-history-drawer';
+import { getScoreHistory as _getScoreHistory } from '@/lib/api';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -85,6 +88,14 @@ export default function ExpertEvaluatePage() {
   const [activePointName, setActivePointName] = useState<string>('');
   const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
   const [pointMemoCounts, setPointMemoCounts] = useState<Record<string, number>>({});
+  const [draftConflicts, setDraftConflicts] = useState<Array<{
+    key: string;
+    scoreItemName: string;
+    localVal: any;
+    remoteVal: any;
+  }>>([]);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   // D1: 开标大厅公聊消息
   const [hallMessages, setHallMessages] = useState<HallMessagePayload[]>([]);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -162,15 +173,29 @@ export default function ExpertEvaluatePage() {
       loadProject();
     },
     onDraftSaved: (d) => {
-      // 忽略自己设备保存的草稿，只处理对方设备
       if (d.device === 'desktop') return;
-      // 从服务端拉取合并后的草稿
       api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`)
         .then(draft => {
-          if (draft?.scores && Object.keys(draft.scores).length > 0) {
-            const count = Object.keys(draft.scores).length;
-            setDraftAvailable({ count, savedAt: draft.savedAt ?? Date.now() });
-            toast.info(`平板端有新草稿（${count} 项），点击恢复可合并`, { duration: 4000 });
+          if (!draft?.scores) return;
+          const newItems: string[] = [];
+          const conflicts: typeof draftConflicts = [];
+          for (const [key, remoteVal] of Object.entries(draft.scores)) {
+            if (!(key in scores)) {
+              newItems.push(key);
+            } else if (JSON.stringify(scores[key]) !== JSON.stringify(remoteVal)) {
+              const itemName = project?.scoreItems.find(si => key.endsWith(`:${si.id}`))?.name ?? key;
+              conflicts.push({ key, scoreItemName: itemName, localVal: scores[key], remoteVal });
+            }
+          }
+          if (newItems.length > 0) {
+            setScores(prev => {
+              const next = { ...prev };
+              for (const k of newItems) next[k] = draft.scores![k];
+              return next;
+            });
+          }
+          if (conflicts.length > 0) {
+            setDraftConflicts(prev => [...prev, ...conflicts]);
           }
         })
         .catch(() => {});
@@ -425,6 +450,20 @@ export default function ExpertEvaluatePage() {
     const next = { ...scores, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed } };
     setScores(next);
     saveDraftNow(next);
+    // undo toast for modifications (not new items)
+    const oldPointVal = cur.points?.[pointId];
+    if (oldPointVal && (oldPointVal.checked !== value.checked || oldPointVal.awardedScore !== value.awardedScore)) {
+      const pointName = si?.points?.find(p => p.id === pointId)?.name ?? pointId;
+      toast(`已将「${pointName}」修改`, {
+        action: {
+          label: '撤销',
+          onClick: () => {
+            handlePointChange(scoreItemId, pointId, oldPointVal);
+          },
+        },
+        duration: 3000,
+      });
+    }
   }, [activeSupplier, scores, project]);
 
   // D：得分点级批注（写 points[pointId].note 草稿）
@@ -1518,19 +1557,32 @@ export default function ExpertEvaluatePage() {
           {/* ====== 专家打分 ====== */}
           {step === 'scoring' && (
             <div className="p-6">
+              {/* WS 同步冲突横幅 */}
+              {draftConflicts.length > 0 && (
+                <div className="mb-4 flex items-center gap-3 rounded-[10px] px-4 py-2"
+                  style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', borderLeft: '3px solid var(--warning)' }}>
+                  <AlertTriangle size={15} className="shrink-0 text-[var(--warning)]" />
+                  <span className="flex-1 text-xs font-semibold text-[var(--warning)]">
+                    检测到 {draftConflicts.length} 项评分变更（来自平板端）
+                  </span>
+                  <button type="button"
+                    onClick={() => setConflictModalOpen(true)}
+                    className="neu-btn-xs !h-9 !px-3">处理</button>
+                </div>
+              )}
               <div className="mb-6 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-[var(--foreground)]">专家独立打分</h2>
                   <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">请根据您的专业判断进行客观评分</p>
                 </div>
-                {/* P5 Task 7: 桌面端备忘入口（键盘输入 + 查看平板墨迹） */}
+                {/* Task 6: 评分历史入口（替代备忘按钮） */}
                 <button
                   type="button"
-                  onClick={() => setMemoOpen(true)}
+                  onClick={() => setHistoryOpen(true)}
                   className="neu-btn-xs shrink-0"
-                  aria-label="打开备忘面板"
+                  aria-label="查看评分历史"
                 >
-                  <StickyNote size={14} strokeWidth={1.7} /> 备忘
+                  <History size={14} strokeWidth={1.7} /> 评分历史
                 </button>
               </div>
 
@@ -1959,6 +2011,39 @@ export default function ExpertEvaluatePage() {
             </aside>
           </div>
         )}
+        {/* 冲突裁决弹窗 */}
+        <SyncConflictModal
+          open={conflictModalOpen}
+          newItems={[]}
+          conflictItems={draftConflicts.map(c => ({
+            key: c.key,
+            scoreItemName: c.scoreItemName,
+            localVal: c.localVal,
+            remoteVal: c.remoteVal,
+            remoteDevice: 'tablet',
+          }))}
+          localDevice="desktop"
+          onConfirm={(resolved) => {
+            setScores(prev => {
+              const next = { ...prev };
+              for (const c of draftConflicts) {
+                if (resolved[c.key] === 'remote') next[c.key] = c.remoteVal;
+              }
+              return next;
+            });
+            setDraftConflicts([]);
+            setConflictModalOpen(false);
+          }}
+          onClose={() => setConflictModalOpen(false)}
+        />
+        {/* 评分历史抽屉 */}
+        <ScoreHistoryDrawer
+          open={historyOpen}
+          projectId={projectId}
+          supplierId={activeSupplier}
+          suppliers={project?.suppliers.map(s => ({ id: s.id, supplierName: s.supplierName })) ?? []}
+          onClose={() => setHistoryOpen(false)}
+        />
       </div>
   );
 }
