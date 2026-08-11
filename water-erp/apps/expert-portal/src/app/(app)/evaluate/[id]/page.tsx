@@ -1946,12 +1946,6 @@ export default function ExpertEvaluatePage() {
               onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId} />
           )}
             </div>
-          </div>
-        </div>
-              </div>
-            </aside>
-          </div>
-        )}
         {/* 冲突裁决弹窗 */}
         <SyncConflictModal
           open={conflictModalOpen}
