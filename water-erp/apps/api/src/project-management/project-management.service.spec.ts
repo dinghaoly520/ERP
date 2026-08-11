@@ -381,6 +381,8 @@ describe('ProjectManagementService', () => {
   const makeService = () => {
     const aiService = {
       analyzeProjectDetail: jest.fn(),
+      chat: jest.fn(),
+      auditStageCompliance: jest.fn(),
     };
     const documentParser = {
       parse: jest.fn().mockResolvedValue(''),
@@ -430,10 +432,17 @@ describe('ProjectManagementService', () => {
       ),
     };
 
+    const storage = {
+      read: jest.fn(),
+      write: jest.fn(),
+      delete: jest.fn(),
+    };
+
     const service = new ProjectManagementService(
       prisma as never,
       aiService as never,
       documentParser as never,
+      storage as never,
     );
     return {
       service,
@@ -820,6 +829,55 @@ describe('ProjectManagementService', () => {
     });
 
     expect(aiService.analyzeProjectDetail).not.toHaveBeenCalled();
+  });
+
+  describe('analyzeStep', () => {
+    it('throws BadRequest for unsupported stageKey', async () => {
+      const { service } = makeService();
+      await expect(service.analyzeStep('pm-01', 'TENDER_DOCUMENT')).rejects.toThrow(BadRequestException);
+    });
+
+    it('returns empty when roster is null', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01',
+        title: '测试项目',
+        procurementMethod: '公开招标',
+        procurementCategory: '工程',
+        projectReason: '',
+        supplierRequirements: '',
+        currentStage: 'EXPERT_SELECTION',
+        invitedSuppliers: null,
+        expertInfo: null,
+        projectOverview: null,
+      });
+      const result = await service.analyzeStep('pm-01', 'EXPERT_SELECTION');
+      expect(result).toEqual({ content: '', empty: true });
+    });
+
+    it('calls AI and caches for EXPERT_SELECTION with expertInfo', async () => {
+      const { service, prisma, aiService, readFileMock } = makeService();
+      (aiService as any).chat = jest.fn().mockResolvedValue('抽取过程段落。\n\n最终名单段落。');
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01',
+        title: '岩土勘察项目',
+        procurementMethod: '公开招标',
+        procurementCategory: '工程',
+        projectReason: '某工程勘察',
+        supplierRequirements: '',
+        currentStage: 'EXPERT_SELECTION',
+        invitedSuppliers: null,
+        expertInfo: '张三|地质部|岩土工程|高级工程师|组长\n李四|设计部|结构|工程师|成员',
+        projectOverview: '岩土工程勘察',
+      });
+      readFileMock.mockRejectedValueOnce(new Error('no cache'));
+
+      const result = await service.analyzeStep('pm-01', 'EXPERT_SELECTION');
+
+      expect(result).toEqual({ content: '抽取过程段落。\n\n最终名单段落。', empty: false });
+      expect((aiService as any).chat).toHaveBeenCalledTimes(1);
+      expect((await import('node:fs/promises')).writeFile).toHaveBeenCalled();
+    });
   });
 
   it('rejects completing a non-contract stage out of order', async () => {

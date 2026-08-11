@@ -149,6 +149,15 @@ export class ProjectManagementController {
     return this.projectManagementService.analyzeProject(id, stageKey, refresh === 'true');
   }
 
+  @Post(':id/analyze-step')
+  analyzeStep(
+    @Param('id') id: string,
+    @Query('stageKey') stageKey: string,
+    @Query('refresh') refresh?: string,
+  ) {
+    return this.projectManagementService.analyzeStep(id, stageKey, refresh === 'true');
+  }
+
   @Post(':id/parse-announcement-fields')
   parseAnnouncementFields(@Param('id') id: string) {
     return this.projectManagementService.parseAnnouncementFields(id);
@@ -165,6 +174,12 @@ export class ProjectManagementController {
   @Post(':id/extract-tender-fields')
   extractTenderFields(@Param('id') id: string, @Query('field') field?: string) {
     return this.projectManagementService.extractTenderFields(id, field);
+  }
+
+  /** 直接采购：读取项目各阶段文档，AI 推荐 3-5 家供应商供用户选择 */
+  @Post(':id/recommend-suppliers')
+  recommendSuppliersForProject(@Param('id') id: string) {
+    return this.projectManagementService.recommendSuppliersForProject(id);
   }
 
   @Post(':id/optimize-initiation')

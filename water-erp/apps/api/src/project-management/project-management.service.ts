@@ -406,6 +406,13 @@ export class ProjectManagementService {
    * 用于上传时解析失败、用户手动触发重新提取的场景。
    */
   async extractTenderFields(itemId: string, field?: string) {
+    // 提前获取采购方式，用于适配不同采购方式的提取逻辑
+    const itemMeta = await this.prisma.projectManagementItem.findUnique({
+      where: { id: itemId },
+      select: { procurementMethod: true },
+    });
+    const procurementMethod = itemMeta?.procurementMethod ?? undefined;
+
     const cachePath = this.getTenderTextCachePath(itemId);
     let text: string;
     try {
@@ -449,13 +456,14 @@ export class ProjectManagementService {
     const result: Record<string, string | null> = {};
 
     if (wants('projectOverview')) {
-      const raw = this.extractProjectOverviewFromText(text);
+      let raw = this.extractProjectOverviewFromText(text, procurementMethod);
+      if (!raw) raw = await this.aiExtractProjectOverview(text, procurementMethod);
       const val = raw ? await this.aiMinimalPolish(raw) : null;
       if (val) updateData.projectOverview = val;
       result.projectOverview = val;
     }
     if (wants('bidOpeningTime')) {
-      const raw = this.extractBidOpeningTimeFromText(text);
+      const raw = this.extractBidOpeningTimeFromText(text, procurementMethod);
       const val = raw ? await this.aiNormalizeBidOpeningTime(raw) : null;
       if (val) updateData.bidOpeningTime = val;
       result.bidOpeningTime = val;
@@ -468,10 +476,94 @@ export class ProjectManagementService {
       result.documentAcquireTime = val;
     }
 
+    // 直接采购：额外提取拟定供应商名称（从采购文件中）
+    if (procurementMethod === '直接采购') {
+      const existing = await this.prisma.projectManagementItem.findUnique({
+        where: { id: itemId }, select: { awardedSupplier: true },
+      });
+      if (!existing?.awardedSupplier?.trim()) {
+        const supplierName = this.extractAwardedSupplierFromText(text);
+        if (supplierName) {
+          updateData.awardedSupplier = supplierName;
+          result.awardedSupplier = supplierName;
+        }
+      }
+    }
+
     if (Object.keys(updateData).length > 0) {
       await this.prisma.projectManagementItem.update({ where: { id: itemId }, data: updateData });
     }
     return field ? { [field]: result[field] ?? null } : result;
+  }
+
+  /** 直接采购供应商抽选：读取立项/需求/采购文件内容，AI 推荐 3-5 家供应商 */
+  async recommendSuppliersForProject(itemId: string) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: itemId },
+      select: {
+        title: true, procurementMethod: true, procurementCategory: true,
+        requesterDepartment: true, budgetAmount: true,
+        projectReason: true, supplierRequirements: true, projectOverview: true,
+      },
+    });
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    // 收集各阶段文档文本（立项、需求、采购文件）
+    const contextParts: string[] = [];
+    contextParts.push(`项目名称：${project.title || ''}`);
+    contextParts.push(`采购方式：${project.procurementMethod || ''}`);
+    contextParts.push(`采购类别：${project.procurementCategory || ''}`);
+    contextParts.push(`需求部门：${project.requesterDepartment || ''}`);
+    if (project.budgetAmount != null) contextParts.push(`预算金额：${Number(project.budgetAmount).toLocaleString('zh-CN')}`);
+    if (project.projectReason) contextParts.push(`立项事由：${project.projectReason}`);
+    if (project.supplierRequirements) contextParts.push(`供方要求：${project.supplierRequirements}`);
+    if (project.projectOverview) contextParts.push(`项目概况/采购内容：${project.projectOverview}`);
+
+    // 读取各阶段附件文本
+    const stages = await this.prisma.projectManagementStage.findMany({
+      where: { projectManagementItemId: itemId, stageKey: { in: ['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT'] } },
+      include: { attachments: true },
+    });
+    for (const stage of stages) {
+      for (const att of stage.attachments.slice(0, 3)) {
+        try {
+          const buffer = await this.storage.download(att.objectKey);
+          const text = await this.documentParser.parse(buffer, att.mimeType, att.fileName);
+          if (text && text.length > 20) {
+            contextParts.push(`【${stage.stageKey} - ${att.fileName}】${text.slice(0, 4000)}`);
+          }
+        } catch { /* 单个文件读取失败不阻塞 */ }
+      }
+    }
+
+    const context = contextParts.join('\n\n');
+
+    // 调用 AI 推荐
+    const systemPrompt = `你是采购供应商智能推荐助手。根据项目的采购需求、立项事由、供方要求、采购内容、采购文件等信息，从供应商库中推荐3-5家最合适的供应商。
+请输出一个 JSON 对象，结构固定为：
+{
+  "suppliers": [
+    {"name": "供应商名称", "reason": "推荐理由（50字以内）", "matchScore": 85}
+  ]
+}
+要求：
+1. 供应商名称必须真实可查，不要编造虚构的公司名
+2. 推荐理由基于项目的实际采购内容和要求
+3. matchScore 为 0-100 的匹配度评分
+4. 只输出 JSON，不要任何解释`;
+
+    try {
+      const result = await this.aiService.chatJson<{
+        suppliers: Array<{ name: string; reason: string; matchScore: number }>;
+      }>(systemPrompt, context.slice(0, 8000), 0.3);
+      return {
+        suppliers: (result.suppliers || []).slice(0, 5),
+        contextSummary: context.slice(0, 500),
+      };
+    } catch {
+      // AI 不可用时返回空列表
+      return { suppliers: [], contextSummary: context.slice(0, 500) };
+    }
   }
 
   async createFromInitiation(dto: CreateProjectFromInitiationDto) {
@@ -828,7 +920,15 @@ export class ProjectManagementService {
         const text = await this.extractFileText(absolutePath, file.mimetype, file.originalname);
         this.logger.log(`[TENDER_DOCUMENT] Extracted ${text.length} chars from ${file.originalname}`);
 
-        const rawOverview = this.extractProjectOverviewFromText(text);
+        // 获取采购方式以适配不同文档结构（如直接采购用"采购内容"和"递交和谈判时间"）
+        const pm = await this.prisma.projectManagementItem.findUnique({
+          where: { id: projectId },
+          select: { procurementMethod: true },
+        });
+        const procurementMethod = pm?.procurementMethod ?? undefined;
+
+        let rawOverview = this.extractProjectOverviewFromText(text, procurementMethod);
+        if (!rawOverview) rawOverview = await this.aiExtractProjectOverview(text, procurementMethod);
         if (rawOverview) {
           const projectOverview = await this.aiMinimalPolish(rawOverview);
           await this.prisma.projectManagementItem.update({
@@ -837,13 +937,30 @@ export class ProjectManagementService {
           });
         }
 
-        const rawBidTime = this.extractBidOpeningTimeFromText(text);
+        const rawBidTime = this.extractBidOpeningTimeFromText(text, procurementMethod);
         if (rawBidTime) {
           const bidOpeningTime = await this.aiNormalizeBidOpeningTime(rawBidTime);
           await this.prisma.projectManagementItem.update({
             where: { id: projectId },
             data: { bidOpeningTime },
           });
+        }
+
+        // 直接采购：从采购文件提取拟定供应商名称（后续供应商邀请步骤自动跳过选取）
+        if (procurementMethod === '直接采购') {
+          const existingProject = await this.prisma.projectManagementItem.findUnique({
+            where: { id: projectId },
+            select: { awardedSupplier: true },
+          });
+          if (!existingProject?.awardedSupplier?.trim()) {
+            const supplierName = this.extractAwardedSupplierFromText(text);
+            if (supplierName) {
+              await this.prisma.projectManagementItem.update({
+                where: { id: projectId },
+                data: { awardedSupplier: supplierName },
+              });
+            }
+          }
         }
 
         // 采购文件获取时间：正则优先，失败时用 AI 从文本提取
@@ -3523,6 +3640,98 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return result;
   }
 
+  /**
+   * 步骤分析：为 SUPPLIER_INVITATION / EXPERT_SELECTION 生成「抽取过程 + 最终名单」叙述段落。
+   * 数据源：item.invitedSuppliers / item.expertInfo（不依赖文件）。
+   */
+  async analyzeStep(projectId: string, stageKey: string, forceRefresh = false): Promise<{ content: string; empty: boolean }> {
+    if (stageKey !== 'SUPPLIER_INVITATION' && stageKey !== 'EXPERT_SELECTION') {
+      throw new BadRequestException('步骤分析仅支持供应商邀请和专家抽取阶段。');
+    }
+
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException('未找到对应项目。');
+    }
+
+    // 取名单数据
+    const isExpert = stageKey === 'EXPERT_SELECTION';
+    const rosterRaw = isExpert
+      ? (project.expertInfo ?? '').trim()
+      : (project.invitedSuppliers ?? '').trim();
+
+    if (!rosterRaw) {
+      return { content: '', empty: true };
+    }
+
+    // fingerprint = 名单原文 hash（名单变更即失效）
+    const fingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
+
+    // 读缓存
+    const cachePath = this.getStepAnalysisCachePath(projectId, stageKey);
+    if (!forceRefresh) {
+      try {
+        const cached = JSON.parse(await readFile(cachePath, 'utf8')) as { fingerprint?: string; content?: string };
+        if (cached.fingerprint === fingerprint && cached.content) {
+          return { content: cached.content, empty: false };
+        }
+      } catch {
+        // 缓存不存在，继续生成
+      }
+    }
+
+    // 构建 LLM prompt
+    const systemPrompt = [
+      '你是四川水发集团招采ERP的 AI 采购步骤分析助手。请根据提供的项目信息和抽取名单，',
+      '生成一段描述该步骤抽取过程和最终名单的文字。',
+      '',
+      '输出要求：',
+      '1. 分为两段自然语言段落（用空行分隔），不要使用标题、编号或 Markdown 格式。',
+      '2. 第一段「抽取过程」：描述该阶段的选取方法。供应商邀请阶段涵盖 AI 语义匹配/业务标签/多维评分/手动选取等方式；',
+      '   专家抽取阶段涵盖专业配额/随机抽取或智能抽取/回避原则/需求方代表等。',
+      '3. 第二段「最终名单」：列出人数并逐家说明。供应商列出企业名称；专家列出姓名、所属部门、专业领域和职称。',
+      '4. 只描述提供的名单中的对象，不得编造未列出的供应商或专家。',
+      '5. 总字数控制在 200-400 字。',
+    ].join('\n');
+
+    // 解析专家名单（pipe 分隔 → 可读文本）
+    let rosterText: string;
+    let stageContext: string;
+    if (isExpert) {
+      const experts = rosterRaw.split('\n').filter(l => l.trim()).map(line => {
+        const p = line.split('|');
+        return { name: p[0]?.trim() ?? '', dept: p[1]?.trim() ?? '', spec: p[2]?.trim() ?? '', title: p[3]?.trim() ?? '', role: p[4]?.trim() ?? '' };
+      });
+      rosterText = experts.map(e => `${e.name}（${e.dept}/${e.spec}/${e.title}${e.role ? '/' + e.role : ''}）`).join('、');
+      stageContext = `当前阶段：专家抽取（EXPERT_SELECTION）。采购方式：${project.procurementMethod || '未知'}。`;
+    } else {
+      rosterText = rosterRaw;
+      stageContext = `当前阶段：供应商邀请（SUPPLIER_INVITATION）。采购方式：${project.procurementMethod || '未知'}。`;
+    }
+
+    const userPrompt = [
+      `项目名称：${project.title}`,
+      stageContext,
+      `项目概况：${project.projectOverview || '未提供'}`,
+      `立项事由：${project.projectReason || '未提供'}`,
+      `供应商要求：${project.supplierRequirements || '未提供'}`,
+      '',
+      `=== 最终名单数据 ===`,
+      rosterText,
+    ].join('\n');
+
+    const content = await this.aiService.chat(systemPrompt, userPrompt, 0.4);
+
+    // 写缓存
+    await mkdir(this.getUploadDir(), { recursive: true });
+    await writeFile(cachePath, JSON.stringify({ fingerprint, content }, null, 2), 'utf8');
+
+    return { content, empty: false };
+  }
+
   async analyzeProject(projectId: string, stageKey?: string, forceRefresh = false) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
@@ -5371,11 +5580,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return experts.map(e => `${e.name}|${e.department}|${e.specialty}|${e.title}`).join('\n');
   }
 
-  /** 从采购文件正文中提取项目概况描述。 */
-  private extractProjectOverviewFromText(text: string): string | null {
-    const sectionKeywords = [
-      '项目概况', '采购内容', '项目概述', '项目背景', '采购需求概述', '项目简介',
-    ];
+  /** 从采购文件正文中提取项目概况描述。procurementMethod 用于适配不同采购方式的段落结构。 */
+  private extractProjectOverviewFromText(text: string, procurementMethod?: string): string | null {
+    const isDirect = procurementMethod === '直接采购';
+    const sectionKeywords = isDirect
+      ? ['采购内容', '采购项目', '采购标的', '采购范围及内容', '采购需求', '项目内容', '项目采购']
+      : ['项目概况', '采购内容', '项目概述', '项目背景', '采购需求概述', '项目简介'];
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     let startIdx = -1;
     for (const kw of sectionKeywords) {
@@ -5386,6 +5596,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // Collect lines until next major section (Chinese/English section numbers)
     const endMarkers = /^(一[、.]|二[、.]|三[、.]|四[、.]|五[、.]|[2-9][、.]|[2-9]\s|第[二三四五六七八九]|[A-D]\s|[IVX]+[、.])/;
+    // 段落切割补充：以下关键词标志"采购内容"段结束、"采购要求/资格/条款"段开始，立即停收
+    const stopKeywords = /供应商资格|资格要求|商务要求|技术要求|供货要求|验收标准|付款条件|评审办法|评审标准|评标办法|投标人须知|供应商须知|合同条款|报价要求|响应文件[^提]|申请文件|履约保证金|售后服务|培训要求|交货期限|交付要求/;
     const parts: string[] = [];
 
     // Clean up first line: remove section number prefix (e.g. "二、项目概况：", "一、采购内容", "1.项目概况")
@@ -5398,6 +5610,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     for (let i = startIdx + 1; i < Math.min(lines.length, startIdx + 40); i++) {
       const line = lines[i];
       if (endMarkers.test(line)) break;
+      if (stopKeywords.test(line)) break;  // 遇到"要求/资格/条件/条款"类段落头即停
       if (line.trim()) parts.push(line.trim());
     }
 
@@ -5405,39 +5618,58 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return result.length >= 20 ? result : null;
   }
 
-  /** 从采购文件正文中提取开标/投标截止时间。 */
-  private extractBidOpeningTimeFromText(text: string): string | null {
-    // 匹配模式：开标时间 / 投标截止时间 / 响应文件提交截止时间
-    const patterns = [
-      /开标时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
-      /投标截止时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
-      /响应文件[^。]{0,6}截止时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
-      /提交[^。]{0,10}截止[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
-      /投标截止[：:]\s*(\d{4}\s*[年月]\s*\d{1,2}\s*[月]\s*\d{1,2}\s*日[\s\d:时分]*)/,
-    ];
+  /** 从采购文件正文中提取开标/投标截止时间。procurementMethod 用于适配不同采购方式的时间表述。 */
+  private extractBidOpeningTimeFromText(text: string, procurementMethod?: string): string | null {
+    const isDirect = procurementMethod === '直接采购';
+    const isNegotiationOrInquiry = procurementMethod === '谈判采购' || procurementMethod === '询比采购';
+
+    // 直接采购：文档使用"递交和谈判时间"或"递交及谈判时间"
+    // 谈判/询比：文档使用"递交及谈判时间"、"响应截止及谈判时间"等
+    const patterns: RegExp[] = isDirect
+      ? [
+          /递交[及和]谈判时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+          /谈判时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+          /递交时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+          /响应文件[^。\n]{0,8}递交[及和]谈判[^。\n]{0,8}[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+          // 兜底：在文本中找"递交"+"谈判"附近的时间
+          /递交[^。\n]{0,30}谈判[^。\n]{0,10}[：:]{0,1}\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+        ]
+      : [
+          /开标时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+          /投标截止时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+          /响应文件[^。]{0,6}截止时间[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+          /提交[^。]{0,10}截止[：:]\s*(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日[\s\d:时分]*)/,
+          /投标截止[：:]\s*(\d{4}\s*[年月]\s*\d{1,2}\s*[月]\s*\d{1,2}\s*日[\s\d:时分]*)/,
+        ];
+
     for (const pattern of patterns) {
       const match = text.match(pattern);
       if (match?.[1]) {
         return match[1].replace(/\s+/g, '');
       }
     }
-    // Fallback 1: standalone date pattern near 开标/截止（冒号紧邻）
-    const contextMatch = text.match(/(开标时间|投标截止时间|响应文件提交截止时间)[：:][^。\n]{0,50}/);
+
+    // Fallbacks: 适配不同采购方式的关键词
+    const timeKeywords = isDirect
+      ? '递交和谈判时间|递交及谈判时间|谈判时间|递交时间'
+      : (isNegotiationOrInquiry ? '递交[及和]谈判|谈判时间|递交时间|开标时间|投标截止|响应文件提交截止' : '开标时间|投标截止时间|响应文件提交截止时间');
+
+    // Fallback 1: standalone date pattern near time keyword
+    const contextMatch = text.match(new RegExp(`(${timeKeywords})[：:][^。\\n]{0,50}`));
     if (contextMatch) {
       const dateMatch = contextMatch[0].match(/(\d{4}\s*[年月]\s*\d{1,2}\s*[月]\s*\d{1,2}\s*日)/);
       if (dateMatch?.[1]) return dateMatch[1].replace(/\s+/g, '');
     }
 
-    // Fallback 2: "开标时间" 附近 80 字符窗口内找日期+时分（不要求冒号紧邻）
-    // 处理 "响应文件提交截止时间、开标时间：2026年3月27日14:00" 这类合并表述
-    const looserMatch = text.match(/(?:开标时间|投标截止|响应文件提交截止)[^\n]{0,40}?(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2})/);
+    // Fallback 2: 时间关键词附近 80 字符窗口内找日期+时分
+    const looserMatch = text.match(new RegExp(`(?:${timeKeywords})[^\\n]{0,40}?(\\d{4}\\s*年\\s*\\d{1,2}\\s*月\\s*\\d{1,2}\\s*日\\s*\\d{1,2}[：:]\\d{2})`));
     if (looserMatch?.[1]) return looserMatch[1].replace(/\s+/g, '');
 
-    // Fallback 3: 含"开标"的行 + 相邻行的日期
+    // Fallback 3: 含时间关键词的行 + 相邻行的日期
     const lines = text.split('\n');
+    const keywordList = timeKeywords.split('|');
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('开标') || lines[i].includes('投标截止') || lines[i].includes('响应文件提交')) {
-        // 当前 + 后 2 行找日期
+      if (keywordList.some(kw => lines[i].includes(kw))) {
         for (let j = i; j < Math.min(lines.length, i + 3); j++) {
           const dm = lines[j].match(/(\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日(?:\s*\d{1,2}[：:]\d{2})?)/);
           if (dm?.[1]) return dm[1].replace(/\s+/g, '');
@@ -5540,6 +5772,40 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
   }
 
+  /** AI 从采购文件文本中提取"项目概况/采购内容"（正则/关键词提取失败时的兜底）。
+   *  procurementMethod 用于适配不同采购方式的段落结构。 */
+  private async aiExtractProjectOverview(text: string, procurementMethod?: string): Promise<string | null> {
+    try {
+      const isDirect = procurementMethod === '直接采购';
+      const isNegotiationOrInquiry = procurementMethod === '谈判采购' || procurementMethod === '询比采购';
+      const systemPrompt = isDirect
+        ? '从以下直接采购文件文本中提取"采购内容"部分的实质描述，' +
+          '限定范围：仅提取采购标的名称、规格型号、数量、技术参数等描述"买什么"的信息。' +
+          '严格排除以下内容："供应商资格要求""商务要求""技术要求""供货要求""验收标准""付款条件""合同条款"以及任何对供方的资质/业绩/能力门槛要求。' +
+          '只输出提取到的实质内容原文（控制在100-500字），不要保留章节编号、不要输出"采购内容"标题本身、不要添加解释或评价。' +
+          '如果文本中没有实质性的采购内容描述，输出"无"。'
+        : isNegotiationOrInquiry
+          ? '从以下采购文件文本中提取"采购内容/采购需求"部分的实质描述，' +
+            '限定范围：仅提取采购标的名称、规格、数量、质量要求等描述"买什么"的信息。' +
+            '严格排除："供应商资格条件""商务条款""技术门槛""供货期限""验收方式""付款方式"以及对供方的资质要求。' +
+            '只输出提取到的实质内容原文（控制在100-500字），不要保留章节编号、不要输出标题、不要添加解释或评价。' +
+            '如果文本中没有实质性的采购内容描述，输出"无"。'
+          : '从以下采购文件文本中提取"项目概况"部分的实质描述，' +
+            '限定范围：仅提取项目背景、采购范围、建设规模、采购标的等描述"买什么/建什么"的信息。' +
+            '严格排除："投标人资格要求""供应商资格条件""技术规格要求""商务条款""评审办法"以及任何对投标方的资质/业绩门槛。' +
+            '只输出提取到的实质内容原文（控制在100-500字），不要保留章节编号、不要输出"项目概况"标题本身、不要添加解释或评价。' +
+            '如果文本中没有项目概况内容，输出"无"。';
+      const result = await this.aiService.chat(systemPrompt, text.slice(0, 8000), 0.2);
+      const cleaned = result?.trim();
+      if (cleaned && cleaned !== '无' && cleaned.length >= 20) {
+        return cleaned;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
 
   private getTenderTextCachePath(projectId: string): string {
     // /tmp 始终可写，避免 uploads/project-management 目录不存在
@@ -5601,6 +5867,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
       'uploads',
       'project-management',
       `compliance-${projectId}-${stageKey.toLowerCase()}.json`,
+    );
+  }
+
+  private getStepAnalysisCachePath(projectId: string, stageKey: string) {
+    return resolve(
+      process.cwd(),
+      'uploads',
+      'project-management',
+      `step-${projectId}-${stageKey.toLowerCase()}.json`,
     );
   }
 
