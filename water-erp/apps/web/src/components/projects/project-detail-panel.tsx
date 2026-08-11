@@ -444,6 +444,17 @@ export function ProjectDetailPanel({
   // 仅上传附件但尚未分析出内容时，不进行步骤检查，避免 AI 在空内容上臆造结论。
   const hasAnalyzedFiles = stageFileAnalysis.length > 0;
 
+  // 当前阶段是否为「步骤分析」类型阶段（供应商邀请 / 专家抽取）
+  const isStepAnalysisStage =
+    selectedStage.stageKey === 'SUPPLIER_INVITATION' || selectedStage.stageKey === 'EXPERT_SELECTION';
+
+  // ── 步骤分析 state（供应商邀请 / 专家抽取）──
+  const [stepAnalysisContent, setStepAnalysisContent] = useState('');
+  const [stepAnalysisLoading, setStepAnalysisLoading] = useState(false);
+  const [stepAnalysisError, setStepAnalysisError] = useState<string | null>(null);
+  const [stepAnalysisEmpty, setStepAnalysisEmpty] = useState(false);
+  const [stepAnalysisTab, setStepAnalysisTab] = useState<'step' | 'file'>('step');
+
   // 用于触发文件分析刷新的计数器（仅在文件上传后增加）
   const [summaryRefreshing, setSummaryRefreshing] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -480,7 +491,10 @@ export function ProjectDetailPanel({
     // 缓存 key 含 round，避免多轮采购时不同轮次同一 stageKey 冲突
     const cacheKey = `${item.id}:${selectedStage.stageKey}:${selectedRound}`;
     // 当前阶段没有任何附件：没有审查依据，不进行步骤检查，并清掉旧缓存
-    if (!selectedStage.attachments || selectedStage.attachments.length === 0) {
+    // 步骤分析阶段（供应商邀请/专家抽取）无附件也可基于步骤分析结果审查
+    const hasFiles = selectedStage.attachments && selectedStage.attachments.length > 0;
+    const hasStepContent = stepAnalysisContent.trim().length > 0;
+    if (!hasFiles && !isStepAnalysisStage) {
       complianceCache.current.delete(cacheKey);
       setComplianceAudit(null);
       setComplianceError(null);
@@ -490,7 +504,7 @@ export function ProjectDetailPanel({
     // 先判定是否有可分析的文件内容：没有则不进行步骤检查，并清掉该阶段旧缓存，
     // 避免在"无文件 / 分析被清空 / 分析失败"时误展示历史结论（含旧缓存里的善意推断结论）。
     // 该判定必须早于缓存读取，否则同 cacheKey 的旧缓存会先命中并覆盖清空意图。
-    if (!hasAnalyzedFiles) {
+    if (!hasAnalyzedFiles && !hasStepContent) {
       complianceCache.current.delete(cacheKey);
       setComplianceAudit(null);
       setComplianceError(null);
@@ -528,7 +542,7 @@ export function ProjectDetailPanel({
       })
       .catch((err) => { setComplianceError(err instanceof Error ? err.message : '步骤检查请求失败'); })
       .finally(() => setComplianceLoading(false));
-  }, [item.id, selectedStage.stageKey, stageLocked, hasAnalyzedFiles]);
+  }, [item.id, selectedStage.stageKey, stageLocked, hasAnalyzedFiles, isStepAnalysisStage, stepAnalysisContent]);
   // 项目切换时清空步骤检查缓存
   useEffect(() => {
     complianceCache.current.clear();
@@ -616,6 +630,32 @@ export function ProjectDetailPanel({
   useEffect(() => {
     loadAnalysis();
   }, [loadAnalysis]);
+
+  // 步骤分析：仅在供应商邀请/专家抽取阶段加载
+  const loadStepAnalysis = useCallback((refresh = false) => {
+    if (!isStepAnalysisStage) return;
+    setStepAnalysisLoading(true);
+    setStepAnalysisError(null);
+    analyzeProjectStep(item.id, selectedStage.stageKey, refresh)
+      .then((res) => {
+        setStepAnalysisContent(res.content);
+        setStepAnalysisEmpty(res.empty);
+      })
+      .catch((error) => {
+        setStepAnalysisError(error instanceof Error ? error.message : '步骤分析暂不可用。');
+        setStepAnalysisContent('');
+        setStepAnalysisEmpty(false);
+      })
+      .finally(() => setStepAnalysisLoading(false));
+  }, [item.id, selectedStage.stageKey, isStepAnalysisStage]);
+
+  useEffect(() => {
+    setStepAnalysisContent('');
+    setStepAnalysisEmpty(false);
+    setStepAnalysisError(null);
+    setStepAnalysisTab('step');
+    loadStepAnalysis();
+  }, [loadStepAnalysis]);
 
 
   const markStageCompleted = async (stage: ProjectManagementStage) => {
@@ -1701,47 +1741,104 @@ export function ProjectDetailPanel({
                 </div>
               </div>
 
-              {/* ── 文件分析 ── */}
+              {/* ── 文件分析 / 步骤分析 ── */}
               <hr className="wb-section-rule" />
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[0.95rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">文件分析</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">已上传 {stageFileAnalysis.length} 份</span>
+
+              {/* 步骤分析阶段：Tab 切换（有文件时）/ 仅步骤分析（无文件时）*/}
+              {isStepAnalysisStage && stageFileAnalysis.length > 0 ? (
+                <div className="flex items-center gap-1 mb-3">
                   <button
                     type="button"
-                    disabled={analysisLoading || stageLocked || stageFileAnalysis.length === 0}
-                    onClick={() => { loadAnalysis(true); }}
-                    className="neu-btn-xs is-info"
-                  >
-                    <RefreshCw size={12} className={analysisLoading ? 'animate-spin' : ''} />重新分析
-                  </button>
+                    onClick={() => setStepAnalysisTab('step')}
+                    className={stepAnalysisTab === 'step' ? 'neu-btn-xs is-info' : 'neu-btn-xs'}
+                  >步骤分析</button>
+                  <button
+                    type="button"
+                    onClick={() => setStepAnalysisTab('file')}
+                    className={stepAnalysisTab === 'file' ? 'neu-btn-xs is-info' : 'neu-btn-xs'}
+                  >文件分析</button>
                 </div>
-              </div>
-
-              <div className="max-h-[320px] overflow-y-auto pr-1">
-                {analysisError ? (
-                  <div className="rounded-lg px-4 py-4 text-sm leading-6" style={{background:"color-mix(in oklch,var(--danger) 8%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>{analysisError}</div>
-                ) : analysisLoading ? (
-                  <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>正在分析已上传文件...</div>
-                ) : currentFileAnalysis ? (
-                  <div className="rounded-lg px-4 py-4" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
-                    <div className="text-sm font-semibold text-[color:var(--foreground)]">{currentFileAnalysis.fileName}</div>
-                    <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">与当前步骤是否匹配</div>
-                    <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)]">{currentFileAnalysis.stageMatch}</div>
-                    <div className="mt-3 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">核心内容摘要</div>
-                    <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)] whitespace-pre-wrap">{currentFileAnalysis.contentSummary}</div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>当前还没有可分析的上传文件。</div>
-                )}
-              </div>
-
-              {stageFileAnalysis.length > 1 && !analysisLoading && (
+              ) : (
                 <div className="flex items-center justify-between gap-3">
-                  <button type="button" onClick={() => setCurrentFileIndex(Math.max(0, currentFileIndex - 1))} disabled={currentFileIndex === 0} className="neu-btn-xs"><ChevronLeft size={14} />上一份</button>
-                  <span className="text-xs font-semibold text-[color:var(--muted-foreground)]">{currentFileIndex + 1} / {stageFileAnalysis.length}</span>
-                  <button type="button" onClick={() => setCurrentFileIndex(Math.min(stageFileAnalysis.length - 1, currentFileIndex + 1))} disabled={currentFileIndex === stageFileAnalysis.length - 1} className="neu-btn-xs"><ChevronRight size={14} />下一份</button>
+                  <span className="text-[0.95rem] font-semibold tracking-[-0.03em] text-[color:var(--foreground)]">
+                    {isStepAnalysisStage ? '步骤分析' : '文件分析'}
+                  </span>
+                  {!isStepAnalysisStage && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">已上传 {stageFileAnalysis.length} 份</span>
+                      <button
+                        type="button"
+                        disabled={analysisLoading || stageLocked || stageFileAnalysis.length === 0}
+                        onClick={() => { loadAnalysis(true); }}
+                        className="neu-btn-xs is-info"
+                      >
+                        <RefreshCw size={12} className={analysisLoading ? 'animate-spin' : ''} />重新分析
+                      </button>
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {/* 步骤分析阶段 + (无文件 或 当前Tab=step)：显示步骤分析内容 */}
+              {isStepAnalysisStage && (stageFileAnalysis.length === 0 || stepAnalysisTab === 'step') && (
+                <div>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <span className="text-[11px] font-semibold text-[color:var(--muted-foreground)]">
+                      {selectedStage.stageKey === 'EXPERT_SELECTION' ? '专家抽取过程与名单' : '供应商邀请过程与名单'}
+                    </span>
+                    <button type="button" disabled={stepAnalysisLoading || stageLocked} onClick={() => loadStepAnalysis(true)} className="neu-btn-xs is-info">
+                      <RefreshCw size={12} className={stepAnalysisLoading ? 'animate-spin' : ''} />重新分析
+                    </button>
+                  </div>
+                  <div className="max-h-[320px] overflow-y-auto pr-1">
+                    {stepAnalysisError ? (
+                      <div className="rounded-lg px-4 py-4 text-sm leading-6" style={{background:"color-mix(in oklch,var(--danger) 8%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>{stepAnalysisError}</div>
+                    ) : stepAnalysisLoading ? (
+                      <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
+                        <Loader2 size={14} className="animate-spin inline mr-2 text-[color:var(--accent)]" />正在分析抽取过程与名单...
+                      </div>
+                    ) : stepAnalysisEmpty ? (
+                      <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
+                        尚未完成{selectedStage.stageKey === 'EXPERT_SELECTION' ? '专家抽取' : '供应商邀请'}，请先通过阶段操作生成名单。
+                      </div>
+                    ) : stepAnalysisContent ? (
+                      <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--foreground)] whitespace-pre-wrap" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
+                        {stepAnalysisContent}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+              {/* 文件分析内容：非步骤分析阶段始终显示；步骤分析阶段仅 Tab=file 时显示 */}
+              {(!isStepAnalysisStage || stepAnalysisTab === 'file') && (
+                <>
+                  <div className="max-h-[320px] overflow-y-auto pr-1">
+                    {analysisError ? (
+                      <div className="rounded-lg px-4 py-4 text-sm leading-6" style={{background:"color-mix(in oklch,var(--danger) 8%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1)"}}>{analysisError}</div>
+                    ) : analysisLoading ? (
+                      <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>正在分析已上传文件...</div>
+                    ) : currentFileAnalysis ? (
+                      <div className="rounded-lg px-4 py-4" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>
+                        <div className="text-sm font-semibold text-[color:var(--foreground)]">{currentFileAnalysis.fileName}</div>
+                        <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">与当前步骤是否匹配</div>
+                        <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)]">{currentFileAnalysis.stageMatch}</div>
+                        <div className="mt-3 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)]">核心内容摘要</div>
+                        <div className="mt-1 text-sm leading-6 text-[color:var(--foreground)] whitespace-pre-wrap">{currentFileAnalysis.contentSummary}</div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg px-4 py-4 text-sm leading-6 text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 30%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.4)"}}>当前还没有可分析的上传文件。</div>
+                    )}
+                  </div>
+
+                  {stageFileAnalysis.length > 1 && !analysisLoading && (
+                    <div className="flex items-center justify-between gap-3">
+                      <button type="button" onClick={() => setCurrentFileIndex(Math.max(0, currentFileIndex - 1))} disabled={currentFileIndex === 0} className="neu-btn-xs"><ChevronLeft size={14} />上一份</button>
+                      <span className="text-xs font-semibold text-[color:var(--muted-foreground)]">{currentFileIndex + 1} / {stageFileAnalysis.length}</span>
+                      <button type="button" onClick={() => setCurrentFileIndex(Math.min(stageFileAnalysis.length - 1, currentFileIndex + 1))} disabled={currentFileIndex === stageFileAnalysis.length - 1} className="neu-btn-xs"><ChevronRight size={14} />下一份</button>
+                    </div>
+                  )}
+                </>
               )}
 
             {/* ══════ 步骤检查 —— 放在右栏文件分析下方 ══════ */}
@@ -1785,9 +1882,15 @@ export function ProjectDetailPanel({
               </div>
             )}
 
-            {!stageLocked && !hasStageFiles && !complianceLoading && (
+            {!stageLocked && !hasStageFiles && !isStepAnalysisStage && !complianceLoading && (
               <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
                 请先上传采购文件，再进行步骤检查。
+              </div>
+            )}
+
+            {!stageLocked && !hasStageFiles && isStepAnalysisStage && !stepAnalysisContent.trim() && !complianceLoading && (
+              <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
+                请先完成步骤分析，再进行步骤检查。
               </div>
             )}
 
@@ -1797,7 +1900,7 @@ export function ProjectDetailPanel({
               </div>
             )}
 
-            {!stageLocked && hasStageFiles && !analysisLoading && !hasAnalyzedFiles && !complianceLoading && (
+            {!stageLocked && hasStageFiles && !analysisLoading && !hasAnalyzedFiles && !isStepAnalysisStage && !complianceLoading && (
               <div className="rounded-lg px-4 py-3 text-xs text-[color:var(--muted-foreground)]" style={{background:"color-mix(in oklch,var(--muted) 20%,transparent)",boxShadow:"inset 1px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
                 未分析出文件内容，暂不进行步骤检查。请点击"重新分析"后再检查。
               </div>
@@ -1924,14 +2027,20 @@ export function ProjectDetailPanel({
       {/* 供应商邀请弹窗 */}
       <SupplierExtractModal
         isOpen={supplierExtractOpen}
-        onClose={() => setSupplierExtractOpen(false)}
+        onClose={() => {
+          setSupplierExtractOpen(false);
+          if (isStepAnalysisStage) setTimeout(() => loadStepAnalysis(true), 200);
+        }}
         project={item}
       />
 
       {/* 专家抽取弹窗 */}
       <ExpertExtractModal
         isOpen={expertExtractOpen}
-        onClose={() => setExpertExtractOpen(false)}
+        onClose={() => {
+          setExpertExtractOpen(false);
+          if (isStepAnalysisStage) setTimeout(() => loadStepAnalysis(true), 200);
+        }}
         project={item}
       />
 
