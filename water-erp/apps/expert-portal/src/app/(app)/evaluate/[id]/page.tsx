@@ -17,6 +17,7 @@ import { DocumentsStep } from '@/components/evaluate/documents-step';
 import { ReportStep } from '@/components/evaluate/report-step';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
+
 import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
 import { openingHallApi } from '@/lib/opening-hall';
 import type { HallMessagePayload } from '@water-erp/shared';
@@ -80,7 +81,8 @@ export default function ExpertEvaluatePage() {
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
-  // P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
+
+
   // Task 6: 得分点选中（联动备忘抽屉）—— 桌面允许无选中点的项目/供应商级备忘
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
@@ -1541,8 +1543,7 @@ export default function ExpertEvaluatePage() {
                 onPointNote={handlePointNote}
                 pointMemoCounts={pointMemoCounts}
                 selectedPointId={activePointId}
-                onPointClick={(pid, pname) => {
-                }}
+                onPointClick={handlePointClickDesk}
               />
             </div>
           )}
@@ -1937,7 +1938,6 @@ export default function ExpertEvaluatePage() {
                 )?.status as 'draft' | 'verified' | undefined
               }
               onVerified={loadProject}
-              
             />
           )}
 
@@ -1947,6 +1947,12 @@ export default function ExpertEvaluatePage() {
               isLead={isLead} leaderCoSigned={leaderCoSigned} allMembersConfirmed={allMembersConfirmed}
               onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId} />
           )}
+            </div>
+          </div>
+        </div>
+
+
+
         {/* 冲突裁决弹窗 */}
         <SyncConflictModal
           open={conflictModalOpen}
