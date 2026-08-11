@@ -2868,7 +2868,7 @@ export class BidService {
     }
 
     // G2: 按供应商聚合 → 每专家对该供应商的总评分 → 专家组≥5 去 1 高 1 低 → 求平均
-    const panelSize = project.experts.length;
+    const panelSize = project.experts.filter(e => e.expertRole === '正选').length;
 
     // P1-2：收集完整性警告——正选专家是否都已对活跃供应商完成通过性评分
     const completenessWarnings: { supplierName: string; voters: number; expected: number }[] = [];
