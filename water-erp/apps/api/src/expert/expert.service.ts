@@ -1765,80 +1765,106 @@ export class ExpertService {
     };
   }
 
-  /** 评分历史：当前值 + 修改快照，按 scoreItemId 分组 */
+  /** 评分历史：已提交值 + 修改快照 + 草稿值 + 未评分项，按 scoreItemId 分组 */
   async getScoreHistory(userId: string, projectId: string, supplierId: string) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
 
-    const [records, history] = await Promise.all([
+    const [scoreItems, records, history] = await Promise.all([
+      // 全部评分项（含 name + category，用于展示未评分项）
+      this.prisma.bidScoreItem.findMany({
+        where: { projectId },
+        select: { id: true, name: true, category: true },
+      }),
+      // 已提交的当前值
       this.prisma.bidScoreRecord.findMany({
         where: { expertId: expert.id, supplierId },
-        include: { scoreItem: { select: { id: true, name: true, category: true } } },
-        orderBy: { scoreItem: { category: 'asc' } },
       }),
+      // 修改历史快照
       this.prisma.bidScoreRecordHistory.findMany({
         where: { expertId: expert.id, supplierId },
         orderBy: { createdAt: 'asc' },
       }),
     ]);
 
-    // BidScoreRecordHistory 无 scoreItem 关系，从 records 构建 scoreItemId→{name,category} 查找表
-    const itemMeta = new Map<string, { name: string; category: string }>();
-    for (const r of records) {
-      if (r.scoreItem) itemMeta.set(r.scoreItemId, { name: r.scoreItem.name, category: r.scoreItem.category });
+    // 草稿：从 scoreDraft 合并提取该供应商的草稿评分
+    const rawDraft = (expert.scoreDraft ?? {}) as any;
+    let draftScores: Record<string, any> = {};
+    if (typeof rawDraft.tablet === 'object' || typeof rawDraft.desktop === 'object') {
+      const t = rawDraft.tablet?.scores ?? {};
+      const d = rawDraft.desktop?.scores ?? {};
+      draftScores = { ...t, ...d };
+    } else if (rawDraft.scores) {
+      draftScores = rawDraft.scores;
+    }
+    const draftForSupplier: Record<string, any> = {};
+    for (const [key, val] of Object.entries(draftScores)) {
+      if (key.startsWith(`${supplierId}:`)) {
+        const scoreItemId = key.split(':')[1];
+        draftForSupplier[scoreItemId] = val;
+      }
     }
 
-    // 按 scoreItemId 分组
-    const grouped: Array<{
+    type Item = {
       scoreItemId: string;
       scoreItemName: string;
       category: string;
       current: { score: number; passed: boolean | null; reason: string | null; updatedAt: string };
+      draft: { score: number; passed: boolean | null; reason: string | null } | null;
       history: Array<{ score: number; passed: boolean | null; reason: string | null; action: string; createdAt: string }>;
-    }> = [];
+    };
 
-    const byItemId = new Map<string, typeof grouped[number]>();
+    const byItemId = new Map<string, Item>();
 
-    // 先放历史快照
-    for (const h of history) {
-      const key = h.scoreItemId;
-      const meta = itemMeta.get(key);
-      if (!byItemId.has(key)) {
-        byItemId.set(key, {
-          scoreItemId: key,
-          scoreItemName: meta?.name ?? key,
-          category: meta?.category ?? '',
-          current: { score: 0, passed: null, reason: null, updatedAt: '' },
-          history: [],
-        });
-      }
-      byItemId.get(key)!.history.push({
-        score: Number(h.score),
-        passed: h.passed,
-        reason: h.reason,
-        action: h.action,
-        createdAt: h.createdAt.toISOString(),
+    // 1. 初始化全部评分项（包括未评分的）
+    for (const si of scoreItems) {
+      byItemId.set(si.id, {
+        scoreItemId: si.id,
+        scoreItemName: si.name,
+        category: si.category,
+        current: { score: 0, passed: null, reason: null, updatedAt: '' },
+        draft: null,
+        history: [],
       });
     }
 
-    // 再放当前值
-    for (const r of records) {
-      const key = r.scoreItemId;
-      if (!byItemId.has(key)) {
-        byItemId.set(key, {
-          scoreItemId: key,
-          scoreItemName: r.scoreItem?.name ?? key,
-          category: r.scoreItem?.category ?? '',
-          current: { score: 0, passed: null, reason: null, updatedAt: '' },
-          history: [],
+    // 2. 放历史快照
+    for (const h of history) {
+      const item = byItemId.get(h.scoreItemId);
+      if (item) {
+        item.history.push({
+          score: Number(h.score),
+          passed: h.passed,
+          reason: h.reason,
+          action: h.action,
+          createdAt: h.createdAt.toISOString(),
         });
       }
-      byItemId.get(key)!.current = {
-        score: Number(r.score),
-        passed: r.passed,
-        reason: r.reason,
-        updatedAt: r.updatedAt.toISOString(),
-      };
+    }
+
+    // 3. 放已提交的当前值
+    for (const r of records) {
+      const item = byItemId.get(r.scoreItemId);
+      if (item) {
+        item.current = {
+          score: Number(r.score),
+          passed: r.passed,
+          reason: r.reason,
+          updatedAt: r.updatedAt.toISOString(),
+        };
+      }
+    }
+
+    // 4. 放草稿值（标记未提交的打分）
+    for (const [scoreItemId, draftVal] of Object.entries(draftForSupplier)) {
+      const item = byItemId.get(scoreItemId);
+      if (item && !item.current.updatedAt) {
+        item.draft = {
+          score: draftVal.score ?? 0,
+          passed: draftVal.passed ?? null,
+          reason: draftVal.reason ?? null,
+        };
+      }
     }
 
     return Array.from(byItemId.values());
