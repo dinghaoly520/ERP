@@ -71,7 +71,7 @@ export function ScoreHistoryDrawer({ open, projectId, supplierId: initialSupplie
               <Loader2 size={20} className="animate-spin" />
             </div>
           ) : history.length === 0 ? (
-            <p className="py-12 text-center text-xs text-[var(--muted-foreground)]">暂无评分历史</p>
+            <p className="py-12 text-center text-xs text-[var(--muted-foreground)]">暂无评分项</p>
           ) : (
             Object.entries(grouped).map(([category, items]) => (
               <div key={category} className="mb-5">
@@ -79,31 +79,57 @@ export function ScoreHistoryDrawer({ open, projectId, supplierId: initialSupplie
                   {CATEGORY_LABEL[category] || category}
                 </div>
                 <div className="space-y-2">
-                  {items.map(h => (
-                    <div key={h.scoreItemId} className="rounded-[10px] border border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.3)] px-3 py-2">
-                      <div className="mb-1 text-xs font-semibold text-[var(--foreground)]">{h.scoreItemName}</div>
-                      <div className="space-y-0.5">
-                        {h.history.map((snap, i) => (
-                          <div key={i} className="flex items-center gap-2 text-[10px] text-[var(--muted-foreground)]">
-                            <span>{snap.action === 'create' ? '✓' : '→'}</span>
-                            <span className="font-medium">
-                              {snap.passed === true ? '通过' : snap.passed === false ? '不通过' : `${snap.score}分`}
-                            </span>
-                            <span>{snap.action === 'create' ? '创建' : '修改'}</span>
-                            <span>{new Date(snap.createdAt).toLocaleString('zh-CN')}</span>
+                  {items.map(h => {
+                    const hasCommitted = !!h.current.updatedAt;
+                    const hasDraft = !!h.draft;
+                    const hasHistory = h.history.length > 0;
+                    const isUnscored = !hasCommitted && !hasDraft;
+                    return (
+                      <div key={h.scoreItemId} className={`rounded-[10px] border px-3 py-2 ${
+                        isUnscored ? 'border-[oklch(0.6_0.04_258/0.06)] bg-transparent opacity-50'
+                        : 'border-[oklch(0.6_0.04_258/0.1)] bg-[oklch(0.975_0.012_258/0.3)]'
+                      }`}>
+                        <div className="mb-1 text-xs font-semibold text-[var(--foreground)]">{h.scoreItemName}</div>
+                        {isUnscored ? (
+                          <div className="text-[10px] text-[var(--muted-foreground)]">未评分</div>
+                        ) : (
+                          <div className="space-y-0.5">
+                            {/* 提交历史 */}
+                            {hasHistory && h.history.map((snap, i) => (
+                              <div key={i} className="flex items-center gap-2 text-[10px] text-[var(--muted-foreground)]">
+                                <span>{snap.action === 'create' ? '✓' : '→'}</span>
+                                <span className="font-medium">
+                                  {snap.passed === true ? '通过' : snap.passed === false ? '不通过' : `${snap.score}分`}
+                                </span>
+                                <span>{snap.action === 'create' ? '创建' : '修改'}</span>
+                                <span>{new Date(snap.createdAt).toLocaleString('zh-CN')}</span>
+                              </div>
+                            ))}
+                            {/* 已提交当前值 */}
+                            {hasCommitted && (
+                              <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--success)]">
+                                <span>✓</span>
+                                <span>
+                                  {h.current.passed === true ? '通过' : h.current.passed === false ? '不通过' : `${h.current.score}分`}
+                                </span>
+                                <span>已提交</span>
+                              </div>
+                            )}
+                            {/* 草稿值（未提交） */}
+                            {hasDraft && !hasCommitted && h.draft && (
+                              <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--warning)]">
+                                <span>✎</span>
+                                <span>
+                                  {h.draft.passed === true ? '通过' : h.draft.passed === false ? '不通过' : `${h.draft.score}分`}
+                                </span>
+                                <span>草稿中</span>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                        {/* 当前值 */}
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-[var(--success)]">
-                          <span>✓</span>
-                          <span>
-                            {h.current.passed === true ? '通过' : h.current.passed === false ? '不通过' : `${h.current.score}分`}
-                          </span>
-                          <span>当前</span>
-                        </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))

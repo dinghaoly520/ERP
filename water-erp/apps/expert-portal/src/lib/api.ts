@@ -199,6 +199,7 @@ export interface ScoreHistoryItem {
   scoreItemName: string;
   category: string;
   current: { score: number; passed: boolean | null; reason: string | null; updatedAt: string };
+  draft: { score: number; passed: boolean | null; reason: string | null } | null;
   history: ScoreHistoryEntry[];
 }
 
