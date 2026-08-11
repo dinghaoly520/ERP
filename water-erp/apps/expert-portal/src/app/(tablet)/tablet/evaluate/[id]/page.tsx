@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Send, Save, RotateCcw } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
-import { validateSupplierScores } from '@/lib/score-validation';
+import { ArrowLeft, AlertTriangle, RotateCcw } from 'lucide-react';
+import { api, listMemos } from '@/lib/api';
 import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
@@ -15,6 +14,8 @@ import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
+import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 
 // 与 (app) evaluate 页面一致的 score 条目结构（精简版，不含 passed/points 之外的 UI 态）
 type ScoreEntry = {
@@ -37,7 +38,7 @@ const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${s
  *   - 异议条款联动 / 实时 WS 状态板
  *
  * 鉴权：(tablet)/layout.tsx 完成；cookie + X-Portal 由 api 客户端处理。
- * 安全：handleSubmitScores 仅对解密成功 + 未撤回 + 未废标的供应商提交。
+ * 平板仅产生草稿（localStorage + 服务端 draft），正式提交请在桌面专家打分 tab 完成。
  */
 export default function TabletEvaluatePage() {
   const router = useRouter();
@@ -49,10 +50,12 @@ export default function TabletEvaluatePage() {
   const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
-  const [busy, setBusy] = useState(false);
   // 手写备忘得分点上下文（点击左侧得分点 → 选中高亮 → 右侧备忘绑定该得分点）
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
+  // 得分点批注计数（按 scorePointId reduce）+ 当前选中得分点所属 scoreItemId
+  const [pointMemoCounts, setPointMemoCounts] = useState<Record<string, number>>({});
+  const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
   // E：跨设备联动——桌面端「去打分平板」focus hint 触发的闪烁项
   const [flashItemId, setFlashItemId] = useState<string | null>(null);
   const lastFocusSeq = useRef(0);
@@ -61,7 +64,6 @@ export default function TabletEvaluatePage() {
   const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
   const [serverDraft, setServerDraft] = useState<Record<string, ScoreEntry> | null>(null); // Phase 1：服务端草稿 fallback（跨设备恢复）
   const [draftDismissed, setDraftDismissed] = useState(false);
-  const [draftSaving, setDraftSaving] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftStorageKey = useMemo(() => {
     const expertId = project?.myExpertRecord?.id;
@@ -134,6 +136,45 @@ export default function TabletEvaluatePage() {
 
   useEffect(() => { loadProject(); }, [loadProject]);
 
+  // WS 实时同步：其他专家提交评分 / 对方设备保存草稿后自动刷新
+  useExpertWebSocket(projectId, {
+    onScoresSubmitted: (d) => {
+      if (project?.myExpertRecord?.id && d.expertId === project.myExpertRecord.id) return;
+      loadProject();
+    },
+    onDraftSaved: (d) => {
+      if (d.device === 'tablet') return;
+      // 从服务端拉取合并后的草稿
+      api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=tablet`)
+        .then(draft => {
+          if (!draft?.scores) return;
+          const newItems: string[] = [];
+          const conflicts: typeof draftConflicts = [];
+          for (const [key, remoteVal] of Object.entries(draft.scores)) {
+            if (!(key in scores)) {
+              newItems.push(key);
+            } else if (JSON.stringify(scores[key]) !== JSON.stringify(remoteVal)) {
+              const itemName = project?.scoreItems.find(si => key.endsWith(`:${si.id}`))?.name ?? key;
+              conflicts.push({ key, scoreItemName: itemName, localVal: scores[key], remoteVal });
+            }
+          }
+          // 静默合并新增项
+          if (newItems.length > 0) {
+            setScores(prev => {
+              const next = { ...prev };
+              for (const k of newItems) next[k] = draft.scores![k];
+              return next;
+            });
+          }
+          // 冲突项存入 state → 显示横幅
+          if (conflicts.length > 0) {
+            setDraftConflicts(prev => [...prev, ...conflicts]);
+          }
+        })
+        .catch(() => {});
+    },
+  });
+
   // ── 草稿：项目加载后检查本地草稿；无本地则 fallback 服务端草稿（跨设备恢复）──
   useEffect(() => {
     if (!draftStorageKey || !project) return;
@@ -145,7 +186,7 @@ export default function TabletEvaluatePage() {
         if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); return; }
       }
     } catch { /* 本地草稿损坏 → 继续 fallback 服务端 */ }
-    api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft`)
+    api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=tablet`)
       .then((d) => {
         if (!d || !d.scores) return;
         const count = Object.keys(d.scores).length;
@@ -159,6 +200,7 @@ export default function TabletEvaluatePage() {
     if (!draftStorageKey) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
+      if (skipAutoSaveRef.current) { skipAutoSaveRef.current = false; return; }
       try {
         // P2：仅暂存相对服务端未提交的条目，避免把已提交分记为草稿（假「未提交草稿」横幅）
         const committed = new Set((project?.myScores ?? []).map((r: { supplierId: string; scoreItemId: string }) => scoreKey(r.supplierId, r.scoreItemId)));
@@ -170,7 +212,7 @@ export default function TabletEvaluatePage() {
         if (hasDraft) {
           localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
           // P2-5: 同步草稿到服务端（与桌面端一致，跨设备恢复）
-          api.post(`/expert/projects/${projectId}/score-draft`, { scores: draftScores, savedAt: Date.now() }).catch(() => {});
+          api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: draftScores, savedAt: Date.now() }).catch(() => {});
         } else {
           localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
         }
@@ -182,19 +224,6 @@ export default function TabletEvaluatePage() {
   }, [scores, draftStorageKey, project]);
 
   // ── 草稿操作 ──
-  const saveDraft = useCallback(() => {
-    if (!draftStorageKey) return;
-    setDraftSaving(true);
-    try {
-      localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
-      toast.success('评分已暂存');
-    } catch {
-      toast.error('暂存失败，请检查浏览器存储空间');
-    } finally {
-      setDraftSaving(false);
-    }
-  }, [draftStorageKey, scores]);
-
   const restoreDraft = useCallback(() => {
     if (!draftStorageKey) return;
     try {
@@ -224,6 +253,7 @@ export default function TabletEvaluatePage() {
   // 重置当前供应商所有评分
   const resetCurrentSupplier = useCallback(() => {
     if (!activeSupplier) return;
+    skipAutoSaveRef.current = true;
     setScores((prev) => {
       const next = { ...prev };
       for (const k of Object.keys(next)) {
@@ -231,7 +261,7 @@ export default function TabletEvaluatePage() {
       }
       return next;
     });
-    toast.success('已重置当前供应商评分');
+    toast.success('已重置当前供应商评分（不影响桌面端已同步的草稿）');
   }, [activeSupplier]);
 
   // 默认选中第一家供应商
@@ -240,6 +270,20 @@ export default function TabletEvaluatePage() {
       setActiveSupplier(project.suppliers[0].id);
     }
   }, [project, activeSupplier]);
+
+  // 批量加载当前供应商的 memo 计数（按 scorePointId reduce）
+  useEffect(() => {
+    if (!activeSupplier) return;
+    listMemos(projectId, activeSupplier)
+      .then(list => {
+        const counts: Record<string, number> = {};
+        for (const m of list) {
+          if (m.scorePointId) counts[m.scorePointId] = (counts[m.scorePointId] ?? 0) + 1;
+        }
+        setPointMemoCounts(counts);
+      })
+      .catch(() => { /* silent */ });
+  }, [activeSupplier, projectId]);
 
   // Phase 0：桌面端条款响应核对「去打分平板」跳转携带 ?supplier= → 预选该供应商。
   // 只应用一次（presetApplied 闸门），不覆盖专家之后的手动切换；声明在默认选中 effect 之后以便覆盖默认值。
@@ -275,7 +319,11 @@ export default function TabletEvaluatePage() {
               setFlashItemId(hint.scoreItemId!);
               setTimeout(() => setFlashItemId((cur) => (cur === hint.scoreItemId ? null : cur)), 2500);
             }
-            if (hint.pointId) { setActivePointId(hint.pointId); setActivePointName(''); }
+            if (hint.pointId) {
+              setActivePointId(hint.pointId);
+              setActivePointName('');
+              setActiveScoreItemId(hint.scoreItemId ?? null);
+            }
           }, 350);
         }
       } catch { /* hint 可选 — ignore */ }
@@ -314,6 +362,25 @@ export default function TabletEvaluatePage() {
     !!project?.myExpertRecord?.avoidanceConfirmed &&
     !!project?.myExpertRecord?.aiConsentConfirmed;
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false); // P2：重置二次确认
+  // 修改确认：拦截已有值的修改（平板防误触）
+  const [pendingModify, setPendingModify] = useState<{
+    scoreItemId: string;
+    pointId: string;
+    pointName: string;
+    oldVal: PointDecisionValue;
+    newVal: PointDecisionValue;
+    applyFn: (val: PointDecisionValue) => void;
+  } | null>(null);
+  // 重置防误同步：跳过下一次 auto-save
+  const skipAutoSaveRef = useRef(false);
+  // WS 同步冲突
+  const [draftConflicts, setDraftConflicts] = useState<Array<{
+    key: string;
+    scoreItemName: string;
+    localVal: any;
+    remoteVal: any;
+  }>>([]);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
 
   // 按 category 分组
   const grouped = useMemo(() => {
@@ -325,83 +392,51 @@ export default function TabletEvaluatePage() {
     return g;
   }, [project]);
 
-  const handleSubmit = async () => {
-    if (!project || !activeSupplier || !canScoreActiveSupplier || scoreLocked) return;
-    // P1-15：提交前校验评分完整性（与桌面端一致）
-    const missing = validateSupplierScores(project.scoreItems, scores, activeSupplier);
-    if (missing.length > 0) {
-      toast.error(missing[0].message);
-      return;
-    }
-    setBusy(true);
-    try {
-      const supplierName = activeSupplierRecord?.supplierName || '';
-      const payload = project.scoreItems.map(si => {
-        const k = scoreKey(activeSupplier, si.id);
-        const entry = scores[k];
-        const itemPoints = (si.points ?? []).map(p => ({ id: p.id }));
-        if (isPassFailCategory(si.category)) {
-          if (itemPoints.length > 0) {
-            const ptEntries = Object.entries(entry?.points ?? {});
-            return {
-              scoreItemId: si.id,
-              supplierId: activeSupplier,
-              reason: entry?.reason ?? '',
-              pointDecisions: ptEntries.length > 0
-                ? ptEntries.map(([pid, d]) => ({ pointId: pid, checked: d.checked, awardedScore: d.awardedScore, note: d.note }))
-                : (si.points ?? []).map(p => ({ pointId: p.id, checked: entry?.passed === true, awardedScore: entry?.passed === true ? Number(p.fullScore) : 0 })),
-            };
-          }
-          return {
-            scoreItemId: si.id,
-            supplierId: activeSupplier,
-            passed: entry?.passed,
-            reason: entry?.reason ?? '',
-          };
-        }
-        if (itemPoints.length > 0) {
-          return {
-            scoreItemId: si.id,
-            supplierId: activeSupplier,
-            score: entry?.score ?? 0,
-            reason: entry?.reason ?? '',
-            pointDecisions: Object.entries(entry?.points ?? {}).map(([pointId, d]) => ({
-              pointId,
-              checked: d.checked,
-              awardedScore: d.awardedScore,
-              note: d.note,
-            })),
-          };
-        }
-        return {
-          scoreItemId: si.id,
-          supplierId: activeSupplier,
-          score: entry?.score ?? 0,
-          reason: entry?.reason ?? '',
-        };
-      });
-      await api.post(`/expert/projects/${projectId}/scores`, { scores: payload, supplierName });
-      toast.success(`${supplierName} 评分提交成功`);
-      // P0-B：不再整键删除草稿（会误删其他供应商未提交分）；合并刷新后自动暂存按剩余未提交分重写
-      setDraftAvailable(null);
-      setDraftDismissed(true);
-      loadProject(activeSupplier);
-    } catch (e) {
-      const err = e as ApiError;
-      toast.error(err?.message || '提交失败');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // 点击得分点：切换选中 → MemoPanel 内部自动保存/加载
+  // 点击得分点：始终选中（不 toggle 取消）→ MemoPanel 绑定该得分点
   const handlePointClick = useCallback(
     (pointId: string, pointName: string) => {
-      setActivePointId(activePointId === pointId ? null : pointId);
-      setActivePointName(activePointId === pointId ? '' : pointName);
+      setActivePointId(pointId);
+      setActivePointName(pointName);
+      if (project) {
+        const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === pointId));
+        setActiveScoreItemId(item?.id ?? null);
+      }
     },
-    [activePointId],
+    [project],
   );
+
+  const handleMemoCountChange = useCallback((pid: string, count: number) => {
+    setPointMemoCounts(prev => prev[pid] === count ? prev : { ...prev, [pid]: count });
+  }, []);
+
+  // 平板修改拦截器：检测已有值的修改 → 弹确认
+  const makeTabletOnChange = (scoreItemId: string, itemPoints: any[], defaultApply: (pid: string, pv: PointDecisionValue) => void) => {
+    return (pid: string, pv: PointDecisionValue) => {
+      const k = scoreKey(activeSupplier, scoreItemId);
+      const cur = scores[k];
+      const oldPointVal = cur?.points?.[pid];
+      const pointName = itemPoints.find(p => p.id === pid)?.name ?? pid;
+
+      // 检测是否为修改（已有值 + 值不同）
+      const isModify = oldPointVal && (
+        oldPointVal.checked !== pv.checked ||
+        oldPointVal.awardedScore !== pv.awardedScore
+      );
+
+      if (isModify) {
+        setPendingModify({
+          scoreItemId,
+          pointId: pid,
+          pointName,
+          oldVal: oldPointVal,
+          newVal: pv,
+          applyFn: (val: PointDecisionValue) => defaultApply(pid, val),
+        });
+        return; // 不写入 scores — React 受控 checkbox 会自动回弹
+      }
+      defaultApply(pid, pv);
+    };
+  };
 
   if (loadError) {
     return (
@@ -451,6 +486,20 @@ export default function TabletEvaluatePage() {
         </div>
       </div>
 
+      {/* WS 同步冲突横幅 */}
+      {draftConflicts.length > 0 && (
+        <div className="flex flex-shrink-0 items-center gap-3 rounded-[10px] px-4 py-2"
+          style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', borderLeft: '3px solid var(--warning)' }}>
+          <AlertTriangle size={15} className="shrink-0 text-[var(--warning)]" />
+          <span className="flex-1 text-xs font-semibold text-[var(--warning)]">
+            检测到 {draftConflicts.length} 项评分变更（来自桌面端）
+          </span>
+          <button type="button"
+            onClick={() => setConflictModalOpen(true)}
+            className="neu-btn-xs !h-9 !px-3">处理</button>
+        </div>
+      )}
+
       {/* 供应商选择条（横滑磁贴，复用 SupplierTabBar） */}
       <SupplierTabBar
         suppliers={project.suppliers}
@@ -478,7 +527,7 @@ export default function TabletEvaluatePage() {
           )}
           {!verificationComplete && !scoreLocked && (
             <div className="exp-alert exp-alert--warn mb-3">
-              请先完成身份核验、回避确认与 AI 辅助评标声明后再提交评分。
+              请先完成身份核验、回避确认与 AI 辅助评标声明后再录入评分。
             </div>
           )}
 
@@ -589,7 +638,8 @@ export default function TabletEvaluatePage() {
                                   compact
                                   selectedPointId={activePointId}
                                   onPointClick={handlePointClick}
-                                  onChange={(pid, pv) =>
+                                  pointMemoCounts={pointMemoCounts}
+                                  onChange={makeTabletOnChange(item.id, pfPoints, (pid, pv) =>
                                     setScores(prev => {
                                       const cur = prev[k] ?? { score: 0, reason: '' };
                                       const points = { ...(cur.points ?? pfValueMap), [pid]: pv };
@@ -597,7 +647,7 @@ export default function TabletEvaluatePage() {
                                       const allChecked = objectivePts.length > 0 && objectivePts.every(p => points[p.id]?.checked === true);
                                       return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: allChecked } };
                                     })
-                                  }
+                                  )}
                                 />
                               </div>
                             )}
@@ -643,7 +693,8 @@ export default function TabletEvaluatePage() {
                               compact
                               selectedPointId={activePointId}
                               onPointClick={handlePointClick}
-                              onChange={(pid, pv) =>
+                              pointMemoCounts={pointMemoCounts}
+                              onChange={makeTabletOnChange(item.id, itemPoints, (pid, pv) =>
                                 setScores(prev => {
                                   const cur = prev[k] ?? { score: 0, reason: '' };
                                   const points = { ...(cur.points ?? {}), [pid]: pv };
@@ -654,7 +705,7 @@ export default function TabletEvaluatePage() {
                                   );
                                   return { ...prev, [k]: { ...cur, points, score } };
                                 })
-                              }
+                              )}
                             />
                           ) : (
                             <div className="flex items-center gap-3">
@@ -727,61 +778,95 @@ export default function TabletEvaluatePage() {
             supplierId={activeSupplier || undefined}
             scorePointId={activePointId ?? undefined}
             scorePointName={activePointName || undefined}
+            scoreItemId={activeScoreItemId ?? undefined}
             compact
             sourceDevice="tablet"
+            requirePointSelection
+            onMemoCountChange={handleMemoCountChange}
           />
         </aside>
         </Panel>
       </PanelGroup>
 
-      {/* 操作栏：重置 / 暂存 / 提交（平板大按钮 !h-12） */}
-      <div className="flex flex-shrink-0 items-center justify-center gap-3">
+      {/* 操作栏：重置（平板仅草稿，正式提交请在桌面端完成） */}
+      <div className="flex flex-shrink-0 flex-col items-center gap-2">
         {!scoreLocked && (
-          <>
-            {/* 重置当前供应商评分（P2：二次确认，防触屏误触清空） */}
+          <div className="flex items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => setResetConfirmOpen(true)}
-              disabled={busy || !canScoreActiveSupplier}
+              disabled={!canScoreActiveSupplier}
               className="neu-btn-soft is-danger !h-12 !px-6"
             >
               <RotateCcw size={16} strokeWidth={1.7} />
               重置
             </button>
-
-            {/* 暂存评分到本地 */}
-            <button
-              type="button"
-              onClick={saveDraft}
-              disabled={busy || draftSaving || !canScoreActiveSupplier}
-              className="neu-btn-soft !h-12 !px-6"
-            >
-              <Save size={16} strokeWidth={1.7} />
-              {draftSaving ? '暂存中…' : '暂存'}
-            </button>
             <ConfirmDialog
               open={resetConfirmOpen}
               title="重置当前供应商评分"
-              message="将清空当前供应商已录入的全部评分，此操作不可撤销。"
+              message="将清空当前供应商已录入的全部评分（不影响桌面端已同步的草稿）。"
               confirmText="重置"
               cancelText="取消"
               danger
               onConfirm={() => { resetCurrentSupplier(); setResetConfirmOpen(false); }}
               onCancel={() => setResetConfirmOpen(false)}
             />
-          </>
+            <ConfirmDialog
+              open={pendingModify !== null}
+              title="确认修改评分"
+              message={pendingModify ? `确定将「${pendingModify.pointName}」${
+                pendingModify.oldVal.checked && !pendingModify.newVal.checked ? '取消勾选'
+                : `从 ${pendingModify.oldVal.awardedScore} 分改为 ${pendingModify.newVal.awardedScore} 分`
+              }？` : ''}
+              confirmText="确认修改"
+              cancelText="取消"
+              danger
+              onConfirm={() => {
+                if (pendingModify) {
+                  pendingModify.applyFn(pendingModify.newVal);
+                  // undo toast
+                  toast(`已将「${pendingModify.pointName}」修改`, {
+                    action: {
+                      label: '撤销',
+                      onClick: () => pendingModify.applyFn(pendingModify.oldVal),
+                    },
+                    duration: 3000,
+                  });
+                }
+                setPendingModify(null);
+              }}
+              onCancel={() => setPendingModify(null)}
+            />
+          </div>
         )}
-
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={busy || !canScoreActiveSupplier || scoreLocked || !verificationComplete}
-          className="neu-btn-primary !h-12 !px-8"
-        >
-          {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} strokeWidth={1.7} />}
-          {busy ? '提交中…' : scoreLocked ? '评分已锁定' : !verificationComplete ? '请先完成核验' : '提交'}
-        </button>
+        <p className="text-[10px] text-[var(--muted-foreground)]">
+          评分实时同步至桌面端 · 请在桌面端审阅并提交
+        </p>
       </div>
+      <SyncConflictModal
+        open={conflictModalOpen}
+        newItems={[]}
+        conflictItems={draftConflicts.map(c => ({
+          key: c.key,
+          scoreItemName: c.scoreItemName,
+          localVal: c.localVal,
+          remoteVal: c.remoteVal,
+          remoteDevice: 'desktop',
+        }))}
+        localDevice="tablet"
+        onConfirm={(resolved) => {
+          setScores(prev => {
+            const next = { ...prev };
+            for (const c of draftConflicts) {
+              if (resolved[c.key] === 'remote') next[c.key] = c.remoteVal;
+            }
+            return next;
+          });
+          setDraftConflicts([]);
+          setConflictModalOpen(false);
+        }}
+        onClose={() => setConflictModalOpen(false)}
+      />
     </div>
   );
 }

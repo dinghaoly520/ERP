@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { ExpertAdminService } from './expert-admin.service';
+import { ExpertMemoService } from './expert-memo.service';
 import { CreateExpertDto } from './dto/create-expert.dto';
 import { ExtractPreviewDto } from './dto/extract-preview.dto';
 import { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
@@ -29,7 +30,10 @@ import {
 
 @Roles('admin', 'bid_host', 'leader', 'staff')
 export class ExpertAdminController {
-  constructor(private expertAdminService: ExpertAdminService) {}
+  constructor(
+    private expertAdminService: ExpertAdminService,
+    private memoService: ExpertMemoService,
+  ) {}
 
   @Public()
   @Get('bigscreen-stats')
@@ -218,6 +222,26 @@ export class ExpertAdminController {
   @ApiOperation({ summary: 'CSV 批量导入专家' })
   importCsv(@Body() dto: ImportCsvDto) {
     return this.expertAdminService.importCsv(dto.rows);
+  }
+
+  @Get('projects/:projectId/memos')
+  @ApiOperation({ summary: '管理端：查看项目专家备忘/批注（只读，按 expert/supplier/scoreItem 过滤）' })
+  listProjectMemos(
+    @Param('projectId') projectId: string,
+    @Query('expertId') expertId?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('scoreItemId') scoreItemId?: string,
+  ) {
+    return this.memoService.getMemosForAdmin(projectId, { expertId, supplierId, scoreItemId });
+  }
+
+  @Get('projects/:projectId/memos/:memoId/ink')
+  @ApiOperation({ summary: '管理端：获取专家笔迹原图预签名 URL' })
+  getProjectMemoInkUrl(
+    @Param('projectId') projectId: string,
+    @Param('memoId') memoId: string,
+  ) {
+    return this.memoService.getInkUrlForAdmin(projectId, memoId);
   }
 
   // ── 动态 :id 路由 ──

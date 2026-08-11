@@ -666,3 +666,36 @@ export function resolveExpertDispute(
 export function swapExpertRole(bidProjectId: string, fromExpertId: string, toExpertId: string) {
   return api.post<{ success: boolean }>(`/bid/projects/${bidProjectId}/swap-expert`, { fromExpertId, toExpertId });
 }
+
+/* ── 专家批注/备忘（管理端只读）── */
+
+export interface ExpertMemoForAdmin {
+  id: string;
+  expertId: string;
+  projectId: string;
+  supplierId?: string | null;
+  scoreItemId?: string | null;
+  scorePointId?: string | null;
+  contentText?: string | null;
+  inkFileId?: string | null;
+  sourceDevice?: string | null;
+  createdAt: string;
+}
+
+export function listExpertMemosForAdmin(
+  projectId: string,
+  params?: { expertId?: string; supplierId?: string; scoreItemId?: string },
+): Promise<ExpertMemoForAdmin[]> {
+  const qs = new URLSearchParams();
+  if (params?.expertId) qs.set('expertId', params.expertId);
+  if (params?.supplierId) qs.set('supplierId', params.supplierId);
+  if (params?.scoreItemId) qs.set('scoreItemId', params.scoreItemId);
+  return api.get(`/expert-admin/projects/${projectId}/memos${qs.size ? `?${qs}` : ''}`);
+}
+
+export function getExpertMemoInkUrlForAdmin(
+  projectId: string,
+  memoId: string,
+): Promise<{ url: string }> {
+  return api.get(`/expert-admin/projects/${projectId}/memos/${memoId}/ink`);
+}

@@ -170,7 +170,7 @@ export class BidController {
   @Get('projects/:id/rounds/:roundId/quotes')
   @ApiOperation({ summary: '查询轮次报价' })
   getRoundQuotes(@Param('id') id: string, @Param('roundId') roundId: string, @Req() req: any) {
-    return this.bidService.getRoundQuotes(id, roundId, req.user?.role ?? 'staff');
+    return this.bidService.getRoundQuotes(id, roundId, req.user?.role ?? 'supplier');
   }
 
   @Patch('projects/:id')
@@ -332,6 +332,7 @@ export class BidController {
   }
 
   @Post('projects/:id/decrypt/:supplierId')
+  @Roles('admin', 'bid_host')
   @ApiOperation({ summary: '解密供应商投标' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.bidService.decryptSupplier(id, supplierId, dto, userId); }

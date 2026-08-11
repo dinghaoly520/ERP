@@ -102,7 +102,7 @@ describe('BidService — stage transitions', () => {
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
       bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+      bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn() },
       bidScorePoint: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
       bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}) },
       bidScoreReview: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
@@ -121,6 +121,8 @@ describe('BidService — stage transitions', () => {
       user: { findMany: jest.fn() },
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+      expertDispute: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+      bidScoreRecordHistory: { create: jest.fn() },
       projectManagementStage: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
       $queryRaw: jest.fn().mockResolvedValue([]),
@@ -1140,7 +1142,8 @@ describe('BidService — stage transitions', () => {
 
     it('validates scoreItem belongs to project', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
+      // #2: 代评核验链——expert 需包含全部核验字段
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreItem.findFirst.mockResolvedValue(null); // scoreItem not in project
 
       await expect(service.submitScore('p1', {
@@ -1150,7 +1153,7 @@ describe('BidService — stage transitions', () => {
 
     it('upserts score record on valid input', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1', score: 10 });
@@ -1170,7 +1173,7 @@ describe('BidService — stage transitions', () => {
 
     it('代评：有 points 走 decision 汇总，与专家端口径一致', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1', scoreItemId: 'si-1', objective: true, fullScore: 15 }]);
@@ -1202,7 +1205,7 @@ describe('BidService — stage transitions', () => {
 
     it('P1-4：代评写 BidScoreReview(status=draft)，专家核对不再 P2025', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
@@ -1221,7 +1224,7 @@ describe('BidService — stage transitions', () => {
 
     it('P1-5：审计记 finalScore（checklist 下 ≠ dto.score）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScorePoint.findMany.mockResolvedValue([{ id: 'pt1', scoreItemId: 'si-1', objective: true, fullScore: 15 }]);
@@ -1241,7 +1244,7 @@ describe('BidService — stage transitions', () => {
 
     it('P1-5：写操作事务化（$transaction 被调用）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '刘', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30, category: 'TECHNICAL', name: '技术' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'SUCCESS', submitStatus: 'submitted' });
       prisma.bidScoreRecord.upsert.mockResolvedValue({ id: 'sr-1' });
@@ -1255,7 +1258,7 @@ describe('BidService — stage transitions', () => {
 
     it('P1-9：代评未解密成功/已撤回的供应商 → SUPPLIER_NOT_DECRYPTED', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true, confidentialityAgreed: true, disciplineAgreed: true });
       prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'si-1', maxScore: 30 });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', decryptStatus: 'PENDING', submitStatus: 'submitted' });
       await expect(service.submitScore('p1', {
@@ -2237,10 +2240,14 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
+      expertDispute: { count: jest.fn().mockResolvedValue(0) },
+      bidSupervisionLog: { create: jest.fn() },
       $transaction: jest.fn(async (cb: any) => cb({
+        bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
         bidSupervisionLog: { create: jest.fn() },
         bidSupplier: { update: jest.fn() },
+        $queryRaw: jest.fn().mockResolvedValue(undefined),
       })),
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -2266,9 +2273,11 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     prisma.bidOpeningRecord.findMany.mockResolvedValue([{ bidSupplierId: 's1', bondStatus: '未缴纳' }]);
     const txLogCreate = jest.fn();
     prisma.$transaction.mockImplementation(async (cb: any) => cb({
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: 'X' }) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: txLogCreate },
       bidSupplier: { update: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue(undefined),
     }));
 
     await service.generateEvaluationResults('p1', 'actor1');
@@ -2287,9 +2296,11 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
     });
     const txLogCreate = jest.fn();
     prisma.$transaction.mockImplementation(async (cb: any) => cb({
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: 'X' }) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: txLogCreate },
       bidSupplier: { update: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue(undefined),
     }));
 
     await service.generateEvaluationResults('p1', 'actor1');
@@ -2454,8 +2465,11 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
   });
 
   it('invalid → revoked + bidValidity=valid + WS', async () => {
-    prisma.bidInvalidBid.findUnique.mockResolvedValue({ id: 'ib1', projectId: 'p1', supplierId: 'sup1', status: 'invalid', failCount: 2, totalCount: 5 });
-    prisma.bidInvalidBid.findFirst.mockResolvedValue(null); // 撤销后无剩余 invalid 记录
+    // #1 fix: findUnique → findFirst（旧 unique 约束已移除）
+    // 两次 findFirst 调用：① 找记录 ② 查是否还有剩余 invalid
+    prisma.bidInvalidBid.findFirst
+      .mockResolvedValueOnce({ id: 'ib1', projectId: 'p1', supplierId: 'sup1', status: 'invalid', failCount: 2, totalCount: 5 })
+      .mockResolvedValueOnce(null); // 撤销后无剩余 invalid 记录
     prisma.bidInvalidBid.update.mockResolvedValue({ id: 'ib1', status: 'revoked' });
     prisma.bidExpert.findFirst.mockResolvedValue(null); // 未锁定
     await service.revokeInvalidBid('p1', 'sup1', 'si1', 'admin1');

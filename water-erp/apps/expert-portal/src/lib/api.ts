@@ -110,10 +110,12 @@ export async function listMemos(
   projectId: string,
   supplierId?: string,
   scorePointId?: string,
+  scoreItemId?: string,
 ): Promise<ExpertMemo[]> {
   const params = new URLSearchParams();
   if (supplierId) params.set('supplierId', supplierId);
   if (scorePointId) params.set('scorePointId', scorePointId);
+  if (scoreItemId) params.set('scoreItemId', scoreItemId);
   const qs = params.toString();
   return api.get<ExpertMemo[]>(
     `/expert/projects/${projectId}/memos${qs ? `?${qs}` : ''}`,
@@ -180,4 +182,31 @@ export interface QuoteHistoryRound {
 
 export async function getQuoteHistory(projectId: string): Promise<QuoteHistoryRound[]> {
   return api.get<QuoteHistoryRound[]>(`/expert/projects/${projectId}/quote-history`);
+}
+
+// ── 评分历史（当前值 + 修改快照，按评分项分组）──
+
+export interface ScoreHistoryEntry {
+  score: number;
+  passed: boolean | null;
+  reason: string | null;
+  action: string;
+  createdAt: string;
+}
+
+export interface ScoreHistoryItem {
+  scoreItemId: string;
+  scoreItemName: string;
+  category: string;
+  current: { score: number; passed: boolean | null; reason: string | null; updatedAt: string };
+  history: ScoreHistoryEntry[];
+}
+
+export async function getScoreHistory(
+  projectId: string,
+  supplierId: string,
+): Promise<ScoreHistoryItem[]> {
+  return api.get<ScoreHistoryItem[]>(
+    `/expert/projects/${projectId}/score-history?supplierId=${encodeURIComponent(supplierId)}`,
+  );
 }

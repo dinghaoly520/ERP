@@ -417,7 +417,8 @@ model BidInvalidBid {
   id          String    @id @default(cuid())
   projectId   String
   supplierId  String
-  scoreItemId String
+  scoreItemId String?   // nullable: dispute/manual 废标无关联评分项
+  source      String    @default("passfail") // passfail | dispute | manual — 废标来源
   failCount   Int       @default(0)
   totalCount  Int       @default(0)
   status      String    @default("invalid") // 'invalid' | 'revoked'
@@ -429,11 +430,13 @@ model BidInvalidBid {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  project   BidProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  supplier  BidSupplier  @relation("InvalidBidToBidSupplier", fields: [supplierId], references: [id], onDelete: Cascade) // Fixed: FK targets BidSupplier (not Supplier), matching code usage & migration
-  scoreItem BidScoreItem @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  project   BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier  BidSupplier   @relation("InvalidBidToBidSupplier", fields: [supplierId], references: [id], onDelete: Cascade)
+  scoreItem BidScoreItem? @relation(fields: [scoreItemId], references: [id], onDelete: SetNull)
 
-  @@unique([projectId, supplierId, scoreItemId])
+  // Unique 由 raw SQL migration 管理：COALESCE(scoreItemId,'') 处理 nullable
+  // passfail: unique per (project, supplier, 'passfail', scoreItemId)
+  // dispute/manual: unique per (project, supplier, source, '')
   @@index([projectId, supplierId])
 }
 
@@ -504,6 +507,9 @@ model BidExpert {
   disciplineAgreed      Boolean                 @default(false) // P4: 评标纪律确认
   disciplineAgreedAt    DateTime?               // P4: 确认时间
   scoreDraft            Json?                    // G3: 评分草稿(防 localStorage 丢失)
+  isPurchaserRepresentative Boolean             @default(false) // 采购人代表标识（不得担任组长）
+  dissentingOpinion     String?                  // 书面不同意见（null=同意评标结论）
+  dissentingReason      String?                  // 不同意见理由
   conflictedSupplierIds Json                    @default("[]")
   progress              Int                     @default(0)
   totalScore            Decimal                 @default("0") @db.Decimal(8, 1)

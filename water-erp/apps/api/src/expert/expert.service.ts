@@ -1277,15 +1277,24 @@ export class ExpertService {
         for (const itemId of Array.from(new Set(items))) {
           const verdict = await evaluateInvalidBid(this.prisma, projectId, s, itemId);
           if (verdict.disqualified) {
-            await this.prisma.bidInvalidBid.upsert({
-              where: { projectId_supplierId_scoreItemId: { projectId, supplierId: s, scoreItemId: itemId } },
-              update: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null, reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
-              create: { projectId, supplierId: s, scoreItemId: itemId, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
+            // #1: 旧 unique 约束已移除 → findFirst + create/update
+            const existingRec = await this.prisma.bidInvalidBid.findFirst({
+              where: { projectId, supplierId: s, scoreItemId: itemId },
             });
+            if (existingRec) {
+              await this.prisma.bidInvalidBid.update({
+                where: { id: existingRec.id },
+                data: { failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', revokedAt: null, revokedBy: null, reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
+              });
+            } else {
+              await this.prisma.bidInvalidBid.create({
+                data: { projectId, supplierId: s, scoreItemId: itemId, source: 'passfail', failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid', reason: `通过性审查不通过票过半（${verdict.failCount}/${verdict.totalCount}）` },
+              });
+            }
             this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'invalid' });
           } else {
             // 不过半：若之前 invalid 现恢复（票数变化，决策 B 接受跳变）
-            const existing = await this.prisma.bidInvalidBid.findUnique({ where: { projectId_supplierId_scoreItemId: { projectId, supplierId: s, scoreItemId: itemId } } });
+            const existing = await this.prisma.bidInvalidBid.findFirst({ where: { projectId, supplierId: s, scoreItemId: itemId } });
             if (existing?.status === 'invalid') {
               await this.prisma.bidInvalidBid.update({ where: { id: existing.id }, data: { status: 'revoked', revokedAt: new Date() } });
               this.gateway?.notifyBidValidity?.(projectId, { supplierId: s, failCount: verdict.failCount, totalCount: verdict.totalCount, status: 'revoked' });
@@ -1715,19 +1724,124 @@ export class ExpertService {
     return updated;
   }
 
-  /** G3: 保存/加载评分草稿(服务端持久化,防 localStorage 丢失) */
-  async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>) {
+  /** G3: 保存/加载评分草稿(服务端持久化,防 localStorage 丢失)。
+   *  按 device 分槽存储，避免平板与桌面互相覆盖。 */
+  async saveScoreDraft(userId: string, projectId: string, draft: Record<string, unknown>, device?: 'tablet' | 'desktop') {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
     if (expert.reportConfirmed) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     }
-    return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: draft as any } });
+    const deviceSlot = device === 'tablet' ? 'tablet' : 'desktop';
+    // 兼容旧扁平格式：若 scoreDraft 不含 device 分槽，初始化为空对象
+    const existing = (expert.scoreDraft as any) ?? {};
+    const merged = typeof existing.tablet === 'object' || typeof existing.desktop === 'object'
+      ? { ...existing, [deviceSlot]: draft }
+      : { desktop: existing, [deviceSlot]: draft };
+    return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: merged as any } });
   }
 
-  async getScoreDraft(userId: string, projectId: string) {
+  async getScoreDraft(userId: string, projectId: string, device?: 'tablet' | 'desktop') {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
-    return expert?.scoreDraft ?? null;
+    const raw = (expert?.scoreDraft ?? {}) as any;
+    // 兼容旧扁平格式 → 视为 desktop 草稿
+    if (!raw || (typeof raw.tablet !== 'object' && typeof raw.desktop !== 'object')) {
+      if (raw && typeof raw.scores === 'object') return raw; // 旧格式直接返回
+      return null;
+    }
+    // 新格式：合并 tablet + desktop 草稿，对本设备优先（同一 scoreKey 本设备的覆盖对方的）
+    const own = (device === 'tablet' ? raw.tablet : raw.desktop) ?? {};
+    const other = (device === 'tablet' ? raw.desktop : raw.tablet) ?? {};
+    const ownScores = own?.scores ?? {};
+    const otherScores = other?.scores ?? {};
+    const mergedScores = { ...otherScores, ...ownScores }; // 本设备覆盖
+    const mergedSavedAt = Math.max(
+      own?.savedAt ?? 0,
+      other?.savedAt ?? 0,
+    );
+    return {
+      scores: mergedScores,
+      savedAt: mergedSavedAt,
+    };
+  }
+
+  /** 评分历史：当前值 + 修改快照，按 scoreItemId 分组 */
+  async getScoreHistory(userId: string, projectId: string, supplierId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    const [records, history] = await Promise.all([
+      this.prisma.bidScoreRecord.findMany({
+        where: { expertId: expert.id, supplierId },
+        include: { scoreItem: { select: { id: true, name: true, category: true } } },
+        orderBy: { scoreItem: { category: 'asc' } },
+      }),
+      this.prisma.bidScoreRecordHistory.findMany({
+        where: { expertId: expert.id, supplierId },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    // BidScoreRecordHistory 无 scoreItem 关系，从 records 构建 scoreItemId→{name,category} 查找表
+    const itemMeta = new Map<string, { name: string; category: string }>();
+    for (const r of records) {
+      if (r.scoreItem) itemMeta.set(r.scoreItemId, { name: r.scoreItem.name, category: r.scoreItem.category });
+    }
+
+    // 按 scoreItemId 分组
+    const grouped: Array<{
+      scoreItemId: string;
+      scoreItemName: string;
+      category: string;
+      current: { score: number; passed: boolean | null; reason: string | null; updatedAt: string };
+      history: Array<{ score: number; passed: boolean | null; reason: string | null; action: string; createdAt: string }>;
+    }> = [];
+
+    const byItemId = new Map<string, typeof grouped[number]>();
+
+    // 先放历史快照
+    for (const h of history) {
+      const key = h.scoreItemId;
+      const meta = itemMeta.get(key);
+      if (!byItemId.has(key)) {
+        byItemId.set(key, {
+          scoreItemId: key,
+          scoreItemName: meta?.name ?? key,
+          category: meta?.category ?? '',
+          current: { score: 0, passed: null, reason: null, updatedAt: '' },
+          history: [],
+        });
+      }
+      byItemId.get(key)!.history.push({
+        score: Number(h.score),
+        passed: h.passed,
+        reason: h.reason,
+        action: h.action,
+        createdAt: h.createdAt.toISOString(),
+      });
+    }
+
+    // 再放当前值
+    for (const r of records) {
+      const key = r.scoreItemId;
+      if (!byItemId.has(key)) {
+        byItemId.set(key, {
+          scoreItemId: key,
+          scoreItemName: r.scoreItem?.name ?? key,
+          category: r.scoreItem?.category ?? '',
+          current: { score: 0, passed: null, reason: null, updatedAt: '' },
+          history: [],
+        });
+      }
+      byItemId.get(key)!.current = {
+        score: Number(r.score),
+        passed: r.passed,
+        reason: r.reason,
+        updatedAt: r.updatedAt.toISOString(),
+      };
+    }
+
+    return Array.from(byItemId.values());
   }
 
   /** E：桌面端「去打分平板」跨设备联动——写入 focus hint（Redis，TTL 120s）。 */

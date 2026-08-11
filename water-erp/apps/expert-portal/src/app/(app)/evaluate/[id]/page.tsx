@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, listMemos } from '@/lib/api';
 import { toast } from 'sonner';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores } from '@/lib/score-validation';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote, History } from 'lucide-react';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
@@ -22,6 +22,9 @@ import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
 import { openingHallApi } from '@/lib/opening-hall';
 import type { HallMessagePayload } from '@water-erp/shared';
 import { formatBytes } from '@/lib/utils';
+import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
+import { ScoreHistoryDrawer } from '@/components/evaluate/score-history-drawer';
+import { getScoreHistory as _getScoreHistory } from '@/lib/api';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -80,6 +83,19 @@ export default function ExpertEvaluatePage() {
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
   // P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
   const [memoOpen, setMemoOpen] = useState(false);
+  // Task 6: 得分点选中（联动备忘抽屉）—— 桌面允许无选中点的项目/供应商级备忘
+  const [activePointId, setActivePointId] = useState<string | null>(null);
+  const [activePointName, setActivePointName] = useState<string>('');
+  const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
+  const [pointMemoCounts, setPointMemoCounts] = useState<Record<string, number>>({});
+  const [draftConflicts, setDraftConflicts] = useState<Array<{
+    key: string;
+    scoreItemName: string;
+    localVal: any;
+    remoteVal: any;
+  }>>([]);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   // D1: 开标大厅公聊消息
   const [hallMessages, setHallMessages] = useState<HallMessagePayload[]>([]);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -150,6 +166,39 @@ export default function ExpertEvaluatePage() {
         return [...prev, d].slice(-200); // 最多保留 200 条
       });
       setUnreadMessageCount(prev => prev + 1);
+    },
+    onScoresSubmitted: (d) => {
+      // 忽略自己的提交（避免重复刷新）
+      if (project?.myExpertRecord?.id && d.expertId === project.myExpertRecord.id) return;
+      loadProject();
+    },
+    onDraftSaved: (d) => {
+      if (d.device === 'desktop') return;
+      api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`)
+        .then(draft => {
+          if (!draft?.scores) return;
+          const newItems: string[] = [];
+          const conflicts: typeof draftConflicts = [];
+          for (const [key, remoteVal] of Object.entries(draft.scores)) {
+            if (!(key in scores)) {
+              newItems.push(key);
+            } else if (JSON.stringify(scores[key]) !== JSON.stringify(remoteVal)) {
+              const itemName = project?.scoreItems.find(si => key.endsWith(`:${si.id}`))?.name ?? key;
+              conflicts.push({ key, scoreItemName: itemName, localVal: scores[key], remoteVal });
+            }
+          }
+          if (newItems.length > 0) {
+            setScores(prev => {
+              const next = { ...prev };
+              for (const k of newItems) next[k] = draft.scores![k];
+              return next;
+            });
+          }
+          if (conflicts.length > 0) {
+            setDraftConflicts(prev => [...prev, ...conflicts]);
+          }
+        })
+        .catch(() => {});
     },
   });
 
@@ -329,7 +378,7 @@ export default function ExpertEvaluatePage() {
       }
     } catch { /* corrupt draft — ignore */ }
     // localStorage 无草稿，尝试从服务端恢复
-    api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft`)
+    api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`)
       .then(d => {
         if (d && d.scores && Object.keys(d.scores).length > 0) {
           setDraftAvailable({ count: Object.keys(d.scores).length, savedAt: d.savedAt ?? Date.now() });
@@ -350,7 +399,7 @@ export default function ExpertEvaluatePage() {
         localStorage.setItem(draftStorageKey, JSON.stringify({ scores, savedAt: Date.now() }));
       } catch { /* quota / private mode — ignore */ }
       // E4/G3: 同步到服务端（失败静默降级到 localStorage）
-      api.post(`/expert/projects/${projectId}/score-draft`, { scores, savedAt: Date.now() }).catch(() => {});
+      api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores, savedAt: Date.now() }).catch(() => {});
     }, 2000);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
   }, [scores, draftStorageKey, step, projectId]);
@@ -369,7 +418,7 @@ export default function ExpertEvaluatePage() {
   };
   const discardDraft = () => {
     if (draftStorageKey) localStorage.removeItem(draftStorageKey);
-    api.post(`/expert/projects/${projectId}/score-draft`, { scores: {}, savedAt: Date.now() }).catch(() => {});
+    api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: {}, savedAt: Date.now() }).catch(() => {});
     setDraftAvailable(null);
     setDraftDismissed(true);
   };
@@ -379,7 +428,7 @@ export default function ExpertEvaluatePage() {
     try {
       localStorage.setItem(draftStorageKey, JSON.stringify({ scores: payload, savedAt: Date.now() }));
     } catch { /* quota — ignore */ }
-    api.post(`/expert/projects/${projectId}/score-draft`, { scores: payload, savedAt: Date.now() })
+    api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: payload, savedAt: Date.now() })
       .then(() => toast.success('草稿已保存（已同步到服务端）'))
       .catch(() => toast.success('草稿已保存（本地）'));
   };
@@ -401,6 +450,20 @@ export default function ExpertEvaluatePage() {
     const next = { ...scores, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed } };
     setScores(next);
     saveDraftNow(next);
+    // undo toast for modifications (not new items)
+    const oldPointVal = cur.points?.[pointId];
+    if (oldPointVal && (oldPointVal.checked !== value.checked || oldPointVal.awardedScore !== value.awardedScore)) {
+      const pointName = si?.points?.find(p => p.id === pointId)?.name ?? pointId;
+      toast(`已将「${pointName}」修改`, {
+        action: {
+          label: '撤销',
+          onClick: () => {
+            handlePointChange(scoreItemId, pointId, oldPointVal);
+          },
+        },
+        duration: 3000,
+      });
+    }
   }, [activeSupplier, scores, project]);
 
   // D：得分点级批注（写 points[pointId].note 草稿）
@@ -416,7 +479,38 @@ export default function ExpertEvaluatePage() {
     saveDraftNow(next);
   }, [activeSupplier, scores]);
 
+  // 得分点选中（联动备忘抽屉）
+  const handlePointClickDesk = useCallback(
+    (pointId: string, pointName: string) => {
+      setActivePointId(pointId);
+      setActivePointName(pointName);
+      if (project) {
+        const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === pointId));
+        setActiveScoreItemId(item?.id ?? null);
+      }
+    },
+    [project],
+  );
+
+  const handleMemoCountChange = useCallback((pid: string, count: number) => {
+    setPointMemoCounts(prev => prev[pid] === count ? prev : { ...prev, [pid]: count });
+  }, []);
+
   useEffect(() => { loadProject(); }, [loadProject]);
+
+  // 批量加载当前供应商的 memo 计数（按 scorePointId reduce）
+  useEffect(() => {
+    if (!activeSupplier) return;
+    listMemos(projectId, activeSupplier)
+      .then(list => {
+        const counts: Record<string, number> = {};
+        for (const m of list) {
+          if (m.scorePointId) counts[m.scorePointId] = (counts[m.scorePointId] ?? 0) + 1;
+        }
+        setPointMemoCounts(counts);
+      })
+      .catch(() => { /* silent */ });
+  }, [activeSupplier, projectId]);
 
   // Sync phone verification state from project data
   useEffect(() => {
@@ -1450,6 +1544,12 @@ export default function ExpertEvaluatePage() {
                 scores={scores}
                 onPointChange={handlePointChange}
                 onPointNote={handlePointNote}
+                pointMemoCounts={pointMemoCounts}
+                selectedPointId={activePointId}
+                onPointClick={(pid, pname) => {
+                  handlePointClickDesk(pid, pname);
+                  setMemoOpen(true);
+                }}
               />
             </div>
           )}
@@ -1457,19 +1557,32 @@ export default function ExpertEvaluatePage() {
           {/* ====== 专家打分 ====== */}
           {step === 'scoring' && (
             <div className="p-6">
+              {/* WS 同步冲突横幅 */}
+              {draftConflicts.length > 0 && (
+                <div className="mb-4 flex items-center gap-3 rounded-[10px] px-4 py-2"
+                  style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', borderLeft: '3px solid var(--warning)' }}>
+                  <AlertTriangle size={15} className="shrink-0 text-[var(--warning)]" />
+                  <span className="flex-1 text-xs font-semibold text-[var(--warning)]">
+                    检测到 {draftConflicts.length} 项评分变更（来自平板端）
+                  </span>
+                  <button type="button"
+                    onClick={() => setConflictModalOpen(true)}
+                    className="neu-btn-xs !h-9 !px-3">处理</button>
+                </div>
+              )}
               <div className="mb-6 flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-[var(--foreground)]">专家独立打分</h2>
                   <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">请根据您的专业判断进行客观评分</p>
                 </div>
-                {/* P5 Task 7: 桌面端备忘入口（键盘输入 + 查看平板墨迹） */}
+                {/* Task 6: 评分历史入口（替代备忘按钮） */}
                 <button
                   type="button"
-                  onClick={() => setMemoOpen(true)}
+                  onClick={() => setHistoryOpen(true)}
                   className="neu-btn-xs shrink-0"
-                  aria-label="打开备忘面板"
+                  aria-label="查看评分历史"
                 >
-                  <StickyNote size={14} strokeWidth={1.7} /> 备忘
+                  <History size={14} strokeWidth={1.7} /> 评分历史
                 </button>
               </div>
 
@@ -1637,6 +1750,9 @@ export default function ExpertEvaluatePage() {
                                             const allChecked = objectivePts.length > 0 && objectivePts.every(p => points[p.id]?.checked === true);
                                             return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: allChecked } };
                                           })}
+                                          selectedPointId={activePointId}
+                                          onPointClick={handlePointClickDesk}
+                                          pointMemoCounts={pointMemoCounts}
                                         />
                                       </div>
                                     )}
@@ -1692,7 +1808,11 @@ export default function ExpertEvaluatePage() {
                                         // rollup: Σ awardedScore → item.score（类别小计 + submit payload 都读 score）
                                         const score = itemPoints.reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
                                         return { ...prev, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed } };
-                                      })} />
+                                      })}
+                                      selectedPointId={activePointId}
+                                      onPointClick={handlePointClickDesk}
+                                      pointMemoCounts={pointMemoCounts}
+                                    />
                                     <textarea placeholder="评分理由（可选）" value={val?.reason || ''}
                                       onFocus={() => onReasonFocus(k)}
                                       onBlur={onReasonBlur}
@@ -1857,6 +1977,11 @@ export default function ExpertEvaluatePage() {
                       {project?.suppliers.find(s => s.id === activeSupplier)?.supplierName || '当前供应商'}
                     </span>
                   )}
+                  {activePointName && (
+                    <span className="exp-pill ml-1 max-w-[120px] truncate" style={{ '--c': 'var(--accent-strong)' } as React.CSSProperties}>
+                      {activePointName}
+                    </span>
+                  )}
                 </h2>
                 <button
                   type="button"
@@ -1873,7 +1998,11 @@ export default function ExpertEvaluatePage() {
                   <MemoPanel
                     projectId={projectId}
                     supplierId={activeSupplier}
+                    scorePointId={activePointId ?? undefined}
+                    scorePointName={activePointName || undefined}
+                    scoreItemId={activeScoreItemId ?? undefined}
                     sourceDevice="desktop"
+                    onMemoCountChange={handleMemoCountChange}
                   />
                 ) : (
                   <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">请先在左侧选择供应商</p>
@@ -1882,6 +2011,39 @@ export default function ExpertEvaluatePage() {
             </aside>
           </div>
         )}
+        {/* 冲突裁决弹窗 */}
+        <SyncConflictModal
+          open={conflictModalOpen}
+          newItems={[]}
+          conflictItems={draftConflicts.map(c => ({
+            key: c.key,
+            scoreItemName: c.scoreItemName,
+            localVal: c.localVal,
+            remoteVal: c.remoteVal,
+            remoteDevice: 'tablet',
+          }))}
+          localDevice="desktop"
+          onConfirm={(resolved) => {
+            setScores(prev => {
+              const next = { ...prev };
+              for (const c of draftConflicts) {
+                if (resolved[c.key] === 'remote') next[c.key] = c.remoteVal;
+              }
+              return next;
+            });
+            setDraftConflicts([]);
+            setConflictModalOpen(false);
+          }}
+          onClose={() => setConflictModalOpen(false)}
+        />
+        {/* 评分历史抽屉 */}
+        <ScoreHistoryDrawer
+          open={historyOpen}
+          projectId={projectId}
+          supplierId={activeSupplier}
+          suppliers={project?.suppliers.map(s => ({ id: s.id, supplierName: s.supplierName })) ?? []}
+          onClose={() => setHistoryOpen(false)}
+        />
       </div>
   );
 }

@@ -33,6 +33,8 @@ import {
   type OpeningDisputeResolvedPayload,
   type OpeningCompletedPayload,
   type RoundStatusChangePayload,
+  type ScoresSubmittedPayload,
+  type DraftSavedPayload,
 } from '@water-erp/shared';
 
 /** Roles that may see individual presence / supervision / anomalies (command center). */
@@ -414,5 +416,24 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // H2: 轮次状态变更广播——project 房间（所有参与者）
   notifyRoundStatusChange(projectId: string, payload: RoundStatusChangePayload) {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.ROUND_STATUS_CHANGE, payload);
+  }
+
+  /** 评分提交里程碑：广播到专家房（所有本项目专家），不含分数值 */
+  notifyScoresSubmitted(projectId: string, expertId: string, supplierId: string) {
+    const payload: ScoresSubmittedPayload = { projectId, expertId, supplierId, timestamp: Date.now() };
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.SCORES_SUBMITTED, payload);
+  }
+
+  /** 草稿保存限流：键 `${projectId}:${expertId}`，3s 内不重复发送 */
+  private draftSavedThrottle = new Map<string, number>();
+
+  /** 草稿保存通知：广播到专家房（仅同项目其他专家），不含草稿内容 */
+  notifyDraftSaved(projectId: string, expertId: string, device: 'tablet' | 'desktop') {
+    const key = `${projectId}:${expertId}`;
+    const last = this.draftSavedThrottle.get(key) ?? 0;
+    if (Date.now() - last < 3000) return;
+    this.draftSavedThrottle.set(key, Date.now());
+    const payload: DraftSavedPayload = { projectId, expertId, device, timestamp: Date.now() };
+    this.server.to(`experts:${projectId}`).emit(BID_EVENT.DRAFT_SAVED, payload);
   }
 }

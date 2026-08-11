@@ -202,12 +202,12 @@ export default function ExpertTasksPage() {
         </div>
       ) : (
         <>
-          {/* ====== 表决记录（投票中 + 已决议）====== */}
+          {/* ====== 动议记录（投票中 + 已决议）====== */}
           <section>
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Gavel size={15} strokeWidth={1.8} className="text-[var(--accent)]" />
-                <h3 className="text-sm font-bold text-[var(--foreground)]">表决记录</h3>
+                <h3 className="text-sm font-bold text-[var(--foreground)]">动议记录</h3>
                 <span className="rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums text-white" style={{ background: motions.length > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>
                   {motions.length}
                 </span>
@@ -217,7 +217,7 @@ export default function ExpertTasksPage() {
                   onClick={() => { autoFillProject(setMotionForm); setShowMotionForm(!showMotionForm); }}
                   className="neu-btn-soft !h-[28px] !text-xs"
                 >
-                  <Plus size={12} /> {showMotionForm ? '取消' : '发起表决'}
+                  <Plus size={12} /> {showMotionForm ? '取消' : '发起动议'}
                 </button>
               )}
             </div>
@@ -248,8 +248,8 @@ export default function ExpertTasksPage() {
             {motions.length === 0 ? (
               <div className="neu-card-static rounded-2xl px-6 py-10 text-center">
                 <Gavel size={24} strokeWidth={1.2} className="mx-auto mb-2 text-[var(--muted-foreground)] opacity-50" />
-                <p className="text-xs text-[var(--muted-foreground)]">暂无表决记录</p>
-                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">点击「发起表决」按钮新建</p>
+                <p className="text-xs text-[var(--muted-foreground)]">暂无动议记录</p>
+                <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] opacity-60">点击「发起动议」按钮新建</p>
               </div>
             ) : (
               <div className="space-y-2">

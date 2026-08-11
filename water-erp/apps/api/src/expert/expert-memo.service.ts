@@ -110,7 +110,13 @@ export class ExpertMemoService {
     });
   }
 
-  async getMemos(userId: string, projectId: string, supplierId?: string, scorePointId?: string) {
+  async getMemos(
+    userId: string,
+    projectId: string,
+    supplierId?: string,
+    scorePointId?: string,
+    scoreItemId?: string,
+  ) {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -125,6 +131,7 @@ export class ExpertMemoService {
         projectId,
         ...(supplierId ? { supplierId } : {}),
         ...(scorePointId ? { scorePointId } : {}),
+        ...(scoreItemId ? { scoreItemId } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -190,6 +197,34 @@ export class ExpertMemoService {
       });
     const memo = await this.prisma.expertMemo.findFirst({
       where: { id: memoId, expertId: expert.id, projectId },
+      include: { inkFile: true },
+    });
+    if (!memo?.inkFile)
+      throw new BadRequestException({
+        error: '无墨迹原图',
+        code: 'NO_INK',
+      });
+    return { url: await this.storage.getPresignedUrl(memo.inkFile.key) };
+  }
+
+  async getMemosForAdmin(
+    projectId: string,
+    filters?: { expertId?: string; supplierId?: string; scoreItemId?: string },
+  ) {
+    return this.prisma.expertMemo.findMany({
+      where: {
+        projectId,
+        ...(filters?.expertId ? { expertId: filters.expertId } : {}),
+        ...(filters?.supplierId ? { supplierId: filters.supplierId } : {}),
+        ...(filters?.scoreItemId ? { scoreItemId: filters.scoreItemId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getInkUrlForAdmin(projectId: string, memoId: string) {
+    const memo = await this.prisma.expertMemo.findFirst({
+      where: { id: memoId, projectId },
       include: { inkFile: true },
     });
     if (!memo?.inkFile)

@@ -98,7 +98,7 @@ export class PriceFormulaService {
           this.logger.warn(`未知公式类型: ${config.formulaType},回退最低评标价法`);
           score = this.calcLowestPrice(bidPrice, minPrice, maxScore);
       }
-      result.set(supplierId, Math.round(score * 10) / 10); // 保留 1 位小数
+      result.set(supplierId, Math.min(Math.round(score * 10) / 10, maxScore)); // 保留 1 位小数，封顶 maxScore
     }
 
     return result;
@@ -120,8 +120,9 @@ export class PriceFormulaService {
     maxScore: number,
   ): number {
     if (!ceilingPrice || ceilingPrice <= 0) {
-      // 无控制价时回退最低价法
-      return maxScore; // 调用方应保证有 ceilingPrice
+      // 无控制价时无法计算基准价偏离——返回 0 并告警（非满分，避免静默失效）
+      this.logger.warn('benchmark_deviation 公式缺少 ceilingPrice，价格分置 0');
+      return 0;
     }
     const benchmark = ceilingPrice * K;
     const deviation = Math.abs(bidPrice - benchmark) / benchmark; // 偏离率

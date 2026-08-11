@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Query, Res, Req, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Query, Res, Req, HttpCode, HttpStatus, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -182,6 +182,14 @@ export class AuthController {
       } catch { /* token 无效则降级，直接跳转不做 SSO */ }
     }
 
+    // 白名单校验 redirect_uri，防止开放重定向
+    const ALLOWED_REDIRECTS = new Set([
+      'http://localhost:3003',
+      ...(process.env.MALL_URL ? [process.env.MALL_URL] : []),
+    ]);
+    if (redirectUri && !ALLOWED_REDIRECTS.has(redirectUri)) {
+      throw new BadRequestException({ error: '非法重定向地址', code: 'INVALID_REDIRECT' });
+    }
     const mallRedirect = redirectUri || 'http://localhost:3003';
 
     if (currentUserId) {

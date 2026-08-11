@@ -32,6 +32,7 @@ import { UpdateAgreementsDto } from './dto/update-agreements.dto';
 import { CreateMemoDto } from './dto/create-memo.dto';
 import { UpdateMemoDto } from './dto/update-memo.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { BidGateway } from '../bid/bid.gateway';
 import { Public } from '../common/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { UseGuards } from '@nestjs/common';
@@ -45,6 +46,7 @@ export class ExpertController {
     private expertAdminService: ExpertAdminService,
     private memoService: ExpertMemoService,
     private prisma: PrismaService,
+    private bidGateway: BidGateway,
   ) {}
 
   /* ── 个人资料 ── */
@@ -309,12 +311,21 @@ export class ExpertController {
     summary: '提交评分（按供应商批量）',
     description: '每次调用提交一个供应商的全部评分项。**需提交全部 5 类评分项**（含资格性审查/符合性审查，可打 0 分）方可达到 progress=100% 并确认报告。supplierName 为供应商企业全称，scores 数组中每项包含 scoreItemId/supplierId/score/reason。',
   })
-  submitScores(
+  async submitScores(
     @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
     @Body() dto: BatchScoreDto,
   ) {
-    return this.expertService.submitScores(userId, projectId, dto);
+    const result = await this.expertService.submitScores(userId, projectId, dto);
+    // WS 广播评分提交里程碑（不含分数值）→ 同项目其他专家端自行刷新
+    try {
+      const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+      const supplierId = dto.scores?.[0]?.supplierId;
+      if (expert && supplierId) {
+        this.bidGateway.notifyScoresSubmitted(projectId, expert.id, supplierId);
+      }
+    } catch { /* WS 非关键路径——静默降级 */ }
+    return result;
   }
 
   @Get('projects/:projectId/my-scores')
@@ -373,13 +384,40 @@ export class ExpertController {
   /* ── G3: 评分草稿持久化 ── */
 
   @Post('projects/:projectId/score-draft')
-  saveScoreDraft(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Body() draft: Record<string, unknown>) {
-    return this.expertService.saveScoreDraft(userId, projectId, draft);
+  async saveScoreDraft(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Body() draft: Record<string, unknown>,
+    @Query('device') device?: string,
+  ) {
+    const d = (device === 'tablet' || device === 'desktop') ? device : 'desktop';
+    const result = await this.expertService.saveScoreDraft(userId, projectId, draft, d);
+    // WS 通知同项目其他专家端（自己的 device 不会收到——由客户端过滤）
+    try {
+      const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+      if (expert) this.bidGateway.notifyDraftSaved(projectId, expert.id, d);
+    } catch { /* WS 非关键路径 */ }
+    return result;
   }
 
   @Get('projects/:projectId/score-draft')
-  getScoreDraft(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertService.getScoreDraft(userId, projectId);
+  getScoreDraft(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Query('device') device?: string,
+  ) {
+    const d = (device === 'tablet' || device === 'desktop') ? device : undefined;
+    return this.expertService.getScoreDraft(userId, projectId, d);
+  }
+
+  @Get('projects/:projectId/score-history')
+  @ApiOperation({ summary: '评分历史（当前值 + 修改快照，按评分项分组）' })
+  getScoreHistory(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Query('supplierId') supplierId: string,
+  ) {
+    return this.expertService.getScoreHistory(userId, projectId, supplierId);
   }
 
   /* ── E: 「去打分平板」跨设备联动（Redis focus hint）── */
@@ -470,8 +508,9 @@ export class ExpertController {
     @Param('projectId') projectId: string,
     @Query('supplierId') supplierId?: string,
     @Query('scorePointId') scorePointId?: string,
+    @Query('scoreItemId') scoreItemId?: string,
   ) {
-    return this.memoService.getMemos(userId, projectId, supplierId, scorePointId);
+    return this.memoService.getMemos(userId, projectId, supplierId, scorePointId, scoreItemId);
   }
 
   @ApiOperation({ summary: '创建备忘（支持 multipart 墨迹 PNG 上传，OCR 自动降级）' })
