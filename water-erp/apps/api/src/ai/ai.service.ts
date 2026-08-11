@@ -1082,7 +1082,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
   async recommendSuppliers(
     requirement: string,
-    opts: { classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[] },
+    opts: { classificationId?: string; tags?: string[]; maxCount?: number; excludedSupplierIds?: string[]; projectContext?: Record<string, string> },
   ): Promise<SupplierSelectionResult> {
     const maxCount = Math.min(Math.max(opts.maxCount ?? 10, 1), 30);
     const reqGrams = this.tokenize(requirement);
@@ -1229,11 +1229,11 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     }));
 
     // 3. LLM 排序（失败重试一次再降级规则引擎，确保正选和补选的一致性）
-    let llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount);
+    let llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount, opts.projectContext);
     if (!llm || llm.recommendations.length === 0) {
       // 重试一次：缓解 API 瞬时不可用导致的正选/补选分数不可比
       this.logger.warn('LLM supplier selection failed, retrying once...');
-      llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount);
+      llm = await this.selectionAi.rankCandidates(requirement, candidates, maxCount, opts.projectContext);
     }
 
     let recommendations: SupplierRecommendation[];
@@ -2259,6 +2259,57 @@ stageMatch 字段需要输出两部分判断结果：
         fileAnalyses: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>;
       }>(systemPrompt, userPrompt, 0.2);
 
+      // ── 事后修复：AI 输出含 U+FFFD 或 ??? 乱码 → 二次 LLM 修复 ──
+      const needsRepair = (s: string) => s && (s.includes('�') || /\?{3,}/.test(s));
+      const summaryGarbled = needsRepair(result.summary?.contentSummary || '');
+      const garbledFiles = (result.fileAnalyses || []).filter(
+        f => needsRepair(f.contentSummary) || needsRepair(f.stageMatch),
+      );
+      if (summaryGarbled || garbledFiles.length > 0) {
+        this.logger.warn(
+          `[analyzeProjectDetail] 检测到 AI 输出含乱码字符（U+FFFD/???）` +
+          ` — summary=${summaryGarbled}, files=${garbledFiles.length}，启动修复`,
+        );
+        try {
+          const repairTargets =
+            (summaryGarbled ? [`【项目简报】${result.summary!.contentSummary}`] : [])
+              .concat(garbledFiles.map(f => `【${f.fileName}】${f.contentSummary}`));
+          const repairPrompt = [
+            '以下文本来自 AI 文件分析结果，其中部分输出可能包含 Unicode 替换字符（U+FFFD 显示为 �）或连续问号（???），这些不是真实内容，而是编码损坏。',
+            '请根据上下文语义，将每个损坏字符还原为正确的中文汉字或数字符号，输出修复后的完整文本。',
+            '注意：',
+            '1. 如 "800��" 结合上下文"额定钻深不低于800��的全液压岩心钻机"，应还原为 "800米"',
+            '2. 如 "�孔钻探" 结合上下文，应还原为 "深孔钻探"',
+            '3. 严禁保留任何乱码符号，每个乱码位置都必须还原',
+            '4. 严禁改变非乱码部分的任何文字',
+            '5. 输出修复后的全部文本（用相同的【标题】前缀），不要加任何解释',
+          ].join('\n');
+          const repaired = await this.llm.chat(repairPrompt, repairTargets.join('\n\n'), 0.1);
+
+          // 解析修复结果回原结构
+          if (repaired) {
+            let r = repaired.trim();
+            // 提取项目简报
+            const briefMatch = r.match(/【项目简报】([\s\S]*?)(?=【|$)/);
+            if (briefMatch && summaryGarbled) {
+              result.summary!.contentSummary = briefMatch[1].trim();
+            }
+            // 提取每个文件的修复
+            for (const gf of garbledFiles) {
+              const escaped = gf.fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const fm = r.match(new RegExp(`【${escaped}】([\\s\\S]*?)(?=【|$)`));
+              if (fm) {
+                gf.contentSummary = fm[1].trim();
+                gf.stageMatch = gf.stageMatch?.replace(/�/g, '').replace(/\?{3,}/g, '');
+              }
+            }
+          }
+        } catch (repairErr) {
+          this.logger.warn(`[analyzeProjectDetail] 乱码修复失败: ${(repairErr as Error)?.message}`);
+          // 不阻塞 — 返回原始输出（即使含乱码）
+        }
+      }
+
       return {
         analysis: result.summary?.contentSummary || `项目"${project.title || ''}"本轮共分析${files.length}个文件。`,
         fileAnalyses: Array.isArray(result.fileAnalyses)
@@ -2624,6 +2675,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     };
     files: Array<{ fileName: string; stageMatch: string; contentSummary: string }>;
     fileAnalysisResults?: Array<{ fileName: string; stageKey: string; contentSummary: string }>;
+    stepAnalysis?: string;
   }) {
     const stageLabelMap: Record<string, string> = {
       PROCUREMENT_DEMAND: '采购需求',
@@ -2645,6 +2697,10 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       .map(f => `- ${f.fileName}：${f.stageMatch}\n  摘要：${f.contentSummary}`)
       .join('\n') || '（本次未提供任何文件分析结果——凡需要文件证据支撑的审查项，按"材料未提供"处理，不得判"通过"。）';
 
+    const stepAnalysisBlock = (payload.stepAnalysis || '').trim()
+      ? `=== 步骤分析结果 ===\n${(payload.stepAnalysis as string).trim()}`
+      : null;
+
     const systemPrompt = [
       '你是"水叮当"——四川水发集团招采ERP的 AI 采购合规审查专家，负责对采购项目的每个阶段进行合规性审查。',
       '',
@@ -2660,6 +2716,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       '- "通过"：仅当项目信息或文件内容中确有可印证该要点的内容时才判通过；信息不足以印证时不得判通过。',
       '- "警告"：所需文件未提供、关键内容缺失、信息模糊或部分要素缺失时判警告，并给出补充该材料后复审的建议。',
       '- "违规"：明确违反法规要求，或文件内容与审查要点存在严重冲突；必须引用具体证据。',
+      '- 步骤分析结果（如提供）与文件分析结果具有同等证据效力，可据此判定通过/警告/违规。',
       '',
       '# 输出格式',
       '严格返回 JSON（不要任何其他文本、代码块标记或解释）：',
@@ -2701,6 +2758,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       `=== 文件分析结果 ===`,
       fileSummaries,
       '',
+      ...(stepAnalysisBlock ? [stepAnalysisBlock, ''] : []),
       `=== 审查要点 ===`,
       checkpointsText,
     ].join('\n');
