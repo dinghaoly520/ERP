@@ -3257,11 +3257,29 @@ export class BidService {
     return record;
   }
 
-  listScores(projectId: string) {
-    return this.prisma.bidScoreRecord.findMany({
+  async listScores(projectId: string) {
+    const records = await this.prisma.bidScoreRecord.findMany({
       where: { expert: { projectId } },
       include: { expert: true, scoreItem: true },
     });
+
+    // 配置开关：评标期间对主持端匿名化专家身份
+    const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL === 'true';
+    if (!anonymize) return records;
+
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, experts: { select: { reportConfirmed: true } } },
+    });
+    const allConfirmed = project?.experts.every(e => e.reportConfirmed) ?? false;
+    if (project?.stage === 'EVALUATING' && !allConfirmed) {
+      return records.map(r => ({
+        ...r,
+        expertId: null,
+        expert: { ...r.expert, expertName: '专家', id: null },
+      }));
+    }
+    return records;
   }
 
   /** P5: 评分修订历史（防篡改取证） */

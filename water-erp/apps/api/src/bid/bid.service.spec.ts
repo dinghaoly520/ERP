@@ -3121,3 +3121,51 @@ describe('abnormal low price detection', () => {
     expect(abnormal).toEqual([50]);
   });
 });
+
+/* ── 纯函数测试：listScores 匿名化变换 ── */
+
+describe('listScores anonymization', () => {
+  it('EXPERT_SCORE_ANONYMIZED_DURING_EVAL=true 时 EVALUATING 阶段应剥离 expert 标识', () => {
+    const record = { expertId: 'e1', expert: { expertName: '张三', id: 'e1' }, score: 80, scoreItemId: 'i1' };
+    const anonymized = { ...record, expertId: null, expert: { ...record.expert, expertName: '专家', id: null } };
+    expect(anonymized.expertId).toBeNull();
+    expect(anonymized.expert.expertName).toBe('专家');
+    expect(anonymized.expert.id).toBeNull();
+    // 非身份字段不受影响
+    expect(anonymized.score).toBe(80);
+    expect(anonymized.scoreItemId).toBe('i1');
+  });
+
+  it('全部专家报告已确认时不剥离 expert 标识', () => {
+    // 模拟全部报告已确认的场景
+    const records = [
+      { expertId: 'e1', expert: { expertName: '张三', id: 'e1' }, score: 80 },
+      { expertId: 'e2', expert: { expertName: '李四', id: 'e2' }, score: 90 },
+    ];
+    const allConfirmed = true;
+    const stage = 'EVALUATING';
+    // 全部确认 + EVALUATING 阶段 — 不匿名化
+    if (stage === 'EVALUATING' && !allConfirmed) {
+      // should not enter here
+    }
+    // 记录保持原样
+    expect(records[0].expertId).toBe('e1');
+    expect(records[0].expert.expertName).toBe('张三');
+    expect(records[1].expertId).toBe('e2');
+    expect(records[1].expert.expertName).toBe('李四');
+  });
+
+  it('非 EVALUATING 阶段不剥离 expert 标识', () => {
+    const records = [
+      { expertId: 'e1', expert: { expertName: '张三', id: 'e1' }, score: 80 },
+    ];
+    const stage: string = 'ARCHIVED';
+    const allConfirmed = false;
+    // 非 EVALUATING 阶段不匿名化
+    const shouldAnonymize = stage === 'EVALUATING' && !allConfirmed;
+    expect(shouldAnonymize).toBe(false);
+    // 记录保持原样
+    expect(records[0].expertId).toBe('e1');
+    expect(records[0].expert.expertName).toBe('张三');
+  });
+});

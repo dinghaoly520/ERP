@@ -181,7 +181,9 @@ function CellTooltip({ cell, supplierName, expertName, onClose, anchorRect }: {
   return createPortal(
     <div ref={ref} className={`${TOOLTIP_PANEL} w-[320px]`} style={{ left: pos.left, top: pos.top }}>
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-bold text-[color:var(--foreground)]">{expertName} → {supplierName}</span>
+        <span className="text-xs font-bold text-[color:var(--foreground)]">
+          {expertName === '专家' ? `评标进行中，暂不公开 → ${supplierName}` : `${expertName} → ${supplierName}`}
+        </span>
         <button onClick={onClose} className="text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]"><X size={12} /></button>
       </div>
       <div className="mb-2 font-mono text-xs font-bold text-[color:var(--accent-strong)]">
@@ -226,7 +228,9 @@ function CategoryDetailTooltip({ expertScores, onClose, anchorRect }: {
       <div className="mb-1.5 text-[11px] font-semibold text-[color:var(--muted-foreground)]">专家明细</div>
       {expertScores.map(es => (
         <div key={es.name} className="flex items-center justify-between py-0.5 text-[11px]">
-          <span className="text-[oklch(0.55_0.01_264)]">{es.name}</span>
+          <span className="text-[oklch(0.55_0.01_264)]">
+            {es.name === '专家' ? '评标进行中，暂不公开' : es.name}
+          </span>
           <span className="font-mono font-bold text-[oklch(0.18_0.012_265)]">{es.score.toFixed(1)}</span>
         </div>
       ))}
@@ -857,6 +861,7 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                 })}
               </tbody>
             </table>
+            <p className="mt-3 text-[11px] text-[color:var(--muted-foreground)]">匿名模式下展示均分，专家个人分数待报告确认后公开。</p>
           </div>
         </div>
       )}
