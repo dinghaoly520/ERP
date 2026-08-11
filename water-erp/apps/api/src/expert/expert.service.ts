@@ -23,6 +23,7 @@ import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/scor
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 import { parseConflictedIds } from './expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from './expert-deviation';
+import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 
 @Injectable()
 export class ExpertService {
@@ -378,9 +379,14 @@ export class ExpertService {
       },
     });
     // P1-5: 签到监督日志
+    let signInResult = '签到成功';
+    try {
+      const stamp = createIntegrityStamp(userId, 'SIGN_IN', projectId);
+      signInResult = `签到成功 [integrity: ${stamp.ts}|${stamp.sig.substring(0, 8)}]`;
+    } catch { /* 签名失败不阻塞签到 */ }
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
-        action: '身份签到', result: '签到成功', riskFlag: '无' },
+        action: '身份签到', result: signInResult, riskFlag: '无' },
     }).catch(() => {});
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'signed_in', progressPercent: updated.progress ?? 0,
@@ -1291,6 +1297,11 @@ export class ExpertService {
       }
 
       // Supervision log
+      let scoreResult = `共${dto.scores.length}项评分`;
+      try {
+        const stamp = createIntegrityStamp(userId, 'SUBMIT_SCORES', projectId);
+        scoreResult = `共${dto.scores.length}项评分 [integrity: ${stamp.ts}|${stamp.sig.substring(0, 8)}]`;
+      } catch { /* 签名失败不阻塞评分提交 */ }
       await tx.bidSupervisionLog.create({
         data: {
           projectId,
@@ -1298,7 +1309,7 @@ export class ExpertService {
           role: '评审专家',
           target: expert.expertName,
           action: `提交评分（供应商：${bidSuppliers.map(s => s.supplierName).join('、')}）`,
-          result: `共${dto.scores.length}项评分`,
+          result: scoreResult,
           riskFlag: '无',
         },
       });
@@ -1800,6 +1811,11 @@ export class ExpertService {
         where: { id: expert.id },
         data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
       });
+      let reportResult = comment || '确认完成';
+      try {
+        const stamp = createIntegrityStamp(userId, 'CONFIRM_REPORT', projectId);
+        reportResult = `${comment || '确认完成'} [integrity: ${stamp.ts}|${stamp.sig.substring(0, 8)}]`;
+      } catch { /* 签名失败不阻塞报告确认 */ }
       await tx.bidSupervisionLog.create({
         data: {
           projectId,
@@ -1807,7 +1823,7 @@ export class ExpertService {
           role: '评审专家',
           target: expert.expertName,
           action: '确认评审报告',
-          result: comment || '确认完成',
+          result: reportResult,
           riskFlag: '无',
         },
       });

@@ -28,6 +28,7 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
 import { Prisma, ScoreCategory } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
+import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from './score-recalculate.helper';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -720,7 +721,11 @@ export class BidService {
         data: { projectId: id, time: now, role: existing.host, target: project.name, action: '完成开标·资料移交', result: '开标文件包已生成并移交采购管理工作台', riskFlag: '无' },
       });
       if (actorId) {
-        await tx.auditLog.create({ data: { userId: actorId, action: 'BID_OPENING_HANDOVER', resourceType: `BidProject:${id}`, details: { assetId: asset.id, sha256 } } });
+        let integrityStamp = null;
+        try {
+          integrityStamp = createIntegrityStamp(actorId, 'COMPLETE_OPENING', id);
+        } catch { /* 签名失败不阻塞开标移交 */ }
+        await tx.auditLog.create({ data: { userId: actorId, action: 'BID_OPENING_HANDOVER', resourceType: `BidProject:${id}`, details: { assetId: asset.id, sha256, integrityStamp } } });
       }
       return updated;
     });
