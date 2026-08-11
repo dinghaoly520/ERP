@@ -1344,6 +1344,34 @@ export class ExpertService {
             detail: alert.detail,
             severity: alert.severity,
           });
+
+          // DANGER 级偏差自动创建异议工单（幂等：同 expert+item+supplier 的 open dispute 不重复）
+          if (alert.severity === 'danger') {
+            try {
+              const existing = await this.prisma.expertDispute.findFirst({
+                where: {
+                  projectId,
+                  expertId: expert.id,
+                  type: 'scoring',
+                  status: 'open',
+                  title: { contains: item.scoreItemId },
+                },
+              });
+              if (!existing) {
+                await this.prisma.expertDispute.create({
+                  data: {
+                    projectId,
+                    expertId: expert.id,
+                    expertName: expert.expertName,
+                    type: 'scoring',
+                    title: `评分偏差告警（评分项 ${item.scoreItemId.slice(-8)}）`,
+                    content: alert.detail,
+                    status: 'open',
+                  },
+                });
+              }
+            } catch { /* 异议创建非关键路径 */ }
+          }
         }
       }
     } catch (e) {
