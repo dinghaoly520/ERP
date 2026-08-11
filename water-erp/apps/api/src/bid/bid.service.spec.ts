@@ -3476,4 +3476,23 @@ describe('submitQuote — 准入校验', () => {
     const result = await service.submitQuote('p1', 'r1', 's1', 100);
     expect(result).toEqual({ id: 'q1' });
   });
+
+  describe('getMinBidders procurement-method-aware', () => {
+    it('直接采购 应返回 1', () => {
+      expect((service as any).getMinBidders('直接采购')).toBe(1);
+    });
+    it('谈判采购 应返回 2', () => {
+      expect((service as any).getMinBidders('谈判采购')).toBe(2);
+    });
+    it('邀请招标 应返回 3', () => {
+      expect((service as any).getMinBidders('邀请招标')).toBe(3);
+    });
+    it('询比采购 应返回 3', () => {
+      expect((service as any).getMinBidders('询比采购')).toBe(3);
+    });
+    it('null 或 未知方式 应返回 3', () => {
+      expect((service as any).getMinBidders(null)).toBe(3);
+      expect((service as any).getMinBidders('未知方式')).toBe(3);
+    });
+  });
 });

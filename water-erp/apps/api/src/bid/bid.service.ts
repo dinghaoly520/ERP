@@ -1044,10 +1044,17 @@ export class BidService {
     return newProject;
   }
 
+  /** 按采购方式返回法定最少投标家数。消费方：开标 checklist + 启动评标 */
+  private getMinBidders(procurementMethod: string | null): number {
+    if (procurementMethod === '直接采购') return 1;
+    if (procurementMethod === '谈判采购') return 2;
+    return 3;
+  }
+
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true, assignedHostUserId: true },
+      select: { stage: true, name: true, deadline: true, projectManagementItemId: true, round: true, assignedHostUserId: true, procurementMethod: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'OPENING');
@@ -1080,7 +1087,7 @@ export class BidService {
       const supplierCount = await this.prisma.bidSupplier.count({ where: { projectId: id } });
       const blocking: string[] = [];
       if (expertCount === 0) blocking.push('尚有专家未分配');
-      if (supplierCount < 3) blocking.push(`有效投标供应商仅 ${supplierCount} 家(不足 3 家)`);
+      if (supplierCount < this.getMinBidders(project.procurementMethod)) blocking.push(`有效投标供应商仅 ${supplierCount} 家(法定最少 ${this.getMinBidders(project.procurementMethod)} 家，${project.procurementMethod ?? '未知方式'})`);
       if (blocking.length > 0) {
         if (dto?.force) {
           await this.prisma.bidSupervisionLog.create({
@@ -1310,8 +1317,7 @@ export class BidService {
     }
     // P3: 法定门槛——有效投标不足法定家数应当流标（招标投标法第二十八条）
     // 按采购方式区分：直接采购(1家)、谈判采购(2家)、其余(3家)
-    const minBidders = project.procurementMethod === '直接采购' ? 1
-      : project.procurementMethod === '谈判采购' ? 2 : 3;
+    const minBidders = this.getMinBidders(project.procurementMethod);
     if (evaluableSupplierCount < minBidders) {
       throw new BadRequestException({
         error: `有效投标仅 ${evaluableSupplierCount} 家，不足 ${minBidders} 家`,
