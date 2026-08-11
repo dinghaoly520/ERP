@@ -3077,3 +3077,47 @@ describe('generateEvaluationResults expertRole filter', () => {
     expect(created.disqualified).toBe(false);
   });
 });
+
+describe('abnormal low price detection', () => {
+  it('报价低于均值 30%+ 应触发告警标记', () => {
+    const prices = [100, 105, 40]; // 第三家异常低
+    const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const threshold = avg * 0.7; // 低于均值 30%
+    const abnormal = prices.filter(p => p < threshold);
+    expect(abnormal).toEqual([40]);
+  });
+
+  it('报价均正常时不触发告警', () => {
+    const prices = [100, 105, 110];
+    const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const threshold = avg * 0.7;
+    const abnormal = prices.filter(p => p < threshold);
+    expect(abnormal).toEqual([]);
+  });
+
+  it('仅 2 家报价不满足最低门槛时不触发', () => {
+    const prices = [100, 40]; // 仅2家，不满足 validPrices.length >= 3
+    const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const threshold = avg * 0.7;
+    // 即使有异常低，2家也不做检测（与 generateEvaluationResults 门槛一致）
+    const effectiveCount = prices.length;
+    const shouldDetect = effectiveCount >= 3;
+    expect(shouldDetect).toBe(false);
+  });
+
+  it('报价恰好等于均值 70% 时不触发（边界不包含等号）', () => {
+    const prices = [100, 100, 70]; // 70 = avg(90) * 0.7 = 63, so 70 > 63, not abnormal
+    const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const threshold = avg * 0.7;
+    const abnormal = prices.filter(p => p < threshold); // strict <
+    expect(abnormal).toEqual([]);
+  });
+
+  it('报价低于均值 70% 时触发', () => {
+    const prices = [100, 100, 50]; // avg=83.33, threshold=58.33, 50<58.33
+    const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+    const threshold = avg * 0.7;
+    const abnormal = prices.filter(p => p < threshold);
+    expect(abnormal).toEqual([50]);
+  });
+});

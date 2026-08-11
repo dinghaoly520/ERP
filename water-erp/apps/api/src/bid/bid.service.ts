@@ -1271,6 +1271,13 @@ export class BidService {
       }).catch(() => {});
     }
 
+    // 异常低价前置检测（评标启动时，让委员会在评分前知晓）
+    const evaluableSupplierIds = await this.prisma.bidSupplier.findMany({
+      where: { projectId: id, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+      select: { id: true },
+    });
+    await this.checkAbnormalLowPrices(id, evaluableSupplierIds.map(s => s.id));
+
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 P1-17 与评分标准编辑互斥的 FOR UPDATE）
       const result = await tx.bidProject.update({
@@ -2659,6 +2666,61 @@ export class BidService {
 
   listEvaluationResults(projectId: string) {
     return this.prisma.bidEvaluationResult.findMany({ where: { projectId }, orderBy: { rank: 'asc' } });
+  }
+
+  /**
+   * 异常低价检测——在评标启动时执行（而非结果生成时），
+   * 让评标委员会在评分前知晓异常报价，可要求供应商书面说明。
+   * 触发条件：有效报价 >= 3 家；阈值：报价低于均值 70%（与 generateEvaluationResults 一致）。
+   */
+  private async checkAbnormalLowPrices(projectId: string, activeSupplierIds: string[]): Promise<void> {
+    const openingRecs = await this.prisma.bidOpeningRecord.findMany({
+      where: { projectId, bidSupplierId: { in: activeSupplierIds } },
+      select: { bidSupplierId: true, amount: true },
+    });
+    const prices: { supplierId: string; price: number }[] = [];
+    for (const r of openingRecs) {
+      if (r.amount) {
+        const price = parseFloat(String(r.amount).replace(/,/g, ''));
+        if (!isNaN(price) && price >= 0 && r.bidSupplierId) {
+          prices.push({ supplierId: r.bidSupplierId, price });
+        }
+      }
+    }
+    if (prices.length < 3) return; // 与 generateEvaluationResults 既有门槛一致（validPrices.length >= 3）
+    const avgPrice = prices.reduce((s, p) => s + p.price, 0) / prices.length;
+    if (avgPrice <= 0) return;
+
+    for (const { supplierId, price } of prices) {
+      if (price < avgPrice * 0.7) {
+        // 低于均值 30%
+        const supplier = await this.prisma.bidSupplier.findUnique({
+          where: { id: supplierId },
+          select: { supplierName: true },
+        });
+        const supplierName = supplier?.supplierName ?? supplierId;
+        await this.prisma.bidSupervisionLog
+          .create({
+            data: {
+              projectId,
+              time: new Date(),
+              role: '系统',
+              target: supplierName,
+              action: '异常低价告警（评标启动）',
+              result: `报价 ¥${price} 显著低于有效报价均值 ¥${avgPrice.toFixed(2)}（偏离 ${((1 - price / avgPrice) * 100).toFixed(1)}%），请评标委员会要求该供应商作出书面说明`,
+              riskFlag: '高风险',
+            },
+          })
+          .catch(() => {});
+        this.gateway?.notifyAnomaly(projectId, {
+          type: 'abnormal_low_price',
+          supplierId,
+          supplierName,
+          detail: `报价 ¥${price} 低于均值 ¥${avgPrice.toFixed(2)} 共 ${((1 - price / avgPrice) * 100).toFixed(1)}%`,
+          severity: 'warning',
+        });
+      }
+    }
   }
 
   async generateEvaluationResults(projectId: string, actorId?: string) {
