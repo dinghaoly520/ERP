@@ -395,7 +395,7 @@ export function updatePriceConfig(
 export function listRounds(bidProjectId: string) {
   return api.get<Array<{ id: string; roundNo: number; roundType: string; status: string; deadline: string | null; quotes: Array<{ id: string; bidSupplierId: string; quotePrice: string; status: string }> }>>(`/bid/projects/${bidProjectId}/rounds`);
 }
-export function createRound(bidProjectId: string, data: { roundType: string; deadline?: string }) {
+export function createRound(bidProjectId: string, data: { roundType: string; deadline?: string; supplierIds?: string[] }) {
   return api.post(`/bid/projects/${bidProjectId}/rounds`, data);
 }
 export function sealRound(bidProjectId: string, roundId: string) {

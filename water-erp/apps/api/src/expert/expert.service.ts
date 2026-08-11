@@ -1,4 +1,4 @@
-import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, Logger, Inject } from '@nestjs/common';
+import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, ConflictException, Logger, Inject } from '@nestjs/common';
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -22,6 +22,8 @@ import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/score-recalculate.helper';
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 import { parseConflictedIds } from './expert.util';
+import { checkScoreAnomaly, type ScoreRecordInput } from './expert-deviation';
+import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 
 @Injectable()
 export class ExpertService {
@@ -349,7 +351,7 @@ export class ExpertService {
 
   /* ── 身份核验 ── */
 
-  async signIn(userId: string, projectId: string) {
+  async signIn(userId: string, projectId: string, env?: { ip: string; userAgent: string | null }) {
     // P1: 阶段门控 — 仅开标/评标阶段可签到
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
@@ -370,12 +372,21 @@ export class ExpertService {
 
     const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { signedIn: true },
+      data: {
+        signedIn: true,
+        signInIp: env?.ip ?? null,
+        signInMeta: env ? { ip: env.ip, userAgent: env.userAgent, timestamp: new Date().toISOString() } : undefined,
+      },
     });
     // P1-5: 签到监督日志
+    let signInResult = '签到成功';
+    try {
+      const stamp = createIntegrityStamp(userId, 'SIGN_IN', projectId);
+      signInResult = `签到成功 [integrity: ${stamp.ts}|${stamp.sig.substring(0, 8)}]`;
+    } catch { /* 签名失败不阻塞签到 */ }
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
-        action: '身份签到', result: '签到成功', riskFlag: '无' },
+        action: '身份签到', result: signInResult, riskFlag: '无' },
     }).catch(() => {});
     this.gateway?.notifyExpertPresence(expert.projectId, {
       expertId: expert.id, expertName: expert.expertName, milestone: 'signed_in', progressPercent: updated.progress ?? 0,
@@ -554,6 +565,15 @@ export class ExpertService {
           sha256: canView ? asset?.sha256 : undefined,
         };
       });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'EXPERT_VIEW_DOCUMENTS_SUMMARY',
+        resourceType: `BidSupplier:${supplierId}`,
+        details: { projectId },
+      },
+    }).catch(() => {});
 
     return {
       supplier: { id: supplier.id, name: supplier.supplierName, decryptStatus: supplier.decryptStatus },
@@ -743,6 +763,16 @@ export class ExpertService {
         riskFlag: '无',
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'EXPERT_VIEW_DOCUMENT',
+        resourceType: `BidSupplier:${supplierId}:${which}`,
+        resourceId: fileId,
+        details: { projectId, supplierName: supplier.supplierName, fileName },
+      },
+    }).catch(() => {});
 
     return { buffer: result.buffer, fileName, mimeType: 'application/pdf' };
   }
@@ -984,7 +1014,23 @@ export class ExpertService {
 
   /* ── 专家打分 ── */
 
+  private async assertEvaluationNotOverdue(projectId: string): Promise<void> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, evaluationDeadline: true },
+    });
+    if (!project || project.stage !== 'EVALUATING' || !project.evaluationDeadline) return;
+    if (new Date(project.evaluationDeadline).getTime() < Date.now()) {
+      throw new ConflictException({
+        error: '评标已超时，请联系采购管理端审批延期',
+        code: 'EVALUATION_OVERDUE',
+        deadline: project.evaluationDeadline,
+      });
+    }
+  }
+
   async submitScores(userId: string, projectId: string, dto: BatchScoreDto) {
+    await this.assertEvaluationNotOverdue(projectId);
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -1251,6 +1297,11 @@ export class ExpertService {
       }
 
       // Supervision log
+      let scoreResult = `共${dto.scores.length}项评分`;
+      try {
+        const stamp = createIntegrityStamp(userId, 'SUBMIT_SCORES', projectId);
+        scoreResult = `共${dto.scores.length}项评分 [integrity: ${stamp.ts}|${stamp.sig.substring(0, 8)}]`;
+      } catch { /* 签名失败不阻塞评分提交 */ }
       await tx.bidSupervisionLog.create({
         data: {
           projectId,
@@ -1258,7 +1309,7 @@ export class ExpertService {
           role: '评审专家',
           target: expert.expertName,
           action: `提交评分（供应商：${bidSuppliers.map(s => s.supplierName).join('、')}）`,
-          result: `共${dto.scores.length}项评分`,
+          result: scoreResult,
           riskFlag: '无',
         },
       });
@@ -1317,6 +1368,65 @@ export class ExpertService {
       progressPercent: result.progress,
     });
     this.gateway?.broadcastAggregatePresence?.(projectId);
+
+    // 偏差检测（事务已提交，只读查询 + WS 广播，失败不阻塞）
+    try {
+      for (const item of dto.scores) {
+        const meta = itemMeta.get(item.scoreItemId);
+        if (!meta || meta.category === 'QUALIFICATION' || meta.category === 'RESPONSIVE') continue;
+        const existingRows = await this.prisma.bidScoreRecord.findMany({
+          where: { scoreItemId: item.scoreItemId, supplierId: item.supplierId, expertId: { not: expert.id } },
+          select: { expertId: true, scoreItemId: true, supplierId: true, score: true },
+        });
+        const existingScores: ScoreRecordInput[] = existingRows.map(r => ({
+          expertId: r.expertId, scoreItemId: r.scoreItemId, supplierId: r.supplierId, score: Number(r.score),
+        }));
+        const alert = checkScoreAnomaly(
+          { expertId: expert.id, scoreItemId: item.scoreItemId, supplierId: item.supplierId, score: item.score ?? 0 },
+          existingScores,
+        );
+        if (alert) {
+          this.logger.warn(`[ScoreAnomaly] project=${projectId} expert=${expert.expertName} ${alert.detail}`);
+          this.gateway?.notifyAnomaly(projectId, {
+            type: 'score_deviation',
+            supplierId: item.supplierId,
+            supplierName: bidSuppliers.find(s => s.id === item.supplierId)?.supplierName ?? '',
+            detail: alert.detail,
+            severity: alert.severity,
+          });
+
+          // DANGER 级偏差自动创建异议工单（幂等：同 expert+item+supplier 的 open dispute 不重复）
+          if (alert.severity === 'danger') {
+            try {
+              const existing = await this.prisma.expertDispute.findFirst({
+                where: {
+                  projectId,
+                  expertId: expert.id,
+                  type: 'scoring',
+                  status: 'open',
+                  title: { contains: item.scoreItemId },
+                },
+              });
+              if (!existing) {
+                await this.prisma.expertDispute.create({
+                  data: {
+                    projectId,
+                    expertId: expert.id,
+                    expertName: expert.expertName,
+                    type: 'scoring',
+                    title: `评分偏差告警（评分项 ${item.scoreItemId.slice(-8)}）`,
+                    content: alert.detail,
+                    status: 'open',
+                  },
+                });
+              }
+            } catch { /* 异议创建非关键路径 */ }
+          }
+        }
+      }
+    } catch (e) {
+      this.logger.error('偏差检测失败（不阻塞评分主流程）', e instanceof Error ? e.message : String(e));
+    }
 
     return result;
   }
@@ -1659,6 +1769,8 @@ export class ExpertService {
   }
 
   async confirmReport(userId: string, projectId: string, comment?: string) {
+    await this.assertEvaluationNotOverdue(projectId);
+
     // P1: 阶段门控 — 仅在评标阶段可确认报告
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'EVALUATING') {
@@ -1699,6 +1811,11 @@ export class ExpertService {
         where: { id: expert.id },
         data: { progress: 100, reportConfirmed: true, reportConfirmedAt: new Date() },
       });
+      let reportResult = comment || '确认完成';
+      try {
+        const stamp = createIntegrityStamp(userId, 'CONFIRM_REPORT', projectId);
+        reportResult = `${comment || '确认完成'} [integrity: ${stamp.ts}|${stamp.sig.substring(0, 8)}]`;
+      } catch { /* 签名失败不阻塞报告确认 */ }
       await tx.bidSupervisionLog.create({
         data: {
           projectId,
@@ -1706,7 +1823,7 @@ export class ExpertService {
           role: '评审专家',
           target: expert.expertName,
           action: '确认评审报告',
-          result: comment || '确认完成',
+          result: reportResult,
           riskFlag: '无',
         },
       });
@@ -1948,9 +2065,9 @@ export class ExpertService {
     if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可末签', code: 'NOT_LEADER' });
     if (!expert.reportConfirmed) throw new BadRequestException({ error: '组长须先确认自己的评审报告', code: 'REPORT_NOT_CONFIRMED' });
 
-    // 所有专家必须已确认报告
+    // 所有正选专家必须已确认报告（候补不参与评标，不阻塞末签）
     const unconfirmed = await this.prisma.bidExpert.count({
-      where: { projectId, reportConfirmed: false },
+      where: { projectId, expertRole: '正选', reportConfirmed: false },
     });
     if (unconfirmed > 0) throw new BadRequestException({
       error: `还有 ${unconfirmed} 位专家未确认报告,无法末签`, code: 'MEMBERS_NOT_CONFIRMED',

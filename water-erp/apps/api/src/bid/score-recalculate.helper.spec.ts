@@ -101,7 +101,7 @@ describe('recomputeItemFromDecisions', () => {
 });
 
 describe('recomputeExpertProgress', () => {
-  it('progress = scoredItems/totalItems；totalScore = Σ record.score', async () => {
+  it('progress = scoredItems/totalItems；totalScore = 跨供应商均分', async () => {
     const tx: any = {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }]) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) }, // 2 items × 3 活跃 = 6 total
@@ -112,7 +112,7 @@ describe('recomputeExpertProgress', () => {
     };
     const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
     expect(r.progress).toBe(50);
-    expect(r.totalScore).toBe(30);
+    expect(r.totalScore).toBe(10); // (10+20) / 3 活跃供应商 = 10
   });
 
   it('totalItems=0 → progress=0', async () => {
@@ -145,7 +145,7 @@ describe('recomputeExpertProgress', () => {
       where: expect.objectContaining({ supplierId: { in: ['s1', 's2'] } }),
     }));
     expect(r.progress).toBe(100); // 1 项 × 2 活跃 = 2 total；scored 2 → 100
-    expect(r.totalScore).toBe(30);
+    expect(r.totalScore).toBe(15); // (10+20) / 2 活跃供应商 = 15
   });
 
   it('P1-9：progress 封顶 100（防御性）', async () => {
@@ -156,5 +156,22 @@ describe('recomputeExpertProgress', () => {
     };
     const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
     expect(r.progress).toBe(100); // floor(500) → 封顶 100
+  });
+
+  it('totalScore 应为平均供应商得分而非总分（3 供应商 × 均分 76 = 228 总分 → 均分 76）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }]) }, // 2 项
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) }, // 3 活跃
+      bidScoreRecord: {
+        count: jest.fn().mockResolvedValue(6),
+        // 3 个供应商，每个两项：总分 228，均分 76
+        findMany: jest.fn().mockResolvedValue(
+          Array.from({ length: 6 }, () => ({ score: 38 })), // 6 × 38 = 228 → /3 = 76
+        ),
+      },
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(r.progress).toBe(100);
+    expect(r.totalScore).toBe(76); // 语义修正：跨供应商均分，非总分 228
   });
 });

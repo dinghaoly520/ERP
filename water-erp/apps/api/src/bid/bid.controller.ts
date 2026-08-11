@@ -28,6 +28,7 @@ import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
+import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
 
 @ApiTags('开评标管理')
 @ApiCookieAuth('token')
@@ -142,8 +143,8 @@ export class BidController {
   @Post('projects/:id/rounds')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '创建报价轮次' })
-  createRound(@Param('id') id: string, @Body() dto: { roundType: string; deadline?: string }, @CurrentUser('sub') userId?: string) {
-    return this.bidService.createRound(id, dto.roundType, dto.deadline, userId);
+  createRound(@Param('id') id: string, @Body() dto: { roundType: string; deadline?: string; supplierIds?: string[] }, @CurrentUser('sub') userId?: string) {
+    return this.bidService.createRound(id, dto.roundType, dto.deadline, userId, dto.supplierIds);
   }
 
   @Post('projects/:id/rounds/:roundId/seal')
@@ -658,6 +659,10 @@ export class BidController {
   @ApiOperation({ summary: '独立验证归档哈希链完整性' })
   verifyArchiveIntegrity(@Param('id') id: string) { return this.bidService.verifyArchiveIntegrity(id); }
 
+  @Get('projects/:id/evaluation-handover')
+  @ApiOperation({ summary: '获取评标完整性快照信息（指纹 + 下载链接）' })
+  getEvaluationHandover(@Param('id') id: string) { return this.bidService.getEvaluationHandover(id); }
+
   @Post('projects/:id/archive-all')
   @ApiOperation({ summary: '一键归档（scope=opening 仅归档开标文件，不要求评标结果；full 完整归档）' })
   archiveAll(@Param('id') id: string, @Body() dto: ArchiveAllDto, @CurrentUser('sub') userId: string) {
@@ -739,5 +744,16 @@ export class BidController {
   @ApiOperation({ summary: '正选↔候补互换（开标确认页操作→替换）' })
   async swapExpert(@Param('id') id: string, @Body() body: { fromExpertId: string; toExpertId: string }) {
     return this.bidService.swapExpertRole(id, body.fromExpertId, body.toExpertId);
+  }
+
+  @Post('projects/:id/extend-evaluation')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '审批延期评标（延长 evaluationDeadline）' })
+  extendEvaluation(
+    @Param('id') id: string,
+    @Body() dto: ExtendEvaluationDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.bidService.extendEvaluationDeadline(id, dto.extendHours, dto.reason, userId);
   }
 }

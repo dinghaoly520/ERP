@@ -7,6 +7,7 @@ import {
   Query,
   Body,
   Param,
+  Req,
   Res,
   UseInterceptors,
   UploadedFile,
@@ -181,8 +182,15 @@ export class ExpertController {
 
   /* ── 身份核验 ── */
   @Post('projects/:projectId/sign-in')
-  signIn(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertService.signIn(userId, projectId);
+  signIn(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+  ) {
+    return this.expertService.signIn(userId, projectId, {
+      ip: req.ip ?? req.socket?.remoteAddress,
+      userAgent: req.headers['user-agent'] ?? null,
+    });
   }
 
   @Post('projects/:projectId/avoidance')
