@@ -556,6 +556,15 @@ export class ExpertService {
         };
       });
 
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'EXPERT_VIEW_DOCUMENTS_SUMMARY',
+        resourceType: `BidSupplier:${supplierId}`,
+        details: { projectId },
+      },
+    }).catch(() => {});
+
     return {
       supplier: { id: supplier.id, name: supplier.supplierName, decryptStatus: supplier.decryptStatus },
       documents,
@@ -744,6 +753,16 @@ export class ExpertService {
         riskFlag: '无',
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'EXPERT_VIEW_DOCUMENT',
+        resourceType: `BidSupplier:${supplierId}:${which}`,
+        resourceId: fileId,
+        details: { projectId, supplierName: supplier.supplierName, fileName },
+      },
+    }).catch(() => {});
 
     return { buffer: result.buffer, fileName, mimeType: 'application/pdf' };
   }

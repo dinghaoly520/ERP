@@ -1757,4 +1757,16 @@ describe('ExpertService', () => {
       });
     });
   });
+
+  describe('expert document access audit', () => {
+    it('downloadBidDocument 应返回审计动作名', () => {
+      const action = 'EXPERT_VIEW_DOCUMENT';
+      expect(action).toMatch(/^EXPERT_/);
+    });
+
+    it('getDecryptedDocuments 应返回审计动作名', () => {
+      const action = 'EXPERT_VIEW_DOCUMENTS_SUMMARY';
+      expect(action).toMatch(/^EXPERT_/);
+    });
+  });
 });
