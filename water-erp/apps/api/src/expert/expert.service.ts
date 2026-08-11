@@ -22,6 +22,7 @@ import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/score-recalculate.helper';
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 import { parseConflictedIds } from './expert.util';
+import { checkScoreAnomaly, type ScoreRecordInput } from './expert-deviation';
 
 @Injectable()
 export class ExpertService {
@@ -1317,6 +1318,37 @@ export class ExpertService {
       progressPercent: result.progress,
     });
     this.gateway?.broadcastAggregatePresence?.(projectId);
+
+    // 偏差检测（事务已提交，只读查询 + WS 广播，失败不阻塞）
+    try {
+      for (const item of dto.scores) {
+        const meta = itemMeta.get(item.scoreItemId);
+        if (!meta || meta.category === 'QUALIFICATION' || meta.category === 'RESPONSIVE') continue;
+        const existingRows = await this.prisma.bidScoreRecord.findMany({
+          where: { scoreItemId: item.scoreItemId, supplierId: item.supplierId, expertId: { not: expert.id } },
+          select: { expertId: true, scoreItemId: true, supplierId: true, score: true },
+        });
+        const existingScores: ScoreRecordInput[] = existingRows.map(r => ({
+          expertId: r.expertId, scoreItemId: r.scoreItemId, supplierId: r.supplierId, score: Number(r.score),
+        }));
+        const alert = checkScoreAnomaly(
+          { expertId: expert.id, scoreItemId: item.scoreItemId, supplierId: item.supplierId, score: item.score ?? 0 },
+          existingScores,
+        );
+        if (alert) {
+          this.logger.warn(`[ScoreAnomaly] project=${projectId} expert=${expert.expertName} ${alert.detail}`);
+          this.gateway?.notifyAnomaly(projectId, {
+            type: 'score_deviation',
+            supplierId: item.supplierId,
+            supplierName: bidSuppliers.find(s => s.id === item.supplierId)?.supplierName ?? '',
+            detail: alert.detail,
+            severity: alert.severity,
+          });
+        }
+      }
+    } catch (e) {
+      this.logger.error('偏差检测失败（不阻塞评分主流程）', e instanceof Error ? e.message : String(e));
+    }
 
     return result;
   }
