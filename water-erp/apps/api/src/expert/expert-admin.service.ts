@@ -39,6 +39,9 @@ function computeOverallGrade(
 
 @Injectable()
 export class ExpertAdminService {
+  private readonly rsvpTtlMs =
+    parseFloat(process.env.EXPERT_RSVP_TTL_HOURS ?? '2') * 60 * 60 * 1000;
+
   constructor(
     private prisma: PrismaService,
     private extractionAi: ExpertExtractionAiService,
@@ -1091,7 +1094,7 @@ export class ExpertAdminService {
       const token = randomBytes(9).toString('base64url').slice(0, 12);
       await this.prisma.bidExpert.update({
         where: { id: be.id },
-        data: { rsvpToken: token, rsvpExpiresAt: new Date(now.getTime() + 15 * 60 * 1000) },
+        data: { rsvpToken: token, rsvpExpiresAt: new Date(now.getTime() + this.rsvpTtlMs) },
       });
       links[be.userId] = `${expertPortalUrl}/rsvp?t=${token}`;
     }
@@ -1117,7 +1120,7 @@ export class ExpertAdminService {
 
     const expertPortalUrl = (process.env.EXPERT_PORTAL_URL || 'http://localhost:3006').replace(/\/+$/, '');
     const body = message || `您已被选为「${project.name}（${project.projectCode}）」评审专家。`;
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15分钟有效期
+    const expiresAt = new Date(Date.now() + this.rsvpTtlMs);
 
     // 发送时刷新 RSVP 过期时间（token 已在预生成时创建，这里不重新生成）
     const results = await Promise.all(
