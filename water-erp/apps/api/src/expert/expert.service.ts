@@ -2065,9 +2065,9 @@ export class ExpertService {
     if (!expert.isLead) throw new ForbiddenException({ error: '仅评审组长可末签', code: 'NOT_LEADER' });
     if (!expert.reportConfirmed) throw new BadRequestException({ error: '组长须先确认自己的评审报告', code: 'REPORT_NOT_CONFIRMED' });
 
-    // 所有专家必须已确认报告
+    // 所有正选专家必须已确认报告（候补不参与评标，不阻塞末签）
     const unconfirmed = await this.prisma.bidExpert.count({
-      where: { projectId, reportConfirmed: false },
+      where: { projectId, expertRole: '正选', reportConfirmed: false },
     });
     if (unconfirmed > 0) throw new BadRequestException({
       error: `还有 ${unconfirmed} 位专家未确认报告,无法末签`, code: 'MEMBERS_NOT_CONFIRMED',

@@ -41,8 +41,9 @@ describe('ExpertService', () => {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        count: jest.fn(),
       },
-      bidProject: { findUnique: jest.fn() },
+      bidProject: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidSupplier: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidInvalidBid: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0) },
       supplierBidSubmission: { findUnique: jest.fn() },
@@ -1767,6 +1768,44 @@ describe('ExpertService', () => {
     it('getDecryptedDocuments 应返回审计动作名', () => {
       const action = 'EXPERT_VIEW_DOCUMENTS_SUMMARY';
       expect(action).toMatch(/^EXPERT_/);
+    });
+  });
+
+  describe('leaderCoSign', () => {
+    it('候补专家未确认报告不阻塞组长末签', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, id: 'exp-lead', isLead: true,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
+        confidentialityAgreed: true, disciplineAgreed: true,
+        reportConfirmed: true,
+      });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      // 候补专家未确认 → 但 expertRole='正选' 过滤后 count=0
+      prisma.bidExpert.count.mockResolvedValue(0);
+      prisma.bidProject.update = jest.fn().mockResolvedValue({ id: 'p1', leaderCoSigned: true });
+
+      await service.leaderCoSign('user-1', 'proj-1');
+
+      expect(prisma.bidExpert.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ expertRole: '正选', reportConfirmed: false }),
+        }),
+      );
+      expect(prisma.bidProject.update).toHaveBeenCalled();
+    });
+
+    it('正选专家有未确认 → 阻塞', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({
+        ...mockExpert, id: 'exp-lead', isLead: true,
+        signedIn: true, avoidanceConfirmed: true, aiConsentConfirmed: true,
+        confidentialityAgreed: true, disciplineAgreed: true,
+        reportConfirmed: true,
+      });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.count.mockResolvedValue(1); // 有正选未确认
+
+      await expect(service.leaderCoSign('user-1', 'proj-1'))
+        .rejects.toMatchObject({ response: { code: 'MEMBERS_NOT_CONFIRMED' } });
     });
   });
 });

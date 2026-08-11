@@ -137,7 +137,11 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                       </button>
                       <button onClick={() => withBusy(async () => {
                         await closeRound(bidProjectId, r.id, false);
-                        toast.info('最终轮报价已锁定。请前往采购管理工作台(:3005)启动评标。');
+                        toast.info(
+                          roundMode === 'negotiation'
+                            ? '最终轮报价已锁定。评标结果将在采购管理工作台(:3005)生成。'
+                            : '最终轮报价已锁定。请前往采购管理工作台(:3005)启动评标。'
+                        );
                       })}
                         disabled={busy} className="neu-btn-primary !h-[30px] !text-xs">
                         <CheckCircle2 size={12} /> 结束报价
