@@ -3476,23 +3476,82 @@ describe('submitQuote — 准入校验', () => {
     const result = await service.submitQuote('p1', 'r1', 's1', 100);
     expect(result).toEqual({ id: 'q1' });
   });
+});
 
-  describe('getMinBidders procurement-method-aware', () => {
-    it('直接采购 应返回 1', () => {
-      expect((service as any).getMinBidders('直接采购')).toBe(1);
+describe('getMinBidders procurement-method-aware', () => {
+  let service: BidService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: {} },
+        { provide: ScoreStandardValidator, useValue: {} },
+        { provide: PriceFormulaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
+        { provide: NotificationService, useValue: {} },
+        { provide: ClarificationAiService, useValue: {} },
+        { provide: BidGateway, useValue: {} },
+      ],
+    }).compile();
+    service = module.get<BidService>(BidService);
+  });
+
+  it('直接采购 → 1', () => { expect((service as any).getMinBidders('直接采购')).toBe(1); });
+  it('谈判采购 → 2', () => { expect((service as any).getMinBidders('谈判采购')).toBe(2); });
+  it('邀请招标 → 3', () => { expect((service as any).getMinBidders('邀请招标')).toBe(3); });
+  it('询比采购 → 3', () => { expect((service as any).getMinBidders('询比采购')).toBe(3); });
+  it('null → 3', () => { expect((service as any).getMinBidders(null)).toBe(3); });
+});
+
+describe('checkDisputeTimeout', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidOpeningSession: { findUnique: jest.fn() },
+      bidSupplier: { findMany: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
+      $queryRaw: jest.fn(), $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ScoreStandardValidator, useValue: {} },
+        { provide: PriceFormulaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+        { provide: ClarificationAiService, useValue: {} },
+        { provide: BidGateway, useValue: {} },
+      ],
+    }).compile();
+    service = module.get<BidService>(BidService);
+  });
+
+  it('session 无 timeoutMinutes → no-op', async () => {
+    prisma.bidOpeningSession.findUnique.mockResolvedValueOnce(null);
+    await (service as any).checkDisputeTimeout('p1');
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('未超时 → no-op', async () => {
+    prisma.bidOpeningSession.findUnique.mockResolvedValueOnce({
+      disputeTimeoutMinutes: 30,
+      disputedSince: new Date(Date.now() - 5 * 60 * 1000),
     });
-    it('谈判采购 应返回 2', () => {
-      expect((service as any).getMinBidders('谈判采购')).toBe(2);
+    await (service as any).checkDisputeTimeout('p1');
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('超时但无 DISPUTED → 仅告警不裁决', async () => {
+    prisma.bidOpeningSession.findUnique.mockResolvedValueOnce({
+      disputeTimeoutMinutes: 30,
+      disputedSince: new Date(Date.now() - 60 * 60 * 1000),
     });
-    it('邀请招标 应返回 3', () => {
-      expect((service as any).getMinBidders('邀请招标')).toBe(3);
-    });
-    it('询比采购 应返回 3', () => {
-      expect((service as any).getMinBidders('询比采购')).toBe(3);
-    });
-    it('null 或 未知方式 应返回 3', () => {
-      expect((service as any).getMinBidders(null)).toBe(3);
-      expect((service as any).getMinBidders('未知方式')).toBe(3);
-    });
+    prisma.bidSupplier.findMany.mockResolvedValueOnce([]);
+    await (service as any).checkDisputeTimeout('p1');
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
   });
 });

@@ -673,6 +673,9 @@ export class BidService {
     }
     await this.assertOpeningDone(id);
 
+    // 异议超时检查（告警 + 可选自动裁决；不阻塞移交）
+    await this.checkDisputeTimeout(id);
+
     // 文件包与上传放在事务之前：MinIO 失败 → 零数据库副作用，可安全重试
     const pkg = await this.buildHandoverPackage(project, existing);
     const buffer = Buffer.from(JSON.stringify(pkg, null, 2), 'utf8');
@@ -1273,6 +1276,56 @@ export class BidService {
     }
   }
 
+  /**
+   * 检查开标异议是否已超时。超时写监督日志 + 可选自动裁决。
+   * 不抛异常——超时不阻塞 completeOpening/startEvaluation，由主持人决定是否强制裁决。
+   */
+  private async checkDisputeTimeout(projectId: string): Promise<void> {
+    const session = await this.prisma.bidOpeningSession.findUnique({
+      where: { projectId },
+      select: { disputeTimeoutMinutes: true, disputedSince: true },
+    });
+    if (!session?.disputeTimeoutMinutes || !session?.disputedSince) return;
+
+    const timeoutAt = new Date(session.disputedSince.getTime() + session.disputeTimeoutMinutes * 60 * 1000);
+    if (new Date() <= timeoutAt) return; // 未超时
+
+    const disputedSuppliers = await this.prisma.bidSupplier.findMany({
+      where: { projectId, confirmStatus: 'DISPUTED', submitStatus: { not: '已撤回' } },
+      select: { id: true, supplierName: true },
+    });
+    if (disputedSuppliers.length === 0) return;
+
+    const names = disputedSuppliers.map(s => s.supplierName).join('、');
+    const timeoutStr = `异议已超时 ${session.disputeTimeoutMinutes} 分钟（自 ${session.disputedSince.toISOString()}）`;
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '系统', target: names,
+        action: '异议超时告警', result: timeoutStr, riskFlag: '高风险',
+      },
+    }).catch(() => {});
+
+    // 自动裁决开关（默认关闭，需显式开启）
+    if (process.env.OPENING_DISPUTE_AUTO_RESOLVE === 'true') {
+      for (const s of disputedSuppliers) {
+        // 自动按 EXCEPTION 处理（每个供应商独立裁决，互不阻塞）
+        await this.overrideDispute(projectId, s.id, `[自动裁决·超时] ${timeoutStr}`, undefined, 'exception')
+          .catch(err => this.logger.error(`自动裁决 ${s.supplierName} 失败`, err));
+      }
+    }
+
+    // 通知主持人
+    try {
+      await this.notificationService.sendToRole('bid_host', {
+        type: 'BID_DISPUTE_TIMEOUT',
+        title: '开标异议处理已超时',
+        content: `${names} 的异议已超过 ${session.disputeTimeoutMinutes} 分钟。请前往开标大厅强制裁决。`,
+        link: `/bid/project/${projectId}`,
+      });
+    } catch { /* 通知失败不阻塞 */ }
+  }
+
   async startEvaluation(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
@@ -1328,6 +1381,9 @@ export class BidService {
 
     // H4: 开标完成度守卫（抽共享方法，与 completeOpening 同口径）
     await this.assertOpeningDone(id);
+
+    // 异议超时检查（告警 + 可选自动裁决；不阻塞评标启动）
+    await this.checkDisputeTimeout(id);
 
     // G9: 评分标准完整(打分类 Σ=100 + 每个打分类项 ≥1 得分点),否则专家无法打分
     await this.scoreStandardValidator.assertScoreStandardComplete(id);
