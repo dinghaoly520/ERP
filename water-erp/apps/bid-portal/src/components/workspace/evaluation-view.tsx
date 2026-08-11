@@ -861,7 +861,9 @@ export default function EvaluationView({ projectId, project: propsProject }: { p
                 })}
               </tbody>
             </table>
-            <p className="mt-3 text-[11px] text-[color:var(--muted-foreground)]">匿名模式下展示均分，专家个人分数待报告确认后公开。</p>
+            {allReportsConfirmed || project?.stage !== 'EVALUATING' ? null : (
+              <p className="mt-3 text-[11px] text-[color:var(--muted-foreground)]">匿名模式下展示均分，专家个人分数待报告确认后公开。</p>
+            )}
           </div>
         </div>
       )}

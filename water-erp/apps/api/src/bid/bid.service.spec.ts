@@ -1426,6 +1426,81 @@ describe('BidService — stage transitions', () => {
 
   // 注：原 submitBid（管理员代投）已移除——真实投标统一走供应商门户
   // /api/supplier-portal/bid-submissions/:projectId/submit（见 supplier-portal.service.spec.ts）。
+
+  describe('getProject — 专家匿名化（EXPERT_SCORE_ANONYMIZED_DURING_EVAL）', () => {
+    const origAnon = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL;
+
+    beforeAll(() => { process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL = 'true'; });
+    afterAll(() => { if (origAnon !== undefined) process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL = origAnon; else delete process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL; });
+
+    const mockProject = {
+      id: 'p-anon',
+      stage: 'EVALUATING',
+      experts: [
+        { id: 'e1', expertName: '张三', reportConfirmed: false,
+          scoreRecords: [{ id: 'r1', expertId: 'e1', supplierId: 's1', scoreItemId: 'i1', score: 85 }] },
+        { id: 'e2', expertName: '李四', reportConfirmed: false,
+          scoreRecords: [{ id: 'r2', expertId: 'e2', supplierId: 's1', scoreItemId: 'i1', score: 90 }] },
+      ],
+      suppliers: [], openingSession: null, openingRecords: [], scoreItems: [],
+      clarifications: [], supervisionLogs: [], expertDisputes: [], archiveItems: [],
+      bidRounds: [], assignedHostUser: null, projectManagementItemId: null,
+    };
+
+    it('EVALUATING 阶段且未全部确认时，应剥离 expertName 和 scoreRecord.expertId', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...mockProject, stage: 'EVALUATING' });
+
+      const result = await service.getProject('p-anon');
+
+      expect(result).not.toBeNull();
+      expect(result!.experts[0].expertName).toBe('专家');
+      expect(result!.experts[1].expertName).toBe('专家');
+      expect(result!.experts[0].scoreRecords[0].expertId).toBeNull();
+      expect(result!.experts[1].scoreRecords[0].expertId).toBeNull();
+      // expert.id 保留（前端 Map 索引需要）
+      expect(result!.experts[0].id).toBe('e1');
+      expect(result!.experts[1].id).toBe('e2');
+    });
+
+    it('全部专家已确认报告时不剥离', async () => {
+      const confirmed = {
+        ...mockProject,
+        stage: 'EVALUATING',
+        experts: [
+          { ...mockProject.experts[0], reportConfirmed: true },
+          { ...mockProject.experts[1], reportConfirmed: true },
+        ],
+      };
+      prisma.bidProject.findUnique.mockResolvedValue(confirmed);
+
+      const result = await service.getProject('p-anon');
+
+      expect(result!.experts[0].expertName).toBe('张三');
+      expect(result!.experts[1].expertName).toBe('李四');
+    });
+
+    it('非 EVALUATING 阶段不剥离', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...mockProject, stage: 'ARCHIVED' });
+
+      const result = await service.getProject('p-anon');
+
+      expect(result!.experts[0].expertName).toBe('张三');
+      expect(result!.experts[1].expertName).toBe('李四');
+    });
+
+    it('环境变量关闭时不剥离', async () => {
+      delete process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL;
+      prisma.bidProject.findUnique.mockResolvedValue({ ...mockProject, stage: 'EVALUATING' });
+
+      const result = await service.getProject('p-anon');
+
+      expect(result!.experts[0].expertName).toBe('张三');
+      expect(result!.experts[1].expertName).toBe('李四');
+
+      // restore for subsequent tests
+      process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL = 'true';
+    });
+  });
 });
 
 /* ── 集成测试：decryptSupplier 真实校验（无文件引用 → SUCCESS，保持开标流程不空指针）── */

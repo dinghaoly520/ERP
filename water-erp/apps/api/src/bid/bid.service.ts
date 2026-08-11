@@ -372,6 +372,20 @@ export class BidService {
       },
     });
     if (!project) return null;
+
+    // 配置开关：评标期间对主持端匿名化专家身份（同 listScores）
+    const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL === 'true';
+    if (anonymize) {
+      const allConfirmed = project.experts.length > 0 && project.experts.every(e => e.reportConfirmed);
+      if (project.stage === 'EVALUATING' && !allConfirmed) {
+        project.experts = project.experts.map(e => ({
+          ...e,
+          expertName: '专家',
+          scoreRecords: e.scoreRecords.map(r => ({ ...r, expertId: null } as unknown as typeof r)),
+        })) as typeof project.experts;
+      }
+    }
+
     // 用源项目管理的 projectCode 覆盖 bid 自动生成的编号
     if (project.projectManagementItemId) {
       const pm = await this.prisma.projectManagementItem.findUnique({
