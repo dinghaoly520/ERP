@@ -3563,7 +3563,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // 检查合规审查缓存：指纹匹配时直接返回
     const complianceCachePath = this.getComplianceCachePath(projectId, targetStage.stageKey);
-    const fingerprint = this.buildStageAnalysisFingerprint(targetStage.stageKey, targetStage.attachments);
+
+    // 步骤分析 fingerprint（供应商邀请/专家抽取）：名单变更 → 合规缓存失效
+    let stepFingerprint = '';
+    if (targetStage.stageKey === 'SUPPLIER_INVITATION' || targetStage.stageKey === 'EXPERT_SELECTION') {
+      const rosterRaw = targetStage.stageKey === 'EXPERT_SELECTION'
+        ? (project.expertInfo ?? '').trim()
+        : (project.invitedSuppliers ?? '').trim();
+      if (rosterRaw) {
+        stepFingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
+      }
+    }
+    const fingerprint = this.buildStageAnalysisFingerprint(targetStage.stageKey, targetStage.attachments) + (stepFingerprint ? `|step:${stepFingerprint}` : '');
     if (!force) {
       try {
         const cached = JSON.parse(await readFile(complianceCachePath, 'utf8')) as {
@@ -3607,6 +3618,19 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
+    // 步骤分析内容（供应商邀请/专家抽取阶段，从缓存读取，作为合规审查补充上下文）
+    let stepAnalysisContent: string | undefined;
+    if (targetStage.stageKey === 'SUPPLIER_INVITATION' || targetStage.stageKey === 'EXPERT_SELECTION') {
+      try {
+        const stepCache = JSON.parse(await readFile(this.getStepAnalysisCachePath(projectId, targetStage.stageKey), 'utf8')) as { content?: string };
+        if (stepCache.content?.trim()) {
+          stepAnalysisContent = stepCache.content.trim();
+        }
+      } catch {
+        // 步骤分析未生成/缓存不存在，跳过
+      }
+    }
+
     const result = await this.aiService.auditStageCompliance({
       stageKey: targetStage.stageKey,
       stageName: targetStage.stageName,
@@ -3627,6 +3651,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         biddingUnits: project.biddingUnits || undefined,
       },
       files: stageFiles,
+      stepAnalysis: stepAnalysisContent,
     });
 
     // 写入合规审查缓存（含指纹）
