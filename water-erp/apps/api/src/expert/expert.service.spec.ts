@@ -204,7 +204,7 @@ describe('ExpertService', () => {
         }),
       );
       expect(prisma.bidExpert.update).toHaveBeenCalledWith(
-        expect.objectContaining({ data: { signedIn: true } }),
+        expect.objectContaining({ data: { signedIn: true, signInIp: null, signInMeta: undefined } }),
       );
     });
   });

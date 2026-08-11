@@ -350,7 +350,7 @@ export class ExpertService {
 
   /* ── 身份核验 ── */
 
-  async signIn(userId: string, projectId: string) {
+  async signIn(userId: string, projectId: string, env?: { ip: string; userAgent: string | null }) {
     // P1: 阶段门控 — 仅开标/评标阶段可签到
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
@@ -371,7 +371,11 @@ export class ExpertService {
 
     const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { signedIn: true },
+      data: {
+        signedIn: true,
+        signInIp: env?.ip ?? null,
+        signInMeta: env ? { ip: env.ip, userAgent: env.userAgent, timestamp: new Date().toISOString() } : undefined,
+      },
     });
     // P1-5: 签到监督日志
     await this.prisma.bidSupervisionLog.create({

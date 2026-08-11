@@ -526,6 +526,8 @@ model BidExpert {
   pointDecisions        BidScorePointDecision[]
   expertMemos           ExpertMemo[]
   bidScoreReviews       BidScoreReview[]
+  signInIp              String?   // 签到 IP 存证
+  signInMeta            Json?     // 签到环境快照 { ip, userAgent, timestamp }
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
 
