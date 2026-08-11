@@ -80,7 +80,8 @@ export default function ExpertEvaluatePage() {
   // P3: real-time status board
   const [liveEvents, setLiveEvents] = useState<{ time: number; label: string; icon: 'decrypt' | 'stage' | 'signin' | 'avoid' | 'score' | 'report' | 'clarify' }[]>([]);
   const [aggregatePresence, setAggregatePresence] = useState<any>(null);
-  // 得分点选中——桌面用于高亮 + 评分历史上下文
+  // P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 步骤可开启；键盘输入为主，可查看平板墨迹）
+  // Task 6: 得分点选中（联动备忘抽屉）—— 桌面允许无选中点的项目/供应商级备忘
   const [activePointId, setActivePointId] = useState<string | null>(null);
   const [activePointName, setActivePointName] = useState<string>('');
   const [activeScoreItemId, setActiveScoreItemId] = useState<string | null>(null);
@@ -1935,7 +1936,7 @@ export default function ExpertEvaluatePage() {
                 )?.status as 'draft' | 'verified' | undefined
               }
               onVerified={loadProject}
-              onOpenMemo={undefined}
+
             />
           )}
 
@@ -1946,6 +1947,15 @@ export default function ExpertEvaluatePage() {
               onLeaderCoSign={handleLeaderCoSign} motions={motions} disputes={disputes} myExpertId={expert?.id} projectId={projectId} />
           )}
             </div>
+          </div>
+                  />
+                ) : (
+                  <p className="py-6 text-center text-xs text-[var(--muted-foreground)]">请先在左侧选择供应商</p>
+                )}
+              </div>
+            </aside>
+          </div>
+        )}
         {/* 冲突裁决弹窗 */}
         <SyncConflictModal
           open={conflictModalOpen}
