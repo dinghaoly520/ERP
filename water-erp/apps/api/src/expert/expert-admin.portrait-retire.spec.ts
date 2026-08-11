@@ -7,6 +7,7 @@ import { NotificationService } from '../notification/notification.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
 import { OcrService } from '../local-ai/ocr.service';
+import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 
 describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
   let service: ExpertAdminService;
@@ -33,6 +34,7 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
         { provide: EmbeddingService, useValue: { embed: jest.fn().mockResolvedValue([]) } },
         { provide: LlmService, useValue: { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) } },
         { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
+        { provide: ExpertCrossConflictService, useValue: { checkCrossConflicts: jest.fn().mockResolvedValue([]) } },
       ],
     }).compile();
     service = module.get<ExpertAdminService>(ExpertAdminService);

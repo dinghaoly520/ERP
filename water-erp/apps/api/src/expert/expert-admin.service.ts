@@ -11,6 +11,7 @@ import { OcrService } from '../local-ai/ocr.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { processFile } from '../ai-bid-analysis/utils/file-processor';
 import { ExpertExtractionAiService } from './expert-extraction-ai.service';
+import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 import type { LlmSpecialtyQuota, ExpertExtractionLlmResult, ExtractMode } from './expert-extraction-ai.service';
 import type { CreateExpertDto } from './dto/create-expert.dto';
 import type { ExtractPreviewDto } from './dto/extract-preview.dto';
@@ -44,6 +45,7 @@ export class ExpertAdminService {
 
   constructor(
     private prisma: PrismaService,
+    private crossConflict: ExpertCrossConflictService,
     private extractionAi: ExpertExtractionAiService,
     private notification: NotificationService,
     private embedding: EmbeddingService,
@@ -736,6 +738,30 @@ export class ExpertAdminService {
         },
       });
     });
+
+    // 交叉回避检查：同单位专家告警（事务外：不阻塞抽取，仅告警留痕）
+    const experts = dto.experts ?? [];
+    if (experts.length > 0) {
+      try {
+        const selectedUserIds = experts.map(e => e.userId);
+        const crossConflicts = await this.crossConflict.checkCrossConflicts(selectedUserIds);
+        if (crossConflicts.length > 0) {
+          await this.prisma.bidSupervisionLog.create({
+            data: {
+              projectId, time: new Date(), role: '系统', target: '专家抽取',
+              action: '交叉回避告警',
+              result: crossConflicts.map(c => `${c.expertName} - ${c.conflictWith}（${c.conflictType}）`).join('；'),
+              riskFlag: '中风险',
+            },
+          }).catch(() => {});
+          const warnLogger = new Logger(ExpertAdminService.name);
+          warnLogger.warn(`[CrossConflict] 项目 ${projectId} 发现 ${crossConflicts.length} 条专家交叉冲突`);
+        }
+      } catch (e) {
+        const errLogger = new Logger(ExpertAdminService.name);
+        errLogger.error('交叉回避检查失败（不阻塞抽取）', e instanceof Error ? e.message : String(e));
+      }
+    }
 
     return { success: true, count: (dto.experts?.length ?? 0) + (dto.candidates?.length ?? 0), expertIds: (dto.experts ?? []).map(e => e.userId) };
   }
