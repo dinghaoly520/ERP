@@ -1199,6 +1199,33 @@ export class BidService {
           link: `/bid/project/${id}`,
         });
       } catch { /* 通知失败不阻塞阶段流转 */ }
+
+      // 通知所有已投递的供应商——开标已启动，请前往开标大厅
+      try {
+        const submittedSuppliers = await this.prisma.bidSupplier.findMany({
+          where: { projectId: id, submitStatus: '已提交' },
+          select: { supplierId: true },
+        });
+        const supplierIds = submittedSuppliers.map(s => s.supplierId).filter((id): id is string => !!id);
+        if (supplierIds.length > 0) {
+          const suppliers = await this.prisma.supplier.findMany({
+            where: { id: { in: supplierIds } },
+            select: { id: true, userId: true },
+          });
+          const userIdBySupplierId = new Map(suppliers.map(s => [s.id, s.userId]));
+          for (const s of submittedSuppliers) {
+            const userId = s.supplierId ? userIdBySupplierId.get(s.supplierId) : null;
+            if (userId) {
+              await this.notificationService.sendToUser(userId, ['in_app'], {
+                type: 'BID_OPENING_STARTED',
+                title: `开标已启动：${project.name}`,
+                content: '请前往开标大厅查看解密窗口时间并参与开标。',
+                link: `/supplier/bid/${id}`,
+              });
+            }
+          }
+        }
+      } catch { /* 通知失败不阻塞阶段流转 */ }
     }
     return updated;
   }
@@ -2860,6 +2887,28 @@ export class BidService {
     }
   }
 
+  /**
+   * 按评标办法确定中标候选人数。
+   * - 最低价类(lowest_price / qualified_lowest_price) → 1
+   * - 综合评估(comprehensive) → 3
+   * - 直接采购(none) → 1
+   * - 未知 → 回退 DEFAULT_WINNER_COUNT(3)
+   */
+  private getWinnerCount(procurementMethod: string | null, evaluationMethod: string | null, qualifiedCount: number): number {
+    if (qualifiedCount === 0) return 0;
+    const method = evaluationMethod ??
+      getEvaluationDefault(procurementMethod).evaluationMethod;
+    switch (method) {
+      case 'lowest_price':
+      case 'qualified_lowest_price':
+      case 'none':
+        return Math.min(1, qualifiedCount);
+      case 'comprehensive':
+      default:
+        return Math.min(this.DEFAULT_WINNER_COUNT, qualifiedCount);
+    }
+  }
+
   async generateEvaluationResults(projectId: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -3122,8 +3171,12 @@ export class BidService {
     });
 
     const qualifiedRanked = ranked.filter(r => !r.disqualified);
-    // 谈判采购最低价中标（1 名候选人）；其他方式沿用默认（3 名）
-    const winnerCount = Math.min(isNegotiation ? 1 : this.DEFAULT_WINNER_COUNT, qualifiedRanked.length);
+    // 按评标办法确定候选人数：最低价类→1, 综合评估→3, 直接采购→1
+    const winnerCount = this.getWinnerCount(
+      project.procurementMethod,
+      project.evaluationMethod ?? null,
+      qualifiedRanked.length,
+    );
 
     // #6: EXCEPTION 供应商显式告警——被排除的供应商（解密成功但 confirmStatus=EXCEPTION）
     const excludedExceptionSuppliers = project.suppliers.filter(

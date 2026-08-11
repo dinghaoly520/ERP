@@ -3504,6 +3504,48 @@ describe('getMinBidders procurement-method-aware', () => {
   it('null → 3', () => { expect((service as any).getMinBidders(null)).toBe(3); });
 });
 
+describe('getWinnerCount evaluation-method-aware', () => {
+  let service: BidService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: {} },
+        { provide: ScoreStandardValidator, useValue: {} },
+        { provide: PriceFormulaService, useValue: {} },
+        { provide: StorageService, useValue: {} },
+        { provide: NotificationService, useValue: {} },
+        { provide: ClarificationAiService, useValue: {} },
+        { provide: BidGateway, useValue: {} },
+      ],
+    }).compile();
+    service = module.get<BidService>(BidService);
+  });
+
+  it('邀请招标(comprehensive) × 5 合格 → 3', () => {
+    expect((service as any).getWinnerCount('邀请招标', 'comprehensive', 5)).toBe(3);
+  });
+  it('询比采购(lowest_price) × 5 合格 → 1', () => {
+    expect((service as any).getWinnerCount('询比采购', 'lowest_price', 5)).toBe(1);
+  });
+  it('谈判采购(qualified_lowest_price) × 5 合格 → 1', () => {
+    expect((service as any).getWinnerCount('谈判采购', 'qualified_lowest_price', 5)).toBe(1);
+  });
+  it('直接采购(none) × 1 合格 → 1', () => {
+    expect((service as any).getWinnerCount('直接采购', 'none', 1)).toBe(1);
+  });
+  it('0 合格 → 0', () => {
+    expect((service as any).getWinnerCount('邀请招标', 'comprehensive', 0)).toBe(0);
+  });
+  it('evaluationMethod=null 时回退采购方式默认', () => {
+    // 谈判采购默认 qualified_lowest_price → 1
+    expect((service as any).getWinnerCount('谈判采购', null, 5)).toBe(1);
+    // 邀请招标默认 comprehensive → 3
+    expect((service as any).getWinnerCount('邀请招标', null, 5)).toBe(3);
+  });
+});
+
 describe('checkDisputeTimeout', () => {
   let service: BidService;
   let prisma: any;
