@@ -1960,18 +1960,18 @@ export default function ExpertEvaluatePage() {
 
         {/* ====== P5 Task 7: 桌面端备忘抽屉（scoring / verify-score 可开启；键盘输入 + 查看平板墨迹）====== */}
         {memoOpen && (step === 'scoring' || step === 'verify-score') && (
-          <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="专家备忘面板">
+          <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="备注面板">
             {/* 点击遮罩关闭 */}
             <div
               className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm"
               onClick={() => setMemoOpen(false)}
-              aria-label="关闭备忘面板"
+              aria-label="关闭备注面板"
               role="button"
             />
             <aside className="wb-panel relative z-10 flex h-full w-[400px] max-w-[90vw] flex-col !rounded-r-none">
               <div className="flex shrink-0 items-center justify-between px-4 py-3">
                 <h2 className="flex items-center gap-1.5 text-sm font-bold text-[var(--foreground)]">
-                  <StickyNote size={14} strokeWidth={1.7} /> 专家备忘
+                  <StickyNote size={14} strokeWidth={1.7} /> 备注
                   {activeSupplier && (
                     <span className="exp-pill ml-1" style={{ '--c': 'var(--muted-foreground)' } as React.CSSProperties}>
                       {project?.suppliers.find(s => s.id === activeSupplier)?.supplierName || '当前供应商'}
