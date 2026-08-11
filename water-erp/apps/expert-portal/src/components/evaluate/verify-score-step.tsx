@@ -78,15 +78,15 @@ export function VerifyScoreStep({
             </span>
           )}
         </div>
-        {/* P5 Task 7: 核对步骤备忘入口（与 scoring 步骤对称） */}
+        {/* 核对步骤备注入口（与 scoring 步骤对称） */}
         {onOpenMemo && (
           <button
             type="button"
             onClick={onOpenMemo}
             className="neu-btn-xs shrink-0"
-            aria-label="打开备忘面板"
+            aria-label="打开备注面板"
           >
-            <StickyNote size={14} strokeWidth={1.7} /> 备忘
+            <StickyNote size={14} strokeWidth={1.7} /> 备注
           </button>
         )}
       </div>
