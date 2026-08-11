@@ -121,6 +121,6 @@ describe('ProjectManagementController', () => {
       fileAnalyses: [],
     });
 
-    expect(analyzeProject).toHaveBeenCalledWith('pm-01', 'EXPERT_SELECTION');
+    expect(analyzeProject).toHaveBeenCalledWith('pm-01', 'EXPERT_SELECTION', false);
   });
 });
