@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, BadRequestException } from '@nestjs/common';
+import { ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { ExpertService } from './expert.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
@@ -44,7 +44,7 @@ describe('ExpertService', () => {
       },
       bidProject: { findUnique: jest.fn() },
       bidSupplier: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
-      bidInvalidBid: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0) },
+      bidInvalidBid: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0) },
       supplierBidSubmission: { findUnique: jest.fn() },
       fileAsset: { findMany: jest.fn(), findUnique: jest.fn() },
       bidScoreRecord: {
@@ -60,7 +60,7 @@ describe('ExpertService', () => {
       bidScorePointDecision: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreReview: { upsert: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), update: jest.fn() },
       bidSupplierCount: jest.fn(),
-      bidSupervisionLog: { create: jest.fn(), findMany: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn() },
       bidClarification: { create: jest.fn() },
       aiBidderResult: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -1677,6 +1677,84 @@ describe('ExpertService', () => {
       prisma.aiBidAnalysisTask = { findUnique: jest.fn().mockResolvedValue(null) };
       const res = await service.getAssistCompare('user-1', 'proj-1');
       expect(res).toMatchObject({ bidders: [] });
+    });
+  });
+
+  describe('evaluation deadline gate', () => {
+    it('超时且未延期时 submitScores 应抛 ConflictException', async () => {
+      const overdueDeadline = new Date(Date.now() - 1000);
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'EVALUATING',
+        evaluationDeadline: overdueDeadline,
+      });
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: 'test',
+        scores: [{ supplierId: 'sup-1', scoreItemId: 'si-1', score: 80 }],
+      })).rejects.toThrow(ConflictException);
+    });
+
+    it('未超时（evaluationDeadline 在未来）时 submitScores 应继续执行到专家校验', async () => {
+      const futureDeadline = new Date(Date.now() + 3600000);
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'EVALUATING',
+        evaluationDeadline: futureDeadline,
+      });
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: 'test',
+        scores: [{ supplierId: 'sup-1', scoreItemId: 'si-1', score: 80 }],
+      })).rejects.toMatchObject({
+        response: { code: 'NOT_PROJECT_EXPERT' },
+      });
+    });
+
+    it('超时且未延期时 confirmReport 应抛 ConflictException', async () => {
+      const overdueDeadline = new Date(Date.now() - 1000);
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'EVALUATING',
+        evaluationDeadline: overdueDeadline,
+      });
+      await expect(service.confirmReport('user-1', 'proj-1')).rejects.toThrow(ConflictException);
+    });
+
+    it('未超时时 confirmReport 应继续执行到专家校验', async () => {
+      const futureDeadline = new Date(Date.now() + 3600000);
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'EVALUATING',
+        evaluationDeadline: futureDeadline,
+      });
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.confirmReport('user-1', 'proj-1')).rejects.toMatchObject({
+        response: { code: 'NOT_PROJECT_EXPERT' },
+      });
+    });
+
+    it('非 EVALUATING 阶段时 submitScores 应跳过超时检查', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'OPENING',
+        evaluationDeadline: new Date(Date.now() - 1000),
+      });
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: 'test',
+        scores: [{ supplierId: 'sup-1', scoreItemId: 'si-1', score: 80 }],
+      })).rejects.toMatchObject({
+        response: { code: 'NOT_PROJECT_EXPERT' },
+      });
+    });
+
+    it('无 evaluationDeadline 时 submitScores 应跳过超时检查', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        stage: 'EVALUATING',
+        evaluationDeadline: null,
+      });
+      prisma.bidExpert.findFirst.mockResolvedValue(null);
+      await expect(service.submitScores('user-1', 'proj-1', {
+        supplierName: 'test',
+        scores: [{ supplierId: 'sup-1', scoreItemId: 'si-1', score: 80 }],
+      })).rejects.toMatchObject({
+        response: { code: 'NOT_PROJECT_EXPERT' },
+      });
     });
   });
 });

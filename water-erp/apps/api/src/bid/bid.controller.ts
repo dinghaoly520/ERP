@@ -740,4 +740,15 @@ export class BidController {
   async swapExpert(@Param('id') id: string, @Body() body: { fromExpertId: string; toExpertId: string }) {
     return this.bidService.swapExpertRole(id, body.fromExpertId, body.toExpertId);
   }
+
+  @Post('projects/:id/extend-evaluation')
+  @Roles('leader', 'admin')
+  @ApiOperation({ summary: '审批延期评标（延长 evaluationDeadline）' })
+  extendEvaluation(
+    @Param('id') id: string,
+    @Body() dto: { extendHours: number; reason: string },
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.bidService.extendEvaluationDeadline(id, dto.extendHours, dto.reason, userId);
+  }
 }

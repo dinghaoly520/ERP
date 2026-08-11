@@ -5458,6 +5458,43 @@ export class BidService {
     ]);
     return { success: true };
   }
+
+  /** 审批延期评标——延长 evaluationDeadline，记录监督日志和审计日志 */
+  async extendEvaluationDeadline(projectId: string, extendHours: number, reason: string, actorId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { evaluationDeadline: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const base = project.evaluationDeadline && new Date(project.evaluationDeadline) > new Date()
+      ? new Date(project.evaluationDeadline)
+      : new Date();
+    const newDeadline = new Date(base.getTime() + extendHours * 60 * 60 * 1000);
+    await this.prisma.bidProject.update({
+      where: { id: projectId },
+      data: { evaluationDeadline: newDeadline },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId,
+        time: new Date(),
+        role: '采购管理',
+        target: project.name,
+        action: `评标延期 ${extendHours}h`,
+        result: reason,
+        riskFlag: '中风险',
+      },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        userId: actorId,
+        action: 'EVALUATION_EXTEND',
+        resourceType: `BidProject:${projectId}`,
+        details: { extendHours, reason, newDeadline },
+      },
+    }).catch(() => {});
+    return { evaluationDeadline: newDeadline };
+  }
 }
 
 /** 构建归档哈希链自验证 HTML 页面（base64 编码，自包含） */

@@ -1,4 +1,4 @@
-import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, Logger, Inject } from '@nestjs/common';
+import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, ConflictException, Logger, Inject } from '@nestjs/common';
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -985,7 +985,23 @@ export class ExpertService {
 
   /* ── 专家打分 ── */
 
+  private async assertEvaluationNotOverdue(projectId: string): Promise<void> {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true, evaluationDeadline: true },
+    });
+    if (!project || project.stage !== 'EVALUATING' || !project.evaluationDeadline) return;
+    if (new Date(project.evaluationDeadline).getTime() < Date.now()) {
+      throw new ConflictException({
+        error: '评标已超时，请联系采购管理端审批延期',
+        code: 'EVALUATION_OVERDUE',
+        deadline: project.evaluationDeadline,
+      });
+    }
+  }
+
   async submitScores(userId: string, projectId: string, dto: BatchScoreDto) {
+    await this.assertEvaluationNotOverdue(projectId);
     const expert = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
     });
@@ -1719,6 +1735,8 @@ export class ExpertService {
   }
 
   async confirmReport(userId: string, projectId: string, comment?: string) {
+    await this.assertEvaluationNotOverdue(projectId);
+
     // P1: 阶段门控 — 仅在评标阶段可确认报告
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || project.stage !== 'EVALUATING') {
