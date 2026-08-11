@@ -410,6 +410,16 @@ export class ExpertController {
     return this.expertService.getScoreDraft(userId, projectId, d);
   }
 
+  @Get('projects/:projectId/score-history')
+  @ApiOperation({ summary: '评分历史（当前值 + 修改快照，按评分项分组）' })
+  getScoreHistory(
+    @CurrentUser('sub') userId: string,
+    @Param('projectId') projectId: string,
+    @Query('supplierId') supplierId: string,
+  ) {
+    return this.expertService.getScoreHistory(userId, projectId, supplierId);
+  }
+
   /* ── E: 「去打分平板」跨设备联动（Redis focus hint）── */
 
   @Post('projects/:projectId/focus-hint')

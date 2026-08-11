@@ -1765,6 +1765,85 @@ export class ExpertService {
     };
   }
 
+  /** 评分历史：当前值 + 修改快照，按 scoreItemId 分组 */
+  async getScoreHistory(userId: string, projectId: string, supplierId: string) {
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
+    if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+
+    const [records, history] = await Promise.all([
+      this.prisma.bidScoreRecord.findMany({
+        where: { expertId: expert.id, supplierId },
+        include: { scoreItem: { select: { id: true, name: true, category: true } } },
+        orderBy: { scoreItem: { category: 'asc' } },
+      }),
+      this.prisma.bidScoreRecordHistory.findMany({
+        where: { expertId: expert.id, supplierId },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    // BidScoreRecordHistory 无 scoreItem 关系，从 records 构建 scoreItemId→{name,category} 查找表
+    const itemMeta = new Map<string, { name: string; category: string }>();
+    for (const r of records) {
+      if (r.scoreItem) itemMeta.set(r.scoreItemId, { name: r.scoreItem.name, category: r.scoreItem.category });
+    }
+
+    // 按 scoreItemId 分组
+    const grouped: Array<{
+      scoreItemId: string;
+      scoreItemName: string;
+      category: string;
+      current: { score: number; passed: boolean | null; reason: string | null; updatedAt: string };
+      history: Array<{ score: number; passed: boolean | null; reason: string | null; action: string; createdAt: string }>;
+    }> = [];
+
+    const byItemId = new Map<string, typeof grouped[number]>();
+
+    // 先放历史快照
+    for (const h of history) {
+      const key = h.scoreItemId;
+      const meta = itemMeta.get(key);
+      if (!byItemId.has(key)) {
+        byItemId.set(key, {
+          scoreItemId: key,
+          scoreItemName: meta?.name ?? key,
+          category: meta?.category ?? '',
+          current: { score: 0, passed: null, reason: null, updatedAt: '' },
+          history: [],
+        });
+      }
+      byItemId.get(key)!.history.push({
+        score: Number(h.score),
+        passed: h.passed,
+        reason: h.reason,
+        action: h.action,
+        createdAt: h.createdAt.toISOString(),
+      });
+    }
+
+    // 再放当前值
+    for (const r of records) {
+      const key = r.scoreItemId;
+      if (!byItemId.has(key)) {
+        byItemId.set(key, {
+          scoreItemId: key,
+          scoreItemName: r.scoreItem?.name ?? key,
+          category: r.scoreItem?.category ?? '',
+          current: { score: 0, passed: null, reason: null, updatedAt: '' },
+          history: [],
+        });
+      }
+      byItemId.get(key)!.current = {
+        score: Number(r.score),
+        passed: r.passed,
+        reason: r.reason,
+        updatedAt: r.updatedAt.toISOString(),
+      };
+    }
+
+    return Array.from(byItemId.values());
+  }
+
   /** E：桌面端「去打分平板」跨设备联动——写入 focus hint（Redis，TTL 120s）。 */
   async setFocusHint(userId: string, projectId: string, body: { supplierId: string; scoreItemId?: string; pointId?: string }) {
     if (!this.redis) throw new BadRequestException({ error: 'Redis 未配置，跨设备联动不可用', code: 'REDIS_UNAVAILABLE' });
