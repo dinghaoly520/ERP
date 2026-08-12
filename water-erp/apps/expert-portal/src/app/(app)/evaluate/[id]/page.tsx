@@ -9,7 +9,8 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
 import { validateSupplierScores } from '@/lib/score-validation';
-import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, Phone, X, Scale, StickyNote, History } from 'lucide-react';
+import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, ScanFace, X, Scale, StickyNote, History } from 'lucide-react';
+import { FaceRecognition } from '@/components/face-recognition';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
 import { RequirementComparePanel } from '@/components/evaluate/assist/requirement-compare-panel';
 import { SupplierSidebar } from '@/components/evaluate/supplier-sidebar';
@@ -58,18 +59,9 @@ export default function ExpertEvaluatePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null); // P1-16：加载失败错误态（替代永久 loading）
   const [busy, setBusy] = useState(false);
-  // Phone verification
-  const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [codeSent, setCodeSent] = useState(false);
-  const [sendingCode, setSendingCode] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [codeError, setCodeError] = useState('');
-  const [attemptsLeft, setAttemptsLeft] = useState(5);
-  // P0: auto-verify on first 6-digit input only; disable after first failure
-  const autoVerifyRef = useRef(true);
+  // Face recognition verification
+  const [faceVerified, setFaceVerified] = useState(false);
+  const [faceVerifying, setFaceVerifying] = useState(false);
   // P2: clarifications panel
   const [showClarifications, setShowClarifications] = useState(false);
   const [clarifications, setClarifications] = useState<any[]>([]);
@@ -512,14 +504,6 @@ export default function ExpertEvaluatePage() {
       .catch(() => { /* silent */ });
   }, [activeSupplier, projectId]);
 
-  // Sync phone verification state from project data
-  useEffect(() => {
-    if (project?.myExpertRecord) {
-      setPhoneMasked(project.myExpertRecord.phoneMasked ?? null);
-      setPhoneVerified(project.myExpertRecord.phoneVerified ?? false);
-    }
-  }, [project]);
-
   const expert = project?.myExpertRecord;
 
   // Phase 0：条款响应核对右栏「相关评分项」状态（同类别只读指引）——
@@ -571,66 +555,19 @@ export default function ExpertEvaluatePage() {
     }
   }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.aiConsentConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
 
-  const handleSignIn = async () => {
-    setBusy(true);
-    try { await api.post(`/expert/projects/${projectId}/sign-in`, {}); loadProject(); }
-    catch (e: any) { toast.error(e.message || '操作失败'); }
-    setBusy(false);
-  };
-
-  // Phone verification handlers
-  const handleSendCode = async () => {
-    if (countdown > 0) return;
-    setSendingCode(true);
-    setCodeError('');
+  // Face recognition success → auto sign-in
+  const handleFaceSuccess = async () => {
+    setFaceVerified(true);
+    setFaceVerifying(true);
     try {
-      const res = await api.post('/verification/send-code', {
-        scene: 'expert_sign_in',
-        targetId: projectId,
-      });
-      setPhoneMasked((res as any).maskedPhone);
-      setCodeSent(true);
-      setCountdown(60);
-      setAttemptsLeft(5);
-      setVerificationCode('');
-      autoVerifyRef.current = true; // re-enable auto-verify on new code
-      const timer = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) { clearInterval(timer); return 0; }
-          return prev - 1;
-        });
-      }, 1000);
+      await api.post(`/expert/projects/${projectId}/sign-in`, {});
+      setFaceVerifying(false);
+      loadProject();
     } catch (e: any) {
-      const msg = e instanceof ApiError && e.data?.error ? String(e.data.error) : e.message || '发送失败';
-      toast.error(msg);
+      setFaceVerifying(false);
+      setFaceVerified(false);
+      toast.error(e.message || '签到失败，请重试');
     }
-    setSendingCode(false);
-  };
-
-  const handleVerifyCode = async (code: string) => {
-    if (!code || code.length !== 6) return;
-    setVerifying(true);
-    setCodeError('');
-    try {
-      await api.post('/verification/verify-code', {
-        scene: 'expert_sign_in',
-        targetId: projectId,
-        code,
-      });
-      setPhoneVerified(true);
-      toast.success('手机验证通过');
-    } catch (e: any) {
-      const data = e instanceof ApiError ? e.data : null;
-      setCodeError(data?.error ? String(data.error) : e.message || '验证失败');
-      autoVerifyRef.current = false; // disable auto-verify after first failure
-      if (data?.code === 'ATTEMPTS_EXCEEDED' || data?.code === 'CODE_EXPIRED') {
-        setCodeSent(false);
-        setVerificationCode('');
-      }
-      const match = data?.error ? String(data.error).match(/剩余 (\d+) 次/) : null;
-      if (match) setAttemptsLeft(parseInt(match[1], 10));
-    }
-    setVerifying(false);
   };
 
   const handleAvoidance = async () => {
@@ -1175,72 +1112,24 @@ export default function ExpertEvaluatePage() {
                       <span className="exp-pill" style={{ '--c': 'var(--warning)' } as React.CSSProperties}>待完成</span>
                     )}
                   </div>
-                  {/* 手机验证 + 签到 — 未签到时显示 */}
+                  {/* 人脸识别 + 签到 — 未签到时显示 */}
                   {!expert?.signedIn && (
                     <div className="neu-card-static mt-3 p-4">
-                      {!phoneMasked && !codeSent ? (
-                        <div className="py-2 text-center">
-                          <p className="mb-2 text-sm text-[var(--muted-foreground)]">未绑定手机号，请联系管理员完善资料</p>
-                        </div>
-                      ) : phoneVerified ? (
+                      {faceVerified ? (
                         <div className="exp-alert exp-alert--success flex items-center gap-3">
                           <CheckCircle size={20} strokeWidth={1.5} className="shrink-0" />
                           <div>
-                            <p className="text-sm font-semibold">手机验证通过</p>
-                            <p className="text-xs opacity-80">{phoneMasked}</p>
+                            <p className="text-sm font-semibold">人脸识别通过</p>
+                            <p className="text-xs opacity-80">
+                              {faceVerifying ? '正在签到…' : '签到完成'}
+                            </p>
                           </div>
                         </div>
                       ) : (
-                        <>
-                          <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-[var(--foreground)]"><Phone size={14} strokeWidth={1.5} className="text-[var(--accent-strong)]" />手机验证</p>
-                          <p className="mb-3 text-xs text-[var(--muted-foreground)]">
-                            验证码将发送至 {phoneMasked || '注册手机号'}
-                          </p>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={6}
-                              value={verificationCode}
-                              onChange={e => {
-                                const v = e.target.value.replace(/\D/g, '').slice(0, 6);
-                                setVerificationCode(v);
-                                setCodeError('');
-                                // Only auto-verify on first attempt; after failure, user must manually confirm
-                                if (v.length === 6 && autoVerifyRef.current) handleVerifyCode(v);
-                              }}
-                              placeholder="输入6位验证码"
-                              disabled={verifying || !codeSent}
-                              className="neu-input flex-1 text-center !text-lg tracking-[8px] disabled:opacity-50"
-                            />
-                            <button
-                              onClick={handleSendCode}
-                              disabled={sendingCode || countdown > 0 || verifying}
-                              className="neu-btn-primary whitespace-nowrap !px-5"
-                            >
-                              {sendingCode ? '发送中…' : countdown > 0 ? `${countdown}s 后重发` : codeSent ? '重新获取' : '获取验证码'}
-                            </button>
-                          </div>
-                          {codeError && (
-                            <p className="mt-2 text-xs text-[var(--danger)]">{codeError}</p>
-                          )}
-                          {!codeError && codeSent && !phoneVerified && (
-                            <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                              验证码6位数字，5分钟内有效
-                              {attemptsLeft < 5 && ` · 剩余 ${attemptsLeft} 次尝试`}
-                            </p>
-                          )}
-                        </>
-                      )}
-                      {/* 签到按钮 — 手机验证通过后显示 */}
-                      {phoneVerified && (
-                        <button
-                          onClick={handleSignIn}
-                          disabled={busy}
-                          className="neu-btn-primary mt-3 w-full"
-                        >
-                          {busy ? '请稍候…' : '确认签到并完成身份核验'}
-                        </button>
+                        <FaceRecognition
+                          userName={expert?.expertName}
+                          onSuccess={handleFaceSuccess}
+                        />
                       )}
                     </div>
                   )}

@@ -92,9 +92,9 @@ export default function ExpertLoginPage() {
           if (returnTo.startsWith('/invitation')) {
             window.location.replace(returnTo);
           } else if (isTabletDevice()) {
-            // 平板设备 → 写 cookie + 整页跳转 tablet（SPA 导航不会触发 beforeInteractive 脚本）
+            // 平板设备 → 写 cookie + 整页跳转人脸识别核验（SPA 导航不会触发 beforeInteractive 脚本）
             document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
-            window.location.replace('/tablet');
+            window.location.replace('/tablet/face-verify');
           } else {
             router.push(returnTo);
           }

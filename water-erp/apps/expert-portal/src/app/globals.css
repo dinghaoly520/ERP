@@ -991,6 +991,13 @@ select.neu-select {
 .sidebar-scroll::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(123, 156, 220, 0.5), rgba(99, 133, 200, 0.32)); border-radius: 999px; }
 .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(123, 156, 220, 0.75), rgba(99, 133, 200, 0.55)); }
 
+/* ── 人脸识别扫描线动画 ── */
+@keyframes face-scan-line {
+  0%   { top: 0%; }
+  50%  { top: 100%; }
+  100% { top: 0%; }
+}
+
 /* ── cgzxui 全量 reduced-motion 降级 ── */
 @media (prefers-reduced-motion: reduce) {
   .neu-btn-primary, .neu-btn-soft, .neu-btn-xs, .neu-card, .neu-table-card,
