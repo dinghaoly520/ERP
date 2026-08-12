@@ -284,7 +284,7 @@ export function ProjectStageTimeline({
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1.5">
-                          {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
+                          {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && entry.stageKey !== 'CONTRACT' && (
                             <span
                               role="button"
                               tabIndex={0}

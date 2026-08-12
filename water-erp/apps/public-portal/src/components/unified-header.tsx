@@ -247,7 +247,7 @@ export function UnifiedHeader({
         <div className="relative z-10 flex h-[68px] items-center px-[clamp(16px,4vw,48px)]">
         {/* ── 左侧：品牌 ── */}
         <div className="flex flex-1 items-center">
-          <a href={portalURL('assistant')} className="flex items-center gap-3">
+          <a href={portalURL('assistant')} suppressHydrationWarning className="flex items-center gap-3">
             <img src="/assets/logo.png" alt="四川水发集团" className="h-[45px] w-auto object-contain" />
             <div className="flex flex-col gap-0">
               <strong

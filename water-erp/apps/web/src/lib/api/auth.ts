@@ -61,10 +61,16 @@ export async function parseJsonResponse<T>(response: Response): Promise<T> {
 
     if (contentType.includes("application/json")) {
       try {
-        const body = (await response.json()) as { message?: string | string[] };
-        const message = Array.isArray(body.message)
-          ? body.message[0]
-          : body.message;
+        const body = (await response.json()) as {
+          message?: string | string[];
+          error?: string;
+        };
+        // API HttpExceptionFilter 使用 error 字段传递错误信息，message 仅用于
+        // NestJS 标准 ValidationPipe 校验错误，两者需同时读取。
+        const apiError = body.error ?? body.message;
+        const message = Array.isArray(apiError)
+          ? apiError[0]
+          : apiError;
         throw new Error(message || fallbackMessage);
       } catch (error) {
         if (error instanceof Error && error.message !== fallbackMessage) {

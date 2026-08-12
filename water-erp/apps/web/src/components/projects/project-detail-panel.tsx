@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
@@ -243,9 +243,23 @@ function BiddingUnitsField({
           </div>
         </div>
       ) : hasValue && units.length > 0 ? (
-        <div className="space-y-0.5">
+        <div className="space-y-1.5">
           {units.map((unit, i) => (
-            <div key={i} className="text-sm text-[color:var(--foreground)]">{i + 1}. {unit.trim()}</div>
+            <div
+              key={i}
+              className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-sm text-[color:var(--foreground)]"
+              style={{
+                background: 'color-mix(in oklch, var(--accent) 4%, oklch(1 0 0 / 0.5))',
+                boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.06)',
+              }}
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] text-[9px] font-bold text-white tabular-nums"
+                style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>
+                {i + 1}
+              </span>
+              <Building2 size={13} className="shrink-0 text-[color:var(--accent)]" />
+              <span className="min-w-0 truncate">{unit.trim()}</span>
+            </div>
           ))}
         </div>
       ) : (
@@ -1497,7 +1511,8 @@ export function ProjectDetailPanel({
                       onSave={() => void handleSaveField('biddingUnits')}
                     />
                   )}
-                  <div>
+                  {/* 中标单位 — 重要结果，突出展示 */}
+                  <div className="col-span-2">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">中标单位</span>
                     {editingField === 'awardedSupplier' ? (
                       <div className="mt-1 flex items-center gap-1.5">
@@ -1505,9 +1520,11 @@ export function ProjectDetailPanel({
                         <button type="button" onClick={() => void handleSaveField('awardedSupplier')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : (
-                      <button type="button" onClick={() => handleStartEdit('awardedSupplier', extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier)} className="group mt-1 flex items-center gap-1">
-                        <span className="text-sm text-[color:var(--foreground)]">{(extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier) || <span className="text-[color:var(--muted-foreground)]/50">待确定</span>}</span>
-                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
+                      <button type="button" onClick={() => handleStartEdit('awardedSupplier', extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier)} className="group mt-1 flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left"
+                        style={{ background: 'color-mix(in oklch, var(--success) 6%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                        <Award size={14} className="shrink-0" style={{ color: 'var(--success)' }} />
+                        <span className="text-sm font-semibold text-[color:var(--foreground)]">{(extractedInfoOverride?.awardedSupplier ?? item.awardedSupplier) || <span className="text-[color:var(--muted-foreground)]/50">待确定</span>}</span>
+                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 ml-auto text-[color:var(--muted-foreground)]" />
                       </button>
                     )}
                   </div>

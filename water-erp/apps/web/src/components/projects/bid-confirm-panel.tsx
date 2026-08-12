@@ -5,6 +5,7 @@ import { AbortDialog } from './bid-confirm/abort-dialog';
 import { HostPickerModal } from './bid-confirm/host-picker-modal';
 import {
   AlertTriangle,
+  Ban,
   Bell,
   BellRing,
   CalendarClock,
@@ -12,8 +13,10 @@ import {
   Clock,
   FileText,
   Gavel,
+  Loader2,
   RefreshCw,
   Shield,
+  Sparkles,
   UserCheck,
   Users,
   X,
@@ -39,6 +42,7 @@ import {
   type BidWorkspace,
 } from '@/lib/api/bid';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
+import { generateFieldContent } from '@/lib/api/tender-sample';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ArchiveBlock } from './bid-confirm/archive-block';
 import { ClarificationsBlock } from './bid-confirm/clarifications-block';
@@ -102,8 +106,65 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const [pendingOpenTime, setPendingOpenTime] = useState('');
   // B2: 流标串联对话框
   const [abortDialogOpen, setAbortDialogOpen] = useState(false);
+  // 流标按钮（底部决策栏）：仅开标前 24h 内可点击
+  const [failBidDialogOpen, setFailBidDialogOpen] = useState(false);
+  const [failBidReason, setFailBidReason] = useState('');
+  const [failBidAiLoading, setFailBidAiLoading] = useState(false);
+  const [failBidConfirming, setFailBidConfirming] = useState(false);
+
+  // 判断是否在开标前 24h 内
+  const isWithin24hOfOpening = (() => {
+    if (!bidProject?.openTime) return false;
+    const openTime = new Date(bidProject.openTime).getTime();
+    const now = Date.now();
+    const diffHours = (openTime - now) / (1000 * 60 * 60);
+    return diffHours <= 24 && diffHours >= -48; // 开标前24h ~ 开标后48h
+  })();
   // D1: 专家在线状态
   const [expertOnlineCount, setExpertOnlineCount] = useState(0);
+
+  // ★ 打开流标对话框时，AI 自动分析投递/专家状态并预填流标原因
+  const handleOpenFailBidDialog = useCallback(async () => {
+    setFailBidDialogOpen(true);
+    setFailBidReason('');
+    setFailBidAiLoading(true);
+    try {
+      // 收集供应商投递情况
+      const suppliers = workspace?.suppliers ?? [];
+      const submitted = suppliers.filter(s => s.submitted);
+      const notSubmitted = suppliers.filter(s => !s.submitted && !s.withdrawn);
+      const withdrawn = suppliers.filter(s => s.withdrawn);
+      // 收集专家回复情况
+      const experts = detail?.experts ?? [];
+      const expertAccepted = experts.filter(e => e.status === 'accepted');
+      const expertDeclined = experts.filter(e => e.status === 'declined');
+
+      const context: Record<string, string> = {
+        '项目名称': project?.title ?? '',
+        '采购方式': project?.procurementMethod ?? '',
+        '受邀供应商数': String(suppliers.length),
+        '已投递': String(submitted.length),
+        '未投递': String(notSubmitted.length),
+        '已撤回': String(withdrawn.length),
+        '已投递供应商': submitted.map(s => s.supplierName).join('、') || '无',
+        '专家总数': String(experts.length),
+        '专家已确认': String(expertAccepted.length),
+        '专家已拒绝': String(expertDeclined.length),
+      };
+
+      const result = await generateFieldContent({
+        fieldKey: 'failBidReason' as any,
+        fieldLabel: '流标原因',
+        currentValue: '',
+        aiPrompt: '根据项目供应商投递情况和专家回复情况，生成流标原因说明。分析投递数量是否达到法定要求（通常需3家以上有效投标），专家是否到位等。输出一段正式的公文风格说明（50-150字），不要使用#、*等符号。',
+        context,
+      });
+      if (result?.content) {
+        setFailBidReason(result.content.replace(/�/g, '').trim());
+      }
+    } catch { /* AI 不可用不阻塞 */ }
+    setFailBidAiLoading(false);
+  }, [workspace, detail, project]);
   // 正选专家替换弹窗
   const [replaceModalOpen, setReplaceModalOpen] = useState(false);
   const [replaceModalExpert, setReplaceModalExpert] = useState<{ id: string; name: string } | null>(null);
@@ -848,6 +909,18 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                       <CheckCircle2 size={14} /> 评标进行中
                     </div>
                   )}
+                  {/* 流标按钮：仅开标前 24h 内可点击 */}
+                  {onAbort && (stage === 'DOWNLOAD' || stage === 'SUBMIT' || stage === 'OPENING' || stage === 'EVALUATING') && (
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenFailBidDialog()}
+                      disabled={!isWithin24hOfOpening || busy}
+                      className="neu-btn-soft is-danger !h-[36px]"
+                      title={!isWithin24hOfOpening ? '仅开标时间前 24 小时内可操作流标' : '确认流标并发布流标公告'}
+                    >
+                      <Ban size={14} /> 流标
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -918,6 +991,93 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
         bidProjectId={bpId ?? ''}
         onChanged={() => void load()}
       />
+
+      {/* ★ 流标确认对话框（底部"流标"按钮触发） */}
+      {failBidDialogOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" onClick={() => !failBidConfirming && setFailBidDialogOpen(false)}>
+          <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} />
+          <div
+            className="relative z-10 mx-5 w-full max-w-[480px] rounded-[22px] p-6"
+            style={{
+              background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))',
+              boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]"
+                  style={{ background: 'color-mix(in oklch, var(--danger) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}>
+                  <Ban size={17} className="text-[var(--danger)]" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">确认流标</div>
+                  <div className="text-[11px] text-[color:var(--muted-foreground)]">{project?.title}</div>
+                </div>
+              </div>
+              <button type="button" onClick={() => !failBidConfirming && setFailBidDialogOpen(false)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+
+            {/* 投递/专家状态摘要 */}
+            {workspace && (
+              <div className="mb-3 rounded-[12px] px-3.5 py-2.5 text-[11px]" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                <div className="flex items-center gap-4 text-[color:var(--muted-foreground)]">
+                  <span>受邀 <strong className="text-[color:var(--foreground)]">{workspace.suppliers.length}</strong> 家</span>
+                  <span>已投递 <strong className="text-[color:var(--success)]">{workspace.suppliers.filter(s => s.submitted).length}</strong></span>
+                  <span>未投递 <strong className="text-[color:var(--warning)]">{workspace.suppliers.filter(s => !s.submitted && !s.withdrawn).length}</strong></span>
+                  <span>已撤回 <strong className="text-[color:var(--danger)]">{workspace.suppliers.filter(s => s.withdrawn).length}</strong></span>
+                </div>
+              </div>
+            )}
+
+            {/* 流标原因 */}
+            <div className="mb-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">流标原因</span>
+                {failBidAiLoading && (
+                  <span className="flex items-center gap-1 text-[10px] text-[color:var(--accent)]">
+                    <Loader2 size={10} className="animate-spin" /> AI 分析中…
+                  </span>
+                )}
+                {!failBidAiLoading && failBidReason && (
+                  <span className="flex items-center gap-1 text-[10px] text-[color:var(--accent)]">
+                    <Sparkles size={10} /> AI 已生成
+                  </span>
+                )}
+              </div>
+              <textarea
+                value={failBidReason}
+                onChange={e => setFailBidReason(e.target.value)}
+                placeholder="请填写流标原因…"
+                rows={4}
+                className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-[color:var(--foreground)] outline-none transition"
+                style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 1px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -1px -1px 2px oklch(1 0 0 / 0.4)', border: 'none' }}
+              />
+            </div>
+
+            <div className="mb-4 rounded-[10px] px-3 py-2 text-[11px] leading-relaxed text-[color:var(--muted-foreground)]"
+              style={{ background: 'color-mix(in oklch, var(--danger) 6%, transparent)' }}>
+              确认后将打开流标公告制作与发布流程。项目将被标记为流标状态。
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setFailBidDialogOpen(false)} disabled={failBidConfirming} className="neu-btn-soft">取消</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFailBidConfirming(true);
+                  setFailBidDialogOpen(false);
+                  onAbort?.();
+                }}
+                disabled={failBidAiLoading || !failBidReason.trim()}
+                className="neu-btn-soft is-danger"
+              >
+                <Ban size={14} /> 确认流标
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -360,6 +360,7 @@ model BidSupplier {
   supplierId            String?
   supplierName          String
   downloadStatus        String                    @default("待下载")
+  lastDownloadAt        DateTime?
   submitStatus          String                    @default("待提交")
   encryptStatus         String                    @default("待校验")
   receiptNo             String?

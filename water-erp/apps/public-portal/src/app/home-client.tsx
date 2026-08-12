@@ -203,8 +203,8 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
 
   const features = [
     { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
-    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: portalURL('supplier', '/login?forceLogin=1') },
-    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: portalURL('web', '/login?forceLogin=1') },
+    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: `http://192.168.1.109:3004/login?forceLogin=1` },
+    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: `http://192.168.1.109:3005/login?forceLogin=1` },
     { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: portalURL('expert', '/login?forceLogin=1') },
   ];
 
@@ -338,7 +338,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               {features.map((f, idx) => (
                 <React.Fragment key={f.title}>
                   {idx > 0 && <div className="feature-divider" />}
-                  <a href={f.href} target="_blank" rel="noopener noreferrer"
+                  <a href={f.href} target="_blank" rel="noopener noreferrer" suppressHydrationWarning
                     className="relative flex flex-1 items-center gap-3 px-10 py-5 no-underline text-inherit overflow-hidden group feature-entry-card"
                     onMouseMove={e => {
                       const rect = e.currentTarget.getBoundingClientRect();

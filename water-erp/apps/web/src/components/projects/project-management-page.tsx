@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -20,7 +20,9 @@ import { useAssistant } from "@/components/assistant/assistant-provider";
 
 export function ProjectManagementPage() {
   const [items, setItems] = useState<ProjectManagementItem[]>([]);
+  const [archivedItems, setArchivedItems] = useState<ProjectManagementItem[]>([]);
   const [recycledItems, setRecycledItems] = useState<ProjectManagementItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [drawerErrorMessage, setDrawerErrorMessage] = useState<string | null>(null);
@@ -30,6 +32,10 @@ export function ProjectManagementPage() {
   const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'departmentNumber' | 'title'>('updatedAt');
   const [filterMethod, setFilterMethod] = useState<string>('');
   const [filterDepartment, setFilterDepartment] = useState<string>('');
+  const [filterOperator, setFilterOperator] = useState<string>('');
+  // 级联筛选：filterType 选维度，filterValue 选值
+  const [filterType, setFilterType] = useState<'method' | 'department' | 'operator'>('method');
+  const [filterValue, setFilterValue] = useState<string>('');
   const [portalReady, setPortalReady] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const { setPageContext } = useAssistant();
@@ -41,11 +47,13 @@ export function ProjectManagementPage() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const [activeItems, recycled] = await Promise.all([
+      const [activeItems, archived, recycled] = await Promise.all([
         fetchProjectManagementList('ACTIVE'),
+        fetchProjectManagementList('ARCHIVED'),
         fetchProjectManagementList('RECYCLED'),
       ]);
       setItems(activeItems);
+      setArchivedItems(archived);
       setRecycledItems(recycled);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '加载项目失败。');
@@ -111,8 +119,23 @@ export function ProjectManagementPage() {
     return Array.from(set).sort();
   }, [items]);
 
+  const operators = useMemo(() => {
+    const source = activeTab === 'archived' ? archivedItems : items;
+    const set = new Set(source.map(i => i.createdByName).filter(Boolean));
+    return Array.from(set).sort();
+  }, [items, archivedItems, activeTab]);
+
+  // 级联筛选：根据选中的维度提供可选项
+  const filterOptions = useMemo(() => {
+    const source = activeTab === 'archived' ? archivedItems : items;
+    if (filterType === 'method') return Array.from(new Set(source.map(i => i.procurementMethod).filter(Boolean))).sort();
+    if (filterType === 'department') return Array.from(new Set(source.map(i => i.requesterDepartment).filter(Boolean))).sort();
+    return Array.from(new Set(source.map(i => i.createdByName).filter(Boolean))).sort();
+  }, [filterType, items, archivedItems, activeTab]);
+
   const filteredItems = useMemo(() => {
-    let result = [...items];
+    const source = activeTab === 'archived' ? archivedItems : items;
+    let result = [...source];
 
     // Text search
     const normalized = keyword.trim().toLowerCase();
@@ -135,6 +158,18 @@ export function ProjectManagementPage() {
       result = result.filter(i => i.requesterDepartment === filterDepartment);
     }
 
+    // Operator filter
+    if (filterOperator) {
+      result = result.filter(i => i.createdByName === filterOperator);
+    }
+
+    // 级联筛选
+    if (filterValue) {
+      if (filterType === 'method') result = result.filter(i => i.procurementMethod === filterValue);
+      else if (filterType === 'department') result = result.filter(i => i.requesterDepartment === filterValue);
+      else if (filterType === 'operator') result = result.filter(i => i.createdByName === filterValue);
+    }
+
     // Sort
     result.sort((a, b) => {
       switch (sortBy) {
@@ -153,7 +188,7 @@ export function ProjectManagementPage() {
     });
 
     return result;
-  }, [items, keyword, sortBy, filterMethod, filterDepartment]);
+  }, [activeTab, items, archivedItems, keyword, sortBy, filterMethod, filterDepartment]);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
 
@@ -238,7 +273,7 @@ export function ProjectManagementPage() {
               </div>
               <div className="page-hero__right">
                 <span className="page-hero__stat page-hero__stat--info">
-                  共 {items.length} 项
+                  {activeTab === 'active' ? `进行中 ${items.length} 项` : `已完成 ${archivedItems.length} 项`}
                 </span>
                 <button
                   type="button"
@@ -279,6 +314,25 @@ export function ProjectManagementPage() {
                 )}
               </div>
               <div className="ml-auto flex items-center gap-2">
+                <div className="neu-tab-bar">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('active')}
+                    className={`neu-tab ${activeTab === 'active' ? 'is-active' : ''}`}
+                  >
+                    进行中
+                    {items.length > 0 && <span className="ml-1 text-[10px] font-bold tabular-nums opacity-70">{items.length}</span>}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('archived')}
+                    className={`neu-tab ${activeTab === 'archived' ? 'is-active' : ''}`}
+                  >
+                    <CheckCircle2 size={13} className="inline mr-1" />
+                    已完成
+                    {archivedItems.length > 0 && <span className="ml-1 text-[10px] font-bold tabular-nums opacity-70">{archivedItems.length}</span>}
+                  </button>
+                </div>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
                 <select
                   value={sortBy}
@@ -293,20 +347,21 @@ export function ProjectManagementPage() {
                 </select>
                 <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
                 <select
-                  value={filterMethod}
-                  onChange={(e) => setFilterMethod(e.target.value)}
-                  className="workbench-input !w-auto min-w-[130px]"
+                  value={filterType}
+                  onChange={(e) => { setFilterType(e.target.value as typeof filterType); setFilterValue(''); }}
+                  className="workbench-input !w-auto min-w-[100px]"
                 >
-                  <option value="">全部方式</option>
-                  {methods.map((m) => <option key={m} value={m}>{m}</option>)}
+                  <option value="method">采购方式</option>
+                  <option value="department">申请部门</option>
+                  <option value="operator">经办人</option>
                 </select>
                 <select
-                  value={filterDepartment}
-                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  value={filterValue}
+                  onChange={(e) => setFilterValue(e.target.value)}
                   className="workbench-input !w-auto min-w-[130px]"
                 >
-                  <option value="">全部部门</option>
-                  {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+                  <option value="">全部</option>
+                  {filterOptions.map((v) => <option key={v} value={v}>{v}</option>)}
                 </select>
               </div>
             </div>
@@ -330,7 +385,7 @@ export function ProjectManagementPage() {
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="wb-panel p-10 flex items-center justify-center">
-              <span className="text-sm text-[color:var(--muted-foreground)]">当前没有进行中的项目。</span>
+              <span className="text-sm text-[color:var(--muted-foreground)]">{activeTab === 'active' ? '当前没有进行中的项目。' : '当前没有已完成的项目。'}</span>
             </div>
           ) : (
             <div className="grid gap-4 xl:grid-cols-2">

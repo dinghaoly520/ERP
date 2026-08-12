@@ -590,6 +590,16 @@ a {
   isolation: isolate;
 }
 
+/* 兜底：非 localhost 访问时 JS 可能因 HMR/网络原因加载较慢，CSS animation 延迟 3s 后强制显示登录表单 */
+@media (scripting: none), (min-width: 0px) {
+  .login-stage [style*="opacity:0"] {
+    animation: cr-login-fallback 0.01s 3s forwards;
+  }
+}
+@keyframes cr-login-fallback {
+  to { opacity: 1; transform: none; }
+}
+
 .login-stage::before {
   content: "";
   position: absolute;

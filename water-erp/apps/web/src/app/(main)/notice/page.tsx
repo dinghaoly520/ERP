@@ -6,7 +6,7 @@ import {
   listAnnouncements, deleteAnnouncement, updateAnnouncement,
   getParticipants,
 } from '@/lib/api/announcement';
-import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant } from '@/lib/api/announcement';
+import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant, ParticipantsResult } from '@/lib/api/announcement';
 import { toast } from 'sonner';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import {
@@ -289,8 +289,7 @@ export default function NoticePage() {
                     <td style={{ textAlign: 'right' }} className="tabular-nums font-semibold text-[var(--foreground)]">{a.viewCount}</td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="flex flex-wrap justify-center gap-1.5">
-                        <button onClick={() => router.push(`/notice/${a.id}`)} className="neu-btn-xs is-info">查看</button>
-                        {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标</button>}
+                        {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标情况</button>}
                         <button onClick={() => remove(a)} className="neu-btn-xs is-danger">删除</button>
                       </div>
                     </td>
@@ -365,50 +364,161 @@ function SortTh({ label, sortKey, current, dir, onToggle, align = 'center' }: {
 
 /* ════════════ 投标情况弹窗 ════════════ */
 function ParticipantsModal({ announcement, onClose }: { announcement: AnnouncementListItem; onClose: () => void }) {
-  const [result, setResult] = useState<{ project: any; suppliers: Participant[]; stats: { total: number; submitted: number } } | null>(null);
+  const [result, setResult] = useState<ParticipantsResult | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => { getParticipants(announcement.id).then(setResult).catch(() => setResult(null)).finally(() => setLoading(false)); }, [announcement.id]);
   const pct = result && result.stats.total > 0 ? Math.round((result.stats.submitted / result.stats.total) * 100) : 0;
+  const downloadCount = result?.suppliers.filter(s => s.downloadCount > 0).length ?? 0;
 
   return (
     <Modal
       open
       onClose={onClose}
-      size="lg"
+      size="xl"
       title="投标情况"
       description={announcement.title}
     >
-      {loading ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">加载中...</p> :
-       !result || !result.project ? <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">该采购公示未关联采购项目，暂无投标数据。</p> : (
-        <div className="space-y-5">
-          <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4">
-            <div className="flex items-center justify-between"><strong className="text-[var(--foreground)]">{result.project.name}</strong><span className="text-xs text-[var(--muted-foreground)]">截止 {new Date(result.project.deadline).toLocaleDateString('zh-CN')}</span></div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2"><span className="text-sm font-semibold text-[var(--foreground)]">提交进度</span><span className="text-sm tabular-nums text-[var(--muted-foreground)]">{result.stats.submitted}/{result.stats.total} 已提交</span></div>
-              <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]"><div className="h-full rounded-full bg-[var(--success)] transition-all duration-500" style={{ width: `${pct}%` }} /></div>
+      {loading ? (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <div className="neu-icon-well flex h-12 w-12 items-center justify-center rounded-2xl">
+            <RefreshCw size={20} className="animate-spin text-[var(--muted-foreground)]" />
+          </div>
+          <p className="text-sm text-[var(--muted-foreground)]">加载中...</p>
+        </div>
+      ) : !result ? (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <div className="neu-icon-well flex h-12 w-12 items-center justify-center rounded-2xl">
+            <FileText size={20} className="text-[var(--muted-foreground)]" />
+          </div>
+          <p className="text-sm font-semibold text-[var(--foreground)]">加载失败</p>
+          <p className="text-xs text-[var(--muted-foreground)]">请稍后重试</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* ═══ 项目概况卡片 ═══ */}
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-[15px] font-bold leading-snug text-[var(--foreground)]">{result.project.name}</h3>
+                  <span className="text-[11px] font-medium text-[var(--muted-foreground)] tabular-nums">
+                    项目编号 {result.project.projectCode || '—'}
+                    {result.project.stage && <> · {result.project.stage}</>}
+                  </span>
+                </div>
+                {result.project.deadline && (
+                  <span className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold tabular-nums text-[var(--muted-foreground)]">
+                    截止 {new Date(result.project.deadline).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                  </span>
+                )}
+              </div>
+
+              {/* 提交进度条 */}
+              {result.stats.total > 0 && (
+                <div className="mt-1">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[var(--foreground)]">投标提交进度</span>
+                    <span className="text-xs tabular-nums font-semibold text-[var(--accent)]">
+                      {result.stats.submitted}/{result.stats.total} 已提交
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]">
+                    <div className="h-full rounded-full bg-[var(--success)] transition-all duration-600" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* KPI 行 */}
+              <div className="mt-1 grid grid-cols-3 gap-2">
+                <KpiTile label="参与供应商" value={result.stats.total} />
+                <KpiTile label="已提交标书" value={result.stats.submitted} accent="success" />
+                <KpiTile label="已下载文件" value={downloadCount} accent="accent" />
+              </div>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="neu-table w-full min-w-[580px] text-sm">
-              <thead><tr><th>供应商</th><th>分类</th><th>下载</th><th>标书状态</th><th>提交时间</th><th>报价</th></tr></thead>
+
+          {/* ═══ 供应商表格 ═══ */}
+          <div className="overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+            <table className="neu-table w-full min-w-[680px] text-sm">
+              <thead>
+                <tr>
+                  <th className="text-left">供应商</th>
+                  <th className="text-left">业务标签</th>
+                  <th className="text-center">下载</th>
+                  <th className="text-center">标书状态</th>
+                  <th className="text-right">提交时间</th>
+                </tr>
+              </thead>
               <tbody>
-                {result.suppliers.length === 0 ? <tr><td colSpan={6} className="px-3 py-8 text-center text-[var(--muted-foreground)]">暂无投标供应商</td></tr> :
-                  result.suppliers.map((s, i) => (
-                    <tr key={i}>
-                      <td className="font-semibold text-[var(--foreground)]">{s.supplierName}</td>
-                      <td className="text-[var(--muted-foreground)]">{s.classification || '—'}</td>
-                      <td className="text-[var(--muted-foreground)]">{s.downloadStatus}</td>
-                      <td><BidStatusBadge withdrawn={s.withdrawn} submitted={s.submitted} /></td>
-                      <td className="text-[var(--muted-foreground)]">{s.submittedAt ? new Date(s.submittedAt).toLocaleString('zh-CN') : '—'}</td>
-                      <td className="text-[var(--muted-foreground)]">{s.bidPrice || '—'}</td>
-                    </tr>
-                  ))}
+                {result.suppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <FileText size={20} className="text-[var(--muted-foreground)]/50" />
+                        <p className="text-sm font-semibold text-[var(--foreground)]">暂无供应商参与</p>
+                        <p className="max-w-[280px] text-xs leading-relaxed text-[var(--muted-foreground)]">
+                          发布招标文件后，下载并提交标书的供应商将在此展示
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : result.suppliers.map((s, i) => (
+                  <tr key={i} className={s.submitted ? '' : 'opacity-70'}>
+                    <td>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[0.85rem] font-bold text-[var(--foreground)]">{s.supplierName}</span>
+                        {s.withdrawn && <span className="text-[10px] font-semibold text-[var(--danger)]">已撤回</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        {s.tags?.length ? s.tags.slice(0, 3).map((t, j) => (
+                          <span key={j} className="inline-flex rounded-[5px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">{t}</span>
+                        )) : <span className="text-[11px] text-[var(--muted-foreground)]/60">—</span>}
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      {s.lastDownloadAt ? (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-[0.8rem] tabular-nums font-semibold text-[var(--foreground)]">
+                            {new Date(s.lastDownloadAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}
+                          </span>
+                          <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
+                            {new Date(s.lastDownloadAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            {s.downloadCount > 1 && <> · {s.downloadCount}次</>}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-[var(--warning)]">未下载</span>
+                      )}
+                    </td>
+                    <td className="text-center">
+                      <BidStatusBadge withdrawn={s.withdrawn} submitted={s.submitted} />
+                    </td>
+                    <td className="text-right tabular-nums text-[0.8rem] text-[var(--muted-foreground)]">
+                      {s.submittedAt
+                        ? new Date(s.submittedAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' + new Date(s.submittedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                        : <span className="text-[var(--muted-foreground)]/40">—</span>}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
       )}
     </Modal>
+  );
+}
+
+function KpiTile({ label, value, accent }: { label: string; value: number; accent?: 'success' | 'accent' }) {
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</div>
+      <div className={`mt-0.5 text-lg font-black tabular-nums tracking-[-0.03em] ${
+        accent === 'success' ? 'text-[var(--success)]' : accent === 'accent' ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
+      }`}>{value}</div>
+    </div>
   );
 }
 

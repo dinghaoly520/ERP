@@ -74,11 +74,24 @@ async function bootstrap() {
     }),
   );
 
+  // 开发/测试环境允许任意跨域来源（局域网设备访问）；
+  // 生产环境仅允许 CORS_ORIGINS 或 fallback localhost 列表。
+  const isProduction = process.env.NODE_ENV === 'production';
+  const corsOrigin = isProduction
+    ? corsOrigins()
+    : (origin: string | undefined, cb: (err: Error | null, allow: boolean) => void) => {
+        // 允许 localhost、127.0.0.1、局域网 IP（192.168./10./172.16-31.）及任意 origin
+        cb(null, true);
+      };
   app.enableCors({
-    origin: corsOrigins(),
+    origin: corsOrigin,
     credentials: true,
   });
-  logger.log(`CORS origins: ${corsOrigins().join(', ')}`);
+  if (isProduction) {
+    logger.log(`CORS origins: ${corsOrigins().join(', ')}`);
+  } else {
+    logger.log('CORS: all origins allowed (non-production mode)');
+  }
 
   // Swagger API 文档 —— 仅非生产环境挂载，生产隐藏避免接口面泄露
   if (process.env.NODE_ENV !== 'production') {

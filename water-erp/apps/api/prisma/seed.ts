@@ -47,9 +47,9 @@ const ALL_TABLES = [
   'BidProject', 'BidScoreItem', 'BidScorePoint', 'BidScoreRecord',
   'BidSupervisionAnnotation', 'BidSupervisionLog', 'BidSupplier',
   'BudgetItem', 'BudgetList',
-  'CatalogCategory', 'CatalogInquiry', 'CatalogItemAttribute', 'CatalogItemRelation',
-  'CatalogItem', 'CatalogSupplier', 'CatalogVersion', 'CategoryAttributeTemplate',
-  'ComplianceRule', 'Contact', 'ContractPrice',
+  'CatalogCategory', 'CatalogItemAttribute',
+  'CatalogItem', 'CatalogSupplier', 'CategoryAttributeTemplate',
+  'ComplianceRule', 'Contact',
   'Department', 'DocumentChunk',
   'ExpertEvaluation', 'ExpertProfile', 'ExtractionTask',
   'FileAsset', 'ImportBatch',
@@ -142,10 +142,6 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['CatalogSupplier', 'catalogSupplier'],
   ['SupplierCatalogApplication', 'supplierCatalogApplication'],
   ['CatalogItemAttribute', 'catalogItemAttribute'],
-  ['CatalogItemRelation', 'catalogItemRelation'],
-  ['CatalogVersion', 'catalogVersion'],
-  ['CatalogInquiry', 'catalogInquiry'],
-  ['ContractPrice', 'contractPrice'],
   ['PriceAlert', 'priceAlert'],
   ['AssistantConversation', 'assistantConversation'],
   ['AssistantAlert', 'assistantAlert'],
@@ -245,8 +241,19 @@ async function ensureTenderFiles() {
 
 async function main() {
   console.log('▶ 清空业务表（TRUNCATE … RESTART IDENTITY CASCADE）');
-  const tableList = ALL_TABLES.map((t) => `"${t}"`).join(', ');
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE;`);
+  // 先探测数据库中实际存在的表，避免 schema 中有但迁移未创建导致 fail-fast
+  const existingTables = await prisma.$queryRawUnsafe<{ tablename: string }[]>(
+    `SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename != '_prisma_migrations'`,
+  );
+  const existingNames = new Set(existingTables.map((r) => r.tablename));
+  const tablesToTruncate = ALL_TABLES.filter((t) => existingNames.has(t.toLowerCase()));
+  const missing = ALL_TABLES.filter((t) => !existingNames.has(t.toLowerCase()));
+  if (missing.length > 0) console.log(`  跳过 ${missing.length} 张未建表: ${missing.join(', ')}`);
+  if (tablesToTruncate.length > 0) {
+    const tableList = tablesToTruncate.map((t) => `"${t}"`).join(', ');
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE;`);
+    console.log(`  已 TRUNCATE ${tablesToTruncate.length} 张表`);
+  }
 
   // 种子快照存在循环外键（ProcurementProject ↔ BidProject 互相引用），
   // 无法纯拓扑排序。会话内切到 replica 角色 = 禁用所有 FK 触发器，允许任意顺序写入。
@@ -256,6 +263,12 @@ async function main() {
 
   console.log('▶ 按外键依赖顺序写入快照');
   for (const [tableName, delegate] of SEED_ORDER) {
+    // 跳过数据库中不存在的表（Prisma schema 新增但迁移未建）
+    if (!existingNames.has(tableName)) {
+      const rows = load(tableName) as Record<string, unknown>[];
+      if (rows.length > 0) console.log(`    跳过 ${tableName}: ${rows.length} 行（表未建）`);
+      continue;
+    }
     // SELF-REF: CatalogCategory 根节点先写，子节点后写（避开自引用 FK 约束）
     if (tableName === 'CatalogCategory') {
       const rows = load(tableName) as Record<string, unknown>[];
@@ -359,15 +372,19 @@ async function main() {
   console.log(`    陈源远 ${staffUsers.length} 个账号口令已重置`);
 
   // ═══ 内部管理账号口令规整（与 ACCOUNTS.md「<用户名>@2026」约定一致，使 :3005 有可登录的 leader/staff）═══
-  console.log('▶ 规整内部管理账号口令（Swhi-CGZX-01 leader / Swhi-CGZX-05 staff / Swhi-CGZX-admin admin）');
-  // admin 亦在列：tender-review 规则管理（AdminGuard）需 admin 角色，而 User.json 里的历史哈希明文不可考，
-  // 不规整则 :3005 无任何可登录的 admin → 规则提取/CRUD 对所有人 403。
-  for (const uname of ['Swhi-CGZX-01', 'Swhi-CGZX-05', 'Swhi-CGZX-admin']) {
+  console.log('▶ 规整内部管理账号口令（Swhi-CGZX-01~10 + admin）');
+  for (let i = 1; i <= 10; i++) {
+    const uname = `Swhi-CGZX-${String(i).padStart(2, '0')}`;
     await prisma.user.updateMany({
       where: { username: uname },
       data: { passwordHash: hashSync(`${uname}@2026`, 10) },
     });
   }
+  // admin 亦在列：tender-review 规则管理（AdminGuard）需 admin 角色
+  await prisma.user.updateMany({
+    where: { username: 'Swhi-CGZX-admin' },
+    data: { passwordHash: hashSync('Swhi-CGZX-admin@2026', 10) },
+  });
 
   // ═══ 新增「开标主持人」bid_host 账号（演示 :3007 硬分流，与陈源远形成两个可指派对象）═══
   console.log('▶ 创建「开标主持人」bid_host 账号（口令 开标主持人@2026）');

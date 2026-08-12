@@ -3,7 +3,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { BidService } from '../bid/bid.service';
-import { openField } from '../common/crypto/field-crypto';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 @Injectable()
@@ -456,51 +455,156 @@ export class AnnouncementService {
     return validated;
   }
 
-  /** 招标公示的投标情况：关联项目 → 参与供应商 + 是否已投标（只读监控，不含开标/评标） */
+  /** 招标公示的投标情况：以公告为起点，合并 BidDocumentAccess（下载侧）+ BidProject（供应侧）数据 */
   async getParticipants(id: string) {
-    const ann = await this.prisma.announcement.findUnique({ where: { id }, select: { type: true, relatedProjectCode: true } });
+    const ann = await this.prisma.announcement.findUnique({
+      where: { id },
+      select: { id: true, type: true, title: true, relatedProjectCode: true },
+    });
     if (!ann) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
-    if (!ann.relatedProjectCode) return { project: null, suppliers: [], stats: { total: 0, submitted: 0 } };
 
-    const project = await this.prisma.bidProject.findUnique({
-      where: { projectCode: ann.relatedProjectCode },
-      select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
+    type ProjectInfo = { name: string; projectCode: string; stage: string; deadline: Date | null };
+    type SupplierRow = {
+      supplierName: string;
+      tags: string[];
+      lastDownloadAt: Date | null;
+      downloadCount: number;
+      submitted: boolean;
+      withdrawn: boolean;
+      submittedAt: Date | null;
+    };
+
+    // ── 1. 解析关联项目（三级回退）──
+    let project: ProjectInfo & { id: string } | null = null;
+
+    if (ann.relatedProjectCode) {
+      let bp = await this.prisma.bidProject.findUnique({
+        where: { projectCode: ann.relatedProjectCode },
+        select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
+      });
+      if (!bp) {
+        const proc = await this.prisma.procurementProject.findUnique({
+          where: { projectCode: ann.relatedProjectCode },
+          select: { bidProjectId: true },
+        });
+        if (proc?.bidProjectId) {
+          bp = await this.prisma.bidProject.findUnique({
+            where: { id: proc.bidProjectId },
+            select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
+          });
+        }
+      }
+      if (!bp) {
+        const pmi = await this.prisma.projectManagementItem.findFirst({
+          where: { projectCode: ann.relatedProjectCode },
+          select: { id: true, title: true, projectCode: true, currentStage: true, bidOpeningTime: true },
+        });
+        if (pmi) {
+          bp = await this.prisma.bidProject.findFirst({
+            where: { name: pmi.title },
+            select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (!bp) {
+            project = {
+              id: pmi.id,
+              name: pmi.title,
+              projectCode: pmi.projectCode ?? ann.relatedProjectCode,
+              stage: pmi.currentStage ?? '',
+              deadline: pmi.bidOpeningTime ? new Date(pmi.bidOpeningTime as unknown as string) : null,
+            };
+          }
+        }
+      }
+      if (bp && !project) project = bp;
+    }
+
+    const projectId = project?.id;
+
+    // ── 2. 查询：招标文件 + 下载记录 + 项目供应商 + 投标提交 ──
+    const bidDoc = await this.prisma.bidDocument.findUnique({
+      where: { announcementId: ann.id },
+      select: { id: true },
     });
-    if (!project) return { project: null, suppliers: [], stats: { total: 0, submitted: 0 } };
 
-    const [suppliers, submissions] = await Promise.all([
-      this.prisma.bidSupplier.findMany({
-        where: { projectId: project.id },
-        include: { supplier: { select: { name: true, classification: { select: { name: true } } } } },
-        orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.supplierBidSubmission.findMany({
-        where: { projectId: project.id },
-        select: { supplierId: true, status: true, submittedAt: true, bidPrice: true },
-      }),
-    ]);
+    const downloaders = bidDoc
+      ? await this.prisma.bidDocumentAccess.findMany({
+          where: { documentId: bidDoc.id },
+          include: { supplier: { select: { name: true, tags: true } } },
+          orderBy: { lastDownloadAt: { sort: 'desc', nulls: 'last' } },
+        })
+      : [];
+
+    let bidSuppliers: { supplierId: string | null; supplierName: string; lastDownloadAt: Date | null; submitStatus: string; supplier: { name: string; tags: string[] } | null }[] = [];
+    let submissions: { supplierId: string; status: string; submittedAt: Date | null }[] = [];
+
+    if (projectId) {
+      [bidSuppliers, submissions] = await Promise.all([
+        this.prisma.bidSupplier.findMany({
+          where: { projectId },
+          include: { supplier: { select: { name: true, tags: true } } },
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.prisma.supplierBidSubmission.findMany({
+          where: { projectId },
+          select: { supplierId: true, status: true, submittedAt: true },
+        }),
+      ]);
+    }
+
+    // ── 3. 合并去重：下载者 ∪ 项目供应商 ──
     const subMap = new Map(submissions.map(s => [s.supplierId, s]));
-    const rows = suppliers.map(s => {
-      const sub = s.supplierId ? subMap.get(s.supplierId) : null;
-      // 收紧为解密制（原阶段制会让 OPENING 阶段未解密的报价暴露给采购管理端）：
-      // 只有该供应商 decryptStatus==='SUCCESS' 才拆封 bidPrice 返回明文；否则 null。
-      // bidPrice 入库已密封，这里 openField 拆封；旧明文行经 legacy 兼容原样返回。
-      const decrypted = s.decryptStatus === 'SUCCESS';
-      return {
-        supplierName: s.supplierName,
-        classification: s.supplier?.classification?.name,
-        downloadStatus: s.downloadStatus,
-        submitStatus: s.submitStatus,
-        submitted: sub?.status === 'submitted' || (!sub && s.submitStatus === '已提交'),
-        withdrawn: sub?.status === 'withdrawn',
-        submittedAt: sub?.submittedAt,
-        bidPrice: decrypted && sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null,
-      };
-    });
+    const rowMap = new Map<string, SupplierRow>();
+
+    for (const d of downloaders) {
+      const sid = d.supplierId;
+      const bs = bidSuppliers.find(b => b.supplierId === sid);
+      const sub = sid ? subMap.get(sid) : undefined;
+      rowMap.set(sid, {
+        supplierName: d.supplier.name,
+        tags: d.supplier.tags ?? [],
+        lastDownloadAt: d.lastDownloadAt,
+        downloadCount: d.downloadCount,
+        submitted: sub?.status === 'submitted' || (bs?.submitStatus === '已提交') || false,
+        withdrawn: sub?.status === 'withdrawn' || false,
+        submittedAt: sub?.submittedAt ?? null,
+      });
+    }
+
+    for (const bs of bidSuppliers) {
+      const sid = bs.supplierId;
+      if (sid && rowMap.has(sid)) continue;
+      if (!sid) {
+        const existing = [...rowMap.values()].find(r => r.supplierName === bs.supplierName);
+        if (existing) continue;
+      }
+      const sub = sid ? subMap.get(sid) : undefined;
+      rowMap.set(sid ?? bs.supplierName, {
+        supplierName: bs.supplierName,
+        tags: bs.supplier?.tags ?? [],
+        lastDownloadAt: bs.lastDownloadAt ?? null,
+        downloadCount: 0,
+        submitted: sub?.status === 'submitted' || (!sub && bs.submitStatus === '已提交') || false,
+        withdrawn: sub?.status === 'withdrawn' || false,
+        submittedAt: sub?.submittedAt ?? null,
+      });
+    }
+
+    const rows = [...rowMap.values()];
+
+    // ── 4. 返回 ──
+    const displayProject: ProjectInfo = project ?? {
+      name: ann.title,
+      projectCode: ann.relatedProjectCode ?? '',
+      stage: '',
+      deadline: null,
+    };
+
     return {
-      project: { name: project.name, projectCode: project.projectCode, stage: project.stage, deadline: project.deadline },
+      project: displayProject,
       suppliers: rows,
       stats: { total: rows.length, submitted: rows.filter(r => r.submitted).length },
+      hasBidDocument: !!bidDoc,
     };
   }
 }

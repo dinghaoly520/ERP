@@ -2,10 +2,14 @@ import { PORTS, type AppName } from './ports';
 
 /** 构建门户完整 URL（浏览器端使用） */
 export function portalURL(app: AppName, path = '/'): string {
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
   const port = PORTS[app];
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `http://${host}:${port}${cleanPath}`;
+  if (typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:${port}${cleanPath}`;
+  }
+  // SSR: 返回占位值，实际 href 由客户端 hydrate 后覆盖。
+  // 避免 SSR/客户端 hostname 不一致（localhost vs LAN IP）触发 hydration mismatch。
+  return `http://localhost:${port}${cleanPath}`;
 }
 
 /** 角色 → 登陆后跳转路径 */

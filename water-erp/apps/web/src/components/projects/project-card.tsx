@@ -1,8 +1,20 @@
 import {
   PROJECT_MANAGEMENT_STATUS_LABELS,
-  PROJECT_STAGE_STATUS_LABELS,
   type ProjectManagementItem,
 } from '@/lib/types/project-management';
+
+// 阶段 → CSS 变量映射（与流程卡片保持一致）
+const STAGE_COLOR: Record<string, string> = {
+  PROCUREMENT_DEMAND: 'var(--stage-demand)',
+  INITIATION: 'var(--stage-initiation)',
+  TENDER_DOCUMENT: 'var(--stage-tender)',
+  SUPPLIER_INVITATION: 'var(--stage-supplier)',
+  PUBLIC_ANNOUNCEMENT: 'var(--stage-announce)',
+  EXPERT_SELECTION: 'var(--stage-expert)',
+  BID_EVALUATION: 'var(--stage-evaluation)',
+  AWARD_DECISION: 'var(--stage-award)',
+  CONTRACT: 'var(--stage-contract)',
+};
 
 export function ProjectCard({
   item,
@@ -16,6 +28,7 @@ export function ProjectCard({
   ).length;
   const currentStage =
     item.stages.find((stage) => stage.stageKey === item.currentStage) ?? item.stages[0];
+  const currentStageColor = STAGE_COLOR[currentStage?.stageKey ?? ''] ?? 'var(--accent)';
 
   return (
     <button
@@ -24,9 +37,16 @@ export function ProjectCard({
       className="neu-card group relative w-full p-5 text-left"
     >
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-base font-semibold tracking-[-0.03em] text-[color:var(--foreground)] transition-colors duration-200 group-hover:text-[color:var(--accent)]">
-            {item.title}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold tracking-[-0.03em] text-[color:var(--foreground)] transition-colors duration-200 group-hover:text-[color:var(--accent)]">
+              {item.title}
+            </span>
+            {item.projectCode && (
+              <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-0.5 font-mono text-[10px] font-bold tracking-tight text-[color:var(--accent-strong)]">
+                {item.projectCode}
+              </span>
+            )}
           </div>
           <div className="mt-2 text-sm text-[color:var(--muted-foreground)]">
             {item.requesterDepartment} · {item.requesterName}
@@ -45,9 +65,11 @@ export function ProjectCard({
       </div>
       <div className="mt-4 grid gap-2 text-sm text-[color:var(--muted-foreground)] sm:grid-cols-2">
         <div>采购方式：{item.procurementMethod || '待补充'}</div>
+        <div>采购类别：{item.procurementCategory || '待补充'}</div>
         <div>预算金额：{item.budgetAmount.toLocaleString('zh-CN')}</div>
-        <div>当前阶段：{currentStage?.stageName ?? item.currentStage}</div>
-        <div>阶段状态：{PROJECT_STAGE_STATUS_LABELS[currentStage?.status ?? 'NOT_STARTED']}</div>
+        <div>
+          当前阶段：<span className="font-semibold" style={{ color: currentStageColor }}>{currentStage?.stageName ?? item.currentStage}</span>
+        </div>
       </div>
       <div className="mt-4 space-y-2">
         <div className="flex items-center justify-between text-xs text-[color:var(--muted-foreground)]">
