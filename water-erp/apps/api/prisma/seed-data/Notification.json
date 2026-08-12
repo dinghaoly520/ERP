@@ -2618,17 +2618,6 @@
     "createdAt": "2026-07-28T01:00:00.027Z"
   },
   {
-    "id": "cms40gjdr00o2uuv9nh9xfuiq",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务",
-    "content": "项目编号 BID-1785204151836 已创建，采购方式：竞价。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms40gjdo00o0uuv9i4yzd3km",
-    "createdAt": "2026-07-28T02:02:31.839Z"
-  },
-  {
     "id": "cms40gwjb00o9uuv9nwoh5wac",
     "userId": "cmqc8r6ka01k0koeku05sobkz",
     "type": "BID_INVITED",
@@ -2660,17 +2649,6 @@
     "resolvedAt": null,
     "link": "/dashboard",
     "createdAt": "2026-07-28T02:02:48.888Z"
-  },
-  {
-    "id": "cms40orcv00squuv9jvm74xhe",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_OPENING_CONFIRMED",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务内部竞标（竞价）采购公告已确定开标",
-    "content": "请前往开标大厅组建会话（填写主持人、监督人与解密窗口）",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid/project/cms40gjdo00o0uuv9i4yzd3km",
-    "createdAt": "2026-07-28T02:08:55.424Z"
   },
   {
     "id": "cms40qme900uduuv9kygh2ttj",
@@ -2805,17 +2783,6 @@
     "createdAt": "2026-07-28T02:10:22.317Z"
   },
   {
-    "id": "cms49e2d70039uumt4ioqtt9y",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_PUBLISHED",
-    "title": "新招标项目：引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮·AI评分标准）",
-    "content": "项目编号 BID-1785219153016 已创建，采购方式：竞价。",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid?id=cms49e2d40037uumtdse2ef7l",
-    "createdAt": "2026-07-28T06:12:33.020Z"
-  },
-  {
     "id": "cms49e2ec003iuumtpnrjfexv",
     "userId": "cmqc8r6kb01k3koekavhkpbei",
     "type": "BID_INVITED",
@@ -2825,39 +2792,6 @@
     "resolvedAt": null,
     "link": "/dashboard",
     "createdAt": "2026-07-28T06:12:33.061Z"
-  },
-  {
-    "id": "cms49pv0900g2uumth0kn39zn",
-    "userId": "cmrailrk30000koj5ngvpodt0",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.353Z"
-  },
-  {
-    "id": "cms49pv0g00g4uumtp6crbptc",
-    "userId": "cmraijvv90000ko3d2qdq1bja",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.354Z"
-  },
-  {
-    "id": "cms49pv1000gkuumtvysd2gzv",
-    "userId": "cmrai35gm0008koddrxc3g158",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.372Z"
   },
   {
     "id": "cms49e2ec003juumtuxjij6p2",
@@ -2871,28 +2805,6 @@
     "createdAt": "2026-07-28T06:12:33.061Z"
   },
   {
-    "id": "cms49pv0800fyuumtdbwmgijj",
-    "userId": "cmrai35g60003koddkho5a5dl",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.353Z"
-  },
-  {
-    "id": "cms49pv0s00gguumtsr6bvmeu",
-    "userId": "cmrai35gi0007koddby9ynwqe",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.372Z"
-  },
-  {
     "id": "cms49e2ec003kuumtf7j1g7cu",
     "userId": "cmqc8r6ka01k0koeku05sobkz",
     "type": "BID_INVITED",
@@ -2902,104 +2814,5 @@
     "resolvedAt": null,
     "link": "/dashboard",
     "createdAt": "2026-07-28T06:12:33.061Z"
-  },
-  {
-    "id": "cms49e2fh003zuumtd29oz4bh",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_OPENING_CONFIRMED",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮·AI评分标准）已确定开标",
-    "content": "请前往开标大厅组建会话（填写主持人、监督人与解密窗口）",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid/project/cms49e2d40037uumtdse2ef7l",
-    "createdAt": "2026-07-28T06:12:33.102Z"
-  },
-  {
-    "id": "cms49pgc500fhuumtfwwwysae",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "type": "BID_OPENING_CONFIRMED",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）已确定开标",
-    "content": "请前往开标大厅组建会话（填写主持人、监督人与解密窗口）",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/bid/project/cms49e2d40037uumtdse2ef7l",
-    "createdAt": "2026-07-28T06:21:24.341Z"
-  },
-  {
-    "id": "cms49pv0800fuuumtuj18n32a",
-    "userId": "cmrai35fx0001koddsw3fw8d1",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.353Z"
-  },
-  {
-    "id": "cms49pv0800fwuumt0dl1zy6p",
-    "userId": "cmrai35g20002koddze5ow5o5",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.353Z"
-  },
-  {
-    "id": "cms49pv0900g1uumteqdcw28m",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.353Z"
-  },
-  {
-    "id": "cms49pv0s00geuumtrtl4zu9q",
-    "userId": "cmrai35gd0005kodd4qjrs98e",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.372Z"
-  },
-  {
-    "id": "cms49pv0s00gcuumtran1k8g3",
-    "userId": "cmrai35gp0009koddyh5conyi",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.372Z"
-  },
-  {
-    "id": "cms49pv0s00giuumty2ks4xoz",
-    "userId": "cmrai35g90004koddpllpmrp4",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.372Z"
-  },
-  {
-    "id": "cms49pv1000gmuumtkgd9fvaf",
-    "userId": "cmrai35gx000bkodddegbe2hc",
-    "type": "BID_OPENING_HANDED_OVER",
-    "title": "项目引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）开标完成，资料已移交",
-    "content": "开标文件包已生成，可在开标确认面板启动评标或执行后续流程",
-    "isRead": false,
-    "resolvedAt": null,
-    "link": "/projects?projectId=2e155a3b-cd90-464f-8396-6ea5739c975e&panel=bid-confirm",
-    "createdAt": "2026-07-28T06:21:43.372Z"
   }
 ]

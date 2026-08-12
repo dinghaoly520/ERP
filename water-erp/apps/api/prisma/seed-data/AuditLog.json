@@ -3643,20 +3643,6 @@
     "createdAt": "2026-07-27T01:21:51.729Z"
   },
   {
-    "id": "cms2jrd8v001xuuuyf6kbt4xr",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "action": "BID_OPENING_HANDOVER",
-    "resourceType": "BidProject:cmqseed-open-proj01",
-    "resourceId": null,
-    "details": {
-      "sha256": "7132828d99c6deab15c582194071514ff3cd2ae23fd95aa332b730e0a290e366",
-      "assetId": "cms2jrd8p001tuuuy9e2bov30"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-27T01:27:17.456Z"
-  },
-  {
     "id": "cms2m5qq0004suuuybumb9q9k",
     "userId": "cmrai35gu000akodd8gzem912",
     "action": "LOGIN",
@@ -3692,20 +3678,6 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
     "createdAt": "2026-07-27T02:34:48.988Z"
-  },
-  {
-    "id": "cms2m8786008guuuyro2zddah",
-    "userId": "cmrai35gu000akodd8gzem912",
-    "action": "BID_OPENING_HANDOVER",
-    "resourceType": "BidProject:cmqseed-open-proj01",
-    "resourceId": null,
-    "details": {
-      "sha256": "3e4c322991271d1b57f527089469f215f54420b593315615549d68cca54c3a9b",
-      "assetId": "cms2m8783008cuuuy6zdorjxb"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-27T02:36:22.039Z"
   },
   {
     "id": "cms2n032o00avuuuycnxziut1",
@@ -4025,21 +3997,6 @@
     "createdAt": "2026-07-28T02:01:43.142Z"
   },
   {
-    "id": "cms40gwji00oiuuv9cjhbqlfr",
-    "userId": "cmrai35g90004koddpllpmrp4",
-    "action": "BID_INVITE_SUPPLIERS",
-    "resourceType": "BID-1785204151836",
-    "resourceId": null,
-    "details": {
-      "added": 3,
-      "skipped": 0,
-      "projectId": "cms40gjdo00o0uuv9i4yzd3km"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:02:48.894Z"
-  },
-  {
     "id": "cms40ihl600opuuv9lfo4zt9f",
     "userId": "cmrai35g90004koddpllpmrp4",
     "action": "LOGIN",
@@ -4051,21 +4008,6 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "curl/7.81.0",
     "createdAt": "2026-07-28T02:04:02.827Z"
-  },
-  {
-    "id": "cms40j7cn00p5uuv96ansczci",
-    "userId": "cmrai35g90004koddpllpmrp4",
-    "action": "BID_STAGE_CHANGE",
-    "resourceType": "BidProject:cms40gjdo00o0uuv9i4yzd3km",
-    "resourceId": null,
-    "details": {
-      "to": "SUBMIT",
-      "from": "DOWNLOAD",
-      "stage": "SUBMIT"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:04:36.215Z"
   },
   {
     "id": "cms40kqy900p8uuv9t534qa9v",
@@ -4144,128 +4086,6 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "curl/7.81.0",
     "createdAt": "2026-07-28T02:08:38.357Z"
-  },
-  {
-    "id": "cms40orcr00souuv9lc7lltgp",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_STAGE_CHANGE",
-    "resourceType": "BidProject:cms40gjdo00o0uuv9i4yzd3km",
-    "resourceId": null,
-    "details": {
-      "to": "OPENING",
-      "from": "SUBMIT",
-      "host": "陈源远",
-      "stage": "OPENING",
-      "deadline": "2026-07-27T17:00:00.000Z"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:08:55.419Z"
-  },
-  {
-    "id": "cms40oxje00swuuv9yj566nqe",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_DECRYPT",
-    "resourceType": "成都华建地质工程科技有限公司:cms40gwj800o5uuv9s6ndh0s3",
-    "resourceId": null,
-    "details": {
-      "outcome": "SUCCESS",
-      "projectId": "cms40gjdo00o0uuv9i4yzd3km"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:09:03.434Z"
-  },
-  {
-    "id": "cms40oxlv00t0uuv9nzllrgrb",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_DECRYPT",
-    "resourceType": "四川省第十二地质大队:cms40gwj800o6uuv9j847b6s0",
-    "resourceId": null,
-    "details": {
-      "outcome": "SUCCESS",
-      "projectId": "cms40gjdo00o0uuv9i4yzd3km"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:09:03.524Z"
-  },
-  {
-    "id": "cms40oxp300t4uuv9dyb1trkm",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_DECRYPT",
-    "resourceType": "四川省第四地质大队:cms40gwj800o7uuv974k8803q",
-    "resourceId": null,
-    "details": {
-      "outcome": "SUCCESS",
-      "projectId": "cms40gjdo00o0uuv9i4yzd3km"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:09:03.640Z"
-  },
-  {
-    "id": "cms40qme400u7uuv9i5jaraka",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_OPENING_HANDOVER",
-    "resourceType": "BidProject:cms40gjdo00o0uuv9i4yzd3km",
-    "resourceId": null,
-    "details": {
-      "sha256": "aee1cb731ac93d67718311edc79fa2c178b82b6e5bdd9165181b6f16572e853a",
-      "assetId": "cms40qme200u3uuv9deph4fqp"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:10:22.300Z"
-  },
-  {
-    "id": "cms40wl0v00wguuv9gpi6emik",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "EXPERT_EXTRACTION_CONFIRMED",
-    "resourceType": "BidProject",
-    "resourceId": "cms40gjdo00o0uuv9i4yzd3km",
-    "details": {
-      "experts": [
-        {
-          "name": "李军",
-          "major": "工程设计",
-          "isLead": true,
-          "userId": "cc3a5d3472487a36a145a66"
-        },
-        {
-          "name": "刘苡池",
-          "major": "环水保",
-          "isLead": false,
-          "userId": "c01930f0eb4b5e9a0e39dc3"
-        },
-        {
-          "name": "钱荣兵",
-          "major": "工程设计",
-          "isLead": false,
-          "userId": "c216edc8542d89c1d15df8c"
-        }
-      ],
-      "expertCount": 3,
-      "projectName": "引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务内部竞标（竞价）采购公告"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:15:00.463Z"
-  },
-  {
-    "id": "cms40wym000wluuv96sf1xr6e",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_STAGE_CHANGE",
-    "resourceType": "BidProject:cms40gjdo00o0uuv9i4yzd3km",
-    "resourceId": null,
-    "details": {
-      "to": "EVALUATING",
-      "from": "OPENING",
-      "stage": "EVALUATING"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T02:15:18.072Z"
   },
   {
     "id": "cms4193lk0009uul3jy12zzw0",
@@ -4476,38 +4296,6 @@
     "createdAt": "2026-07-28T06:10:32.065Z"
   },
   {
-    "id": "cms49e2eg003puumtlsq8sotu",
-    "userId": "cmrai35g90004koddpllpmrp4",
-    "action": "BID_INVITE_SUPPLIERS",
-    "resourceType": "BID-1785219153016",
-    "resourceId": null,
-    "details": {
-      "added": 3,
-      "skipped": 0,
-      "projectId": "cms49e2d40037uumtdse2ef7l"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T06:12:33.065Z"
-  },
-  {
-    "id": "cms49e2fe003xuumthdthxpli",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_STAGE_CHANGE",
-    "resourceType": "BidProject:cms49e2d40037uumtdse2ef7l",
-    "resourceId": null,
-    "details": {
-      "to": "OPENING",
-      "from": "DOWNLOAD",
-      "host": "陈源远",
-      "stage": "OPENING",
-      "deadline": "2026-07-27T17:00:00.000Z"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T06:12:33.099Z"
-  },
-  {
     "id": "cms49olj600exuumt9ai4h074",
     "userId": "cmqc8r6jy01jfkoekswui0ach",
     "action": "LOGIN",
@@ -4545,86 +4333,6 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "curl/7.81.0",
     "createdAt": "2026-07-28T06:20:44.609Z"
-  },
-  {
-    "id": "cms49pgc100ffuumtekf4t5w1",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_STAGE_CHANGE",
-    "resourceType": "BidProject:cms49e2d40037uumtdse2ef7l",
-    "resourceId": null,
-    "details": {
-      "to": "OPENING",
-      "from": "SUBMIT",
-      "host": "陈源远",
-      "stage": "OPENING",
-      "deadline": "2026-07-27T17:00:00.000Z"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T06:21:24.338Z"
-  },
-  {
-    "id": "cms49pv0600fsuumt5tyccrk8",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_OPENING_HANDOVER",
-    "resourceType": "BidProject:cms49e2d40037uumtdse2ef7l",
-    "resourceId": null,
-    "details": {
-      "sha256": "4c9be0037f5b8a672c5226ff03bfd0baa2f28884c6d8fd61ab48689a9aebb045",
-      "assetId": "cms49pv0500fouumtgh6qws5y"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T06:21:43.351Z"
-  },
-  {
-    "id": "cms49pv1n00h1uumttiqto89i",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "EXPERT_EXTRACTION_CONFIRMED",
-    "resourceType": "BidProject",
-    "resourceId": "cms49e2d40037uumtdse2ef7l",
-    "details": {
-      "experts": [
-        {
-          "name": "李军",
-          "major": "工程设计",
-          "isLead": true,
-          "userId": "cc3a5d3472487a36a145a66"
-        },
-        {
-          "name": "刘苡池",
-          "major": "环水保",
-          "isLead": false,
-          "userId": "c01930f0eb4b5e9a0e39dc3"
-        },
-        {
-          "name": "钱荣兵",
-          "major": "工程设计",
-          "isLead": false,
-          "userId": "c216edc8542d89c1d15df8c"
-        }
-      ],
-      "expertCount": 3,
-      "projectName": "引大济岷工程千隧ZK10和千隧ZK12钻孔施工技术服务（第二轮）"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T06:21:43.403Z"
-  },
-  {
-    "id": "cms49pv2e00h6uumtzpsnqrpr",
-    "userId": "cmrai35fr0002koddvbs7wm1b",
-    "action": "BID_STAGE_CHANGE",
-    "resourceType": "BidProject:cms49e2d40037uumtdse2ef7l",
-    "resourceId": null,
-    "details": {
-      "to": "EVALUATING",
-      "from": "OPENING",
-      "stage": "EVALUATING"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T06:21:43.430Z"
   },
   {
     "id": "cms49qec400htuumt9gp6y1t5",
@@ -4690,21 +4398,6 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
     "createdAt": "2026-07-28T06:35:56.645Z"
-  },
-  {
-    "id": "cms4aiypq016zuumtf618cljs",
-    "userId": "cmrmvzupb0000kozb2ijyav4o",
-    "action": "BID_NUDGE_EXPERTS",
-    "resourceType": "BID-1785219153016",
-    "resourceId": null,
-    "details": {
-      "reason": "signin",
-      "reached": 0,
-      "projectId": "cms49e2d40037uumtdse2ef7l"
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T06:44:21.182Z"
   },
   {
     "id": "cms4aola8017luumtstanv65a",
@@ -4840,20 +4533,6 @@
     "ipAddress": "127.0.0.1",
     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
     "createdAt": "2026-07-28T08:36:51.685Z"
-  },
-  {
-    "id": "cms4ek2na001puu56298btgzg",
-    "userId": "cmrai35gu000akodd8gzem912",
-    "action": "BID_TENDER_DOC_RELOAD",
-    "resourceType": "project:cms49e2d40037uumtdse2ef7l",
-    "resourceId": null,
-    "details": {
-      "fileName": "2026.1.27勘察分院-引大济岷工程千ZK10和千隧ZK12两个钻孔施工技术服务内部竞标（竞价）采购文件.pdf",
-      "bidProjectIdFixed": true
-    },
-    "ipAddress": null,
-    "userAgent": null,
-    "createdAt": "2026-07-28T08:37:11.399Z"
   },
   {
     "id": "cms4emw5h0006uui7zx49i6v7",
