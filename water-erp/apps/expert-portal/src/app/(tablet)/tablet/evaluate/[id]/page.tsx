@@ -138,8 +138,8 @@ export default function TabletEvaluatePage() {
 
   // WS 实时同步：其他专家提交评分 / 对方设备保存草稿后自动刷新
   useExpertWebSocket(projectId, {
-    onScoresSubmitted: (d) => {
-      if (project?.myExpertRecord?.id && d.expertId === project.myExpertRecord.id) return;
+    onScoresSubmitted: () => {
+      // 平板从不提交评分——任何 scoresSubmitted 都来自桌面端或其他专家，都应刷新
       loadProject();
     },
     onDraftSaved: (d) => {
@@ -200,8 +200,7 @@ export default function TabletEvaluatePage() {
     if (!draftStorageKey) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
-      if (skipAutoSaveRef.current) { skipAutoSaveRef.current = false; return; }
-      try {
+try {
         // P2：仅暂存相对服务端未提交的条目，避免把已提交分记为草稿（假「未提交草稿」横幅）
         const committed = new Set((project?.myScores ?? []).map((r: { supplierId: string; scoreItemId: string }) => scoreKey(r.supplierId, r.scoreItemId)));
         const draftScores: typeof scores = {};
@@ -356,8 +355,6 @@ export default function TabletEvaluatePage() {
     newVal: PointDecisionValue;
     applyFn: (val: PointDecisionValue) => void;
   } | null>(null);
-  // 重置防误同步：跳过下一次 auto-save
-  const skipAutoSaveRef = useRef(false);
   // WS 同步冲突
   const [draftConflicts, setDraftConflicts] = useState<Array<{
     key: string;
@@ -558,7 +555,7 @@ export default function TabletEvaluatePage() {
                         seq: p.seq,
                       }));
                       const passFail = isPassFailCategory(item.category);
-                      const readOnly = !canScoreActiveSupplier || scoreLocked;
+                      const readOnly = !canScoreActiveSupplier || scoreLocked || !verificationComplete;
 
                       if (passFail) {
                         const verdict = val?.passed;
@@ -651,6 +648,22 @@ export default function TabletEvaluatePage() {
                                 className="neu-input !mt-2.5 !h-14 !min-h-0 resize-none text-sm disabled:opacity-60"
                               />
                             )}
+                          </div>
+                        );
+                      }
+
+                      // P1: 价格分公式引擎 — PRICE 项由系统自动算分，平板只读展示
+                      const isPriceFormula = item.category === 'PRICE' && !!(project as any)?.priceFormulaConfig;
+                      if (isPriceFormula) {
+                        return (
+                          <div key={item.id} data-score-item={item.id} className="neu-card-static !rounded-[14px] p-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-bold text-[var(--foreground)]">{item.name}</h4>
+                              <span className="exp-pill shrink-0" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>
+                                系统公式计算
+                              </span>
+                            </div>
+                            <p className="mt-2 text-[11px] text-[var(--muted-foreground)]">满分 {item.maxScore} · 价格分由公式引擎根据报价自动计算，无需专家打分</p>
                           </div>
                         );
                       }
