@@ -16,6 +16,8 @@ import { shouldAutoDisable, aggregatePerformance } from './supplier-performance'
 import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MIN } from './business-tags';
 import { LlmService } from '../local-ai/llm.service';
+import * as XLSX from 'xlsx';
+import { createHash } from 'crypto';
 
 // 等级→数值映射（与 expert-admin.service.ts 共享语义，ExpertLevel: A=5 B=4 C=3 D=2 E=1）
 const GRADE_SCORE: Record<ExpertLevel, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
@@ -372,6 +374,8 @@ export class SupplierService {
       where.OR = [
         { name: { contains: params.search, mode: 'insensitive' } },
         { creditCode: { contains: params.search } },
+        { normalizedName: { contains: params.search, mode: 'insensitive' } },
+        { tags: { hasSome: [params.search] } },
       ];
     }
 
@@ -390,7 +394,7 @@ export class SupplierService {
         include: {
           classification: true,
           contacts: { where: { isPrimary: true } },
-          _count: { select: { evaluations: true } },
+          _count: { select: { evaluations: true, qualifications: true, contacts: true } },
           evaluations: {
             select: { finalGrade: true, comprehensiveGrade: true, evidence: true },
             orderBy: { createdAt: 'desc' },
@@ -432,7 +436,7 @@ export class SupplierService {
     if (where.OR) {
       // search: name ILIKE or creditCode contains
       const search = where.OR[0].name.contains;
-      conditions.push(Prisma.sql`("name" ILIKE ${'%' + search + '%'} OR "creditCode" ILIKE ${'%' + search + '%'})`);
+      conditions.push(Prisma.sql`("name" ILIKE ${'%' + search + '%'} OR "creditCode" ILIKE ${'%' + search + '%'} OR "normalizedName" ILIKE ${'%' + search + '%'} OR EXISTS (SELECT 1 FROM unnest(s."tags") t WHERE t ILIKE ${'%' + search + '%'}))`);
     }
     // 以下为默认 completeness 排序路径此前丢弃的筛选——必须与 list() 的 Prisma 路径行为一致，
     // 否则前端「高级筛选/企业类型/日期/评价等级/资质状态」在默认排序下形同虚设。
@@ -485,7 +489,7 @@ export class SupplierService {
       include: {
         classification: true,
         contacts: { where: { isPrimary: true } },
-        _count: { select: { evaluations: true } },
+        _count: { select: { evaluations: true, qualifications: true, contacts: true } },
         evaluations: {
           select: { finalGrade: true, comprehensiveGrade: true, evidence: true },
           orderBy: { createdAt: 'desc' },
@@ -2078,5 +2082,73 @@ export class SupplierService {
     const raw = await this.redis.get(key);
     if (!raw) return null;
     return JSON.parse(raw);
+  }
+
+  // ── Excel 批量导入 ──
+  private SUPPLIER_IMPORT_COLUMNS = [
+    '企业名称*', '统一社会信用代码*', '企业类型', '法定代表人', '注册地址', '经营范围',
+    '联系人姓名', '联系人手机号', '联系人邮箱', '联系人职位',
+  ];
+
+  /** 生成导入模板 Excel Buffer */
+  getImportTemplate(): Buffer {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([this.SUPPLIER_IMPORT_COLUMNS]);
+    ws['!cols'] = this.SUPPLIER_IMPORT_COLUMNS.map(c => ({ wch: Math.max(c.length * 2, 18) }));
+    XLSX.utils.book_append_sheet(wb, ws, '供应商导入模板');
+    return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+  }
+
+  /** 从 Excel Buffer 解析并批量创建为 PENDING 供应商，返回导入摘要 */
+  async importFromExcel(buffer: Buffer, createdById: string): Promise<{
+    total: number; created: number; skipped: number; errors: string[];
+  }> {
+    const wb = XLSX.read(buffer, { type: 'buffer' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 }) as string[][];
+    if (rows.length < 2) throw new BadRequestException('Excel 文件为空或仅有表头');
+
+    const headers = rows[0].map((h: string) => (h || '').trim().replace(/\*$/, ''));
+    const nameIdx = headers.findIndex((h: string) => h.startsWith('企业名称'));
+    const creditIdx = headers.findIndex((h: string) => h.startsWith('统一社会信用代码'));
+    if (nameIdx < 0 || creditIdx < 0) throw new BadRequestException('缺少必填列：企业名称、统一社会信用代码');
+
+    const errors: string[] = [];
+    let created = 0, skipped = 0;
+    const total = rows.length - 1;
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.every(c => !c || !c.trim())) continue; // 空行跳过
+      const name = (row[nameIdx] || '').trim();
+      const creditCode = (row[creditIdx] || '').trim();
+      if (!name || !creditCode) { skipped++; errors.push(`第${i + 1}行：企业名称或信用代码为空`); continue; }
+
+      try {
+        const password = `supplier@2026`;
+        const displayName = name.slice(0, 20);
+        const username = `auto_${creditCode.slice(-8)}_${createHash('md5').update(name).digest('hex').slice(0, 4)}`;
+        await this.register({
+          name,
+          creditCode,
+          enterpriseType: (row[headers.indexOf('企业类型')] || '').trim() || '其他',
+          legalPerson: (row[headers.indexOf('法定代表人')] || '').trim() || '未知',
+          registeredAddress: (row[headers.indexOf('注册地址')] || '').trim() || '未知',
+          businessScope: (row[headers.indexOf('经营范围')] || '').trim() || '未知',
+          displayName,
+          username,
+          password,
+          tags: [],
+          contacts: [],
+          qualifications: [],
+        });
+        created++;
+      } catch (e: any) {
+        skipped++;
+        errors.push(`第${i + 1}行「${name}」：${e?.message || '创建失败'}`);
+      }
+    }
+
+    return { total, created, skipped, errors };
   }
 }

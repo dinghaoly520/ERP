@@ -6,14 +6,13 @@ import { toast } from 'sonner';
 import { createExpert, listSpecialties, ocrIntake } from '@/lib/api/expert';
 import { useFormAutosave, useUnsavedGuard } from '@/lib/hooks/use-form-autosave';
 import { UserPlus, Eye, EyeOff, ScanLine, RefreshCw } from 'lucide-react';
-import { Modal } from '@/components/workbench';
 
 const TITLES = ['教授级高级工程师','高级工程师','高级经济师','高级会计师','工程师','注册造价工程师','注册监理工程师'];
 const EDUCATIONS = ['博士','硕士','本科','大专','其他'];
 const ETHNICITIES = ['汉族','蒙古族','回族','藏族','维吾尔族','苗族','彝族','壮族','布依族','朝鲜族','满族','侗族','瑶族','白族','土家族','其他'];
 
-type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; employer: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
-const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', employer: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
+type FormFields = { username: string; displayName: string; password: string; specialty: string; title: string; employer: string; departmentName: string; phone: string; idNumber: string; email: string; notes: string; ethnicity: string; education: string; licenseNo: string; };
+const INITIAL: FormFields = { username: '', displayName: '', password: '', specialty: '', title: '', employer: '', departmentName: '', phone: '', idNumber: '', email: '', notes: '', ethnicity: '', education: '', licenseNo: '' };
 
 export default function ExpertEntryPage() {
   const router = useRouter();
@@ -59,9 +58,9 @@ export default function ExpertEntryPage() {
   const handleOcr = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { toast.error('请选择图片文件（证件/证书照片）'); e.target.value = ''; return; }
-    // 后端 body 上限虽已放宽，前端仍拦截超大图，避免 base64 编码撑爆内存
-    if (file.size > 4 * 1024 * 1024) { toast.error('证件图片过大，请压缩至 4MB 以内后再识别'); e.target.value = ''; return; }
+    if (!file.type.startsWith('image/') && file.type !== 'application/pdf') { toast.error('请选择图片文件或 PDF（证件/证书扫描件）'); e.target.value = ''; return; }
+    const maxSize = file.type === 'application/pdf' ? 10 * 1024 * 1024 : 4 * 1024 * 1024;
+    if (file.size > maxSize) { toast.error(`文件过大，请压缩至 ${maxSize / 1024 / 1024}MB 以内后再识别`); e.target.value = ''; return; }
     setOcrLoading(true);
     try {
       const base64 = await new Promise<string>((resolve, reject) => {
@@ -126,16 +125,16 @@ export default function ExpertEntryPage() {
         {/* AI 资质 OCR 自动录入 */}
         <label className="neu-drop-zone">
           {ocrLoading ? <RefreshCw size={16} className="animate-spin text-[var(--muted-foreground)] mb-1" /> : <ScanLine size={16} className="text-[var(--muted-foreground)] mb-1" />}
-          <span className="text-[0.75rem] font-medium text-[var(--muted-foreground)]">{ocrLoading ? '正在识别证件…' : '上传证件/证书照片，AI 识别自动填充'}</span>
-          <span className="mt-0.5 text-[0.65rem] text-[var(--muted-foreground)]/60">支持 JPG/PNG · 自动识别姓名、专业、职称、身份证、手机号等</span>
-          <input type="file" accept="image/*" className="hidden" onChange={handleOcr} disabled={ocrLoading} />
+          <span className="text-[0.75rem] font-medium text-[var(--muted-foreground)]">{ocrLoading ? '正在识别证件…' : '上传证件/证书照片或 PDF，AI 识别自动填充'}</span>
+          <span className="mt-0.5 text-[0.65rem] text-[var(--muted-foreground)]/60">支持 JPG/PNG/PDF · 自动识别姓名、专业、职称、身份证、手机号等</span>
+          <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleOcr} disabled={ocrLoading} />
         </label>
 
         {/* ① 登录凭证 */}
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={1} />登录凭证</legend>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">登录账号 <span className="text-[var(--danger)]">*</span></span><input value={form.username} onChange={e => set('username', e.target.value)} placeholder="如 expert_zhang" className={inputCls('username')} /><FieldError field="username" /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">登录账号 <span className="text-[var(--danger)]">*</span></span><input value={form.username} onChange={e => set('username', e.target.value)} placeholder="如 expert_zhang（建议使用姓名拼音）" className={inputCls('username')} /><p className="text-[10px] text-[var(--muted-foreground)]/70 mt-0.5">专家登录账号，建议使用姓名全拼（如 zhangshan），后续不可修改</p><FieldError field="username" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专家姓名 <span className="text-[var(--danger)]">*</span></span><input value={form.displayName} onChange={e => set('displayName', e.target.value)} placeholder="真实姓名" className={inputCls('displayName')} /><FieldError field="displayName" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">初始密码 <span className="text-[var(--danger)]">*</span></span><div className="relative"><input value={form.password} onChange={e => set('password', e.target.value)} type={showPw ? 'text' : 'password'} placeholder="至少 6 位" className={inputCls('password')} /><button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]">{showPw ? <EyeOff size={15} /> : <Eye size={15} />}</button></div><FieldError field="password" /></label>
           </div>
@@ -145,10 +144,11 @@ export default function ExpertEntryPage() {
         {/* ② 专业资质 */}
         <fieldset>
           <legend className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><Step n={2} />专业资质</legend>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">专业领域 <span className="text-[var(--danger)]">*</span></span><input value={form.specialty} onChange={e => set('specialty', e.target.value)} list="spec-list" placeholder="如 水利工程" className={inputCls('specialty')} /><datalist id="spec-list">{specialties.map(s => <option key={s} value={s} />)}</datalist><FieldError field="specialty" /></label>
             <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">职称</span><input value={form.title} onChange={e => set('title', e.target.value)} list="title-list" placeholder="如 高级工程师" className={inputCls('title')} /><datalist id="title-list">{TITLES.map(t => <option key={t} value={t} />)}</datalist></label>
-            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位</span><input value={form.employer} onChange={e => set('employer', e.target.value)} placeholder="用于供应商回避校验" className={inputCls('employer')} /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位</span><input value={form.employer} onChange={e => set('employer', e.target.value)} placeholder="所在单位全称" className={inputCls('employer')} /></label>
+            <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span><input value={form.departmentName} onChange={e => set('departmentName', e.target.value)} placeholder="如 工程勘察院" className={inputCls('departmentName')} /></label>
           </div>
         </fieldset>
         <hr className="wb-section-rule" />
@@ -194,22 +194,17 @@ export default function ExpertEntryPage() {
       </div>
 
       {pendingDraft && (
-        <Modal
-          open
-          onClose={() => setPendingDraft(null)}
-          title="恢复未提交的草稿？"
-          size="sm"
-          footer={
-            <>
-              <button onClick={() => setPendingDraft(null)} className="neu-btn-soft">不恢复</button>
-              <button onClick={() => { setForm(pendingDraft.data); setPendingDraft(null); }} className="neu-btn-soft is-info">恢复草稿</button>
-            </>
-          }
-        >
-          <p className="text-xs text-[var(--muted-foreground)] leading-relaxed">
-            检测到 <strong className="text-[var(--foreground)]">{new Date(pendingDraft.savedAt).toLocaleString('zh-CN')}</strong> 保存的表单草稿，是否恢复填写？
-          </p>
-        </Modal>
+        <div className="rounded-xl bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.3)]">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-[var(--foreground)] leading-relaxed">
+              <strong className="font-bold">检测到未提交的草稿</strong>（{new Date(pendingDraft.savedAt).toLocaleString('zh-CN')}），是否恢复填写？
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <button onClick={() => setPendingDraft(null)} className="neu-btn-xs">丢弃</button>
+              <button onClick={() => { setForm(pendingDraft.data); setPendingDraft(null); }} className="neu-btn-xs is-info">恢复草稿</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

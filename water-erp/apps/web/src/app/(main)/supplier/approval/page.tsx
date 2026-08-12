@@ -8,7 +8,7 @@ import type { SupplierClassification } from '@/lib/types';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
-import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Building2, Check, RefreshCw, Search, X, ChevronUp, ChevronDown, AlertTriangle, ShieldCheck, User } from 'lucide-react';
 
 const TABS: { key: 'PENDING' | 'RETURNED' | 'REJECTED'; label: string; tone: 'blue' | 'orange' | 'red' }[] = [
   { key: 'PENDING', label: '待审核', tone: 'blue' },
@@ -244,6 +244,7 @@ function SupplierApprovalPage() {
                 <th>企业名称</th>
                 <th style={{ textAlign: 'center' }}>统一社会信用代码</th>
                 <th>企业类型</th>
+                <th className="text-center">资料</th>
                 <th style={{ textAlign: 'center' }}>状态</th>
                 <th style={{ textAlign: 'center' }}>申请时间</th>
                 <th style={{ textAlign: 'center' }}>操作</th>
@@ -251,10 +252,10 @@ function SupplierApprovalPage() {
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={7} rows={5} />
+                <TableSkeleton cols={8} rows={5} />
               ) : data.items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16">
+                  <td colSpan={8} className="px-4 py-16">
                     <div className="flex flex-col items-center gap-3">
                       <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
                         <Building2 size={22} className="text-[var(--muted-foreground)]" />
@@ -284,6 +285,23 @@ function SupplierApprovalPage() {
                       <span className="font-mono text-xs text-[var(--muted-foreground)]">{s.creditCode || '—'}</span>
                     </td>
                     <td className="text-center text-sm text-[var(--muted-foreground)] max-w-[140px] truncate" title={s.enterpriseType || ''}>{normalizeEnterpriseType(s.enterpriseType)}</td>
+                    <td className="text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {((s as any)._count?.qualifications ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--accent)]" title="资质材料数量">
+                            <ShieldCheck size={10} />{(s as any)._count.qualifications}
+                          </span>
+                        )}
+                        {((s as any)._count?.contacts ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-[color-mix(in_oklch,var(--success)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--success)]" title="联系人数量">
+                            <User size={10} />{(s as any)._count.contacts}
+                          </span>
+                        )}
+                        {((s as any)._count?.qualifications ?? 0) === 0 && ((s as any)._count?.contacts ?? 0) === 0 && (
+                          <span className="text-[10px] text-[var(--muted-foreground)]">—</span>
+                        )}
+                      </div>
+                    </td>
                     <td>
                       <div className="flex flex-col items-center gap-0.5">
                         <StatusBadge tone={s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : 'red'}>

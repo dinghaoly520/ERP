@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -30,9 +30,6 @@ export function ProjectManagementPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'budgetAmount' | 'departmentNumber' | 'title'>('updatedAt');
-  const [filterMethod, setFilterMethod] = useState<string>('');
-  const [filterDepartment, setFilterDepartment] = useState<string>('');
-  const [filterOperator, setFilterOperator] = useState<string>('');
   // 级联筛选：filterType 选维度，filterValue 选值
   const [filterType, setFilterType] = useState<'method' | 'department' | 'operator'>('method');
   const [filterValue, setFilterValue] = useState<string>('');
@@ -148,21 +145,6 @@ export function ProjectManagementPage() {
       );
     }
 
-    // Method filter
-    if (filterMethod) {
-      result = result.filter(i => i.procurementMethod === filterMethod);
-    }
-
-    // Department filter
-    if (filterDepartment) {
-      result = result.filter(i => i.requesterDepartment === filterDepartment);
-    }
-
-    // Operator filter
-    if (filterOperator) {
-      result = result.filter(i => i.createdByName === filterOperator);
-    }
-
     // 级联筛选
     if (filterValue) {
       if (filterType === 'method') result = result.filter(i => i.procurementMethod === filterValue);
@@ -188,7 +170,7 @@ export function ProjectManagementPage() {
     });
 
     return result;
-  }, [activeTab, items, archivedItems, keyword, sortBy, filterMethod, filterDepartment]);
+  }, [activeTab, items, archivedItems, keyword, sortBy, filterType, filterValue]);
 
   const selectedItem = items.find((item) => item.id === selectedItemId) ?? null;
 
@@ -393,6 +375,7 @@ export function ProjectManagementPage() {
                 <ProjectCard
                   key={item.id}
                   item={item}
+                  variant={activeTab === 'archived' ? 'archived' : 'active'}
                   onOpen={() => {
                     setSelectedItemId(item.id);
                     setPageContext({
@@ -458,6 +441,20 @@ export function ProjectManagementPage() {
         onDeleteAll={handleDeleteAllPermanently}
         onDismissError={() => setDrawerErrorMessage(null)}
       />
+
+      {/* 浮动新建按钮 */}
+      <button
+        type="button"
+        onClick={() => setShowCreateDialog(true)}
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+        style={{
+          background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))',
+          boxShadow: '0 4px 16px oklch(0.4 0.1 258 / 0.3), 0 0 0 1px oklch(1 0 0 / 0.2)',
+        }}
+        title="新建项目"
+      >
+        <Plus size={24} className="text-white" />
+      </button>
     </>
   );
 }

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, Request, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { SupplierService } from './supplier.service';
@@ -124,6 +125,22 @@ export class SupplierController {
   @ApiOperation({ summary: '业务标签全量回填（规则引擎；默认仅填空标签，force=true 全量重算）' })
   async backfillTags(@Query('force') force?: string, @Request() req?: any) {
     return this.supplierService.backfillBusinessTags({ force: force === 'true', userId: req?.user?.sub });
+  }
+
+  @Post('import')
+  @Roles('admin', 'leader', 'staff')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Excel 批量导入供应商（模板格式，每条创建为 PENDING 状态）' })
+  async importSuppliers(@UploadedFile() file: Express.Multer.File, @Request() req: any) {
+    if (!file) throw new BadRequestException('请上传 Excel 文件');
+    return this.supplierService.importFromExcel(file.buffer, req.user?.sub);
+  }
+
+  @Get('import-template')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '下载供应商导入模板（Excel 格式）' })
+  async downloadImportTemplate() {
+    return this.supplierService.getImportTemplate();
   }
 
   @Get('list')

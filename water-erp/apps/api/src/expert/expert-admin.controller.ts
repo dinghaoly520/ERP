@@ -43,9 +43,19 @@ export class ExpertAdminController {
   }
 
   @Get()
-  @ApiOperation({ summary: '专家库列表' })
-  listExperts(@Query('search') search?: string, @Query('specialty') specialty?: string) {
-    return this.expertAdminService.listExperts(search, specialty);
+  @ApiOperation({ summary: '专家库列表（分页）' })
+  listExperts(
+    @Query('search') search?: string,
+    @Query('specialty') specialty?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.expertAdminService.listExperts(
+      search,
+      specialty,
+      page ? parseInt(page, 10) : 1,
+      pageSize ? parseInt(pageSize, 10) : 20,
+    );
   }
 
   @Get('specialties')
@@ -288,6 +298,12 @@ export class ExpertAdminController {
     return this.expertAdminService.recordViolation(id, dto, req.user?.sub);
   }
 
+  @Get(':id/notify-history')
+  @ApiOperation({ summary: '专家通知发送历史（最近 50 条）' })
+  getNotifyHistory(@Param('id') id: string) {
+    return this.expertAdminService.getNotifyHistory(id);
+  }
+
   @Get(':id/notify-prefs')
   @ApiOperation({ summary: '专家通知偏好' })
   getNotifyPrefs(@Param('id') id: string) {
@@ -298,6 +314,12 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '更新专家通知偏好' })
   updateNotifyPrefs(@Param('id') id: string, @Body() dto: NotifyPrefsDto) {
     return this.expertAdminService.updateNotifyPrefs(id, dto);
+  }
+
+  @Post(':id/retire-ignore')
+  @ApiOperation({ summary: '忽略本轮退库预警（90 天内跳过此专家的扫描）' })
+  ignoreRetirement(@Param('id') id: string) {
+    return this.expertAdminService.ignoreRetirementWarning(id);
   }
 
   @Post(':id/retire')

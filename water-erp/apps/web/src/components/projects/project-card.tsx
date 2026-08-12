@@ -19,9 +19,11 @@ const STAGE_COLOR: Record<string, string> = {
 export function ProjectCard({
   item,
   onOpen,
+  variant = 'active',
 }: {
   item: ProjectManagementItem;
   onOpen: () => void;
+  variant?: 'active' | 'archived';
 }) {
   const completedCount = item.stages.filter(
     (stage) => stage.status === 'COMPLETED',
@@ -71,32 +73,45 @@ export function ProjectCard({
           当前阶段：<span className="font-semibold" style={{ color: currentStageColor }}>{currentStage?.stageName ?? item.currentStage}</span>
         </div>
       </div>
-      <div className="mt-4 space-y-2">
-        <div className="flex items-center justify-between text-xs text-[color:var(--muted-foreground)]">
-          <span>流程进度</span>
-          <span>
-            {completedCount}/{item.stages.length}
-          </span>
+      {variant === 'archived' ? (
+        <div className="mt-4 rounded-xl px-3 py-2.5 flex items-center gap-4 text-xs"
+          style={{ background: 'color-mix(in oklch, var(--success) 6%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.4)' }}>
+          <span className="text-[color:var(--success)] font-bold">已归档</span>
+          {item.contractAmount != null && (
+            <span className="text-[color:var(--muted-foreground)]">合同金额 <strong className="tabular-nums text-[color:var(--foreground)]">{item.contractAmount.toLocaleString('zh-CN')} 元</strong></span>
+          )}
+          {item.updatedAt && (
+            <span className="ml-auto text-[color:var(--muted-foreground)]">{new Date(item.updatedAt).toLocaleDateString('zh-CN')}</span>
+          )}
         </div>
-        <div className="flex gap-2">
-          {item.stages.map((stage, idx) => {
-            const status = stage.status;
-            return (
-              <div
-                key={`${stage.stageKey}-${stage.round ?? 1}-${idx}`}
-                className={[
-                  'h-2 rounded-full transition-all duration-300 min-w-0 flex-1',
-                  status === 'COMPLETED'
-                    ? 'bg-[rgba(92,181,150,1)] shadow-[0_0_6px_rgba(92,181,150,0.3)]'
-                    : status === 'IN_PROGRESS'
-                      ? 'bg-[rgba(96,139,239,0.2)] border border-[rgba(96,139,239,0.8)] group-hover:border-[rgba(96,139,239,1)] group-hover:shadow-[0_0_8px_rgba(96,139,239,0.2)]'
-                      : 'bg-white border border-[rgba(150,165,195,0.5)]',
-                ].join(' ')}
-              />
-            );
-          })}
+      ) : (
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between text-xs text-[color:var(--muted-foreground)]">
+            <span>流程进度</span>
+            <span>
+              {completedCount}/{item.stages.length}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            {item.stages.map((stage, idx) => {
+              const status = stage.status;
+              return (
+                <div
+                  key={`${stage.stageKey}-${stage.round ?? 1}-${idx}`}
+                  className={[
+                    'h-2 rounded-full transition-all duration-300 min-w-0 flex-1',
+                    status === 'COMPLETED'
+                      ? 'bg-[rgba(92,181,150,1)] shadow-[0_0_6px_rgba(92,181,150,0.3)]'
+                      : status === 'IN_PROGRESS'
+                        ? 'bg-[rgba(96,139,239,0.2)] border border-[rgba(96,139,239,0.8)] group-hover:border-[rgba(96,139,239,1)] group-hover:shadow-[0_0_8px_rgba(96,139,239,0.2)]'
+                        : 'bg-white border border-[rgba(150,165,195,0.5)]',
+                  ].join(' ')}
+                />
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </button>
   );
 }

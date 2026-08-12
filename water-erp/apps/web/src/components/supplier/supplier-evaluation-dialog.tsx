@@ -160,6 +160,22 @@ export function SupplierEvaluationDialog({
       </div>
       {aiError && <p className="text-xs font-semibold text-[var(--danger)]">{aiError}</p>}
 
+      {/* 快速填充 — 一键设置所有维度等级 */}
+      <div className="flex items-center gap-1.5 text-[10px]">
+        <span className="text-[var(--muted-foreground)] mr-1">快速填充：</span>
+        {(['A','B','C'] as const).map(g => (
+          <button key={g} onClick={() => {
+            const fill: Record<string, string> = {};
+            DIMENSIONS.forEach(d => { fill[d.key] = g; });
+            setGrades(fill as EvalGrades);
+            toast.success(`全部维度已设为 ${g} 级，可单独调整`);
+          }} className="neu-btn-xs gap-0.5" style={{ color: 'white', backgroundColor: GRADE_COLOR[g] }}>
+            {g}
+          </button>
+        ))}
+        <span className="text-[var(--muted-foreground)] ml-1">（可单独调整）</span>
+      </div>
+
       {/* 评分维度 */}
       {DIMENSIONS.map(d => {
         const curGrade = grades[d.key];

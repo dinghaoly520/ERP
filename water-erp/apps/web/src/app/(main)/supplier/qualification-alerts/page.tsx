@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Building2, Clock3, Check, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, RefreshCw, CheckSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getQualificationAlerts, acknowledgeQualificationAlert } from '@/lib/api/supplier';
@@ -14,14 +14,17 @@ export default function QualificationAlertsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [acking, setAcking] = useState<string | null>(null);
+  const [batchAcking, setBatchAcking] = useState(false);
   // 本次会话内「临时撤销已处理」的 id 集合（仅前端显示用，不改动后端确认记录）。
   const [restoredIds, setRestoredIds] = useState<Set<string>>(new Set());
+  // 批量选择
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     getQualificationAlerts().then(setData).catch(() => setData(null)).finally(() => setLoading(false));
-  };
-  useEffect(() => { load(); }, []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
   // 已处理 = 后端 acked 且本次未临时撤销。
   const isDismissed = (i: QualificationAlertItem) => i.acked && !restoredIds.has(i.id);
@@ -30,7 +33,6 @@ export default function QualificationAlertsPage() {
     setAcking(id);
     try {
       await acknowledgeQualificationAlert(id);
-      // 若该项此前被「恢复全部」临时撤销过，ack 成功后须移出 restoredIds，否则行仍显示、标记看似无效。
       setRestoredIds(s => { if (!s.has(id)) return s; const n = new Set(s); n.delete(id); return n; });
       toast.success('已标记为已处理');
       load();
@@ -41,16 +43,37 @@ export default function QualificationAlertsPage() {
     }
   };
 
+  const batchAcknowledge = async () => {
+    if (selectedIds.size === 0) { toast.error('请先选择需要处理的预警项'); return; }
+    setBatchAcking(true);
+    let done = 0; const errors: string[] = [];
+    for (const id of selectedIds) {
+      try { await acknowledgeQualificationAlert(id); done++; }
+      catch (e: any) { errors.push(e?.message || '未知错误'); }
+    }
+    if (errors.length > 0) toast.error(`${done} 个成功，${errors.length} 个失败`);
+    else toast.success(`已批量标记 ${done} 项为已处理`);
+    setSelectedIds(new Set());
+    setBatchAcking(false);
+    load();
+  };
+
   const unDismissAll = () => {
-    // 仅在本次会话内重新显示已处理项；后端确认记录保留（持久化语义）。
     setRestoredIds(new Set((data?.items || []).filter(i => i.acked).map(i => i.id)));
     toast.success('已在本会话内恢复显示（后端记录未清除）');
+  };
+
+  const toggleSelect = (id: string) => setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => {
+    if (selectedIds.size === visibleCount) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map(i => i.id)));
   };
 
   const filtered = (data?.items || [])
     .filter(i => !statusFilter || i.status === statusFilter)
     .filter(i => !isDismissed(i));
 
+  const visibleCount = filtered.length;
   const dismissedCount = (data?.items || []).filter(isDismissed).length;
 
   return (
@@ -102,6 +125,12 @@ export default function QualificationAlertsPage() {
                 {s || '全部'}
               </button>
             ))}
+            <div className="flex-1" />
+            {visibleCount > 0 && selectedIds.size > 0 && (
+              <button onClick={batchAcknowledge} disabled={batchAcking} className="neu-btn-xs gap-1 is-success">
+                <CheckSquare size={12} />{batchAcking ? '处理中...' : `批量已处理 (${selectedIds.size})`}
+              </button>
+            )}
           </div>
 
           {/* Table */}
@@ -109,14 +138,21 @@ export default function QualificationAlertsPage() {
             <table className="workbench-table">
               <thead>
                 <tr>
+                  <th style={{ width: 36 }}>
+                    {visibleCount > 0 && (
+                      <input type="checkbox" className="neu-checkbox" checked={selectedIds.size === visibleCount}
+                        ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < visibleCount; }}
+                        onChange={toggleAll} />
+                    )}
+                  </th>
                   <th>供应商</th><th>资质名称</th><th>类型</th><th>到期日</th><th>剩余</th><th>状态</th><th className="w-20">操作</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && !dismissedCount ? (
-                  <tr><td colSpan={7} className="text-center text-[var(--muted-foreground)] py-8">暂无资质到期预警</td></tr>
+                  <tr><td colSpan={8} className="text-center text-[var(--muted-foreground)] py-8">暂无资质到期预警</td></tr>
                 ) : filtered.length === 0 && dismissedCount > 0 ? (
-                  <tr><td colSpan={7} className="text-center text-[var(--muted-foreground)] py-8">
+                  <tr><td colSpan={8} className="text-center text-[var(--muted-foreground)] py-8">
                     全部 {dismissedCount} 项预警已标记为已处理
                     <button onClick={unDismissAll} className="ml-2 text-[var(--accent)] hover:underline text-xs">恢复全部</button>
                   </td></tr>
@@ -127,6 +163,10 @@ export default function QualificationAlertsPage() {
                   const urgency = q.daysRemaining === null ? 0 : Math.max(0, Math.min(100, 100 - (q.daysRemaining / 90) * 100));
                   return (
                     <tr key={q.id}>
+                      <td onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" className="neu-checkbox" checked={selectedIds.has(q.id)}
+                          onChange={() => toggleSelect(q.id)} />
+                      </td>
                       <td><Link href={`/supplier/${q.supplierId}`} className="text-sm font-semibold text-[var(--foreground)] hover:text-[var(--accent)]">{q.supplierName}</Link></td>
                       <td className="text-sm">{q.name}</td>
                       <td className="text-sm text-[var(--muted-foreground)]">{q.type}</td>

@@ -55,36 +55,43 @@ export class ExpertAdminService {
 
   /* ── 专家库 ── */
 
-  /** 专家库列表（含 ExpertProfile，可按姓名或专业模糊搜索） */
-  async listExperts(search?: string, specialty?: string) {
-    const users = await this.prisma.user.findMany({
-      where: {
-        role: 'bid_expert',
-        ...(search ? {
-          OR: [
-            { displayName: { contains: search, mode: 'insensitive' } },
-            { expertProfile: { specialty: { contains: search, mode: 'insensitive' } } },
-            { expertProfile: { employer: { contains: search, mode: 'insensitive' } } },
-            { department: { name: { contains: search, mode: 'insensitive' } } },
-          ],
-        } : {}),
-        ...(specialty && { expertProfile: { specialty } }),
-      },
-      select: {
-        id: true,
-        displayName: true,
-        email: true,
-        isActive: true,
-        department: { select: { id: true, name: true } },
-        expertProfile: true,
-        bidExperts: {
-          select: { id: true, expertName: true, major: true, progress: true, signedIn: true, avoidanceConfirmed: true, totalScore: true, project: { select: { id: true, name: true, stage: true } } },
-          orderBy: { createdAt: 'desc' },
+  /** 专家库列表（含 ExpertProfile，可按姓名或专业模糊搜索，服务端分页） */
+  async listExperts(search?: string, specialty?: string, page = 1, pageSize = 20) {
+    const where = {
+      role: 'bid_expert' as const,
+      ...(search ? {
+        OR: [
+          { displayName: { contains: search, mode: 'insensitive' as const } },
+          { expertProfile: { specialty: { contains: search, mode: 'insensitive' as const } } },
+          { expertProfile: { employer: { contains: search, mode: 'insensitive' as const } } },
+          { department: { name: { contains: search, mode: 'insensitive' as const } } },
+        ],
+      } : {}),
+      ...(specialty && { expertProfile: { specialty } }),
+    };
+
+    const [total, users] = await Promise.all([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          displayName: true,
+          email: true,
+          isActive: true,
+          department: { select: { id: true, name: true } },
+          expertProfile: true,
+          bidExperts: {
+            select: { id: true, expertName: true, major: true, progress: true, signedIn: true, avoidanceConfirmed: true, totalScore: true, project: { select: { id: true, name: true, stage: true } } },
+            orderBy: { createdAt: 'desc' },
+          },
+          _count: { select: { expertEvaluations: true } },
         },
-        _count: { select: { expertEvaluations: true } },
-      },
-      orderBy: { displayName: 'asc' },
-    });
+        orderBy: { displayName: 'asc' },
+      }),
+    ]);
 
     // 补最新一次评价（A-E 等级制）
     const userIds = users.map(u => u.id);
@@ -124,7 +131,7 @@ export class ExpertAdminService {
       }
     }
 
-    return users;
+    return { total, page, pageSize, items: users };
   }
 
   /** 全部专业（去重） */
@@ -184,6 +191,18 @@ export class ExpertAdminService {
     if (await this.prisma.user.findFirst({ where: { username: dto.username, role: 'bid_expert' } })) {
       throw new BadRequestException({ error: '账号已存在', code: 'DUPLICATE_USERNAME' });
     }
+    // 部门：按名称查找已有记录，不存在则新建
+    let departmentId: string | undefined;
+    if (dto.departmentName?.trim()) {
+      const name = dto.departmentName.trim();
+      const existing = await this.prisma.department.findUnique({ where: { name }, select: { id: true } });
+      if (existing) {
+        departmentId = existing.id;
+      } else {
+        const created = await this.prisma.department.create({ data: { name } });
+        departmentId = created.id;
+      }
+    }
     try {
       return await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -194,6 +213,7 @@ export class ExpertAdminService {
           passwordHash: hashSync(dto.password, 10),
           role: 'bid_expert',
           isActive: true,
+          departmentId,
           expertProfile: {
             create: {
               specialty: dto.specialty,
@@ -209,7 +229,7 @@ export class ExpertAdminService {
             },
           },
         },
-        include: { expertProfile: true },
+        include: { expertProfile: true, department: { select: { id: true, name: true } } },
       });
       // 剥离密码哈希，避免敏感字段外泄
       const { passwordHash, ...safeUser } = user;
@@ -316,10 +336,34 @@ export class ExpertAdminService {
   /** 更新专家资料 */
   async updateProfile(userId: string, dto: UpdateExpertProfileDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    // 仅限专家角色，防止给非专家用户 upsert 出 ExpertProfile
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
+
+    // 部门：按名称查找已有记录，不存在则新建
+    let departmentId: string | null | undefined;
+    if (dto.departmentName !== undefined) {
+      if (dto.departmentName.trim()) {
+        const name = dto.departmentName.trim();
+        const existing = await this.prisma.department.findUnique({ where: { name }, select: { id: true } });
+        if (existing) {
+          departmentId = existing.id;
+        } else {
+          const created = await this.prisma.department.create({ data: { name } });
+          departmentId = created.id;
+        }
+      } else {
+        departmentId = null; // 允许清空部门
+      }
+    }
+
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: userId }, data: { ...(dto.displayName && { displayName: dto.displayName }), ...(dto.email !== undefined && { email: dto.email }) } }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(dto.displayName && { displayName: dto.displayName }),
+          ...(dto.email !== undefined && { email: dto.email }),
+          ...(departmentId !== undefined && { departmentId }),
+        },
+      }),
       this.prisma.expertProfile.upsert({
         where: { userId },
         update: {
@@ -750,7 +794,7 @@ export class ExpertAdminService {
             data: {
               projectId, time: new Date(), role: '系统', target: '专家抽取',
               action: '交叉回避告警',
-              result: crossConflicts.map(c => `${c.expertName} - ${c.conflictWith}（${c.conflictType}）`).join('；'),
+              result: crossConflicts.map(c => `${c.expertName} - ${c.conflictDetail}（${c.conflictType}）`).join('；'),
               riskFlag: '中风险',
             },
           }).catch(() => {});
@@ -1588,10 +1632,20 @@ export class ExpertAdminService {
 
   /* ── 退库预警 + 人工确认（决策 #3：只预警，不自动改状态） ── */
 
-  /** 扫描退库候选（连续 E 级 或 近 12 个月无分配），通知管理员；不修改 availability。 */
+  /** 扫描退库候选（连续 E 级 或 近 12 个月无分配），跳过最近 90 天内被标记忽略的专家；不修改 availability。 */
   async reviewRetirementCandidates() {
+    const ignoreCutoff = new Date(Date.now() - 90 * 24 * 3600 * 1000);
     const experts = await this.prisma.user.findMany({
-      where: { role: 'bid_expert', isActive: true, expertProfile: { availability: { not: '停用' } } },
+      where: {
+        role: 'bid_expert', isActive: true,
+        expertProfile: {
+          availability: { not: '停用' },
+          OR: [
+            { retireIgnoredAt: null },
+            { retireIgnoredAt: { lt: ignoreCutoff } },
+          ],
+        },
+      },
       include: { expertProfile: { select: { specialty: true } } },
     });
 
@@ -1653,6 +1707,14 @@ export class ExpertAdminService {
     }
 
     return candidates;
+  }
+
+  /** 忽略本轮退库预警：标记 retireIgnoredAt，90 天内 reviewRetirementCandidates 跳过此专家 */
+  async ignoreRetirementWarning(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
+    await this.prisma.expertProfile.update({ where: { userId }, data: { retireIgnoredAt: new Date() } });
+    return { success: true };
   }
 
   /** 人工确认退库：写入停用 + retiredAt + retireReason，同步禁用登录（同一事务，避免半退库态）。 */
@@ -1742,7 +1804,7 @@ export class ExpertAdminService {
     };
   }
 
-  /** 专家排名（按 A 级评价次数降序） */
+  /** 专家排名（综合加权得分 = A×5+B×4+C×3+D×2+E×1 / 总次数 × 置信度因子） */
   async getRanking(period: 'month' | 'quarter' | 'all' = 'month') {
     const cutoff = period === 'month'
       ? new Date(Date.now() - 30 * 24 * 3600 * 1000)
@@ -1758,34 +1820,34 @@ export class ExpertAdminService {
       },
     });
 
-    const byExpert = new Map<string, { displayName: string; specialty: string; evalCount: number; aCount: number; gradeCounts: Record<string, number> }>();
+    const GRADE_SCORE: Record<string, number> = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+    const byExpert = new Map<string, { displayName: string; specialty: string; evalCount: number; aCount: number; bCount: number; gradeCounts: Record<string, number> }>();
     for (const e of evals) {
       let rec = byExpert.get(e.expertUserId);
       if (!rec) {
-        rec = { displayName: e.expertUser?.displayName ?? '—', specialty: e.expertUser?.expertProfile?.specialty ?? '', evalCount: 0, aCount: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0, E: 0 } };
+        rec = { displayName: e.expertUser?.displayName ?? '—', specialty: e.expertUser?.expertProfile?.specialty ?? '', evalCount: 0, aCount: 0, bCount: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0, E: 0 } };
         byExpert.set(e.expertUserId, rec);
       }
       rec.evalCount++;
       rec.gradeCounts[e.overallGrade] = (rec.gradeCounts[e.overallGrade] ?? 0) + 1;
       if (e.overallGrade === 'A') rec.aCount++;
+      if (e.overallGrade === 'B') rec.bCount++;
     }
 
-    const rows = [...byExpert.entries()].map(([expertUserId, r]) => ({
-      expertUserId,
-      displayName: r.displayName,
-      specialty: r.specialty,
-      evalCount: r.evalCount,
-      aCount: r.aCount,
-      gradeCounts: r.gradeCounts,
-    }));
-    rows.sort((a, b) => b.aCount - a.aCount || b.evalCount - a.evalCount);
+    const rows = [...byExpert.entries()].map(([expertUserId, r]) => {
+      // 综合得分 = 加权均分 × 置信度因子（evalCount ≥5 时满 1.0，1 次时 0.5）
+      const rawAvg = Object.entries(r.gradeCounts).reduce((s, [g, c]) => s + (GRADE_SCORE[g] ?? 3) * c, 0) / r.evalCount;
+      const confidence = Math.min(1, 0.5 + r.evalCount / 10);
+      const weightedScore = Math.round(rawAvg * confidence * 100) / 100;
+      return { expertUserId, displayName: r.displayName, specialty: r.specialty, evalCount: r.evalCount, aCount: r.aCount, bCount: r.bCount, gradeCounts: r.gradeCounts, avgScore: Math.round(rawAvg * 100) / 100, weightedScore };
+    });
+    // 按加权得分降序，得分相同按评价次数降序
+    rows.sort((a, b) => b.weightedScore - a.weightedScore || b.evalCount - a.evalCount);
 
-    // 竞赛排名：A 级数/评价数相同共享同一名次
     let lastRank = 0;
-    let lastKey = '';
+    let lastScore = -1;
     return rows.map((r, i) => {
-      const key = `${r.aCount}|${r.evalCount}`;
-      if (key !== lastKey) { lastRank = i + 1; lastKey = key; }
+      if (r.weightedScore !== lastScore) { lastRank = i + 1; lastScore = r.weightedScore; }
       return { ...r, rank: lastRank };
     });
   }
@@ -2375,6 +2437,22 @@ ${combined}`,
       create: { userId, notificationPrefs: merged },
     });
     return { success: true };
+  }
+
+  /** 专家通知发送历史（最近 50 条），供详情页查看 */
+  async getNotifyHistory(userId: string) {
+    const logs = await this.prisma.notificationDeliveryLog.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: { channel: true, status: true, error: true, createdAt: true },
+    });
+    return logs.map(l => ({
+      channel: l.channel,
+      status: l.status,
+      error: l.error,
+      time: l.createdAt.toISOString(),
+    }));
   }
 
   /* ── 抽取辅助 ── */

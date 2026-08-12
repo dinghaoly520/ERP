@@ -80,12 +80,14 @@ export interface NotifyResult {
 
 /* ── 专家库 / 录入 ── */
 
-export function listExperts(params?: { search?: string; specialty?: string }) {
+export function listExperts(params?: { search?: string; specialty?: string; page?: number; pageSize?: number }) {
   const q = new URLSearchParams();
   if (params?.search) q.set('search', params.search);
   if (params?.specialty) q.set('specialty', params.specialty);
+  if (params?.page) q.set('page', String(params.page));
+  if (params?.pageSize) q.set('pageSize', String(params.pageSize));
   const qs = q.toString();
-  return api.get<ExpertListItem[]>(`/expert-admin${qs ? '?' + qs : ''}`);
+  return api.get<{ total: number; page: number; pageSize: number; items: ExpertListItem[] }>(`/expert-admin${qs ? '?' + qs : ''}`);
 }
 
 export function listSpecialties() {
@@ -94,7 +96,7 @@ export function listSpecialties() {
 
 export function createExpert(data: {
   username: string; displayName: string; password: string; specialty: string;
-  title?: string; employer?: string; phone?: string; idNumber?: string; email?: string; notes?: string;
+  title?: string; employer?: string; departmentName?: string; phone?: string; idNumber?: string; email?: string; notes?: string;
   ethnicity?: string; education?: string; licenseNo?: string;
 }) {
   return api.post<unknown>('/expert-admin', data);
@@ -310,12 +312,21 @@ export function updateNotifyPrefs(userId: string, data: { inApp?: boolean; sms?:
   return api.patch<{ success: boolean }>(`/expert-admin/${userId}/notify-prefs`, data);
 }
 
+export interface NotifyHistoryItem { channel: string; status: string; error: string | null; time: string }
+export function getNotifyHistory(userId: string) {
+  return api.get<NotifyHistoryItem[]>(`/expert-admin/${userId}/notify-history`);
+}
+
 /* ── 退库管理 ── */
 export function getRetireCandidates() {
   return api.get<any[]>('/expert-admin/retire-candidates');
 }
 export function confirmRetire(id: string, reason: string) {
   return api.post<{ success: boolean }>(`/expert-admin/${id}/retire`, { reason });
+}
+
+export function ignoreRetirementWarning(id: string) {
+  return api.post<{ success: boolean }>(`/expert-admin/${id}/retire-ignore`, {});
 }
 
 /* ── 邀请确认 ── */

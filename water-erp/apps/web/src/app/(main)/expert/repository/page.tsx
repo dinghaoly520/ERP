@@ -4,17 +4,27 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, importCsv } from '@/lib/api/expert';
+import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-dialog';
 import { ExpertEntryDialog } from '@/components/expert/expert-entry-dialog';
 import { useSort, SortableTh } from '@/lib/hooks/use-sort';
-import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, Upload, AlertTriangle } from 'lucide-react';
+import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, AlertTriangle } from 'lucide-react';
+import type { WorkbenchTone } from '@water-erp/shared';
+import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared';
+
+const SPECIALTY_TONES: WorkbenchTone[] = ['blue', 'cyan', 'green', 'orange', 'red', 'purple'];
+function specialtyTone(s: string): WorkbenchTone {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  return SPECIALTY_TONES[Math.abs(hash) % SPECIALTY_TONES.length];
+}
 
 export default function ExpertRepositoryPage() {
   const router = useRouter();
   const [experts, setExperts] = useState<ExpertListItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [specialties, setSpecialties] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
@@ -34,10 +44,6 @@ export default function ExpertRepositoryPage() {
   const [advTitle, setAdvTitle] = useState('');
   const [advEmployer, setAdvEmployer] = useState('');
   const [advAvailability, setAdvAvailability] = useState('');
-  // CSV 导入
-  const [showImport, setShowImport] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<any>(null);
   // 启用/停用二次确认
   const [confirmToggle, setConfirmToggle] = useState<ExpertListItem | null>(null);
   const [toggling, setToggling] = useState(false);
@@ -60,15 +66,22 @@ export default function ExpertRepositoryPage() {
     const rid = ++loadReqIdRef.current;
     setLoading(true); setErrored(false);
     try {
-      const list = await listExperts({ search: query || undefined, specialty: specialty || undefined }) as ExpertListItem[];
+      const res = await listExperts({ search: query || undefined, specialty: specialty || undefined, page, pageSize: PAGE_SIZE });
       if (rid !== loadReqIdRef.current) return;
-      setExperts(list);
+      // 兼容新旧 API 返回格式：新版返回 { total, items }，旧版返回数组
+      if (Array.isArray(res)) {
+        setExperts(res as any as ExpertListItem[]);
+        setTotal((res as any as ExpertListItem[]).length);
+      } else {
+        setExperts((res as any).items || []);
+        setTotal((res as any).total || 0);
+      }
     } catch (err: any) {
       if (rid !== loadReqIdRef.current) return;
       setErrored(true); toast.error(err?.message || '加载专家列表失败');
     }
     setLoading(false);
-  }, [query, specialty]);
+  }, [query, specialty, page]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { listSpecialties().then(setSpecialties).catch(() => {}); }, []);
 
@@ -87,8 +100,8 @@ export default function ExpertRepositoryPage() {
 
   const toggleSelect = (id: string) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => {
-    if (selectedIds.size === pagedExperts.length && pagedExperts.length > 0) setSelectedIds(new Set());
-    else setSelectedIds(new Set(pagedExperts.map(e => e.id)));
+    if (selectedIds.size === displayedExperts.length && displayedExperts.length > 0) setSelectedIds(new Set());
+    else setSelectedIds(new Set(displayedExperts.map(e => e.id)));
   };
   const doBatch = async () => {
     if (selectedIds.size === 0) return; setBatchSaving(true);
@@ -111,32 +124,8 @@ export default function ExpertRepositoryPage() {
       toast.success(`导出 ${data.length} 条记录`);
     } catch (e: any) { toast.error(e?.message || '导出失败'); }
   };
-  const handleCsvFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) { toast.error('CSV 文件至少需要表头行和一数据行'); return; }
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-    const rows = lines.slice(1).map(line => {
-      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      const row: Record<string, string> = {};
-      headers.forEach((h, i) => { row[h] = vals[i] || ''; });
-      return row;
-    });
-    setImporting(true); setImportResult(null);
-    try {
-      const result = await importCsv(rows);
-      setImportResult(result);
-      toast.success(`导入完成：成功 ${result.imported} 条，跳过 ${result.skipped} 条，失败 ${result.failed} 条`);
-      load();
-    } catch (err: any) { toast.error(err?.message || '导入失败'); }
-    setImporting(false);
-    e.target.value = '';
-  };
-
   const { sortKey, sortDir, toggle: sortToggle, sorted } = useSort<ExpertListItem>('displayName', 'asc');
-  // 高级筛选（前端二次过滤）
+  // 高级筛选（前端二次过滤，仅作用于当前页——后续可考虑后端过滤）
   const filteredExperts = useMemo(() => {
     let list = sorted(experts);
     if (advTitle) list = list.filter(e => (e.expertProfile?.title || '').includes(advTitle));
@@ -145,12 +134,14 @@ export default function ExpertRepositoryPage() {
     return list;
   }, [experts, advTitle, advEmployer, advAvailability, sortKey, sortDir, sorted]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredExperts.length / PAGE_SIZE));
-  const pagedExperts = useMemo(() => filteredExperts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredExperts, page]);
+  // 分页：total 来自服务端；高级筛选无匹配时可能少于 pageSize
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const displayedExperts = filteredExperts;
 
-  const total = experts.length;
+  // Hero KPI：总数来自服务端，其余指标基于当前页近似
   const available = experts.filter(e => e.isActive && e.expertProfile?.availability === '可用').length;
-  const inProgress = experts.reduce((s, e) => s + e.bidExperts.filter(a => a.project.stage !== 'ARCHIVED').length, 0);
+  const occupied = experts.filter(e => e.isActive && e.expertProfile?.availability === '占用').length;
+  const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用').length;
   const totalEvals = experts.reduce((s, e) => s + e._count.expertEvaluations, 0);
   const gradeDistribution = useMemo(() => {
     const dist = { A: 0, B: 0, C: 0, D: 0, E: 0, '-': 0 };
@@ -179,11 +170,12 @@ export default function ExpertRepositoryPage() {
           </div>
         </div>
         <div className="page-hero__divider">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 items-stretch">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-6 items-stretch">
           {[
             ['专家总数', total, '录入总量'],
-            ['可用', available, '可参与评审'],
-            ['参与项目中', inProgress, '正在评审'],
+            ['可用', available, '可参与抽取'],
+            ['占用中', occupied, '正参与评审'],
+            ['已停用', disabled, '退库/停用'],
             ['总评价次数', totalEvals, '累计评价'],
           ].map(([label, value, sub]) => (
             <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
@@ -214,7 +206,7 @@ export default function ExpertRepositoryPage() {
       <div className="wb-toolbar flex-wrap gap-2">
         <div className="relative min-w-[140px] xl:min-w-[200px] flex-1">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索专家姓名" className="neu-input !pl-9" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input !pl-9" />
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}
         </div>
         <select value={specialty} onChange={e => { setSpecialty(e.target.value); setPage(1); }} className="workbench-input !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
@@ -225,37 +217,9 @@ export default function ExpertRepositoryPage() {
           <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
         )}
         <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>
-        <label className="neu-btn-xs cursor-pointer"><Upload size={12} />导入CSV<input type="file" accept=".csv" onChange={handleCsvFile} className="hidden" /></label>
-        <button onClick={doExport} className="neu-btn-xs"><Download size={12} />导出CSV</button>
+        <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家` : '导出全部专家'}><Download size={12} />导出CSV{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
         {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); setPage(1); }} className="neu-btn-xs">重置</button>}
       </div>
-
-      {/* 导入结果 */}
-      {importResult && (
-        <div className="neu-table-card p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-[var(--foreground)]">CSV 导入结果</span>
-            <button onClick={() => setImportResult(null)} className="neu-btn-xs is-danger"><X size={12} /></button>
-          </div>
-          <div className="flex gap-4 text-xs text-[var(--muted-foreground)] mb-3">
-            <span>总计 <strong className="text-[var(--foreground)]">{importResult.total}</strong> 行</span>
-            <span>成功 <strong className="text-[var(--success)]">{importResult.imported}</strong></span>
-            <span>跳过 <strong className="text-[var(--warning)]">{importResult.skipped}</strong></span>
-            <span>失败 <strong className="text-[var(--danger)]">{importResult.failed}</strong></span>
-          </div>
-          {importResult.results?.length > 0 && (
-            <div className="max-h-[200px] overflow-y-auto space-y-0.5">
-              {importResult.results.map((r: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 text-xs py-0.5">
-                  <StatusBadge tone={r.状态 === '成功' ? 'green' : r.状态 === '跳过' ? 'orange' : 'red'}>{r.状态}</StatusBadge>
-                  <span className="font-medium text-[var(--foreground)]">{r.姓名}</span>
-                  {r.原因 && <span className="text-[var(--muted-foreground)] truncate">{r.原因}</span>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* 高级筛选 */}
       {showAdvanced && (
@@ -268,13 +232,19 @@ export default function ExpertRepositoryPage() {
       )}
 
       {/* 批量操作栏 */}
-      {batchMode && selectedIds.size > 0 && (
-        <div className="neu-batch-bar">
+      {batchMode && (
+        <div className={`neu-batch-bar ${selectedIds.size === 0 ? 'opacity-50' : ''}`}>
           <span className="neu-batch-bar-count">已选 <strong>{selectedIds.size}</strong> 位</span>
+          {selectedIds.size > 0 && totalPages > 1 && <span className="text-[10px] text-[var(--muted-foreground)] ml-2">跨页已保留 · 翻页不丢失</span>}
           <div className="neu-batch-bar-spacer" />
-          <select value={batchAction} onChange={e => setBatchAction(e.target.value as any)} className="workbench-input !w-[90px] !h-[30px] text-xs"><option value="disable">批量停用</option><option value="enable">批量启用</option></select>
-          {batchAction === 'disable' && <input value={batchReason} onChange={e => setBatchReason(e.target.value)} placeholder="停用原因" className="workbench-input !w-[140px] !h-[30px] text-xs" />}
-          <button onClick={() => setConfirmBatch(true)} disabled={batchSaving} className="neu-btn-xs is-warning">{batchSaving ? '处理中...' : '执行'}</button>
+          {selectedIds.size === 0 && <span className="text-[11px] text-[var(--muted-foreground)] mr-2">勾选当前页专家或翻页继续选择</span>}
+          {selectedIds.size > 0 && (
+            <>
+              <select value={batchAction} onChange={e => setBatchAction(e.target.value as any)} className="workbench-input !w-[90px] !h-[30px] text-xs"><option value="disable">批量停用</option><option value="enable">批量启用</option></select>
+              {batchAction === 'disable' && <input value={batchReason} onChange={e => setBatchReason(e.target.value)} placeholder="停用原因" className="workbench-input !w-[140px] !h-[30px] text-xs" />}
+              <button onClick={() => setConfirmBatch(true)} disabled={batchSaving} className="neu-btn-xs is-warning">{batchSaving ? '处理中...' : '执行'}</button>
+            </>
+          )}
           <button onClick={() => { setSelectedIds(new Set()); setBatchMode(false); }} className="neu-btn-xs">取消选择</button>
         </div>
       )}
@@ -282,49 +252,49 @@ export default function ExpertRepositoryPage() {
       {/* ══════ 数据表格 ══════ */}
       <div className="neu-table-card">
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[780px]">
+          <table className="neu-table w-full min-w-[880px]">
             <thead>
               <tr>
                 {batchMode && (
                   <th style={{ width: 44 }}>
                     <button onClick={toggleAll} className="neu-btn-xs">
-                      {selectedIds.size === pagedExperts.length && pagedExperts.length > 0 ? <CheckSquare size={15} /> : <Square size={15} />}
+                      {selectedIds.size === displayedExperts.length && displayedExperts.length > 0 ? <CheckSquare size={15} /> : <Square size={15} />}
                     </button>
                   </th>
                 )}
                 <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <SortableTh label="专业" field="expertProfile.specialty" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <SortableTh label="职称" field="expertProfile.title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
+                <th className="text-center">工作单位</th>
                 <th className="text-center">部门</th>
                 <th className="text-center">参评项目</th>
                 <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
-                <th className="text-center">最近评价</th>
                 <th className="text-center">平均等级</th>
+                <th className="text-center">最近评价</th>
                 <th className="text-center">状态</th>
                 <th className="text-center">操作</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={batchMode ? 9 : 8} rows={5} />
+                <TableSkeleton cols={batchMode ? 12 : 11} rows={5} />
               ) : errored ? (
-                <tr><td colSpan={batchMode ? 10 : 9} className="px-4 py-16">
+                <tr><td colSpan={batchMode ? 12 : 11} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
                     <p className="text-sm font-semibold text-[var(--danger)]">专家列表加载失败</p>
                     <button onClick={load} className="neu-btn-soft"><RefreshCw size={15} />重试</button>
                   </div>
                 </td></tr>
-              ) : pagedExperts.length === 0 ? (
-                <tr><td colSpan={batchMode ? 10 : 9} className="px-4 py-16">
+              ) : displayedExperts.length === 0 ? (
+                <tr><td colSpan={batchMode ? 12 : 11} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><UsersRound size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无专家</p>
                     <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs is-info">前往录入专家 →</button>
                   </div>
                 </td></tr>
-              ) : pagedExperts.map(e => {
-                const activeProjects = e.bidExperts.filter(a => a.project.stage !== 'ARCHIVED');
+              ) : displayedExperts.map(e => {
                 return (
                   <tr key={e.id} className="row-clickable" onClick={() => !batchMode && router.push(`/expert/${e.id}`)}>
                     {batchMode && (
@@ -340,14 +310,30 @@ export default function ExpertRepositoryPage() {
                         <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{e.displayName}</span>
                       </div>
                     </td>
-                    <td className="text-center">{e.expertProfile?.specialty && <StatusBadge tone="blue">{e.expertProfile.specialty}</StatusBadge>}</td>
+                    <td className="text-center">{e.expertProfile?.specialty && <StatusBadge tone={specialtyTone(e.expertProfile.specialty)}>{e.expertProfile.specialty}</StatusBadge>}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.title || '—'}</td>
                     <td className="text-center text-sm text-[var(--muted-foreground)]">{e.expertProfile?.employer || '—'}</td>
-                    <td className="text-center"><span className="text-sm font-semibold text-[var(--foreground)] tabular-nums">{activeProjects.length}</span><span className="text-xs text-[var(--muted-foreground)] ml-1">/{e.bidExperts.length}</span></td>
+                    <td className="text-center text-sm text-[var(--muted-foreground)]">{e.department?.name || '—'}</td>
+                    <td className="text-center"><span className="text-sm font-semibold text-[var(--foreground)] tabular-nums">{e.bidExperts.length}</span></td>
                     <td className="text-center text-sm font-semibold text-[var(--foreground)] tabular-nums">{e._count.expertEvaluations}</td>
-                    <td className="text-center">{e.latestEval ? <StatusBadge tone={e.latestEval.level === 'A' ? 'green' : e.latestEval.level === 'B' ? 'blue' : e.latestEval.level === 'C' ? 'orange' : e.latestEval.level === 'D' ? 'orange' : 'red'}>{e.latestEval.level}级</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
-                    <td className="text-center">{e.avgGrade ? <StatusBadge tone={e.avgGrade === 'A' ? 'green' : e.avgGrade === 'B' ? 'blue' : e.avgGrade === 'C' ? 'orange' : e.avgGrade === 'D' ? 'orange' : 'red'}>{e.avgGrade}级</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
-                    <td className="text-center"><StatusBadge tone={e.isActive ? 'green' : 'gray'}>{e.isActive ? '可用' : '已停用'}</StatusBadge></td>
+                    <td className="text-center">
+                      {e.avgGrade ? (
+                        <div className="flex items-center justify-center gap-1.5" title={`平均评价等级 ${e.avgGrade}（${LEVEL_LABEL[e.avgGrade] ?? ''}）`}>
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.avgGrade] ?? 'var(--muted-foreground)' }}>{e.avgGrade}</span>
+                          <span className="text-[11px] text-[var(--muted-foreground)]">{LEVEL_LABEL[e.avgGrade] ?? '—'}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </td>
+                    <td className="text-center">
+                      {e.latestEval ? (
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[e.latestEval.level] ?? 'var(--muted-foreground)' }}>{e.latestEval.level}</span>
+                      ) : (
+                        <span className="text-xs text-[var(--muted-foreground)]">—</span>
+                      )}
+                    </td>
+                    <td className="text-center">{!e.isActive ? <StatusBadge tone="gray">已停用</StatusBadge> : e.expertProfile?.availability === '占用' ? <StatusBadge tone="orange">评审中</StatusBadge> : e.expertProfile?.availability === '停用' ? <StatusBadge tone="gray">已停用</StatusBadge> : <StatusBadge tone="green">可用</StatusBadge>}</td>
                     <td onClick={e => e.stopPropagation()} className="text-center">
                       <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
                         <button onClick={() => setEvalTarget(e)} className="neu-btn-xs is-info">履职评价</button>
@@ -360,9 +346,9 @@ export default function ExpertRepositoryPage() {
             </tbody>
           </table>
         </div>
-        {filteredExperts.length > 0 && (
+        {displayedExperts.length > 0 && (
           <div className="neu-table-card-footer flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{filteredExperts.length}</strong> 条 · 第 {page}/{totalPages} 页</span>
+            <span className="text-[0.8rem] text-[var(--muted-foreground)] tabular-nums">共 <strong className="font-semibold text-[var(--foreground)]">{total}</strong> 条 · 第 {page}/{totalPages} 页</span>
             <div className="flex gap-1.5">
               <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="neu-btn-xs disabled:opacity-30"><ChevronLeft size={14} /></button>
               <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="neu-btn-xs disabled:opacity-30"><ChevronRight size={14} /></button>

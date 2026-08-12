@@ -8,13 +8,14 @@ import {
   updateSupplierStatus,
   toggleFavorite, getFavorites,
   listInvitations, createInvitation, revokeInvitation,
+  importSuppliers, getImportTemplateUrl,
 } from '@/lib/api/supplier';
 import type { Supplier, SupplierListResponse } from '@/lib/types';
 import type { SupplierInvitation } from '@/lib/api/supplier';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ClassificationManagerDialog } from '@/components/supplier/classification-manager-dialog';
-import { Building2, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags } from 'lucide-react';
+import { Building2, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, FileSpreadsheet, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, Tags, Upload, Download, Loader2 } from 'lucide-react';
 import { exportSuppliersToExcel } from '@/lib/excel-export';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
@@ -27,7 +28,6 @@ export default function SupplierRepositoryPage() {
   const [error, setError] = useState<string>('');
 
   const [sortMode, setSortMode] = useState<'completeness' | 'createdAt'>('completeness');
-  // 无「全部」标签：默认落在「已入库」，列表只展示已运营供应商。
   const [filterStatus, setFilterStatus] = useState('APPROVED');
   // 临时供应商子视图：与 filterStatus='APPROVED' 叠加，仅看凭邀请码注册的临时入库供应商。
   const [filterIsTemporary, setFilterIsTemporary] = useState(false);
@@ -49,6 +49,8 @@ export default function SupplierRepositoryPage() {
   const [batchLoading, setBatchLoading] = useState(false);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
 
+  const [favFilter, setFavFilter] = useState(false);
+
   // 状态标签定义须先于 loadData 声明（loadData 用到 effectiveStatus，避免 TDZ）。
   // key 为唯一标识（已入库/临时供应商同为 APPROVED，须靠 key+isTemporary 区分激活态）。
   const STATUS_TABS: { key: string; label: string; status: string; isTemporary?: boolean; tone?: string; count?: number; badge?: 'danger' | 'warning' }[] = [
@@ -59,15 +61,13 @@ export default function SupplierRepositoryPage() {
     { key: 'DISABLED', label: '已停用', status: 'DISABLED', tone: 'gray' },
     { key: 'BLACKLIST', label: '黑名单', status: 'BLACKLIST', tone: 'red' },
   ];
-  // 当前生效的状态过滤：无「全部」标签，filterStatus 恒为某具体状态（默认 APPROVED）。
   const effectiveStatus = filterStatus;
-  // 当前激活的标签 key：临时供应商标签与已入库同为 APPROVED，靠 filterIsTemporary 二选一。
   const activeTabKey = filterIsTemporary ? 'TEMPORARY' : filterStatus;
 
   const toggleSelect = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => {
-    if (selected.size === data.items.length) setSelected(new Set());
-    else setSelected(new Set(data.items.map(s => s.id)));
+    if (selected.size === displayItems.length) setSelected(new Set());
+    else setSelected(new Set(displayItems.map(s => s.id)));
   };
   const handleBatch = async () => {
     if (!batchModal || !batchReason.trim()) { toast.error('请填写原因'); return; }
@@ -99,6 +99,10 @@ export default function SupplierRepositoryPage() {
   const [invCreating, setInvCreating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [invModalOpen, setInvModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResult, setImportResult] = useState<{ total: number; created: number; skipped: number; errors: string[] } | null>(null);
   const INV_STATUS_META: Record<string, { label: string; cls: string }> = {
     ACTIVE: { label: '可用', cls: 'text-[var(--success)] bg-[color-mix(in_oklch,var(--success)_14%,transparent)]' },
     USED: { label: '已使用', cls: 'text-[var(--accent)] bg-[color-mix(in_oklch,var(--accent)_14%,transparent)]' },
@@ -136,7 +140,7 @@ export default function SupplierRepositoryPage() {
     setError('');
     try {
       const params: any = {
-        status: effectiveStatus || undefined,
+        status: effectiveStatus ?? undefined,
         search: search || undefined, page, pageSize, sort: sortMode,
       };
       if (filterIsTemporary) params.isTemporary = true;
@@ -162,6 +166,8 @@ export default function SupplierRepositoryPage() {
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { refreshMeta(); }, [refreshMeta, data.total]);
   const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
+  // 收藏筛选：在前端对当前页数据做过滤
+  const displayItems = favFilter ? data.items.filter(s => favIds.has(s.id)) : data.items;
 
   const handleStatusAction = async () => {
     if (!statusModal || !statusReason.trim()) { toast.error('请填写原因'); return; }
@@ -322,9 +328,18 @@ export default function SupplierRepositoryPage() {
         </div>
         <button onClick={() => { setSearch(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
 
+        <button
+          onClick={() => setFavFilter(f => !f)}
+          className={`neu-btn-xs gap-1 ${favFilter ? 'is-active' : ''}`}
+          title={favFilter ? '显示全部（取消收藏筛选）' : '仅显示收藏'}
+        >
+          <Star size={12} fill={favFilter ? 'var(--warning)' : 'none'} stroke={favFilter ? 'var(--warning)' : 'currentColor'} />
+          {favFilter ? '收藏中' : '收藏'}
+        </button>
+        <button onClick={() => { setImportModalOpen(true); setImportFile(null); setImportResult(null); }} className="neu-btn-xs gap-1"><Upload size={12} />导入</button>
         <button onClick={() => setShowClassMgr(true)} className="neu-btn-xs gap-1"><Tags size={12} />分类管理</button>
         <button onClick={() => setShowAdvanced(!showAdvanced)} className="neu-btn-xs gap-1 text-[var(--muted-foreground)]">{showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}高级筛选</button>
-        <button onClick={() => exportSuppliersToExcel(data.items)} title="仅导出当前筛选结果（当前页数据）" className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
+        <button onClick={() => exportSuppliersToExcel(data.items)} title="导出当前筛选结果" className="neu-btn-xs gap-1"><FileSpreadsheet size={12} />导出 Excel</button>
       </div>
 
       {showAdvanced && (
@@ -367,7 +382,7 @@ export default function SupplierRepositoryPage() {
           <table className="neu-table w-full min-w-[780px]">
             <thead>
               <tr>
-                <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === data.items.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < data.items.length; }} onChange={toggleAll} /></th>
+                <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === displayItems.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < displayItems.length; }} onChange={toggleAll} /></th>
                 <th style={{ width: 100 }}>企业名称</th>
                 <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
                 <th style={{ width: 140 }}>企业类型</th>
@@ -382,14 +397,14 @@ export default function SupplierRepositoryPage() {
             <tbody>
               {loading ? (
                 <TableSkeleton cols={10} rows={5} />
-              ) : data.items.length === 0 ? (
+              ) : displayItems.length === 0 ? (
                 <tr><td colSpan={10} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><Building2 size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无供应商数据</p>
                   </div>
                 </td></tr>
-              ) : data.items.map((s: Supplier) => {
+              ) : displayItems.map((s: Supplier) => {
                 const statusTone = s.status === 'APPROVED' ? 'green' : s.status === 'PENDING' ? 'blue' : s.status === 'RETURNED' ? 'orange' : s.status === 'DISABLED' ? 'gray' : s.status === 'BLACKLIST' ? 'red' : 'gray';
                 const statusLabel = s.status === 'APPROVED' ? '已入库' : s.status === 'PENDING' ? '待审核' : s.status === 'RETURNED' ? '退回补正' : s.status === 'DISABLED' ? '已停用' : s.status === 'BLACKLIST' ? '黑名单' : s.status;
                 return (
@@ -495,6 +510,78 @@ export default function SupplierRepositoryPage() {
       {/* ══════ 评价弹窗 ══════ */}
       <SupplierEvaluationDialog supplier={evalTarget} onClose={() => setEvalTarget(null)} onSubmitted={loadData} />
       <ClassificationManagerDialog open={showClassMgr} onClose={() => setShowClassMgr(false)} />
+
+      {/* ══════ Excel 批量导入弹窗 ══════ */}
+      {importModalOpen && (
+        <Modal open onClose={() => { setImportModalOpen(false); setImportFile(null); setImportResult(null); }} title="批量导入供应商" size="md">
+          {!importResult ? (
+            <div className="space-y-4">
+              <div className="text-sm text-[var(--muted-foreground)]">
+                下载模板后按格式填写企业信息，上传即可批量创建为待审核供应商。
+              </div>
+              <a href={getImportTemplateUrl()} download className="neu-btn-xs gap-1 inline-flex"><Download size={13} />下载导入模板</a>
+              <div className="neu-card-static !rounded-xl p-6 text-center border-2 border-dashed border-[var(--border)]">
+                <Upload size={24} className="mx-auto mb-2 text-[var(--muted-foreground)]" />
+                <label className="neu-btn-xs gap-1 cursor-pointer inline-flex">
+                  <Plus size={12} />{importFile ? importFile.name : '选择 Excel 文件'}
+                  <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => {
+                    const f = e.target.files?.[0] || null;
+                    setImportFile(f);
+                  }} />
+                </label>
+                <p className="text-[10px] text-[var(--muted-foreground)] mt-2">支持 .xlsx / .xls 格式，最大 10MB</p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setImportModalOpen(false)} className="neu-btn-soft">取消</button>
+                <button
+                  onClick={async () => {
+                    if (!importFile) { toast.error('请选择文件'); return; }
+                    setImportLoading(true);
+                    try {
+                      const result = await importSuppliers(importFile);
+                      setImportResult(result);
+                      if (result.created > 0) { toast.success(`成功导入 ${result.created} 家供应商`); loadData(); refreshMeta(); }
+                    } catch (e: any) { toast.error(e?.message || '导入失败'); }
+                    setImportLoading(false);
+                  }}
+                  disabled={importLoading || !importFile}
+                  className="neu-btn-primary"
+                >
+                  {importLoading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {importLoading ? '导入中...' : '开始导入'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="neu-card-static !rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-[var(--muted-foreground)]">总行数</p>
+                  <p className="text-xl font-black tabular-nums text-[var(--foreground)]">{importResult.total}</p>
+                </div>
+                <div className="neu-card-static !rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-[var(--muted-foreground)]">成功导入</p>
+                  <p className="text-xl font-black tabular-nums text-[var(--success)]">{importResult.created}</p>
+                </div>
+                <div className="neu-card-static !rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-[var(--muted-foreground)]">跳过/失败</p>
+                  <p className="text-xl font-black tabular-nums text-[var(--warning)]">{importResult.skipped}</p>
+                </div>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div className="max-h-[200px] overflow-y-auto space-y-1 text-xs">
+                  {importResult.errors.map((e, i) => (
+                    <p key={i} className="text-[var(--danger)]">{e}</p>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button onClick={() => { setImportModalOpen(false); setImportFile(null); setImportResult(null); }} className="neu-btn-soft">关闭</button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

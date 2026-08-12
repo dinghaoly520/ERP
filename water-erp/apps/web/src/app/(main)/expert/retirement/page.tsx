@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getRetireCandidates, confirmRetire } from '@/lib/api/expert';
+import { getRetireCandidates, confirmRetire, ignoreRetirementWarning } from '@/lib/api/expert';
 import { StatusBadge } from '@/components/workbench';
 import { AlertTriangle, Check, RefreshCw, UserX } from 'lucide-react';
 
@@ -12,9 +12,10 @@ export default function RetirementPage() {
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
-  const [reason, setReason] = useState('');
+  // 每个候选独立的退库原因
+  const [reasons, setReasons] = useState<Record<string, string>>({});
   // 退库二次确认
-  const [pendingRetire, setPendingRetire] = useState<{ id: string; name: string } | null>(null);
+  const [pendingRetire, setPendingRetire] = useState<{ id: string; name: string; reason: string } | null>(null);
   const [retiring, setRetiring] = useState(false);
 
   const load = async () => {
@@ -25,19 +26,19 @@ export default function RetirementPage() {
   };
   useEffect(() => { load(); }, []);
 
-  const openRetire = (id: string, name: string) => {
+  const openRetire = (id: string, name: string, reason: string) => {
     if (!reason.trim()) { toast.error('请输入退库原因'); return; }
-    setPendingRetire({ id, name });
+    setPendingRetire({ id, name, reason: reason.trim() });
   };
 
   const doRetire = async () => {
-    if (!pendingRetire || !reason.trim()) return;
-    const { id, name } = pendingRetire;
+    if (!pendingRetire) return;
+    const { id, name, reason } = pendingRetire;
     setRetiring(true);
     try {
-      await confirmRetire(id, reason.trim());
+      await confirmRetire(id, reason);
       toast.success(`${name} 已退库`);
-      setReason('');
+      setReasons(prev => { const n = { ...prev }; delete n[id]; return n; });
       setPendingRetire(null);
       load();
     } catch (e: any) { toast.error(e?.message || '退库失败'); }
@@ -84,35 +85,43 @@ export default function RetirementPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {candidates.length > 0 && (
-            <div className="neu-table-card p-4">
-              <label className="block mb-2 text-xs font-semibold text-[var(--muted-foreground)]">统一退库原因</label>
-              <textarea
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-                placeholder="填写退库原因（如：连续两次D级评价）..."
-                className="neu-input text-sm w-full"
-                rows={2}
-              />
-            </div>
-          )}
           {candidates.map(c => (
-            <div key={c.userId} className="neu-table-card p-4 flex items-center justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-bold text-[var(--foreground)]">{c.displayName}</span>
-                  {c.specialty && <StatusBadge tone="blue">{c.specialty}</StatusBadge>}
-                  <AlertTriangle size={14} className="text-[var(--warning)]" />
+            <div key={c.userId} className="neu-table-card p-4 space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-bold text-[var(--foreground)]">{c.displayName}</span>
+                    {c.specialty && <StatusBadge tone="blue">{c.specialty}</StatusBadge>}
+                    <AlertTriangle size={14} className="text-[var(--warning)]" />
+                  </div>
+                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">预警原因：{c.reason}</p>
                 </div>
-                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">预警原因：{c.reason}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={async () => {
+                      try { await ignoreRetirementWarning(c.userId); toast.success(`${c.displayName} 本轮预警已忽略（90天）`); load(); }
+                      catch (e: any) { toast.error(e?.message || '操作失败'); }
+                    }}
+                    className="neu-btn-xs"
+                    title="90 天内不再扫描该专家"
+                  >
+                    忽略本轮
+                  </button>
+                  <button
+                    onClick={() => openRetire(c.userId, c.displayName, reasons[c.userId] || '')}
+                    disabled={!(reasons[c.userId]?.trim()) || retiring}
+                    className="neu-btn-soft is-danger shrink-0"
+                  >
+                    确认退库
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => openRetire(c.userId, c.displayName)}
-                disabled={!reason.trim() || retiring}
-                className="neu-btn-soft is-danger shrink-0"
-              >
-                确认退库
-              </button>
+              <input
+                value={reasons[c.userId] || ''}
+                onChange={e => setReasons(prev => ({ ...prev, [c.userId]: e.target.value }))}
+                placeholder="填写退库原因（如：连续两次D级评价、长期未参与评审…）"
+                className="neu-input text-sm w-full"
+              />
             </div>
           ))}
         </div>
@@ -138,7 +147,7 @@ export default function RetirementPage() {
               </div>
               <div className="space-y-1">
                 <span className="text-xs text-[var(--muted-foreground)]">退库原因</span>
-                <p className="rounded-lg bg-[var(--muted)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground)]">{reason}</p>
+                <p className="rounded-lg bg-[var(--muted)] px-3 py-2 text-xs leading-relaxed text-[var(--foreground)]">{pendingRetire.reason}</p>
               </div>
             </div>
             <hr className="wb-section-rule my-4" />

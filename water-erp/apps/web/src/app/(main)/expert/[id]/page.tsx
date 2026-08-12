@@ -4,8 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief } from '@/lib/api/expert';
-import { AlertBanner, Breadcrumb, StatusBadge } from '@/components/workbench';
+import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, confirmInvitation, declineInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem } from '@/lib/api/expert';
+import { AlertBanner, StatusBadge } from '@/components/workbench';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { TrendingUp, Award, AlertTriangle, ShieldAlert, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
@@ -81,8 +81,8 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'notify', label: '通知偏好', icon: Bell },
 ];
 
-type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; employer: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; availability: '可用' | '占用' | '停用'; notes: string };
-const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes' | 'availability'>; label: string; placeholder: string }[] = [
+type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; availability: '可用' | '占用' | '停用'; notes: string };
+const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes' | 'availability' | 'departmentName'>; label: string; placeholder: string }[] = [
   { key: 'displayName', label: '姓名', placeholder: '专家姓名' },
   { key: 'email', label: '邮箱', placeholder: '用于登录与通知触达' },
   { key: 'specialty', label: '专业', placeholder: '如 水利水电工程' },
@@ -102,7 +102,13 @@ export default function ExpertDetailPage() {
   const [expert, setExpert] = useState<ExpertDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [tab, setTab] = useState<Tab>('info');
+  const [tab, setTabState] = useState<Tab>(() => {
+    if (typeof window !== 'undefined') {
+      return (sessionStorage.getItem('expert-detail-tab') as Tab) || 'info';
+    }
+    return 'info';
+  });
+  const setTab = (t: Tab) => { setTabState(t); try { sessionStorage.setItem('expert-detail-tab', t); } catch {} };
   const [tabLoading, setTabLoading] = useState(false);
   const loadedTabsRef = useRef<Set<Tab>>(new Set(['overview']));
 
@@ -111,6 +117,7 @@ export default function ExpertDetailPage() {
   const [evaluations, setEvaluations] = useState<any[]>([]);
   const [violations, setViolations] = useState<any[]>([]);
   const [notifyPrefs, setNotifyPrefs] = useState({ inApp: true, sms: false, phone: false });
+  const [notifyHistory, setNotifyHistory] = useState<NotifyHistoryItem[]>([]);
   // AI 采纳率
   const [aiAdoption, setAiAdoption] = useState<any>(null);
   const [risk, setRisk] = useState<ExpertRiskBrief | null>(null);
@@ -126,7 +133,7 @@ export default function ExpertDetailPage() {
   const [vioSaving, setVioSaving] = useState(false);
   // 编辑资料弹窗
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '' });
+  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', employer: '', departmentName: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '' });
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
@@ -166,7 +173,7 @@ export default function ExpertDetailPage() {
     if (tab === 'violations') tasks.push(track(getViolations(expertId).then(setViolations)));
     if (tab === 'ai-adoption') tasks.push(track(getAiAdoptionRate(expertId).then(setAiAdoption)));
     if (tab === 'risk') tasks.push(track(getRiskBrief(expertId).then(setRisk).catch((e: any) => { setRiskError(e?.message || '风险简报生成失败'); throw e; })));
-    if (tab === 'notify') tasks.push(track(getNotifyPrefs(expertId).then(setNotifyPrefs)));
+    if (tab === 'notify') { tasks.push(track(getNotifyPrefs(expertId).then(setNotifyPrefs))); tasks.push(track(getNotifyHistory(expertId).then(setNotifyHistory))); }
     Promise.all(tasks).finally(() => {
       setTabLoading(false);
       if (failed) setTabError(prev => ({ ...prev, [tab]: true }));
@@ -217,6 +224,7 @@ export default function ExpertDetailPage() {
       specialty: p?.specialty || '',
       title: p?.title || '',
       employer: p?.employer || '',
+      departmentName: expert.department?.name || '',
       phone: p?.phone || '',
       idNumber: p?.idNumber || '',
       ethnicity: p?.ethnicity || '',
@@ -263,23 +271,30 @@ export default function ExpertDetailPage() {
   const expertNo = expert.expertProfile?.notes?.match(/编号\s*[:：]\s*([^\s,，、]+)/)?.[1];
 
   return (
-    <div>
-      <Breadcrumb items={[{ label: '专家库', path: '/expert/repository' }, { label: expert?.displayName || '详情' }]} />
-      {alertItems.length > 0 && <div className="mb-5"><AlertBanner items={alertItems} /></div>}
+    <div className="flex flex-col gap-5">
+      {/* ── 返回按钮 + page-hero ── */}
+      <button onClick={() => router.push('/expert/repository')} className="flow-back shrink-0 self-start">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+        返回专家库
+      </button>
 
-      {/* Header */}
-      <div className="page-hero mb-5">
+      {alertItems.length > 0 && <AlertBanner items={alertItems} />}
+
+      {/* Header — page-hero（合并标题 + KPI） */}
+      <div className="page-hero">
         <div className="page-hero__row">
           <div className="page-hero__left">
             <div className="page-hero__icon"><Award size={17} /></div>
-            <div>
-              <div className="page-hero__title">
+            <div className="min-w-0">
+              <div className="page-hero__title truncate">
                 {expert.displayName}
                 {expertNo && (
                   <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 align-middle text-[13px] font-bold tabular-nums text-[var(--accent)]" title="专家编号">{expertNo}</span>
                 )}
               </div>
-              <div className="page-hero__sub">
+              <div className="page-hero__sub truncate">
                 {expert.expertProfile?.specialty && <span>{expert.expertProfile.specialty}</span>}
                 {expert.expertProfile?.title && <span className="ml-2">· {expert.expertProfile.title}</span>}
                 {expert.expertProfile?.employer && <span className="ml-2">· {expert.expertProfile.employer}</span>}
@@ -289,47 +304,47 @@ export default function ExpertDetailPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <button onClick={openEditProfile} className="neu-btn-soft"><Pencil size={13} />编辑资料</button>
-            <button onClick={() => router.push('/expert/repository')} className="neu-btn-soft">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-              返回专家库</button>
             <StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '可用' : '已停用'}</StatusBadge>
             {portrait?.isStandingExpert && <StatusBadge tone="purple">常委专家</StatusBadge>}
+            <button onClick={openEditProfile} className="neu-btn-soft"><Pencil size={14} /> 编辑资料</button>
           </div>
         </div>
-      </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 mb-5">
-        {[
-          ['参评项目', expert.statistics.totalProjects],
-          ['已完成', expert.statistics.completedProjects],
-          ['已签到', expert.statistics.signedInProjects],
-          ['评价均分', expert.statistics.evalAvg ? `${expert.statistics.evalAvg}分` : '—'],
-          ['获评次数', expert.statistics.evalCount],
-        ].map(([label, value]) => (
-          <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-            <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
+        {/* KPI 瓷片行 —— 融入 page-hero */}
+        <div className="page-hero__divider">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {[
+              ['参评项目', expert.statistics.totalProjects],
+              ['已完成', expert.statistics.completedProjects],
+              ['已签到', expert.statistics.signedInProjects],
+              ['评价均分', expert.statistics.evalAvg ? `${expert.statistics.evalAvg}分` : '—'],
+              ['获评次数', expert.statistics.evalCount],
+            ].map(([label, value]) => (
+              <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
+                <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
 
-      {/* Tab bar */}
-      <div className="neu-tab-bar mb-5">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => {
-              // 同步设 tabLoading，消除“先空后加载”的闪烁
-              if (!loadedTabsRef.current.has(t.key)) setTabLoading(true);
-              setTab(t.key);
-            }}
-            className={`neu-tab ${tab === t.key ? 'is-active' : ''}`}
-          >
-            <t.icon size={14} /><span className="ml-1.5">{t.label}</span>
-          </button>
-        ))}
+        {/* Tab 导航 —— 融入 page-hero 底部 */}
+        <div className="page-hero__divider !pt-3">
+          <div className="neu-tab-bar">
+            {TABS.map(t => (
+              <button
+                key={t.key}
+                onClick={() => {
+                  if (!loadedTabsRef.current.has(t.key)) setTabLoading(true);
+                  setTab(t.key);
+                }}
+                className={`neu-tab ${tab === t.key ? 'is-active' : ''}`}
+              >
+                <t.icon size={14} /><span className="ml-1.5">{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Tab content */}
@@ -763,8 +778,34 @@ export default function ExpertDetailPage() {
             ))}
           </div>
           <button onClick={saveNotifyPrefs} className="neu-btn-soft w-full justify-center">保存偏好设置</button>
+
+          {/* 通知发送历史 */}
+          <hr className="wb-section-rule" />
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <History size={13} className="text-[var(--muted-foreground)]" />
+              <span className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">最近通知记录</span>
+            </div>
+            {notifyHistory.length === 0 ? (
+              <p className="text-xs text-[var(--muted-foreground)]">该专家暂无通知发送记录</p>
+            ) : (
+              <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                {notifyHistory.map((item, i) => {
+                  const chLabel = item.channel === 'in_app' ? '站内信' : item.channel === 'sms' ? '短信' : item.channel === 'phone' ? '电话' : item.channel;
+                  return (
+                    <div key={i} className="flex items-center gap-3 rounded-lg bg-[color-mix(in_oklch,var(--surface)_60%,transparent)] px-3 py-1.5 text-xs">
+                      <span className="font-semibold text-[var(--foreground)] capitalize">{chLabel}</span>
+                      <StatusBadge tone={item.status === 'sent' ? 'green' : item.status === 'failed' ? 'red' : 'orange'}>{item.status === 'sent' ? '已送达' : item.status === 'failed' ? '失败' : item.status}</StatusBadge>
+                      <span className="tabular-nums text-[var(--muted-foreground)] ml-auto">{new Date(item.time).toLocaleDateString('zh-CN')} {new Date(item.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
+
 
       {/* ════ 编辑资料弹窗 ════ */}
       {showEditModal && (
@@ -789,6 +830,10 @@ export default function ExpertDetailPage() {
                   <input value={editForm[f.key]} onChange={e => setEditForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.placeholder} className="workbench-input" />
                 </label>
               ))}
+              <label className="space-y-1 block">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span>
+                <input value={editForm.departmentName} onChange={e => setEditForm(prev => ({ ...prev, departmentName: e.target.value }))} placeholder="如 工程勘察院" className="workbench-input" />
+              </label>
               <label className="space-y-1 block">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">可用状态</span>
                 <select value={editForm.availability} onChange={e => setEditForm(prev => ({ ...prev, availability: e.target.value as '可用' | '占用' | '停用' }))} className="workbench-input">

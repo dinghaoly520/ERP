@@ -8,7 +8,13 @@ import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { StepTrack } from '@/components/step-track';
 import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, MessageSquare, Phone, Bell, Pencil, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send } from 'lucide-react';
+import { STAGE_LABEL } from '@water-erp/shared';
 
+/** 兼容新旧 API：新版返回 { total, items }，旧版返回数组 */
+function unwrapList<T>(res: T[] | { total: number; items: T[] }): { items: T[]; total: number } {
+  if (Array.isArray(res)) return { items: res, total: res.length };
+  return { items: (res as any).items || [], total: (res as any).total || 0 };
+}
 
 interface SpecialtyQuota { specialty: string; count: number; employer?: string }
 
@@ -475,7 +481,7 @@ export function ExpertExtractPage({
     lastReQuotasRef.current = [];
     quotaCacheRef.current.clear();
   }, [pid]);
-  useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s }).then(l => ({ s, c: Array.isArray(l) ? l.length : 0 })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
+  useEffect(() => { if (!pid || specs.length === 0) return; Promise.all(specs.map(s => listExperts({ specialty: s, pageSize: 1000 }).then(l => ({ s, c: unwrapList(l as any).total })))).then(rs => { const m = new Map<string, number>(); rs.forEach(({ s, c }) => { if (c > 0) m.set(s, c); }); setPool(m); }).catch(() => {}); }, [pid, specs]);
 
   // 已有项目 AI 自动推断专业配额（pd 加载后、且用户尚未手动配置配额时触发）
   useEffect(() => {
@@ -520,7 +526,7 @@ export function ExpertExtractPage({
       setManualSearching(true);
       const rid = ++manualReqIdRef.current;
       try {
-        const list = await listExperts({ search: manualSearch.trim() }) as ExpertListItem[];
+        const list = unwrapList(await listExperts({ search: manualSearch.trim() })).items;
         if (rid !== manualReqIdRef.current) return;
         setManualResults(list);
       } catch {
@@ -534,9 +540,10 @@ export function ExpertExtractPage({
 
   // 部门列表：一次性拉取全部专家，按工作单位去重（供需求方代表「选择部门」）
   useEffect(() => {
-    listExperts({}).then(list => {
+    listExperts({ pageSize: 1000 }).then(raw => {
+      const list = (unwrapList(raw as any).items) as ExpertListItem[];
       const empSpecs = new Map<string, Set<string>>();
-      for (const e of (list as ExpertListItem[])) {
+      for (const e of list) {
         const emp = e.expertProfile?.employer?.trim();
         if (!emp) continue;
         if (!empSpecs.has(emp)) empSpecs.set(emp, new Set());
@@ -556,7 +563,7 @@ export function ExpertExtractPage({
       setDemandRepSearching(true);
       const rid = ++demandRepReqIdRef.current;
       try {
-        const list = await listExperts({ search: demandRepSearch.trim() }) as ExpertListItem[];
+        const list = unwrapList(await listExperts({ search: demandRepSearch.trim() })).items;
         if (rid !== demandRepReqIdRef.current) return;
         setDemandRepResults(list);
       } catch {
@@ -590,7 +597,7 @@ export function ExpertExtractPage({
       setExcludeSearching(true);
       const rid = ++excludeReqIdRef.current;
       try {
-        const list = await listExperts({ search: excludeSearch.trim() }) as ExpertListItem[];
+        const list = unwrapList(await listExperts({ search: excludeSearch.trim() })).items;
         if (rid !== excludeReqIdRef.current) return;
         setExcludeResults(list);
       } catch {
@@ -1829,13 +1836,24 @@ export function ExpertExtractPage({
                 )}
               </div>
             ) : (
-              /* 项目摘要：名称 + 编号 + 采购方式 + 阶段 + 回避提示 */
+              /* 项目摘要：名称 + 编号 + 采购方式 + 阶段 + 开标时间 + 回避提示 */
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-sm font-bold text-[var(--foreground)]">{defaultProjectTitle || sel?.name}</span>
                   {sel && <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-semibold text-[var(--accent-strong)]">{sel.projectCode}</span>}
                   {sel && <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 font-semibold text-[var(--accent-strong)]">{sel.procurementMethod}</span>}
                 </div>
+                {/* 项目详情行 */}
+                {pd && (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--muted-foreground)]">
+                    <span>阶段：<strong className="text-[var(--foreground)]">{STAGE_LABEL[pd.stage] || pd.stage}</strong></span>
+                    {pd.openTime && <span>开标时间：<strong className="text-[var(--foreground)] tabular-nums">{new Date(pd.openTime).toLocaleDateString('zh-CN')} {new Date(pd.openTime).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'})}</strong></span>}
+                    {pd.budget != null && <span>预算：<strong className="text-[var(--foreground)] tabular-nums">{typeof pd.budget === 'number' ? `${(pd.budget / 10000).toFixed(0)} 万元` : String(pd.budget)}</strong></span>}
+                    <span>供应商：<strong className="text-[var(--foreground)] tabular-nums">{pd.suppliers?.length ?? 0} 家</strong></span>
+                    <span>已有专家：<strong className="text-[var(--foreground)] tabular-nums">{pd.experts?.length ?? 0} 人</strong></span>
+                    {pd.riskNote && <span className="text-[var(--warning)] max-w-[360px] truncate" title={pd.riskNote}>风险提示：{pd.riskNote}</span>}
+                  </div>
+                )}
                 {(pd?.suppliers?.filter(s => s.confirmStatus === 'CONFIRMED')?.length ?? 0) > 0 && <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">⚠ 已确认参与的供应商（将自动回避）：{pd!.suppliers!.filter(s => s.confirmStatus === 'CONFIRMED').map(s => s.supplierName).join('、')}</div>}
               </div>
             )}
@@ -2029,7 +2047,12 @@ export function ExpertExtractPage({
                 {(['random', 'merit_best'] as ExtractMode[]).map(m => (
                   <button
                     key={m}
-                    onClick={() => setExtractMode(m)}
+                    onClick={() => {
+                      if (m !== extractMode) {
+                        setExtractMode(m);
+                        if (quotas.some(q => q.specialty.trim())) toast.info(`已切换至「${MODE_LABELS[m]}」模式，专业配额已保留`);
+                      }
+                    }}
                     title={MODE_DESCS[m]}
                     className={`neu-tab px-3.5 py-1.5 text-xs font-bold ${extractMode === m ? 'is-active' : ''}`}
                   >

@@ -117,6 +117,22 @@ export function exportShortlistToExcel(
   });
 }
 
+import { getSupplierList } from './api/supplier';
+
+/** 分批拉取全量筛选结果并导出 Excel */
+export async function exportAllFilteredSuppliersToExcel(filterParams: Record<string, any>, total: number) {
+  const allItems: any[] = [];
+  const pageSize = 50;
+  const totalPages = Math.ceil(total / pageSize);
+
+  for (let page = 1; page <= totalPages; page++) {
+    const res = await getSupplierList({ ...filterParams, page, pageSize });
+    allItems.push(...res.items);
+  }
+
+  exportSuppliersToExcel(allItems);
+}
+
 export function exportSuppliersToExcel(suppliers: any[]) {
   const wb = new Workbook();
   const ws = wb.addWorksheet('供应商库');
@@ -148,7 +164,7 @@ export function exportSuppliersToExcel(suppliers: any[]) {
       enterpriseType: s.enterpriseType || '—', classification: s.classification?.name || '—',
       status: statusMap[s.status] || s.status, createdAt: s.createdAt ? new Date(s.createdAt).toLocaleDateString('zh-CN') : '—',
       contact: contact?.name || '—', phone: contact?.phone || '—',
-      evalLevel: s._count?.evaluations > 0 ? '—' : '—', evalCount: s._count?.evaluations || 0,
+      evalLevel: s._avgGrade || '—', evalCount: s._count?.evaluations || 0,
     });
     row.alignment = { vertical: 'middle' };
   });

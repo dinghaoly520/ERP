@@ -909,6 +909,7 @@ model ExpertProfile {
   notes              String?
   retiredAt          DateTime? // Track D: 退库时间（人工确认后写入）
   retireReason       String? // Track D: 退库原因
+  retireIgnoredAt    DateTime? // 管理员标记忽略退库预警（next scan 自动重置超过 90 天的标记）
   contactConfirmedAt DateTime? // 首次登录联系方式确认时间（null = 未确认，需弹窗提醒）
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

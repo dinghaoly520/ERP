@@ -276,10 +276,10 @@ export function ProjectStageTimeline({
 
                       <div className="mt-4 flex-1 flex items-start gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
+                          <div className={['pm-stage-card__title text-[13px] font-medium leading-5', entry.accentClassName].join(' ')}>
                             {entry.title}
                           </div>
-                          <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
+                          <div className="mt-1.5 text-[10px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] opacity-70">
                             {entry.statusLabel}
                           </div>
                         </div>
@@ -365,10 +365,10 @@ export function ProjectStageTimeline({
                     </div>
 
                     <div className="mt-4 flex-1">
-                      <div className={['pm-stage-card__title text-[15px] font-semibold leading-6 sm:text-[15px]', entry.accentClassName].join(' ')}>
+                      <div className={['pm-stage-card__title text-[13px] font-medium leading-5', entry.accentClassName].join(' ')}>
                         {entry.title}
                       </div>
-                      <div className="mt-2 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] sm:text-[11px]">
+                      <div className="mt-1.5 text-[10px] font-semibold tracking-[0.14em] text-[color:var(--muted-foreground)] opacity-70">
                         {entry.statusLabel}
                       </div>
                       <div className="mt-3 text-xs leading-6 text-[color:var(--muted-foreground)] sm:text-xs">

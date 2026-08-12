@@ -86,8 +86,12 @@ export default function ExpertRankingPage() {
                 <div className="text-xs text-[var(--muted-foreground)] mt-0.5">{r.specialty}</div>
                 <div className="flex items-center justify-center gap-3 mt-3">
                   <div>
-                    <span className="text-2xl font-black text-[var(--accent)] tabular-nums">{r.aCount}</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)] block">A 级次数</span>
+                    <span className="text-2xl font-black text-[var(--accent)] tabular-nums">{r.weightedScore}</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)] block">综合得分</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-black text-[var(--foreground)] tabular-nums">{r.aCount}</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)] block">A级×{r.aCount}</span>
                   </div>
                 </div>
               </div>
@@ -104,6 +108,7 @@ export default function ExpertRankingPage() {
                     <th>专家</th>
                     <th className="text-center">专业</th>
                     <th className="text-center">评价次数</th>
+                    <th className="text-center">综合得分</th>
                     <th className="text-center">A 级次数</th>
                   </tr>
                 </thead>
@@ -114,6 +119,7 @@ export default function ExpertRankingPage() {
                       <td><span className="text-sm font-bold text-[var(--foreground)]">{r.displayName}</span></td>
                       <td className="text-center">{r.specialty && <StatusBadge tone="blue">{r.specialty}</StatusBadge>}</td>
                       <td className="text-center text-sm tabular-nums text-[var(--foreground)]">{r.evalCount}</td>
+                      <td className="text-center text-sm font-bold tabular-nums text-[var(--accent)]">{r.weightedScore}</td>
                       <td className="text-center text-sm font-bold tabular-nums text-[var(--success)]">{r.aCount}</td>
                     </tr>
                   ))}

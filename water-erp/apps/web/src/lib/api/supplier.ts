@@ -437,6 +437,22 @@ export function deleteSupplierDocument(id: string, docId: string) {
   return api.delete<null>(`/supplier/${id}/documents/${docId}`);
 }
 
+// ── Excel 批量导入 ──
+export type ImportResult = { total: number; created: number; skipped: number; errors: string[] };
+export async function importSuppliers(file: File): Promise<ImportResult> {
+  const formData = new FormData(); formData.append('file', file);
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || '/api'}/supplier/import`, {
+    method: 'POST', credentials: 'include',
+    headers: { 'X-Portal': 'web' },
+    body: formData,
+  });
+  if (!res.ok) { const err = await res.text(); throw new Error(err); }
+  return res.json();
+}
+export function getImportTemplateUrl() {
+  return `${process.env.NEXT_PUBLIC_API_BASE || '/api'}/supplier/import-template`;
+}
+
 // ── 全局搜索 ──
 export interface SearchResult { type: string; id: string; title: string; subtitle: string; link: string; }
 export function globalSearch(q: string) {

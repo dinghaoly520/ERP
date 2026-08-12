@@ -6,10 +6,10 @@ import { toast } from 'sonner';
 import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
-import { AlertBanner, type AlertSeverity, Breadcrumb, StatusBadge, Modal } from '@/components/workbench';
+import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
 
@@ -271,75 +271,104 @@ export default function SupplierDetailPage() {
   const pendingHint = supplier.status === 'RETURNED' ? '补正中' : '待审核';
 
   return (
-    <div className={isPending ? 'pb-24' : ''}>
-      <Breadcrumb items={[{ label: breadcrumbRoot, path: backPath }, { label: supplier?.name || '详情' }]} />
+    <div className={`flex flex-col gap-5 ${isPending ? 'pb-24' : ''}`}>
+      {/* ── 返回按钮 ── */}
+      <button onClick={() => router.push(backPath)} className="flow-back shrink-0 self-start">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+        {backLabel}
+      </button>
 
-      {/* ═══════════════════════════════════════════════════
-         顶部信息卡 — 仅核心识别信息（详细字段移至基本信息Tab）
-         ═══════════════════════════════════════════════════ */}
-      <div className="neu-card-static !rounded-2xl p-5 mb-5">
-        <div className="flex items-start gap-4 flex-wrap">
-          <div className="neu-icon-well flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl text-xl font-black text-[var(--accent)]">{supplier.name[0]}</div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl font-bold tracking-[-0.02em] text-[var(--foreground)]">
+      {/* ══════ page-hero — 供应商名称 + 核心识别信息 ══════ */}
+      <div className="page-hero">
+        <div className="page-hero__row">
+          <div className="page-hero__left">
+            <div className="page-hero__icon">
+              <Building2 size={17} />
+            </div>
+            <div className="min-w-0">
+              <div className="page-hero__title truncate">
                 {supplier.name}
                 <span className="ml-2 inline-flex items-center rounded-md bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 align-middle text-[12px] font-bold tabular-nums text-[var(--accent)]" title="供应商编号">{supplier.supplierNo}</span>
-              </h1>
-              <StatusBadge tone={stTone}>{stLabel}</StatusBadge>
-              {supplier.user?.isActive !== undefined && (
-                <StatusBadge tone={supplier.user.isActive ? 'green' : 'red'}>{supplier.user.isActive ? '账户已激活' : '账户未激活'}</StatusBadge>
+              </div>
+              <div className="page-hero__sub truncate">
+                <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
+                {mostCommonGrade && <><span className="opacity-40 ml-2">·</span><span className="inline-flex items-center gap-1 ml-2">评价等级 <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[mostCommonGrade] }}>{mostCommonGrade}</span></span></>}
+                <span className="opacity-40 ml-2">·</span><span className="ml-2">注册 {daysSinceReg} 天</span>
+              </div>
+              {supplier.returnReason && supplier.status === 'RETURNED' && (
+                <div className="mt-2 flex items-start gap-1.5 text-xs">
+                  <RotateCcw size={13} className="mt-0.5 flex-shrink-0 text-[var(--warning)]" />
+                  <span className="text-[var(--muted-foreground)]"><strong className="text-[var(--warning)]">退回原因：</strong>{supplier.returnReason}</span>
+                </div>
+              )}
+              {supplier.rejectReason && (
+                <div className="mt-2 flex items-start gap-1.5 text-xs">
+                  <XCircle size={13} className="mt-0.5 flex-shrink-0 text-[var(--danger)]" />
+                  <span className="text-[var(--muted-foreground)]"><strong className="text-[var(--danger)]">不通过原因：</strong>{supplier.rejectReason}</span>
+                </div>
+              )}
+              {(supplier as any).disableReason && (supplier.status === 'DISABLED' || supplier.status === 'BLACKLIST') && (
+                <div className="mt-2 flex items-start gap-1.5 text-xs">
+                  <XCircle size={13} className="mt-0.5 flex-shrink-0 text-[var(--danger)]" />
+                  <span className="text-[var(--muted-foreground)]"><strong className="text-[var(--danger)]">{supplier.status === 'BLACKLIST' ? '不良名单原因：' : '停用原因：'}</strong>{(supplier as any).disableReason}</span>
+                </div>
               )}
             </div>
-            <p className="mt-1.5 text-sm text-[var(--muted-foreground)] flex flex-wrap items-center gap-x-3 gap-y-0.5">
-              <span className="inline-flex items-center gap-1"><Hash size={11} />{supplier.creditCode || '信用代码未登记'}</span>
-              {mostCommonGrade && <><span className="opacity-40">·</span><span className="inline-flex items-center gap-1">评价等级 <span className="inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: LEVEL_COLOR[mostCommonGrade] }}>{mostCommonGrade}</span></span></>}
-              <span className="opacity-40">·</span><span>注册 {daysSinceReg} 天</span>
-            </p>
-
-            {supplier.returnReason && supplier.status === 'RETURNED' && (
-              <div className="mt-2 flex items-start gap-1.5 text-xs">
-                <RotateCcw size={13} className="mt-0.5 flex-shrink-0 text-[var(--warning)]" />
-                <span className="text-[var(--muted-foreground)]"><strong className="text-[var(--warning)]">退回原因：</strong>{supplier.returnReason}</span>
-              </div>
-            )}
-            {supplier.rejectReason && (
-              <div className="mt-2 flex items-start gap-1.5 text-xs">
-                <XCircle size={13} className="mt-0.5 flex-shrink-0 text-[var(--danger)]" />
-                <span className="text-[var(--muted-foreground)]"><strong className="text-[var(--danger)]">不通过原因：</strong>{supplier.rejectReason}</span>
-              </div>
-            )}
-            {(supplier as any).disableReason && (supplier.status === 'DISABLED' || supplier.status === 'BLACKLIST') && (
-              <div className="mt-2 flex items-start gap-1.5 text-xs">
-                <XCircle size={13} className="mt-0.5 flex-shrink-0 text-[var(--danger)]" />
-                <span className="text-[var(--muted-foreground)]"><strong className="text-[var(--danger)]">{supplier.status === 'BLACKLIST' ? '不良名单原因：' : '停用原因：'}</strong>{(supplier as any).disableReason}</span>
-              </div>
-            )}
           </div>
-
-          {/* 右侧操作 */}
-          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+          <div className="page-hero__right">
+            <StatusBadge tone={stTone}>{stLabel}</StatusBadge>
+            {supplier.user?.isActive !== undefined && (
+              <StatusBadge tone={supplier.user.isActive ? 'green' : 'red'}>{supplier.user.isActive ? '账户已激活' : '账户未激活'}</StatusBadge>
+            )}
             {supplier.status === 'APPROVED' && (
               <>
                 <button onClick={() => {
                   const currentTags = (supplier as any).tags || [];
                   setEditTags(currentTags.length >= 2 ? [...currentTags] : ['', '']);
                   setTagsModal(true);
-                }} className="neu-btn-xs">业务标签修改</button>
+                }} className="neu-btn-xs"><Pencil size={12} /> 业务标签</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="neu-btn-xs is-warning">停用</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
               </>
             )}
-            <button onClick={() => router.push(backPath)} className="neu-btn-soft">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-              {backLabel}
-            </button>
+          </div>
+        </div>
+
+        {/* KPI 瓷片行 */}
+        <div className="page-hero__divider">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {[
+              ['注册天数', daysSinceReg, '天前入驻'],
+              ['评价等级', mostCommonGrade || '暂无', mostCommonGrade ? `${LEVEL_LABEL[mostCommonGrade] || mostCommonGrade}级` : '未见评价'],
+              ['资质数量', qualifications.length, '已提交资质'],
+              ['变更次数', changes.length, '历史变更'],
+              ['档案文件', supplier._count?.evaluations ?? evaluations.length, evaluations.length > 0 ? '评价记录' : '未见评价'],
+            ].map(([label, value, sub]) => (
+              <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
+                <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
+                <span className="min-h-[14px] text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{String(sub)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Tab 导航 —— 融入 page-hero 底部 */}
+        <div className="page-hero__divider !pt-3">
+          <div className="neu-tab-bar flex-wrap">
+            {tabs.map(tab => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                className={`neu-tab whitespace-nowrap ${activeTab === tab.key ? 'is-active' : ''}`}>
+                {tab.label}{tab.count !== undefined && <span className="neu-tab-count">{tab.count}</span>}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="mb-4"><AlertBanner items={alertItems} /></div>
+      <AlertBanner items={alertItems} />
 
       {/* ═══════════════════════════════════════════════════
          审批进度卡片 — 合并原「审核摘要」+「状态时间线」+ 资质速览
@@ -431,24 +460,9 @@ export default function SupplierDetailPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════
-         Tab 导航
-         ═══════════════════════════════════════════════════ */}
-      <div className="neu-tab-bar mb-5 flex-wrap">
-        {tabs.map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className={`neu-tab whitespace-nowrap ${activeTab === tab.key ? 'is-active' : ''}`}>
-            {tab.label}{tab.count !== undefined && <span className="neu-tab-count">{tab.count}</span>}
-          </button>
-        ))}
-      </div>
-
-      {/* ═══════════════════════════════════════════════════
-         Tab 内容
-         ═══════════════════════════════════════════════════ */}
-      <div>
-        {/* ── 基本信息 ── */}
-        {activeTab === 'info' && (
+      {/* Tab 内容 */}
+      {/* ── 基本信息 ── */}
+      {activeTab === 'info' && (
           <div className="space-y-5">
             {/* ══ 企业工商信息 ══ */}
             <section className="neu-card-static !rounded-2xl p-5">
@@ -509,22 +523,52 @@ export default function SupplierDetailPage() {
             {evaluations.length > 0 && (
               <section className="neu-card-static !rounded-2xl p-5">
                 <SectionTitle icon={Award}>评价概览</SectionTitle>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
-                  {[
-                    { label: '评价次数', value: evaluations.length, color: 'var(--accent)' },
-                    { label: '主要等级', value: mostCommonGrade || '—', color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' },
-                    { label: 'A 级', value: evalLevelCounts.A, color: 'var(--success)' },
-                    { label: 'B 级', value: evalLevelCounts.B, color: 'var(--accent)' },
-                    { label: 'C 级', value: evalLevelCounts.C, color: 'var(--warning)' },
-                    { label: 'D 级', value: evalLevelCounts.D, color: '#ca8a04' },
-                    { label: 'E 级', value: evalLevelCounts.E, color: 'var(--danger)' },
-                  ].map(s => (
-                    <div key={s.label} className="neu-card-static !rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-[var(--muted-foreground)] mb-1">{s.label}</p>
-                      <p className="text-xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</p>
+
+                {/* ── 主指标：两个大卡片 ── */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="neu-card-static !rounded-xl p-4 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">评价次数</p>
+                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] text-[var(--accent)] leading-none">{evaluations.length}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次履约评价</p>
+                  </div>
+                  <div className="neu-card-static !rounded-xl p-4 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">主要等级</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-lg font-black text-white" style={{ backgroundColor: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' }}>{mostCommonGrade || '—'}</span>
+                      <span className="text-sm font-bold" style={{ color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' }}>{LEVEL_LABEL[mostCommonGrade] || ''}</span>
                     </div>
-                  ))}
+                  </div>
                 </div>
+
+                {/* ── 等级分布条形图 ── */}
+                {evaluations.length > 0 && (() => {
+                  const total = evaluations.length;
+                  const grades = ['A','B','C','D','E'] as const;
+                  const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
+                  const labels: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '待改进', E: '不合格' };
+                  const maxCount = Math.max(...grades.map(g => evalLevelCounts[g] || 0), 1);
+                  return (
+                    <div className="space-y-1.5">
+                      {grades.map(g => {
+                        const count = evalLevelCounts[g] || 0;
+                        const pct = total > 0 ? ((count / total) * 100) : 0;
+                        const barW = maxCount > 0 ? ((count / maxCount) * 100) : 0;
+                        return (
+                          <div key={g} className="flex items-center gap-2">
+                            <span className="w-5 text-center text-[10px] font-extrabold tabular-nums" style={{ color: colors[g] }}>{g}</span>
+                            <div className="flex-1 h-5 rounded-md bg-[var(--muted)]/30 overflow-hidden relative">
+                              <div className="h-full rounded-md transition-all duration-500 flex items-center justify-end px-1.5 min-w-[24px]" style={{ width: `${Math.max(barW, 0.5)}%`, backgroundColor: `color-mix(in oklch, ${colors[g]} 85%, transparent)` }}>
+                                {count > 0 && <span className="text-[9px] font-bold text-white drop-shadow-sm tabular-nums">{count}</span>}
+                              </div>
+                            </div>
+                            <span className="w-10 text-right text-[10px] tabular-nums text-[var(--muted-foreground)]">{pct.toFixed(0)}%</span>
+                            <span className="w-10 text-[10px] text-[var(--muted-foreground)] hidden sm:inline">{labels[g]}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </section>
             )}
 
@@ -657,22 +701,53 @@ export default function SupplierDetailPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 mb-5">
-                  {[
-                    { label: '评价次数', value: evaluations.length, color: 'var(--accent)' },
-                    { label: '主要等级', value: mostCommonGrade || '—', color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' },
-                    { label: 'A 级', value: evalLevelCounts.A, color: 'var(--success)' },
-                    { label: 'B 级', value: evalLevelCounts.B, color: 'var(--accent)' },
-                    { label: 'C 级', value: evalLevelCounts.C, color: 'var(--warning)' },
-                    { label: 'D 级', value: evalLevelCounts.D, color: '#ca8a04' },
-                    { label: 'E 级', value: evalLevelCounts.E, color: 'var(--danger)' },
-                  ].map(s => (
-                    <div key={s.label} className="neu-card-static !rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-[var(--muted-foreground)] mb-1">{s.label}</p>
-                      <p className="text-xl font-extrabold tabular-nums" style={{ color: s.color }}>{s.value}</p>
+                {/* ── 主指标 ── */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="neu-card-static !rounded-xl p-4 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">评价次数</p>
+                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] text-[var(--accent)] leading-none">{evaluations.length}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次履约评价</p>
+                  </div>
+                  <div className="neu-card-static !rounded-xl p-4 text-center">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">主要等级</p>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-lg font-black text-white" style={{ backgroundColor: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' }}>{mostCommonGrade || '—'}</span>
+                      <span className="text-sm font-bold" style={{ color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' }}>{LEVEL_LABEL[mostCommonGrade] || ''}</span>
                     </div>
-                  ))}
+                  </div>
                 </div>
+
+                {/* ── 等级分布条形图 ── */}
+                {(() => {
+                  const total = evaluations.length;
+                  const grades = ['A','B','C','D','E'] as const;
+                  const colors: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
+                  const labels: Record<string, string> = { A: '优秀', B: '良好', C: '合格', D: '待改进', E: '不合格' };
+                  const maxCount = Math.max(...grades.map(g => evalLevelCounts[g] || 0), 1);
+                  return (
+                    <div className="neu-card-static !rounded-xl p-4 mb-5">
+                      <div className="space-y-1.5">
+                        {grades.map(g => {
+                          const count = evalLevelCounts[g] || 0;
+                          const pct = total > 0 ? ((count / total) * 100) : 0;
+                          const barW = maxCount > 0 ? ((count / maxCount) * 100) : 0;
+                          return (
+                            <div key={g} className="flex items-center gap-2">
+                              <span className="w-5 text-center text-[10px] font-extrabold tabular-nums" style={{ color: colors[g] }}>{g}</span>
+                              <div className="flex-1 h-5 rounded-md bg-[var(--muted)]/30 overflow-hidden relative">
+                                <div className="h-full rounded-md transition-all duration-500 flex items-center justify-end px-1.5 min-w-[24px]" style={{ width: `${Math.max(barW, 0.5)}%`, backgroundColor: `color-mix(in oklch, ${colors[g]} 85%, transparent)` }}>
+                                  {count > 0 && <span className="text-[9px] font-bold text-white drop-shadow-sm tabular-nums">{count}</span>}
+                                </div>
+                              </div>
+                              <span className="w-10 text-right text-[10px] tabular-nums text-[var(--muted-foreground)]">{pct.toFixed(0)}%</span>
+                              <span className="w-10 text-[10px] text-[var(--muted-foreground)] hidden sm:inline">{labels[g]}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="neu-table-card overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="workbench-table w-full min-w-[850px]">
@@ -767,8 +842,6 @@ export default function SupplierDetailPage() {
             )}
           </div>
         )}
-      </div>
-
       {/* ══ 沟通记录 ══ */}
       {activeTab === 'communications' && (
         <section>

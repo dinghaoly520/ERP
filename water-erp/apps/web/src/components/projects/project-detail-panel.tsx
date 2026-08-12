@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Archive, Award, Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
   analyzeProjectManagementItem,
@@ -796,6 +797,7 @@ export function ProjectDetailPanel({
     try {
       await completeProjectManagementItem(item.id);
       await onUpdated();
+      toast.success('项目已归档至「已完成」列表，可在项目管理页面查看');
       onClose();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '项目归档失败。');
@@ -1356,7 +1358,7 @@ export function ProjectDetailPanel({
                       <textarea
                         value={editValues.projectReason}
                         onChange={(e) => setEditValues((prev) => ({ ...prev, projectReason: e.target.value }))}
-                        className="workbench-input !text-xs flex-1 min-h-[64px] leading-6"
+                        className="workbench-input !text-xs flex-1 min-h-[120px] leading-6"
                         placeholder="申请立项事由"
                         autoFocus
                       />
@@ -1377,7 +1379,7 @@ export function ProjectDetailPanel({
                       <textarea
                         value={editValues.supplierRequirements}
                         onChange={(e) => setEditValues((prev) => ({ ...prev, supplierRequirements: e.target.value }))}
-                        className="workbench-input !text-xs flex-1 min-h-[64px] leading-6"
+                        className="workbench-input !text-xs flex-1 min-h-[120px] leading-6"
                         placeholder="对供方的主要要求"
                         autoFocus
                       />
@@ -1407,7 +1409,7 @@ export function ProjectDetailPanel({
                     <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">项目概况</span><button type="button" onClick={() => void handleAiExtractTender('projectOverview')} disabled={aiExtracting === 'projectOverview'} className="neu-btn-xs is-info !h-[22px] !px-2 !text-[10px]">{aiExtracting === 'projectOverview' ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />} AI提取</button></div>
                     {editingField === 'projectOverview' ? (
                       <div className="mt-1 flex items-start gap-2">
-                        <textarea value={editValues.projectOverview} onChange={(e) => setEditValues((prev) => ({ ...prev, projectOverview: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[60px]" autoFocus />
+                        <textarea value={editValues.projectOverview} onChange={(e) => setEditValues((prev) => ({ ...prev, projectOverview: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[100px]" autoFocus />
                         <button type="button" onClick={() => void handleSaveField('projectOverview')} className="neu-btn-xs mt-1"><Save size={13} /></button>
                       </div>
                     ) : (
@@ -1499,18 +1501,6 @@ export function ProjectDetailPanel({
                   <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">开标评标</span>
                 </div>
                 <div className="space-y-3">
-                  {/* 谈判采购和询比采购不展示投标单位（已在供应商邀请中展示）*/}
-                  {item.procurementMethod !== '谈判采购' && item.procurementMethod !== '询比采购' && (
-                    <BiddingUnitsField
-                      label="投标单位"
-                      value={extractedInfoOverride?.biddingUnits ?? item.biddingUnits}
-                      isEditing={editingField === 'biddingUnits'}
-                      editValue={editValues.biddingUnits}
-                      onEditValueChange={(v) => setEditValues((prev) => ({ ...prev, biddingUnits: v }))}
-                      onStartEdit={() => handleStartEdit('biddingUnits', extractedInfoOverride?.biddingUnits ?? item.biddingUnits)}
-                      onSave={() => void handleSaveField('biddingUnits')}
-                    />
-                  )}
                   {/* 中标单位 — 重要结果，突出展示 */}
                   <div className="col-span-2">
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">中标单位</span>
@@ -1560,7 +1550,7 @@ export function ProjectDetailPanel({
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">支付及履约内容</span>
                     {editingField === 'paymentPerformance' ? (
                       <div className="mt-1 flex items-start gap-2">
-                        <textarea value={editValues.paymentPerformance} onChange={(e) => setEditValues((prev) => ({ ...prev, paymentPerformance: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[60px]" autoFocus />
+                        <textarea value={editValues.paymentPerformance} onChange={(e) => setEditValues((prev) => ({ ...prev, paymentPerformance: e.target.value }))} className="workbench-input !text-xs flex-1 min-h-[100px]" autoFocus />
                         <button type="button" onClick={() => void handleSaveField('paymentPerformance')} className="neu-btn-xs mt-1"><Save size={13} /></button>
                       </div>
                     ) : (
@@ -1593,7 +1583,29 @@ export function ProjectDetailPanel({
                   <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
                 </svg>
                 <span className="text-xs leading-5 text-[color:var(--foreground)]">
-                  {isCurrentStage ? '当前阶段可以继续补充材料，完成后系统会自动解锁下一步。' : stageLocked ? '该阶段尚未解锁，需要先完成前一个阶段。' : '该阶段已完成，可继续查看或补充附件。'}
+                  {stageLocked
+                    ? '该阶段尚未解锁，需要先完成前一个阶段。'
+                    : selectedStage.stageKey === 'PROCUREMENT_DEMAND' && isCurrentStage
+                      ? '请上传采购需求申请表（PDF），系统将自动提取项目基本信息。'
+                    : selectedStage.stageKey === 'INITIATION' && isCurrentStage
+                      ? '请上传采购立项申请表（PDF），核实补充信息后进入采购文件阶段。'
+                    : selectedStage.stageKey === 'TENDER_DOCUMENT' && isCurrentStage
+                      ? '请上传或编写采购文件（.docx）。直接采购/谈判采购可在线编辑。'
+                    : selectedStage.stageKey === 'SUPPLIER_INVITATION' && isCurrentStage
+                      ? '请点击流程卡「供应商邀请」按钮，构建邀请名单并发送通知。'
+                    : selectedStage.stageKey === 'PUBLIC_ANNOUNCEMENT' && isCurrentStage
+                      ? '请点击流程卡「公告制作与发布」生成并发布采购公告。'
+                    : selectedStage.stageKey === 'EXPERT_SELECTION' && isCurrentStage
+                      ? '请点击流程卡「专家抽取」从专家库中选取评审专家。'
+                    : selectedStage.stageKey === 'BID_EVALUATION' && isCurrentStage
+                      ? '请点击流程卡「开标确认」查看供应商投递情况并推进开标流程。'
+                    : selectedStage.stageKey === 'AWARD_DECISION' && isCurrentStage
+                      ? '请上传评标报告和定标文件，确认中标单位信息。'
+                    : selectedStage.stageKey === 'CONTRACT' && isCurrentStage
+                      ? '请上传合同文件，并填写合同金额、编号等关键信息。'
+                    : selectedStage.status === 'COMPLETED'
+                      ? '该阶段已完成，仍可继续补充材料，保持归档完整。'
+                      : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
                 </span>
               </div>
             </div>
@@ -1659,6 +1671,25 @@ export function ProjectDetailPanel({
               <p className="text-sm leading-6 text-[color:var(--muted-foreground)]">
                 {stageLocked ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。' : selectedStage.status === 'COMPLETED' ? '当前阶段已完成。仍可继续补充材料，保持归档完整。' : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
               </p>
+
+              {/* 上传/分析进度条 — sticky 固定，始终可见 */}
+              {(uploading || analysisLoading) && (
+                <div className="sticky top-0 z-10 -mx-5 px-5 py-2 mb-1"
+                  style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.95), oklch(0.98 0.003 258 / 0.8))', borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+                  <div className="flex items-center gap-3">
+                    <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">{uploading ? '正在上传文件…' : '正在智能分析文件内容…'}</span>
+                      <span className="text-[10px] text-[color:var(--muted-foreground)]">{uploading ? `已完成 ${uploadProgress?.completed ?? 0} / ${uploadProgress?.total ?? selectedFiles.length}` : 'AI 正在识别文件类型与内容，分析完成后即可确认阶段完成'}</span>
+                    </div>
+                    {uploadProgress && uploading && (
+                      <div className="ml-auto h-1.5 w-28 shrink-0 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]">
+                        <div className="h-full rounded-full bg-[color:var(--accent)] transition-all duration-500" style={{ width: `${((uploadProgress.completed + 0.3) / Math.max(uploadProgress.total, 1)) * 100}%` }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* 已上传文件列表 */}
               <StageFileList
@@ -1727,21 +1758,6 @@ export function ProjectDetailPanel({
                         <Paperclip size={11} className="text-[color:var(--muted-foreground)]" />{file.name}
                       </span>
                     ))}
-                  </div>
-                )}
-
-                {(uploading || analysisLoading) && (
-                  <div className="mt-3 flex items-center gap-3 rounded-lg bg-[color-mix(in_oklch,var(--muted)_55%,transparent)] px-4 py-3">
-                    <Loader2 size={14} className="animate-spin text-[color:var(--accent)]" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[0.82rem] font-semibold text-[color:var(--foreground)]">{uploading ? '正在上传文件…' : '正在智能分析文件内容…'}</span>
-                      <span className="text-[11px] text-[color:var(--muted-foreground)]">{uploading ? `已完成 ${uploadProgress?.completed ?? 0} / ${uploadProgress?.total ?? selectedFiles.length}` : 'AI 正在识别文件类型与内容，分析完成后即可确认阶段完成'}</span>
-                    </div>
-                    {uploadProgress && uploading && (
-                      <div className="ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]">
-                        <div className="h-full rounded-full bg-[color:var(--accent)] transition-all duration-500" style={{ width: `${((uploadProgress.completed + 0.3) / Math.max(uploadProgress.total, 1)) * 100}%` }} />
-                      </div>
-                    )}
                   </div>
                 )}
 

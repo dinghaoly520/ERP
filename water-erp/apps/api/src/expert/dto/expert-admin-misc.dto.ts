@@ -23,6 +23,7 @@ export class UpdateExpertProfileDto {
   @IsOptional() @IsString() specialty?: string;
   @IsOptional() @IsString() title?: string;
   @IsOptional() @IsString() employer?: string;
+  @IsOptional() @IsString() departmentName?: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() idNumber?: string;
   @IsOptional() @IsString() ethnicity?: string;

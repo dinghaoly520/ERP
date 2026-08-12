@@ -15,6 +15,7 @@ export class CreateExpertDto {
 
   @IsOptional() @IsString() title?: string;
   @IsOptional() @IsString() employer?: string;
+  @IsOptional() @IsString() departmentName?: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() idNumber?: string;
   @IsOptional() @IsString() ethnicity?: string;
