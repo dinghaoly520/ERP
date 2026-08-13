@@ -48,5 +48,25 @@ export function generateHandover(projectId: string) {
   return api.post<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/handover`, {});
 }
 
-// uploadExpertScan / uploadSignaturePageScan / registerSign / unregisterSign 由 Task 8 追加
-// （本任务仅状态读取 + 生成/下载/回流；multipart 注意点见 Task 8）。
+export function uploadExpertScan(projectId: string, expertId: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return api.upload<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/experts/${expertId}/scan`, form);
+}
+
+export function uploadSignaturePageScan(projectId: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return api.upload<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/signature-page/scan`, form);
+}
+
+export function registerSign(projectId: string, expertId: string, dto: { status: Exclude<SignStatusValue, 'PENDING'>; dissentingOpinion?: string; dissentingReason?: string }) {
+  return api.post<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/experts/${expertId}/register`, dto);
+}
+
+export function unregisterSign(projectId: string, expertId: string) {
+  return api.post<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/experts/${expertId}/unregister`, {});
+}
+
+// multipart 一律走 api.upload（POST + FormData、不设 Content-Type）；
+// 勿用 api.post 传 FormData——它会 JSON.stringify(body) 且强制 application/json。

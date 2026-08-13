@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, ClipboardCheck, Copy, FileDown, Fingerprint, Loader2, PenLine, RefreshCw, Upload } from 'lucide-react';
 import {
-  generateHandover, generateSignPacket, getSignPacket,
-  type SignPacketResponse,
+  generateHandover, generateSignPacket, getSignPacket, unregisterSign,
+  uploadExpertScan, uploadSignaturePageScan,
+  type SignPacketResponse, type SignPacketExpertRow,
 } from '@/lib/api/sign-packet';
+import SignRegisterDialog from './sign-register-dialog';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
@@ -20,6 +22,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [registering, setRegistering] = useState<SignPacketExpertRow | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -139,6 +142,21 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             ) : (
               <span className="text-xs text-[var(--warning,#b7791f)]">未回传</span>
             )}
+            {!closed && (
+              <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--accent)]">
+                <Upload size={11} /> 上传扫描
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,application/pdf"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (f) await run('signPage', () => uploadSignaturePageScan(projectId, f));
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            )}
           </div>
         </div>
       )}
@@ -153,6 +171,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
               <th className="px-3 py-2.5 font-medium">签字状态</th>
               <th className="px-3 py-2.5 font-medium">不同意见</th>
               <th className="px-3 py-2.5 font-medium">扫描件</th>
+              <th className="px-3 py-2.5 text-right font-medium">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -177,6 +196,52 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   {e.signScanUrl ? (
                     <a href={e.signScanUrl} target="_blank" rel="noopener" className="text-[var(--accent)] hover:underline">查看</a>
                   ) : <span className="text-[var(--muted-foreground)]">—</span>}
+                  {!e.signScanUrl && !closed && e.role === '正选' && (
+                    <label className="ml-2 inline-flex cursor-pointer items-center gap-0.5 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--accent)]">
+                      <Upload size={10} /> 上传
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,application/pdf"
+                        className="hidden"
+                        onChange={async (ev) => {
+                          const f = ev.target.files?.[0];
+                          if (f) await run(`scan-${e.expertId}`, () => uploadExpertScan(projectId, e.expertId, f));
+                          ev.target.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-right">
+                  {!closed && e.role === '正选' && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => setRegistering(e)}
+                        className="rounded-lg border border-[var(--hairline)] px-2.5 py-1 text-[11px] font-semibold text-[var(--foreground)] hover:border-[var(--accent)] disabled:opacity-40"
+                      >
+                        {e.signStatus === 'PENDING' ? '登记' : '重新登记'}
+                      </button>
+                      {e.signStatus !== 'PENDING' && (
+                        <button
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() => {
+                            if (window.confirm(`撤销 ${e.name} 的签字登记（${STATUS_LABEL[e.signStatus]}）？`)) {
+                              void run(`unreg-${e.expertId}`, async () => {
+                                const res = await unregisterSign(projectId, e.expertId);
+                                return res;
+                              });
+                            }
+                          }}
+                          className="ml-1.5 rounded-lg border border-[var(--hairline)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--danger)] disabled:opacity-40"
+                        >
+                          撤销
+                        </button>
+                      )}
+                    </>
+                  )}
                 </td>
               </tr>
             ))}
@@ -209,6 +274,14 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         </div>
       )}
 
+      {registering && (
+        <SignRegisterDialog
+          projectId={projectId}
+          expert={registering}
+          onClose={() => setRegistering(null)}
+          onDone={async (res) => { setData(res); setRegistering(null); }}
+        />
+      )}
     </div>
   );
 }
