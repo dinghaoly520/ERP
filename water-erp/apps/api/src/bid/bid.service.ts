@@ -18,7 +18,7 @@ import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
-import { assertBidStageTransition, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
+import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
@@ -3709,6 +3709,7 @@ export class BidService {
       ...(opts?.skipEvaluation ? [] : [
         { name: '专家评分明细', ownerRole: '评审专家' },
         { name: '评标结果汇总', ownerRole: '评审委员会' },
+        { name: '评标签字包', ownerRole: '评审委员会' }, // 新增：签字包 PDF+签字页+各专家扫描+状态表
       ]),
       { name: '监督日志', ownerRole: '监督人' },
     ];
@@ -3903,6 +3904,21 @@ export class BidService {
         }
       }
 
+      // 签字闸门（完整归档）：签字包已生成 + 全员正选闭环 + 回流包已生成（spec §7）
+      if (scope === 'full') {
+        const signPacket = await tx.bidSignPacket.findUnique({
+          where: { projectId: id },
+          select: { closedAt: true, handoverFileAssetId: true },
+        });
+        const pendingExperts = signPacket && !signPacket.closedAt
+          ? await tx.bidExpert.findMany({
+              where: { projectId: id, expertRole: '正选', signStatus: 'PENDING' },
+              select: { expertName: true },
+            })
+          : [];
+        assertSignGateClosed(scope, signPacket, pendingExperts.map(p => p.expertName));
+      }
+
       // 自动补齐标准归档材料，避免”无可归档项”阻塞
       await this.ensureArchiveItems(id, tx, { skipEvaluation: scope === 'opening' });
 
@@ -3914,12 +3930,32 @@ export class BidService {
         throw new BadRequestException({ error: '没有可归档的项目', code: 'NO_ITEMS_TO_ARCHIVE' });
       }
 
+      // 签字包归档项：把签字包/扫描件指纹 + 签字状态 JSON 指纹并入哈希链（spec §4.4）
+      let signFileHashes: string[] | undefined;
+      if (scope === 'full') {
+        const signPacket = await tx.bidSignPacket.findUnique({ where: { projectId: id } });
+        if (signPacket) {
+          const expertScans = await tx.bidExpert.findMany({
+            where: { projectId: id, signScanFileId: { not: null } },
+            select: { expertName: true, signStatus: true, signScanFileId: true },
+          });
+          const scanAssetIds = [signPacket.fileAssetId, signPacket.signPageScanFileId, ...expertScans.map(e => e.signScanFileId)]
+            .filter((v): v is string => v != null);
+          const scanAssets = await tx.fileAsset.findMany({ where: { id: { in: scanAssetIds } }, select: { sha256: true } });
+          const statusJson = JSON.stringify(expertScans.map(e => ({ expertName: e.expertName, signStatus: e.signStatus })));
+          signFileHashes = [
+            signPacket.sha256,
+            ...scanAssets.map(a => a.sha256),
+            crypto.createHash('sha256').update(statusJson, 'utf8').digest('hex'),
+          ];
+        }
+      }
       // P0-4: 逐项 SHA-256 哈希链 — 每个归档项拥有独立哈希，链式防篡改。
       // 归一化：算链时把各项 status 视作 ARCHIVED，与 exportArchivePackage 重算口径一致
       // （修预存 bug：此前按 PENDING_CONFIRM 算链，导出按 ARCHIVED 重算，两者永不匹配）
       const chain = computeArchiveChain(
         { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
-        archiveItems.map(i => ({ ...i, status: 'ARCHIVED' as const })),
+        archiveItems.map(i => ({ ...i, status: 'ARCHIVED' as const, ...(i.name === '评标签字包' && signFileHashes ? { fileHashes: signFileHashes } : {}) })),
       );
 
       // 逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志

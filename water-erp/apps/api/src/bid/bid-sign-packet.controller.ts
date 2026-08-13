@@ -70,5 +70,10 @@ export class BidSignPacketController {
     return this.service.unregister(id, expertId, userId);
   }
 
-  // POST handover（评标回流包）在 Task 6 与 generateHandover 真实现一并挂载
+  @Post('handover')
+  @Roles('bid_host', 'admin')
+  @ApiOperation({ summary: '生成评标回流包（签字闭环后，回传 :3005）' })
+  generateHandover(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.service.generateHandover(id, userId);
+  }
 }

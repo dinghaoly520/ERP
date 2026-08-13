@@ -8,6 +8,7 @@ import { lockAndReassertStage } from './bid-state';
 import type { RegisterSignDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
+import type { BidService } from './bid.service';
 
 export type SignStatusValue = 'PENDING' | 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
 
@@ -59,6 +60,7 @@ export class BidSignPacketService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly docxService: BidSignPacketDocxService,
+    private readonly bidService: BidService,
   ) {}
 
   /** 组装响应（GET 与各写端点共用，保证前端只依赖一个形状） */
@@ -262,7 +264,70 @@ export class BidSignPacketService {
     return asset.id;
   }
 
-  // generateHandover 在 Task 6 追加
+  /** 评标回流包：签字闭环后生成独立 JSON 包（category=bid_evaluation_sign_handover），幂等、不改 stage */
+  async generateHandover(projectId: string, actorId: string): Promise<SignPacketResponse> {
+    const packet = await this.prisma.bidSignPacket.findUnique({ where: { projectId } });
+    if (!packet) throw new ConflictException({ error: '签字包尚未生成', code: 'SIGN_PACKET_NOT_GENERATED' });
+    if (!packet.closedAt) throw new ConflictException({ error: '签字未闭环，无法生成评标回流包', code: 'SIGN_HANDOVER_NOT_CLOSED' });
+    if (packet.handoverFileAssetId) return this.getStatus(projectId); // 幂等：已生成直接返回
+
+    // 基础快照复用评标完整性包（结果生成时的同一数据来源），扩展签字/异议/动议信息
+    const base = await this.bidService.buildEvaluationPackage(projectId);
+    const [disputes, motions, clarifications, experts] = await Promise.all([
+      this.prisma.expertDispute.findMany({ where: { projectId } }),
+      this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true } }),
+      this.prisma.bidClarification.findMany({ where: { projectId } }),
+      this.prisma.bidExpert.findMany({
+        where: { projectId },
+        select: { expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true, dissentingOpinion: true, dissentingReason: true },
+      }),
+    ]);
+    const body = {
+      packageType: 'BID_EVALUATION_SIGN_HANDOVER',
+      packageVersion: 1,
+      generatedAt: new Date().toISOString(),
+      projectId,
+      evaluationSnapshot: base, // 评标完整性快照（含 fingerprint）
+      signPacket: {
+        fileAssetId: packet.fileAssetId, sha256: packet.sha256, generatedAt: packet.generatedAt.toISOString(),
+        signPageScanFileId: packet.signPageScanFileId, closedAt: packet.closedAt!.toISOString(), // 上方已 if (!packet.closedAt) throw；! 显式收窄
+      },
+      expertSignStatuses: experts.map(e => ({
+        expertName: e.expertName, expertRole: e.expertRole, signStatus: e.signStatus,
+        signStatusAt: e.signStatusAt?.toISOString() ?? null, signScanFileId: e.signScanFileId,
+        dissentingOpinion: e.dissentingOpinion, dissentingReason: e.dissentingReason,
+      })),
+      disputes: disputes.map(d => ({ id: d.id, expertName: d.expertName, type: d.type, title: d.title, content: d.content, status: d.status, response: d.response, createdAt: d.createdAt.toISOString() })),
+      motions: motions.map(m => ({ id: m.id, title: m.title, description: m.description, status: m.status, result: m.result, votes: m.votes.map(v => ({ expertId: v.expertId, vote: v.vote })) })),
+      clarifications: clarifications.map(c => ({ id: c.id, supplierName: c.supplierName, question: c.question, reply: c.reply, status: c.status })),
+    };
+
+    const buffer = Buffer.from(JSON.stringify(body, null, 2), 'utf8');
+    const objectKey = `bid-sign-handover/${projectId}.json`; // 同 key 覆盖
+    const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+    await this.storage.upload(objectKey, buffer, 'application/json');
+
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
+    const asset = await this.prisma.fileAsset.create({
+      data: {
+        key: objectKey, originalName: `评标回流包-${projectId}.json`, mimeType: 'application/json',
+        size: buffer.length, sha256, category: 'bid_evaluation_sign_handover', uploaderId: actorId,
+      },
+    });
+    await this.prisma.bidSignPacket.update({
+      where: { projectId },
+      data: { handoverFileAssetId: asset.id, handoverSha256: sha256 },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: '开标主持人', target: project?.name ?? projectId,
+        action: '生成评标回流包', result: `指纹 ${sha256.slice(0, 16)}…，可回传 :3005 归档`, riskFlag: '无',
+        operatorId: actorId, operatorRole: 'bid_host',
+      },
+    });
+
+    return this.getStatus(projectId);
+  }
 
   /** 生成签字包：快照评标数据 → docx → PDF → MinIO → BidSignPacket（重生成覆盖旧包并重置全员 PENDING） */
   async generate(projectId: string, actorId: string): Promise<SignPacketResponse> {

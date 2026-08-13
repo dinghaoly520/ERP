@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import { BidSignPacketService } from './bid-sign-packet.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertSignGateClosed } from './bid-state';
 
 const prisma = {
   $queryRaw: jest.fn().mockResolvedValue([]), // lockAndReassertStage 首步 FOR UPDATE（缺失则事务用例 TypeError）
@@ -34,6 +35,7 @@ function makeService(): BidSignPacketService {
     prisma as unknown as PrismaService,
     { upload: jest.fn() } as any,          // storage：Task 3/4 才用到
     { generateDocument: jest.fn() } as any, // docx：Task 3 才用到
+    { buildEvaluationPackage: jest.fn() } as any, // bidService（handover 用例挂 buildEvaluationPackage mock；空对象会 TypeError）
   );
 }
 
@@ -252,6 +254,62 @@ describe('BidSignPacketService 扫描上传', () => {
     expect(prisma.bidSignPacket.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { projectId }, data: { signPageScanFileId: 'fa10' } }),
     );
+  });
+});
+
+describe('BidSignPacketService.generateHandover', () => {
+  const projectId = 'p1';
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('未闭环 → 409 SIGN_HANDOVER_NOT_CLOSED', async () => {
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    const svc = makeService();
+    await expect(svc.generateHandover(projectId, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'SIGN_HANDOVER_NOT_CLOSED' } });
+  });
+
+  it('已闭环：上传 JSON 回流包并落 handoverFileAssetId（幂等——已有则直接返回）', async () => {
+    baseArrange(); // 尾部 getStatus 需要；snapshot 里 bidProject.findUnique 也会走
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    }); // 全字段（尾部组装走 generatedAt.toISOString 等），仅 closedAt 改为已闭环
+    const svc = makeService();
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+    (prisma.fileAsset.create as jest.Mock).mockResolvedValue({ id: 'fa99' });
+    (prisma.bidSignPacket.update as jest.Mock).mockResolvedValue({});
+    // 快照 delegate（expertDispute/bidMotion/bidClarification/bidExpert.findMany）由 fake 常量 + baseArrange 回 []，无需再 mock
+    // buildEvaluationPackage 由注入的 BidService 提供——spec 挂 mock
+    (svc as any).bidService.buildEvaluationPackage.mockResolvedValue({ packageType: 'BID_EVALUATION_HANDOVER', fingerprint: 'x' });
+
+    await svc.generateHandover(projectId, 'u1');
+
+    expect((svc as any).storage.upload).toHaveBeenCalledWith(
+      expect.stringContaining(`bid-sign-handover/${projectId}.json`),
+      expect.any(Buffer),
+      'application/json',
+    );
+    expect(prisma.fileAsset.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ category: 'bid_evaluation_sign_handover' }) }),
+    );
+    expect(prisma.bidSignPacket.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { projectId }, data: expect.objectContaining({ handoverFileAssetId: 'fa99' }) }),
+    );
+  });
+});
+
+describe('assertSignGateClosed（归档闸门）', () => {
+  it('scope=full 三缺一 → 对应 409 明细', () => {
+    expect(() => assertSignGateClosed('full', null, [])).toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'SIGN_PACKET_NOT_GENERATED' }) }));
+    expect(() => assertSignGateClosed('full', { closedAt: null, handoverFileAssetId: null }, ['张三'])).toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'SIGN_NOT_CLOSED', error: expect.stringContaining('张三') }) }));
+    expect(() => assertSignGateClosed('full', { closedAt: new Date(), handoverFileAssetId: null }, [])).toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'HANDOVER_NOT_GENERATED' }) }));
+  });
+  it('scope=opening 流标归档豁免', () => {
+    expect(() => assertSignGateClosed('opening', null, [])).not.toThrow();
+  });
+  it('闭环+回流齐全 → 放行', () => {
+    expect(() => assertSignGateClosed('full', { closedAt: new Date(), handoverFileAssetId: 'fa' }, [])).not.toThrow();
   });
 });
 

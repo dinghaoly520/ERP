@@ -52,3 +52,32 @@ export async function lockAndReassertStage(
   assertBidStageTransition(fresh.stage, target);
   return fresh;
 }
+
+/** 归档签字闸门的包形状（只取闸门所需两列，避免与 BidSignPacket 全模型耦合） */
+export interface SignGatePacketLike {
+  closedAt: Date | null;
+  handoverFileAssetId: string | null;
+}
+
+/**
+ * 完整归档签字闸门（spec §7）：
+ * 完整归档 = 签字包已生成 + 全员正选签字闭环 + 评标回流包已生成；
+ * 开标归档（流标/废标）不受签字闸门约束。
+ * 未签专家名单嵌入 error 文案——HttpExceptionFilter 固定 5 键、不透传 detail。
+ */
+export function assertSignGateClosed(
+  scope: 'opening' | 'full',
+  packet: SignGatePacketLike | null,
+  pendingExpertNames: string[],
+): void {
+  if (scope !== 'full') return; // 开标归档（流标/废标）不受签字闸门约束
+  if (!packet) throw new ConflictException({ error: '评标签字包未生成，无法执行完整归档。请在 :3007 生成签字包并完成专家签字登记。', code: 'SIGN_PACKET_NOT_GENERATED' });
+  if (!packet.closedAt) {
+    // HttpExceptionFilter 固定 5 键、丢 detail——名单嵌入 error 文案（与 OPENING_RECORDS_MISSING 同约定）
+    throw new ConflictException({
+      error: `专家签字未闭环，无法执行完整归档${pendingExpertNames.length ? `（未签：${pendingExpertNames.join('、')}）` : ''}`,
+      code: 'SIGN_NOT_CLOSED',
+    });
+  }
+  if (!packet.handoverFileAssetId) throw new ConflictException({ error: '评标回流包未生成，无法执行完整归档。请在 :3007 生成评标回流包。', code: 'HANDOVER_NOT_GENERATED' });
+}

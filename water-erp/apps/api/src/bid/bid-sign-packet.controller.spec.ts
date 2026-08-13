@@ -13,6 +13,7 @@ describe('BidSignPacketController', () => {
     uploadSignaturePageScan: jest.fn(),
     register: jest.fn(),
     unregister: jest.fn(),
+    generateHandover: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -67,5 +68,11 @@ describe('BidSignPacketController', () => {
     svc.unregister.mockResolvedValue({ ok: true });
     await expect(controller.unregister('p1', 'e1', 'u1')).resolves.toEqual({ ok: true });
     expect(svc.unregister).toHaveBeenCalledWith('p1', 'e1', 'u1');
+  });
+
+  it('generateHandover 委托服务', async () => {
+    svc.generateHandover.mockResolvedValue({ ok: true });
+    await expect(controller.generateHandover('p1', 'u1')).resolves.toEqual({ ok: true });
+    expect(svc.generateHandover).toHaveBeenCalledWith('p1', 'u1');
   });
 });
