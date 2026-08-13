@@ -8,13 +8,15 @@
  * - ARCHIVED：只读——归档材料清单 + 档案哈希指纹 + 归档包导出
  */
 
-import { useState } from 'react';
-import { Archive, AlertTriangle, CheckCircle2, Copy, FileDown, Fingerprint } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Archive, AlertTriangle, CheckCircle2, Copy, FileDown, Fingerprint, PenLine } from 'lucide-react';
 import {
   archiveAll,
   archivePackageExportUrl,
   exportArchivePackageJson,
+  getSignPacket,
   type BidProjectDetail,
+  type SignPacketResponse,
 } from '@/lib/api/bid';
 
 type Props = {
@@ -37,10 +39,35 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
   const [ackTerminate, setAckTerminate] = useState(false); // H5: 开标未完成时归档需勾选「已知晓终止」
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
   const [copied, setCopied] = useState(false);
+  // 签字闸门状态（只读，来自 :3007 评标签字包）；静默失败——按钮不禁用，后端 409 兜底
+  const [signStatus, setSignStatus] = useState<SignPacketResponse | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getSignPacket(bidProjectId)
+      .then((r) => { if (alive) setSignStatus(r); })
+      .catch(() => { /* 签字模块未就绪/无结果时静默——按钮不禁用，后端 409 兜底 */ });
+    return () => { alive = false; };
+  }, [bidProjectId]);
 
   if (!detail) return null;
   const { stage, archiveItems } = detail;
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
+
+  // 签字闸门三态（对齐后端 assertSignGateClosed）：未签姓名直接由 signStatus.experts 计算
+  //（后端 filter 不透传 detail 数组，勿依赖 e.detail）
+  const signGate = (stage === 'EVALUATING' && signStatus)
+    ? !signStatus.packet
+      ? { blocked: true, reason: '评标签字包未生成' }
+      : !signStatus.allClosed
+        ? {
+            blocked: true,
+            reason: `专家签字未闭环（未签：${signStatus.experts.filter((e) => e.role === '正选' && e.signStatus === 'PENDING').map((e) => e.name).join('、') || '—'}）`,
+          }
+        : !signStatus.packet.handoverFileAssetId
+          ? { blocked: true, reason: '评标回流包未生成' }
+          : { blocked: false, reason: '' }
+    : { blocked: false, reason: '' };
 
   // H5: 开标完成度——开标未完成时归档确认需勾选「已知晓终止」（增强摩擦，流标/废标仍可归档）
   const archActive = (detail.suppliers ?? []).filter(s => s.submitStatus !== '已撤回');
@@ -120,7 +147,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
             </button>
           )}
           {stage === 'EVALUATING' && (
-            <button type="button" disabled={busy} onClick={() => { setAckTerminate(false); setConfirmScope('full'); }} className="neu-btn-primary !h-[32px] !text-xs">
+            <button type="button" disabled={busy || signGate.blocked} onClick={() => { setAckTerminate(false); setConfirmScope('full'); }} className="neu-btn-primary !h-[32px] !text-xs">
               <Archive size={13} /> 完整归档
             </button>
           )}
@@ -136,6 +163,15 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
           )}
         </div>
       </div>
+
+      {/* 签字闸门警示（完整归档闸门 = 签字包 + 全员闭环 + 评标回流包） */}
+      {signGate.blocked && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-[14px] px-3.5 py-2.5 text-xs" style={{ background: 'color-mix(in oklch, var(--warning, #b7791f) 10%, transparent)' }}>
+          <PenLine size={13} className="shrink-0 text-[var(--warning, #b7791f)]" />
+          <span className="font-semibold text-[var(--foreground)]">{signGate.reason}</span>
+          <span className="text-[var(--muted-foreground)]">——请在 :3007 评标签字 tab 完成后重试（完整归档闸门：签字包 + 全员闭环 + 评标回流包）。</span>
+        </div>
+      )}
 
       {/* 行内反馈 */}
       {feedback && (

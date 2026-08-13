@@ -496,6 +496,8 @@ export interface BidProjectDetail {
     weight?: number | null;
   }>;
   archiveItems: BidArchiveItemInfo[];
+  /** A3 中标通知书：评标结果（后端 getProject 暂未返回——UI 按 ?? [] 容错，功能待后端补齐） */
+  evaluationResults?: BidEvaluationResultInfo[];
   // ── 开标主持人指派（R1 硬分流）──
   assignedHostUserId?: string | null;
   assignedHostUser?: { id: string; username: string; displayName: string } | null;
@@ -678,4 +680,46 @@ export function getExpertMemoInkUrlForAdmin(
   memoId: string,
 ): Promise<{ url: string }> {
   return api.get(`/expert-admin/projects/${projectId}/memos/${memoId}/ink`);
+}
+
+/* ── 评标签字包（:3007 生成，:3005 归档闸门展示用，只读） ── */
+
+export type SignStatusValue = 'PENDING' | 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
+
+export interface SignPacketExpertRow {
+  expertId: string;
+  name: string;
+  major: string;
+  role: string;
+  isLead: boolean;
+  isPurchaserRepresentative: boolean;
+  signStatus: SignStatusValue;
+  signStatusAt: string | null;
+  signScanUrl: string | null;
+  dissentingOpinion: string | null;
+  dissentingReason: string | null;
+}
+
+export interface SignPacketResponse {
+  stage: string;
+  resultsGenerated: boolean;
+  canGenerate: boolean;
+  packet: {
+    id: string;
+    sha256: string;
+    generatedAt: string;
+    downloadUrl: string;
+    signPageScanUrl: string | null;
+    closedAt: string | null;
+    closed: boolean;
+    handoverFileAssetId: string | null;
+    handoverSha256: string | null;
+    handoverDownloadUrl: string | null;
+  } | null;
+  experts: SignPacketExpertRow[];
+  allClosed: boolean;
+}
+
+export function getSignPacket(bidProjectId: string) {
+  return api.get<SignPacketResponse>(`/bid/projects/${bidProjectId}/sign-packet`);
 }
