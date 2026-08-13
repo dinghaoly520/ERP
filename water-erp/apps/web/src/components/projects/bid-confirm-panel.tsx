@@ -45,9 +45,6 @@ import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/s
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ArchiveBlock } from './bid-confirm/archive-block';
-import { ClarificationsBlock } from './bid-confirm/clarifications-block';
-import { DisputeBlock } from './bid-confirm/dispute-block';
-import { EvaluationBlock } from './bid-confirm/evaluation-block';
 import { OpeningProgressBlock } from './bid-confirm/opening-progress-block';
 import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
@@ -82,7 +79,7 @@ function formatDateTime(iso: string | null): string {
 export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSyncProjectInfo }: Props) {
   const [bidProject, setBidProject] = useState<BidProjectRef | null>(null);
   const [workspace, setWorkspace] = useState<BidWorkspace | null>(null);
-  /** Phase 2：项目全量详情（开标进度/评标管理/澄清答疑/归档四区块共用数据源） */
+  /** Phase 2：项目全量详情（开标进度/归档区块共用数据源；评标管理/异议裁决/澄清答疑已迁 :3007，分工 v3） */
   const [detail, setDetail] = useState<BidProjectDetail | null>(null);
   /** 供应商回执情况：supplierId → ACCEPTED / DECLINED / PENDING */
   const [rsvpMap, setRsvpMap] = useState<Map<string, string>>(new Map());
@@ -259,9 +256,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(() => refreshDetail(), 600);
   }, [refreshDetail]);
-  // F12：澄清事件低频，单独计数驱动澄清区块定向重拉（不经 detail 全量刷新）
-  const [clarTick, setClarTick] = useState(0);
-
   /* ── Phase 2：实时事件 → 阶段流转整体重载，过程事件增量刷新详情 ── */
   useBidWebSocket(isOpen ? bidProject?.id : undefined, {
     onStageChange: () => { if (isOpen) void load(); },
@@ -273,8 +267,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     onOpeningCompleted: () => { if (isOpen) void load(); },
     // F6：唱标录入只 emit supervision:log（无开标记录类事件），订阅它使「唱标录入」计数实时回流
     onSupervisionLog: scheduleRefresh,
-    onClarificationCreated: () => { scheduleRefresh(); setClarTick(t => t + 1); },
-    onClarificationReplied: () => { scheduleRefresh(); setClarTick(t => t + 1); },
     onExpertPresence: useCallback((d: any) => {
       scheduleRefresh();
       if (d?.onlineCount !== undefined) setExpertOnlineCount(d.onlineCount);
@@ -742,8 +734,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 )}
               </SectionCard>
 
-              {/* ▸ 区块5-8（Phase 2 指挥中心）：开标进度 / 评标管理 / 澄清答疑 / 归档
-                  —— :3007 开标执行数据经同一 API 回流，各区块按 stage 自行决定渲染 */}
+              {/* ▸ 区块5-8（Phase 2 指挥中心）：开标进度 / 归档
+                  —— :3007 开标执行数据经同一 API 回流；评标管理/异议裁决/澄清答疑已迁 :3007（分工 v3，2026-08-13） */}
               {/* D1/G2: 专家在线 + 监督时间线 */}
               {bpId && (
                 <div className="mb-3 rounded-xl bg-[#f8fbff] px-4 py-2 text-xs">
@@ -808,9 +800,10 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                     onConfirmOpening={() => void handleConfirmOpening()}
                     onAbort={() => setAbortDialogOpen(true)}
                   />
-                  <EvaluationBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
-                  <DisputeBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
-                  <ClarificationsBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} refreshTick={clarTick} />
+                  {/* 评标管理/异议裁决/澄清答疑已迁至 :3007 开评标管理端（现场）——分工 v3（2026-08-13） */}
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    评标管理、专家异议裁决、澄清答疑已在 :3007 开评标管理端现场办理。本面板保留评标前准备与评标后收尾。
+                  </p>
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   {/* A1: 公示期状态指示（归档后显示） */}
                   {detail?.stage === 'ARCHIVED' && <PublicityBanner bidProjectId={bpId} detail={detail} />}
