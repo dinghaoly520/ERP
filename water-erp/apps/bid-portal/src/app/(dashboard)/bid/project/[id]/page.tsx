@@ -12,6 +12,7 @@ import { OpeningHall } from '@/components/opening-hall';
 import { SupervisionView, type SupervisionLog } from '@/components/bid/supervision-view';
 import EvaluationView from '@/components/workspace/evaluation-view';
 import { DisputeBlock } from '@/components/workspace/dispute-block';
+import { ClarificationsBlock } from '@/components/workspace/clarifications-block';
 import ScoreStandardView from '@/components/workspace/score-standard-view';
 import SigningTab from '@/components/workspace/signing-tab';
 import { RoundBlock } from '@/components/workspace/round-block';
@@ -192,6 +193,7 @@ function WorkspaceInner() {
             <>
               <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} />
               <DisputeBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />
+              <ClarificationsBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />
             </>
           )}
           {current === 'standard' && <ScoreStandardView projectId={projectId as string} project={project} />}

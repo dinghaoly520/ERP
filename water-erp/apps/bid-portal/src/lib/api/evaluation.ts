@@ -167,6 +167,63 @@ export function generateEvaluationResults(bidProjectId: string) {
   return api.post<BidEvaluationResultInfo[]>(`/bid/projects/${bidProjectId}/evaluation-results/generate`, {});
 }
 
+/* ── 澄清答疑 ── */
+
+export interface BidClarificationInfo {
+  id: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  type: string; // clarification / question
+  question: string;
+  reply: string | null;
+  issuer: string | null;
+  status?: string | null;
+  aiSummary?: string | null;
+  fileAssetId?: string | null;
+  createdAt: string;
+  answeredAt: string | null;
+}
+
+export function listClarifications(bidProjectId: string) {
+  return api.get<BidClarificationInfo[]>(`/bid/projects/${bidProjectId}/clarifications`);
+}
+
+export function createClarification(
+  bidProjectId: string,
+  body: {
+    question: string;
+    issuer: string;
+    supplierName: string;
+    type?: string; // clarification（默认）/ question
+    supplierId?: string;
+  },
+) {
+  return api.post<BidClarificationInfo>(`/bid/projects/${bidProjectId}/clarifications`, body);
+}
+
+export function replyClarification(bidProjectId: string, clarificationId: string, body: { reply: string }) {
+  return api.patch<BidClarificationInfo>(
+    `/bid/projects/${bidProjectId}/clarifications/${clarificationId}/reply`,
+    body,
+  );
+}
+
+/** AI 起草候选问题（不落库） */
+export function draftClarification(bidProjectId: string, supplierId: string) {
+  return api.post<{ drafts: string[]; basis: string[] }>(
+    `/bid/projects/${bidProjectId}/clarifications/draft`,
+    { supplierId },
+  );
+}
+
+/** AI 提炼回复要点（不落库） */
+export function summarizeClarification(bidProjectId: string, clarificationId: string) {
+  return api.post<{ summary: string; keyPoints: string[]; aiSummary: string }>(
+    `/bid/projects/${bidProjectId}/clarifications/${clarificationId}/summarize`,
+    {},
+  );
+}
+
 /* ── 专家批注/备忘（管理端只读）── */
 
 export interface ExpertMemoForAdmin {
