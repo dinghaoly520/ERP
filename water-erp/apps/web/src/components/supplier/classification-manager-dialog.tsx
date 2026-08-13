@@ -34,7 +34,7 @@ export function ClassificationManagerDialog({ open, onClose }: Props) {
     if (!newName.trim()) { toast.error('请输入分类名称'); return; }
     setSaving(true);
     try {
-      await createClassification({ name: newName.trim(), code: newCode.trim() || undefined });
+      await createClassification({ name: newName.trim(), code: newCode.trim() });
       toast.success('分类已创建'); setNewName(''); setNewCode(''); load();
     } catch (e: any) { toast.error(e?.message || '创建失败'); }
     setSaving(false);

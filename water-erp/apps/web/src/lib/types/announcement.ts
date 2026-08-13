@@ -161,7 +161,7 @@ export type AnnouncementFieldConfig<
   label: string;
   placeholder: string;
   multiline?: boolean;
-  type?: "text" | "date" | "email" | "tel";
+  type?: "text" | "date" | "email" | "tel" | "datetime-local";
   /** Key in the tender draft to auto-fill from, if any */
   autoFill?: string;
   select?: {
@@ -169,6 +169,10 @@ export type AnnouncementFieldConfig<
   };
   /** Composite field: renders a type selector + conditional input */
   composite?: CompositeFieldConfig;
+  /** 开关型字段：自动填充/AI 生成跳过（渲染另行处理） */
+  toggle?: boolean;
+  /** 报价方式选择字段：自动填充/AI 生成跳过 */
+  quotationType?: boolean;
   /** AI prompt for content generation */
   aiPrompt?: string;
 };

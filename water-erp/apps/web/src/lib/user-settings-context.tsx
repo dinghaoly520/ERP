@@ -118,7 +118,8 @@ export function UserSettingsProvider({ children }: UserSettingsProviderProps) {
     if (!settings) return;
 
     try {
-      const updated = await apiUpdateSettings(updates);
+      // Partial<UserSettings> 含 id/userId/时间戳等字段，收窄为 PATCH 输入形状
+      const updated = await apiUpdateSettings(updates as import('@/lib/api/user-settings').UpdateUserSettingsInput);
       setSettings(updated);
     } catch (err) {
       throw err;

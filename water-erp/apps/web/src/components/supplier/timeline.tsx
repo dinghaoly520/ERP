@@ -9,7 +9,7 @@ import {
   ArrowRightLeft, Star,
 } from 'lucide-react';
 
-type TypeConfig = { color: string; bg: string; icon: React.ComponentType<{ size?: number }> };
+type TypeConfig = { color: string; bg: string; icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }> };
 
 const typeConfig: Record<string, TypeConfig> = {
   // 注册

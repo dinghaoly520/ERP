@@ -385,6 +385,8 @@ export interface SupplierContact {
   name: string;
   phone: string;
   email?: string;
+  /** 联系人职务（后端 SupplierContact.position，可空） */
+  position?: string | null;
   isPrimary: boolean;
 }
 

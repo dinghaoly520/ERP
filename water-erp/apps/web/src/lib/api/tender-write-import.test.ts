@@ -57,7 +57,7 @@ test("importAutofill bypasses /api proxy for LAN multipart uploads", async () =>
     }
 
     if (originalWindow === undefined) {
-      delete (globalThis as typeof globalThis & { window?: unknown }).window;
+      delete (globalThis as { window?: unknown }).window;
     } else {
       Object.defineProperty(globalThis, "window", {
         configurable: true,

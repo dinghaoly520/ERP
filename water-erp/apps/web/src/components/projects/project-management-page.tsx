@@ -343,7 +343,7 @@ export function ProjectManagementPage() {
                   className="workbench-input !w-auto min-w-[130px]"
                 >
                   <option value="">全部</option>
-                  {filterOptions.map((v) => <option key={v} value={v}>{v}</option>)}
+                  {filterOptions.map((v) => <option key={v} value={v ?? ''}>{v}</option>)}
                 </select>
               </div>
             </div>

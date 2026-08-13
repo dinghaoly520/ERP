@@ -398,20 +398,23 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
           {/* ═══ 项目概况卡片 ═══ */}
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="flex flex-col gap-1">
-                  <h3 className="text-[15px] font-bold leading-snug text-[var(--foreground)]">{result.project.name}</h3>
-                  <span className="text-[11px] font-medium text-[var(--muted-foreground)] tabular-nums">
-                    项目编号 {result.project.projectCode || '—'}
-                    {result.project.stage && <> · {result.project.stage}</>}
-                  </span>
+              {/* 项目可能为 null（公告未关联项目/项目已删）——仅项目概况头部加守卫，统计区不受影响 */}
+              {result.project && (
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-[15px] font-bold leading-snug text-[var(--foreground)]">{result.project.name}</h3>
+                    <span className="text-[11px] font-medium text-[var(--muted-foreground)] tabular-nums">
+                      项目编号 {result.project.projectCode || '—'}
+                      {result.project.stage && <> · {result.project.stage}</>}
+                    </span>
+                  </div>
+                  {result.project.deadline && (
+                    <span className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold tabular-nums text-[var(--muted-foreground)]">
+                      截止 {new Date(result.project.deadline).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                    </span>
+                  )}
                 </div>
-                {result.project.deadline && (
-                  <span className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold tabular-nums text-[var(--muted-foreground)]">
-                    截止 {new Date(result.project.deadline).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                  </span>
-                )}
-              </div>
+              )}
 
               {/* 提交进度条 */}
               {result.stats.total > 0 && (

@@ -8,7 +8,6 @@ import {
   WORK_ARRANGEMENT_URGENCY_LABELS,
   type WorkArrangementItem,
   type WorkArrangementUrgency,
-  type WorkArrangementUrgency,
 } from '@/lib/types/work-arrangements';
 
 const urgencyBadge: Record<WorkArrangementUrgency, string> = {

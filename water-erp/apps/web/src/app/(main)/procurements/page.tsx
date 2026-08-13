@@ -1193,7 +1193,7 @@ export default function ProcurementsPage() {
     if (key === 'searchKeyword') {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
       searchDebounceRef.current = setTimeout(() => {
-        setFilters(prev => ({ ...prev, searchKeyword: value }));
+        setFilters(prev => ({ ...prev, searchKeyword: value ?? '' }));
         setPagination(prev => ({ ...prev, page: 1 }));
       }, 300);
       return;

@@ -133,7 +133,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
         const draft = loadDraft(attachmentId);
         const draftText = draft?.html?.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
         if (draft && draft.html && draftText && draftText !== originalTextRef.current) {
-          toast<{ label: string; onClick: () => void }>('检测到未保存的草稿，是否恢复？', {
+          toast('检测到未保存的草稿，是否恢复？', {
             duration: 12000,
             action: {
               label: '恢复',
@@ -444,7 +444,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
     // 对直接子元素中新增的文本节点/非样式元素标红
     el.querySelectorAll(':not(style):not(script)').forEach(child => {
       if (child.childNodes.length === 1 && child.firstChild?.nodeType === Node.TEXT_NODE) {
-        markNodeModified(child.firstChild as Text);
+        markNodeModified(child.firstChild as Text, '');
       }
     });
   }

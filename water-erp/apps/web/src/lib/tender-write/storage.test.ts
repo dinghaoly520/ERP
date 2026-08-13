@@ -60,7 +60,7 @@ test("initial null state write does not erase a saved tender-write draft", () =>
     "正在填写的项目",
   );
 
-  delete (globalThis as typeof globalThis & { window?: unknown }).window;
+  delete (globalThis as { window?: unknown }).window;
 });
 
 test("new tender-write login session starts from type selection", () => {
@@ -87,5 +87,5 @@ test("new tender-write login session starts from type selection", () => {
   assert.equal(restored.selectedType, null);
   assert.equal(restored.drafts.COMPETITIVE_NEGOTIATION.projectName, "");
 
-  delete (globalThis as typeof globalThis & { window?: unknown }).window;
+  delete (globalThis as { window?: unknown }).window;
 });

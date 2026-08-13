@@ -134,10 +134,10 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       const submitted = suppliers.filter(s => s.submitted);
       const notSubmitted = suppliers.filter(s => !s.submitted && !s.withdrawn);
       const withdrawn = suppliers.filter(s => s.withdrawn);
-      // 收集专家回复情况
+      // 收集专家回复情况（后端 BidExpert.invitationStatus：confirmed/declined/pending）
       const experts = detail?.experts ?? [];
-      const expertAccepted = experts.filter(e => e.status === 'accepted');
-      const expertDeclined = experts.filter(e => e.status === 'declined');
+      const expertAccepted = experts.filter(e => e.invitationStatus === 'confirmed');
+      const expertDeclined = experts.filter(e => e.invitationStatus === 'declined');
 
       const context: Record<string, string> = {
         '项目名称': project?.title ?? '',
@@ -218,7 +218,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           const confirmedSuppliers = ws.suppliers
             .filter(s => {
               const hasRsvp = rsvpLocal.size > 0;
-              const rsvpOk = hasRsvp ? rsvpLocal.get(s.supplierId) === 'ACCEPTED' : true;
+              const rsvpOk = hasRsvp ? rsvpLocal.get(s.supplierId ?? '') === 'ACCEPTED' : true;
               return rsvpOk && s.submitted;
             })
             .map(s => s.supplierName);

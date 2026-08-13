@@ -441,7 +441,9 @@ function SupplierApprovalPage() {
               </button>
             </>
           }
-        />
+        >
+          {null}
+        </Modal>
       )}
     </div>
   );

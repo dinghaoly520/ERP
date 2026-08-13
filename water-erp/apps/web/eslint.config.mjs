@@ -1,6 +1,8 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import reactHooks from "eslint-plugin-react-hooks";
+import react from "eslint-plugin-react";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -23,6 +25,11 @@ const eslintConfig = defineConfig([
   // 先统一降为 warning 不阻断 CI，配合 lint 脚本 --max-warnings 冻结总量；
   // 后续逐文件清理后恢复 error 级（优先 react-hooks/rules-of-hooks）。
   {
+    plugins: {
+      "react-hooks": reactHooks,
+      react,
+      // @typescript-eslint / @next/next 已由 eslint-config-next 定义，勿重复注册（Cannot redefine plugin）
+    },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": "warn",

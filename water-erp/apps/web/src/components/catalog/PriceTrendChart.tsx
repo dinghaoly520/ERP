@@ -27,7 +27,7 @@ export function PriceTrendChart({ series, title, predictionData }: Props) {
           <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.6 0.04 258 / 0.1)" />
           <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
           <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" tickFormatter={v => `¥${v.toLocaleString()}`} />
-          <Tooltip formatter={(value: number) => [`¥${value.toLocaleString('zh-CN')}`, '']} />
+          <Tooltip formatter={(value) => [`¥${Number(value ?? 0).toLocaleString('zh-CN')}`, '']} />
           <Legend />
           {series.map(s => (
             <Line key={s.name} type="monotone" dataKey={s.name} stroke={s.color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />

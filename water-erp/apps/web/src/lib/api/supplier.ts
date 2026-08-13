@@ -332,7 +332,7 @@ export function getQualificationAlerts() {
   return api.get<QualificationAlerts>('/supplier/qualification-alerts');
 }
 export function acknowledgeQualificationAlert(qualificationId: string) {
-  return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/ack`);
+  return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/ack`, {});
 }
 
 // ── 淘汰候选 ──
