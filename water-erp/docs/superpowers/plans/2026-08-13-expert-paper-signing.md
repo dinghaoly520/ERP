@@ -60,7 +60,7 @@
 | `lib/api/bid.ts`（改） | 加 `getSignPacket` + `SignPacketResponse` 类型 |
 | `components/projects/bid-confirm/archive-block.tsx`（改） | 闸门展示：未闭环禁用「完整归档」+ 409 明细回显 |
 | `components/projects/bid-confirm/opening-progress-block.tsx`（改） | 评标回流包「评标资料已接收·下载」 |
-| `components/projects/bid-confirm/bid-confirm-panel.tsx`（改，Wave 3） | 移除评标管理/异议裁决/澄清答疑三区块 |
+| `components/projects/bid-confirm-panel.tsx`（改，Wave 3） | 移除评标管理/异议裁决/澄清答疑三区块 |
 
 **种子数据（Wave 4）：** `apps/api/prisma/seed-data/*.json`——把「智慧水务大数据平台建设」(`cms1hda40006duu2o4fx28ubd`) 置为 EVALUATING 全前置就绪态（结果未生成，演示从「生成评标结果」起步）。
 
@@ -116,8 +116,7 @@ model BidSignPacket {
   updatedAt            DateTime  @updatedAt
 
   project BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([projectId])
+  // 无需 @@index([projectId])——@unique 已自带唯一索引
 }
 ```
 
@@ -132,7 +131,7 @@ pnpm --filter api exec prisma migrate dev --create-only --name add_bid_sign_pack
 
 - [ ] **Step 3: 审查生成的 migration.sql 后再应用**
 
-要求 SQL 恰好包含：`CREATE TYPE "SignStatus" AS ENUM (...)`、`ALTER TABLE "BidExpert" ADD COLUMN "signStatus" ... "signStatusAt" ... "signScanFileId" ... "signRegisteredBy"`、`CREATE TABLE "BidSignPacket" (...)`、外键/索引。**若 diff 中出现 `OperationLog` 或任何既有表的无关 DDL → 停下，手动把 diff 精简到本次变更再继续。** 然后：
+要求 SQL 恰好包含：`CREATE TYPE "SignStatus" AS ENUM (...)`、`ALTER TABLE "BidExpert" ADD COLUMN "signStatus" ... "signStatusAt" ... "signScanFileId" ... "signRegisteredBy"`、`CREATE TABLE "BidSignPacket" (...)`、外键 + `projectId` 唯一约束（@unique 自带唯一索引，不应出现独立普通索引）。**若 diff 中出现 `OperationLog` 或任何既有表的无关 DDL → 停下，手动把 diff 精简到本次变更再继续。** 然后：
 
 ```bash
 cd water-erp
@@ -252,11 +251,11 @@ export async function lockAndReassertStage(
 - [ ] **Step 2: 写失败测试 `bid-sign-packet.service.spec.ts`（登记状态机部分）**
 
 ```ts
-import { NotFoundException } from '@nestjs/common';
 import { BidSignPacketService } from './bid-sign-packet.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const prisma = {
+  $queryRaw: jest.fn().mockResolvedValue([]), // lockAndReassertStage 首步 FOR UPDATE（缺失则事务用例 TypeError）
   bidProject: { findUnique: jest.fn() },
   bidSignPacket: { findUnique: jest.fn(), update: jest.fn() },
   bidExpert: { findFirst: jest.fn(), updateMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
@@ -266,6 +265,9 @@ const prisma = {
   $transaction: jest.fn(async (fn: any) => fn(prisma)),
 };
 
+const projectId = 'p1';
+const expertId = 'e1';
+
 function makeService(): BidSignPacketService {
   return new BidSignPacketService(
     prisma as unknown as PrismaService,
@@ -274,13 +276,25 @@ function makeService(): BidSignPacketService {
   );
 }
 
-describe('BidSignPacketService.register（§43 语义）', () => {
-  const projectId = 'p1';
-  const expertId = 'e1';
+/** 事务/尾部 getStatus 共用底座：进入事务的用例必须先调（lockAndReassertStage 走 $queryRaw + bidProject.findUnique，
+ *  未 mock 会 TypeError/NOT_FOUND）；getStatus 尾部 findMany 必须回数组否则 .map 崩。
+ *  packet 用全字段（尾部组装走 generatedAt.toISOString 等）；各用例在其上覆盖单个 mock。 */
+function baseArrange() {
+  (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'EVALUATING', name: '测试项目' });
+  (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+    id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+    signPageScanFileId: null, closedAt: null, handoverFileAssetId: null, handoverSha256: null,
+  });
+  (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([]);
+  (prisma.bidEvaluationResult.count as jest.Mock).mockResolvedValue(0);
+}
 
+describe('BidSignPacketService.register（§43 语义）', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('REFUSED_DISSENT 未填不同意见 → 400 SIGN_DISSENT_REQUIRED', async () => {
+    baseArrange(); // 走到 dissent 检查前需要 packet + expert 都命中
+    (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValue({ id: expertId, projectId, expertRole: '正选', expertName: '张三' });
     const svc = makeService();
     await expect(
       svc.register(projectId, expertId, { status: 'REFUSED_DISSENT' }, 'u1'),
@@ -288,7 +302,7 @@ describe('BidSignPacketService.register（§43 语义）', () => {
   });
 
   it('拒绝且未陈述理由 → DEEMED_AGREED 清空不同意见并登记', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    baseArrange(); // packet 已含 closedAt:null 全字段；覆盖进入事务 + getStatus 尾部
     (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValue({ id: expertId, projectId, expertRole: '正选', expertName: '张三' });
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
     (prisma.bidExpert.count as jest.Mock).mockResolvedValue(1); // 还剩 1 名 PENDING → 不闭环
@@ -311,7 +325,7 @@ describe('BidSignPacketService.register（§43 语义）', () => {
   });
 
   it('最后一名正选登记成功 → 自动闭环 packet.closedAt', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    baseArrange();
     (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValue({ id: expertId, projectId, expertRole: '正选', expertName: '张三' });
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
     (prisma.bidExpert.count as jest.Mock).mockResolvedValue(0); // 无 PENDING → 闭环
@@ -333,7 +347,7 @@ describe('BidSignPacketService.register（§43 语义）', () => {
   });
 
   it('并发重登 → updateMany count=0 → 409 SIGN_ALREADY_REGISTERED', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    baseArrange(); // SIGN_ALREADY_REGISTERED 在事务内抛出 → 必须铺好 $queryRaw + findUnique
     (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValue({ id: expertId, projectId, expertRole: '正选', expertName: '张三' });
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
     const svc = makeService();
@@ -342,19 +356,19 @@ describe('BidSignPacketService.register（§43 语义）', () => {
   });
 
   it('候补专家登记 → 400 SIGN_EXPERT_NOT_FORMAL', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    baseArrange();
     (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValue({ id: expertId, projectId, expertRole: '候补' });
     const svc = makeService();
     await expect(svc.register(projectId, expertId, { status: 'SIGNED' }, 'u1'))
       .rejects.toMatchObject({ response: { code: 'SIGN_EXPERT_NOT_FORMAL' } });
   });
 
-  it('专家不属于项目 → 404 EXPERT_NOT_IN_PROJECT', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+  it('专家不属于项目 → 400 EXPERT_NOT_IN_PROJECT', async () => {
+    baseArrange();
     (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValue(null);
     const svc = makeService();
     await expect(svc.register(projectId, expertId, { status: 'SIGNED' }, 'u1'))
-      .rejects.toBeInstanceOf(NotFoundException);
+      .rejects.toMatchObject({ response: { code: 'EXPERT_NOT_IN_PROJECT' } });
   });
 
   it('签字包未生成 → 409 SIGN_PACKET_NOT_GENERATED', async () => {
@@ -366,11 +380,8 @@ describe('BidSignPacketService.register（§43 语义）', () => {
 });
 
 describe('BidSignPacketService.unregister', () => {
-  const projectId = 'p1';
-  const expertId = 'e1';
-
   it('未登记 → 400 SIGN_NOT_REGISTERED', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    baseArrange(); // SIGN_NOT_REGISTERED 在事务内抛出 → 铺好 $queryRaw + findUnique
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
     const svc = makeService();
     await expect(svc.unregister(projectId, expertId, 'u1'))
@@ -385,7 +396,7 @@ describe('BidSignPacketService.unregister', () => {
   });
 
   it('闭环前撤销 → 原子回退 PENDING 并清空意见字段', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: null });
+    baseArrange(); // 尾部 getStatus 需 findMany 回数组 + 全字段 packet
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
     const svc = makeService();
     await svc.unregister(projectId, expertId, 'u1');
@@ -561,7 +572,7 @@ export class BidSignPacketService {
     if (packet.closedAt) throw new ConflictException({ error: '签字已闭环，登记通道已锁定；如需变更请走管理员通道', code: 'SIGN_PACKET_CLOSED' });
 
     const expert = await this.prisma.bidExpert.findFirst({ where: { id: expertId, projectId } });
-    if (!expert) throw new NotFoundException({ error: '专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' });
+    if (!expert) throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' }); // 与 bid.service.ts:3341 现有约定一致（400 非 404）
     if (expert.expertRole !== '正选') throw new BadRequestException({ error: '候补专家不参与签字', code: 'SIGN_EXPERT_NOT_FORMAL' });
 
     // §43：拒绝签字须书面陈述不同意见；拒绝且不陈述理由 = 视为同意
@@ -704,14 +715,16 @@ const baseSnapshot: SignPacketSnapshot = {
   motions: [],
 };
 
-/** docx 对象树：Paragraph.children = TextRun[]；递归收集 text（遍历 TableRow/TableCell） */
+/** docx 对象树（实测 docx@9.7.1）：所有节点继承 XmlComponent，内容只挂在公开的 root 数组；
+ *  文本是 root 树中的裸 string 叶子。没有 children/rows/cells/text 等 getter。
+ *  下面只遍历 .root：数组/对象 → 看其 .root；string 叶子 → 收集。 */
 function textOf(children: any[]): string {
   const out: string[] = [];
-  const walk = (node: any): void => {
-    if (!node) return;
-    if (typeof node.text === 'string') out.push(node.text);
-    (node.children ?? []).forEach(walk);
-    (node.rows ?? []).forEach((r: any) => (r.cells ?? []).forEach((c: any) => (c.children ?? []).forEach(walk)));
+  const walk = (node: unknown): void => {
+    if (node == null) return;
+    if (typeof node === 'string') { out.push(node); return; }
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (typeof node === 'object' && Array.isArray((node as any).root)) walk((node as any).root);
   };
   children.forEach(walk);
   return out.join('');
@@ -1109,7 +1122,12 @@ describe('BidSignPacketService.generate', () => {
 });
 ```
 
-注意：spec 的 `prisma` fake 需补 `fileAsset: { create: jest.fn() }`、`bidSignPacket.upsert: jest.fn()`（加到 Task 2 的 fake 常量里）。
+注意：spec 的 `prisma` fake 需补以下键（加到 Task 2 的 fake 常量里，否则成功用例在 buildSnapshot / upload 路径 TypeError）：
+- `fileAsset: { create: jest.fn() }`、`bidSignPacket.upsert: jest.fn()`；
+- buildSnapshot 走的 12 个 delegate 各需 `{ findMany: jest.fn().mockResolvedValue([]) }`（**findMany 必须回数组**——快照代码直接 .map/断言，undefined 会崩）：
+  `bidOpeningRecord` / `bidSupplier` / `bidInvalidBid` / `bidScoreItem`（include points）/ `bidScoreRecord` /
+  `bidScoreRecordHistory` / `bidScorePointDecision` / `bidScoreReview` / `bidEvaluationResult`（已有 count，补 findMany）/
+  `expertDispute` / `bidClarification` / `bidMotion`。
 
 - [ ] **Step 7: 跑红**
 
@@ -1346,6 +1364,7 @@ describe('BidSignPacketService 扫描上传', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('mimetype 非 jpg/png/pdf → 400 SIGN_SCAN_TYPE_INVALID', async () => {
+    baseArrange(); // assertScanUploadable 先查 packet（未 mock 会先抛 SIGN_PACKET_NOT_GENERATED）
     const svc = makeService();
     await expect(
       svc.uploadExpertScan(projectId, expertId, { buffer: Buffer.from('x'), mimetype: 'text/plain', originalname: 'a.txt' }, 'u1'),
@@ -1361,7 +1380,7 @@ describe('BidSignPacketService 扫描上传', () => {
   });
 
   it('专家扫描上传成功：MinIO + FileAsset(expert_sign_scan) + signScanFileId 落库', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId });
+    baseArrange(); // 尾部 getStatus 需 findUnique 全字段 packet + findMany 回数组；事务内 lockAndReassertStage 走 $queryRaw
     (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValue({ id: expertId, projectId, expertRole: '正选' });
     (prisma.fileAsset.create as jest.Mock).mockResolvedValue({ id: 'fa9' });
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
@@ -1384,7 +1403,7 @@ describe('BidSignPacketService 扫描上传', () => {
   });
 
   it('主报告签字页扫描 → packet.signPageScanFileId 落库', async () => {
-    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId });
+    baseArrange(); // 尾部 getStatus 需全字段 packet + findMany 回数组
     (prisma.fileAsset.create as jest.Mock).mockResolvedValue({ id: 'fa10' });
     const svc = makeService();
     (svc as any).storage.upload.mockResolvedValue(undefined);
@@ -1414,7 +1433,7 @@ pnpm --filter api test -- bid-sign-packet.service   # Expected: FAIL（方法不
   async uploadExpertScan(projectId: string, expertId: string, file: UploadedSignScan, actorId: string): Promise<SignPacketResponse> {
     await this.assertScanUploadable(projectId, file);
     const expert = await this.prisma.bidExpert.findFirst({ where: { id: expertId, projectId } });
-    if (!expert) throw new NotFoundException({ error: '专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' });
+    if (!expert) throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' }); // 与 bid.service.ts:3341 现有约定一致（400 非 404）
     if (expert.expertRole !== '正选') throw new BadRequestException({ error: '候补专家不参与签字', code: 'SIGN_EXPERT_NOT_FORMAL' });
 
     const assetId = await this.storeScan(projectId, `expert-${expertId}`, file, 'expert_sign_scan', actorId);
@@ -1506,6 +1525,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { BidSignPacketController } from './bid-sign-packet.controller';
 import { BidSignPacketService } from './bid-sign-packet.service';
+import { RegisterSignDto } from './dto/bid-sign-packet.dto';
 
 describe('BidSignPacketController', () => {
   let controller: BidSignPacketController;
@@ -1548,7 +1568,7 @@ describe('BidSignPacketController', () => {
     const pipe = new ValidationPipe({ whitelist: true, transform: true });
     const dto = { status: 'NOPE' };
     await expect(
-      pipe.transform(dto, { type: 'body', metatype: Object.getPrototypeOf(controller).constructor.prototype?.constructor ?? Object }),
+      pipe.transform(dto, { type: 'body', metatype: RegisterSignDto }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -1673,7 +1693,7 @@ Expected: PASS；`pnpm --filter api build` 通过（`BidSignPacketService` 尚�
 ```bash
 cd water-erp && git branch --show-current
 git add apps/api/src/bid/bid-sign-packet.controller.ts apps/api/src/bid/bid-sign-packet.controller.spec.ts apps/api/src/bid/bid.module.ts apps/api/src/bid/bid-sign-packet.service.ts
-git commit -m "feat(bid): 签字包 REST 端点（7 路由）挂载 BidModule"
+git commit -m "feat(bid): 签字包 REST 端点（6 路由）挂载 BidModule"
 ```
 
 ### Task 6: 归档闸门 + 评标回流包
@@ -1686,8 +1706,8 @@ git commit -m "feat(bid): 签字包 REST 端点（7 路由）挂载 BidModule"
 - Test: `apps/api/src/bid/bid-sign-packet.service.spec.ts`（handover 用例 + 闸门纯函数用例）+ `apps/api/src/bid/bid-sign-packet.controller.spec.ts`（handover 路由委托）
 
 **Interfaces:**
-- Consumes: `BidService.buildEvaluationPackage`（Task 3 已 public）；`computeArchiveChain` 的 `fileHashes` 输入（bid-archive.digest.ts:65）
-- Produces: `assertSignGateClosed(scope: 'opening' | 'full', packet: SignGatePacketLike | null, pendingExpertNames: string[]): void`（bid-state.ts 导出，纯函数独立单测）；归档闸门错误码：`SIGN_PACKET_NOT_GENERATED` / `SIGN_NOT_CLOSED`（detail=未签专家姓名数组）/ `HANDOVER_NOT_GENERATED`；归档第 8 项「评标签字包」；第 7 条路由 `POST /api/bid/projects/:id/sign-packet/handover`
+- Consumes: `BidService.buildEvaluationPackage`（Task 3 已 public）；`computeArchiveChain` 的 `fileHashes` 输入（`ArchiveItemLike.fileHashes?` 定义在 bid-archive.digest.ts:15，`computeArchiveChain` 同文件 :65）
+- Produces: `assertSignGateClosed(scope: 'opening' | 'full', packet: SignGatePacketLike | null, pendingExpertNames: string[]): void`（bid-state.ts 导出，纯函数独立单测）；归档闸门错误码：`SIGN_PACKET_NOT_GENERATED` / `SIGN_NOT_CLOSED`（未签专家姓名**嵌入 error 文案**——HttpExceptionFilter 固定 5 键、不透传 detail）/ `HANDOVER_NOT_GENERATED`；归档第 8 项「评标签字包」；第 7 条路由 `POST /api/bid/projects/:id/sign-packet/handover`
 
 - [ ] **Step 1: 更新既有 spec 的 makeService（构造加第 4 参 bidService）+ 写失败测试（handover 部分）**
 
@@ -1699,12 +1719,12 @@ function makeService(): BidSignPacketService {
     prisma as unknown as PrismaService,
     { upload: jest.fn() } as any,          // storage
     { generateDocument: jest.fn() } as any, // docx
-    {} as any,                              // bidService（本任务 handover 用例挂 buildEvaluationPackage mock）
+    { buildEvaluationPackage: jest.fn() } as any, // bidService（handover 用例挂 buildEvaluationPackage mock；空对象会 TypeError）
   );
 }
 ```
 
-(2) 顶部 fake 常量补三个 delegate：`expertDispute: { findMany: jest.fn() }, bidMotion: { findMany: jest.fn() }, bidClarification: { findMany: jest.fn() }`（generateHandover 快照查询用）。随后追加失败测试：
+(2) generateHandover 快照查询用的 `expertDispute` / `bidMotion` / `bidClarification` 三个 delegate 已在 Task 3 Step 6 注意中随 12 个 delegate 一并补入 fake 常量（`findMany` 回 `[]`）——此处无需再动。随后追加失败测试：
 
 ```ts
 describe('BidSignPacketService.generateHandover', () => {
@@ -1720,17 +1740,16 @@ describe('BidSignPacketService.generateHandover', () => {
   });
 
   it('已闭环：上传 JSON 回流包并落 handoverFileAssetId（幂等——已有则直接返回）', async () => {
+    baseArrange(); // 尾部 getStatus 需要；snapshot 里 bidProject.findUnique 也会走
     (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
-      projectId, closedAt: new Date(), handoverFileAssetId: null, fileAssetId: 'fa1', sha256: 'abc',
-    });
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    }); // 全字段（尾部组装走 generatedAt.toISOString 等），仅 closedAt 改为已闭环
     const svc = makeService();
     (svc as any).storage.upload.mockResolvedValue(undefined);
     (prisma.fileAsset.create as jest.Mock).mockResolvedValue({ id: 'fa99' });
     (prisma.bidSignPacket.update as jest.Mock).mockResolvedValue({});
-    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.expertDispute.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.bidMotion.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.bidClarification.findMany as jest.Mock).mockResolvedValue([]);
+    // 快照 delegate（expertDispute/bidMotion/bidClarification/bidExpert.findMany）由 fake 常量 + baseArrange 回 []，无需再 mock
     // buildEvaluationPackage 由注入的 BidService 提供——spec 挂 mock
     (svc as any).bidService.buildEvaluationPackage.mockResolvedValue({ packageType: 'BID_EVALUATION_HANDOVER', fingerprint: 'x' });
 
@@ -1790,7 +1809,7 @@ Expected: FAIL（`generateHandover` 不存在）。
       evaluationSnapshot: base, // 评标完整性快照（含 fingerprint）
       signPacket: {
         fileAssetId: packet.fileAssetId, sha256: packet.sha256, generatedAt: packet.generatedAt.toISOString(),
-        signPageScanFileId: packet.signPageScanFileId, closedAt: packet.closedAt.toISOString(),
+        signPageScanFileId: packet.signPageScanFileId, closedAt: packet.closedAt!.toISOString(), // 上方已 if (!packet.closedAt) throw；! 显式收窄
       },
       expertSignStatuses: experts.map(e => ({
         expertName: e.expertName, expertRole: e.expertRole, signStatus: e.signStatus,
@@ -1840,7 +1859,7 @@ import { assertSignGateClosed } from './bid-state';
 describe('assertSignGateClosed（归档闸门）', () => {
   it('scope=full 三缺一 → 对应 409 明细', () => {
     expect(() => assertSignGateClosed('full', null, [])).toThrowError(expect.objectContaining({ response: expect.objectContaining({ code: 'SIGN_PACKET_NOT_GENERATED' }) }));
-    expect(() => assertSignGateClosed('full', { closedAt: null, handoverFileAssetId: null }, ['张三'])).toThrowError(expect.objectContaining({ response: expect.objectContaining({ code: 'SIGN_NOT_CLOSED', detail: ['张三'] }) }));
+    expect(() => assertSignGateClosed('full', { closedAt: null, handoverFileAssetId: null }, ['张三'])).toThrowError(expect.objectContaining({ response: expect.objectContaining({ code: 'SIGN_NOT_CLOSED', error: expect.stringContaining('张三') }) }));
     expect(() => assertSignGateClosed('full', { closedAt: new Date(), handoverFileAssetId: null }, [])).toThrowError(expect.objectContaining({ response: expect.objectContaining({ code: 'HANDOVER_NOT_GENERATED' }) }));
   });
   it('scope=opening 流标归档豁免', () => {
@@ -1876,7 +1895,13 @@ export function assertSignGateClosed(
 ): void {
   if (scope !== 'full') return; // 开标归档（流标/废标）不受签字闸门约束
   if (!packet) throw new ConflictException({ error: '评标签字包未生成，无法执行完整归档。请在 :3007 生成签字包并完成专家签字登记。', code: 'SIGN_PACKET_NOT_GENERATED' });
-  if (!packet.closedAt) throw new ConflictException({ error: '专家签字未闭环，无法执行完整归档', code: 'SIGN_NOT_CLOSED', ...(pendingExpertNames.length ? { detail: pendingExpertNames } : {}) });
+  if (!packet.closedAt) {
+    // HttpExceptionFilter 固定 5 键、丢 detail——名单嵌入 error 文案（与 OPENING_RECORDS_MISSING 同约定）
+    throw new ConflictException({
+      error: `专家签字未闭环，无法执行完整归档${pendingExpertNames.length ? `（未签：${pendingExpertNames.join('、')}）` : ''}`,
+      code: 'SIGN_NOT_CLOSED',
+    });
+  }
   if (!packet.handoverFileAssetId) throw new ConflictException({ error: '评标回流包未生成，无法执行完整归档。请在 :3007 生成评标回流包。', code: 'HANDOVER_NOT_GENERATED' });
 }
 ```
@@ -1923,7 +1948,7 @@ Expected: PASS；构建通过。
 
 `bid.service.ts` 修改三处：
 
-(1) import 顶部加：`import { assertSignGateClosed, lockAndReassertStage } from './bid-state';`（lockAndReassertStage Task 2 已加则跳过）。
+(1) 并入 bid.service.ts:21 既有的 `from './bid-state'` 导入（Task 2 已把 `lockAndReassertStage` 加进该导入）——本任务只需在既有导入名列表追加 `assertSignGateClosed`，**不要新开 import 行**。
 
 (2) `ensureArchiveItems`（bid.service.ts:3718-3747）standards 数组非 skipEvaluation 分支加一行：
 
@@ -2014,6 +2039,7 @@ git commit -m "feat(bid): 归档签字闸门（§43 闭环+回流包）+ 评标�
 - Create: `apps/bid-portal/src/components/workspace/signing-tab.tsx`
 - Modify: `apps/bid-portal/src/components/workspace/project-tabs.tsx`（加 `signing` tab def）
 - Modify: `apps/bid-portal/src/app/(dashboard)/bid/project/[id]/page.tsx`（TAB_LABELS + 挂载）
+- Modify: `apps/bid-portal/src/app/globals.css`（`:root` 补 `--hairline` token——本组件大量使用，bid-portal 现未定义，见 Step 4）
 
 **Interfaces:**
 - Consumes: 后端 `SignPacketResponse`（Task 2 形状）；`api` 封装（`@/lib/api`）
@@ -2109,17 +2135,23 @@ imports 加：
 import SigningTab from '@/components/workspace/signing-tab';
 ```
 
-`TAB_LABELS` 加 `signing: '评标签字'`；渲染区（现有 `{current === 'evaluate' && <EvaluationView .../>}` 的并列处）加：
+`TAB_LABELS` 加 `signing: '评标签字'`；渲染区（现有 `{current === 'evaluate' && <EvaluationView .../>}` 的并列处，page.tsx:188）加：
 
 ```tsx
-{current === 'signing' && <SigningTab projectId={id} stage={stage} />}
+{current === 'signing' && <SigningTab projectId={projectId as string} stage={stage} />}
 ```
 
-（`id`/`stage` 取该页既有变量名；若页内变量名为 `bidProjectId`/`detail.stage`，照抄页内用法。）
+> 已核实：该页**没有** `id`/`bidProjectId`/`detail` 变量——项目 id 来自 `useBidProjectContext()`（page.tsx:37，类型 `string | null`），stage 来自 `project?.stage ?? 'DOWNLOAD'`（page.tsx:74）。兄弟挂载点（page.tsx:187-188）即用 `projectId as string` 惯例，照抄。
 
 - [ ] **Step 4: 实现 signing-tab.tsx（生成/下载/指纹/清单 + 引导空态；登记交互 Task 8 叠加）**
 
-`apps/bid-portal/src/components/workspace/signing-tab.tsx`：
+先补 token（已核实 bid-portal `globals.css:275-282` 无 `--hairline`，现有组件边框用内联 oklch；本组件及 Task 8/Wave 3 复制的 web 组件都依赖它——`globals.css` `:root` 的 `--danger` 行后加一行）：
+
+```css
+  --hairline: oklch(0.91 0.006 264); /* 与 --color-border 同值，细线分隔 */
+```
+
+然后 `apps/bid-portal/src/components/workspace/signing-tab.tsx`：
 
 ```tsx
 'use client';
@@ -2353,7 +2385,7 @@ Expected: 绿。手工验证（需 API + 一个 EVALUATING 且有结果的项目
 
 ```bash
 cd water-erp && git branch --show-current
-git add apps/bid-portal/src/lib/api/sign-packet.ts apps/bid-portal/src/components/workspace/signing-tab.tsx apps/bid-portal/src/components/workspace/sign-register-dialog.tsx apps/bid-portal/src/components/workspace/project-tabs.tsx apps/bid-portal/src/app/\(dashboard\)/bid/project/\[id\]/page.tsx
+git add apps/bid-portal/src/lib/api/sign-packet.ts apps/bid-portal/src/components/workspace/signing-tab.tsx apps/bid-portal/src/components/workspace/project-tabs.tsx apps/bid-portal/src/app/\(dashboard\)/bid/project/\[id\]/page.tsx apps/bid-portal/src/app/globals.css
 git commit -m "feat(bid-portal): 评标签字 tab——生成/下载/指纹/专家清单/闭环横幅"
 ```
 
@@ -2376,13 +2408,13 @@ Task 7 的 `// uploadExpertScan ... 由 Task 8 追加` 注释处替换为：
 export function uploadExpertScan(projectId: string, expertId: string, file: File) {
   const form = new FormData();
   form.append('file', file);
-  return api.post<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/experts/${expertId}/scan`, form);
+  return api.upload<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/experts/${expertId}/scan`, form);
 }
 
 export function uploadSignaturePageScan(projectId: string, file: File) {
   const form = new FormData();
   form.append('file', file);
-  return api.post<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/signature-page/scan`, form);
+  return api.upload<SignPacketResponse>(`/bid/projects/${projectId}/sign-packet/signature-page/scan`, form);
 }
 
 export function registerSign(projectId: string, expertId: string, dto: { status: Exclude<SignStatusValue, 'PENDING'>; dissentingOpinion?: string; dissentingReason?: string }) {
@@ -2394,7 +2426,7 @@ export function unregisterSign(projectId: string, expertId: string) {
 }
 ```
 
-> 若 `api` 封装不支持 FormData post，改用底层 `fetch('/api/...', { method:'POST', body: form, credentials:'include', headers: {'X-Portal':'web'} })`——:3007 的 `api` 已自动带 cookie；multipart **不要**手动设 Content-Type。
+> 已核实：bid-portal `@/lib/api`（`src/lib/api.ts:45-46`）已有 `api.upload<T>(path, formData)`（POST + FormData、不设 Content-Type）——multipart 一律走它。**勿用 `api.post` 传 FormData**：其实现会 `JSON.stringify(body)` 且强制 `Content-Type: application/json`，`JSON.stringify(new FormData())` 恒为 `'{}'`。
 
 - [ ] **Step 2: 实现登记弹窗（创建 sign-register-dialog.tsx）**
 
@@ -2542,11 +2574,11 @@ export default function SignRegisterDialog({
 
 - [ ] **Step 3: signing-tab.tsx 叠加登记交互（5 处改动）**
 
-(1) imports 改为：
+(1) imports 改为（`registerSign` 只被弹窗使用，tab 不 import——否则 lint 报 unused import）：
 
 ```ts
 import {
-  generateHandover, generateSignPacket, getSignPacket, registerSign, unregisterSign,
+  generateHandover, generateSignPacket, getSignPacket, unregisterSign,
   uploadExpertScan, uploadSignaturePageScan,
   type SignPacketResponse, type SignPacketExpertRow,
 } from '@/lib/api/sign-packet';
@@ -2671,7 +2703,7 @@ git commit -m "feat(bid-portal): 签字登记弹窗（§43 三态+扫描上传+�
 - Modify: `apps/web/src/components/projects/bid-confirm/archive-block.tsx`
 
 **Interfaces:**
-- Consumes: 后端 GET 端点；`ApiError`（web api 封装统一抛错，`e.message` 为后端中文 error）
+- Consumes: 后端 `GET /bid/projects/:id/sign-packet`（只读）；未签姓名由 `SignPacketResponse.experts` 前端计算（后端 filter 不透传 detail）
 
 - [ ] **Step 1: web 侧 API 封装**
 
@@ -2723,48 +2755,68 @@ export function getSignPacket(bidProjectId: string) {
 
 - [ ] **Step 2: archive-block.tsx 闸门展示**
 
-在 `ArchiveBlock`（archive-block.tsx:34）内、现有归档按钮逻辑之上追加状态与按钮禁用（沿用该组件既有 `api` 错误处理风格；`useEffect` 在组件挂载时拉取）：
+已核实该组件现状：`import { useState } from 'react'`（archive-block.tsx:11，**无 useEffect**）；state 在 35-39 行；41-43 行有 early return；错误提示走 `showToast`/`feedback`（53-56 行），**无 `setError`**；「完整归档」按钮在 122-125 行（现 `disabled={busy}`）。按此改造（4 处）：
 
-```tsx
-// 追加到组件内（imports 补 getSignPacket, type SignPacketResponse；lucide 补 PenLine）
-const [signStatus, setSignStatus] = useState<SignPacketResponse | null>(null);
+(1) imports：
 
-useEffect(() => {
-  let alive = true;
-  getSignPacket(bidProjectId)
-    .then((r) => { if (alive) setSignStatus(r); })
-    .catch(() => { /* 签字模块未就绪/无结果时静默——按钮仍按 409 兜底 */ });
-  return () => { alive = false; };
-}, [bidProjectId]);
-
-// 完整归档按钮 disable 条件（叠加到既有 disabled）：
-const signGateBlocked = !!signStatus && signStatus.resultsGenerated && !signStatus.allClosed;
+```ts
+// 第 11 行改为：
+import { useEffect, useState } from 'react';
+// lucide 行（第 12 行）追加 PenLine；
+// '@/lib/api/bid' 导入行（13-18 行）追加：
+import { getSignPacket, type SignPacketResponse } from '@/lib/api/bid'; // 另起一行或并入现有 import
 ```
 
-归档按钮区（在「完整归档」按钮处）追加闸门提示（`signGateBlocked` 为 true 时显示并禁用按钮）：
+(2) 现有 useState 组（35-39 行）之后、early return（41 行）之前插入（**必须在此位置**，否则违反 rules-of-hooks）：
 
 ```tsx
-{signGateBlocked && (
-  <div className="rounded-[14px] px-3.5 py-2.5 text-xs" style={{ background: 'color-mix(in oklch, var(--warning, #b7791f) 10%, transparent)' }}>
-    <PenLine size={13} className="mr-1 inline text-[var(--warning, #b7791f)]" />
-    <span className="text-[var(--foreground)]">专家签字未闭环</span>
-    <span className="ml-1 text-[var(--muted-foreground)]">
-      （已签 {signStatus?.experts.filter((e) => e.role === '正选' && e.signStatus !== 'PENDING').length ?? 0}/
-      {signStatus?.experts.filter((e) => e.role === '正选').length ?? 0}，回流包{signStatus?.packet?.handoverFileAssetId ? '已生成' : '未生成'}）——
-      请等待 :3007 完成签字登记。
-    </span>
+  const [signStatus, setSignStatus] = useState<SignPacketResponse | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getSignPacket(bidProjectId)
+      .then((r) => { if (alive) setSignStatus(r); })
+      .catch(() => { /* 签字模块未就绪/无结果时静默——按钮不禁用，后端 409 兜底 */ });
+    return () => { alive = false; };
+  }, [bidProjectId]);
+```
+
+(3) 同样在 early return 之前、上段之后追加闸门计算（三态对齐后端 Task 6 闸门；未签姓名**直接由 `signStatus.experts` 计算**——后端 filter 不透传 `detail` 数组，勿依赖 `e.detail`）：
+
+```tsx
+  const signGate = (stage === 'EVALUATING' && signStatus)
+    ? !signStatus.packet
+      ? { blocked: true, reason: '评标签字包未生成' }
+      : !signStatus.allClosed
+        ? {
+            blocked: true,
+            reason: `专家签字未闭环（未签：${signStatus.experts.filter((e) => e.role === '正选' && e.signStatus === 'PENDING').map((e) => e.name).join('、') || '—'}）`,
+          }
+        : !signStatus.packet.handoverFileAssetId
+          ? { blocked: true, reason: '评标回流包未生成' }
+          : { blocked: false, reason: '' }
+    : { blocked: false, reason: '' };
+```
+
+(4) 「完整归档」按钮（122-125 行）disable 叠加 + 头部 `</div>`（138 行）后插入警示横幅：
+
+```tsx
+{/* 122-125 行按钮改为： */}
+<button type="button" disabled={busy || signGate.blocked} onClick={() => { setAckTerminate(false); setConfirmScope('full'); }} className="neu-btn-primary !h-[32px] !text-xs">
+  <Archive size={13} /> 完整归档
+</button>
+
+{/* 138 行头部 </div> 之后、「行内反馈」注释之前插入： */}
+{signGate.blocked && (
+  <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-[14px] px-3.5 py-2.5 text-xs" style={{ background: 'color-mix(in oklch, var(--warning, #b7791f) 10%, transparent)' }}>
+    <PenLine size={13} className="shrink-0 text-[var(--warning, #b7791f)]" />
+    <span className="font-semibold text-[var(--foreground)]">{signGate.reason}</span>
+    <span className="text-[var(--muted-foreground)]">——请在 :3007 评标签字 tab 完成后重试（完整归档闸门：签字包 + 全员闭环 + 评标回流包）。</span>
   </div>
 )}
 ```
 
-归档调用 catch 分支追加 409 明细回显（`SIGN_PACKET_NOT_GENERATED/SIGN_NOT_CLOSED/HANDOVER_NOT_GENERATED` 的 `e.message` 已含原因；若后端带 `detail` 数组则拼上姓名）：
-
-```tsx
-catch (e: any) {
-  const detail: string[] | undefined = e?.detail;
-  setError(detail?.length ? `${e?.message ?? '归档失败'}（未签：${detail.join('、')}）` : (e?.message ?? '归档失败'));
-}
-```
+`doArchive` 的 catch 分支**不改**（既有 `showToast(e.message, 'err')` 已回显后端中文原因；按钮禁用是主闸门，409 仅为竞态兜底）。
 
 - [ ] **Step 3: lint + build + 手工验证 + Commit**
 
@@ -2778,7 +2830,7 @@ pnpm --filter web build
 ```bash
 cd water-erp && git branch --show-current
 git add apps/web/src/lib/api/bid.ts apps/web/src/components/projects/bid-confirm/archive-block.tsx
-git commit -m "feat(web): 归档块签字闸门展示（进度/禁用/409 明细回显）"
+git commit -m "feat(web): 归档块签字闸门展示（三态警示 + 完整归档按钮禁用）"
 ```
 
 ---
@@ -2790,13 +2842,14 @@ git commit -m "feat(web): 归档块签字闸门展示（进度/禁用/409 明细
 ### Task 10: :3007 评标管理全操作化（移植 evaluation-block）
 
 **Files:**
-- Create: `apps/bid-portal/src/lib/api/evaluation.ts`——从 :3005 `lib/api/bid.ts` 按以下**精确清单**复制（evaluation-block.tsx 的 `@/lib/api/bid` 导入全集，已核实）：类型块 `BidProjectExpertInfo`(:425)/`BidProjectSupplierInfo`(:448)/`BidProjectDetail`(:468，连带的依赖接口一并按 425-530 区段复制)、`SCORE_CATEGORY_LABELS`(:22) + `type ScoreCategory`(:11)；函数与类型 `startEvaluation`(:531)、`BidEvaluationResultInfo`(:535)、`listEvaluationResults`(:548)、`generateEvaluationResults`(:553)、`ExpertMemoForAdmin`(:652)、`listExpertMemosForAdmin`(:665)、`getExpertMemoInkUrlForAdmin`(:676)
+- Create: `apps/bid-portal/src/lib/api/evaluation.ts`——从 :3005 `lib/api/bid.ts` 按以下**精确清单**复制（evaluation-block.tsx 的 `@/lib/api/bid` 导入全集，已核实）：类型块 `BidProjectExpertInfo`(:425)/`BidProjectSupplierInfo`(:448)/`BidProjectDetail`(:468，连带的依赖接口一并按 425-530 区段复制)、`SCORE_CATEGORY_LABELS`(:22) + `type ScoreCategory`(:11)；**`BidProjectDetail` 的依赖另有两处在 425-530 区段外，必须一并复制：`BidOpeningSessionInfo`(:411) 与 `type BidStage`(:10)**（缺失则 evaluation.ts 编译报 Cannot find name）；函数与类型 `startEvaluation`(:531)、`BidEvaluationResultInfo`(:535)、`listEvaluationResults`(:548)、`generateEvaluationResults`(:553)、`ExpertMemoForAdmin`(:652)、`listExpertMemosForAdmin`(:665)、`getExpertMemoInkUrlForAdmin`(:676)
 - Modify: `apps/bid-portal/src/components/workspace/evaluation-view.tsx`（只读版整体替换为 evaluation-block.tsx 内容 + 适配）
+- Modify: `apps/bid-portal/src/lib/types.ts`（本地 `BidProjectDetail` 补 `evaluationDeadline?: string | null`——移植块截止倒计时用；:3005 同名字段，GET /bid/projects/:id 对两端返回同数据）
 - Modify: `apps/bid-portal/src/app/(dashboard)/bid/project/[id]/page.tsx`（EvaluationView 的 props 适配，见 Step 2）
 
 **Interfaces:**
 - Consumes: 后端既有端点 `POST /bid/projects/:id/start-evaluation`、`GET/POST .../evaluation-results[/generate]`、`GET /expert-admin/projects/:id/memos[/:memoId/ink]`
-- Produces: `EvaluationView` 组件 props 保持 `{ bidProjectId, detail, onChanged }`（与页面现有挂载点一致）
+- Produces: `EvaluationView` 组件 props 适配为 `{ projectId: string; project?: BidProjectDetail; onChanged: () => void }`（页面既有挂载点是 `projectId={projectId as string} project={project}`——**不是** `bidProjectId`/`detail`；移植块内部 `bidProjectId`→`projectId`、`detail`→`project`）
 
 - [ ] **Step 1: 复制 + 适配（机械步骤）**
 
@@ -2813,14 +2866,21 @@ import { api } from '@/lib/api';
 /* ── :3007 评标管理 API 封装（自 :3005 lib/api/bid.ts 移植，函数体保持一致） ── */
 ```
 
-- 把 `evaluation-block.tsx` 全文拷到 `evaluation-view.tsx`（覆盖只读版），仅改：`from '@/lib/api/bid'` → `from '@/lib/api/evaluation'`。
+- 把 `evaluation-block.tsx` 全文拷到 `evaluation-view.tsx`（覆盖只读版），改两处：(a) `from '@/lib/api/bid'` → `from '@/lib/api/evaluation'`；(b) props 名映射——组件签名与内部引用 `bidProjectId`→`projectId`、`detail`→`project`，并新增 `onChanged: () => void` 必传（页面已持有 `loadProject`）。
+- 移植块读 `detail.evaluationDeadline`（评标截止倒计时，块内 337/344 行）——bid-portal 本地 `BidProjectDetail`（lib/types.ts:39）无此字段：在本地类型补 `evaluationDeadline?: string | null`（注释注明供移植评标块用；后端 GET /bid/projects/:id 对两端返回同数据）。其余字段已对齐（experts 的 scoreRecords、scoreItems.category、suppliers）。
 - 检查 evaluation-block 内其余依赖（grep `from '@/'`）：仅 lucide + lib/api/bid，无 workbench 组件依赖 → 适配完成。
 - **专家墨迹两端点角色检查**：`curl -s -o /dev/null -w '%{http_code}' http://localhost:4001/api/expert-admin/projects/<项目id>/memos -H 'Cookie: token_web=<bid_host cookie>' -H 'X-Portal: web'`；若 403 → 在 `apps/api/src/expert/expert-admin.controller.ts` 对应两个 GET 端点（memos、memos/:memoId/ink）的 `@Roles` 加 `'bid_host'`（对齐 :3007 全操作化），并 `pnpm --filter api build` + 单测。
 - 删除 evaluation-view.tsx 中「只读骨架/空态」旧注释与 TAB 引用（若旧版有 `props.onChanged` 缺失等，用新 props 签名 `{ bidProjectId, detail, onChanged }`）。
 
 - [ ] **Step 2: 页面挂载 props 适配（page.tsx）**
 
-现有 `<EvaluationView ... />` 挂载点：确认传入 `bidProjectId={id}`、`detail={...}`、`onChanged={...}`（页面既有 detail 对象与刷新函数）。若页面尚无 detail 状态，则从既有 `useEffect` 拉取项目详情的变量复用；detail 为 null 时组件内部已处理（原组件 `detail: BidProjectDetail | null`）。
+现有挂载点（page.tsx:188，数据源 `useBidProjectContext().projectId` + 页面自有 `project` 状态，`loadProject` 定义于 page.tsx:64）：
+
+```tsx
+{current === 'evaluate' && <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} />}
+```
+
+只比现状多传 `onChanged={loadProject}`（移植块在启动评标/生成结果后回调刷新）；`project` 为 null 时组件内部已处理。
 
 - [ ] **Step 3: lint + build + 手工验证**
 
@@ -2835,7 +2895,7 @@ pnpm --filter bid-portal build
 
 ```bash
 cd water-erp && git branch --show-current
-git add apps/bid-portal/src/lib/api/evaluation.ts apps/bid-portal/src/components/workspace/evaluation-view.tsx apps/bid-portal/src/app/\(dashboard\)/bid/project/\[id\]/page.tsx
+git add apps/bid-portal/src/lib/api/evaluation.ts apps/bid-portal/src/lib/types.ts apps/bid-portal/src/components/workspace/evaluation-view.tsx apps/bid-portal/src/app/\(dashboard\)/bid/project/\[id\]/page.tsx
 git commit -m "feat(bid-portal): 评标管理全操作化（移植 :3005 evaluation-block：启动评标/矩阵/排名/3步生成向导）"
 ```
 
@@ -2901,9 +2961,9 @@ git commit -m "feat(bid-portal): 澄清答疑移植（发起/回复/AI 摘要）
 ### Task 13: :3005 面板移除三区块
 
 **Files:**
-- Modify: `apps/web/src/components/projects/bid-confirm/bid-confirm-panel.tsx`
+- Modify: `apps/web/src/components/projects/bid-confirm-panel.tsx`
 
-- [ ] **Step 1: 移除**（bid-confirm-panel.tsx:804-825 区块与 imports）
+- [ ] **Step 1: 移除**（`apps/web/src/components/projects/bid-confirm-panel.tsx`——**注意不在 `bid-confirm/` 子目录**：imports 在 48-50 行，三区块 JSX 在 811-813 行，位于 `{bpId && detail && (<>…</>)}` 包裹内，与 OpeningProgressBlock/ArchiveBlock 相邻）
 
 删除：`EvaluationBlock` / `DisputeBlock` / `ClarificationsBlock` 的 import、组件 JSX 渲染、仅这三区块使用的局部状态/回调（tsc 会列出未使用变量，逐个删除）。保留：供应商投标状态、专家确认、评分标准、监督时间线、开标进度、归档区块与底部决策栏。
 
@@ -2921,7 +2981,7 @@ git commit -m "feat(bid-portal): 澄清答疑移植（发起/回复/AI 摘要）
 
 ```bash
 cd water-erp && git branch --show-current
-git add apps/web/src/components/projects/bid-confirm/bid-confirm-panel.tsx
+git add apps/web/src/components/projects/bid-confirm-panel.tsx
 git commit -m "refactor(web): 开标确认面板移除评标管理/异议裁决/澄清答疑三区块（迁至 :3007，分工 v3）"
 ```
 
@@ -2987,7 +3047,8 @@ git commit -m "feat(web): 开标进度区块展示评标回流包接收状态"
 ### Task 15: 种子数据——EVALUATING 全前置演示项目
 
 **Files:**
-- Modify: `apps/api/prisma/seed-data/BidProject.json`、`BidSupplier.json`、`BidExpert.json`、`BidScoreRecord.json`、`BidScoreReview.json`、`BidScorePoint.json`、`BidOpeningRecord.json`
+- Modify: `apps/api/prisma/seed-data/BidProject.json`、`BidScoreRecord.json`、`BidScorePoint.json`、`BidOpeningRecord.json`
+- Create: `apps/api/prisma/seed-data/BidSupplier.json`、`BidExpert.json`（当前为空数组 `[]`，本任务写入首 2/3 行）、`BidScoreReview.json`（当前不存在，脚本创建）
 
 **Interfaces:**
 - Produces: 种子项目「智慧水务大数据平台建设」(`cms1hda40006duu2o4fx28ubd`) = EVALUATING + 2 家已确认供应商 + 3 名正选专家（1 组长）全部 reportConfirmed + 组长末签 + 完整评分记录/核对 + 唱标记录；**评标结果不预置**（演示从「生成评标结果」起步）。用户 id 复用种子库既有专家账号（代思敏 `cf3c3f729cab`、周祥志 `c1bf8a97b47a`、李军 `cc3a5d347248`）；供应商复用既有（重庆蜀通岩土工程有限公司 `cmqbysdkb0`、用友网络科技股份有限公司四川分公司 `cmqc8r5ts0`）。
@@ -2998,17 +3059,26 @@ git commit -m "feat(web): 开标进度区块展示评标回流包接收状态"
 cd water-erp && python3 - <<'EOF'
 import json, datetime
 
-PID = 'cms1hda40006duu2o4fx28ubd'   # 智慧水务大数据平台建设
-S1 = 'cmqbysdkb0'                    # 重庆蜀通岩土工程有限公司
-S2 = 'cmqc8r5ts0'                    # 用友网络科技股份有限公司四川分公司
-EXPERTS = [
-    ('cf3c3f729cab', '代思敏', '综合', False),
-    ('c1bf8a97b47a', '周祥志', '经济', True),   # 组长
-    ('cc3a5d347248', '李军', '技术', False),
-]
+PID = 'cms1hda40006duu2o4fx28ubd'   # 智慧水务大数据平台建设（已核实存在于 BidProject.json）
 now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 def load(f): return json.load(open(f'apps/api/prisma/seed-data/{f}.json', encoding='utf-8'))
+
+# 种子库 id 是完整 cuid 字符串（已核实无短 id，勿硬编码截断前缀）——按名字运行期反查：
+def id_of(fname, key, value):
+    for row in load(fname):
+        if row.get(key) == value:
+            return row['id']
+    raise SystemExit(f'种子库 {fname}.json 中找不到 {key}={value}')
+
+S1 = id_of('Supplier', 'name', '重庆蜀通岩土工程有限公司')          # 完整 id：cmqbysdkb001lkoh1lif07y1g
+S2 = id_of('Supplier', 'name', '用友网络科技股份有限公司四川分公司')  # 完整 id：cmqc8r5ts000jkoekgsp1rxqx
+EXPERT_ROWS = [
+    (id_of('User', 'username', '代思敏'), '代思敏', '综合', False),   # 完整 id：cf3c3f729cab20fd02db3f2
+    (id_of('User', 'username', '周祥志'), '周祥志', '经济', True),    # 组长 · 完整 id：c1bf8a97b47aed2477b465b
+    (id_of('User', 'username', '李军'),   '李军',   '技术', False),   # 完整 id：cc3a5d3472487a36a145a66
+]
+EXPERTS = [(uid, uname, major, is_lead) for (uid, uname, major, is_lead) in EXPERT_ROWS]
 
 # 1) BidProject：阶段 → EVALUATING + 组长末签
 proj = load('BidProject')
@@ -3087,8 +3157,10 @@ for i, (uid, uname, major, is_lead) in enumerate(EXPERTS):
             })
 json.dump(records, open('apps/api/prisma/seed-data/BidScoreRecord.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
 
-# 6) BidScoreReview：3 专家 × 2 供应商 verified
-reviews = load('BidScoreReview')
+# 6) BidScoreReview：3 专家 × 2 供应商 verified（注意：该 seed 文件当前不存在——先按空表处理，dump 时创建）
+import os
+_rev_path = 'apps/api/prisma/seed-data/BidScoreReview.json'
+reviews = json.load(open(_rev_path, encoding='utf-8')) if os.path.exists(_rev_path) else []
 reviews = [r for r in reviews if r['projectId'] != PID]
 for i, (uid, uname, major, is_lead) in enumerate(EXPERTS):
     for bsid in ['bs_seed_1', 'bs_seed_2']:
@@ -3386,16 +3458,19 @@ pnpm --filter api test:e2e
 cd /home/asus/桌面/ERP && python3 - <<'EOF'
 p = 'CLAUDE.md'
 s = open(p, encoding='utf-8').read()
-old = '（实施中：评标管理/异议裁决/澄清答疑迁出 :3005 面板属 Wave 3'
-new = '（评标管理/异议裁决/澄清答疑已迁至 :3007 工作区「评标管理」tab；:3005 面板已移除对应三区块'
-assert s.count(old) == 1
-s = s.replace(old, new)
+# 共 2 处「实施中」口径（已核实：CLAUDE.md:106 与 :113），逐处断言替换：
+old1 = '（实施中：评标管理/异议裁决/澄清答疑迁出 :3005 面板属 Wave 3，完成前 :3005 面板仍含三区块。）'
+new1 = '（评标管理/异议裁决/澄清答疑已迁至 :3007 工作区「评标管理」tab；:3005 面板已移除对应三区块。）'
+old2 = '评标管理/异议裁决/澄清答疑迁回 :3007（Wave 3 实施中，完成前 :3005 面板仍含三区块）。'
+new2 = '评标管理/异议裁决/澄清答疑已迁回 :3007（:3005 面板对应三区块已移除）。'
+assert s.count(old1) == 1 and s.count(old2) == 1
+s = s.replace(old1, new1).replace(old2, new2)
 open(p, 'w', encoding='utf-8').write(s)
 print('OK')
 EOF
 ```
 
-其余 CLAUDE.md 表述（bid-portal 章节分工 v3 描述、:3005 面板「开标确认」描述）如仍带「实施中」字样，同样方式替换为已实施口径。
+替换后复查 `grep -n "实施中" CLAUDE.md` 应为空（其他遗留表述一并替换为已实施口径）。
 
 - [ ] **Step 4: Commit（最后检查分支）**
 
