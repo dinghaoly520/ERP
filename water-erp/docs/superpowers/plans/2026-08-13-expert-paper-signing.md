@@ -2997,7 +2997,7 @@ git commit -m "refactor(web): 开标确认面板移除评标管理/异议裁决/
 **Interfaces:**
 - Consumes: Task 9 的 `getSignPacket`（`packet.handoverFileAssetId/handoverDownloadUrl/closedAt`）
 
-- [ ] **Step 1: 实现**——组件内加（已核实：该组件 props 已含 `bidProjectId: string`，见 opening-progress-block.tsx:13-14，无需调整变量名；组件目前无 react hooks import，需新增）：
+- [ ] **Step 1: 实现**——组件内加（已核实：该组件 props 已含 `bidProjectId: string`，见 opening-progress-block.tsx:14，无需调整变量名；组件目前无 react hooks import，需新增）：
 
 ```tsx
 // imports 追加：
@@ -3013,7 +3013,7 @@ useEffect(() => {
 }, [bidProjectId]);
 ```
 
-渲染区（「开标资料移交接收」块 :140-153 之后并列）加：
+渲染区（`{!openingSession ? … : …}` 三元组结束后并列插入——即该文件 :180 `)}` 与 :181 `</section>` 之间；**勿放三元组内**，开标会话未组建时回流块也须可见）加：
 
 ```tsx
 {/* 评标资料移交接收（:3007 签字闭环+回流包后回传） */}
@@ -3033,7 +3033,7 @@ useEffect(() => {
 )}
 ```
 
-> 渲染区插入点「开标资料移交接收」块为组件既有内容（该文件约 140-153 行的区块，标题含「资料已接收」字样）——在其后并列插入上块。`FileCheck` 图标该文件已导入，无需重复。
+> 插入点说明：组件渲染主体是 `{!openingSession ? (…) : (…)}` 三元组（该文件 :105-180），「开标资料移交接收」块（:138-150，标题含「资料已接收」）在 truthy 分支内；签字回流块与开标会话无依赖，**并列插在三元组之后（:180 `)}` 与 :181 `</section>` 之间）**，开标会话未组建时同样可见。`FileCheck` 该文件已导入（:10），无需重复；`PenLine` 需追加进 :10 的 lucide 导入行。
 
 - [ ] **Step 2: lint + build + 手工验证**（回流包生成后 :3005「开标进度」出现「评标资料已接收·下载」）
 - [ ] **Step 3: Commit**
@@ -3047,11 +3047,11 @@ git commit -m "feat(web): 开标进度区块展示评标回流包接收状态"
 ### Task 15: 种子数据——EVALUATING 全前置演示项目
 
 **Files:**
-- Modify: `apps/api/prisma/seed-data/BidProject.json`、`BidScoreRecord.json`、`BidScorePoint.json`、`BidOpeningRecord.json`
-- Create: `apps/api/prisma/seed-data/BidSupplier.json`、`BidExpert.json`（当前为空数组 `[]`，本任务写入首 2/3 行）、`BidScoreReview.json`（当前不存在，脚本创建）
+- Modify: `apps/api/prisma/seed-data/BidProject.json`、`BidScoreRecord.json`、`BidScorePoint.json`、`BidOpeningRecord.json`、`BidOpeningSession.json`（当前为空数组 `[]`，本任务写入 1 行开标会话）
+- Create: `apps/api/prisma/seed-data/BidSupplier.json`、`BidExpert.json`（当前为空数组 `[]`，本任务写入首 2/3 行）
 
 **Interfaces:**
-- Produces: 种子项目「智慧水务大数据平台建设」(`cms1hda40006duu2o4fx28ubd`) = EVALUATING + 2 家已确认供应商 + 3 名正选专家（1 组长）全部 reportConfirmed + 组长末签 + 完整评分记录/核对 + 唱标记录；**评标结果不预置**（演示从「生成评标结果」起步）。用户 id 复用种子库既有专家账号（代思敏 `cf3c3f729cab`、周祥志 `c1bf8a97b47a`、李军 `cc3a5d347248`）；供应商复用既有（重庆蜀通岩土工程有限公司 `cmqbysdkb0`、用友网络科技股份有限公司四川分公司 `cmqc8r5ts0`）。
+- Produces: 种子项目「智慧水务大数据平台建设」(`cms1hda40006duu2o4fx28ubd`) = EVALUATING + 2 家已确认供应商 + 3 名正选专家（1 组长）全部 reportConfirmed + 组长末签 + 完整评分记录 + 开标会话 + 唱标记录；**评标结果不预置**（演示从「生成评标结果」起步）。用户 id 复用种子库既有专家账号（代思敏 `cf3c3f729cab`、周祥志 `c1bf8a97b47a`、李军 `cc3a5d347248`）；供应商复用既有（重庆蜀通岩土工程有限公司 `cmqbysdkb0`、用友网络科技股份有限公司四川分公司 `cmqc8r5ts0`）。**BidScoreReview 不种子化**：seed.ts 的 ALL_TABLES/SEED_ORDER 未管理该表（当前无 BidScoreReview.json），且演示不经过专家门户核对流程（reportConfirmed 直接置位）；签字包「核对留痕」段以空数组渲染，属预期。
 
 - [ ] **Step 1: 用脚本生成增量 JSON（确定性、可重跑；在 water-erp 下执行）**
 
@@ -3125,7 +3125,7 @@ for i, (uid, uname, major, is_lead) in enumerate(EXPERTS):
     })
 json.dump(experts, open('apps/api/prisma/seed-data/BidExpert.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
 
-# 4) BidScoreItem 已有 6 项（资格性/符合性/商务/技术/价格 + 法）；补齐 BidScorePoint（每评分项 ≥1 得分点，按 id 关联）
+# 4) BidScoreItem 已有 6 项（资格性/符合性/商务/技术/价格 + 法）；补齐 BidScorePoint（3 个打分类评分项各 1 得分点——资格性/符合性/法为通过性审查，无得分点，非缺口）
 items = load('BidScoreItem')
 points = load('BidScorePoint')
 pid_item_ids = {i['id'] for i in items if i['projectId'] == PID}
@@ -3139,7 +3139,7 @@ json.dump(points, open('apps/api/prisma/seed-data/BidScorePoint.json', 'w', enco
 
 # 5) BidScoreRecord：3 专家 × 2 供应商 × 3 评分项（商务/技术/价格）确定性分值
 records = load('BidScoreRecord')
-records = [r for r in records if r['projectId'] != PID]
+records = [r for r in records if r['expertId'] not in {'be_seed_1', 'be_seed_2', 'be_seed_3'}]  # BidScoreRecord 模型无 projectId 字段，按本脚本专家 id 幂等清理
 scoring_items = [item_by_name[n] for n in ['商务评分', '技术评分', '价格评分'] if n in item_by_name]
 base = {('商务评分', 'bs_seed_1'): 18.0, ('商务评分', 'bs_seed_2'): 16.0,
         ('技术评分', 'bs_seed_1'): 45.0, ('技术评分', 'bs_seed_2'): 42.0,
@@ -3157,19 +3157,15 @@ for i, (uid, uname, major, is_lead) in enumerate(EXPERTS):
             })
 json.dump(records, open('apps/api/prisma/seed-data/BidScoreRecord.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
 
-# 6) BidScoreReview：3 专家 × 2 供应商 verified（注意：该 seed 文件当前不存在——先按空表处理，dump 时创建）
-import os
-_rev_path = 'apps/api/prisma/seed-data/BidScoreReview.json'
-reviews = json.load(open(_rev_path, encoding='utf-8')) if os.path.exists(_rev_path) else []
-reviews = [r for r in reviews if r['projectId'] != PID]
-for i, (uid, uname, major, is_lead) in enumerate(EXPERTS):
-    for bsid in ['bs_seed_1', 'bs_seed_2']:
-        reviews.append({
-            'id': f'bsr_seed_{i+1}_{bsid}', 'expertId': f'be_seed_{i+1}', 'projectId': PID,
-            'supplierId': bsid, 'status': 'verified', 'verifiedAt': '2026-08-12T02:30:00.000Z',
-            'createdAt': '2026-08-12T02:10:00.000Z', 'updatedAt': now,
-        })
-json.dump(reviews, open('apps/api/prisma/seed-data/BidScoreReview.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+# 6) BidOpeningSession：开标会话（该项目已开标——:3005 开标进度区块据此渲染「会话信息」；不写 handoverAssetId/handoverAt，无移交包引用）
+sessions = load('BidOpeningSession')
+sessions = [s for s in sessions if s['projectId'] != PID]
+sessions.append({
+    'id': 'bos_seed_1', 'projectId': PID, 'host': '陈源远', 'supervisor': None,
+    'status': '已完成', 'decryptWindowStart': '2026-08-11T09:30:00.000Z',
+    'decryptWindowEnd': '2026-08-11T11:30:00.000Z', 'remainingSeconds': 0, 'exchangeControl': 'OPEN',
+})
+json.dump(sessions, open('apps/api/prisma/seed-data/BidOpeningSession.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
 
 # 7) BidOpeningRecord：唱标记录（归档闸门 OPENING_RECORDS_MISSING 依赖）
 opening = load('BidOpeningRecord')
@@ -3205,7 +3201,13 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST "http://localhost:4001/api/bid/
 curl -s -X POST "http://localhost:4001/api/bid/projects/$PID/sign-packet/generate" -H "Cookie: $COOKIE" -H 'X-Portal: web' -H 'Content-Type: application/json' -d '{}' | head -c 300
 ```
 
-若「生成评标结果」非 201：读响应体 code 逐个补齐种子前置（如 `EXPERTS_NOT_CONFIRMED` → 检查 BidExpert.json 的 reportConfirmed 是否被 seed.ts 覆盖）。**验收通过后再提交。**
+若「生成评标结果」非 201：读响应体 code 逐个补齐种子前置（如 `EXPERT_REPORTS_NOT_CONFIRMED` → 检查 BidExpert.json 的 reportConfirmed 是否被 seed.ts 覆盖）。再断言项目详情含开标会话（:3005 开标进度区块渲染依赖，BidProjectDetail.openingSession）：
+
+```bash
+curl -s "http://localhost:4001/api/bid/projects/$PID" -H "Cookie: $COOKIE" -H 'X-Portal: web' | python3 -c "import json,sys; s=json.load(sys.stdin)['openingSession']; assert s and s['status']=='已完成', s"
+```
+
+**验收通过后再提交。**
 
 - [ ] **Step 3: 回归**
 
@@ -3217,7 +3219,7 @@ pnpm --filter api test        # 全量单测（种子不参与）
 
 ```bash
 cd water-erp && git branch --show-current
-git add apps/api/prisma/seed-data/BidProject.json apps/api/prisma/seed-data/BidSupplier.json apps/api/prisma/seed-data/BidExpert.json apps/api/prisma/seed-data/BidScoreRecord.json apps/api/prisma/seed-data/BidScoreReview.json apps/api/prisma/seed-data/BidScorePoint.json apps/api/prisma/seed-data/BidOpeningRecord.json
+git add apps/api/prisma/seed-data/BidProject.json apps/api/prisma/seed-data/BidSupplier.json apps/api/prisma/seed-data/BidExpert.json apps/api/prisma/seed-data/BidScoreRecord.json apps/api/prisma/seed-data/BidScorePoint.json apps/api/prisma/seed-data/BidOpeningRecord.json apps/api/prisma/seed-data/BidOpeningSession.json
 git commit -m "chore(seed): 智慧水务项目置为 EVALUATING 全前置态（演示签字全流程）"
 ```
 
@@ -3228,7 +3230,7 @@ git commit -m "chore(seed): 智慧水务项目置为 EVALUATING 全前置态（�
 - Modify: `CLAUDE.md`（移除「实施中」标记）
 
 **Interfaces:**
-- Consumes: 全部端点；`loginAs` 登录模式（复制 bid.e2e-spec.ts:14-26）；prisma 直连 fixture 模式（bid.e2e-spec.ts:202-235）
+- Consumes: 全部端点；`loginAs` 登录模式（复制 bid.e2e-spec.ts:10-22）；prisma 直连 fixture 模式（bid.e2e-spec.ts:~205-240）
 
 - [ ] **Step 1: 写 E2E**
 
@@ -3282,10 +3284,11 @@ describe('评标签字包全流程 (e2e)', () => {
     projectId = proj.body.id;
 
     // fixture：供应商已解密确认（跳过开标流程，直接评标前置）
-    const supplierUser = await prisma.user.findFirst({ where: { role: 'supplier' } });
+    // 注意：BidSupplier.supplierId 外键指向 Supplier.id（非 User.id）——取 Supplier 行，勿用 user 表 id（否则 P2003）
+    const supplierRec = await prisma.supplier.findFirst();
     const supplier = await prisma.bidSupplier.create({
       data: {
-        projectId, supplierId: supplierUser?.id ?? null, supplierName: supplierUser?.username ?? 'E2E供应商',
+        projectId, supplierId: supplierRec?.id ?? null, supplierName: supplierRec?.name ?? 'E2E供应商',
         submitStatus: '已提交', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED',
       },
     });
@@ -3294,7 +3297,7 @@ describe('评标签字包全流程 (e2e)', () => {
     // fixture：开标唱标记录（归档闸门 OPENING_RECORDS_MISSING 依赖，full/opening 双 scope 校验）
     await prisma.bidOpeningRecord.create({
       data: {
-        projectId, supplierName: supplierUser?.username ?? 'E2E供应商', amount: '4800000', period: '90日历天',
+        projectId, supplierName: supplierRec?.name ?? 'E2E供应商', amount: '4800000', period: '90日历天',
         qualityTarget: '合格', bondStatus: '已缴纳', decryptResult: '解密成功', confirmStatus: 'CONFIRMED',
         bidSupplierId: supplierId, confirmedAt: new Date(),
       },
@@ -3346,6 +3349,7 @@ describe('评标签字包全流程 (e2e)', () => {
       await prisma.bidScoreItem.deleteMany({ where: { projectId } }).catch(() => {});
       await prisma.bidSupplier.deleteMany({ where: { projectId } }).catch(() => {});
       await prisma.bidOpeningRecord.deleteMany({ where: { projectId } }).catch(() => {});
+      await prisma.fileAsset.deleteMany({ where: { key: { startsWith: `bid-evaluation-handover/${projectId}` } } }).catch(() => {});
       await prisma.fileAsset.deleteMany({ where: { key: { startsWith: `bid-sign-packet/${projectId}` } } }).catch(() => {});
       await prisma.fileAsset.deleteMany({ where: { key: { startsWith: `bid-sign-handover/${projectId}` } } }).catch(() => {});
       await prisma.bidSignPacket.deleteMany({ where: { projectId } }).catch(() => {});
@@ -3371,6 +3375,29 @@ describe('评标签字包全流程 (e2e)', () => {
     expect(res.body.experts.every((e: any) => e.signStatus === 'PENDING')).toBe(true);
   });
 
+  it('扫描上传 → 闭环前撤销回 PENDING → 重登视为同意（spec §11 扫描回传链路）', async () => {
+    // 上传专家签字扫描件（multipart 字段名 'file'，与 Task 5 FileInterceptor('file') 一致；走 MinIO，需 infra up——与 upload e2e 同前提）
+    const up = await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[2]}/scan`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .attach('file', Buffer.from('fake-scan-bytes'), { filename: 'sign.png', contentType: 'image/png' })
+      .expect(201);
+    // 专家扫描落 BidExpert.signScanFileId，响应中对应 experts[].signScanUrl（signPageScanFileId 是主报告签字页字段，勿混用）
+    expect(up.body.experts.find((e: any) => e.expertId === expertIds[2])?.signScanUrl).toBeTruthy();
+
+    // 闭环前撤销：状态回 PENDING
+    const un = await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[2]}/unregister`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web').expect(201);
+    expect(un.body.allClosed).toBe(false);
+
+    // 重登：拒绝且未陈述理由 → 视为同意（§43）
+    await request(app.getHttpServer())
+      .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[2]}/register`)
+      .set('Cookie', hostCookie).set('X-Portal', 'web')
+      .send({ status: 'DEEMED_AGREED' }).expect(201);
+  });
+
   it('§43：拒绝不填意见 → 400 SIGN_DISSENT_REQUIRED', async () => {
     const res = await request(app.getHttpServer())
       .post(`/api/bid/projects/${projectId}/sign-packet/experts/${expertIds[1]}/register`)
@@ -3387,7 +3414,7 @@ describe('评标签字包全流程 (e2e)', () => {
 
     await sign(expertIds[0], { status: 'SIGNED' }).expect(201);
     await sign(expertIds[1], { status: 'REFUSED_DISSENT', dissentingOpinion: '对价格分计算有异议', dissentingReason: '公式系数与实际不符' }).expect(201);
-    await sign(expertIds[2], { status: 'DEEMED_AGREED' }).expect(201);
+    // expertIds[2] 已在上一用例以 DEEMED_AGREED 登记——本轮登记 expertIds[1] 后全员终局，触发闭环
 
     const closedRes = await request(app.getHttpServer())
       .get(`/api/bid/projects/${projectId}/sign-packet`)
@@ -3436,7 +3463,7 @@ describe('评标签字包全流程 (e2e)', () => {
 });
 ```
 
-> 已核实：归档端点为 `POST /api/bid/projects/:id/archive-all`（body `{ scope: 'full' }`，见 bid.controller.ts:666）；项目创建必填 `name/procurementMethod/openTime/deadline`（bid.e2e-spec.ts 同款 body）。本 E2E 的闸门覆盖：EVALUATION_RESULTS_REQUIRED（beforeAll 生成结果）、OPENING_RECORDS_MISSING（BidOpeningRecord fixture）、SIGN_DISSENT_REQUIRED（§43 拒绝未陈述）、闭环后撤销 409、HANDOVER_NOT_GENERATED；SIGN_PACKET_NOT_GENERATED 与 SIGN_NOT_CLOSED 由 Task 6 纯函数单测覆盖。
+> 已核实：归档端点为 `POST /api/bid/projects/:id/archive-all`（body `{ scope: 'full' }`，见 bid.controller.ts:666）；项目创建必填 `name/procurementMethod/openTime/deadline`（bid.e2e-spec.ts 同款 body）。本 E2E 的闸门覆盖：EVALUATION_RESULTS_REQUIRED（beforeAll 生成结果）、OPENING_RECORDS_MISSING（BidOpeningRecord fixture）、SIGN_DISSENT_REQUIRED（§43 拒绝未陈述）、扫描上传 + 闭环前撤销重登（spec §11）、闭环后撤销 409、HANDOVER_NOT_GENERATED；SIGN_PACKET_NOT_GENERATED 与 SIGN_NOT_CLOSED 由 Task 6 纯函数单测覆盖。afterAll 仅清 FileAsset 行（含 `bid-evaluation-handover/${projectId}`——generateEvaluationResults 在 bid.service.ts:3297 创建），MinIO 对象不清理（与 upload e2e 既有约定一致）。
 
 - [ ] **Step 2: 跑 E2E（红→绿）**
 
@@ -3492,4 +3519,4 @@ git commit -m "test(bid): 评标签字包 E2E 全流程 + docs: 分工 v3 实施
 | 3 | 10-13 | Wave 2（可并行） | :3007 评标 tab 全操作与 :3005 旧面板同能力；:3005 无三区块 |
 | 4 | 14-16 | Wave 1-3 | 回流包 :3005 可见；种子演示可走全流程；E2E 绿；文档口径一致 |
 
-**整体回归（全部完成后）：** `pnpm --filter api test && pnpm --filter api test:e2e && pnpm build`（或至少 build:api/build:web/build:bid-portal）+ 手工走查 :3007/:3005 各一处。**不 push**，commit 完提醒用户有 N 个未推送提交。
+**整体回归（全部完成后）：** `pnpm --filter api test && pnpm --filter api test:e2e && pnpm build`（或至少 build:api/build:web/build:bid——脚本名是 `build:bid`，不存在 `build:bid-portal`）+ 手工走查 :3007/:3005 各一处。**不 push**，commit 完提醒用户有 N 个未推送提交。
