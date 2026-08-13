@@ -837,7 +837,7 @@ export class BidService {
   }
 
   /** 评标完整性快照：评审结果生成后、归档前的独立证据包（SHA-256 签名）。 */
-  private async buildEvaluationPackage(projectId: string) {
+  public async buildEvaluationPackage(projectId: string) {
     // BidScoreRecordHistory 无 expert 关系字段，先取项目专家 ID 再过滤
     const expertIds = await this.prisma.bidExpert.findMany({
       where: { projectId },
