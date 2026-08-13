@@ -1,34 +1,82 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter } from 'events';
+import * as https from 'https';
 import { LlmService } from './llm.service';
 
-/** mock fetch 响应工厂 */
-const okRes = (content: string) => ({
-  ok: true,
-  status: 200,
-  json: async () => ({ choices: [{ message: { content } }] }),
-  text: async () => '',
-  headers: new Headers(),
-});
+/* =====================================================================
+   https mock 基础设施：LlmService 经 node:https 直连 DeepSeek
+   （不用 global.fetch——那批 mock 对原生 https.request 完全失效）。
+   假 ClientRequest 是 EventEmitter：实现方挂 error/timeout 监听，
+   end() 时经 responder 决定响应/挂起/网络错误。
+   ===================================================================== */
 
-const errRes = (status: number, retryAfter?: string) => ({
-  ok: false,
+/** 响应规格：content 包进 DeepSeek choices 结构 */
+interface ResponseSpec {
+  status?: number;
+  content?: string;
+  rawBody?: string;
+  retryAfter?: string;
+}
+
+const okRes = (content: string): ResponseSpec => ({ status: 200, content });
+const errRes = (status: number, retryAfter?: string): ResponseSpec => ({
   status,
-  text: async () => 'error body',
-  json: async () => ({}),
-  headers: new Headers(retryAfter ? { 'retry-after': retryAfter } : {}),
+  rawBody: 'error body',
+  retryAfter,
 });
 
-/** 尊重 AbortSignal 的 fetch mock 基础行为 */
-function signalAware(impl: (url: any, init: any) => Promise<any>) {
-  return jest.fn(async (url: any, init: any) => {
-    if (init?.signal?.aborted) {
-      const e = new Error('aborted');
-      e.name = 'AbortError';
-      throw e;
-    }
-    return impl(url, init);
-  });
+/** 哨兵：挂起（超时/手动响应测试）与网络层失败 */
+const HANG = Symbol('hang');
+const NETWORK_ERROR = Symbol('network-error');
+
+interface CapturedRequest {
+  opts: any;
+  payload: any;
+  req: any;
+}
+
+const origHttpsRequest = https.request;
+
+class HttpsMock {
+  request = jest.fn();
+  calls: CapturedRequest[] = [];
+
+  constructor(
+    private responder: (
+      callIndex: number,
+      payload: any,
+      req: any,
+    ) => ResponseSpec | symbol | undefined,
+  ) {
+    this.request.mockImplementation((opts: any, cb: (res: any) => void) => {
+      const req = new EventEmitter() as any;
+      req.write = jest.fn();
+      req.end = jest.fn(() => {
+        const payload = JSON.parse(req.write.mock.calls[0][0]);
+        const spec = this.responder(this.calls.length, payload, req);
+        this.calls.push({ opts, payload, req });
+        if (spec === NETWORK_ERROR) req.emit('error', new TypeError('fetch failed'));
+        else if (spec !== HANG && spec !== undefined) this.deliver(req, cb, spec as ResponseSpec);
+      });
+      req.destroy = jest.fn();
+      req.respond = (spec: ResponseSpec) => this.deliver(req, cb, spec);
+      return req;
+    });
+    (https as any).request = this.request;
+  }
+
+  private deliver(req: any, cb: (res: any) => void, spec: ResponseSpec) {
+    const raw =
+      spec.rawBody ??
+      JSON.stringify({ choices: [{ message: { content: spec.content ?? '' } }] });
+    const res = new EventEmitter() as any;
+    res.statusCode = spec.status ?? 200;
+    res.headers = spec.retryAfter ? { 'retry-after': spec.retryAfter } : {};
+    cb(res); // 实现方在 cb 内同步挂 data/end 监听
+    res.emit('data', Buffer.from(raw));
+    res.emit('end');
+  }
 }
 
 async function makeService(envOverrides: Record<string, string> = {}): Promise<LlmService> {
@@ -52,23 +100,23 @@ async function makeService(envOverrides: Record<string, string> = {}): Promise<L
 
 describe('LlmService', () => {
   let service: LlmService;
-  let fetchMock: jest.Mock;
+  let httpsMock: HttpsMock;
 
   beforeEach(async () => {
     service = await makeService();
-    fetchMock = signalAware(async () => okRes('hello'));
-    (global as any).fetch = fetchMock;
+    httpsMock = new HttpsMock(() => okRes('hello'));
   });
 
-  const lastBody = (callIndex = -1) => {
-    const call = fetchMock.mock.calls[callIndex < 0 ? fetchMock.mock.calls.length + callIndex : callIndex];
-    return JSON.parse(call[1].body);
-  };
+  afterEach(() => {
+    (https as any).request = origHttpsRequest;
+  });
+
+  const lastPayload = () => httpsMock.calls[httpsMock.calls.length - 1].payload;
 
   it('chat 成功返回 content，默认 model/max_tokens 来自 env', async () => {
     await expect(service.chat('sys', 'usr')).resolves.toBe('hello');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const body = lastBody();
+    expect(httpsMock.request).toHaveBeenCalledTimes(1);
+    const body = lastPayload();
     expect(body.model).toBe('deepseek-v4-pro');
     expect(body.max_tokens).toBe(16384);
     expect(body.messages).toEqual([
@@ -82,88 +130,72 @@ describe('LlmService', () => {
       model: 'deepseek-v4-flash',
       maxTokens: 420,
     });
-    const body = lastBody();
+    const body = lastPayload();
     expect(body.model).toBe('deepseek-v4-flash');
     expect(body.max_tokens).toBe(420);
   });
 
   it('429 → 200：重试一次后成功', async () => {
-    fetchMock = signalAware(async () => okRes('x'));
-    fetchMock.mockResolvedValueOnce(errRes(429, '0'));
-    (global as any).fetch = fetchMock;
+    httpsMock = new HttpsMock((i) => (i === 0 ? errRes(429, '0') : okRes('x')));
     await expect(service.chat('s', 'u')).resolves.toBe('x');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(httpsMock.request).toHaveBeenCalledTimes(2);
   });
 
   it('500 → 502 → 200：两次重试后成功', async () => {
-    fetchMock = signalAware(async () => okRes('x'));
-    fetchMock.mockResolvedValueOnce(errRes(500)).mockResolvedValueOnce(errRes(502));
-    (global as any).fetch = fetchMock;
+    httpsMock = new HttpsMock((i) => (i === 0 ? errRes(500) : i === 1 ? errRes(502) : okRes('x')));
     await expect(service.chat('s', 'u')).resolves.toBe('x');
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(httpsMock.request).toHaveBeenCalledTimes(3);
   });
 
   it('400 不重试，抛含状态码的错误', async () => {
-    fetchMock.mockResolvedValueOnce(errRes(400));
+    httpsMock = new HttpsMock(() => errRes(400));
     await expect(service.chat('s', 'u')).rejects.toThrow('DeepSeek LLM request failed: 400');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(httpsMock.request).toHaveBeenCalledTimes(1);
   });
 
   it('chatJson 解析失败不重试', async () => {
-    fetchMock.mockResolvedValue(okRes('不是 JSON'));
+    httpsMock = new HttpsMock(() => okRes('不是 JSON'));
     await expect(service.chatJson('s', 'u')).rejects.toThrow('无法解析为 JSON');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(httpsMock.request).toHaveBeenCalledTimes(1);
   });
 
   it('chatJson 成功时走 response_format json_object', async () => {
-    fetchMock.mockResolvedValueOnce(okRes('{"a":1}'));
+    httpsMock = new HttpsMock(() => okRes('{"a":1}'));
     await expect(service.chatJson<{ a: number }>('s', 'u')).resolves.toEqual({ a: 1 });
-    expect(lastBody().response_format).toEqual({ type: 'json_object' });
+    expect(lastPayload().response_format).toEqual({ type: 'json_object' });
   });
 
   it('调用方 abort 不重试，直接拒绝（甚至不发请求）', async () => {
     const ac = new AbortController();
     ac.abort();
     await expect(service.chat('s', 'u', 0.3, ac.signal)).rejects.toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(0);
+    expect(httpsMock.request).toHaveBeenCalledTimes(0);
   });
 
   it('retries: 0 时 429 只尝试一次', async () => {
-    fetchMock.mockResolvedValueOnce(errRes(429));
+    httpsMock = new HttpsMock(() => errRes(429));
     await expect(
       service.chat('s', 'u', 0.3, undefined, undefined, { retries: 0 }),
     ).rejects.toThrow(/429/);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(httpsMock.request).toHaveBeenCalledTimes(1);
   });
 
   it('网络错误可重试', async () => {
-    fetchMock = signalAware(async () => okRes('recovered'));
-    fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
-    (global as any).fetch = fetchMock;
+    httpsMock = new HttpsMock((i) => (i === 0 ? NETWORK_ERROR : okRes('recovered')));
     await expect(service.chat('s', 'u')).resolves.toBe('recovered');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(httpsMock.request).toHaveBeenCalledTimes(2);
   });
 
   it('超时重试耗尽后抛 timed out', async () => {
-    fetchMock = jest.fn(
-      (url: any, init: any) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => {
-            const e = new Error('aborted');
-            e.name = 'AbortError';
-            reject(e);
-          });
-        }),
-    );
-    (global as any).fetch = fetchMock;
+    httpsMock = new HttpsMock(() => HANG);
     await expect(
       service.chat('s', 'u', 0.3, undefined, undefined, { timeoutMs: 10, retries: 1 }),
     ).rejects.toThrow(/timed out/);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(httpsMock.request).toHaveBeenCalledTimes(2);
   });
 
   it('chatMessages 透传多轮 messages，默认 max_tokens=8192', async () => {
-    fetchMock.mockResolvedValueOnce(okRes('hi'));
+    httpsMock = new HttpsMock(() => okRes('hi'));
     const messages = [
       { role: 'system', content: 's1' },
       { role: 'user', content: 'u1' },
@@ -173,7 +205,7 @@ describe('LlmService', () => {
     await expect(
       service.chatMessages(messages, { model: 'deepseek-chat' }),
     ).resolves.toBe('hi');
-    const body = lastBody();
+    const body = lastPayload();
     expect(body.messages).toHaveLength(4);
     expect(body.model).toBe('deepseek-chat');
     expect(body.max_tokens).toBe(8192);
@@ -187,16 +219,24 @@ describe('LlmService', () => {
 });
 
 describe('LlmSemaphore', () => {
+  let httpsMock: HttpsMock;
+
+  afterEach(() => {
+    (https as any).request = origHttpsRequest;
+  });
+
   it('并发封顶：4 个任务、上限 2 → 同时在飞 ≤ 2', async () => {
     const service = await makeService({ LLM_MAX_CONCURRENCY: '2' });
     let inFlight = 0;
     let maxInFlight = 0;
-    (global as any).fetch = signalAware(async () => {
+    httpsMock = new HttpsMock((_i, _payload, req) => {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
-      await new Promise((r) => setTimeout(r, 20));
-      inFlight--;
-      return okRes('ok');
+      setTimeout(() => {
+        inFlight--;
+        req.respond(okRes('ok'));
+      }, 20);
+      return HANG;
     });
     const results = await Promise.all([1, 2, 3, 4].map(() => service.chat('s', 'u')));
     expect(results).toEqual(['ok', 'ok', 'ok', 'ok']);
@@ -205,9 +245,7 @@ describe('LlmSemaphore', () => {
 
   it('出错必释放，后续调用不死锁', async () => {
     const service = await makeService({ LLM_MAX_CONCURRENCY: '2' });
-    const fetchMock = signalAware(async () => okRes('ok'));
-    fetchMock.mockResolvedValueOnce(errRes(400)).mockResolvedValueOnce(errRes(400));
-    (global as any).fetch = fetchMock;
+    httpsMock = new HttpsMock((i) => (i < 2 ? errRes(400) : okRes('ok')));
     await expect(service.chat('s', 'u')).rejects.toThrow(/400/);
     await expect(service.chat('s', 'u')).rejects.toThrow(/400/);
     await expect(service.chat('s', 'u')).resolves.toBe('ok');
@@ -215,14 +253,7 @@ describe('LlmSemaphore', () => {
 
   it('排队中 abort：拒绝且不占槽位', async () => {
     const service = await makeService({ LLM_MAX_CONCURRENCY: '1' });
-    let resolveFirst: (v: any) => void = () => undefined;
-    const fetchMock = jest.fn(
-      () =>
-        new Promise((r) => {
-          resolveFirst = r;
-        }),
-    );
-    (global as any).fetch = fetchMock;
+    httpsMock = new HttpsMock(() => HANG);
 
     const p1 = service.chat('s', 'u'); // 占住唯一槽位
     await new Promise((r) => setImmediate(r));
@@ -233,8 +264,8 @@ describe('LlmSemaphore', () => {
     ac.abort();
     await expect(p2).rejects.toBeTruthy();
 
-    resolveFirst(okRes('first'));
+    httpsMock.calls[0].req.respond(okRes('first'));
     await expect(p1).resolves.toBe('first');
-    expect(fetchMock).toHaveBeenCalledTimes(1); // p2 从未执行
+    expect(httpsMock.request).toHaveBeenCalledTimes(1); // p2 从未执行
   });
 });

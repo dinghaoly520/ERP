@@ -26,6 +26,7 @@ describe('ExpertCrossConflictService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    mockPrisma.expertProfile.findMany.mockReset(); // clearAllMocks 不清实现，须显式 reset 防跨用例泄漏
   });
 
   describe('checkCrossConflicts', () => {
@@ -38,22 +39,23 @@ describe('ExpertCrossConflictService', () => {
 
       const result = await service.checkCrossConflicts(['e1', 'e2', 'e3']);
 
+      // 现行口径：每组每成员一条（非双向对），英文枚举 + conflictDetail 文案（expert-admin.service 消费）
       expect(result).toHaveLength(2);
       expect(result).toEqual([
-        { expertId: 'e1', expertName: '张三', conflictWith: '李四', conflictType: '同单位' },
-        { expertId: 'e2', expertName: '李四', conflictWith: '张三', conflictType: '同单位' },
+        { expertId: 'e1', expertName: '张三', conflictType: 'same_employer', conflictDetail: '与同单位专家存在交叉关系：四川大学' },
+        { expertId: 'e2', expertName: '李四', conflictType: 'same_employer', conflictDetail: '与同单位专家存在交叉关系：四川大学' },
       ]);
     });
 
     it('空列表或单专家不产生冲突', async () => {
+      mockPrisma.expertProfile.findMany.mockResolvedValue([]);
       let result = await service.checkCrossConflicts([]);
       expect(result).toEqual([]);
+      // 空列表短路，不查库
+      expect(mockPrisma.expertProfile.findMany).not.toHaveBeenCalled();
 
       result = await service.checkCrossConflicts(['e1']);
       expect(result).toEqual([]);
-
-      // findMany 不应被调用
-      expect(mockPrisma.expertProfile.findMany).not.toHaveBeenCalled();
     });
 
     it('不同单位专家无冲突', async () => {
@@ -98,8 +100,8 @@ describe('ExpertCrossConflictService', () => {
 
       const result = await service.checkCrossConflicts(['e1', 'e2', 'e3']);
 
-      // 3选2 = 3对，每对生成2条（双向），共6条
-      expect(result).toHaveLength(6);
+      // 现行口径：每组每成员一条 → 3 条
+      expect(result).toHaveLength(3);
     });
 
     it('displayName 缺失时退回 userId', async () => {
@@ -111,8 +113,8 @@ describe('ExpertCrossConflictService', () => {
       const result = await service.checkCrossConflicts(['e1', 'e2']);
 
       expect(result).toEqual([
-        { expertId: 'e1', expertName: 'e1', conflictWith: 'e2', conflictType: '同单位' },
-        { expertId: 'e2', expertName: 'e2', conflictWith: 'e1', conflictType: '同单位' },
+        { expertId: 'e1', expertName: 'e1', conflictType: 'same_employer', conflictDetail: '与同单位专家存在交叉关系：四川大学' },
+        { expertId: 'e2', expertName: 'e2', conflictType: 'same_employer', conflictDetail: '与同单位专家存在交叉关系：四川大学' },
       ]);
     });
   });

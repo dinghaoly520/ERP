@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SupplierSelectionAiService } from './supplier-selection-ai.service';
 import { LlmService } from '../local-ai/llm.service';
 import { NotificationService } from '../notification/notification.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('AiService', () => {
   let service: AiService;
@@ -57,6 +58,8 @@ describe('AiService', () => {
         { provide: SupplierSelectionAiService, useValue: { rankCandidates: jest.fn() } },
         { provide: LlmService, useValue: { chatJson: jest.fn() } },
         { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn() } },
+        // AiService 构造器第 5 参（口径同 local-ai/llm.service.spec.ts）
+        { provide: ConfigService, useValue: { get: (key: string, def?: string) => (process.env[key] as string | undefined) ?? def } },
       ],
     }).compile();
 

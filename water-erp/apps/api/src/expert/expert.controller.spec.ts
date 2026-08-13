@@ -2,6 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ExpertController } from './expert.controller';
 import { ExpertService } from './expert.service';
 import { ExpertMemoService } from './expert-memo.service';
+import { ExpertAdminService } from './expert-admin.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { BidGateway } from '../bid/bid.gateway';
 
 describe('ExpertController', () => {
   let controller: ExpertController;
@@ -17,6 +20,11 @@ describe('ExpertController', () => {
       controllers: [ExpertController],
       providers: [
         { provide: ExpertService, useValue: expertService },
+        // ExpertController 构造器第 2 参（本 spec 不测管理端路径，空 mock 即可）
+        { provide: ExpertAdminService, useValue: {} },
+        // 构造器第 4/5 参（本 spec 不触达，空 mock 即可）
+        { provide: PrismaService, useValue: {} },
+        { provide: BidGateway, useValue: {} },
         {
           provide: ExpertMemoService,
           useValue: {

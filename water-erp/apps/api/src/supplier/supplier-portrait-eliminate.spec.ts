@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { LlmService } from '../local-ai/llm.service';
 
 describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
   let service: SupplierService;
@@ -25,6 +26,10 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
         SupplierService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: notification },
+        // SupplierService 构造器 @Inject('REDIS_CLIENT')（口径同 verification.service.spec.ts）
+        { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
+        // 构造器第 4 参（本 spec 不触达 LLM，空 mock 即可）
+        { provide: LlmService, useValue: {} },
       ],
     }).compile();
     service = module.get<SupplierService>(SupplierService);

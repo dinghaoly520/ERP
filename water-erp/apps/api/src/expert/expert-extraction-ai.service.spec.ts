@@ -4,8 +4,9 @@ import { LlmService } from '../local-ai/llm.service';
 
 /**
  * ExpertExtractionAiService 单测：
- * 覆盖 chatJsonWithRetry 的重试/最终降级信号、analyzeAndScore 的 e0→真实 id 映射与未匹配过滤、
- * generateNotification 的占位符兜底与缓存去重。这些是"张冠李戴"与"降级链断裂"的高发点。
+ * 覆盖 analyzeAndScore 的 chat 纯文本 JSON 提取/失败信号（llmErrors 计数，上层据此降级规则引擎）、
+ * e0→真实 id 映射与未匹配过滤、generateNotification 的占位符兜底与缓存去重。
+ * 这些是"张冠李戴"与"降级链断裂"的高发点。
  */
 describe('ExpertExtractionAiService', () => {
   let service: ExpertExtractionAiService;
@@ -20,7 +21,6 @@ describe('ExpertExtractionAiService', () => {
   beforeEach(async () => {
     process.env.DEEPSEEK_API_KEY = 'test-key';
     llm = {
-      chatJson: jest.fn(),
       chat: jest.fn(),
       getModel: jest.fn().mockReturnValue('test-model'),
     };
@@ -30,43 +30,44 @@ describe('ExpertExtractionAiService', () => {
     service = module.get<ExpertExtractionAiService>(ExpertExtractionAiService);
   });
 
-  describe('analyzeAndScore — 重试与降级信号', () => {
-    it('首次失败、第二次成功：应返回结果且 llmErrors=1', async () => {
-      llm.chatJson
-        .mockRejectedValueOnce(new Error('临时网络错误'))
-        .mockResolvedValueOnce({
+  describe('analyzeAndScore — 纯文本 JSON 提取与降级信号', () => {
+    it('chat 返回带代码围栏的 JSON 文本 → 解析成功且 llmCalls=1、llmErrors=0', async () => {
+      llm.chat.mockResolvedValue(
+        '```json\n' + JSON.stringify({
           analysis: 'ok',
           requiredSpecialties: [{ specialty: '施工', count: 1, reason: 'r' }],
           scoredExperts: [{ id: 'e0', matchScore: 80, fitSpecialty: '施工', reason: 'r' }],
-        });
+        }) + '\n```',
+      );
       const res = await service.analyzeAndScore(project, candidates, 1);
       expect(res.scoredExperts[0].id).toBe('realA');
-      expect(service.getMetrics().llmErrors).toBe(1);
+      expect(service.getMetrics().llmCalls).toBe(1);
+      expect(service.getMetrics().llmErrors).toBe(0);
     });
 
-    it('连续失败：应抛错（上层据此降级规则引擎），llmErrors 累计', async () => {
-      llm.chatJson.mockRejectedValue(new Error('AI 持续不可用'));
+    it('chat 失败：应抛错（上层据此降级规则引擎），llmErrors=1', async () => {
+      llm.chat.mockRejectedValue(new Error('AI 持续不可用'));
       await expect(service.analyzeAndScore(project, candidates, 1)).rejects.toThrow('AI 抽取失败');
-      expect(service.getMetrics().llmErrors).toBeGreaterThanOrEqual(2);
+      expect(service.getMetrics().llmErrors).toBe(1);
       expect(service.getMetrics().fallbackCount).toBe(0); // 降级计数由调用方记录
     });
 
     it('空结果应抛错（视为降级信号，而非返回垃圾）', async () => {
-      llm.chatJson.mockResolvedValue({ analysis: '', requiredSpecialties: [], scoredExperts: [] });
-      await expect(service.analyzeAndScore(project, candidates, 1)).rejects.toThrow();
+      llm.chat.mockResolvedValue(JSON.stringify({ analysis: '', requiredSpecialties: [], scoredExperts: [] }));
+      await expect(service.analyzeAndScore(project, candidates, 1)).rejects.toThrow('AI 未返回有效评分数据');
     });
   });
 
   describe('analyzeAndScore — id 映射（张冠李戴回归）', () => {
     it('LLM 编号 e0/e1 必须映射回真实候选 id，未匹配项被过滤', async () => {
-      llm.chatJson.mockResolvedValue({
+      llm.chat.mockResolvedValue(JSON.stringify({
         analysis: 'ok',
         requiredSpecialties: [{ specialty: '地质', count: 1, reason: 'r' }],
         scoredExperts: [
           { id: 'e1', matchScore: 88, fitSpecialty: '地质', reason: '匹配' },
           { id: 'e9', matchScore: 50, fitSpecialty: 'x', reason: 'y' }, // 无对应候选 → 过滤
         ],
-      });
+      }));
       const res = await service.analyzeAndScore(project, candidates, 1);
       expect(res.scoredExperts).toHaveLength(1);
       expect(res.scoredExperts[0].id).toBe('realB'); // e1 → 第二个候选，绝不能错位

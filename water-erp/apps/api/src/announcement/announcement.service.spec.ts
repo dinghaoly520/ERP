@@ -27,6 +27,9 @@ describe('AnnouncementService — remove 级联清理 (H3)', () => {
       bidInvalidBid: { deleteMany: jest.fn() },
       bidSupplier: { updateMany: jest.fn() },
       bidExpert: { updateMany: jest.fn() },
+      // remove 级联：收集密封文件路径供 MinIO 孤儿清理
+      supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
+      fileAsset: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -86,6 +89,8 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
       bidProject: { findUnique: jest.fn() },
       bidSupplier: { findMany: jest.fn() },
       supplierBidSubmission: { findMany: jest.fn() },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -97,8 +102,8 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
     service = module.get(AnnouncementService);
   });
 
-  it('未解密供应商的 bidPrice 返回 null（即便项目已进入 OPENING/EVALUATING）', async () => {
-    // 旧阶段制在这里会泄漏——这是本任务修复的核心回归点。
+  it('未解密供应商 → 行不含 bidPrice（封存报价泄密修复：该字段已整体移出本端点）', async () => {
+    // 现行口径：getParticipants 的 SupplierRow 不含 bidPrice——无论阶段/解密态一律不暴露报价。
     prisma.announcement.findUnique.mockResolvedValue({ type: 'BID_NOTICE', relatedProjectCode: 'C1' });
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'C1', stage: 'OPENING', deadline: new Date() });
     prisma.bidSupplier.findMany.mockResolvedValue([
@@ -110,10 +115,12 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
     ]);
 
     const result = await service.getParticipants('ann1');
-    expect(result.suppliers[0].bidPrice).toBeNull();
+    expect(result.suppliers[0]).not.toHaveProperty('bidPrice');
+    expect(result.suppliers[0].submitted).toBe(true);
+    expect(result.suppliers[0].submittedAt).not.toBeNull();
   });
 
-  it('已解密（SUCCESS）供应商的 bidPrice 被拆封返回明文', async () => {
+  it('已解密（SUCCESS）供应商 → 行同样不含 bidPrice', async () => {
     prisma.announcement.findUnique.mockResolvedValue({ type: 'BID_NOTICE', relatedProjectCode: 'C1' });
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'C1', stage: 'OPENING', deadline: new Date() });
     prisma.bidSupplier.findMany.mockResolvedValue([
@@ -125,10 +132,10 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
     ]);
 
     const result = await service.getParticipants('ann1');
-    expect(result.suppliers[0].bidPrice).toBe('1234567');
+    expect(result.suppliers[0]).not.toHaveProperty('bidPrice');
   });
 
-  it('旧明文 bidPrice（无 v1: 前缀）在解密后经 legacy 兼容原样返回', async () => {
+  it('旧明文 bidPrice（无 v1: 前缀）也不应经 legacy 路径回归暴露', async () => {
     prisma.announcement.findUnique.mockResolvedValue({ type: 'BID_NOTICE', relatedProjectCode: 'C1' });
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'C1', stage: 'EVALUATING', deadline: new Date() });
     prisma.bidSupplier.findMany.mockResolvedValue([
@@ -139,6 +146,6 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
     ]);
 
     const result = await service.getParticipants('ann1');
-    expect(result.suppliers[0].bidPrice).toBe('770000');
+    expect(result.suppliers[0]).not.toHaveProperty('bidPrice');
   });
 });

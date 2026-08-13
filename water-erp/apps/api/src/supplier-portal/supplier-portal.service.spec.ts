@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { SignatureService } from '../common/crypto/signature.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
+import { LlmService } from '../local-ai/llm.service';
 
 jest.mock('../announcement/bid-document.crypto', () => ({
   encryptBuffer: jest.fn().mockReturnValue({
@@ -102,6 +103,10 @@ describe('SupplierPortalService', () => {
         { provide: BidDocumentService, useValue: { getForSupplier: jest.fn() } },
         { provide: SignatureService, useValue: { verify: jest.fn().mockReturnValue(true), isValidPublicKey: jest.fn().mockReturnValue(true) } },
         { provide: BidBackupService, useValue: { stageBackup: jest.fn().mockResolvedValue(null), persistBackup: jest.fn(), isEnabled: jest.fn().mockReturnValue(true) } },
+        // SupplierPortalService 构造器 @Inject('REDIS_CLIENT')（口径同 verification.service.spec.ts）
+        { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
+        // 构造器第 6 参（BidGateway 为 @Optional，无需提供；本 spec 不触达 LLM）
+        { provide: LlmService, useValue: {} },
       ],
     }).compile();
 

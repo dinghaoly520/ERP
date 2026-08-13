@@ -50,13 +50,14 @@ describe('computeExpertMeanDeviations', () => {
 });
 
 describe('shouldDeactivateExpert', () => {
-  it('最近 2 次均为 D → true', () => {
-    expect(shouldDeactivateExpert([{ level: 'D' }, { level: 'D' }])).toBe(true);
+  // 口径：E 为最低履职等级（expert-admin.service 停用候选理由「最近 2 次履职评价均为 E 级」）
+  it('最近 2 次均为 E → true', () => {
+    expect(shouldDeactivateExpert([{ level: 'E' }, { level: 'E' }])).toBe(true);
   });
-  it('最近 2 次中有非 D → false', () => {
-    expect(shouldDeactivateExpert([{ level: 'C' }, { level: 'D' }])).toBe(false);
+  it('最近 2 次中有非 E → false', () => {
+    expect(shouldDeactivateExpert([{ level: 'D' }, { level: 'E' }])).toBe(false);
   });
   it('不足 2 次 → false', () => {
-    expect(shouldDeactivateExpert([{ level: 'D' }])).toBe(false);
+    expect(shouldDeactivateExpert([{ level: 'E' }])).toBe(false);
   });
 });

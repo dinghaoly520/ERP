@@ -117,6 +117,8 @@ describe('ImportsService', () => {
           .fn()
           .mockResolvedValue({ id: 'supplier-1', name: '供应商' }),
       },
+      // importWorkbook 用 tagged template 取供应商编号序列
+      $queryRaw: jest.fn().mockResolvedValue([{ supplier_no: 'SUP-000001' }]),
     };
 
     const prisma = {

@@ -14,7 +14,7 @@ describe('computeRiskFactors', () => {
     fileCount: 3, fileTotal: 3,
     validQualifications: 4, expiredQualifications: 1,
     bidPrice: 950000, budget: 1000000,
-    perfAvg: 88, perfCount: 5,
+    perfCount: 5,
   } as any;
 
   it('文件齐全 + 解密成功 → 文件/解密因子高分', () => {
@@ -32,10 +32,11 @@ describe('computeRiskFactors', () => {
     const f = computeRiskFactors({ ...ctx, bidPrice: 1800000 });
     expect(f.find(x => x.name === '报价风险')!.score).toBeLessThan(60);
   });
-  it('历史履约有数据 → 取均分；无数据 → 低分并标注', () => {
-    expect(computeRiskFactors(ctx).find(x => x.name === '历史履约')!.score).toBe(88);
-    const noPerf = computeRiskFactors({ ...ctx, perfAvg: null, perfCount: 0 });
-    const hist = noPerf.find(x => x.name === '历史履约')!;
+  it('历史履约有数据 → 基础分 60 并标注次数；无数据 → 低分并标注', () => {
+    const withPerf = computeRiskFactors(ctx).find(x => x.name === '历史履约')!;
+    expect(withPerf.score).toBe(60);
+    expect(withPerf.detail).toContain('已评价 5 次');
+    const hist = computeRiskFactors({ ...ctx, perfCount: 0 }).find(x => x.name === '历史履约')!;
     expect(hist.score).toBeLessThan(60);
     expect(hist.detail).toContain('无履约数据');
   });

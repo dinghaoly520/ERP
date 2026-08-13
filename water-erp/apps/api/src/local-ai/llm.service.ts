@@ -373,8 +373,15 @@ export class LlmService {
       });
       req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
       if (signal) {
-        signal.addEventListener('abort', () => { req.destroy(); }, { once: true });
-        if (signal.aborted) { req.destroy(); return; }
+        // abort 后必须 settle 本 Promise：仅 destroy() 会触发 ECONNRESET，被下方 error
+        // 处理分支静默吞掉（signal.aborted 时 return），timeout/调用方取消两条路径将永久挂起
+        const abortError = () => {
+          const e = new Error('The operation was aborted');
+          e.name = 'AbortError';
+          return e;
+        };
+        signal.addEventListener('abort', () => { req.destroy(); reject(abortError()); }, { once: true });
+        if (signal.aborted) { req.destroy(); reject(abortError()); return; }
       }
       req.write(payload);
       req.end();

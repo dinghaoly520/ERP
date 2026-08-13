@@ -32,7 +32,7 @@ export class ExpertCrossConflictService {
       for (const member of group) {
         results.push({
           expertId: member.userId,
-          expertName: member.user.displayName,
+          expertName: member.user?.displayName ?? member.userId,
           conflictType: 'same_employer',
           conflictDetail: `与同单位专家存在交叉关系：${member.employer}`,
         });

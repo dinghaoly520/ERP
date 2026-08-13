@@ -143,6 +143,7 @@ export class ExpertExtractionAiService {
       if (!json) throw new Error('LLM 响应中未找到 JSON');
       parsed = JSON.parse(json[0]);
     } catch (error) {
+      this.metrics.llmErrors += 1;
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.warn(`DeepSeek expert-extraction error: ${msg}`);
       throw new Error(`AI 抽取失败：${msg}`);

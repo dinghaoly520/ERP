@@ -7,6 +7,7 @@ import { ClarificationAiService } from './clarification-ai.service';
 import { BidGateway } from './bid.gateway';
 import { ScoreStandardValidator } from './score-standard-validator.service';
 import { StorageService } from '../storage/storage.service';
+import { PriceFormulaService } from './price-formula.service';
 
 jest.mock('../upload/minio.client', () => ({
   minioClient: { getObject: jest.fn().mockResolvedValue({}), putObject: jest.fn().mockResolvedValue({}) },
@@ -18,6 +19,8 @@ function makePrismaMock() {
     $queryRaw: jest.fn(),
     bidProject: { findUnique: jest.fn() },
     bidOpeningSession: { findUnique: jest.fn(), update: jest.fn() },
+    // completeOpening 事务内 TOCTOU 复查：tx.bidSupplier.findMany（空列表 = 无未终局供应商）
+    bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
     fileAsset: { create: jest.fn() },
     bidSupervisionLog: { create: jest.fn() },
     auditLog: { create: jest.fn() },
@@ -41,6 +44,8 @@ async function buildService(prisma: any) {
       { provide: PrismaService, useValue: prisma },
       { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue(undefined) } },
       { provide: ScoreStandardValidator, useValue: { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+      // 与 bid.service.spec.ts 同口径（BidService 构造器第 4 参）
+      { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
       { provide: ClarificationAiService, useValue: {} },
       { provide: BidGateway, useValue: { notifyOpeningCompleted: jest.fn(), notifySupervisionLog: jest.fn(), notifyStageChange: jest.fn() } },
       { provide: StorageService, useValue: { upload: jest.fn().mockResolvedValue(undefined) } },
