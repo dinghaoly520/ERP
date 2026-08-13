@@ -1,4 +1,5 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 
 export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED' | 'ABORTED';
 
@@ -34,4 +35,20 @@ export function assertBidStageTransition(from: BidStage, to: BidStage): void {
 /** 判断 stage 是否已达到 min（含）之后——棘轮语义的阶段下限比较，供端点业务前置使用（如归档守卫）。 */
 export function stageAtLeast(stage: BidStage, min: BidStage): boolean {
   return STAGE_ORDER[stage] >= STAGE_ORDER[min];
+}
+
+/**
+ * 事务内行锁 + 阶段复查（自 bid.service.ts 抽取共享）。
+ * FOR UPDATE 锁 BidProject 行，防并发流转偷跑；assertBidStageTransition 保证单向棘轮。
+ */
+export async function lockAndReassertStage(
+  tx: Prisma.TransactionClient,
+  id: string,
+  target: BidStage,
+): Promise<{ stage: BidStage; name: string }> {
+  await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${id} FOR UPDATE`;
+  const fresh = await tx.bidProject.findUnique({ where: { id }, select: { stage: true, name: true } });
+  if (!fresh) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+  assertBidStageTransition(fresh.stage, target);
+  return fresh;
 }

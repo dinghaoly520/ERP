@@ -18,7 +18,7 @@ import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
-import { assertBidStageTransition, stageAtLeast, type BidStage } from './bid-state';
+import { assertBidStageTransition, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
@@ -684,7 +684,7 @@ export class BidService {
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
 
     const session = await this.prisma.$transaction(async (tx) => {
-      await this.lockAndReassertStage(tx, id, 'OPENING'); // 行锁复查：防并发归档/流标偷跑
+      await lockAndReassertStage(tx, id, 'OPENING'); // 行锁复查：防并发归档/流标偷跑
       // TOCTOU 收窄：事务内复查 opening-done（防 check → tx 间隙异议插入）
       // assertOpeningDone 内部用 this.prisma（非 tx），在高隔离级别下读到的可能是事务前快照，
       // 故在此用 tx 内联同样的 notReady 判定。FOR UPDATE 锁住 BidProject 行不锁 BidSupplier 行，
@@ -903,7 +903,7 @@ export class BidService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await this.lockAndReassertStage(tx, id, 'SUBMIT'); // C1: 事务内行锁后复查阶段
+      await lockAndReassertStage(tx, id, 'SUBMIT'); // C1: 事务内行锁后复查阶段
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'SUBMIT' },
@@ -947,7 +947,7 @@ export class BidService {
     const riskNote = `流标（${project.procurementMethod}，投标供应商 ${supplierCount} 家，${abortAt}${actorId ? `，操作人 ${actorId}` : ''}${reasonPart}）`;
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await this.lockAndReassertStage(tx, id, 'ABORTED');
+      await lockAndReassertStage(tx, id, 'ABORTED');
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'ABORTED', riskNote },
@@ -1165,7 +1165,7 @@ export class BidService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await this.lockAndReassertStage(tx, id, 'OPENING'); // C1: 事务内行锁后复查阶段（同阶段 OPENING→OPENING 幂等放行）
+      await lockAndReassertStage(tx, id, 'OPENING'); // C1: 事务内行锁后复查阶段（同阶段 OPENING→OPENING 幂等放行）
       let sessionUpserted = false;
       if (hasRequiredSessionFields) {
         const existingSession = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
@@ -1294,23 +1294,6 @@ export class BidService {
       const next = item.stages[bidEvalIdx + 1];
       if (next) await tx.projectManagementItem.update({ where: { id: link.projectManagementItemId }, data: { currentStage: next.stageKey } });
     }
-  }
-
-  /**
-   * C1 修复：事务内行锁后复查阶段，杜绝「事务外 assert + 事务内无条件写」的 TOCTOU。
-   * 拿行锁后重读 stage 并重跑状态机断言；并发下后提交的一方在此抛 409，
-   * 而非裸覆写已被其他事务推进/归档的阶段（防止 ARCHIVED 复活、防止回退）。
-   */
-  private async lockAndReassertStage(
-    tx: Prisma.TransactionClient,
-    id: string,
-    target: BidStage,
-  ): Promise<{ stage: BidStage; name: string }> {
-    await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${id} FOR UPDATE`;
-    const fresh = await tx.bidProject.findUnique({ where: { id }, select: { stage: true, name: true } });
-    if (!fresh) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    assertBidStageTransition(fresh.stage, target);
-    return fresh;
   }
 
   /**
@@ -1469,7 +1452,7 @@ export class BidService {
     await this.checkAbnormalLowPrices(id, evaluableSupplierIds.map(s => s.id));
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      await this.lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 P1-17 与评分标准编辑互斥的 FOR UPDATE）
+      await lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 P1-17 与评分标准编辑互斥的 FOR UPDATE）
       const result = await tx.bidProject.update({
         where: { id },
         data: { stage: 'EVALUATING', evaluationDeadline: new Date(Date.now() + 72 * 60 * 60 * 1000) }, // E2: 72h 评标时限
@@ -3217,7 +3200,7 @@ export class BidService {
 
     await this.prisma.$transaction(async (tx) => {
       // #34: FOR UPDATE 行锁——防止并发 generateEvaluationResults 互相覆盖
-      await this.lockAndReassertStage(tx, projectId, 'EVALUATING');
+      await lockAndReassertStage(tx, projectId, 'EVALUATING');
       await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
       if (ranked.length > 0) {
         await tx.bidEvaluationResult.createMany({
@@ -3865,7 +3848,7 @@ export class BidService {
     // The ensureArchiveItems, counts check, item fetch, and all updates happen atomically.
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
-      await this.lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
+      await lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
       // 开标归档必须已完成移交（生成开标文件包），否则归档材料不完整
       if (scope === 'opening') {
         const session = await tx.bidOpeningSession.findUnique({
