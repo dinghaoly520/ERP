@@ -24,10 +24,11 @@ export const TABS: TabDef[] = [
     key: 'evaluate',
     label: '评标管理',
     icon: ClipboardCheck,
-    // 与开标大厅 tab 同口径启用：评标视图自身已对 OPENING 渲染只读骨架、对 ABORTED 渲染空态，
-    // 故 tab 不再于这些阶段灰显（避免"灰色打不开"）。DOWNLOAD/SUBMIT 不可作为工作区入口，仍禁用。
+    // 与开标大厅 tab 同口径启用：评标视图自身对 OPENING 渲染「启动评标」横幅、对 ABORTED 渲染空态
+    // （分工 v3 后评标管理为 :3007 现场全操作），故 tab 不再于这些阶段灰显（避免"灰色打不开"）。
+    // DOWNLOAD/SUBMIT 不可作为工作区入口，仍禁用。
     minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
-    stageHint: '评标尚未开始。当前阶段：{stage}。请等待 :3005 启动评标后查看（本页只读）。',
+    stageHint: '评标尚未开始。当前阶段：{stage}。请等待 :3005 启动评标后进入评标管理。',
   },
   {
     key: 'standard',

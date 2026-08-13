@@ -359,7 +359,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
         </div>
       )}
 
-      {/* AI 辅助评标进度（沿用只读 tab 内容：补救操作不改阶段） */}
+      {/* AI 辅助评标进度（沿用原只读视图的 AI 卡片：补救操作不改阶段） */}
       <div className="mb-3">
         <AiAnalysisCard projectId={projectId} stage={stage} />
       </div>
