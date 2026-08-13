@@ -76,6 +76,38 @@ const ALL_TABLES = [
   'ScoreTemplate',
   'OpeningHallMessage',
   'OpeningHallReadCursor',
+  // 补录：迁移新增、此前未纳入 TRUNCATE 的业务表（2026-08-13 对齐 pg_tables 全量）
+  'AttachmentVersion',
+  'AwardLetterDelivery',
+  'BidFileBackup',
+  'BidInvalidBid',
+  'BidMotion',
+  'BidQuote',
+  'BidRound',
+  'BidScorePointDecision',
+  'BidScoreRecordHistory',
+  'BidScoreReview',
+  'BidSignPacket',
+  'BidSupplierNudge',
+  'BidVote',
+  'CatalogInquiry',
+  'CatalogItemAttachment',
+  'CatalogItemRelation',
+  'CatalogSearchLog',
+  'CatalogSubscription',
+  'CatalogVersion',
+  'ChatMessage',
+  'ContractPrice',
+  'ExpertDispute',
+  'ExpertMemo',
+  'InvitationRsvp',
+  'OperationLog',
+  'QualificationAlertAck',
+  'SupplierClassificationLink',
+  'SupplierDocument',
+  'SupplierFavorite',
+  'SupplierInvitation',
+  'SupplierSelectionHistory',
 ] as const;
 
 // 按外键依赖分层写入（父表在前）。空快照 createMany 等价于空操作。
@@ -245,7 +277,8 @@ async function main() {
   const existingTables = await prisma.$queryRawUnsafe<{ tablename: string }[]>(
     `SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename != '_prisma_migrations'`,
   );
-  const existingNames = new Set(existingTables.map((r) => r.tablename));
+  // pg_catalog 返回混合大小写的表名（Prisma 引号标识符），统一转小写再匹配
+  const existingNames = new Set(existingTables.map((r) => r.tablename.toLowerCase()));
   const tablesToTruncate = ALL_TABLES.filter((t) => existingNames.has(t.toLowerCase()));
   const missing = ALL_TABLES.filter((t) => !existingNames.has(t.toLowerCase()));
   if (missing.length > 0) console.log(`  跳过 ${missing.length} 张未建表: ${missing.join(', ')}`);
@@ -264,7 +297,7 @@ async function main() {
   console.log('▶ 按外键依赖顺序写入快照');
   for (const [tableName, delegate] of SEED_ORDER) {
     // 跳过数据库中不存在的表（Prisma schema 新增但迁移未建）
-    if (!existingNames.has(tableName)) {
+    if (!existingNames.has(tableName.toLowerCase())) {
       const rows = load(tableName) as Record<string, unknown>[];
       if (rows.length > 0) console.log(`    跳过 ${tableName}: ${rows.length} 行（表未建）`);
       continue;
