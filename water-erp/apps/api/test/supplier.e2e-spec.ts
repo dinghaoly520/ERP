@@ -96,6 +96,7 @@ describe('Supplier (e2e)', () => {
         email: 'orph@test.com',
         contacts: [{ name: '联系人', phone: '13800000000', isPrimary: true }],
         qualifications: [],
+        tags: ['物资供应', '工程服务'],
       })
       .expect(400);
     // 应是信用代码重复导致的业务错误

@@ -73,7 +73,8 @@ describe('Catalog supply application (e2e)', () => {
     steelItemId = steel!.id;
 
     supplierCookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
-    adminCookie = await loginAs(app, '陈源远', '陈源远@2026', 'web');
+    // 审核/议价 @Roles('admin','leader','staff')——陈源远在 X-Portal:web 解析为 bid_host（403），用 leader 账号
+    adminCookie = await loginAs(app, 'Swhi-CGZX-01', 'Swhi-CGZX-01@2026', 'web');
   });
 
   afterAll(async () => {

@@ -115,6 +115,7 @@ describe('Opening Hall (e2e)', () => {
       data: {
         userId: nmUser.id, name: `E2E非参投供应商-${ts0}`, normalizedName: `E2E非参投供应商-${ts0}`,
         enterpriseType: '有限责任公司', legalPerson: '测试', registeredAddress: '成都', businessScope: '测试',
+        supplierNo: `SUP-E2E-${ts0}`, // 迁移 20260807000000_supplier_no 后为必填
       },
     });
     nonMemberSupplierId = nmSupplier.id;

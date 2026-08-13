@@ -67,6 +67,15 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
     await prisma.expertProfile.deleteMany({ where: { user: { username: { in: [E2E_ADMIN, E2E_EXPERT] } } } });
     await prisma.user.deleteMany({ where: { username: { in: [E2E_ADMIN, E2E_EXPERT] } } });
 
+    // 幂等清理他套件崩溃（--forceExit）遗留的悬空评审分配：project 已删的 BidExpert 会让
+    // listExperts 的 project relation select 抛 Inconsistent query result → 全量回归 500
+    const dangling = await prisma.bidExpert.findMany({ select: { id: true, projectId: true } });
+    const liveProjectIds = new Set((await prisma.bidProject.findMany({ select: { id: true } })).map((p) => p.id));
+    const danglingIds = dangling.filter((e) => !liveProjectIds.has(e.projectId)).map((e) => e.id);
+    if (danglingIds.length > 0) {
+      await prisma.bidExpert.deleteMany({ where: { id: { in: danglingIds } } });
+    }
+
     // leader 角色管理账号（web 门户可登录）
     await prisma.user.upsert({
       where: { username_role: { username: E2E_ADMIN, role: 'leader' } },
@@ -96,10 +105,13 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
     expect(adminId).toBeTruthy();
   });
 
-  it('GET /expert-admin 返回专家列表', async () => {
+  it('GET /expert-admin 返回分页专家列表', async () => {
     const res = await authGet('/api/expert-admin');
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    // listExperts 分页返回 { total, page, pageSize, items }
+    expect(typeof res.body.total).toBe('number');
+    expect(res.body.page).toBe(1);
+    expect(Array.isArray(res.body.items)).toBe(true);
   });
 
   it('GET /expert-admin/specialties 返回专业数组', async () => {
@@ -123,11 +135,12 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
       for (let i = 0; i < res.body.length; i++) {
         const row = res.body[i];
         expect(row.expertUserId).toBeTruthy();
-        expect(Number.isFinite(row.aCount)).toBe(true); // 按 A 级评价数排序，不再有 avgScore
+        expect(Number.isFinite(row.aCount)).toBe(true);
         expect(Number.isFinite(row.evalCount)).toBe(true);
         expect(row.gradeCounts).toBeTruthy(); // 等级分布 {A,B,C,D,E}
         if (i > 0) {
-          expect(row.aCount).toBeLessThanOrEqual(res.body[i - 1].aCount); // A 级数降序
+          // 排序口径：加权得分降序（同分按评价次数降序），非 A 级数降序
+          expect(row.weightedScore).toBeLessThanOrEqual(res.body[i - 1].weightedScore);
           expect(row.rank).toBeGreaterThanOrEqual(res.body[i - 1].rank); // 名次单调
         }
       }

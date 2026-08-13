@@ -136,10 +136,12 @@ describe('Auth (e2e)', () => {
     });
 
     it('供应商不能访问专家接口', async () => {
+      // /expert/profile 为自作用域路由（无 @Roles，任意登录用户只取本人资料），
+      // 角色隔离用 expert-admin 管理端点验证（@Roles('admin','bid_host','leader','staff')）
       const cookie = await loginAs(app, '重庆蜀通岩土工程有限公司', 'supplier@2026', 'supplier');
 
       await request(app.getHttpServer())
-        .get('/api/expert/profile')
+        .get('/api/expert-admin')
         .set('Cookie', cookie)
         .set('X-Portal', 'supplier')
         .expect(403);

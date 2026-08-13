@@ -45,6 +45,24 @@ describe('Bid Lifecycle (e2e)', () => {
     leaderCookie = await loginAs(app, 'Swhi-CGZX-01', 'Swhi-CGZX-01@2026', 'web');
   });
 
+  /** 开标前置包：指派主持人 + N 家终局态供应商 + M 名普通专家（未确认、非正选）。
+   *  满足 /open 阶段推进闸门（HOST_NOT_ASSIGNED / 开标准备 checklist / DEADLINE_NOT_PASSED 由用例自管）。
+   *  专家默认不设 invitationStatus/expertRole——用例若要过 startEvaluation 委员会闸门需自行建 confirmed 正选。 */
+  async function makeOpeningReady(projectId: string, opts?: { suppliers?: number; experts?: number }) {
+    const host = await prisma.user.findFirst({ where: { role: 'bid_host', isActive: true } });
+    if (host) await prisma.bidProject.update({ where: { id: projectId }, data: { assignedHostUserId: host.id } });
+    const supplierN = opts?.suppliers ?? 3;
+    for (let i = 0; i < supplierN; i++) {
+      await prisma.bidSupplier.create({
+        data: { projectId, supplierName: `开标前置供应商-${Date.now()}-${i}`, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: '已提交' },
+      });
+    }
+    const expertUsers = await prisma.user.findMany({ where: { role: 'bid_expert' }, take: opts?.experts ?? 1 });
+    for (const u of expertUsers) {
+      await prisma.bidExpert.create({ data: { projectId, userId: u.id, expertName: u.username, major: '综合' } });
+    }
+  }
+
   afterAll(async () => {
     if (createdProjectId) {
       await prisma.bidScorePoint.deleteMany({ where: { scoreItem: { projectId: createdProjectId } } }).catch(() => {});
@@ -136,6 +154,9 @@ describe('Bid Lifecycle (e2e)', () => {
     const tmpId = res.body.id;
     expect(res.body.stage).toBe('DOWNLOAD');
 
+    // 阶段推进闸门前置：已指派主持人 + 开标准备 checklist（专家/供应商≥法定家数）
+    await makeOpeningReady(tmpId);
+
     // 不带会话字段裸调 /open → 仅推阶段不建会话（开标会话由 :3007 组建）
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${tmpId}/open`)
@@ -180,6 +201,8 @@ describe('Bid Lifecycle (e2e)', () => {
     // 解密窗口设为「当前开启」(start 已过、end 未到)，否则后续解密报 DECRYPT_WINDOW_NOT_OPEN
     const decryptWindowStart = new Date(Date.now() - 3600_000).toISOString();
     const decryptWindowEnd = new Date(Date.now() + 3600_000).toISOString();
+    // 阶段推进闸门前置：主持人 + 有效投标 ≥3 家（已投 1 家，补 2 家）+ ≥1 专家
+    await makeOpeningReady(createdProjectId, { suppliers: 2 });
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${createdProjectId}/open`)
       .set('Cookie', adminCookie)
@@ -205,11 +228,18 @@ describe('Bid Lifecycle (e2e)', () => {
     // H4 共享守卫（T4 仅为零行为变更的等价抽取）：未撤回供应商须到终局态——SUCCESS 且 confirmStatus CONFIRMED/EXCEPTION
     // fixture 补齐 confirmStatus：H4 守卫自 e646107a 起要求确认闭环，原 fixture 未更新致红，T6 修复
     await prisma.bidSupplier.update({ where: { id: createdSupplierId }, data: { decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' } });
-    const expertUser = await prisma.user.findFirst({ where: { role: 'bid_expert' } });
-    expect(expertUser).toBeTruthy();
-    await prisma.bidExpert.create({
-      data: { projectId: createdProjectId, userId: expertUser!.id, expertName: expertUser!.username, major: '综合' },
-    });
+    // #15 评标委员会合规：已确认正选专家须 ≥3 且单数（invitationStatus=confirmed + expertRole=正选）
+    const expertUsers = await prisma.user.findMany({ where: { role: 'bid_expert' }, take: 3 });
+    expect(expertUsers.length).toBe(3);
+    for (let i = 0; i < expertUsers.length; i++) {
+      const u = expertUsers[i];
+      // upsert：makeOpeningReady 已为 /open checklist 建过 1 名普通专家（@@unique(projectId,userId)），升级为 confirmed 正选
+      await prisma.bidExpert.upsert({
+        where: { projectId_userId: { projectId: createdProjectId, userId: u.id } },
+        update: { invitationStatus: 'confirmed', expertRole: '正选', isLead: i === 0 },
+        create: { projectId: createdProjectId, userId: u.id, expertName: u.username, major: '综合', invitationStatus: 'confirmed', expertRole: '正选', isLead: i === 0 },
+      });
+    }
     // 完整评分标准(满足 startEvaluation 新闸门)
     await prisma.bidScoreItem.createMany({
       data: [
@@ -289,6 +319,9 @@ describe('Bid Lifecycle (e2e)', () => {
       .set('X-Portal', 'web')
       .expect(201);
 
+    // 阶段推进闸门前置：主持人 + 供应商/专家 checklist
+    await makeOpeningReady(tmpId);
+
     // 首次开标（带会话字段）→ OPENING
     await request(app.getHttpServer())
       .post(`/api/bid/projects/${tmpId}/open`)
@@ -334,16 +367,22 @@ describe('Bid Lifecycle (e2e)', () => {
     const proj = await prisma.bidProject.create({
       data: { projectCode: `BID-T3B-${Date.now()}`, name: 'B1残缺项目', stage: 'OPENING', procurementMethod: '公开招标', openTime: new Date('2099-12-31T09:00:00Z'), deadline: new Date('2099-12-30T17:00:00Z') },
     });
-    // 满足 P2(≥1 专家) + G4(≥1 解密成功供应商),使闸门推进到 G9(评分标准完整性)
-    const expertUser = await prisma.user.findFirst({ where: { role: 'bid_expert' } });
-    expect(expertUser).toBeTruthy();
-    await prisma.bidExpert.create({
-      data: { projectId: proj.id, userId: expertUser!.id, expertName: expertUser!.username, major: '综合' },
+    // 满足委员会合规(#15: 3 名 confirmed 正选) + G4/H4(≥3 家解密成功已确认供应商),
+    // 使闸门推进到 G9(评分标准完整性)——本用例断言 G9 的 409
+    const expertUsers = await prisma.user.findMany({ where: { role: 'bid_expert' }, take: 3 });
+    expect(expertUsers.length).toBe(3);
+    await prisma.bidExpert.createMany({
+      data: expertUsers.map((u, i) => ({
+        projectId: proj.id, userId: u.id, expertName: u.username, major: '综合',
+        invitationStatus: 'confirmed', expertRole: '正选', isLead: i === 0,
+      })),
     });
-    await prisma.bidSupplier.create({
-      // confirmStatus: CONFIRMED 满足 H4 终局态守卫，使闸门推进到 G9（评分标准完整性）
-      data: { projectId: proj.id, supplierName: '残缺测试供应商', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: '已提交' },
-    });
+    for (let i = 0; i < 3; i++) {
+      await prisma.bidSupplier.create({
+        // confirmStatus: CONFIRMED 满足 H4 终局态守卫，使闸门推进到 G9（评分标准完整性）
+        data: { projectId: proj.id, supplierName: `残缺测试供应商${i}`, decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED', submitStatus: '已提交' },
+      });
+    }
     await prisma.bidScoreItem.createMany({
       data: [
         { projectId: proj.id, category: 'BUSINESS', name: '商务', maxScore: 20 },
@@ -509,6 +548,9 @@ describe('Bid Lifecycle (e2e)', () => {
           openTime: new Date(Date.now() - 43200_000).toISOString(),
         });
       projectId = createRes.body.id;
+      // 阶段推进闸门前置：主持人 + 供应商/专家 checklist
+      // （专家为未确认非正选——本 describe 末例断言 startEvaluation 报 NO_EXPERTS_ASSIGNED 而非"未移交"）
+      await makeOpeningReady(projectId);
       // 确定开标（裸推阶段，不建会话）
       await request(app.getHttpServer())
         .post(`/api/bid/projects/${projectId}/open`)
@@ -647,7 +689,8 @@ describe('Bid Lifecycle (e2e)', () => {
   });
 
   it('PATCH 非法 userId（supplier）→ 400 INVALID_HOST', async () => {
-    const project = await prisma.bidProject.findFirst();
+    // 避开已组建开标会话的项目（如 EVALUATING 种子项目）——改派被 OPENING_SESSION_LOCKED 锁（409）
+    const project = await prisma.bidProject.findFirst({ where: { stage: { in: ['DOWNLOAD', 'SUBMIT'] } } });
     if (!project) return;
     const supplier = await prisma.user.findFirst({ where: { role: 'supplier' } });
     if (!supplier) return;
@@ -662,7 +705,7 @@ describe('Bid Lifecycle (e2e)', () => {
 
   it('PATCH userId=null → 清除指派（200）', async () => {
     const project = await prisma.bidProject.findFirst({
-      where: { assignedHostUserId: { not: null } },
+      where: { assignedHostUserId: { not: null }, stage: { in: ['DOWNLOAD', 'SUBMIT'] } },
     });
     if (!project) return;
     const originalAssign = project.assignedHostUserId;
