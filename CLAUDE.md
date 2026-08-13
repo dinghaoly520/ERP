@@ -24,7 +24,7 @@ Run workspace commands from `water-erp/`.
 | **供应商门户** | `apps/supplier-portal` | Vue 3 + Vite | 3004 | Supplier self-service — registration, bidding, qualifications, profile |
 | **采购管理工作台** | `apps/web` | Next.js 16 App Router | 3005 | Admin/internal staff — announcements, supplier management, expert admin, mall management |
 | **专家门户** | `apps/expert-portal` | Next.js 16 App Router | 3006 | Bid expert workstation — project review, identity verification, scoring, reports |
-| **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | **在线开标执行终端（纯开标）**：开标任务板 + 开标大厅（组建会话/解密/唱标/异议/监督视图）。项目管理与全部阶段流转归 :3005 |
+| **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | **开标+评标全过程执行终端（现场）**：开标任务板 + 开标大厅（组建会话/解密/唱标/异议/监督视图）+ 评标管理（启动评标/评分矩阵/生成结果/异议裁决/澄清答疑）+ 评标签字包（打印·手写签字·回传登记）+ 评标回流包。评标前准备与评标后归档归 :3005 |
 | **水叮当助手** | `apps/assistant` | Next.js 16 App Router | 3008 | AI assistant chatbot — public, no login required |
 | **大屏** | `apps/bigscreen` | Next.js 16 | 3010 | Data-viz big-screen dashboard. Started by `pnpm dev` (one of 9 apps); can also run standalone via `pnpm dev:bigscreen`. Port is hardcoded (not in `packages/config/ports.ts`). |
 
@@ -79,6 +79,7 @@ The admin/internal staff management console for procurement users (login roles `
 - **AI 投标分析** (`/ai-bid-analysis` · `/bid-analysis` · `/smart-bid`) — per-item LLM bid-analysis dashboards; they read jobs produced by the **separate worker process** (see Architecture → AI Bid Analysis Worker), so no analysis runs unless that worker is started
 - **招投标文档** (`/tender-write` · `/tender-review`) — tender-document authoring + AI review
 - **项目 / 进度 / 工作安排** (`/procurements` · `/projects` · `/progress` · `/work-arrangements`) — procurement-project lifecycle, milestones, work assignments
+- **开评标指挥**（项目详情「开标确认」面板）— 评标前准备与评标后收尾：供应商投标状态/专家确认/评分标准编制/监督时间线/开标进度/归档（完整归档闸门=签字闭环+回流已接收）；评标过程操作在 :3007（分工 v3，见 spec）
 
 **Access:** Log in with a `staff`/`leader` account (e.g. `Swhi-CGZX-01` leader / `Swhi-CGZX-05` staff, password `<用户名>@2026`). `陈源远` resolves to `bid_host` here per `PORTAL_ROLE_PRIORITY.web` — it is NOT the procurement login.  
 **Login cookie:** `token_web`.  
@@ -102,13 +103,14 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 
 ### 开评标管理端 (`bid-portal`, :3007)
 
-**纯开标执行终端**（2026-07 重构）。总则：**所有流程流转归 :3005 采购管理工作台，:3007 只执行在线开标并把数据流转回 :3005**。:3007 不持有任何阶段流转调用（确定开标/启动评标/生成结果/归档触发均在 :3005 项目详情「开标确认」面板）。页面三个：
+**开标+评标全过程执行终端**（2026-08-13 分工 v3）。总则：**:3005 与 :3007 是不同的人在不同地方的工作**——:3005 是采购中心办公室（评标前准备 + 评标后收尾），:3007 是开评标现场（主持人/admin）。:3005 确认能开标（按时开标）后项目流转给 :3007；**开标与评标过程中的事全归 :3007 管理**，直到评标结束；评标结束后 :3007 线上把开评标数据流转回 :3005（开标文件包 + 评标回流包），线下打印签字（评标签字包）。阶段流转：按时开标 :3005、启动评标 :3007、完整归档 :3005；流标：开标前 :3005、评标中（异议裁决）:3007。（实施中：评标管理/异议裁决/澄清答疑迁出 :3005 面板属 Wave 3，完成前 :3005 面板仍含三区块。）页面：
 
 - **开标任务板** (`/bid`) — 只读，按阶段分区：「开标中」（解密/唱标/确认/异议四计数）/「评标中」（专家签到·投标计数，进入工作区默认评标 tab）/「待确定开标」（截标已过的 DOWNLOAD/SUBMIT，仅提示）/「已结束」（归档·流标只读回看）；行操作进入对应项目工作区
 - **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人+解密窗口必填/监督人选填，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、开标完成后横幅【完成开标·移交】生成开标文件包（FileAsset `category=bid_opening_handover`，JSON + SHA-256 指纹，存 MinIO）并 WS 广播 `opening:completed` 回传 :3005（幂等、不改 stage、非启动评标闸门），:3005「开标进度」区块展示「资料已接收·下载」
-- **项目工作区** (`/bid/project/[id]?tab=`) — 2026-07-26 恢复：三 tab「开标大厅（嵌入大厅组件）／评标管理（只读：进度·专家状态·评分矩阵·汇总排名）／评分标准（只读：评分项+得分点）」；默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；评标管理从 OPENING 起即可查看（只读骨架，评标未开始时显示空态）；旧链接 `/bid/open?id=` 兼容重定向至此。评标**操作**（启动评标/生成结果/催促）、评分标准**编制**、澄清答疑、归档触发仍全归 :3005，工作区零操作按钮
+- **项目工作区** (`/bid/project/[id]?tab=`) — 四 tab「开标大厅（嵌入大厅组件）／评标管理（**全操作**，2026-08 从 :3005 迁回：启动评标·专家进度·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决（含评标中流标）·澄清答疑）／评分标准（只读：评分项+得分点，编制归 :3005）／评标签字（新增）」；默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；旧链接 `/bid/open?id=` 兼容重定向至此
+- **评标签字**（工作区 tab，2026-08 新增）— 评标结果生成后可用：生成签字包 PDF（《评标报告》十项法定内容 + 签字页含「评标专家声明」与在线操作留痕 + 个人评分确认表×N + 异议工单 + 澄清纪要 + 动议决议）→ 主持人打印 → 专家现场手写签字 → 扫描回传 → 逐专家登记「已签字 / 拒绝(附书面不同意见) / 视为同意(拒绝且未陈述理由)」→ 全员闭环 → 生成评标回流包流转回 :3005。完整归档闸门 = 签字闭环 + 回流已生成。详见 `docs/superpowers/specs/2026-08-13-expert-paper-signing-design.md`
 
-已迁回 :3005 的原 :3007 功能（:3007 仅保留只读视图）：评标管理端的编辑操作、评分标准编制、澄清答疑、归档触发与查看、项目创建/编辑/邀请/催办。
+:3005 保留（不迁）：「开标确认」面板的评标前准备（供应商投标状态·催促未投递、专家确认·正选候补替换、评分标准编制、监督时间线、开标进度·开标前流标、主持人指派·延时开标·按时开标）与评标后收尾（评标回流接收、完整归档·签字闭环闸门、公示、中标通知书）。评标管理/异议裁决/澄清答疑迁回 :3007（Wave 3 实施中，完成前 :3005 面板仍含三区块）。
 
 **Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → cookie `token_web` is set → post-login redirect to bid portal (:3007). The bid portal shares the `token_web` cookie namespace (no separate `token_bid`), sending `X-Portal: web` for API calls.
 
@@ -370,7 +372,7 @@ The API uses `@nestjs/websockets` + Socket.IO for real-time bid opening (开标�
 DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ```
 
-**单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转统一由 :3005「开标确认」面板驱动（按时开标/启动评标/归档），:3007 仅在 OPENING 阶段内写开标会话、不持有任何阶段流转。:3007 在 OPENING 阶段内另持有「完成开标·资料移交」（`POST /bid/projects/:id/complete-opening`：开标文件包（JSON + SHA-256 指纹）存 MinIO、FileAsset 挂到会话并回传 :3005，幂等、不改 stage，**不作为启动评标的前置闸门**）。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会把关联项目 stage 裸重置回 DOWNLOAD（`announcement.service.ts`，管理员刻意回滚，不经状态机）。
+**单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转按分工 v3（2026-08-13）：按时开标 :3005「开标确认」面板、启动评标与评标中流标 :3007、完整归档 :3005（闸门=签字闭环+评标回流已生成）。:3007 在 OPENING 阶段内写开标会话并持有「完成开标·资料移交」（`POST /bid/projects/:id/complete-opening`：开标文件包（JSON + SHA-256 指纹）存 MinIO、FileAsset 挂到会话并回传 :3005，幂等、不改 stage，**不作为启动评标的前置闸门**）。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会把关联项目 stage 裸重置回 DOWNLOAD（`announcement.service.ts`，管理员刻意回滚，不经状态机）。
 
 ### File Uploads (MinIO)
 
