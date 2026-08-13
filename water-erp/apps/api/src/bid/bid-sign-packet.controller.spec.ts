@@ -75,4 +75,10 @@ describe('BidSignPacketController', () => {
     await expect(controller.generateHandover('p1', 'u1')).resolves.toEqual({ ok: true });
     expect(svc.generateHandover).toHaveBeenCalledWith('p1', 'u1');
   });
+
+  it('scan 缺文件（multipart 未带 file 字段）→ 400 SIGN_SCAN_REQUIRED', () => {
+    expect(() => controller.uploadExpertScan('p1', 'e1', undefined, 'u1'))
+      .toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'SIGN_SCAN_REQUIRED' }) }));
+    expect(svc.uploadExpertScan).not.toHaveBeenCalled();
+  });
 });

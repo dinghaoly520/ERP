@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -33,9 +33,10 @@ export class BidSignPacketController {
   uploadExpertScan(
     @Param('id') id: string,
     @Param('expertId') expertId: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser('sub') userId: string,
   ) {
+    if (!file) throw new BadRequestException({ error: '缺少上传文件（multipart field=file）', code: 'SIGN_SCAN_REQUIRED' });
     return this.service.uploadExpertScan(id, expertId, { buffer: file.buffer, mimetype: file.mimetype, originalname: file.originalname }, userId);
   }
 
@@ -45,9 +46,10 @@ export class BidSignPacketController {
   @ApiOperation({ summary: '上传主报告签字页扫描件（全员共签页）' })
   uploadSignaturePageScan(
     @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser('sub') userId: string,
   ) {
+    if (!file) throw new BadRequestException({ error: '缺少上传文件（multipart field=file）', code: 'SIGN_SCAN_REQUIRED' });
     return this.service.uploadSignaturePageScan(id, { buffer: file.buffer, mimetype: file.mimetype, originalname: file.originalname }, userId);
   }
 
