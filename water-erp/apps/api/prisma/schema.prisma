@@ -79,7 +79,7 @@ model User {
   chatReceived ChatMessage[] @relation("ChatMessageReceiver")
 
   // ── 开标主持人指派：被派到的项目（硬分流 R1）──
-  assignedBidProjects  BidProject[] @relation("BidProjectAssignedHost")
+  assignedBidProjects BidProject[] @relation("BidProjectAssignedHost")
 
   @@unique([username, role])
 }
@@ -304,10 +304,10 @@ model BidProject {
   evaluationDeadline       DateTime? // E2: 评标截止时间(超时告警)
   isExtractionOnly         Boolean                    @default(false) // 自定义抽取影子项目：仅承载专家抽取/通知/确认，不出现在项目管理列表
   // ── 开标主持人指派（R1 硬分流）── null = 未指派（:3007 不可见，:3005 公开池）
-  assignedHostUserId        String?
-  assignedAt                DateTime?
-  assignedByUserId          String?    // 操作留痕：指派人 userId
-  assignedHostUser          User?      @relation("BidProjectAssignedHost", fields: [assignedHostUserId], references: [id], onDelete: SetNull)
+  assignedHostUserId       String?
+  assignedAt               DateTime?
+  assignedByUserId         String? // 操作留痕：指派人 userId
+  assignedHostUser         User?                      @relation("BidProjectAssignedHost", fields: [assignedHostUserId], references: [id], onDelete: SetNull)
   suppliers                BidSupplier[]
   openingSession           BidOpeningSession?
   openingRecords           BidOpeningRecord[]
@@ -333,6 +333,7 @@ model BidProject {
   expertDisputes           ExpertDispute[]
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt
+  bidSignPacket            BidSignPacket?
 
   @@index([stage])
 }
@@ -342,16 +343,16 @@ model BidProject {
 /// messages: 逐家 AI 通知 { supplierId: { title, body } }；channels: 渠道数组。
 /// 定时到点（sendAt）由 SchedulerService 扫描触发；人工发送即置 SENT 并清除定时。
 model BidSupplierNudge {
-  id           String    @id @default(cuid())
-  bidProjectId String    @unique
+  id           String     @id @default(cuid())
+  bidProjectId String     @unique
   bidProject   BidProject @relation(fields: [bidProjectId], references: [id], onDelete: Cascade)
-  status       String?   // null | SCHEDULED | SENT
+  status       String? // null | SCHEDULED | SENT
   sendAt       DateTime? // 定时触发时间（开标前 24h）
   sentAt       DateTime? // 实际发送时间（人工或自动）
-  channels     Json?     // string[]  通知渠道
-  messages     Json?     // Record<supplierId, { title: string; body: string }>
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  channels     Json? // string[]  通知渠道
+  messages     Json? // Record<supplierId, { title: string; body: string }>
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 }
 
 model BidSupplier {
@@ -375,14 +376,14 @@ model BidSupplier {
   pointDecisions        BidScorePointDecision[]
   bidderResults         AiBidderResult[]
   supervisionAnnotation BidSupervisionAnnotation?
-  bidScoreReviews        BidScoreReview[]
-  expertMemos            ExpertMemo[]
-  bidQuotes              BidQuote[]
-  decryptError           String? // 解密失败原因
-  bidValidity            String? // 废标标记：'valid' | 'invalid'
-  checkInAt            DateTime? // 开标大厅签到时间
-  checkInMeta          String?   // 签到环境 JSON 快照：IP / User-Agent（存证）
-  lastSeenAt           DateTime? // 大厅在场心跳（节流写入）
+  bidScoreReviews       BidScoreReview[]
+  expertMemos           ExpertMemo[]
+  bidQuotes             BidQuote[]
+  decryptError          String? // 解密失败原因
+  bidValidity           String? // 废标标记：'valid' | 'invalid'
+  checkInAt             DateTime? // 开标大厅签到时间
+  checkInMeta           String? // 签到环境 JSON 快照：IP / User-Agent（存证）
+  lastSeenAt            DateTime? // 大厅在场心跳（节流写入）
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -393,17 +394,17 @@ model BidSupplier {
 model InvitationRsvp {
   id           String    @id @default(cuid())
   token        String    @unique // 加密签名 token（即链接 ?t= 的值）
-  invitationId String    // 一次通知批次 = 一个 cuid，聚合本批回执
-  projectId    String?   // 关联招标项目（无项目时为 null，仅记录意向）
+  invitationId String // 一次通知批次 = 一个 cuid，聚合本批回执
+  projectId    String? // 关联招标项目（无项目时为 null，仅记录意向）
   supplierId   String
-  supplierName String    // 冗余：链接页展示「本回执致：XX 公司」并防误点
-  title        String    // 链接页标题快照（项目名/采购主题）
-  summary      String    // 链接页关键信息快照（采购方式/预算/截止/邀请方…，JSON 文本）
+  supplierName String // 冗余：链接页展示「本回执致：XX 公司」并防误点
+  title        String // 链接页标题快照（项目名/采购主题）
+  summary      String // 链接页关键信息快照（采购方式/预算/截止/邀请方…，JSON 文本）
   status       String    @default("PENDING") // PENDING | ACCEPTED | DECLINED
-  note         String?   // 供应商回执备注（如「档期冲突」）
+  note         String? // 供应商回执备注（如「档期冲突」）
   respondedAt  DateTime?
-  responseIp   String?   // 回执存证
-  responseUa   String?   // 回执存证
+  responseIp   String? // 回执存证
+  responseUa   String? // 回执存证
   expiresAt    DateTime
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -418,14 +419,14 @@ model BidInvalidBid {
   id          String    @id @default(cuid())
   projectId   String
   supplierId  String
-  scoreItemId String?   // nullable: dispute/manual 废标无关联评分项
+  scoreItemId String? // nullable: dispute/manual 废标无关联评分项
   source      String    @default("passfail") // passfail | dispute | manual — 废标来源
   failCount   Int       @default(0)
   totalCount  Int       @default(0)
   status      String    @default("invalid") // 'invalid' | 'revoked'
-  reason      String?   // B3: 废标原因（如"通过性审查不通过票过半"）
-  actorId     String?   // B3: 操作人 userId
-  motionId    String?   // B3: 关联表决（委员会表决废标时）
+  reason      String? // B3: 废标原因（如"通过性审查不通过票过半"）
+  actorId     String? // B3: 操作人 userId
+  motionId    String? // B3: 关联表决（委员会表决废标时）
   revokedAt   DateTime?
   revokedBy   String?
   createdAt   DateTime  @default(now())
@@ -442,27 +443,27 @@ model BidInvalidBid {
 }
 
 model BidOpeningSession {
-  id                   String     @id @default(cuid())
-  projectId            String     @unique
-  host                 String
-  supervisor           String?
-  status               String     @default("待开标")
-  decryptWindowStart   DateTime
-  decryptWindowEnd     DateTime
-  remainingSeconds     Int        @default(0)
-  exchangeControl      String     @default("OPEN") // OPEN 允许群聊 | MUTED 仅主持人可发言 | CLOSED 关闭互动
-  handoverAssetId      String?    // 开标文件包 FileAsset 引用（完成开标·移交后写入）
-  handoverAt           DateTime?  // 移交时间
-  disputeTimeoutMinutes Int?      // 异议超时分钟数（null=不限）
-  disputedSince        DateTime?  // 首个异议提出时间（全部解决后清零）
-  activeHostId         String?    // 当前操作者 userId（并发检测）
-  activeHostName       String?    // 当前操作者显示名
-  pausedAt             DateTime?  // 暂停时刻（正在暂停则为当前时间）
-  totalPausedMs        Int        @default(0) // 累计暂停毫秒数（用于补偿解密窗口）
-  pauseReason          String?    // 暂停原因 (E5)
-  project              BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
+  id                    String     @id @default(cuid())
+  projectId             String     @unique
+  host                  String
+  supervisor            String?
+  status                String     @default("待开标")
+  decryptWindowStart    DateTime
+  decryptWindowEnd      DateTime
+  remainingSeconds      Int        @default(0)
+  exchangeControl       String     @default("OPEN") // OPEN 允许群聊 | MUTED 仅主持人可发言 | CLOSED 关闭互动
+  handoverAssetId       String? // 开标文件包 FileAsset 引用（完成开标·移交后写入）
+  handoverAt            DateTime? // 移交时间
+  disputeTimeoutMinutes Int? // 异议超时分钟数（null=不限）
+  disputedSince         DateTime? // 首个异议提出时间（全部解决后清零）
+  activeHostId          String? // 当前操作者 userId（并发检测）
+  activeHostName        String? // 当前操作者显示名
+  pausedAt              DateTime? // 暂停时刻（正在暂停则为当前时间）
+  totalPausedMs         Int        @default(0) // 累计暂停毫秒数（用于补偿解密窗口）
+  pauseReason           String? // 暂停原因 (E5)
+  project               BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
 }
 
 model BidOpeningRecord {
@@ -490,47 +491,51 @@ model BidOpeningRecord {
 }
 
 model BidExpert {
-  id                    String                  @id @default(cuid())
-  projectId             String
-  userId                String
-  expertName            String
-  major                 String
-  isLead                Boolean                 @default(false)
-  expertRole            String                  @default("正选") // 正选 | 候补
-  invitationStatus      String                  @default("pending") // pending | confirmed | declined
-  signedIn              Boolean                 @default(false)
-  phoneVerified         Boolean                 @default(false)
-  avoidanceConfirmed    Boolean                 @default(false)
-  aiConsentConfirmed    Boolean                 @default(false)
-  aiConsentAt           DateTime?
-  confidentialityAgreed Boolean                 @default(false) // P4: 保密承诺签署
-  confidentialityAgreedAt DateTime?              // P4: 签署时间
-  disciplineAgreed      Boolean                 @default(false) // P4: 评标纪律确认
-  disciplineAgreedAt    DateTime?               // P4: 确认时间
-  scoreDraft            Json?                    // G3: 评分草稿(防 localStorage 丢失)
-  isPurchaserRepresentative Boolean             @default(false) // 采购人代表标识（不得担任组长）
-  dissentingOpinion     String?                  // 书面不同意见（null=同意评标结论）
-  dissentingReason      String?                  // 不同意见理由
-  conflictedSupplierIds Json                    @default("[]")
-  progress              Int                     @default(0)
-  totalScore            Decimal                 @default("0") @db.Decimal(8, 1)
-  reportConfirmed       Boolean                 @default(false)
-  reportConfirmedAt     DateTime?
+  id                        String                  @id @default(cuid())
+  projectId                 String
+  userId                    String
+  expertName                String
+  major                     String
+  isLead                    Boolean                 @default(false)
+  expertRole                String                  @default("正选") // 正选 | 候补
+  invitationStatus          String                  @default("pending") // pending | confirmed | declined
+  signedIn                  Boolean                 @default(false)
+  phoneVerified             Boolean                 @default(false)
+  avoidanceConfirmed        Boolean                 @default(false)
+  aiConsentConfirmed        Boolean                 @default(false)
+  aiConsentAt               DateTime?
+  confidentialityAgreed     Boolean                 @default(false) // P4: 保密承诺签署
+  confidentialityAgreedAt   DateTime? // P4: 签署时间
+  disciplineAgreed          Boolean                 @default(false) // P4: 评标纪律确认
+  disciplineAgreedAt        DateTime? // P4: 确认时间
+  scoreDraft                Json? // G3: 评分草稿(防 localStorage 丢失)
+  isPurchaserRepresentative Boolean                 @default(false) // 采购人代表标识（不得担任组长）
+  dissentingOpinion         String? // 书面不同意见（null=同意评标结论）
+  dissentingReason          String? // 不同意见理由
+  conflictedSupplierIds     Json                    @default("[]")
+  progress                  Int                     @default(0)
+  totalScore                Decimal                 @default("0") @db.Decimal(8, 1)
+  reportConfirmed           Boolean                 @default(false)
+  reportConfirmedAt         DateTime?
   // RSVP token：免登录确认链接（15分钟有效期），发送通知时生成，超时自动弃权
-  rsvpToken             String?                 @unique
-  rsvpExpiresAt         DateTime?
-  rsvpRespondedAt       DateTime?
-  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project               BidProject              @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  scoreRecords          BidScoreRecord[]
-  reviews               BidRequirementReview[]
-  pointDecisions        BidScorePointDecision[]
-  expertMemos           ExpertMemo[]
-  bidScoreReviews       BidScoreReview[]
-  signInIp              String?   // 签到 IP 存证
-  signInMeta            Json?     // 签到环境快照 { ip, userAgent, timestamp }
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
+  rsvpToken                 String?                 @unique
+  rsvpExpiresAt             DateTime?
+  rsvpRespondedAt           DateTime?
+  user                      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project                   BidProject              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scoreRecords              BidScoreRecord[]
+  reviews                   BidRequirementReview[]
+  pointDecisions            BidScorePointDecision[]
+  expertMemos               ExpertMemo[]
+  bidScoreReviews           BidScoreReview[]
+  signInIp                  String? // 签到 IP 存证
+  signInMeta                Json? // 签到环境快照 { ip, userAgent, timestamp }
+  signStatus                SignStatus              @default(PENDING) // 评标签字登记状态（§43 语义）
+  signStatusAt              DateTime? // 登记/撤销时间
+  signScanFileId            String? // 该专家签字页/不同意见书扫描件 → FileAsset
+  signRegisteredBy          String? // 登记人 userId
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -557,20 +562,20 @@ model BidScoreItem {
 }
 
 model BidScorePoint {
-  id              String                  @id @default(cuid())
-  scoreItemId     String
-  name            String
-  fullScore       Decimal                 @default("0") @db.Decimal(5, 1)
-  seq             Int                     @default(0)
-  evidenceHint    String?
-  evidenceSection String? // 招标文件章节名（AI 提取时记录）
-  confidence      Decimal?                @db.Decimal(3, 2) // 0-1 信心分（AI 提取时记录）
+  id                   String                  @id @default(cuid())
+  scoreItemId          String
+  name                 String
+  fullScore            Decimal                 @default("0") @db.Decimal(5, 1)
+  seq                  Int                     @default(0)
+  evidenceHint         String?
+  evidenceSection      String? // 招标文件章节名（AI 提取时记录）
+  confidence           Decimal?                @db.Decimal(3, 2) // 0-1 信心分（AI 提取时记录）
   linkedRequirementIds Json? // Phase 1：关联招标条款 requirementId 列表（N:M 指引；映射编辑不受发布锁限制）
-  objective       Boolean                 @default(true)
-  scoreItem       BidScoreItem            @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
-  decisions       BidScorePointDecision[]
-  memos           ExpertMemo[]
-  createdAt       DateTime                @default(now())
+  objective            Boolean                 @default(true)
+  scoreItem            BidScoreItem            @relation(fields: [scoreItemId], references: [id], onDelete: Cascade)
+  decisions            BidScorePointDecision[]
+  memos                ExpertMemo[]
+  createdAt            DateTime                @default(now())
 
   @@index([scoreItemId])
 }
@@ -597,14 +602,14 @@ model BidScoreRecord {
 /// P5: 评分修订历史 — upsert 覆盖前写入旧值快照,支持回放评分演变过程
 model BidScoreRecordHistory {
   id          String   @id @default(cuid())
-  recordId    String   // 关联 BidScoreRecord.id
+  recordId    String // 关联 BidScoreRecord.id
   expertId    String
   scoreItemId String
   supplierId  String
   score       Decimal  @db.Decimal(5, 1)
   passed      Boolean?
   reason      String?
-  action      String   // 'create' | 'update'
+  action      String // 'create' | 'update'
   createdAt   DateTime @default(now())
 
   @@index([recordId])
@@ -795,15 +800,15 @@ model AwardLetterDelivery {
   projectId     String
   supplierId    String
   supplierName  String
-  letterAssetId String?   // 通知书 DOCX 的 FileAsset ID
-  content       Json?     // 通知书结构化内容（中标单位/金额/项目）
+  letterAssetId String? // 通知书 DOCX 的 FileAsset ID
+  content       Json? // 通知书结构化内容（中标单位/金额/项目）
   deliveredAt   DateTime? // 推送到供应商的时间
   receivedAt    DateTime? // 供应商打开时间
   signedAt      DateTime? // 签收确认时间
-  signedBy      String?   // 签收人 userId
+  signedBy      String? // 签收人 userId
   createdAt     DateTime  @default(now())
 
-  project       BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, supplierId])
   @@index([projectId])
@@ -811,18 +816,18 @@ model AwardLetterDelivery {
 
 /// P2c: 报价轮次 — 谈判/竞价多轮报价
 model BidRound {
-  id                   String   @id @default(cuid())
-  projectId            String
-  roundNo              Int
-  roundType            String   // 'negotiation' | 'final_quote' | 'sealed_auction'
-  status               String   @default("pending") // pending | open | sealed | published | closed
-  deadline             DateTime?
-  eligibleSupplierIds  String[] @default([]) // 参与本轮报价的 BidSupplier IDs（空=不限制，legacy 兼容）
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  projectId           String
+  roundNo             Int
+  roundType           String // 'negotiation' | 'final_quote' | 'sealed_auction'
+  status              String    @default("pending") // pending | open | sealed | published | closed
+  deadline            DateTime?
+  eligibleSupplierIds String[]  @default([]) // 参与本轮报价的 BidSupplier IDs（空=不限制，legacy 兼容）
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  project     BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  quotes      BidQuote[]
+  project BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  quotes  BidQuote[]
 
   @@unique([projectId, roundNo])
   @@index([projectId])
@@ -837,8 +842,8 @@ model BidQuote {
   submittedAt   DateTime @default(now())
   status        String   @default("sealed") // sealed | opened
 
-  round         BidRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  bidSupplier   BidSupplier @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
+  round       BidRound    @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  bidSupplier BidSupplier @relation(fields: [bidSupplierId], references: [id], onDelete: Cascade)
 
   @@unique([roundId, bidSupplierId])
   @@index([roundId])
@@ -847,48 +852,51 @@ model BidQuote {
 
 /// C1: 委员会动议(异议裁决/废标表决/其他)
 model BidMotion {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   projectId   String
-  type        String   // 'dispute_resolution' | 'invalid_bid' | 'other'
+  type        String // 'dispute_resolution' | 'invalid_bid' | 'other'
   title       String
   description String?
-  status      String   @default("open") // voting | closed（'open' 为 schema 安全默认值，应用层 createMotion 直接写 'voting'）
-  result      String?  // 'approved' | 'rejected' | 'tie_broken'
+  status      String     @default("open") // voting | closed（'open' 为 schema 安全默认值，应用层 createMotion 直接写 'voting'）
+  result      String? // 'approved' | 'rejected' | 'tie_broken'
   createdBy   String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime   @default(now())
   closedAt    DateTime?
   project     BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   votes       BidVote[]
+
   @@index([projectId])
 }
 
 /// C1: 专家投票
 model BidVote {
-  id          String   @id @default(cuid())
-  motionId    String
-  expertId    String
-  vote        String   // 'approve' | 'reject' | 'abstain'
-  reason      String?
-  createdAt   DateTime @default(now())
-  motion      BidMotion @relation(fields: [motionId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  motionId  String
+  expertId  String
+  vote      String // 'approve' | 'reject' | 'abstain'
+  reason    String?
+  createdAt DateTime  @default(now())
+  motion    BidMotion @relation(fields: [motionId], references: [id], onDelete: Cascade)
+
   @@unique([motionId, expertId])
 }
 
 /// D2: 专家异议工单(跨端:专家创建→采购端裁决)
 model ExpertDispute {
-  id          String   @id @default(cuid())
-  projectId   String
-  expertId    String
-  expertName  String
-  type        String   @default("scoring") // scoring | procedure | other
-  title       String
-  content     String
-  status      String   @default("open") // open | resolved | rejected
-  resolvedBy  String?
-  resolvedAt  DateTime?
-  response    String?
-  createdAt   DateTime @default(now())
-  project     BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id         String     @id @default(cuid())
+  projectId  String
+  expertId   String
+  expertName String
+  type       String     @default("scoring") // scoring | procedure | other
+  title      String
+  content    String
+  status     String     @default("open") // open | resolved | rejected
+  resolvedBy String?
+  resolvedAt DateTime?
+  response   String?
+  createdAt  DateTime   @default(now())
+  project    BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@index([projectId])
 }
 
@@ -929,17 +937,17 @@ enum ExpertLevel {
 }
 
 model ExpertEvaluation {
-  id               String      @id @default(cuid())
-  expertUserId     String
-  projectId        String?
-  evaluatorId      String
-  attendanceGrade  ExpertLevel // 出勤纪律等级
-  qualityGrade     ExpertLevel // 评审质量等级（权重 50%）
-  disciplineGrade  ExpertLevel // 廉洁纪律等级（权重 30%）
-  overallGrade     ExpertLevel // 综合等级 = weighted(质量×0.5 + 纪律×0.3 + 出勤×0.2)
-  comment          String?
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  id              String      @id @default(cuid())
+  expertUserId    String
+  projectId       String?
+  evaluatorId     String
+  attendanceGrade ExpertLevel // 出勤纪律等级
+  qualityGrade    ExpertLevel // 评审质量等级（权重 50%）
+  disciplineGrade ExpertLevel // 廉洁纪律等级（权重 30%）
+  overallGrade    ExpertLevel // 综合等级 = weighted(质量×0.5 + 纪律×0.3 + 出勤×0.2)
+  comment         String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   expertUser User @relation("ExpertEvaluationsReceived", fields: [expertUserId], references: [id], onDelete: Cascade)
   evaluator  User @relation("ExpertEvaluationsGiven", fields: [evaluatorId], references: [id], onDelete: Cascade)
@@ -993,7 +1001,7 @@ model Supplier {
   // ── 临时供应商（凭邀请码注册，有效期由邀请码绑定）──
   isTemporary        Boolean        @default(false)
   temporaryExpiresAt DateTime?
-  tags              String[]       @default([])
+  tags               String[]       @default([])
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
@@ -1024,19 +1032,19 @@ model Supplier {
 
 // ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）──
 model SupplierInvitation {
-  id           String           @id @default(cuid())
-  code         String           @unique // 8 位大写字母+数字，公开可填
-  validityDays Int // 30 / 180 / 360
-  status       InvitationStatus @default(ACTIVE)
-  note         String? // 备注（如「XX项目临时供应商」）
+  id              String           @id @default(cuid())
+  code            String           @unique // 8 位大写字母+数字，公开可填
+  validityDays    Int // 30 / 180 / 360
+  status          InvitationStatus @default(ACTIVE)
+  note            String? // 备注（如「XX项目临时供应商」）
   boundCreditCode String? // R-3：绑定指定信用代码（仅该企业可用，防码泄漏任意注册）
-  createdById  String // 创建人（procurement_staff）
-  createdAt    DateTime         @default(now())
-  expiresAt    DateTime // createdAt + validityDays
-  usedById     String?          // 使用者 Supplier.id（非唯一：一个供应商可通过多个邀请码续期）
-  usedAt       DateTime?
-  revokedAt    DateTime?
-  revokedById  String?
+  createdById     String // 创建人（procurement_staff）
+  createdAt       DateTime         @default(now())
+  expiresAt       DateTime // createdAt + validityDays
+  usedById        String? // 使用者 Supplier.id（非唯一：一个供应商可通过多个邀请码续期）
+  usedAt          DateTime?
+  revokedAt       DateTime?
+  revokedById     String?
 
   createdBy User      @relation("InvitationCreator", fields: [createdById], references: [id])
   usedBy    Supplier? @relation("InvitationUsedBy", fields: [usedById], references: [id])
@@ -1149,8 +1157,8 @@ model SupplierEvaluation {
   finalGrade          ExpertLevel // 综合等级 = weighted average
   comment             String?
   evidence            Json?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
   supplier  Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   evaluator User     @relation(fields: [evaluatorId], references: [id], onDelete: Cascade)
@@ -2497,8 +2505,8 @@ model KnowledgeBase {
   id          String           @id @default(cuid())
   name        String
   description String?
-  ownerId     String           // 创建者；私有的按 ownerId 隔离，isShared=true 则全员可用
-  isShared    Boolean          @default(false)  // 共享：全员可「使用」，维护仅创建者(+admin)
+  ownerId     String // 创建者；私有的按 ownerId 隔离，isShared=true 则全员可用
+  isShared    Boolean          @default(false) // 共享：全员可「使用」，维护仅创建者(+admin)
   isActive    Boolean          @default(true)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -2525,13 +2533,13 @@ model KnowledgeFile {
 }
 
 model DocumentChunk {
-  id             String   @id @default(cuid())
+  id             String                 @id @default(cuid())
   collectionName String
   fileId         String
   content        String
-  metadata       Json     @default("{}")
+  metadata       Json                   @default("{}")
   embedding      Unsupported("vector")?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime               @default(now())
 
   @@index([collectionName])
 }
@@ -2667,4 +2675,32 @@ model ScoreTemplate {
   createdAt     DateTime @default(now())
 
   @@index([createdById])
+}
+
+/// 评标签字登记状态（《评标委员会和评标方法暂行规定》第四十三条语义）
+enum SignStatus {
+  PENDING // 待签
+  SIGNED // 已签字
+  REFUSED_DISSENT // 拒绝签字·附书面不同意见
+  DEEMED_AGREED // 视为同意（拒绝且未陈述理由）
+}
+
+/// 评标签字包：签字包 PDF + 签字页扫描 + 闭环信息 + 回流包引用
+model BidSignPacket {
+  id                  String    @id @default(cuid())
+  projectId           String    @unique
+  fileAssetId         String // 签字包 PDF/DOCX（category=bid_sign_packet）
+  sha256              String // 文件指纹
+  generatedAt         DateTime
+  generatedById       String
+  signPageScanFileId  String? // 主报告签字页扫描件（全员共签页，category=sign_packet_signature_page）
+  closedAt            DateTime? // 全员正选专家进入终态时自动置位
+  closedById          String?
+  handoverFileAssetId String? // 评标回流包（category=bid_evaluation_sign_handover），生成后置位
+  handoverSha256      String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  project BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // 无需 @@index([projectId])——@unique 已自带唯一索引
 }
