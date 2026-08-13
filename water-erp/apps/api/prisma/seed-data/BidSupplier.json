@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "id": "bs_seed_1",
+    "projectId": "cms1hda40006duu2o4fx28ubd",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "supplierName": "重庆蜀通岩土工程有限公司",
+    "downloadStatus": "已下载",
+    "lastDownloadAt": "2026-08-10T10:00:00.000Z",
+    "submitStatus": "已提交",
+    "encryptStatus": "已校验",
+    "receiptNo": "REC-bs_seed_1",
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "CONFIRMED",
+    "createdAt": "2026-08-10T09:00:00.000Z",
+    "updatedAt": "2026-08-13T09:36:24.455498+00:00"
+  },
+  {
+    "id": "bs_seed_2",
+    "projectId": "cms1hda40006duu2o4fx28ubd",
+    "supplierId": "cmqc8r5ts000jkoekgsp1rxqx",
+    "supplierName": "用友网络科技股份有限公司四川分公司",
+    "downloadStatus": "已下载",
+    "lastDownloadAt": "2026-08-10T10:00:00.000Z",
+    "submitStatus": "已提交",
+    "encryptStatus": "已校验",
+    "receiptNo": "REC-bs_seed_2",
+    "decryptStatus": "SUCCESS",
+    "confirmStatus": "CONFIRMED",
+    "createdAt": "2026-08-10T09:00:00.000Z",
+    "updatedAt": "2026-08-13T09:36:24.455498+00:00"
+  }
+]

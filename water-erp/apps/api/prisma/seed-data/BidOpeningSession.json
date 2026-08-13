@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "id": "bos_seed_1",
+    "projectId": "cms1hda40006duu2o4fx28ubd",
+    "host": "陈源远",
+    "supervisor": null,
+    "status": "已完成",
+    "decryptWindowStart": "2026-08-11T09:30:00.000Z",
+    "decryptWindowEnd": "2026-08-11T11:30:00.000Z",
+    "remainingSeconds": 0,
+    "exchangeControl": "OPEN"
+  }
+]

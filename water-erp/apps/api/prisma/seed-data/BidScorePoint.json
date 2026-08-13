@@ -38,5 +38,29 @@
     "evidenceHint": "按报价公式",
     "objective": true,
     "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "bp_seed_商务评分",
+    "scoreItemId": "cms1iuh5j000suucs497kk4m1",
+    "name": "商务评分-要点1",
+    "fullScore": 20,
+    "seq": 1,
+    "createdAt": "2026-08-13T09:36:24.455498+00:00"
+  },
+  {
+    "id": "bp_seed_技术评分",
+    "scoreItemId": "cms1iuh5j000tuucsfo787qay",
+    "name": "技术评分-要点1",
+    "fullScore": 50,
+    "seq": 1,
+    "createdAt": "2026-08-13T09:36:24.455498+00:00"
+  },
+  {
+    "id": "bp_seed_价格评分",
+    "scoreItemId": "cms1iuh5j000uuucsi2b2fmca",
+    "name": "价格评分-要点1",
+    "fullScore": 30,
+    "seq": 1,
+    "createdAt": "2026-08-13T09:36:24.455498+00:00"
   }
 ]

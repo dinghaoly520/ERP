@@ -29,11 +29,11 @@
     "projectCode": "BID-1785051154799",
     "name": "智慧水务大数据平台建设",
     "procurementMethod": "谈判采购",
-    "openTime": "2026-07-09T00:00:00.000Z",
-    "deadline": "2026-07-08T12:00:00.000Z",
+    "openTime": "2026-08-11T09:30:00.000Z",
+    "deadline": "2026-08-11T09:00:00.000Z",
     "downloadDeadline": null,
-    "stage": "SUBMIT",
-    "scoreStandardPublishedAt": null,
+    "stage": "EVALUATING",
+    "scoreStandardPublishedAt": "2026-08-11T10:00:00.000Z",
     "riskNote": null,
     "budget": "280000",
     "scope": null,
@@ -47,7 +47,9 @@
     "round": 1,
     "isExtractionOnly": false,
     "createdAt": "2026-07-26T07:32:34.800Z",
-    "updatedAt": "2026-07-26T07:32:34.800Z"
+    "updatedAt": "2026-07-26T07:32:34.800Z",
+    "leaderCoSigned": true,
+    "leaderCoSignedAt": "2026-08-12T04:00:00.000Z"
   },
   {
     "id": "cms1jamqs0033uucs16ueuh56",
