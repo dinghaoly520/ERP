@@ -1,9 +1,9 @@
 'use client';
 
-import { Unlock, ClipboardCheck, ListChecks, Shield, Gavel } from 'lucide-react';
+import { Unlock, ClipboardCheck, ListChecks, Shield, Gavel, PenLine } from 'lucide-react';
 
 export interface TabDef {
-  key: 'open' | 'supervise' | 'evaluate' | 'standard' | 'quotes';
+  key: 'open' | 'supervise' | 'evaluate' | 'standard' | 'quotes' | 'signing';
   label: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   minStage: string[];
@@ -35,6 +35,14 @@ export const TABS: TabDef[] = [
     icon: ListChecks,
     minStage: ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'],
     stageHint: '—',
+  },
+  {
+    key: 'signing',
+    label: '评标签字',
+    icon: PenLine,
+    // 入口条件：stage=EVALUATING 且已生成评标结果（tab 内容自身对未满足条件渲染引导空态；ARCHIVED 只读回看）
+    minStage: ['EVALUATING', 'ARCHIVED'],
+    stageHint: '评标结束后才能签字。当前阶段：{stage}。',
   },
   {
     key: 'quotes',

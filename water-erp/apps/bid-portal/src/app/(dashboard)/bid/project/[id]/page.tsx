@@ -12,6 +12,7 @@ import { OpeningHall } from '@/components/opening-hall';
 import { SupervisionView, type SupervisionLog } from '@/components/bid/supervision-view';
 import EvaluationView from '@/components/workspace/evaluation-view';
 import ScoreStandardView from '@/components/workspace/score-standard-view';
+import SigningTab from '@/components/workspace/signing-tab';
 import { RoundBlock } from '@/components/workspace/round-block';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { useOpeningSfx } from '@/hooks/use-opening-sfx';
@@ -26,6 +27,7 @@ const TAB_LABELS: Record<TabDef['key'], string> = {
   evaluate: '评标管理',
   standard: '评分标准',
   quotes: '报价轮次',
+  signing: '评标签字',
 };
 
 
@@ -188,6 +190,7 @@ function WorkspaceInner() {
           {current === 'evaluate' && <EvaluationView projectId={projectId as string} project={project} />}
           {current === 'standard' && <ScoreStandardView projectId={projectId as string} project={project} />}
           {current === 'quotes' && <RoundBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />}
+          {current === 'signing' && <SigningTab projectId={projectId as string} stage={stage} />}
         </>
       )}
     </div>

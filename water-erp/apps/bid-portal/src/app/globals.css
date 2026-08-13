@@ -280,6 +280,7 @@ select.workbench-input:focus {
   --success: oklch(0.71 0.112 164);
   --warning: oklch(0.78 0.122 83);
   --danger: oklch(0.66 0.175 27);
+  --hairline: oklch(0.91 0.006 264); /* 与 --color-border 同值，细线分隔 */
   --font-display: 'Manrope', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   /* 新拟态阴影令牌 */
   --neu-light: oklch(1 0 0);
