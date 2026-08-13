@@ -178,7 +178,7 @@ function WorkspaceInner() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ProjectTabs stage={stage} current={current} onSwitch={switchTab} hasRoundMode={hasRoundMode} />
         <span className="text-[11px] text-[color:var(--muted-foreground)]">
-          {project?.projectCode} · 评标管理 / 评分标准仅查看，流转操作在采购管理工作台（:3005）
+          {project?.projectCode} · 评分标准编制在采购管理工作台（:3005），本 tab 只读
         </span>
       </div>
       {!project ? (
@@ -187,7 +187,7 @@ function WorkspaceInner() {
         <>
           {current === 'open' && <OpeningHall project={project} onRefresh={loadProject} />}
           {current === 'supervise' && <SupervisionView projectId={projectId as string} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />}
-          {current === 'evaluate' && <EvaluationView projectId={projectId as string} project={project} />}
+          {current === 'evaluate' && <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} />}
           {current === 'standard' && <ScoreStandardView projectId={projectId as string} project={project} />}
           {current === 'quotes' && <RoundBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />}
           {current === 'signing' && <SigningTab projectId={projectId as string} stage={stage} />}

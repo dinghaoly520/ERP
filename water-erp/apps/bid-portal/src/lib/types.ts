@@ -41,6 +41,8 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
     handoverAt?: string | null;
     handoverAssetId?: string | null;
   };
+  /** E2: 评标截止时间（供移植的评标管理块倒计时用；后端 GET /bid/projects/:id 对两端返回同数据） */
+  evaluationDeadline?: string | null;
   experts: (SharedBidExpert & {
     expertRole?: string; // 正选 | 候补（Prisma BidExpert.expertRole）
     scoreRecords: ExpertScoreRecordInfo[];
