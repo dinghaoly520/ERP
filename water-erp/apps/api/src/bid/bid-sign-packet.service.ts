@@ -8,7 +8,7 @@ import { lockAndReassertStage } from './bid-state';
 import type { RegisterSignDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
-import type { BidService } from './bid.service';
+import { BidService } from './bid.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
 
 export type SignStatusValue = 'PENDING' | 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
 
