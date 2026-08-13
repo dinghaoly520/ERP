@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "concurrently -n mall,supplier,web,expert,public,bid,api,assistant,bigscreen -c magenta,green,blue,purple,cyan,red,yellow,white,gray \"pnpm dev:mall\" \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\" \"pnpm dev:assistant\" \"pnpm dev:bigscreen\"",
+    "dev:kill": "fuser -k 3002/tcp 3003/tcp 3004/tcp 3005/tcp 3006/tcp 3007/tcp 3008/tcp 3010/tcp 4001/tcp 2>/dev/null; sleep 0.5",
+    "dev": "pnpm dev:kill && concurrently -n mall,supplier,web,expert,public,bid,api,assistant,bigscreen -c magenta,green,blue,purple,cyan,red,yellow,white,gray \"pnpm dev:mall\" \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\" \"pnpm dev:assistant\" \"pnpm dev:bigscreen\"",
     "dev:api": "pnpm --filter api start:dev",
     "dev:assistant": "pnpm --filter assistant dev",
     "dev:bid": "pnpm --filter bid-portal dev",
