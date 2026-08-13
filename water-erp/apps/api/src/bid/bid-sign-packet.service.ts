@@ -206,7 +206,63 @@ export class BidSignPacketService {
     return this.getStatus(projectId);
   }
 
-  // uploadExpertScan / uploadSignaturePageScan / generateHandover 在 Task 4/6 追加
+  /** 上传该专家签字页/不同意见书扫描（替换旧件，同 key 覆盖） */
+  async uploadExpertScan(projectId: string, expertId: string, file: UploadedSignScan, actorId: string): Promise<SignPacketResponse> {
+    await this.assertScanUploadable(projectId, file);
+    const expert = await this.prisma.bidExpert.findFirst({ where: { id: expertId, projectId } });
+    if (!expert) throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' }); // 与 bid.service.ts:3341 现有约定一致（400 非 404）
+    if (expert.expertRole !== '正选') throw new BadRequestException({ error: '候补专家不参与签字', code: 'SIGN_EXPERT_NOT_FORMAL' });
+
+    const assetId = await this.storeScan(projectId, `expert-${expertId}`, file, 'expert_sign_scan', actorId);
+    await this.prisma.$transaction(async (tx) => {
+      await lockAndReassertStage(tx, projectId, 'EVALUATING');
+      await tx.bidExpert.updateMany({ where: { id: expertId, projectId }, data: { signScanFileId: assetId } });
+    });
+    return this.getStatus(projectId);
+  }
+
+  /** 上传主报告签字页扫描（全员共签页） */
+  async uploadSignaturePageScan(projectId: string, file: UploadedSignScan, actorId: string): Promise<SignPacketResponse> {
+    await this.assertScanUploadable(projectId, file);
+    const assetId = await this.storeScan(projectId, 'signature-page', file, 'sign_packet_signature_page', actorId);
+    await this.prisma.$transaction(async (tx) => {
+      await lockAndReassertStage(tx, projectId, 'EVALUATING');
+      await tx.bidSignPacket.update({ where: { projectId }, data: { signPageScanFileId: assetId } });
+    });
+    return this.getStatus(projectId);
+  }
+
+  /** 公共前置：签字包存在 + 未闭环 + 文件类型白名单 */
+  private async assertScanUploadable(projectId: string, file: UploadedSignScan): Promise<void> {
+    const packet = await this.prisma.bidSignPacket.findUnique({ where: { projectId } });
+    if (!packet) throw new ConflictException({ error: '签字包尚未生成，无法上传扫描件', code: 'SIGN_PACKET_NOT_GENERATED' });
+    if (packet.closedAt) throw new ConflictException({ error: '签字已闭环，扫描件上传已锁定', code: 'SIGN_PACKET_CLOSED' });
+    if (!SCAN_MIMES.has(file.mimetype)) {
+      throw new BadRequestException({ error: '仅支持 jpg/png/pdf 扫描件', code: 'SIGN_SCAN_TYPE_INVALID' });
+    }
+  }
+
+  /** 存 MinIO + 建 FileAsset，返回 asset id（同 key 覆盖，无孤儿对象） */
+  private async storeScan(projectId: string, suffix: string, file: UploadedSignScan, category: string, actorId: string): Promise<string> {
+    const ext = file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/jpeg' ? 'jpg' : 'pdf';
+    const objectKey = `bid-sign-packet/${projectId}/${suffix}.${ext}`;
+    const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
+    await this.storage.upload(objectKey, file.buffer, file.mimetype);
+    const asset = await this.prisma.fileAsset.create({
+      data: {
+        key: objectKey,
+        originalName: file.originalname || `scan.${ext}`,
+        mimeType: file.mimetype,
+        size: file.buffer.length,
+        sha256,
+        category,
+        uploaderId: actorId,
+      },
+    });
+    return asset.id;
+  }
+
+  // generateHandover 在 Task 6 追加
 
   /** 生成签字包：快照评标数据 → docx → PDF → MinIO → BidSignPacket（重生成覆盖旧包并重置全员 PENDING） */
   async generate(projectId: string, actorId: string): Promise<SignPacketResponse> {

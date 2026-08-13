@@ -196,6 +196,65 @@ describe('BidSignPacketService.generate', () => {
   });
 });
 
+describe('BidSignPacketService 扫描上传', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('mimetype 非 jpg/png/pdf → 400 SIGN_SCAN_TYPE_INVALID', async () => {
+    baseArrange(); // assertScanUploadable 先查 packet（未 mock 会先抛 SIGN_PACKET_NOT_GENERATED）
+    const svc = makeService();
+    await expect(
+      svc.uploadExpertScan(projectId, expertId, { buffer: Buffer.from('x'), mimetype: 'text/plain', originalname: 'a.txt' }, 'u1'),
+    ).rejects.toMatchObject({ response: { code: 'SIGN_SCAN_TYPE_INVALID' } });
+  });
+
+  it('闭环后上传 → 409 SIGN_PACKET_CLOSED', async () => {
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({ projectId, closedAt: new Date() });
+    const svc = makeService();
+    await expect(
+      svc.uploadSignaturePageScan(projectId, { buffer: Buffer.from('x'), mimetype: 'image/png', originalname: 'a.png' }, 'u1'),
+    ).rejects.toMatchObject({ response: { code: 'SIGN_PACKET_CLOSED' } });
+  });
+
+  it('专家扫描上传成功：MinIO + FileAsset(expert_sign_scan) + signScanFileId 落库', async () => {
+    baseArrange(); // 尾部 getStatus 需 findUnique 全字段 packet + findMany 回数组；事务内 lockAndReassertStage 走 $queryRaw
+    (prisma.bidExpert.findFirst as jest.Mock).mockResolvedValue({ id: expertId, projectId, expertRole: '正选' });
+    (prisma.fileAsset.create as jest.Mock).mockResolvedValue({ id: 'fa9' });
+    (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    const svc = makeService();
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+
+    await svc.uploadExpertScan(projectId, expertId, { buffer: Buffer.from('x'), mimetype: 'image/png', originalname: '签.png' }, 'u1');
+
+    expect((svc as any).storage.upload).toHaveBeenCalledWith(
+      expect.stringContaining(`bid-sign-packet/${projectId}/expert-${expertId}`),
+      expect.any(Buffer),
+      'image/png',
+    );
+    expect(prisma.fileAsset.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ category: 'expert_sign_scan' }) }),
+    );
+    expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: expertId, projectId }, data: { signScanFileId: 'fa9' } }),
+    );
+  });
+
+  it('主报告签字页扫描 → packet.signPageScanFileId 落库', async () => {
+    baseArrange(); // 尾部 getStatus 需全字段 packet + findMany 回数组
+    (prisma.fileAsset.create as jest.Mock).mockResolvedValue({ id: 'fa10' });
+    const svc = makeService();
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+
+    await svc.uploadSignaturePageScan(projectId, { buffer: Buffer.from('x'), mimetype: 'application/pdf', originalname: '签字页.pdf' }, 'u1');
+
+    expect(prisma.fileAsset.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ category: 'sign_packet_signature_page' }) }),
+    );
+    expect(prisma.bidSignPacket.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { projectId }, data: { signPageScanFileId: 'fa10' } }),
+    );
+  });
+});
+
 describe('BidSignPacketService.unregister', () => {
   it('未登记 → 400 SIGN_NOT_REGISTERED', async () => {
     baseArrange(); // SIGN_NOT_REGISTERED 在事务内抛出 → 铺好 $queryRaw + findUnique
