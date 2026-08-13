@@ -43,6 +43,13 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
   };
   /** E2: 评标截止时间（供移植的评标管理块倒计时用；后端 GET /bid/projects/:id 对两端返回同数据） */
   evaluationDeadline?: string | null;
+  /** D2: 专家异议工单（getProject include，:3007 裁决用；与 :3005 同形状） */
+  expertDisputes?: Array<{
+    id: string; expertName: string; type: string; // scoring | procedure | other
+    title: string; content: string; status: string; // open | resolved | rejected
+    response?: string | null; createdAt: string;
+    resolvedAt?: string | null; resolvedBy?: string | null;
+  }>;
   experts: (SharedBidExpert & {
     expertRole?: string; // 正选 | 候补（Prisma BidExpert.expertRole）
     scoreRecords: ExpertScoreRecordInfo[];

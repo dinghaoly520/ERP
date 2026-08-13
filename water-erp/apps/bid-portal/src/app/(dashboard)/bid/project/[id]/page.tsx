@@ -11,6 +11,7 @@ import ProjectTabs, { TABS, getDefaultTab, isTabAllowed, type TabDef } from '@/c
 import { OpeningHall } from '@/components/opening-hall';
 import { SupervisionView, type SupervisionLog } from '@/components/bid/supervision-view';
 import EvaluationView from '@/components/workspace/evaluation-view';
+import { DisputeBlock } from '@/components/workspace/dispute-block';
 import ScoreStandardView from '@/components/workspace/score-standard-view';
 import SigningTab from '@/components/workspace/signing-tab';
 import { RoundBlock } from '@/components/workspace/round-block';
@@ -187,7 +188,12 @@ function WorkspaceInner() {
         <>
           {current === 'open' && <OpeningHall project={project} onRefresh={loadProject} />}
           {current === 'supervise' && <SupervisionView projectId={projectId as string} project={project} liveLogs={liveLogs} anomalyEvents={anomalyEvents} />}
-          {current === 'evaluate' && <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} />}
+          {current === 'evaluate' && (
+            <>
+              <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} />
+              <DisputeBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />
+            </>
+          )}
           {current === 'standard' && <ScoreStandardView projectId={projectId as string} project={project} />}
           {current === 'quotes' && <RoundBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />}
           {current === 'signing' && <SigningTab projectId={projectId as string} stage={stage} />}

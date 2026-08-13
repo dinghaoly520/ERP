@@ -119,6 +119,25 @@ export interface BidProjectDetail {
   }>;
 }
 
+/* ── 开标决策 ── */
+
+/** 流标：将项目状态置为 ABORTED（B2: 支持流标原因） */
+export function abortBidProject(bidProjectId: string, reason?: string) {
+  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/abort`, reason ? { reason } : {});
+}
+
+/* ── 专家异议工单（D2：采购端裁决，分工 v3 后为 :3007 现场办理）── */
+
+/** 采购端裁决专家异议工单（采纳/驳回）。
+ *  invalidateBidSupplierId：采纳时同事务把该投标供应商置为 invalid（废标联动，可选）。 */
+export function resolveExpertDispute(
+  bidProjectId: string,
+  disputeId: string,
+  dto: { response: string; status: 'resolved' | 'rejected'; invalidateBidSupplierId?: string },
+) {
+  return api.post(`/bid/projects/${bidProjectId}/disputes/${disputeId}/resolve`, dto);
+}
+
 /* ── 评标管理 ── */
 
 /** 启动评标（OPENING → EVALUATING；前置：有专家 + 有可评供应商 + 评分标准完整） */
