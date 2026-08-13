@@ -87,11 +87,11 @@ describe('PriceFormulaService', () => {
       expect(Number(scores.get('A'))).toBe(30);
     });
 
-    it('报价低于控制价时分更高', () => {
+    it('报价低于控制价时分更高（封顶满分）', () => {
       const prices = new Map([['A', 80]]);
-      // 100/80 × 30 = 37.5 → 但不应超过满分?比例法本身不封顶
+      // 100/80 × 30 = 37.5 → 统一封顶 maxScore（与其余公式一致，不超满分）
       const scores = service.calculate(config, prices, 100, 30);
-      expect(Number(scores.get('A'))).toBeCloseTo(37.5, 1);
+      expect(Number(scores.get('A'))).toBeCloseTo(30, 1);
     });
 
     it('报价高于控制价时分更低', () => {

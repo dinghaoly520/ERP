@@ -990,6 +990,118 @@ describe('BidService — stage transitions', () => {
       expect(data[1].disqualified).toBe(true);
       expect(data[1].recommended).toBe(false);
     });
+
+    it('谈判采购·无公式配置·最终报价超限价 → 判废并写正确废标决议文案', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '谈判项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
+        procurementMethod: '谈判采购', ceilingPrice: 100,
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([]);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      // 最终报价: 甲=80(未超), 乙=120(超限价 100)
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', amount: '80' },
+        { bidSupplierId: 's2', amount: '120' },
+      ]);
+      (service as any).priceFormula.getOverCeilingSuppliers.mockReturnValue(['s2']);
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({});
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+      prisma.auditLog.create.mockResolvedValue({});
+
+      await service.generateEvaluationResults('p1');
+
+      expect((service as any).priceFormula.getOverCeilingSuppliers).toHaveBeenCalledWith(expect.any(Map), 100);
+      const data = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data;
+      expect(data[0].supplierName).toBe('甲');
+      expect(data[0].disqualified).toBe(false);
+      expect(data[0].recommended).toBe(true);
+      expect(data[1].supplierName).toBe('乙');
+      expect(data[1].disqualified).toBe(true);
+      expect(data[1].recommended).toBe(false);
+      // 超限价供应商 bidValidity 落库为 invalid
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 's2' }, data: { bidValidity: 'invalid' } }),
+      );
+      // 废标决议日志：超限价专属文案，不出现 0/0 票与「响应性性」
+      const abolishLogs = prisma.bidSupervisionLog.create.mock.calls
+        .filter((c: any[]) => c[0]?.data?.action === '废标决议')
+        .map((c: any[]) => c[0].data.result);
+      expect(abolishLogs).toHaveLength(1);
+      expect(abolishLogs[0]).toContain('最高限价');
+      expect(abolishLogs[0]).not.toMatch(/0\/0/);
+      expect(abolishLogs[0]).not.toContain('响应性性');
+    });
+
+    it('谈判采购·最终报价均未超限价 → 不废标', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '谈判项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
+        procurementMethod: '谈判采购', ceilingPrice: 100,
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([]);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', amount: '80' },
+        { bidSupplierId: 's2', amount: '90' },
+      ]);
+      // 默认 mock 返回 []（未超限价）
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({});
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+      prisma.auditLog.create.mockResolvedValue({});
+
+      await service.generateEvaluationResults('p1');
+
+      const data = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data;
+      expect(data.every((d: any) => d.disqualified === false)).toBe(true);
+      expect(prisma.bidSupervisionLog.create.mock.calls
+        .filter((c: any[]) => c[0]?.data?.action === '废标决议')).toHaveLength(0);
+    });
+
+    it('公式引擎路径行为不变（邀请招标+公式配置）→ 仍触发超限价判废', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '招标项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
+        procurementMethod: '邀请招标', ceilingPrice: 100, priceFormulaConfig: { formulaType: 'benchmark_deviation' },
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'pi1', category: 'PRICE', maxScore: 100 },
+      ]);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidOpeningRecord.findMany.mockResolvedValue([
+        { bidSupplierId: 's1', amount: '80' },
+        { bidSupplierId: 's2', amount: '120' },
+      ]);
+      (service as any).priceFormula.getOverCeilingSuppliers.mockReturnValue(['s2']);
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({});
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+      prisma.auditLog.create.mockResolvedValue({});
+
+      await service.generateEvaluationResults('p1');
+
+      expect((service as any).priceFormula.getOverCeilingSuppliers).toHaveBeenCalledWith(expect.any(Map), 100);
+      expect((service as any).priceFormula.calculate).toHaveBeenCalled();
+      const data = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data;
+      expect(data.find((d: any) => d.supplierId === 's2').disqualified).toBe(true);
+    });
   });
 
   describe('archiveAll', () => {
@@ -3421,6 +3533,77 @@ describe('createRound — 供应商准入', () => {
   });
 });
 
+describe('createRound — 谈判采购评标完成闸门（先评标→再报价）', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn(), update: jest.fn() },
+      bidExpert: { findMany: jest.fn() },
+      expertDispute: { count: jest.fn().mockResolvedValue(0) },
+      bidRound: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'r1', roundNo: 1 }), count: jest.fn().mockResolvedValue(0) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+      bidQuote: { create: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      bidOpeningSession: { update: jest.fn() },
+      $queryRaw: jest.fn(),
+      $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BidService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn(), getOverCeilingSuppliers: jest.fn() } },
+        { provide: StorageService, useValue: {} },
+        { provide: NotificationService, useValue: { sendToRole: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('谈判采购·正选专家未全部确认 → EXPERT_REPORTS_NOT_CONFIRMED', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation', procurementMethod: '谈判采购' });
+    prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: false }]);
+    await expect(service.createRound('p1', 'negotiation', undefined, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_REPORTS_NOT_CONFIRMED' } });
+    expect(prisma.bidRound.create).not.toHaveBeenCalled();
+  });
+
+  it('谈判采购·组长未末签 → LEADER_NOT_COSIGNED', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation', procurementMethod: '谈判采购' });
+    prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: true }]);
+    await expect(service.createRound('p1', 'negotiation', undefined, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'LEADER_NOT_COSIGNED' } });
+    expect(prisma.bidRound.create).not.toHaveBeenCalled();
+  });
+
+  it('谈判采购·存在未裁决异议 → OPEN_DISPUTES', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation', procurementMethod: '谈判采购', leaderCoSigned: true });
+    prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: true }]);
+    prisma.expertDispute.count.mockResolvedValue(1);
+    await expect(service.createRound('p1', 'negotiation', undefined, 'u1'))
+      .rejects.toMatchObject({ response: { code: 'OPEN_DISPUTES' } });
+    expect(prisma.bidRound.create).not.toHaveBeenCalled();
+  });
+
+  it('谈判采购·评标已完成 → 放行创建轮次', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roundMode: 'negotiation', procurementMethod: '谈判采购', leaderCoSigned: true });
+    prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: true }]);
+    await service.createRound('p1', 'negotiation', undefined, 'u1');
+    expect(prisma.bidRound.create).toHaveBeenCalled();
+  });
+
+  it('竞价采购·评标未完成 → 闸门不生效（形态B）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', roundMode: 'sealed_auction', procurementMethod: '竞价采购' });
+    prisma.bidExpert.findMany.mockResolvedValue([{ reportConfirmed: false }]);
+    await service.createRound('p1', 'sealed_auction', undefined, 'u1');
+    expect(prisma.bidExpert.findMany).not.toHaveBeenCalled();
+    expect(prisma.bidRound.create).toHaveBeenCalled();
+  });
+});
+
 describe('submitQuote — 准入校验', () => {
   let service: BidService;
   let prisma: any;
@@ -3498,7 +3681,7 @@ describe('getMinBidders procurement-method-aware', () => {
   });
 
   it('直接采购 → 1', () => { expect((service as any).getMinBidders('直接采购')).toBe(1); });
-  it('谈判采购 → 2', () => { expect((service as any).getMinBidders('谈判采购')).toBe(2); });
+  it('谈判采购 → 3', () => { expect((service as any).getMinBidders('谈判采购')).toBe(3); });
   it('邀请招标 → 3', () => { expect((service as any).getMinBidders('邀请招标')).toBe(3); });
   it('询比采购 → 3', () => { expect((service as any).getMinBidders('询比采购')).toBe(3); });
   it('null → 3', () => { expect((service as any).getMinBidders(null)).toBe(3); });

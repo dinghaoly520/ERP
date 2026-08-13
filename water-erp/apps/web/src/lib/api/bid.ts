@@ -391,26 +391,6 @@ export function updatePriceConfig(
   return api.patch(`/bid/projects/${bidProjectId}/price-config`, data);
 }
 
-// ── P2c: 多轮报价 ──
-export function listRounds(bidProjectId: string) {
-  return api.get<Array<{ id: string; roundNo: number; roundType: string; status: string; deadline: string | null; quotes: Array<{ id: string; bidSupplierId: string; quotePrice: string; status: string }> }>>(`/bid/projects/${bidProjectId}/rounds`);
-}
-export function createRound(bidProjectId: string, data: { roundType: string; deadline?: string; supplierIds?: string[] }) {
-  return api.post(`/bid/projects/${bidProjectId}/rounds`, data);
-}
-export function sealRound(bidProjectId: string, roundId: string) {
-  return api.post(`/bid/projects/${bidProjectId}/rounds/${roundId}/seal`, {});
-}
-export function publishRound(bidProjectId: string, roundId: string) {
-  return api.post(`/bid/projects/${bidProjectId}/rounds/${roundId}/publish`, {});
-}
-export function closeRound(bidProjectId: string, roundId: string, proceedToEvaluation: boolean) {
-  return api.post(`/bid/projects/${bidProjectId}/rounds/${roundId}/close`, { proceedToEvaluation });
-}
-export function getRoundQuotes(bidProjectId: string, roundId: string) {
-  return api.get<Array<{ id: string; bidSupplierId: string; quotePrice: string; status: string }>>(`/bid/projects/${bidProjectId}/rounds/${roundId}/quotes`);
-}
-
 /** 延时开标：修改 openTime / deadline */
 export function updateBidProjectSchedule(
   bidProjectId: string,

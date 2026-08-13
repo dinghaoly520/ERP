@@ -21,6 +21,7 @@ describe('ExpertAdminService', () => {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(0),
       },
       bidExpert: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -31,6 +32,10 @@ describe('ExpertAdminService', () => {
       },
       bidProject: {
         findUnique: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      bidRound: {
+        count: jest.fn().mockResolvedValue(0),
       },
       expertEvaluation: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -83,7 +88,7 @@ describe('ExpertAdminService', () => {
       ]);
 
       const result = await service.listExperts();
-      expect(result).toHaveLength(2);
+      expect(result.items).toHaveLength(2);
       expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ role: 'bid_expert' }) }),
       );
@@ -245,18 +250,21 @@ describe('ExpertAdminService', () => {
       expect(prisma.auditLog.create).not.toHaveBeenCalled();
     });
 
-    it('已分配本项目的专家被拒绝（EXPERT_ALREADY_ASSIGNED）', async () => {
+    it('已分配本项目的专家重复确认 → 替换式重写（非追加模式清旧写新，不拒绝）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
         { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [{ id: 'be1' }] },
       ]);
-      await expect(service.confirmExtraction('p1', dto(), 'op1')).rejects.toBeInstanceOf(BadRequestException);
+      const res = await service.confirmExtraction('p1', dto(), 'op1');
+      expect(res.success).toBe(true);
+      expect(prisma.bidExpert.deleteMany).toHaveBeenCalledWith({ where: { projectId: 'p1' } });
+      expect(prisma.bidExpert.upsert).toHaveBeenCalled();
     });
 
     it('工作单位关联投标供应商被回避拒绝（EXPERT_CONFLICT）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', name: '项目',
-        suppliers: [{ supplier: { name: '川西建设' }, supplierName: '川西建设' }],
+        suppliers: [{ supplier: { name: '川西建设' }, supplierName: '川西建设', confirmStatus: 'CONFIRMED' }],
       });
       prisma.user.findMany.mockResolvedValue([
         { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', employer: '川西建设公司' }, bidExperts: [] },
@@ -341,6 +349,54 @@ describe('ExpertAdminService', () => {
         }),
       );
       expect(prisma.expertEvaluation.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('unconfirmReport（谈判采购报价轮冻结闸门）', () => {
+    it('谈判采购且已有报价轮 → ROUNDS_STARTED_LOCKED，且不清理末签/不撤销确认', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', leaderCoSigned: true, procurementMethod: '谈判采购' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', projectId: 'p1', expertName: '王工', reportConfirmed: true });
+      prisma.bidRound.count.mockResolvedValue(1);
+
+      await expect(service.unconfirmReport('p1', 'e1', '需改分', 'u1'))
+        .rejects.toMatchObject({ response: { code: 'ROUNDS_STARTED_LOCKED' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
+
+    it('谈判采购无报价轮 → 正常撤销（清组长末签 + 取消确认 + 监督日志）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', leaderCoSigned: true, procurementMethod: '谈判采购' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', projectId: 'p1', expertName: '王工', reportConfirmed: true });
+      prisma.bidRound.count.mockResolvedValue(0);
+
+      const result = await service.unconfirmReport('p1', 'e1', '需改分', 'u1');
+
+      expect(result).toEqual({ success: true });
+      expect(prisma.bidProject.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'p1' },
+          data: expect.objectContaining({ leaderCoSigned: false }),
+        }),
+      );
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'e1' },
+          data: expect.objectContaining({ reportConfirmed: false }),
+        }),
+      );
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
+    });
+
+    it('竞价采购已有报价轮 → 闸门不生效，正常撤销', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', leaderCoSigned: false, procurementMethod: '竞价采购' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', projectId: 'p1', expertName: '王工', reportConfirmed: true });
+      prisma.bidRound.count.mockResolvedValue(1); // 应被忽略
+
+      const result = await service.unconfirmReport('p1', 'e1', '需改分', 'u1');
+
+      expect(result).toEqual({ success: true });
+      expect(prisma.bidExpert.update).toHaveBeenCalled();
+      expect(prisma.bidProject.update).not.toHaveBeenCalled(); // 未末签，无需清理
     });
   });
 });

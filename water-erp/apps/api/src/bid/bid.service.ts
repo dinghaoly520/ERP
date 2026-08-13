@@ -1058,8 +1058,34 @@ export class BidService {
   /** 按采购方式返回法定最少投标家数。消费方：开标 checklist + 启动评标 */
   private getMinBidders(procurementMethod: string | null): number {
     if (procurementMethod === '直接采购') return 1;
-    if (procurementMethod === '谈判采购') return 2;
+    // 谈判采购与其余方式（邀请招标/询比采购等）同为 3 家
+    // （《采购管理办法》：谈判/询比应邀请不少于3家，与 stage-compliance-rules 供应商邀请检查同口径）
     return 3;
+  }
+
+  /**
+   * E6: 评标完成闸门——谈判采购"先评标→再报价"。
+   * 正选专家全部确认 + 组长末签 + 无未裁决异议，与 generateEvaluationResults 同口径。
+   */
+  private async assertEvaluationComplete(projectId: string): Promise<void> {
+    const experts = await this.prisma.bidExpert.findMany({
+      where: { projectId, expertRole: '正选' },
+      select: { reportConfirmed: true },
+    });
+    if (experts.some(e => !e.reportConfirmed)) {
+      throw new BadRequestException({ error: '仍有正选专家未确认评审报告', code: 'EXPERT_REPORTS_NOT_CONFIRMED' });
+    }
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { leaderCoSigned: true },
+    });
+    if (!project?.leaderCoSigned) {
+      throw new BadRequestException({ error: '评审报告尚未经组长末签', code: 'LEADER_NOT_COSIGNED' });
+    }
+    const openDisputes = await this.prisma.expertDispute.count({ where: { projectId, status: 'open' } });
+    if (openDisputes > 0) {
+      throw new BadRequestException({ error: `有 ${openDisputes} 个专家异议待裁决，评标尚未完成`, code: 'OPEN_DISPUTES' });
+    }
   }
 
   private async startOpeningInternal(id: string, dto?: StartOpeningDto, actorId?: string) {
@@ -1404,7 +1430,7 @@ export class BidService {
       });
     }
     // P3: 法定门槛——有效投标不足法定家数应当流标（招标投标法第二十八条）
-    // 按采购方式区分：直接采购(1家)、谈判采购(2家)、其余(3家)
+    // 按采购方式区分：直接采购(1家)、其余(3家，含谈判采购)
     const minBidders = this.getMinBidders(project.procurementMethod);
     if (evaluableSupplierCount < minBidders) {
       throw new BadRequestException({
@@ -3081,14 +3107,20 @@ export class BidService {
         }
       }
 
+      // 最高限价：公式引擎与谈判采购超限价判废共用（谈判路径 bidPrices 已含最终轮报价）
+      const ceilingPrice = project.ceilingPrice ? Number(project.ceilingPrice) : null;
+
       if (priceItems.length > 0 && project.priceFormulaConfig) {
         const config = project.priceFormulaConfig as any;
-        const ceilingPrice = project.ceilingPrice ? Number(project.ceilingPrice) : null;
-
         const priceMaxTotal = priceItems.reduce((s, i) => s + Number(i.maxScore), 0);
         formulaPriceScores = this.priceFormula.calculate(config, bidPrices, ceilingPrice, priceMaxTotal);
+      }
 
-        // 超限价自动判废
+      // 超限价自动判废：公式引擎项目保持既有口径；谈判采购按最终报价判废
+      // （谈判 bidPrices 已由 roundMode 分支的 syncMultiRoundPrices 写入最终轮报价）
+      if (ceilingPrice != null
+          && ((priceItems.length > 0 && project.priceFormulaConfig)
+              || project.procurementMethod === '谈判采购')) {
         const overCeiling = this.priceFormula.getOverCeilingSuppliers(bidPrices, ceilingPrice);
         for (const sid of overCeiling) {
           passFailVerdicts.set(sid, true);
@@ -3231,10 +3263,13 @@ export class BidService {
         });
       }
       for (const f of passFailFailures) {
+        const result = f.category === '超限价'
+          ? '最终报价超过最高限价，依据采购文件规定予以废标'
+          : `经评审委员会表决，${f.category === 'QUALIFICATION' ? '资格' : '响应性'}审查不通过（不通过 ${f.fail}/${f.total} 票），依据招标文件规定予以废标`;
         await tx.bidSupervisionLog.create({
           data: {
             projectId, time: new Date(), role: '评标委员会', target: f.supplierName,
-            action: '废标决议', result: `经评审委员会表决，${f.category === 'QUALIFICATION' ? '资格' : '响应性'}性审查不通过（不通过 ${f.fail}/${f.total} 票），依据招标文件规定予以废标`, riskFlag: '高风险',
+            action: '废标决议', result, riskFlag: '高风险',
           },
         });
       }
@@ -4315,9 +4350,14 @@ export class BidService {
 
   /** 创建新报价轮次 */
   async createRound(projectId: string, roundType: string, deadline?: string, actorId?: string, supplierIds?: string[]) {
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, roundMode: true } });
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, roundMode: true, procurementMethod: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (!project.roundMode) throw new BadRequestException({ error: '该项目不是多轮报价模式', code: 'NOT_MULTI_ROUND' });
+    // E6: 谈判采购——先评标→再报价。评标未完成（正选未确认/组长未末签/有异议未裁决）禁止创建报价轮。
+    // 竞价采购(sealed_auction)为形态B（先报价后评标），不受此闸门约束。
+    if (project.procurementMethod === '谈判采购') {
+      await this.assertEvaluationComplete(projectId);
+    }
     // 阶段守卫——谈判采购的多轮报价在评标阶段进行（先评标→再报价→最后生成结果）
     if (project.stage !== 'OPENING' && project.stage !== 'EVALUATING') {
       throw new ConflictException({ error: '当前阶段不可创建报价轮次', code: 'STAGE_NOT_OPENING' });

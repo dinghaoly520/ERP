@@ -1100,10 +1100,21 @@ export class ExpertAdminService {
     await this.prisma.$transaction(async (tx) => {
       const locked = await tx.bidProject.findUnique({
         where: { id: projectId },
-        select: { stage: true, leaderCoSigned: true },
+        select: { stage: true, leaderCoSigned: true, procurementMethod: true },
       });
       if (!locked || locked.stage !== 'EVALUATING') {
         throw new BadRequestException({ error: '项目不在评标阶段，无法撤销', code: 'PROJECT_NOT_EVALUATING' });
+      }
+
+      // E6 反向闸门：谈判采购创建报价轮后评标结论已冻结（先评标→再报价），禁止撤销报告确认
+      if (locked.procurementMethod === '谈判采购') {
+        const roundCount = await tx.bidRound.count({ where: { projectId } });
+        if (roundCount > 0) {
+          throw new ConflictException({
+            error: '本项目已进入多轮报价阶段（报价轮次已创建），评标结论已冻结，不可撤销报告确认',
+            code: 'ROUNDS_STARTED_LOCKED',
+          });
+        }
       }
 
       // 如果项目已末签，撤销末签状态（不再满足"所有专家已确认"的前置条件）
