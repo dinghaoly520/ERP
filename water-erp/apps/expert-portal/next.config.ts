@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { apiOrigin } from '@water-erp/config';
 
 const nextConfig: NextConfig = {
   // 允许局域网（平板/外部设备）访问 dev 服务器：否则 HMR websocket 只信任 localhost，
@@ -6,7 +7,7 @@ const nextConfig: NextConfig = {
   // useEffect 不跑）。生产构建无此问题。
   allowedDevOrigins: ["*"],
   rewrites: async () => [
-    { source: '/api/:path*', destination: 'http://localhost:4001/api/:path*' },
+    { source: '/api/:path*', destination: `${apiOrigin()}/api/:path*` },
   ],
 };
 

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
+import { portalOrigin } from '@water-erp/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
@@ -1159,7 +1160,7 @@ export class ExpertAdminService {
    *  已存在未过期 token 的专家直接复用，不对全部记录重新生成——避免步骤 3→6 切换时，
    *  补选刷新覆盖已发给正选专家的有效链接，导致旧链接失效。 */
   async prersvpLinks(projectId: string) {
-    const expertPortalUrl = (process.env.EXPERT_PORTAL_URL || 'http://localhost:3006').replace(/\/+$/, '');
+    const expertPortalUrl = portalOrigin('expert', process.env.EXPERT_PORTAL_URL);
     const now = new Date();
     const bes = await this.prisma.bidExpert.findMany({
       where: { projectId },
@@ -1199,7 +1200,7 @@ export class ExpertAdminService {
       select: { id: true, displayName: true, expertProfile: { select: { phone: true } } },
     });
 
-    const expertPortalUrl = (process.env.EXPERT_PORTAL_URL || 'http://localhost:3006').replace(/\/+$/, '');
+    const expertPortalUrl = portalOrigin('expert', process.env.EXPERT_PORTAL_URL);
     const body = message || `您已被选为「${project.name}（${project.projectCode}）」评审专家。`;
     const expiresAt = new Date(Date.now() + this.rsvpTtlMs);
 

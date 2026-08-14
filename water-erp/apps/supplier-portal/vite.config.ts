@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
+import { PORTS, apiOrigin } from '@water-erp/config'
 
 export default defineConfig({
   plugins: [vue()],
@@ -45,10 +46,10 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 3004,
+    port: PORTS.supplier,
     proxy: {
       '/api': {
-        target: 'http://localhost:4001',
+        target: apiOrigin(),
         changeOrigin: true,
       },
     },
