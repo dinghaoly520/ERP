@@ -112,10 +112,10 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 
 :3005 保留（不迁）：「开标确认」面板的评标前准备（供应商投标状态·催促未投递、专家确认·正选候补替换、评分标准编制、监督时间线、开标进度·开标前流标、主持人指派·延时开标·按时开标）与评标后收尾（评标回流接收、完整归档·签字闭环闸门、公示、中标通知书）。评标管理/异议裁决/澄清答疑已迁回 :3007（:3005 面板对应三区块已移除）。
 
-**Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → cookie `token_web` is set → post-login redirect to bid portal (:3007). The bid portal shares the `token_web` cookie namespace (no separate `token_bid`), sending `X-Portal: web` for API calls.
+**Authentication flow:** `admin`/`bid_host` users authenticate from the public portal's "在线开评标系统" card → redirected to expert portal (:3006) login → non-bid_expert roles get cookie `token_bid` written (auth port-roles 分流) → post-login redirect to bid portal (:3007). The bid portal sends `X-Portal: bid` for API calls.
 
-**Access:** Requires login as `admin` or `bid_host` role.  
-**Login cookie:** `token_web` (shared with web portal).  
+**Access:** Requires login as `admin`, `bid_host`, `leader`, or `staff` role (port-roles 允许集).  
+**Login cookie:** `token_bid`（独立命名空间；旧文「共用 token_web」已随 auth port-roles 体系重构过时）.  
 **Target audience:** Bid opening hosts, administrators, supervisors.
 
 ### 水叮当智能助手 (`assistant`, :3008)
@@ -259,11 +259,11 @@ Each portal uses an independent login session via named httpOnly cookies:
 | 供应商门户 | `token_supplier` | `supplier` | — |
 | 采购管理工作台 | `token_web` | `web` | — |
 | 专家门户 | `token_expert` | `expert` | — |
-| 开评标管理端 | `token_web` | `web` | Shares web cookie — admin/bid_host roles |
+| 开评标管理端 | `token_bid` | `bid` | 独立命名空间（:3006 登录分流写入）— admin/bid_host/leader/staff |
 | 信息门户 | `token_public` | `public` | — |
 | 水叮当助手 | — | `assistant` | No auth required |
 
-**Key insight:** bid_portal (:3007) has no `token_bid` — it shares `token_web` because `admin`/`bid_host` roles map to the `web` portal namespace in the backend. The bid portal's login redirects through the expert portal (:3006) login page, which sets `token_web`.
+**Key insight:** bid_portal (:3007) uses its own `token_bid` cookie (auth port-roles 体系：:3006 登录分流时非 bid_expert 角色写 `token_bid` 后跳 :3007；旧文档「共用 token_web」已过时). The bid portal's login redirects through the expert portal (:3006) login page, which sets `token_bid`.
 
 The auth chain is `AuthGuard (global) → RolesGuard (global)`, registered via `APP_GUARD` in `AppModule`. `AuthGuard` extracts + verifies the JWT; `RolesGuard` checks `@Roles(...)` metadata. `@Public()` skips auth; no `@Roles` means any authenticated user can access.
 

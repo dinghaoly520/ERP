@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@water-erp/client": "workspace:*",
     "@water-erp/config": "workspace:*",
     "@water-erp/shared": "workspace:*",
     "lucide-react": "^1.8.0",

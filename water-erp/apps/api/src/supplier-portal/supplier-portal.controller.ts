@@ -7,6 +7,7 @@ import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { ReactivateDto } from './dto/reactivate.dto';
+import { CreateCatalogApplicationDto, UpdateCatalogApplicationDto } from './dto/catalog-application.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -337,13 +338,13 @@ export class SupplierPortalController {
   }
 
   @Post('catalog-applications')
-  async createCatalogApplication(@Request() req: any, @Body() body: any) {
+  async createCatalogApplication(@Request() req: any, @Body() body: CreateCatalogApplicationDto) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.createCatalogApplication(supplierId, body);
   }
 
   @Patch('catalog-applications/:id')
-  async updateCatalogApplication(@Request() req: any, @Param('id') id: string, @Body() body: any) {
+  async updateCatalogApplication(@Request() req: any, @Param('id') id: string, @Body() body: UpdateCatalogApplicationDto) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.updateMyCatalogApplication(supplierId, req.user.sub, id, body);
   }

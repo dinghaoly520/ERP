@@ -1,3 +1,13 @@
+/**
+ * assistant API 客户端 —— 刻意保留的独立实现（未收敛到 @water-erp/client）。
+ *
+ * 原因：本门户是公共聊天机器人，请求特性与其他门户不同——
+ *  - 超时分级（POST 90s / GET 15s，LLM 长请求）；
+ *  - 瞬态网络错误指数退避重试（用户取消/超时/HTTP 错误不重试）；
+ *  - AbortSignal 透传（用户停止生成）。
+ * 共享包暂未实现这些；如需统一，先把 FetchOptions 移植进 @water-erp/client 再迁移。
+ * 见 packages/client/src/index.ts 头注释。
+ */
 const BASE = '/api';
 const PORTAL = 'assistant';
 

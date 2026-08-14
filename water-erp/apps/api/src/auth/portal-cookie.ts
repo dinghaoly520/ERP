@@ -30,8 +30,8 @@ export const ROLE_COOKIE_PORTAL: Record<string, string> = {
  * 本地端口 → 门户名。由 @water-erp/config 的 PORTS 派生，端口重分配后无需手动同步。
  *
  * 仅收录「持有登录 cookie」的门户：assistant(:3008) 公开无 cookie、api(:4001) 是服务端自身，故排除。
- * bid-portal(:3007) 复用 token_web 命名空间（admin/bid_host 的 cookie 即 token_web，无 token_bid），
- * 故把 3007 映射到 'web'，使无 X-Portal 头的客户端请求（如 AppShell 的 /auth/me）能读到 token_web。
+ * bid-portal(:3007) 使用独立的 token_bid 命名空间（auth port-roles 体系：
+ * :3006 登录分流时非 bid_expert 角色写 token_bid 后跳 :3007）。
  */
 const COOKIE_PORTALS: AppName[] = ['public', 'mall', 'supplier', 'web', 'expert', 'bid'];
 const PORT_TO_PORTAL: Record<string, string> = (() => {

@@ -5,6 +5,7 @@ import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AnnouncementService } from './announcement.service';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { BidDocumentService } from './bid-document.service';
+import { BidDocumentUploadDto, UpdateBidDocumentConfigDto } from './dto/bid-document-config.dto';
 import { AnnouncementAttachmentService } from './announcement-attachment.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -143,7 +144,7 @@ export class AnnouncementController {
   async uploadBidDocument(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: any,
+    @Body() body: BidDocumentUploadDto,
     @Request() req: any,
   ) {
     if (!file) throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
@@ -165,7 +166,7 @@ export class AnnouncementController {
   @Put(':id/bid-document')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '更新招标文件访问配置' })
-  async updateBidDocument(@Param('id') id: string, @Body() body: any) {
+  async updateBidDocument(@Param('id') id: string, @Body() body: UpdateBidDocumentConfigDto) {
     const toBool = (v: any): boolean | undefined => {
       if (v === undefined || v === null) return undefined;
       if (typeof v === 'boolean') return v;
