@@ -6,7 +6,8 @@
  * task 终态且无异常后停止轮询。异常时显示补救按钮：
  *   - 重试失败项：POST retry-ai-bidders（不传 ids = 全部 FAILED+卡住家）
  *   - 重新分析：POST rerun-ai-analysis（清空全部结果重跑，二次确认）
- * 评标管理 tab 全操作下的 AI 通道：写操作不改阶段、不流转（阶段流转：启动评标归本端 :3007，完整归档归 :3005）。
+ * 分工 v3 下评标管理 tab 为 :3007 现场全操作端（启动评标·专家进度·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决·澄清答疑），本卡片是其中 AI 通道：
+ * 写操作（重试/重新分析）非阶段流转；阶段流转按 v3——启动评标在本 tab（:3007），完整归档在 :3005（spec: 2026-08-13-expert-paper-signing-design §2）。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
