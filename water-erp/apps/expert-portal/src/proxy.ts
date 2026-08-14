@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { portalURL } from '@water-erp/config';
+import { detectTabletUA } from '@/lib/device';
 
 const PORTAL = 'expert';
 const COOKIE = `token_${PORTAL}`;
@@ -11,7 +12,7 @@ const LOGIN_URL = portalURL('expert', '/login?forceLogin=1');
  *
  * 检测策略（按优先级）：
  * 1. X-Forwarded-Device 头 → 生产环境由反向代理根据无线子网注入
- * 2. User-Agent 匹配 → 开发/当前同局域网场景
+ * 2. User-Agent 匹配 → 开发/当前同局域网场景（正则与判定收口在 @/lib/device）
  * 3. TABLET_SUBNETS 环境变量 → 生产环境直接 IP 子网匹配（未来扩展）
  */
 function isTabletDevice(request: NextRequest): boolean {
@@ -19,14 +20,8 @@ function isTabletDevice(request: NextRequest): boolean {
   const forwardedDevice = request.headers.get('x-forwarded-device');
   if (forwardedDevice === 'tablet') return true;
 
-  // 2. User-Agent 检测
-  const ua = request.headers.get('user-agent') || '';
-  // 明确标识的平板 / 电子书 / 电视
-  if (/iPad|PlayBook|Kindle|Silk|KFAPWI|Tablet|CrOS/i.test(ua)) return true;
-  // Android 平板：有 Android 但无 Mobile（手机才有 Mobile）
-  if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return true;
-
-  return false;
+  // 2. User-Agent 检测（detectTabletUA：明确标识平板，或 Android 无 Mobile）
+  return detectTabletUA(request.headers.get('user-agent') || '');
 }
 
 export default async function proxy(request: NextRequest) {

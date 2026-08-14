@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { portalURL } from '@water-erp/config';
+import { detectTabletClient } from '@/lib/device';
 import './login.css';
 
 const IconUser = (
@@ -61,15 +62,8 @@ function ExpertLoginPage() {
   const fillDemo = () => setForm({ ...DEMO_ACCOUNTS[tab] });
   const isDev = process.env.NODE_ENV !== 'production';
 
-  // 平板设备检测（与 root layout 脚本、proxy.ts 保持一致的逻辑）
-  const isTabletDevice = () => {
-    if (typeof navigator === 'undefined') return false;
-    const ua = navigator.userAgent;
-    if (/iPad|PlayBook|Kindle|Silk|KFAPWI|Tablet|CrOS/i.test(ua)) return true;
-    if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return true;
-    if (navigator.maxTouchPoints > 1 && !/Mobile/i.test(ua)) return true;
-    return false;
-  };
+  // 平板设备检测（判定收口在 @/lib/device，与 root layout 脚本、proxy.ts 共用一份定义）
+  const isTabletDevice = detectTabletClient;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

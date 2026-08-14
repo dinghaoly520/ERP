@@ -2,7 +2,25 @@ import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { ServiceWorkerRegister } from '@/components/sw-register';
+import { TABLET_UA_RE, ANDROID_RE, MOBILE_RE } from '@/lib/device';
 import './globals.css';
+
+/**
+ * 客户端先行分流脚本（正则源取自 @/lib/device，与 proxy.ts / login 共用一份定义）。
+ * 逐项等价：uaTablet || androidTablet || touchTablet（maxTouchPoints 兜底 iPadOS 13+ 伪装 Mac UA）。
+ */
+const TABLET_DETECT_SCRIPT = `(function(){
+  if (document.cookie.indexOf('device_mode=') !== -1) return;
+  var ua = navigator.userAgent;
+  var uaTablet = /${TABLET_UA_RE.source}/i.test(ua);
+  var androidTablet = /${ANDROID_RE.source}/i.test(ua) && !/${MOBILE_RE.source}/i.test(ua);
+  var touchTablet = navigator.maxTouchPoints > 1 && !/${MOBILE_RE.source}/i.test(ua);
+  var isTablet = uaTablet || androidTablet || touchTablet;
+  if (!isTablet) return;
+  if (location.pathname === '/tablet' || location.pathname.indexOf('/tablet/') === 0 || location.pathname === '/login' || location.pathname.indexOf('/invitation') === 0 || location.pathname.indexOf('/rsvp') === 0) return;
+  document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
+  location.replace('/tablet');
+})()`;
 
 export const metadata: Metadata = {
   title: '在线开评标系统-智慧水发·蜀水云采',
@@ -37,18 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* iPadOS 13+ 伪装 Mac UA，中间件无法识别 → 客户端检测先行分流。
             beforeInteractive 确保 React hydrate 之前执行，避免桌面仪表盘闪烁。 */}
         <Script id="tablet-detect" strategy="beforeInteractive">
-          {`(function(){
-            if (document.cookie.indexOf('device_mode=') !== -1) return;
-            var ua = navigator.userAgent;
-            var uaTablet = /iPad|PlayBook|Kindle|Silk|KFAPWI|Tablet|CrOS/i.test(ua);
-            var androidTablet = /Android/i.test(ua) && !/Mobile/i.test(ua);
-            var touchTablet = navigator.maxTouchPoints > 1 && !/Mobile/i.test(ua);
-            var isTablet = uaTablet || androidTablet || touchTablet;
-            if (!isTablet) return;
-            if (location.pathname === '/tablet' || location.pathname.indexOf('/tablet/') === 0 || location.pathname === '/login' || location.pathname.indexOf('/invitation') === 0 || location.pathname.indexOf('/rsvp') === 0) return;
-            document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
-            location.replace('/tablet');
-          })()`}
+          {TABLET_DETECT_SCRIPT}
         </Script>
         {children}
         <Toaster position="top-right" richColors closeButton />
