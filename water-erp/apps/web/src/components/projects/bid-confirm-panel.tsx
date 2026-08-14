@@ -45,6 +45,7 @@ import { generateFieldContent } from '@/lib/api/tender-sample';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ArchiveBlock } from './bid-confirm/archive-block';
 import { OpeningProgressBlock } from './bid-confirm/opening-progress-block';
+import { EvaluationHandoverBlock } from './bid-confirm/evaluation-handover-block';
 import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
@@ -784,10 +785,10 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
               {bpId && detail && (
                 <>
                   <OpeningProgressBlock
-                    bidProjectId={bpId}
                     detail={detail}
                     onAbort={() => setAbortDialogOpen(true)}
                   />
+                  <EvaluationHandoverBlock bidProjectId={bpId} detail={detail} />
                   {/* 评标管理/异议裁决/澄清答疑已迁至 :3007 开评标管理端（现场）——分工 v3（2026-08-13） */}
                   <p className="text-xs text-[var(--muted-foreground)]">
                     评标管理、专家异议裁决、澄清答疑已在 :3007 开评标管理端现场办理。本面板保留评标前准备与评标后收尾。

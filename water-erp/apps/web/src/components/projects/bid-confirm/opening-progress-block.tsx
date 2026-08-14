@@ -6,13 +6,11 @@
  * 数据来自父组件传入的 BidProjectDetail，实时性由父组件的 socket 刷新驱动。
  */
 
-import { useEffect, useState } from 'react';
-import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle, Ban, PenLine } from 'lucide-react';
+import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle, Ban } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
-import { getSignPacket, type BidProjectDetail, type SignPacketResponse } from '@/lib/api/bid';
+import type { BidProjectDetail } from '@/lib/api/bid';
 
 type Props = {
-  bidProjectId: string;
   detail: BidProjectDetail | null;
   /** 开标完成后：流标（→ 打开流标公告制作） */
   onAbort?: () => void;
@@ -58,15 +56,7 @@ function ProgressStat({
   );
 }
 
-export function OpeningProgressBlock({ bidProjectId, detail, onAbort }: Props) {
-  // 评标回流包接收状态（:3007 签字闭环 + 回流包生成后回传；与开标会话无依赖，独立拉取）
-  const [signData, setSignData] = useState<SignPacketResponse | null>(null);
-  useEffect(() => {
-    let alive = true;
-    getSignPacket(bidProjectId).then((r) => { if (alive) setSignData(r); }).catch(() => {});
-    return () => { alive = false; };
-  }, [bidProjectId]);
-
+export function OpeningProgressBlock({ detail, onAbort }: Props) {
   if (!detail) return null;
   const { stage, openingSession, suppliers, openingRecords } = detail;
   if (stage !== 'OPENING' && stage !== 'EVALUATING' && stage !== 'ARCHIVED') return null;
@@ -177,22 +167,6 @@ export function OpeningProgressBlock({ bidProjectId, detail, onAbort }: Props) {
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {/* 评标资料移交接收（:3007 签字闭环+回流包后回传） */}
-      {signData?.packet?.handoverFileAssetId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-[14px] px-3.5 py-2.5 text-xs" style={{ background: 'color-mix(in oklch, var(--success) 8%, transparent)' }}>
-          <PenLine size={13} className="shrink-0 text-[var(--success)]" />
-          <span className="font-semibold text-[var(--success)]">评标资料已接收（签字闭环 {signData.packet.closedAt ? new Date(signData.packet.closedAt).toLocaleString('zh-CN') : ''}）</span>
-          <a
-            href={signData.packet.handoverDownloadUrl!}
-            target="_blank"
-            rel="noopener"
-            className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-[var(--accent)] hover:underline"
-          >
-            <FileCheck size={11} /> 下载评标回流包
-          </a>
         </div>
       )}
     </section>

@@ -48,7 +48,8 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
       .then((r) => { if (alive) setSignStatus(r); })
       .catch(() => { /* 签字模块未就绪/无结果时静默——按钮不禁用，后端 409 兜底 */ });
     return () => { alive = false; };
-  }, [bidProjectId]);
+    // detail 由父面板 socket + 30s 轮询换引用，随 detail 重拉避免签字闸门三态陈旧（与 EvaluationHandoverBlock 同机制）
+  }, [bidProjectId, detail]);
 
   if (!detail) return null;
   const { stage, archiveItems } = detail;
