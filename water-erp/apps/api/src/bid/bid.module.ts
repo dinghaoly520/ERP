@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { BidController } from './bid.controller';
 import { BidService } from './bid.service';
+import { BidScoreStandardService } from './bid-score-standard.service';
 import { BidSignPacketController } from './bid-sign-packet.controller';
 import { BidSignPacketService } from './bid-sign-packet.service';
 import { BidSignPacketDocxService } from './bid-sign-packet-docx.service';
@@ -30,7 +31,7 @@ import { BidBackupModule } from '../bid-backup/bid-backup.module';
     BidBackupModule,
   ],
   controllers: [BidController, BidSignPacketController],
-  providers: [BidService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService],
+  providers: [BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService],
   exports: [BidGateway, BidService, ClarificationAiService],
 })
 export class BidModule {}
