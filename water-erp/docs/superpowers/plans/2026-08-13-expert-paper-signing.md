@@ -77,7 +77,7 @@
 **Interfaces:**
 - Produces: Prisma 模型 `BidSignPacket`、枚举 `SignStatus`、`BidExpert.signStatus/signStatusAt/signScanFileId/signRegisteredBy`（后续所有任务 + 前端类型均以此命名）
 
-- [ ] **Step 1: 编辑 schema.prisma**
+- [x] **Step 1: 编辑 schema.prisma**
 
 在 `model BidExpert`（schema.prisma:492-537）的 `signInMeta` 之后、`createdAt` 之前插入：
 
@@ -122,14 +122,14 @@ model BidSignPacket {
 
 > 注：spec §4.2 的 BidSignPacket 无回流包字段；本计划把 `handoverFileAssetId/handoverSha256` 直接挂在 BidSignPacket 上（对齐 BidOpeningSession.handoverAssetId 既有模式），归档闸门与幂等判定都只需一次查询。
 
-- [ ] **Step 2: 格式化 + 生成迁移（create-only，禁止交互式）**
+- [x] **Step 2: 格式化 + 生成迁移（create-only，禁止交互式）**
 
 ```bash
 cd water-erp && pnpm --filter api exec prisma format
 pnpm --filter api exec prisma migrate dev --create-only --name add_bid_sign_packet
 ```
 
-- [ ] **Step 3: 审查生成的 migration.sql 后再应用**
+- [x] **Step 3: 审查生成的 migration.sql 后再应用**
 
 要求 SQL 恰好包含：`CREATE TYPE "SignStatus" AS ENUM (...)`、`ALTER TABLE "BidExpert" ADD COLUMN "signStatus" ... "signStatusAt" ... "signScanFileId" ... "signRegisteredBy"`、`CREATE TABLE "BidSignPacket" (...)`、外键 + `projectId` 唯一约束（@unique 自带唯一索引，不应出现独立普通索引）。**若 diff 中出现 `OperationLog` 或任何既有表的无关 DDL → 停下，手动把 diff 精简到本次变更再继续。** 然后：
 
@@ -139,7 +139,7 @@ pnpm --filter api exec prisma db execute --file apps/api/prisma/migrations/<ts>_
 pnpm --filter api exec prisma migrate resolve --applied <migration 目录名>
 ```
 
-- [ ] **Step 4: 重新生成 Prisma Client + 构建**
+- [x] **Step 4: 重新生成 Prisma Client + 构建**
 
 ```bash
 cd water-erp
@@ -149,7 +149,7 @@ pnpm --filter api build
 
 Expected: 构建通过。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd water-erp && git branch --show-current   # 必须 main
@@ -215,7 +215,7 @@ export interface UploadedSignScan {
 }
 ```
 
-- [ ] **Step 1: 抽取 `lockAndReassertStage` 到 bid-state.ts（先做，服务依赖它）**
+- [x] **Step 1: 抽取 `lockAndReassertStage` 到 bid-state.ts（先做，服务依赖它）**
 
 `bid-state.ts` 顶部 imports 改为：
 
@@ -248,7 +248,7 @@ export async function lockAndReassertStage(
 
 `bid.service.ts`：import 中加入 `lockAndReassertStage`（bid-state.ts），删除文件中原 `private async lockAndReassertStage(...)` 方法（位于 **1304-1313 行**，搬移后原样删除），并把全部调用点 `this.lockAndReassertStage(` 替换为 `lockAndReassertStage(`（全局替换即可，**共 7 处**：687 / 906 / 950 / 1168 / 1472 / 3220 / 3868——含 completeOpening:687 与 archiveAll:3868）。私有方法体与上方搬移代码逐字一致（已核对）。
 
-- [ ] **Step 2: 写失败测试 `bid-sign-packet.service.spec.ts`（登记状态机部分）**
+- [x] **Step 2: 写失败测试 `bid-sign-packet.service.spec.ts`（登记状态机部分）**
 
 ```ts
 import { BidSignPacketService } from './bid-sign-packet.service';
@@ -410,7 +410,7 @@ describe('BidSignPacketService.unregister', () => {
 });
 ```
 
-- [ ] **Step 3: 跑红**
+- [x] **Step 3: 跑红**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.service
@@ -418,7 +418,7 @@ pnpm --filter api test -- bid-sign-packet.service
 
 Expected: FAIL（`Cannot find module './bid-sign-packet.service'`）。
 
-- [ ] **Step 4: 写 DTO**
+- [x] **Step 4: 写 DTO**
 
 `apps/api/src/bid/dto/bid-sign-packet.dto.ts`：
 
@@ -442,7 +442,7 @@ export class RegisterSignDto {
 }
 ```
 
-- [ ] **Step 5: 实现服务（register/unregister/getStatus + 响应组装）**
+- [x] **Step 5: 实现服务（register/unregister/getStatus + 响应组装）**
 
 `apps/api/src/bid/bid-sign-packet.service.ts`：
 
@@ -656,7 +656,7 @@ export class BidSignPacketService {
 }
 ```
 
-- [ ] **Step 6: 跑绿**
+- [x] **Step 6: 跑绿**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.service
@@ -665,7 +665,7 @@ pnpm --filter api build
 
 Expected: 全部 PASS；构建通过（`lockAndReassertStage` 抽取后 bid.service.ts 调用点已替换，无 tsc 错误）。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -685,7 +685,7 @@ git commit -m "feat(bid): 签字登记状态机（§43 语义+闭环判定）+ l
 - Consumes: Task 2 的 service；`convertOfficeToPdf`（`common/office-to-pdf.util.ts`）；docx 库（import 风格对齐 `ai-bid-analysis/services/docx-generator.service.ts`）
 - Produces: `BidSignPacketDocxService.generateDocument(snapshot: SignPacketSnapshot): Promise<Buffer>`；`BidSignPacketService.generate(projectId, actorId): Promise<SignPacketResponse>`；`buildEvaluationPackage(projectId)` 变 public 供 Task 6 回流包复用
 
-- [ ] **Step 1: 写失败测试 `bid-sign-packet-docx.service.spec.ts`**
+- [x] **Step 1: 写失败测试 `bid-sign-packet-docx.service.spec.ts`**
 
 ```ts
 import { BidSignPacketDocxService, SignPacketSnapshot } from './bid-sign-packet-docx.service';
@@ -756,7 +756,7 @@ describe('BidSignPacketDocxService', () => {
 
 > 不引入 jszip（pnpm 严格模式下 docx 的传递依赖不可直接 import）；内容断言走 `buildChildren` 对象树，文件断言走 PK 魔数。
 
-- [ ] **Step 2: 跑红**
+- [x] **Step 2: 跑红**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet-docx
@@ -764,7 +764,7 @@ pnpm --filter api test -- bid-sign-packet-docx
 
 Expected: FAIL（模块不存在）。
 
-- [ ] **Step 3: 实现 docx 排版服务**
+- [x] **Step 3: 实现 docx 排版服务**
 
 `apps/api/src/bid/bid-sign-packet-docx.service.ts`（结构完整实现；排版风格参照 `docx-generator.service.ts`，宋体/黑体按既有字体常量；文档 = 主报告 10 节 + 签字页 + 个人评分表 ×N + 异议 + 澄清 + 动议）：
 
@@ -1047,7 +1047,7 @@ export class BidSignPacketDocxService {
 }
 ```
 
-- [ ] **Step 4: 跑绿 docx 测试**
+- [x] **Step 4: 跑绿 docx 测试**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet-docx
@@ -1056,11 +1056,11 @@ pnpm --filter api build
 
 Expected: PASS。注意 `BidSignPacketDocxService` 尚未注册 provider，build 不报错即可（Task 5 注册）。
 
-- [ ] **Step 5: `buildEvaluationPackage` 改 public（一行，为 Task 6 回流包复用）**
+- [x] **Step 5: `buildEvaluationPackage` 改 public（一行，为 Task 6 回流包复用）**
 
 `bid.service.ts:840`：`private async buildEvaluationPackage(projectId: string)` → `public async buildEvaluationPackage(projectId: string)`。
 
-- [ ] **Step 6: 扩展 service spec（generate 部分）**
+- [x] **Step 6: 扩展 service spec（generate 部分）**
 
 在 `bid-sign-packet.service.spec.ts` 追加：
 
@@ -1129,7 +1129,7 @@ describe('BidSignPacketService.generate', () => {
   `bidScoreRecordHistory` / `bidScorePointDecision` / `bidScoreReview` / `bidEvaluationResult`（已有 count，补 findMany）/
   `expertDispute` / `bidClarification` / `bidMotion`。
 
-- [ ] **Step 7: 跑红**
+- [x] **Step 7: 跑红**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.service
@@ -1137,7 +1137,7 @@ pnpm --filter api test -- bid-sign-packet.service
 
 Expected: FAIL（`generate` 不存在）。
 
-- [ ] **Step 8: 实现 `generate` + 快照构建（追加到 bid-sign-packet.service.ts）**
+- [x] **Step 8: 实现 `generate` + 快照构建（追加到 bid-sign-packet.service.ts）**
 
 ```ts
 import * as crypto from 'crypto';
@@ -1327,7 +1327,7 @@ import type { SignPacketSnapshot, OperationTrace } from './bid-sign-packet-docx.
 
 > 注意：`committee.find` 只覆盖正选；motion 投票者理论上全是正选专家，若出现候补姓名兜底为「（专家）」即可。供应商 select 已含 `id: true`（buildSnapshot 修正版）。
 
-- [ ] **Step 9: 跑绿 + 构建**
+- [x] **Step 9: 跑绿 + 构建**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet
@@ -1336,7 +1336,7 @@ pnpm --filter api build
 
 Expected: 全部 PASS。若 `buildSnapshot` 里 Prisma 类型报错（如 Decimal），按既有代码惯例 `Number(...)` 转换；`expertDispute`/`bidClarification`/`bidMotion` 查询字段与 schema 一致（Task 1 未改这些模型）。
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -1354,7 +1354,7 @@ git commit -m "feat(bid): 签字包生成——§42 十项主报告+声明页+�
 - Consumes: Task 2/3；`UploadedSignScan`
 - Produces: 同 `SignPacketResponse`（前端上传后直接刷新清单）
 
-- [ ] **Step 1: 写失败测试（spec 追加）**
+- [x] **Step 1: 写失败测试（spec 追加）**
 
 ```ts
 describe('BidSignPacketService 扫描上传', () => {
@@ -1420,7 +1420,7 @@ describe('BidSignPacketService 扫描上传', () => {
 });
 ```
 
-- [ ] **Step 2: 跑红 → 实现（追加方法）**
+- [x] **Step 2: 跑红 → 实现（追加方法）**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.service   # Expected: FAIL（方法不存在）
@@ -1486,7 +1486,7 @@ pnpm --filter api test -- bid-sign-packet.service   # Expected: FAIL（方法不
   }
 ```
 
-- [ ] **Step 3: 跑绿 + 构建 + Commit**
+- [x] **Step 3: 跑绿 + 构建 + Commit**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.service
@@ -1518,7 +1518,7 @@ git commit -m "feat(bid): 签字扫描上传（专家签字页+主报告签字�
 
 > 第 7 条 `POST .../handover`（评标回流包）在 Task 6 与 `generateHandover` 真实现**同一任务**挂载——本任务控制器只含上表 6 条路由，不留占位端点。
 
-- [ ] **Step 1: 写失败测试（controller spec：路由→服务委托 + DTO 校验）**
+- [x] **Step 1: 写失败测试（controller spec：路由→服务委托 + DTO 校验）**
 
 ```ts
 import { Test, TestingModule } from '@nestjs/testing';
@@ -1581,13 +1581,13 @@ describe('BidSignPacketController', () => {
 });
 ```
 
-- [ ] **Step 2: 跑红**
+- [x] **Step 2: 跑红**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.controller
 ```
 
-- [ ] **Step 3: 实现 controller**
+- [x] **Step 3: 实现 controller**
 
 `apps/api/src/bid/bid-sign-packet.controller.ts`：
 
@@ -1668,7 +1668,7 @@ export class BidSignPacketController {
 }
 ```
 
-- [ ] **Step 4: 模块注册**
+- [x] **Step 4: 模块注册**
 
 `bid.module.ts`：
 
@@ -1681,7 +1681,7 @@ import { BidSignPacketDocxService } from './bid-sign-packet-docx.service';
   providers: [BidService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService],
 ```
 
-- [ ] **Step 5: 跑绿 + 构建 + Commit**
+- [x] **Step 5: 跑绿 + 构建 + Commit**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.controller
@@ -1709,7 +1709,7 @@ git commit -m "feat(bid): 签字包 REST 端点（6 路由）挂载 BidModule"
 - Consumes: `BidService.buildEvaluationPackage`（Task 3 已 public）；`computeArchiveChain` 的 `fileHashes` 输入（`ArchiveItemLike.fileHashes?` 定义在 bid-archive.digest.ts:15，`computeArchiveChain` 同文件 :65）
 - Produces: `assertSignGateClosed(scope: 'opening' | 'full', packet: SignGatePacketLike | null, pendingExpertNames: string[]): void`（bid-state.ts 导出，纯函数独立单测）；归档闸门错误码：`SIGN_PACKET_NOT_GENERATED` / `SIGN_NOT_CLOSED`（未签专家姓名**嵌入 error 文案**——HttpExceptionFilter 固定 5 键、不透传 detail）/ `HANDOVER_NOT_GENERATED`；归档第 8 项「评标签字包」；第 7 条路由 `POST /api/bid/projects/:id/sign-packet/handover`
 
-- [ ] **Step 1: 更新既有 spec 的 makeService（构造加第 4 参 bidService）+ 写失败测试（handover 部分）**
+- [x] **Step 1: 更新既有 spec 的 makeService（构造加第 4 参 bidService）+ 写失败测试（handover 部分）**
 
 `bid-sign-packet.service.spec.ts` 改两处：(1) 顶部 `makeService()` 构造加第 4 参：
 
@@ -1770,7 +1770,7 @@ describe('BidSignPacketService.generateHandover', () => {
 });
 ```
 
-- [ ] **Step 2: 跑红**
+- [x] **Step 2: 跑红**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.service
@@ -1778,7 +1778,7 @@ pnpm --filter api test -- bid-sign-packet.service
 
 Expected: FAIL（`generateHandover` 不存在）。
 
-- [ ] **Step 3: 实现 `generateHandover` + 构造注入 BidService**
+- [x] **Step 3: 实现 `generateHandover` + 构造注入 BidService**
 
 `bid-sign-packet.service.ts` 改动：import 加 `import type { BidService } from './bid.service';`，constructor 增 `private readonly bidService: BidService`（makeService 第 4 参已在 Step 1 更新）。实现：
 
@@ -1849,7 +1849,7 @@ Expected: FAIL（`generateHandover` 不存在）。
   }
 ```
 
-- [ ] **Step 4: 写失败测试（归档闸门纯函数，spec 追加）**
+- [x] **Step 4: 写失败测试（归档闸门纯函数，spec 追加）**
 
 闸门逻辑抽为 `bid-state.ts` 纯函数 `assertSignGateClosed`——`bid.service.spec.ts` 的巨型 prisma mock 不值得为 3 个 409 断言再搭 arrange；纯函数可独立 TDD，archiveAll 只调用它。追加到 `bid-sign-packet.service.spec.ts`：
 
@@ -1871,7 +1871,7 @@ describe('assertSignGateClosed（归档闸门）', () => {
 });
 ```
 
-- [ ] **Step 5: 跑红**
+- [x] **Step 5: 跑红**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.service
@@ -1879,7 +1879,7 @@ pnpm --filter api test -- bid-sign-packet.service
 
 Expected: FAIL（`assertSignGateClosed` 不存在）。
 
-- [ ] **Step 6: 实现 `assertSignGateClosed`（bid-state.ts；接口定义在同文件，避免跨文件类型导入）**
+- [x] **Step 6: 实现 `assertSignGateClosed`（bid-state.ts；接口定义在同文件，避免跨文件类型导入）**
 
 ```ts
 // bid-state.ts 追加（顶部已 import ConflictException；如无则补）
@@ -1914,7 +1914,7 @@ pnpm --filter api test -- bid-sign-packet.service
 
 Expected: PASS（handover + 闸门纯函数全绿）。
 
-- [ ] **Step 7: 挂载 handover 路由 + controller 委托测试**
+- [x] **Step 7: 挂载 handover 路由 + controller 委托测试**
 
 `bid-sign-packet.controller.ts` 类内末尾（`unregister` 之后、`}` 之前）加：
 
@@ -1944,7 +1944,7 @@ pnpm --filter api build
 
 Expected: PASS；构建通过。
 
-- [ ] **Step 8: archiveAll 接入闸门 + 哈希链 fileHashes + 第 8 项归档材料**
+- [x] **Step 8: archiveAll 接入闸门 + 哈希链 fileHashes + 第 8 项归档材料**
 
 `bid.service.ts` 修改三处：
 
@@ -2008,7 +2008,7 @@ Expected: PASS；构建通过。
       );
 ```
 
-- [ ] **Step 9: 跑绿 + 全量单测 + 构建**
+- [x] **Step 9: 跑绿 + 全量单测 + 构建**
 
 ```bash
 pnpm --filter api test -- bid-sign-packet.service
@@ -2018,7 +2018,7 @@ pnpm --filter api build
 
 Expected: 全绿；`bid.service.spec.ts` 若因 ensureArchiveItems 新增项断言数量 7→8 而失败，更新该断言为 8（full scope）/7（opening scope）。
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -2045,7 +2045,7 @@ git commit -m "feat(bid): 归档签字闸门（§43 闭环+回流包）+ 评标�
 - Consumes: 后端 `SignPacketResponse`（Task 2 形状）；`api` 封装（`@/lib/api`）
 - Produces: `getSignPacket/generateSignPacket/generateHandover` + `SignPacketResponse/SignPacketExpertRow/SignStatusValue` 类型（Task 8 复用并扩展 sign-packet.ts）
 
-- [ ] **Step 1: API 封装 + 类型**
+- [x] **Step 1: API 封装 + 类型**
 
 `apps/bid-portal/src/lib/api/sign-packet.ts`：
 
@@ -2104,7 +2104,7 @@ export function generateHandover(projectId: string) {
 // （本任务仅状态读取 + 生成/下载/回流；multipart 注意点见 Task 8）。
 ```
 
-- [ ] **Step 2: tab def（project-tabs.tsx）**
+- [x] **Step 2: tab def（project-tabs.tsx）**
 
 imports 加 `PenLine`：
 
@@ -2127,7 +2127,7 @@ TABS 数组 `standard` 之后插入：
 
 `TabDef['key']` 联合加 `'signing'`；`getDefaultTab` 不变（EVALUATING 默认仍是评标管理）。
 
-- [ ] **Step 3: 挂载（workspace page.tsx）**
+- [x] **Step 3: 挂载（workspace page.tsx）**
 
 imports 加：
 
@@ -2143,7 +2143,7 @@ import SigningTab from '@/components/workspace/signing-tab';
 
 > 已核实：该页**没有** `id`/`bidProjectId`/`detail` 变量——项目 id 来自 `useBidProjectContext()`（page.tsx:37，类型 `string | null`），stage 来自 `project?.stage ?? 'DOWNLOAD'`（page.tsx:74）。兄弟挂载点（page.tsx:187-188）即用 `projectId as string` 惯例，照抄。
 
-- [ ] **Step 4: 实现 signing-tab.tsx（生成/下载/指纹/清单 + 引导空态；登记交互 Task 8 叠加）**
+- [x] **Step 4: 实现 signing-tab.tsx（生成/下载/指纹/清单 + 引导空态；登记交互 Task 8 叠加）**
 
 先补 token（已核实 bid-portal `globals.css:275-282` 无 `--hairline`，现有组件边框用内联 oklch；本组件及 Task 8/Wave 3 复制的 web 组件都依赖它——`globals.css` `:root` 的 `--danger` 行后加一行）：
 
@@ -2372,7 +2372,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
 
 > 本任务不做登记交互与扫描上传（Task 8 叠加）：签字清单只读展示状态/不同意见/扫描件，闭环横幅含「生成评标回流包」按钮。
 
-- [ ] **Step 5: lint + build + 手工验证**
+- [x] **Step 5: lint + build + 手工验证**
 
 ```bash
 pnpm --filter bid-portal lint
@@ -2381,7 +2381,7 @@ pnpm --filter bid-portal build
 
 Expected: 绿。手工验证（需 API + 一个 EVALUATING 且有结果的项目——若无，先做 Task 15 种子）：`/bid/project/<id>?tab=signing` 显示「生成签字包」；点击后出现下载链接与指纹；下载 PDF 用 evince/Chrome 打开检查中文字体与版式。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -2400,7 +2400,7 @@ git commit -m "feat(bid-portal): 评标签字 tab——生成/下载/指纹/专�
 - Consumes: Task 7 的 `getSignPacket/generateSignPacket/generateHandover` + `SignPacketResponse/SignPacketExpertRow/SignStatusValue`（sign-packet.ts）
 - Produces: `registerSign/unregisterSign/uploadExpertScan/uploadSignaturePageScan`（sign-packet.ts 内）
 
-- [ ] **Step 1: sign-packet.ts 追加写操作封装**
+- [x] **Step 1: sign-packet.ts 追加写操作封装**
 
 Task 7 的 `// uploadExpertScan ... 由 Task 8 追加` 注释处替换为：
 
@@ -2428,7 +2428,7 @@ export function unregisterSign(projectId: string, expertId: string) {
 
 > 已核实：bid-portal `@/lib/api`（`src/lib/api.ts:45-46`）已有 `api.upload<T>(path, formData)`（POST + FormData、不设 Content-Type）——multipart 一律走它。**勿用 `api.post` 传 FormData**：其实现会 `JSON.stringify(body)` 且强制 `Content-Type: application/json`，`JSON.stringify(new FormData())` 恒为 `'{}'`。
 
-- [ ] **Step 2: 实现登记弹窗（创建 sign-register-dialog.tsx）**
+- [x] **Step 2: 实现登记弹窗（创建 sign-register-dialog.tsx）**
 
 全实现：
 
@@ -2572,7 +2572,7 @@ export default function SignRegisterDialog({
 }
 ```
 
-- [ ] **Step 3: signing-tab.tsx 叠加登记交互（5 处改动）**
+- [x] **Step 3: signing-tab.tsx 叠加登记交互（5 处改动）**
 
 (1) imports 改为（`registerSign` 只被弹窗使用，tab 不 import——否则 lint 报 unused import）：
 
@@ -2681,7 +2681,7 @@ import SignRegisterDialog from './sign-register-dialog';
       )}
 ```
 
-- [ ] **Step 4: lint + build + 手工验证 + Commit**
+- [x] **Step 4: lint + build + 手工验证 + Commit**
 
 ```bash
 pnpm --filter bid-portal lint
@@ -2705,7 +2705,7 @@ git commit -m "feat(bid-portal): 签字登记弹窗（§43 三态+扫描上传+�
 **Interfaces:**
 - Consumes: 后端 `GET /bid/projects/:id/sign-packet`（只读）；未签姓名由 `SignPacketResponse.experts` 前端计算（后端 filter 不透传 detail）
 
-- [ ] **Step 1: web 侧 API 封装**
+- [x] **Step 1: web 侧 API 封装**
 
 `apps/web/src/lib/api/bid.ts` 末尾追加（类型与 :3007 完全同构，避免两份漂移）：
 
@@ -2753,7 +2753,7 @@ export function getSignPacket(bidProjectId: string) {
 }
 ```
 
-- [ ] **Step 2: archive-block.tsx 闸门展示**
+- [x] **Step 2: archive-block.tsx 闸门展示**
 
 已核实该组件现状：`import { useState } from 'react'`（archive-block.tsx:11，**无 useEffect**）；state 在 35-39 行；41-43 行有 early return；错误提示走 `showToast`/`feedback`（53-56 行），**无 `setError`**；「完整归档」按钮在 122-125 行（现 `disabled={busy}`）。按此改造（4 处）：
 
@@ -2818,7 +2818,7 @@ import { getSignPacket, type SignPacketResponse } from '@/lib/api/bid'; // 另�
 
 `doArchive` 的 catch 分支**不改**（既有 `showToast(e.message, 'err')` 已回显后端中文原因；按钮禁用是主闸门，409 仅为竞态兜底）。
 
-- [ ] **Step 3: lint + build + 手工验证 + Commit**
+- [x] **Step 3: lint + build + 手工验证 + Commit**
 
 ```bash
 pnpm --filter web lint
@@ -2851,7 +2851,7 @@ git commit -m "feat(web): 归档块签字闸门展示（三态警示 + 完整归
 - Consumes: 后端既有端点 `POST /bid/projects/:id/start-evaluation`、`GET/POST .../evaluation-results[/generate]`、`GET /expert-admin/projects/:id/memos[/:memoId/ink]`
 - Produces: `EvaluationView` 组件 props 适配为 `{ projectId: string; project?: BidProjectDetail; onChanged: () => void }`（页面既有挂载点是 `projectId={projectId as string} project={project}`——**不是** `bidProjectId`/`detail`；移植块内部 `bidProjectId`→`projectId`、`detail`→`project`）
 
-- [ ] **Step 1: 复制 + 适配（机械步骤）**
+- [x] **Step 1: 复制 + 适配（机械步骤）**
 
 ```bash
 cd water-erp
@@ -2872,7 +2872,7 @@ import { api } from '@/lib/api';
 - **专家墨迹两端点角色检查**：`curl -s -o /dev/null -w '%{http_code}' http://localhost:4001/api/expert-admin/projects/<项目id>/memos -H 'Cookie: token_web=<bid_host cookie>' -H 'X-Portal: web'`；若 403 → 在 `apps/api/src/expert/expert-admin.controller.ts` 对应两个 GET 端点（memos、memos/:memoId/ink）的 `@Roles` 加 `'bid_host'`（对齐 :3007 全操作化），并 `pnpm --filter api build` + 单测。
 - 删除 evaluation-view.tsx 中「只读骨架/空态」旧注释与 TAB 引用（若旧版有 `props.onChanged` 缺失等，用新 props 签名 `{ bidProjectId, detail, onChanged }`）。
 
-- [ ] **Step 2: 页面挂载 props 适配（page.tsx）**
+- [x] **Step 2: 页面挂载 props 适配（page.tsx）**
 
 现有挂载点（page.tsx:188，数据源 `useBidProjectContext().projectId` + 页面自有 `project` 状态，`loadProject` 定义于 page.tsx:64）：
 
@@ -2882,7 +2882,7 @@ import { api } from '@/lib/api';
 
 只比现状多传 `onChanged={loadProject}`（移植块在启动评标/生成结果后回调刷新）；`project` 为 null 时组件内部已处理。
 
-- [ ] **Step 3: lint + build + 手工验证**
+- [x] **Step 3: lint + build + 手工验证**
 
 ```bash
 pnpm --filter bid-portal lint
@@ -2891,7 +2891,7 @@ pnpm --filter bid-portal build
 
 手工验证（EVALUATING 项目）：:3007 工作区「评标管理」tab 出现启动评标按钮（OPENING 项目）、专家进度卡、评分矩阵、3 步生成向导；生成结果后与 :3005 旧面板行为一致。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -2908,8 +2908,8 @@ git commit -m "feat(bid-portal): 评标管理全操作化（移植 :3005 evaluat
 **Interfaces:**
 - Consumes: `POST /bid/projects/:id/disputes/:disputeId/resolve`、`POST .../abort`（既有端点，roles 不变）
 
-- [ ] **Step 1: 拷贝 + 适配（同 Task 10 步骤：grep `from '@/'` 仅 lucide + lib/api/bid → 改导入）**
-- [ ] **Step 2: 页面挂载**：workspace page 加 `import DisputeBlock from '@/components/workspace/dispute-block';`，在「评标管理」tab 渲染区内并列挂载（同一 tab 下，evaluation-view 之后）：
+- [x] **Step 1: 拷贝 + 适配（同 Task 10 步骤：grep `from '@/'` 仅 lucide + lib/api/bid → 改导入）**
+- [x] **Step 2: 页面挂载**：workspace page 加 `import DisputeBlock from '@/components/workspace/dispute-block';`，在「评标管理」tab 渲染区内并列挂载（同一 tab 下，evaluation-view 之后）：
 
 ```tsx
 {current === 'evaluate' && (
@@ -2921,8 +2921,8 @@ git commit -m "feat(bid-portal): 评标管理全操作化（移植 :3005 evaluat
 ```
 
 （props 名按页面既有变量调整；`refresh` 为页面既有重载函数。）
-- [ ] **Step 3: lint + build + 手工验证**（含「有效供应商不足→流标」路径——裁决废标后 stage 走 ABORTED，:3007 任务板出现流标项目；开标前流标仍只在 :3005）
-- [ ] **Step 4: Commit**
+- [x] **Step 3: lint + build + 手工验证**（含「有效供应商不足→流标」路径——裁决废标后 stage 走 ABORTED，:3007 任务板出现流标项目；开标前流标仍只在 :3005）
+- [x] **Step 4: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -2939,7 +2939,7 @@ git commit -m "feat(bid-portal): 专家异议裁决移植（裁决+评标中流�
 **Interfaces:**
 - Consumes: 既有澄清端点（`/bid/projects/:id/clarifications[...]`，roles 不变）
 
-- [ ] **Step 1: 拷贝 + 适配**
+- [x] **Step 1: 拷贝 + 适配**
 
 ```bash
 cd water-erp
@@ -2948,9 +2948,9 @@ grep -n "from '@/" apps/bid-portal/src/components/workspace/clarifications-block
 ```
 
 Expected：仅一行 `} from '@/lib/api/bid';`（已核实该组件仅此一处 `@/` 导入）→ 改为 `@/lib/api/evaluation`；其余不改。
-- [ ] **Step 2: 挂载**：与 DisputeBlock 并列挂入「评标管理」tab（ClarificationsBlock 之后）
-- [ ] **Step 3: lint + build + 手工验证**（发起澄清 → 供应商端回复 → AI 摘要按钮 → 摘要显示）
-- [ ] **Step 4: Commit**
+- [x] **Step 2: 挂载**：与 DisputeBlock 并列挂入「评标管理」tab（ClarificationsBlock 之后）
+- [x] **Step 3: lint + build + 手工验证**（发起澄清 → 供应商端回复 → AI 摘要按钮 → 摘要显示）
+- [x] **Step 4: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -2963,7 +2963,7 @@ git commit -m "feat(bid-portal): 澄清答疑移植（发起/回复/AI 摘要）
 **Files:**
 - Modify: `apps/web/src/components/projects/bid-confirm-panel.tsx`
 
-- [ ] **Step 1: 移除**（`apps/web/src/components/projects/bid-confirm-panel.tsx`——**注意不在 `bid-confirm/` 子目录**：imports 在 48-50 行，三区块 JSX 在 811-813 行，位于 `{bpId && detail && (<>…</>)}` 包裹内，与 OpeningProgressBlock/ArchiveBlock 相邻）
+- [x] **Step 1: 移除**（`apps/web/src/components/projects/bid-confirm-panel.tsx`——**注意不在 `bid-confirm/` 子目录**：imports 在 48-50 行，三区块 JSX 在 811-813 行，位于 `{bpId && detail && (<>…</>)}` 包裹内，与 OpeningProgressBlock/ArchiveBlock 相邻）
 
 删除：`EvaluationBlock` / `DisputeBlock` / `ClarificationsBlock` 的 import、组件 JSX 渲染、仅这三区块使用的局部状态/回调（tsc 会列出未使用变量，逐个删除）。保留：供应商投标状态、专家确认、评分标准、监督时间线、开标进度、归档区块与底部决策栏。
 
@@ -2976,8 +2976,8 @@ git commit -m "feat(bid-portal): 澄清答疑移植（发起/回复/AI 摘要）
 </p>
 ```
 
-- [ ] **Step 2: lint + build（tsc 全量会揪出残留引用）+ 手工验证**（:3005 项目详情开标确认面板不再出现三区块，其余区块完好）
-- [ ] **Step 3: Commit**
+- [x] **Step 2: lint + build（tsc 全量会揪出残留引用）+ 手工验证**（:3005 项目详情开标确认面板不再出现三区块，其余区块完好）
+- [x] **Step 3: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -2997,7 +2997,7 @@ git commit -m "refactor(web): 开标确认面板移除评标管理/异议裁决/
 **Interfaces:**
 - Consumes: Task 9 的 `getSignPacket`（`packet.handoverFileAssetId/handoverDownloadUrl/closedAt`）
 
-- [ ] **Step 1: 实现**——组件内加（已核实：该组件 props 已含 `bidProjectId: string`，见 opening-progress-block.tsx:14，无需调整变量名；组件目前无 react hooks import，需新增）：
+- [x] **Step 1: 实现**——组件内加（已核实：该组件 props 已含 `bidProjectId: string`，见 opening-progress-block.tsx:14，无需调整变量名；组件目前无 react hooks import，需新增）：
 
 ```tsx
 // imports 追加：
@@ -3035,8 +3035,8 @@ useEffect(() => {
 
 > 插入点说明：组件渲染主体是 `{!openingSession ? (…) : (…)}` 三元组（该文件 :105-180），「开标资料移交接收」块（:138-150，标题含「资料已接收」）在 truthy 分支内；签字回流块与开标会话无依赖，**并列插在三元组之后（:180 `)}` 与 :181 `</section>` 之间）**，开标会话未组建时同样可见。`FileCheck` 该文件已导入（:10），无需重复；`PenLine` 需追加进 :10 的 lucide 导入行。
 
-- [ ] **Step 2: lint + build + 手工验证**（回流包生成后 :3005「开标进度」出现「评标资料已接收·下载」）
-- [ ] **Step 3: Commit**
+- [x] **Step 2: lint + build + 手工验证**（回流包生成后 :3005「开标进度」出现「评标资料已接收·下载」）
+- [x] **Step 3: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -3053,7 +3053,7 @@ git commit -m "feat(web): 开标进度区块展示评标回流包接收状态"
 **Interfaces:**
 - Produces: 种子项目「智慧水务大数据平台建设」(`cms1hda40006duu2o4fx28ubd`) = EVALUATING + 2 家已确认供应商 + 3 名正选专家（1 组长）全部 reportConfirmed + 组长末签 + 完整评分记录 + 开标会话 + 唱标记录；**评标结果不预置**（演示从「生成评标结果」起步）。用户 id 复用种子库既有专家账号（代思敏 `cf3c3f729cab`、周祥志 `c1bf8a97b47a`、李军 `cc3a5d347248`）；供应商复用既有（重庆蜀通岩土工程有限公司 `cmqbysdkb0`、用友网络科技股份有限公司四川分公司 `cmqc8r5ts0`）。**BidScoreReview 不种子化**：seed.ts 的 ALL_TABLES/SEED_ORDER 未管理该表（当前无 BidScoreReview.json），且演示不经过专家门户核对流程（reportConfirmed 直接置位）；签字包「核对留痕」段以空数组渲染，属预期。
 
-- [ ] **Step 1: 用脚本生成增量 JSON（确定性、可重跑；在 water-erp 下执行）**
+- [x] **Step 1: 用脚本生成增量 JSON（确定性、可重跑；在 water-erp 下执行）**
 
 ```bash
 cd water-erp && python3 - <<'EOF'
@@ -3184,7 +3184,7 @@ print('done')
 EOF
 ```
 
-- [ ] **Step 2: 跑种子 + 端到端验收**
+- [x] **Step 2: 跑种子 + 端到端验收**
 
 ```bash
 pnpm db:seed
@@ -3209,13 +3209,13 @@ curl -s "http://localhost:4001/api/bid/projects/$PID" -H "Cookie: $COOKIE" -H 'X
 
 **验收通过后再提交。**
 
-- [ ] **Step 3: 回归**
+- [x] **Step 3: 回归**
 
 ```bash
 pnpm --filter api test        # 全量单测（种子不参与）
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd water-erp && git branch --show-current
@@ -3232,7 +3232,7 @@ git commit -m "chore(seed): 智慧水务项目置为 EVALUATING 全前置态（�
 **Interfaces:**
 - Consumes: 全部端点；`loginAs` 登录模式（复制 bid.e2e-spec.ts:10-22）；prisma 直连 fixture 模式（bid.e2e-spec.ts:~205-240）
 
-- [ ] **Step 1: 写 E2E**
+- [x] **Step 1: 写 E2E**
 
 `apps/api/test/sign-packet.e2e-spec.ts`：
 
@@ -3465,7 +3465,7 @@ describe('评标签字包全流程 (e2e)', () => {
 
 > 已核实：归档端点为 `POST /api/bid/projects/:id/archive-all`（body `{ scope: 'full' }`，见 bid.controller.ts:666）；项目创建必填 `name/procurementMethod/openTime/deadline`（bid.e2e-spec.ts 同款 body）。本 E2E 的闸门覆盖：EVALUATION_RESULTS_REQUIRED（beforeAll 生成结果）、OPENING_RECORDS_MISSING（BidOpeningRecord fixture）、SIGN_DISSENT_REQUIRED（§43 拒绝未陈述）、扫描上传 + 闭环前撤销重登（spec §11）、闭环后撤销 409、HANDOVER_NOT_GENERATED；SIGN_PACKET_NOT_GENERATED 与 SIGN_NOT_CLOSED 由 Task 6 纯函数单测覆盖。afterAll 仅清 FileAsset 行（含 `bid-evaluation-handover/${projectId}`——generateEvaluationResults 在 bid.service.ts:3297 创建），MinIO 对象不清理（与 upload e2e 既有约定一致）。
 
-- [ ] **Step 2: 跑 E2E（红→绿）**
+- [x] **Step 2: 跑 E2E（红→绿）**
 
 ```bash
 pnpm --filter api test:e2e -- sign-packet
@@ -3477,7 +3477,7 @@ Expected: 全绿（若失败按响应体 code 修复 fixture）。随后回归�
 pnpm --filter api test:e2e
 ```
 
-- [ ] **Step 3: 文档收尾（CLAUDE.md 去「实施中」标记）**
+- [x] **Step 3: 文档收尾（CLAUDE.md 去「实施中」标记）**
 
 用 Bash（记忆 edit-claudemd-via-bash：ARS 守卫拦 Edit/Write，主会话 Bash 放行）：
 
@@ -3499,7 +3499,7 @@ EOF
 
 替换后复查 `grep -n "实施中" CLAUDE.md` 应为空（其他遗留表述一并替换为已实施口径）。
 
-- [ ] **Step 4: Commit（最后检查分支）**
+- [x] **Step 4: Commit（最后检查分支）**
 
 ```bash
 cd water-erp && git branch --show-current
