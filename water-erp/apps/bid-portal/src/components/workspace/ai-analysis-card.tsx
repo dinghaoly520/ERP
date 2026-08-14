@@ -6,7 +6,7 @@
  * task 终态且无异常后停止轮询。异常时显示补救按钮：
  *   - 重试失败项：POST retry-ai-bidders（不传 ids = 全部 FAILED+卡住家）
  *   - 重新分析：POST rerun-ai-analysis（清空全部结果重跑，二次确认）
- * 只读评标管理 tab 的窄例外：写操作不改阶段、不流转（阶段流转仍归 :3005）。
+ * 评标管理 tab 全操作下的 AI 通道：写操作不改阶段、不流转（阶段流转：启动评标归本端 :3007，完整归档归 :3005）。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';

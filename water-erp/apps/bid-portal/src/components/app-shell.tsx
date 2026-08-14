@@ -57,7 +57,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     window.location.href = LOGIN_URL;
   };
 
-  // 单一入口：任务板(/bid) 与开标大厅(/bid/open) 均高亮
+  // 单一入口：任务板(/bid) 与项目工作区(/bid/project/[id]) 均高亮
   const isActive = (path: string) => {
     if (path === '/bid') return pathname === '/bid' || (pathname.startsWith('/bid/') && !pathname.startsWith('/bid/archive'));
     return pathname === path || pathname.startsWith(path + '/');

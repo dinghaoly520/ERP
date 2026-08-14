@@ -179,9 +179,6 @@ function WorkspaceInner() {
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ProjectTabs stage={stage} current={current} onSwitch={switchTab} hasRoundMode={hasRoundMode} />
-        <span className="text-[11px] text-[color:var(--muted-foreground)]">
-          {project?.projectCode} · 评分标准编制在采购管理工作台（:3005），本 tab 只读
-        </span>
       </div>
       {!project ? (
         <div className="py-20 text-center text-[13px] tracking-tight text-[color:var(--muted-foreground)]">暂无项目数据</div>

@@ -57,7 +57,10 @@ export default function ScoreStandardView({ projectId, project: propsProject }: 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-sm font-bold"><ListChecks size={15} /> 评分标准（只读）</h2>
+        <h2 className="flex items-center gap-2 text-sm font-bold">
+          <ListChecks size={15} /> 评分标准（只读）
+          <span className="text-[11px] font-normal text-[color:var(--muted-foreground)]">编制在采购管理工作台（:3005）</span>
+        </h2>
         <span className="text-[12px] font-mono font-bold tabular-nums text-[color:var(--accent-strong)]">总分 {total}</span>
       </div>
       {items.map(item => {

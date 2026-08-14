@@ -352,7 +352,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <p className="text-xs text-[color:var(--muted-foreground)]">
               {project.stage === 'ABORTED'
                 ? '本项目已流标，后续处理（流标公告）请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。'
-                : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，后续评标管理与归档请在采购管理工作台（:3005）操作；本页仅供查看开标过程记录。`}
+                : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，评标管理与评标签字请在本工作区对应 tab 操作；完整归档与公示请在采购管理工作台（:3005）操作。`}
             </p>
           </div>
           <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
