@@ -65,7 +65,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged }: Props) 
   }, [bidProjectId]);
 
   // 按项目挂载拉取（refreshTick 死 prop 已移除：唯一渲染点 workspace page 从未传该值，2026-08-14）；
-  // 增量刷新由本块内发起/回复操作后的 onChanged → load 驱动
+  // 增量刷新由本块内发起/回复成功后的 handler 直接 load() 重拉（onChanged 同步刷新父级项目数据）
   useEffect(() => { load(); }, [load]);
 
   if (!detail) return null;
