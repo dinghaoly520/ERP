@@ -19,14 +19,6 @@ export const BID_STAGE_LABELS: Record<BidStage, string> = {
   ABORTED: '已流标',
 };
 
-export const SCORE_CATEGORY_LABELS: Record<ScoreCategory, string> = {
-  QUALIFICATION: '资格审查',
-  RESPONSIVE: '响应性',
-  BUSINESS: '商务',
-  TECHNICAL: '技术',
-  PRICE: '价格',
-};
-
 export interface BidProjectRef {
   id: string;
   projectCode: string;
@@ -527,13 +519,8 @@ export function assignBidHost(projectId: string, userId: string | null) {
   );
 }
 
-/* ── 评标管理 ── */
-
-/** 启动评标（OPENING → EVALUATING；前置：有专家 + 有可评供应商 + 评分标准完整） */
-export function startEvaluation(bidProjectId: string) {
-  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/start-evaluation`, {});
-}
-
+/** 评标结果（供 BidProjectDetail.evaluationResults 中标通知书/公示展示；
+ *  查询/生成入口已迁 :3007 评标管理 tab，本端不再持有写操作） */
 export interface BidEvaluationResultInfo {
   id: string;
   supplierId: string;
@@ -545,72 +532,6 @@ export interface BidEvaluationResultInfo {
   disqualified: boolean;
   bidPrice?: string | null; // A4: 供应商报价（从评标结果流入）
   generatedAt: string;
-}
-
-export function listEvaluationResults(bidProjectId: string) {
-  return api.get<BidEvaluationResultInfo[]>(`/bid/projects/${bidProjectId}/evaluation-results`);
-}
-
-/** 生成评标结果（须全部专家 reportConfirmed） */
-export function generateEvaluationResults(bidProjectId: string) {
-  return api.post<BidEvaluationResultInfo[]>(`/bid/projects/${bidProjectId}/evaluation-results/generate`, {});
-}
-
-/* ── 澄清答疑 ── */
-
-export interface BidClarificationInfo {
-  id: string;
-  supplierId: string | null;
-  supplierName: string | null;
-  type: string; // clarification / question
-  question: string;
-  reply: string | null;
-  issuer: string | null;
-  status?: string | null;
-  aiSummary?: string | null;
-  fileAssetId?: string | null;
-  createdAt: string;
-  answeredAt: string | null;
-}
-
-export function listClarifications(bidProjectId: string) {
-  return api.get<BidClarificationInfo[]>(`/bid/projects/${bidProjectId}/clarifications`);
-}
-
-export function createClarification(
-  bidProjectId: string,
-  body: {
-    question: string;
-    issuer: string;
-    supplierName: string;
-    type?: string; // clarification（默认）/ question
-    supplierId?: string;
-  },
-) {
-  return api.post<BidClarificationInfo>(`/bid/projects/${bidProjectId}/clarifications`, body);
-}
-
-export function replyClarification(bidProjectId: string, clarificationId: string, body: { reply: string }) {
-  return api.patch<BidClarificationInfo>(
-    `/bid/projects/${bidProjectId}/clarifications/${clarificationId}/reply`,
-    body,
-  );
-}
-
-/** AI 起草候选问题（不落库） */
-export function draftClarification(bidProjectId: string, supplierId: string) {
-  return api.post<{ drafts: string[]; basis: string[] }>(
-    `/bid/projects/${bidProjectId}/clarifications/draft`,
-    { supplierId },
-  );
-}
-
-/** AI 提炼回复要点（不落库） */
-export function summarizeClarification(bidProjectId: string, clarificationId: string) {
-  return api.post<{ summary: string; keyPoints: string[]; aiSummary: string }>(
-    `/bid/projects/${bidProjectId}/clarifications/${clarificationId}/summarize`,
-    {},
-  );
 }
 
 /* ── 归档 ── */
@@ -632,54 +553,9 @@ export function exportArchivePackageJson(bidProjectId: string) {
   return api.get<Record<string, unknown>>(archivePackageExportUrl(bidProjectId, 'json'));
 }
 
-/* ── 专家异议工单（D2：采购端裁决）── */
-
-/** 采购端裁决专家异议工单（采纳/驳回）。
- *  invalidateBidSupplierId：采纳时同事务把该投标供应商置为 invalid（废标联动，可选）。 */
-export function resolveExpertDispute(
-  bidProjectId: string,
-  disputeId: string,
-  dto: { response: string; status: 'resolved' | 'rejected'; invalidateBidSupplierId?: string },
-) {
-  return api.post(`/bid/projects/${bidProjectId}/disputes/${disputeId}/resolve`, dto);
-}
-
 /** 正选↔候补角色互换（开标确认页操作→替换） */
 export function swapExpertRole(bidProjectId: string, fromExpertId: string, toExpertId: string) {
   return api.post<{ success: boolean }>(`/bid/projects/${bidProjectId}/swap-expert`, { fromExpertId, toExpertId });
-}
-
-/* ── 专家批注/备忘（管理端只读）── */
-
-export interface ExpertMemoForAdmin {
-  id: string;
-  expertId: string;
-  projectId: string;
-  supplierId?: string | null;
-  scoreItemId?: string | null;
-  scorePointId?: string | null;
-  contentText?: string | null;
-  inkFileId?: string | null;
-  sourceDevice?: string | null;
-  createdAt: string;
-}
-
-export function listExpertMemosForAdmin(
-  projectId: string,
-  params?: { expertId?: string; supplierId?: string; scoreItemId?: string },
-): Promise<ExpertMemoForAdmin[]> {
-  const qs = new URLSearchParams();
-  if (params?.expertId) qs.set('expertId', params.expertId);
-  if (params?.supplierId) qs.set('supplierId', params.supplierId);
-  if (params?.scoreItemId) qs.set('scoreItemId', params.scoreItemId);
-  return api.get(`/expert-admin/projects/${projectId}/memos${qs.size ? `?${qs}` : ''}`);
-}
-
-export function getExpertMemoInkUrlForAdmin(
-  projectId: string,
-  memoId: string,
-): Promise<{ url: string }> {
-  return api.get(`/expert-admin/projects/${projectId}/memos/${memoId}/ink`);
 }
 
 /* ── 评标签字包（:3007 生成，:3005 归档闸门展示用，只读） ── */

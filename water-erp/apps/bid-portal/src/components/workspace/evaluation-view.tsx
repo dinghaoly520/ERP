@@ -5,7 +5,7 @@
  * 分工 v3（2026-08-13）：评标管理自 :3005 迁回本端，进度仪表盘、启动评标、专家状态卡、
  * 专家×供应商评分矩阵（偏差>20% 标异常）、供应商汇总排名（实时均分参考 /
  * 官方结果）、3 步生成向导、专家批注查看。归档由 :3005 收尾；实时性由页级 socket 驱动。
- * 移植自 :3005 evaluation-block.tsx，函数 API 走 @/lib/api/evaluation（同源封装）。
+ * 唯一副本（:3005 原件已删除，2026-08-14）；函数 API 走 @/lib/api/evaluation（同源封装）。
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
