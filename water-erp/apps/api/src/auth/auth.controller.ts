@@ -210,9 +210,11 @@ export class AuthController {
     }
 
     // 白名单校验 redirect_uri，防止开放重定向
+    // （SSO_ALLOWED_REDIRECTS：环境追加的可信商城地址，逗号分隔）
     const ALLOWED_REDIRECTS = new Set([
       'http://localhost:3003',
       ...(process.env.MALL_URL ? [process.env.MALL_URL] : []),
+      ...(process.env.SSO_ALLOWED_REDIRECTS?.split(',').map((s) => s.trim()).filter(Boolean) ?? []),
     ]);
     if (redirectUri && !ALLOWED_REDIRECTS.has(redirectUri)) {
       throw new BadRequestException({ error: '非法重定向地址', code: 'INVALID_REDIRECT' });

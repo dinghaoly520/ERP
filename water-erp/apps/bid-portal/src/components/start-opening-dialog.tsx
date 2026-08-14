@@ -85,11 +85,11 @@ export default function StartOpeningDialog({ open, projectId, onClose, onStarted
         <div className="space-y-4 px-6 py-5">
           <div>
             <label className={labelCls}>主持人 <span className="text-[var(--danger)]">*</span></label>
-            <input value={host} onChange={(e) => setHost(e.target.value)} className="neu-input" placeholder="如：采购中心-李主任" autoFocus />
+            <input value={host} onChange={(e) => setHost(e.target.value)} className="neu-input" placeholder="请输入主持人姓名" autoFocus />
           </div>
           <div>
             <label className={labelCls}>监督人 <span className="font-normal normal-case text-[color:var(--muted-foreground)]">选填</span></label>
-            <input value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="neu-input" placeholder="如：纪检监督-周老师（可留空）" />
+            <input value={supervisor} onChange={(e) => setSupervisor(e.target.value)} className="neu-input" placeholder="监督人姓名（可留空）" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

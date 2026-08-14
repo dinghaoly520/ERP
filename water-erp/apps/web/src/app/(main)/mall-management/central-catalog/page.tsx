@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { ShoppingCart, ExternalLink, Folder, Sparkles, FileSpreadsheet } from 'lucide-react';
 
 const MALL_URL = process.env.NEXT_PUBLIC_MALL_URL || 'http://localhost:3003';
-const SSO_URL = `http://localhost:4001/api/auth/sso/mall?redirect_uri=${encodeURIComponent(MALL_URL)}`;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4001';
+const SSO_URL = `${API_URL}/api/auth/sso/mall?redirect_uri=${encodeURIComponent(MALL_URL)}`;
 
 /** 来自 :3003 首页的真实功能，不臆造 */
 const CARDS = [

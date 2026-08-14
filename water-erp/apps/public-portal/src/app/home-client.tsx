@@ -215,10 +215,14 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     }
   }, []);
 
+  // 门户入口 URL：默认走 @water-erp/config 的 portalURL，生产可用 NEXT_PUBLIC_*_PORTAL_URL 覆盖
+  const SUPPLIER_URL = process.env.NEXT_PUBLIC_SUPPLIER_PORTAL_URL ?? portalURL('supplier', '/login?forceLogin=1');
+  const WEB_URL = process.env.NEXT_PUBLIC_WEB_PORTAL_URL ?? portalURL('web', '/login?forceLogin=1');
+
   const features = [
     { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
-    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: `http://192.168.1.109:3004/login?forceLogin=1` },
-    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: `http://192.168.1.109:3005/login?forceLogin=1` },
+    { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: SUPPLIER_URL },
+    { icon: 'users', title: '采购管理端', desc: '信息发布、供应商管理、专家管理', href: WEB_URL },
     { icon: 'safe', title: '在线开评标系统', desc: '在线开标、专家评审、监督归档', href: portalURL('expert', '/login?forceLogin=1') },
   ];
 
