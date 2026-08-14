@@ -6,7 +6,7 @@ import { bidApi } from '@/api/bid'
 import { ElMessage } from 'element-plus'
 import CountdownTimer from '@/components/CountdownTimer.vue'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { Gavel, AlertTriangle } from 'lucide-vue-next'
+import { Gavel, AlertTriangle, ClipboardList } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -132,7 +132,7 @@ function negoWindowState(p: any): 'before' | 'open' | 'after' {
     </div>
 
     <div v-else-if="!loading" class="sp-empty-panel">
-      <el-icon :size="32"><Document /></el-icon>
+      <div class="sp-empty-icon"><ClipboardList :size="22" :stroke-width="1.75" /></div>
       <p class="sp-empty-text">暂无招标项目</p>
       <p class="sp-empty-desc">{{ search || filterScope ? '没有符合当前筛选条件的项目，试试调整搜索或类别' : '当前没有符合条件的招标项目' }}</p>
     </div>

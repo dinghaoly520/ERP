@@ -8,7 +8,7 @@ import dayjs from 'dayjs'
 import { uploadFile, type FileAssetResponse } from '@/api/upload'
 import { createDialogLeaveGuard } from '@/composables'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { Building2, AlertTriangle } from 'lucide-vue-next'
+import { Building2, AlertTriangle, Folder as LucideFolder, Phone as LucidePhone } from 'lucide-vue-next'
 
 const router = useRouter()
 const supplierStore = useSupplierStore()
@@ -238,7 +238,7 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
               </article>
             </el-col>
           </el-row>
-          <div v-else class="qual-empty"><div class="qual-empty-icon"><el-icon :size="28"><Folder /></el-icon></div><p class="qual-empty-title">暂无资质材料</p><p class="qual-empty-desc">点击上方「添加资质」按钮，上传企业资质证照</p></div>
+          <div v-else class="qual-empty"><div class="sp-empty-icon"><LucideFolder :size="22" :stroke-width="1.75" /></div><p class="qual-empty-title">暂无资质材料</p><p class="qual-empty-desc">点击上方「添加资质」按钮，上传企业资质证照</p></div>
         </template>
       </div>
 
@@ -257,7 +257,7 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
               <el-table-column label="操作" width="160" align="center"><template #default="{row}"><button class="neu-btn-xs" @click="ctOpenEdit(row)">编辑</button><button class="neu-btn-xs is-danger" @click="ctHandleDelete(row.id)">删除</button></template></el-table-column>
             </el-table>
           </div>
-          <div v-else class="detail-card ct-empty"><div class="ct-empty-icon"><el-icon :size="28"><Phone /></el-icon></div><p class="ct-empty-title">暂无联系人</p><p class="ct-empty-desc">请添加企业联系人信息</p></div>
+          <div v-else class="detail-card ct-empty"><div class="sp-empty-icon"><LucidePhone :size="22" :stroke-width="1.75" /></div><p class="ct-empty-title">暂无联系人</p><p class="ct-empty-desc">请添加企业联系人信息</p></div>
         </template>
       </div>
     </template>
@@ -415,8 +415,7 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
 .contact-name-cell { display: flex; align-items: center; gap: 10px; }
 .contact-avatar { background: var(--brand); font-size: 13px; }
 .contact-name { font-weight: 700; font-size: 14px; color: var(--foreground); }
-.ct-empty { text-align: center; padding: 64px 24px; }
-.ct-empty-icon { color: var(--muted-foreground); margin-bottom: 8px; }
+.ct-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 64px 24px; }
 .ct-empty-title { margin: 12px 0 4px; font-size: 15px; font-weight: 700; color: var(--muted-foreground); }
 .ct-empty-desc { margin: 0; font-size: 13px; color: var(--muted-foreground); }
 
@@ -471,8 +470,7 @@ async function loadContacts() { if(supplierStore.contacts.length>0)return; conta
 .qual-health-chip.expired   { background: color-mix(in oklab, var(--danger) 12%, transparent); color: var(--danger); }
 .qual-health-chip.expired .chip-dot   { background: var(--danger); }
 .qual-health-message { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--c, var(--muted-foreground)); }
-.qual-empty { position: relative; text-align: center; padding: 64px 24px; border-radius: 16px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7); }
-.qual-empty-icon  { color: var(--muted-foreground); margin-bottom: 8px; }
+.qual-empty { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 64px 24px; border-radius: 16px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7); }
 .qual-empty-title { font-size: 15px; font-weight: 700; color: var(--muted-foreground); margin: 12px 0 4px; }
 .qual-empty-desc  { font-size: 13px; color: var(--muted-foreground); margin: 0; }
 

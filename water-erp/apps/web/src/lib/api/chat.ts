@@ -12,6 +12,7 @@ export interface ChatUser {
   displayName: string;
   role: string;
   avatar: string | null;
+  company: string | null;
   department: { id: string; name: string } | null;
   isOnline: boolean;
 }

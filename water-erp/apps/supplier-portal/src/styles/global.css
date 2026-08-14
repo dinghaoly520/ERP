@@ -559,6 +559,16 @@ a:hover { color: var(--sp-primary-light); }
   padding: 48px 20px;
   color: var(--sp-gray-400);
 }
+/* sp-empty-panel — 同 sp-empty 的居中能力（flex 列 + 水平居中），
+   专供使用 .sp-empty-panel 类名的空态容器（NotificationList / AnnouncementList / BidList）。
+   text-align: center 无法居中块级 .sp-empty-icon 徽章，必须用 flex。 */
+.sp-empty-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 20px;
+  text-align: center;
+}
 .sp-empty-icon {
   width: 44px;
   height: 44px;

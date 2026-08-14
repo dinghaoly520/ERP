@@ -9058,6 +9058,56 @@ a {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   紧凑信息卡 — .neu-tile
+   用于 dashboard 指标卡、KB 选择器、统计三联卡等小尺寸信息块。
+   配方与 .kpi-card 同源（实色基底 + 方向性双影），命名通用化。
+   ══════════════════════════════════════════════════════════════════ */
+.neu-tile {
+  background: oklch(0.985 0.005 258);
+  border: none;
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.85),
+    2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.12),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.neu-tile.is-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    4px 4px 8px oklch(0.55 0.03 258 / 0.15),
+    -2.5px -2.5px 7px oklch(1 0 0 / 0.95);
+}
+.neu-tile.is-accent {
+  background: color-mix(in oklch, var(--accent-soft) 30%, oklch(0.985 0.005 258));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 5px oklch(1 0 0 / 0.85);
+}
+.neu-tile.is-success {
+  background: color-mix(in oklch, var(--success) 12%, oklch(0.985 0.005 258));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 5px oklch(1 0 0 / 0.85);
+}
+.neu-tile.is-danger {
+  background: color-mix(in oklch, var(--danger) 10%, oklch(0.985 0.005 258));
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.1),
+    -2px -2px 5px oklch(1 0 0 / 0.85);
+}
+.neu-tile.is-inset {
+  background: oklch(0.965 0.005 258 / 0.85);
+  box-shadow:
+    inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
+    inset -1px -1px 2px oklch(1 0 0 / 0.6);
+}
+
+/* ══════════════════════════════════════════════════════════════════
    输入框 — .neu-input / .neu-select
    内凹输入（凹陷接收输入，与凸起按钮形成对比）
    ══════════════════════════════════════════════════════════════════ */
@@ -9473,7 +9523,7 @@ select.workbench-input {
 .neu-table-card {
   position: relative;
   background:
-    linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%);
+    linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.003 258 / 0.78) 50%, oklch(1 0 0 / 0.32) 88%);
   backdrop-filter: blur(18px) saturate(135%);
   -webkit-backdrop-filter: blur(18px) saturate(135%);
   border-radius: 20px;
@@ -9749,13 +9799,35 @@ select.workbench-input {
   flex-direction: column;
   border-radius: 20px;
   background:
-    linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.14) 70%);
+    linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.003 258 / 0.78) 50%, oklch(1 0 0 / 0.32) 88%);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.8),
     3px 3px 14px oklch(0.5 0.06 258 / 0.18),
     -3px -3px 10px oklch(1 0 0 / 0.95),
     0 12px 24px oklch(0.48 0.07 258 / 0.14);
   min-height: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   章节导航项 — .tender-nav-tile
+   沿用 .wb-panel 的 105° 白→冰蓝玻璃渐变语言，但更轻量（透明度减半），
+   作为列表项的"小玻璃卡片"，与外壳 .wb-panel 形成层级。
+   ══════════════════════════════════════════════════════════════════ */
+.tender-nav-tile {
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.42) 0%, oklch(0.99 0.003 258 / 0.28) 55%, oklch(1 0 0 / 0.14) 88%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.45);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+.tender-nav-tile:hover {
+  background: linear-gradient(105deg, oklch(1 0 0 / 0.6) 0%, oklch(0.99 0.003 258 / 0.42) 55%, oklch(1 0 0 / 0.22) 88%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.tender-nav-tile.is-active {
+  background: linear-gradient(105deg,
+    color-mix(in oklch, var(--accent) 14%, oklch(1 0 0 / 0.6)) 0%,
+    color-mix(in oklch, var(--accent-soft) 30%, oklch(0.99 0.003 258 / 0.5)) 50%,
+    color-mix(in oklch, var(--accent) 5%, oklch(1 0 0 / 0.3)) 88%);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.65);
 }
 
 .wb-panel-header {
@@ -9881,7 +9953,7 @@ select.workbench-input {
   border-radius: 20px;
   border: none;
   background:
-    linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 55%);
+    linear-gradient(105deg, oklch(1 0 0 / 0.96) 0%, oklch(0.99 0.003 258 / 0.78) 50%, oklch(1 0 0 / 0.32) 88%);
   padding: 1.25rem 1.25rem;
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.88),
@@ -10175,6 +10247,18 @@ select.workbench-input {
   box-shadow:
     inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12),
     inset -2px -2px 5px oklch(1 0 0 / 0.5);
+}
+
+/* "我"的行 — 微微品牌色高亮，置顶 */
+.chat-row--me {
+  background: oklch(0.62 0.12 258 / 0.06);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.6),
+    inset 2px 0 0 oklch(0.55 0.16 258 / 0.4),
+    1px 1px 2px oklch(0.55 0.03 258 / 0.06);
+}
+.chat-row--me:hover {
+  background: oklch(0.62 0.12 258 / 0.1);
 }
 
 /* ── 消息气泡 ── */

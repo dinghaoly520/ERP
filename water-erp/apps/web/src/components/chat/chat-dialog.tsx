@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft, X, UserRound, Send, Image as ImageIcon, Paperclip,
-  Loader2, FileText, Download,
+  Loader2, FileText, Download, NotebookPen,
 } from 'lucide-react';
 import {
   fetchChatUsers, fetchMessages, markRead, uploadChatFile, getChatSocket,
@@ -233,6 +233,9 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
 
   if (!mounted) return null;
 
+  // 自我留言（资料备份）模式：peerId === meId
+  const isSelfMode = meId !== null && peerId === meId;
+
   return createPortal(
     <div className="chat-overlay" onClick={onClose}>
       <div
@@ -264,9 +267,16 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-[15px] font-bold tracking-[-0.02em] text-[color:var(--foreground)] truncate">
-                {peer?.displayName ?? '加载中...'}
+                {isSelfMode ? '资料备份' : (peer?.displayName ?? '加载中...')}
               </span>
-              {peer && (
+              {isSelfMode ? (
+                <span
+                  className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-[6px] shrink-0"
+                  style={{ backgroundColor: 'var(--accent-tint)', color: 'var(--accent-strong)' }}
+                >
+                  <NotebookPen size={10} strokeWidth={1.8} />私人
+                </span>
+              ) : peer && (
                 <span
                   className="text-[10px] font-bold px-1.5 py-0.5 rounded-[6px] shrink-0"
                   style={{ backgroundColor: 'var(--accent-tint)', color: 'var(--accent-strong)' }}
@@ -277,10 +287,11 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
             </div>
             <div
               className="text-[11px]"
-              style={{ color: peerOnline ? 'var(--success)' : 'var(--muted-foreground)' }}
+              style={{ color: isSelfMode ? 'var(--muted-foreground)' : (peerOnline ? 'var(--success)' : 'var(--muted-foreground)') }}
             >
-              {peerOnline ? '在线' : '离线'}
-              {peer?.department?.name ? ` · ${peer.department.name}` : ''}
+              {isSelfMode
+                ? '单方面写入，不期待回复 · 用于备忘与资料归档'
+                : `${peerOnline ? '在线' : '离线'}${peer?.department?.name ? ` · ${peer.department.name}` : ''}`}
             </div>
           </div>
           <button type="button" onClick={onClose} className="neu-btn-xs">
@@ -299,8 +310,20 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
             <div className="chat-empty">{error}</div>
           ) : messages.length === 0 ? (
             <div className="chat-empty">
-              <UserRound size={28} strokeWidth={1.4} />
-              还没有消息，发送一条打个招呼吧
+              {isSelfMode ? (
+                <>
+                  <NotebookPen size={28} strokeWidth={1.4} className="text-[color:var(--accent)]" />
+                  这里是你的私人备忘录
+                  <span className="mt-1 text-[10px] text-[color:var(--muted-foreground)]/70">
+                    发送文字 / 图片 / 文件，作为资料备份留存
+                  </span>
+                </>
+              ) : (
+                <>
+                  <UserRound size={28} strokeWidth={1.4} />
+                  还没有消息，发送一条打个招呼吧
+                </>
+              )}
             </div>
           ) : (
             messages.map((m) => {
@@ -345,7 +368,7 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
                     <span className="text-[10px] text-[color:var(--muted-foreground)]">
                       {formatTime(m.createdAt)}
                     </span>
-                    {isMe && <span className="chat-read-mark">{m.readAt ? '已读' : '未读'}</span>}
+                    {isMe && !isSelfMode && <span className="chat-read-mark">{m.readAt ? '已读' : '未读'}</span>}
                   </div>
                 </div>
               );
@@ -391,7 +414,7 @@ export function ChatDialog({ peerId, onClose, onBack }: ChatDialogProps) {
                   void handleSendText();
                 }
               }}
-              placeholder="输入消息，Enter 发送 / Shift+Enter 换行"
+              placeholder={isSelfMode ? '写下要备份的内容，Enter 保存 / Shift+Enter 换行' : '输入消息，Enter 发送 / Shift+Enter 换行'}
               rows={1}
             />
             <button

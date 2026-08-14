@@ -311,7 +311,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
       </div>
 
       {/* Stats bar with filter buttons */}
-      <div className="flex items-center gap-2 px-4 py-2.5 rounded-[14px] shrink-0" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08)"}}>
+      <div className="neu-tile flex items-center gap-2 px-4 py-2.5 shrink-0">
         {FILTER_OPTIONS.map((opt) => {
           const count = counts[opt.key];
           if (count === 0 && opt.key !== 'all') return null;
@@ -441,7 +441,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
                 className="space-y-4"
               >
                 {/* Problem detail */}
-                <section className="rounded-[14px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                <section className="neu-tile p-4">
                   <div className="text-xs font-semibold text-[var(--muted-foreground)] mb-3 flex items-center gap-1.5">
                     {selectedIssue.notApplicable ? '⬜ 不适用' : selectedIssue.passed ? '✅ 通过' : (
                       <>
@@ -488,7 +488,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
 
                 {/* Original text comparison */}
                 {(selectedIssue.documentExcerpt || selectedIssue.documentLocation?.excerpt || selectedIssue.kbExcerpt || selectedIssue.knowledgeBaseReferences?.[0]?.clauseContent) && (
-                  <section className="rounded-[14px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                  <section className="neu-tile p-4">
                     <OriginalTextCompare
                       documentExcerpt={selectedIssue.documentExcerpt}
                       documentFileName={task.documentName}
@@ -501,7 +501,7 @@ export default function ReportViewCombined({ task: initialTask, onBack }: Report
 
                 {/* Suggestion editor */}
                 {selectedIssue.passed !== true && !selectedIssue.notApplicable && !selectedIssue.dataMissing && (
-                  <section className="rounded-[14px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+                  <section className="neu-tile p-4">
                     <SuggestionEditor
                       taskId={task.id}
                       issueIndex={selectedIndex}

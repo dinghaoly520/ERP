@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, X, UserRound, Loader2 } from 'lucide-react';
+import { Search, X, UserRound, Loader2, Star, NotebookPen } from 'lucide-react';
 import { fetchChatUsers, getChatSocket, type ChatUser } from '@/lib/api/chat';
 import { ROLE_LABELS } from '@/lib/role-labels';
 
@@ -21,17 +21,22 @@ export function MemberListDialog({ onClose, onSelectPeer }: MemberListDialogProp
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [meId, setMeId] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
 
-  // 初始拉用户列表
+  // 初始拉用户列表 + 当前用户
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchChatUsers()
-      .then((data) => {
+    Promise.all([
+      fetchChatUsers(),
+      fetch('/api/auth/me', { credentials: 'include' }).then((r) => r.json() as Promise<{ id: string }>).catch(() => ({ id: '' })),
+    ])
+      .then(([data, me]) => {
         if (cancelled) return;
         setUsers(data);
+        setMeId(me.id || null);
         setError(null);
       })
       .catch((e) => {
@@ -73,15 +78,22 @@ export function MemberListDialog({ onClose, onSelectPeer }: MemberListDialogProp
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
-      (u) =>
-        u.displayName.toLowerCase().includes(q) ||
-        u.username.toLowerCase().includes(q) ||
-        (u.department?.name ?? '').toLowerCase().includes(q) ||
-        roleLabel(u.role).toLowerCase().includes(q),
-    );
-  }, [users, query]);
+    const base = !q
+      ? users
+      : users.filter(
+          (u) =>
+            u.displayName.toLowerCase().includes(q) ||
+            u.username.toLowerCase().includes(q) ||
+            (u.department?.name ?? '').toLowerCase().includes(q) ||
+            roleLabel(u.role).toLowerCase().includes(q),
+        );
+    // 把自己置顶
+    return [...base].sort((a, b) => {
+      if (a.id === meId) return -1;
+      if (b.id === meId) return 1;
+      return 0;
+    });
+  }, [users, query, meId]);
 
   const onlineCount = users.filter((u) => u.isOnline).length;
 
@@ -138,53 +150,72 @@ export function MemberListDialog({ onClose, onSelectPeer }: MemberListDialogProp
             <div className="chat-empty">没有匹配的人员</div>
           ) : (
             <div className="flex flex-col gap-1.5">
-              {filtered.map((u) => (
-                <div
-                  key={u.id}
-                  className="chat-row"
-                  onDoubleClick={() => onSelectPeer(u.id)}
-                  title="双击进入聊天"
-                >
-                  <div className="relative">
-                    {u.avatar ? (
-                      <div className="chat-avatar h-10 w-10">
-                        <img
-                          src={u.avatar}
-                          alt={u.displayName}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="chat-avatar h-10 w-10">
-                        <UserRound size={18} />
-                      </div>
-                    )}
-                    <span
-                      className={`chat-presence-dot absolute -right-0.5 -bottom-0.5 ${
-                        u.isOnline ? 'chat-presence-dot--online' : 'chat-presence-dot--offline'
-                      }`}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13.5px] font-semibold text-[color:var(--foreground)] truncate">
-                        {u.displayName}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-[color:var(--muted-foreground)] truncate">
-                      {u.department?.name ?? '未设置部门'}
-                    </div>
-                  </div>
+              {filtered.map((u) => {
+                const isMe = u.id === meId;
+                return (
                   <div
-                    className="text-[10.5px] font-semibold shrink-0"
-                    style={{
-                      color: u.isOnline ? 'var(--success)' : 'var(--muted-foreground)',
-                    }}
+                    key={u.id}
+                    className={`chat-row ${isMe ? 'chat-row--me' : ''}`}
+                    onDoubleClick={() => onSelectPeer(u.id)}
+                    title={isMe ? '双击打开资料备份（自留言）' : '双击进入聊天'}
                   >
-                    {u.isOnline ? '在线' : '离线'}
+                    <div className="relative">
+                      {u.avatar ? (
+                        <div className="chat-avatar h-10 w-10">
+                          <img
+                            src={u.avatar}
+                            alt={u.displayName}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="chat-avatar h-10 w-10">
+                          <UserRound size={18} />
+                        </div>
+                      )}
+                      <span
+                        className={`chat-presence-dot absolute -right-0.5 -bottom-0.5 ${
+                          u.isOnline ? 'chat-presence-dot--online' : 'chat-presence-dot--offline'
+                        }`}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13.5px] font-semibold text-[color:var(--foreground)] truncate">
+                          {u.displayName}
+                        </span>
+                        {isMe && (
+                          <span className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold shrink-0"
+                            style={{ backgroundColor: 'var(--accent-tint)', color: 'var(--accent-strong)' }}>
+                            <Star size={9} strokeWidth={2.2} className="fill-current" />我
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-[color:var(--muted-foreground)] truncate">
+                        {isMe ? '点击进入资料备份' : (
+                          <>
+                            {u.company && <span className="text-[color:var(--muted-foreground)]">{u.company}</span>}
+                            {u.company && u.department?.name && <span className="mx-1 text-[color:var(--muted-foreground)]/40">·</span>}
+                            {u.department?.name ?? '未设置部门'}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      className="text-[10.5px] font-semibold shrink-0"
+                      style={{
+                        color: isMe ? 'var(--accent-strong)' : (u.isOnline ? 'var(--success)' : 'var(--muted-foreground)'),
+                      }}
+                    >
+                      {isMe ? (
+                        <span className="inline-flex items-center gap-0.5">
+                          <NotebookPen size={10} strokeWidth={1.8} />资料备份
+                        </span>
+                      ) : (u.isOnline ? '在线' : '离线')}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

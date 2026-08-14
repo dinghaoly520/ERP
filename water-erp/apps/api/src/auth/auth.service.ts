@@ -86,6 +86,7 @@ export class AuthService {
         email: true,
         phone: true,
         officeLocation: true,
+        company: true,
         avatar: true,
         role: true,
         isActive: true,
@@ -115,6 +116,7 @@ export class AuthService {
         ...(dto.departmentId !== undefined && { departmentId: dto.departmentId }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.officeLocation !== undefined && { officeLocation: dto.officeLocation }),
+        ...(dto.company !== undefined && { company: dto.company }),
         ...(dto.avatar !== undefined && { avatar: dto.avatar }),
       },
       select: {
@@ -125,6 +127,7 @@ export class AuthService {
         phone: true,
         avatar: true,
         officeLocation: true,
+        company: true,
         role: true,
         isActive: true,
         createdAt: true,

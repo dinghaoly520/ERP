@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileDown, FileText, Loader2, Search, Upload, X } from 'lucide-react';
+import { FileDown, FileText, FileUp, History, Loader2, Save, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { TenderWriteWorkspace } from '@/components/tender-write/tender-write-workspace';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
@@ -47,27 +47,45 @@ import type {
 } from '@/lib/types/tender-write';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
-// ── localStorage 持久化（按项目 ID 缓存草稿，关闭后可恢复，避免重复 AI 生成）──
+// ── localStorage 历史版本持久化（按项目 ID 存储版本列表，支持恢复）──
 const DRAFTS_STORAGE_PREFIX = 'tender-write:project-drafts:v1:';
+const DRAFTS_HISTORY_PREFIX = 'tender-write:project-draft-history:';
+const MAX_HISTORY = 20;
+
 const getDraftsStorageKey = (projectId: string) => `${DRAFTS_STORAGE_PREFIX}${projectId}`;
+const getDraftsHistoryKey = (projectId: string) => `${DRAFTS_HISTORY_PREFIX}${projectId}`;
+
+type DraftHistoryEntry = { timestamp: string; label: string; drafts: TenderDraftsState };
+
+function loadDraftHistory(projectId: string): DraftHistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(getDraftsHistoryKey(projectId));
+    return raw ? JSON.parse(raw) as DraftHistoryEntry[] : [];
+  } catch { return []; }
+}
+function saveDraftHistory(projectId: string, entries: DraftHistoryEntry[]) {
+  try { localStorage.setItem(getDraftsHistoryKey(projectId), JSON.stringify(entries.slice(0, MAX_HISTORY))); } catch {}
+}
+function addDraftToHistory(projectId: string, drafts: TenderDraftsState) {
+  const entries = loadDraftHistory(projectId);
+  const now = new Date();
+  const label = `${now.toLocaleDateString('zh-CN')} ${now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+  entries.unshift({ timestamp: now.toISOString(), label, drafts: JSON.parse(JSON.stringify(drafts)) });
+  saveDraftHistory(projectId, entries);
+}
+
 const loadDraftsFromStorage = (projectId: string): TenderDraftsState | null => {
   try {
     const raw = localStorage.getItem(getDraftsStorageKey(projectId));
     if (!raw) return null;
     return JSON.parse(raw) as TenderDraftsState;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 };
 const saveDraftsToStorage = (projectId: string, d: TenderDraftsState) => {
-  try {
-    localStorage.setItem(getDraftsStorageKey(projectId), JSON.stringify(d));
-  } catch { /* quota exceeded — 静默忽略 */ }
+  try { localStorage.setItem(getDraftsStorageKey(projectId), JSON.stringify(d)); } catch {}
 };
 const clearDraftsStorage = (projectId: string) => {
-  try {
-    localStorage.removeItem(getDraftsStorageKey(projectId));
-  } catch { /* ignore */ }
+  try { localStorage.removeItem(getDraftsStorageKey(projectId)); } catch {}
 };
 
 type Props = {
@@ -369,6 +387,83 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     toast.success(`已填入 ${emptyFields.length} 个字段`);
   }, [selectedType, project, updateDraft]);
 
+  // ── 导入识别 ──
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
+  const handleImportRecognize = useCallback(() => {
+    importInputRef.current?.click();
+  }, []);
+  const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !project || !selectedType) return;
+    setImporting(true);
+    try {
+      // 上传文件到 TENDER_DOCUMENT 阶段并触发提取
+      const result = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
+      if (result.extractedInfo) {
+        // 将提取的信息合并到 draft 中
+        const extracted = result.extractedInfo as Record<string, string>;
+        const patch: Record<string, string> = {};
+        if (extracted.projectOverview) patch.projectOverview = extracted.projectOverview;
+        if (extracted.bidOpeningTime) patch.submissionAndNegotiationTime = extracted.bidOpeningTime;
+        if (extracted.documentAcquireTime) patch.documentAcquireTime = extracted.documentAcquireTime;
+        if (Object.keys(patch).length > 0) {
+          setDrafts((prev) => {
+            const typeKey = selectedType as keyof TenderDraftsState;
+            const emptyFn = {
+              COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
+              SINGLE_SOURCE: createEmptySingleSourceDraft,
+              INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
+              INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
+              INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+            }[selectedType];
+            return { ...prev, [typeKey]: { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}), ...patch } };
+          });
+        }
+      }
+      onAttachmentUploaded?.(result);
+      toast.success('文件已上传并提取信息');
+      // 触发 AI 填充剩余空字段
+      setTimeout(() => handleAutoFillAll(), 500);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '导入识别失败');
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
+  }, [project, selectedType, onAttachmentUploaded, handleAutoFillAll]);
+
+  // ── 保存当前 ──
+  const handleSaveCurrent = useCallback(() => {
+    if (project?.id) {
+      saveDraftsToStorage(project.id, draftsRef.current);
+      addDraftToHistory(project.id, draftsRef.current);
+      toast.success('已保存当前草稿');
+    }
+  }, [project?.id]);
+
+  // ── 历史记录 ──
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState<DraftHistoryEntry[]>([]);
+
+  // ── 一键清除 ──
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const handleClearAll = useCallback(() => {
+    if (!selectedType || !project) return;
+    const typeKey = selectedType as keyof TenderDraftsState;
+    const emptyFn = {
+      COMPETITIVE_NEGOTIATION: createEmptyCompetitiveNegotiationDraft,
+      SINGLE_SOURCE: createEmptySingleSourceDraft,
+      INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
+      INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
+      INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+    }[selectedType];
+    setDrafts((prev) => ({ ...prev, [typeKey]: emptyFn?.() ?? {} }));
+    if (project.id) { clearDraftsStorage(project.id); saveDraftHistory(project.id, []); }
+    setClearConfirmOpen(false);
+    toast.success('已清除所有内容');
+  }, [selectedType, project]);
+
   // ---------- 导出 / 审查 ----------
 
   const handleExport = useCallback(() => {
@@ -644,7 +739,31 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* 导入识别 */}
+            <button type="button" onClick={handleImportRecognize} disabled={importing} className="neu-btn-xs gap-1" title="上传 DOCX 文件并自动提取字段信息">
+              {importing ? <Loader2 size={13} className="animate-spin" /> : <FileUp size={13} />}
+              导入识别
+            </button>
+            <input ref={importInputRef} type="file" accept=".docx" onChange={(e) => { void handleImportFile(e); }} className="sr-only" />
+
+            {/* 保存当前 */}
+            <button type="button" onClick={handleSaveCurrent} className="neu-btn-xs gap-1" title="手动保存当前草稿">
+              <Save size={13} />保存当前
+            </button>
+
+            {/* 历史记录 */}
+            <button type="button" onClick={() => { setHistoryEntries(loadDraftHistory(project?.id ?? '')); setHistoryOpen(true); }} className="neu-btn-xs gap-1" title="查看并恢复草稿历史版本">
+              <History size={13} />历史记录
+            </button>
+
+            {/* 一键清除 */}
+            <button type="button" onClick={() => setClearConfirmOpen(true)} className="neu-btn-xs is-danger gap-1" title="清除所有已填写内容">
+              <Trash2 size={13} />一键清除
+            </button>
+
+            <span className="w-px h-5 mx-1" style={{ background: 'oklch(0.6 0.04 258 / 0.2)' }} />
+
             {successMessage && (
               <span className="text-xs font-semibold text-[color:var(--success)]">{successMessage}</span>
             )}
@@ -918,6 +1037,79 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             setSupplierSelectOpen(false);
           }}
         />
+      )}
+
+      {/* 历史记录弹窗 */}
+      {historyOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" onClick={() => setHistoryOpen(false)}>
+          <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} />
+          <div className="relative z-10 mx-5 w-full max-w-[440px] max-h-[70vh] overflow-y-auto rounded-[22px] p-6" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18)' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <History size={16} className="text-[var(--accent)]" />
+                <span className="text-sm font-semibold text-[color:var(--foreground)]">草稿历史版本</span>
+                {historyEntries.length > 0 && <span className="text-[10px] tabular-nums text-[color:var(--muted-foreground)]">{historyEntries.length}/{MAX_HISTORY}</span>}
+              </div>
+              <button type="button" onClick={() => setHistoryOpen(false)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            {historyEntries.length === 0 ? (
+              <div className="text-sm text-[color:var(--muted-foreground)] text-center py-8">暂无历史版本，请点击「保存当前」创建第一个版本</div>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {historyEntries.map((entry, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setDrafts(entry.drafts);
+                      draftRestoredFromStorageRef.current = true;
+                      setShowWorkspace(true);
+                      setHistoryOpen(false);
+                      toast.success(`已恢复 ${entry.label} 版本`);
+                    }}
+                    className="w-full text-left rounded-[12px] px-3.5 py-3 transition hover:ring-1 hover:ring-[var(--accent)]/30"
+                    style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-semibold text-[color:var(--foreground)]">{entry.label}</span>
+                      <span className="text-[10px] text-[color:var(--accent)]">点击恢复</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-[color:var(--muted-foreground)] mb-3">点击任意版本即可恢复草稿内容。草稿存储在浏览器本地，清除缓存后不可恢复。</p>
+            <div className="flex justify-end gap-2">
+              {historyEntries.length > 0 && (
+                <button type="button" onClick={() => { if (project?.id) { saveDraftHistory(project.id, []); setHistoryEntries([]); toast.success('已清空历史记录'); } }} className="neu-btn-xs is-danger">清空历史</button>
+              )}
+              <button type="button" onClick={() => setHistoryOpen(false)} className="neu-btn-soft">关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 一键清除确认弹窗 */}
+      {clearConfirmOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" onClick={() => setClearConfirmOpen(false)}>
+          <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} />
+          <div className="relative z-10 mx-5 w-full max-w-[400px] rounded-[22px] p-6" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18)' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-[10px]" style={{ background: 'color-mix(in oklch, var(--danger) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                  <Trash2 size={15} className="text-[var(--danger)]" />
+                </div>
+                <span className="text-sm font-semibold text-[color:var(--foreground)]">确认清除</span>
+              </div>
+              <button type="button" onClick={() => setClearConfirmOpen(false)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            <p className="text-sm text-[color:var(--muted-foreground)] mb-4">将清除当前采购文件的所有已填写内容，此操作不可撤销。</p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setClearConfirmOpen(false)} className="neu-btn-soft">取消</button>
+              <button type="button" onClick={handleClearAll} className="neu-btn-soft is-danger">确认清除</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

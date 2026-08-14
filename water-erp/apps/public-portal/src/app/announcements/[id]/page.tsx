@@ -59,7 +59,14 @@ export default function AnnouncementDetailPage() {
 
       {/* ═══ 内容区 ═══ */}
       <div className="relative z-10 px-[clamp(40px,4vw,72px)] pt-3 pb-10">
-        <a href={backHref} className="flow-back mb-8">
+        <a href={backHref} className="flow-back mb-8"
+          onClick={(e) => {
+            // 从首页打开时优先 router.back()，让浏览器 bfcache 恢复滚动位置
+            if (fromHome && window.history.length > 1) {
+              e.preventDefault();
+              router.back();
+            }
+          }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
           {backLabel}
         </a>

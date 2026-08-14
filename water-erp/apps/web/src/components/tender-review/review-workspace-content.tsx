@@ -74,7 +74,7 @@ export default function ReviewWorkspaceContent() {
   return (
     <div className="wb-panel rounded-[20px] h-full flex flex-col overflow-hidden">
       {/* Tab header */}
-      <div className="flex items-center gap-1 p-2 shrink-0 overflow-x-auto" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+      <div className="flex items-center gap-1 p-3 shrink-0 overflow-x-auto" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -96,7 +96,7 @@ export default function ReviewWorkspaceContent() {
       </div>
 
       {/* Content area */}
-      <div className="flex-1 flex flex-col min-h-0 p-4">
+      <div className="flex-1 flex flex-col min-h-0 p-3">
         {activeTab === 'review' && (
           <div className="flex-1 overflow-y-auto">
             <ReviewTab
@@ -152,18 +152,17 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
     <div className="space-y-5">
       {/* KB label and selector */}
       <div>
-        <div className="text-sm text-[var(--muted-foreground)] mb-1.5">知识库</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--foreground)] mb-1.5">知识库</div>
         <div className="relative">
           <button
             onClick={() => setShowKbDropdown(!showKbDropdown)}
-            className="w-full flex items-center justify-center gap-3 p-3 rounded-[14px] transition-colors"
-            style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}
+            className="neu-tile is-interactive w-full flex items-center justify-center gap-3 p-3 transition-[transform,box-shadow] disabled:pointer-events-none"
           >
             <Database className="h-5 w-5 text-[var(--accent)]" />
             {selectedKb ? (
               <div className="text-left">
                 <div className="text-sm font-medium text-[var(--foreground)]">{selectedKb.name}</div>
-                <div className="text-xs text-[var(--muted-foreground)]">
+                <div className="text-[11px] tabular-nums tracking-[0.02em] text-[var(--muted-foreground)]">
                   {selectedKb._count.files} 文件 · {selectedKb._count.rules} 规则
                 </div>
               </div>
@@ -204,7 +203,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
                         <div className={`text-sm truncate ${selectedKbId === kb.id ? 'text-[var(--accent)] font-medium' : 'text-[var(--foreground)]'}`}>
                           {kb.name}
                         </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">
+                        <div className="text-[11px] tabular-nums tracking-[0.02em] text-[var(--muted-foreground)]">
                           {kb._count.files} 文件 · {kb._count.rules} 规则
                         </div>
                       </div>
@@ -219,17 +218,12 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
 
       {/* Mode selection */}
       <div>
-        <label className="text-sm text-[var(--muted-foreground)] mb-1.5 block">审查模式</label>
+        <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--foreground)] mb-1.5 block">审查模式</label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             onClick={() => setMode('strict')}
             disabled={!selectedKbId}
-            className={`rounded-[14px] p-3 text-center transition-all ${
-              mode === 'strict'
-                ? 'border border-[color-mix(in_oklch,var(--accent)_25%,transparent)]'
-                : 'hover:bg-[color-mix(in_oklch,var(--muted)_25%,transparent)]'
-            } disabled:opacity-40`}
-            style={mode === 'strict' ? {background:"color-mix(in oklch,var(--accent-soft) 30%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 4px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.5)"} : {background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}
+            className={`neu-tile ${mode === 'strict' ? 'is-accent' : 'is-interactive'} p-3 text-center transition-[transform,box-shadow] disabled:opacity-40 disabled:pointer-events-none`}
           >
             <div className="font-medium text-sm text-[var(--foreground)]">严格审查</div>
             <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
@@ -239,12 +233,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
           <button
             onClick={() => setMode('general')}
             disabled={!selectedKbId}
-            className={`rounded-[14px] p-3 text-center transition-all ${
-              mode === 'general'
-                ? 'border border-[color-mix(in_oklch,var(--accent)_25%,transparent)]'
-                : 'hover:bg-[color-mix(in_oklch,var(--muted)_25%,transparent)]'
-            } disabled:opacity-40`}
-            style={mode === 'general' ? {background:"color-mix(in oklch,var(--accent-soft) 30%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 4px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.5)"} : {background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}
+            className={`neu-tile ${mode === 'general' ? 'is-accent' : 'is-interactive'} p-3 text-center transition-[transform,box-shadow] disabled:opacity-40 disabled:pointer-events-none`}
           >
             <div className="font-medium text-sm text-[var(--foreground)]">通用审查</div>
             <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
@@ -256,7 +245,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
 
       {/* File upload */}
       <div>
-        <label className="text-sm text-[var(--muted-foreground)] mb-1.5 block">上传待审文件</label>
+        <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--foreground)] mb-1.5 block">上传待审文件</label>
         <input
           ref={fileInputRef}
           type="file"
@@ -267,8 +256,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={!selectedKbId}
-          className="w-full rounded-[14px] p-5 text-center transition-colors disabled:opacity-40"
-          style={{background:"color-mix(in oklch,var(--muted) 25%,transparent)",boxShadow:"inset 1px 2px 5px oklch(0.55 0.03 258 / 0.14), inset -1px -1px 2px oklch(1 0 0 / 0.5)"}}
+          className="neu-tile is-inset w-full p-5 text-center transition-[background,box-shadow] disabled:opacity-40 disabled:pointer-events-none"
         >
           {file ? (
             <div className="flex items-center justify-center gap-2">

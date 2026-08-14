@@ -5,7 +5,7 @@ import { useNotificationStore } from '@/stores/notification'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { Bell, AlertTriangle, CircleCheck, CircleX, ClipboardList, AlarmClock, MessageSquare, LockOpen, BarChart3, Inbox, Send, Megaphone } from 'lucide-vue-next'
+import { Bell, AlertTriangle, CircleCheck, CircleX, ClipboardList, AlarmClock, MessageSquare, LockOpen, BarChart3, Inbox, Send, Megaphone, Search } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const store = useNotificationStore(); const router = useRouter(); const loading = ref(true); const error = ref(false); const currentPage = ref(1); const typeFilter = ref('')
@@ -92,8 +92,8 @@ function goLink(link?: string) { if (link) { detailVisible.value = false; router
       <div style="display:flex;justify-content:center;padding:16px"><el-pagination v-model:current-page="currentPage" :total="store.total" :page-size="15" layout="prev,pager,next" @current-change="handlePageChange" /></div>
     </div>
 
-    <div v-else-if="store.notifications.length>0" class="sp-empty-panel"><el-icon :size="32"><Search /></el-icon><p class="sp-empty-text">无匹配通知</p><p class="sp-empty-desc">该分类暂无通知，试试其他筛选</p></div>
-    <div v-else class="sp-empty-panel"><el-icon :size="32"><ChatDotRound /></el-icon><p class="sp-empty-text">暂无消息</p><p class="sp-empty-desc">您没有未读消息</p></div>
+    <div v-else-if="store.notifications.length>0" class="sp-empty-panel"><div class="sp-empty-icon"><Search :size="22" :stroke-width="1.75" /></div><p class="sp-empty-text">无匹配通知</p><p class="sp-empty-desc">该分类暂无通知，试试其他筛选</p></div>
+    <div v-else class="sp-empty-panel"><div class="sp-empty-icon"><MessageSquare :size="22" :stroke-width="1.75" /></div><p class="sp-empty-text">暂无消息</p><p class="sp-empty-desc">您没有未读消息</p></div>
     </template>
 
     <!-- 通知详情弹窗（必须在根 div 内部——fragment root 会破坏路由过渡） -->
@@ -145,7 +145,6 @@ function goLink(link?: string) { if (link) { detailVisible.value = false; router
 .notif-right { text-align: right; flex-shrink: 0; }
 .notif-row-time { font-size: 12px; color: var(--muted-foreground); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
 
-.sp-empty-panel { text-align: center; }
 .sp-empty-text { font-size: 15px; font-weight: 700; color: var(--muted-foreground); margin-top: 12px; }
 .sp-empty-desc { font-size: 13px; margin-top: 4px; }
 

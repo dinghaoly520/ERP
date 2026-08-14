@@ -7,7 +7,7 @@ import dayjs from 'dayjs'
 import { uploadFile, type FileAssetResponse } from '@/api/upload'
 import { createDialogLeaveGuard } from '@/composables'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { FileEdit, AlertTriangle } from 'lucide-vue-next'
+import { FileEdit, AlertTriangle, Inbox } from 'lucide-vue-next'
 
 const supplierStore = useSupplierStore()
 const loading = ref(true); const error = ref(false)
@@ -140,7 +140,7 @@ function since(ts: string): string { const d = Math.ceil((Date.now() - new Date(
           </div>
         </div>
       </div>
-      <div v-else class="cr-empty"><div class="cr-empty-icon"><el-icon :size="36"><Document /></el-icon></div><div class="cr-empty-title">暂无申请记录</div><div class="cr-empty-desc">请在企业信息页点击「申请资料变更」提交变更，申请提交后将在此显示处理进度</div></div>
+      <div v-else class="cr-empty"><div class="sp-empty-icon"><Inbox :size="22" :stroke-width="1.75" /></div><div class="cr-empty-title">暂无申请记录</div><div class="cr-empty-desc">请在企业信息页点击「申请资料变更」提交变更，申请提交后将在此显示处理进度</div></div>
 
       <!-- ═══════ 弹窗（Teleport）═══════ -->
       <Teleport to="body"><Transition name="dlg"><div v-if="dialogVisible" class="dlg-overlay" @click.self="closeDialog"><div class="dlg-panel">
@@ -253,8 +253,7 @@ function since(ts: string): string { const d = Math.ceil((Date.now() - new Date(
 .cr-wdot { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); animation: dot 2s ease-in-out infinite; }
 .cr-rv { margin-left: auto; color: var(--muted-foreground); }
 @keyframes dot { 0%,100%{opacity:1} 50%{opacity:.4} }
-.cr-empty { text-align: center; padding: 64px 24px; margin-top: 16px; border-radius: 16px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7); }
-.cr-empty-icon { color: var(--muted-foreground); margin-bottom: 14px; }
+.cr-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 64px 24px; margin-top: 16px; border-radius: 16px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7); }
 .cr-empty-title { font-size: 16px; font-weight: 800; color: var(--foreground); }
 .cr-empty-desc { margin-top: 6px; font-size: 13px; color: var(--muted-foreground); max-width: 420px; margin-inline: auto; line-height: 1.5; }
 
