@@ -2872,15 +2872,15 @@ describe('listProjects actor 过滤 (R1 硬分流) — Task 2', () => {
     service = module.get(BidService);
   });
 
-  it('role=bid_host → where 含 assignedHostUserId = actor.id', async () => {
-    await service.listProjects(undefined, { id: 'host1', role: 'bid_host' });
+  it("portal='bid' → where 含 assignedHostUserId = actor.id", async () => {
+    await service.listProjects(undefined, { id: 'host1', role: 'bid_host' }, 'bid');
     expect(prisma.bidProject.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ assignedHostUserId: 'host1', isExtractionOnly: false }),
     }));
   });
 
-  it('role=leader → 不追加 assignedHostUserId 过滤（看到全部）', async () => {
-    await service.listProjects(undefined, { id: 'leader1', role: 'leader' });
+  it("portal='web' → 不追加 assignedHostUserId 过滤（看到全部）", async () => {
+    await service.listProjects(undefined, { id: 'leader1', role: 'leader' }, 'web');
     const callArg = prisma.bidProject.findMany.mock.calls[0][0];
     expect(callArg.where).not.toHaveProperty('assignedHostUserId');
     expect(callArg.where.isExtractionOnly).toBe(false);
