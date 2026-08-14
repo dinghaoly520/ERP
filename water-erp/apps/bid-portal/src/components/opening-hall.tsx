@@ -9,7 +9,7 @@ import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
   Volume2, Zap, Loader, FileText, RotateCcw,
 } from 'lucide-react';
-import { DECRYPT_LABEL } from '@water-erp/shared';
+import { DECRYPT_LABEL, BOND_STATUS_OPTIONS } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
@@ -29,8 +29,7 @@ const decryptColors: Record<string, { cls: string }> = {
 
 const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
 
-/** 保证金状态选项（前端镜像 — 与后端 BOND_STATUS_OPTIONS 对齐，Task 2） */
-const BOND_STATUS_OPTIONS = ['已缴纳', '保函有效', '未缴纳', '异常'] as const;
+// 保证金状态选项 BOND_STATUS_OPTIONS 从 @water-erp/shared 导入（单一来源，原前端镜像已删）
 
 /* ── Ring Countdown（浅色 cgzxui：data-urgent 驱动配色）── */
 function RingCountdown({ remaining, big }: { remaining: number; big?: boolean }) {

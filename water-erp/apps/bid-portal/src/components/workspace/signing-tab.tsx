@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, ClipboardCheck, Copy, FileDown, Fingerprint, Loader2, PenLine, RefreshCw, Upload } from 'lucide-react';
+import { EXPERT_ROLE } from '@water-erp/shared';
 import {
   generateHandover, generateSignPacket, getSignPacket, unregisterSign,
   uploadExpertScan, uploadSignaturePageScan,
@@ -196,7 +197,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   {e.signScanUrl ? (
                     <a href={e.signScanUrl} target="_blank" rel="noopener" className="text-[var(--accent)] hover:underline">查看</a>
                   ) : <span className="text-[var(--muted-foreground)]">—</span>}
-                  {!e.signScanUrl && !closed && e.role === '正选' && (
+                  {!e.signScanUrl && !closed && e.role === EXPERT_ROLE.REGULAR && (
                     <label className="ml-2 inline-flex cursor-pointer items-center gap-0.5 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--accent)]">
                       <Upload size={10} /> 上传
                       <input
@@ -213,7 +214,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-right">
-                  {!closed && e.role === '正选' && (
+                  {!closed && e.role === EXPERT_ROLE.REGULAR && (
                     <>
                       <button
                         type="button"

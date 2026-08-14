@@ -36,7 +36,7 @@ export interface BidProjectExpertInfo {
   userId: string;
   expertName: string;
   major: string | null;
-  expertRole: string; // 正选 / 候补
+  expertRole: string; // EXPERT_ROLE.REGULAR / EXPERT_ROLE.ALTERNATE
   invitationStatus: string; // pending / confirmed / declined
   signedIn: boolean;
   avoidanceConfirmed: boolean;

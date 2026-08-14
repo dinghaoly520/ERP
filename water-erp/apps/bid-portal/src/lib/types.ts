@@ -51,7 +51,7 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
     resolvedAt?: string | null; resolvedBy?: string | null;
   }>;
   experts: (SharedBidExpert & {
-    expertRole?: string; // 正选 | 候补（Prisma BidExpert.expertRole）
+    expertRole?: string; // EXPERT_ROLE.REGULAR | EXPERT_ROLE.ALTERNATE（Prisma BidExpert.expertRole）
     scoreRecords: ExpertScoreRecordInfo[];
   })[];
   scoreItems: (Omit<SharedBidScoreItem, 'category'> & { category: ScoreCategory })[];

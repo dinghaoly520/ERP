@@ -3,3 +3,4 @@ export * from './constants';
 export * from './workbench';
 
 export * from './bid-events';
+export * from './bid-bond-status';

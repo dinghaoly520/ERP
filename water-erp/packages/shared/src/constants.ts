@@ -152,6 +152,12 @@ export const LEVEL_WEIGHT = {
   attendanceGrade: 0.2,
 } as const;
 
+/** 评审专家角色（Prisma BidExpert.expertRole 中文值；候补仅正选缺席时递补）。 */
+export const EXPERT_ROLE = {
+  REGULAR: '正选',
+  ALTERNATE: '候补',
+} as const;
+
 /* ── 通知类型元数据 ── */
 // icon = Lucide 图标名（前端按名渲染）；tone = 语义色；actionable = 是否进「待办」分段
 export interface NotificationMeta {
