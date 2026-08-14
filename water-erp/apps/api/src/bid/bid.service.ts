@@ -3613,10 +3613,6 @@ export class BidService {
     });
   }
 
-  listSupervisionLogs(projectId: string) {
-    return this.prisma.bidSupervisionLog.findMany({ where: { projectId }, orderBy: { time: 'desc' } });
-  }
-
   /** 获取评标完整性快照信息（指纹 + 下载链接），供验证端点使用 */
   async getEvaluationHandover(projectId: string) {
     const asset = await this.prisma.fileAsset.findFirst({

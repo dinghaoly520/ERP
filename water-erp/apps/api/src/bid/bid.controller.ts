@@ -647,10 +647,6 @@ export class BidController {
     return this.bidService.summarizeClarification(id, cid);
   }
 
-  @Get('projects/:id/supervision-logs')
-  @ApiOperation({ summary: '监督日志' })
-  listSupervisionLogs(@Param('id') id: string) { return this.bidService.listSupervisionLogs(id); }
-
   @Get('projects/:id/archives')
   @ApiOperation({ summary: '归档资料' })
   listArchives(@Param('id') id: string) { return this.bidService.listArchives(id); }

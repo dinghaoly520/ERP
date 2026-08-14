@@ -273,19 +273,6 @@ describe('Bid Lifecycle (e2e)', () => {
       .expect(403);
   });
 
-  it('管理员可查看监督日志', () => {
-    return request(app.getHttpServer())
-      .get(`/api/bid/projects/${createdProjectId}/supervision-logs`)
-      .set('Cookie', adminCookie)
-      .set('X-Portal', 'web')
-      .expect(200)
-      .expect(res => {
-        expect(Array.isArray(res.body)).toBe(true);
-        // 应至少有 open-submission、open、start-evaluation 三条日志
-        expect(res.body.length).toBeGreaterThanOrEqual(3);
-      });
-  });
-
   it('已开标项目空 body 重复开标幂等成功（201）', async () => {
     // 棘轮语义：OPENING 后空 body 重复调用 /open 为同阶段幂等（不建会话），仍 201。
     const past = new Date(Date.now() - 3600_000).toISOString();
