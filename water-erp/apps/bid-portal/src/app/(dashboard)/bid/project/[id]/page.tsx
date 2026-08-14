@@ -18,7 +18,6 @@ import SigningTab from '@/components/workspace/signing-tab';
 import { RoundBlock } from '@/components/workspace/round-block';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { useOpeningSfx } from '@/hooks/use-opening-sfx';
-import { useReportRealtime } from '@/contexts/bid-realtime-context';
 import type { AnomalyDetectedPayload } from '@water-erp/shared';
 import { toast } from 'sonner';
 
@@ -106,8 +105,8 @@ function WorkspaceInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, decryptWindowEnd]);
 
-  // ═══ 单一 WebSocket（页级持有，跨 tab 常驻）═══
-  const { connection, lastEventAt, reconnectNow } = useBidWebSocket(projectId ?? undefined, {
+  // ═══ 单一 WebSocket（页级持有，跨 tab 常驻；返回值仅副作用——连接 + 事件回调驱动刷新）═══
+  useBidWebSocket(projectId ?? undefined, {
     onDecryptStatus: (data) => {
       setProject(prev => {
         if (!prev) return prev;
@@ -160,8 +159,6 @@ function WorkspaceInner() {
       setAnomalyEvents(prev => [data, ...prev].slice(0, 50));
     },
   });
-
-  useReportRealtime(connection, lastEventAt, reconnectNow);
 
   if (loading && !project) return <TableSkeleton rows={8} cols={6} />;
   if (error && !project) return <div className="py-20 text-center text-sm text-[color:var(--muted-foreground)]">{error}</div>;
