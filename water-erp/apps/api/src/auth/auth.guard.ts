@@ -1,9 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
-import { tokenFromRequest } from './portal-cookie';
+import { tokenFromRequest, portalFromRequest } from './portal-cookie';
+import { checkPortRole } from './port-roles';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -34,7 +35,15 @@ export class AuthGuard implements CanActivate {
       });
       if (!user || !user.isActive) throw new UnauthorizedException();
       (req as any).user = payload;
-    } catch {
+
+      // L4 运行时角色-端口校验：即使 cookie 被手动伪造，角色与端口不匹配也会 403。
+      // 公共端点（login/logout/health）已由 @Public 豁免，不会走到这里。
+      const roleCheck = checkPortRole(payload.role, portalFromRequest(req));
+      if (roleCheck) {
+        throw new ForbiddenException({ error: roleCheck, code: 'PORT_ROLE_MISMATCH' });
+      }
+    } catch (err) {
+      if (err instanceof ForbiddenException) throw err;
       throw new UnauthorizedException();
     }
     return true;

@@ -1,5 +1,5 @@
 const BASE = '/api';
-const PORTAL = 'web';
+const PORTAL = 'bid';
 
 export class ApiError extends Error {
   constructor(

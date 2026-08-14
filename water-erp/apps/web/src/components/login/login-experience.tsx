@@ -6,16 +6,20 @@ import { motion, useReducedMotion } from "framer-motion";
 import { startTransition, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
-  ArrowRight,
+  ChevronRight,
+  Eye,
+  EyeOff,
   KeyRound,
   LifeBuoy,
   Loader2,
   UserRound,
+  UserPlus,
 } from "lucide-react";
 import SplashCursor from "@/components/SplashCursor";
 import TrueFocus from "@/components/TrueFocus";
 import { ForgotPasswordDialog } from "@/components/login/forgot-password-dialog";
 import { LoginErrorDialog } from "@/components/login/login-error-dialog";
+import { RegisterDialog } from "@/components/login/register-dialog";
 import { login } from "@/lib/api/auth";
 import { fetchUserSettings } from "@/lib/api/user-settings";
 import { getPostLoginDestination, getHomePageRoute } from "@/lib/login/login-routing";
@@ -44,6 +48,8 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
   const [loginErrorMessage, setLoginErrorMessage] = useState<string | null>(
     null,
   );
+  const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -192,8 +198,8 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
               priority
             />
           </motion.div>
-          <h1 className="login-title mt-4 max-w-[16.5rem] font-[family-name:var(--font-display)] text-[clamp(1.78rem,4.8vw,2.42rem)] font-semibold leading-[1.1] tracking-[-0.065em] text-[color:var(--foreground)] sm:max-w-none">
-            智慧水发 · <span className="whitespace-nowrap">采购中心</span>
+          <h1 className="login-title login-title--gradient mt-4 max-w-[16.5rem] text-[clamp(1.78rem,4.8vw,2.42rem)] font-black leading-[1.15] tracking-[0.08em] sm:max-w-none">
+            智慧水发·采购中心
           </h1>
           <p className="login-slogan mt-5 text-[0.82rem] tracking-[0.28em]">
             坚持原则，坚定立场，坚决执行
@@ -266,12 +272,24 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
                 </span>
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="输入密码"
-                  className="login-field-input w-full bg-transparent px-5 pb-4 pl-[3rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)]"
+                  className="login-field-input w-full bg-transparent pb-4 pl-[3rem] pr-[3.25rem] pt-4 text-[15px] text-[color:var(--foreground)] outline-none placeholder:text-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)]"
                   {...register("password")}
                 />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="login-field-toggle"
+                >
+                  {showPassword ? (
+                    <EyeOff size={16} strokeWidth={1.85} />
+                  ) : (
+                    <Eye size={16} strokeWidth={1.85} />
+                  )}
+                </button>
                 <span aria-hidden className="login-field-shell__line" />
               </div>
               {errors.password ? (
@@ -308,29 +326,47 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             </div>
           </motion.div>
 
-          <motion.button
+          <motion.div
             initial={reducedMotion ? undefined : { opacity: 0, y: 14 }}
             animate={reducedMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.66, delay: 0.46, ease: easeOutQuint }}
-            type="submit"
-            aria-label={submitting ? "登录中" : "登录"}
-            disabled={!isValid || submitting}
-            whileHover={reducedMotion ? undefined : { y: -2, scale: 1.02 }}
-            whileTap={reducedMotion ? undefined : { scale: 0.98 }}
-            className="login-submit-button inline-flex w-full self-center items-center justify-center gap-2 rounded-[20px] px-6 py-4 text-sm font-semibold text-[color:var(--foreground)] transition-opacity duration-200 hover:opacity-96 disabled:cursor-not-allowed disabled:opacity-36"
+            className="flex w-full items-center gap-3"
           >
-            {submitting ? (
-              <>
-                <Loader2 size={16} className="mr-2 animate-spin" />
-                登录中
-              </>
-            ) : (
-              <>
-                <span className="login-submit-label">登录</span>
-                <ArrowRight size={16} className="opacity-80" />
-              </>
-            )}
-          </motion.button>
+            <motion.button
+              type="button"
+              aria-label="注册"
+              whileHover={reducedMotion ? undefined : { y: -2 }}
+              whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+              onClick={() => setShowRegisterDialog(true)}
+              className="login-register-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[20px] px-5 py-4 text-sm font-semibold"
+            >
+              <UserPlus size={15} strokeWidth={2} />
+              <span className="login-submit-label">注册</span>
+            </motion.button>
+
+            <motion.button
+              type="submit"
+              aria-label={submitting ? "登录中" : "登录"}
+              disabled={!isValid || submitting}
+              whileHover={reducedMotion ? undefined : { y: -2, scale: 1.02 }}
+              whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+              className="login-submit-button inline-flex flex-1 items-center justify-center gap-2 rounded-[20px] px-6 py-4 text-sm font-semibold text-[color:var(--foreground)] transition-opacity duration-200 hover:opacity-96 disabled:cursor-not-allowed disabled:opacity-36"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  登录中
+                </>
+              ) : (
+                <>
+                  <span className="login-submit-label">登录</span>
+                  <span className="login-arrow-badge">
+                    <ChevronRight size={14} strokeWidth={2.5} />
+                  </span>
+                </>
+              )}
+            </motion.button>
+          </motion.div>
 
           <motion.div
             initial={reducedMotion ? undefined : { opacity: 0, y: 12 }}
@@ -339,10 +375,10 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
             className="login-credit pt-2 text-center"
           >
             {reducedMotion ? (
-              <span className="login-credit__static">水电科研院 制</span>
+              <span className="login-credit__static">四川水发勘测设计研究有限公司　制</span>
             ) : (
               <TrueFocus
-                sentence="水|电|科|研|院|制"
+                sentence="四|川|水|发|勘|测|设|计|研|究|有|限|公|司| |制"
                 separator="|"
                 manualMode={false}
                 blurAmount={3}
@@ -364,6 +400,10 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
         isOpen={Boolean(loginErrorMessage)}
         message={loginErrorMessage ?? ""}
         onClose={() => setLoginErrorMessage(null)}
+      />
+      <RegisterDialog
+        isOpen={showRegisterDialog}
+        onClose={() => setShowRegisterDialog(false)}
       />
     </div>
   );

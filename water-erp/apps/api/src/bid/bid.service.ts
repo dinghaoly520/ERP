@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
+import { sanitizeForBidHost } from './bid-sanitizer';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { CreateScoreDto } from './dto/create-score.dto';
@@ -161,10 +162,10 @@ export class BidService {
     });
   }
 
-  async listProjects(stages?: string[], actor?: { id: string; role: string }) {
+  async listProjects(stages?: string[], actor?: { id: string; role: string }, portal?: string) {
     const stageFilter = stages && stages.length > 0 ? { stage: { in: stages as BidStage[] } } : {};
-    // R1: bid_host 角色硬过滤——仅看到派给自己的项目；其它角色看全部
-    const actorFilter = actor?.role === 'bid_host' ? { assignedHostUserId: actor.id } : {};
+    // 按端口过滤：bid portal（:3007）只看派给自己的项目；web portal（:3005）看全部
+    const actorFilter = portal === 'bid' && actor ? { assignedHostUserId: actor.id } : {};
     const where = { ...stageFilter, ...actorFilter, isExtractionOnly: false };
 
     // 当按阶段筛选时返回精简字段（用于搜索选择器）
@@ -215,9 +216,9 @@ export class BidService {
    * Dashboard 聚合端点：一次返回项目列表 + 就绪状态 + 阶段分布。
    * 避免前端 N+1 次工作区查询，在表格中直接呈现供应商/专家就绪信号。
    */
-  async getProjectsDashboard(actor?: { id: string; role: string }) {
-    // R1: bid_host 仅看派给自己的项目；其它角色看全部
-    const actorFilter = actor?.role === 'bid_host' ? { assignedHostUserId: actor.id } : {};
+  async getProjectsDashboard(actor?: { id: string; role: string }, portal?: string) {
+    // 按 portal 过滤：bid portal 只看派给自己的；web portal 看全部
+    const actorFilter = portal === 'bid' && actor ? { assignedHostUserId: actor.id } : {};
     const projects = await this.prisma.bidProject.findMany({
       where: { ...actorFilter, isExtractionOnly: false },
       orderBy: { createdAt: 'desc' },
@@ -355,7 +356,7 @@ export class BidService {
     };
   }
 
-  async getProject(id: string) {
+  async getProject(id: string, actor?: { id: string; role: string }, portal?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       include: {
@@ -368,11 +369,16 @@ export class BidService {
         supervisionLogs: { orderBy: { time: 'desc' } },
         expertDisputes: { orderBy: { createdAt: 'desc' } },
         archiveItems: true,
-        bidRounds: { orderBy: { roundNo: 'asc' } }, // L6: 含轮次数据，省一次 API round-trip
-        assignedHostUser: { select: { id: true, username: true, displayName: true } }, // 开标主持人指派（R1）
+        bidRounds: { orderBy: { roundNo: 'asc' } },
+        assignedHostUser: { select: { id: true, username: true, displayName: true } },
       },
     });
     if (!project) return null;
+
+    // L6 数据级隔离：bid portal 只能看指派给自己的项目（无论角色）
+    if (portal === 'bid' && actor && project.assignedHostUserId !== actor.id) {
+      throw new ForbiddenException('无权访问该项目（未指派给您）');
+    }
 
     // 配置开关：评标期间对主持端匿名化专家身份（同 listScores）
     const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL === 'true';
@@ -394,8 +400,13 @@ export class BidService {
         select: { projectCode: true },
       });
       if (pm?.projectCode) {
-        return { ...project, projectCode: pm.projectCode };
+        project.projectCode = pm.projectCode;
       }
+    }
+
+    // L6 字段去敏：bid portal 视角移除管理内部字段
+    if (portal === 'bid') {
+      return sanitizeForBidHost(project);
     }
     return project;
   }

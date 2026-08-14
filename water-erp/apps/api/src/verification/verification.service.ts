@@ -231,4 +231,73 @@ export class VerificationService {
       });
     }
   }
+
+  // ── 注册场景：手机号验证（无需登录，用于 /auth/register 前的号码验证）──
+
+  private regCodeKey(phone: string) {
+    return `verification:registration:${phone}`;
+  }
+
+  private regCooldownKey(phone: string) {
+    return `verification:cooldown:registration:${phone}`;
+  }
+
+  async sendRegistrationCode(phone: string, clientIp: string) {
+    // IP rate limit
+    const ipCount = await this.redis.incr(this.ipKey(clientIp));
+    if (ipCount === 1) await this.redis.expire(this.ipKey(clientIp), 60);
+    if (ipCount > IP_RATE_LIMIT) {
+      throw new BadRequestException({ code: 'IP_RATE_LIMITED', error: '请求过于频繁，请稍后再试' });
+    }
+
+    // Cooldown
+    const cooldown = await this.redis.get(this.regCooldownKey(phone));
+    if (cooldown) {
+      const ttl = await this.redis.ttl(this.regCooldownKey(phone));
+      throw new BadRequestException({ code: 'TOO_FREQUENT', error: `请${ttl}秒后再试` });
+    }
+
+    const code = this.generateCode();
+    const record: VerificationRecord = { code, phone, attempts: 0 };
+    await this.redis.set(this.regCodeKey(phone), JSON.stringify(record), 'EX', CODE_TTL);
+    await this.redis.set(this.regCooldownKey(phone), '1', 'EX', COOLDOWN_TTL);
+
+    if (process.env.SMS_DEBUG_BYPASS === 'true') {
+      console.log(`[SMS-STUB] 注册验证码: ${code} → ${phone}`);
+    }
+
+    return { maskedPhone: this.maskPhone(phone) };
+  }
+
+  async verifyRegistrationCode(phone: string, code: string) {
+    if (process.env.SMS_DEBUG_BYPASS === 'true' && code === DEBUG_BYPASS_CODE) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new BadRequestException({ code: 'BYPASS_FORBIDDEN_IN_PRODUCTION', error: 'SMS_DEBUG_BYPASS 不可在生产环境使用' });
+      }
+      await this.redis.del(this.regCodeKey(phone));
+      return { ok: true };
+    }
+
+    const raw = await this.redis.get(this.regCodeKey(phone));
+    if (!raw) {
+      throw new BadRequestException({ code: 'CODE_EXPIRED', error: '验证码已过期，请重新获取' });
+    }
+
+    const record: VerificationRecord = JSON.parse(raw);
+
+    if (record.code !== code) {
+      record.attempts += 1;
+      const remaining = MAX_ATTEMPTS - record.attempts;
+      const ttl = await this.redis.ttl(this.regCodeKey(phone));
+      await this.redis.set(this.regCodeKey(phone), JSON.stringify(record), 'EX', ttl > 0 ? ttl : CODE_TTL);
+      if (remaining <= 0) {
+        await this.redis.del(this.regCodeKey(phone));
+        throw new BadRequestException({ code: 'ATTEMPTS_EXCEEDED', error: '尝试次数过多，请重新获取验证码' });
+      }
+      throw new BadRequestException({ code: 'CODE_INVALID', error: `验证码错误，剩余 ${remaining} 次尝试` });
+    }
+
+    await this.redis.del(this.regCodeKey(phone));
+    return { ok: true };
+  }
 }

@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync, hashSync } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { VerificationService } from '../verification/verification.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -22,7 +23,11 @@ const PORTAL_ROLE_PRIORITY: Record<string, string[]> = {
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService, private jwt: JwtService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+    private verificationService: VerificationService,
+  ) {}
 
   async register(dto: RegisterDto) {
     // 查重：register 默认创建 role=internal_user，命中 [username, role] 唯一约束会抛 P2002（原返回 500）→ 归一化为 409
@@ -32,15 +37,38 @@ export class AuthService {
     if (existing) {
       throw new ConflictException({ error: '账号已存在', code: 'USERNAME_EXISTS' });
     }
-    const user = await this.prisma.user.create({
+
+    // 验证手机验证码
+    await this.verificationService.verifyRegistrationCode(dto.phone, dto.verificationCode);
+
+    // 按部门名查找 Department（找不到则留空，管理员后续指派）
+    let departmentId: string | undefined;
+    const dept = await this.prisma.department.findFirst({
+      where: { name: { contains: dto.department.trim(), mode: 'insensitive' } },
+    });
+    if (dept) departmentId = dept.id;
+
+    // 注册用户默认未激活（isActive=false），需管理员审核通过后才能登录
+    await this.prisma.user.create({
       data: {
         username: dto.username,
         displayName: dto.displayName,
         email: dto.email,
+        phone: dto.phone,
+        company: dto.company,
+        officeLocation: dto.officeLocation,
         passwordHash: hashSync(dto.password, 10),
+        role: 'internal_user',
+        isActive: false,
+        departmentId,
       },
     });
-    return this.issueToken(user.id, user.username, user.role);
+
+    // 通知管理员有新注册待审核
+    const roleLabel = dto.requestedRole === 'management' ? '管理权限' : '办公权限';
+    await this.notifyAdminsPendingRegistration(dto.displayName, dto.company, dto.department, roleLabel);
+
+    return { pending: true as const };
   }
 
   async login(dto: LoginDto, portal?: string) {
@@ -96,6 +124,45 @@ export class AuthService {
         },
       },
     });
+  }
+
+  /** 通知管理员（leader/admin）有新注册待审核 */
+  private async notifyAdminsPendingRegistration(name: string, company: string, department: string, roleLabel: string) {
+    try {
+      const admins = await this.prisma.user.findMany({
+        where: { role: { in: ['admin', 'leader'] }, isActive: true },
+        select: { id: true },
+      });
+      for (const admin of admins) {
+        await this.prisma.notification.create({
+          data: {
+            userId: admin.id,
+            type: 'USER_REGISTRATION_PENDING',
+            title: '新用户注册待审核',
+            content: `${name}（${company} · ${department}）申请${roleLabel}，等待审核。`,
+            link: '/settings/users',
+          },
+        });
+      }
+    } catch { /* 通知失败不阻塞注册 */ }
+  }
+
+  /** 管理员审核：通过注册 */
+  async approveUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException({ error: '用户不存在', code: 'NOT_FOUND' });
+    if (user.isActive) throw new BadRequestException({ error: '用户已激活', code: 'ALREADY_ACTIVE' });
+    await this.prisma.user.update({ where: { id: userId }, data: { isActive: true } });
+    return { ok: true };
+  }
+
+  /** 管理员审核：拒绝注册（删除用户） */
+  async rejectUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException({ error: '用户不存在', code: 'NOT_FOUND' });
+    if (user.isActive) throw new BadRequestException({ error: '用户已激活，无法拒绝', code: 'ALREADY_ACTIVE' });
+    await this.prisma.user.delete({ where: { id: userId } });
+    return { ok: true };
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

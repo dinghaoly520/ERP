@@ -10,7 +10,7 @@ import { PORTS, type AppName } from '@water-erp/config';
 /** 角色 → 所属门户 */
 export const ROLE_PORTAL: Record<string, string> = {
   admin: 'web',
-  bid_host: 'web',
+  bid_host: 'bid',
   leader: 'web',
   staff: 'web',
   supplier: 'supplier',
@@ -25,11 +25,10 @@ export const ROLE_PORTAL: Record<string, string> = {
  * bid-portal(:3007) 复用 token_web 命名空间（admin/bid_host 的 cookie 即 token_web，无 token_bid），
  * 故把 3007 映射到 'web'，使无 X-Portal 头的客户端请求（如 AppShell 的 /auth/me）能读到 token_web。
  */
-const COOKIE_PORTALS: AppName[] = ['public', 'mall', 'supplier', 'web', 'expert'];
+const COOKIE_PORTALS: AppName[] = ['public', 'mall', 'supplier', 'web', 'expert', 'bid'];
 const PORT_TO_PORTAL: Record<string, string> = (() => {
   const map: Record<string, string> = {};
   for (const name of COOKIE_PORTALS) map[String(PORTS[name])] = name;
-  map[String(PORTS.bid)] = 'web';
   return map;
 })();
 

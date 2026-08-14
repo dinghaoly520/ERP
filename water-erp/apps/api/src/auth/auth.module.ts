@@ -4,6 +4,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
 import { getJwtSecret } from '../common/jwt-secret.helper';
+import { VerificationModule } from '../verification/verification.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { getJwtSecret } from '../common/jwt-secret.helper';
       secret: getJwtSecret(),
       signOptions: { expiresIn: '7d' },
     }),
+    VerificationModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, AuthGuard],
