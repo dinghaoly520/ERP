@@ -3,7 +3,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { SupplierService } from './supplier.service';
-import { AuthGuard } from '../auth/auth.guard';
 import { ProcurementGuard } from './procurement.guard';
 import { OwnerGuard } from './owner.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -47,7 +46,6 @@ export class SupplierController {
 
   // ── 临时供应商邀请码（采购端管理）──
   @Post('invitations')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '生成临时供应商邀请码（30/180/360 天）' })
   async createInvitation(@Body() dto: CreateInvitationDto, @Request() req: any) {
@@ -55,7 +53,6 @@ export class SupplierController {
   }
 
   @Get('invitations')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '邀请码列表' })
   async listInvitations(
@@ -71,7 +68,6 @@ export class SupplierController {
   }
 
   @Post('invitations/:id/revoke')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '作废邀请码' })
   async revokeInvitation(@Param('id') id: string, @Request() req: any) {
@@ -112,7 +108,6 @@ export class SupplierController {
 
   // ── 业务标签：词表（选取/邀请页多选） + 全量回填（规则引擎，写 tags）──
   @Get('tag-vocabulary')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '业务标签词表（按频次降序，供选取/邀请页标签多选）' })
   async getTagVocabulary(@Query('limit') limit?: string) {
@@ -120,7 +115,6 @@ export class SupplierController {
   }
 
   @Post('backfill-tags')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '业务标签全量回填（规则引擎；默认仅填空标签，force=true 全量重算）' })
   async backfillTags(@Query('force') force?: string, @Request() req?: any) {
@@ -144,7 +138,6 @@ export class SupplierController {
   }
 
   @Get('list')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff', 'supplier') // 补角色白名单：杜绝 bid_expert/mall 拖全库+PII；supplier 由 service 的 scopeUserId 收敛到本企业
   @ApiOperation({ summary: '供应商库列表（supplier 角色仅见本企业，杜绝枚举他企与主联系人 PII）' })
   async list(
@@ -190,7 +183,6 @@ export class SupplierController {
   }
 
   @Get('bigscreen/detail')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff') // P0-15：评价分布/分类计数/绩效趋势属经营敏感数据，须鉴权
   @ApiOperation({ summary: '大屏供应商统计（详细，需采购侧鉴权）' })
   async getBigscreenDetail() {
@@ -198,7 +190,6 @@ export class SupplierController {
   }
 
   @Get('evaluations/stats')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '评价统计' })
   async getEvaluationStats() {
@@ -206,7 +197,6 @@ export class SupplierController {
   }
 
   @Get('classifications')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '分类列表' })
   async listClassifications() {
@@ -214,7 +204,6 @@ export class SupplierController {
   }
 
   @Post('classifications')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '创建分类' })
   async createClassification(@Body() dto: CreateClassificationDto) {
@@ -222,7 +211,6 @@ export class SupplierController {
   }
 
   @Patch('classifications/:id')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '更新分类' })
   async updateClassification(@Param('id') id: string, @Body() dto: UpdateClassificationDto) {
@@ -230,7 +218,6 @@ export class SupplierController {
   }
 
   @Delete('classifications/:id')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '删除分类' })
   async deleteClassification(@Param('id') id: string) {
@@ -239,14 +226,12 @@ export class SupplierController {
 
   // ─── 供应商多分类标签 ───
   @Get(':id/classifications')
-  @UseGuards(AuthGuard)
   @ApiOperation({ summary: '获取供应商的分类标签列表' })
   async getSupplierClassifications(@Param('id') id: string) {
     return this.supplierService.getSupplierClassifications(id);
   }
 
   @Put(':id/classifications')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '设置供应商的分类标签（替换全部，仅采购侧角色）' })
   async setSupplierClassifications(
@@ -257,7 +242,6 @@ export class SupplierController {
   }
 
   @Post('notify')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '向指定供应商发送通知（站内+短信）' })
   async notifySuppliers(
@@ -267,7 +251,6 @@ export class SupplierController {
   }
 
   @Post('negotiation-config')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '谈判采购配置下发（时间/附件/下载方式 → Redis，供应商端读取）' })
   async sendNegotiationConfig(@Body() dto: NegotiationConfigDto) {
@@ -275,7 +258,6 @@ export class SupplierController {
   }
 
   @Get('negotiation-config/:projectId')
-  @UseGuards(AuthGuard)
   @ApiOperation({ summary: '供应商端读取谈判采购配置' })
   async getNegotiationConfig(@Param('projectId') projectId: string) {
     return this.supplierService.getNegotiationConfig(projectId);
@@ -289,7 +271,6 @@ export class SupplierController {
   }
 
   @Get('qualification-alerts')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '资质到期预警看板（含当前用户「已处理」标记）' })
   async getQualificationAlerts(@Request() req: any) {
@@ -297,7 +278,6 @@ export class SupplierController {
   }
 
   @Post('qualification-alerts/:qid/ack')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '标记资质预警为已处理（入库，替代 sessionStorage）' })
   async acknowledgeQualificationAlert(@Param('qid') qid: string, @Request() req: any) {
@@ -305,7 +285,6 @@ export class SupplierController {
   }
 
   @Get('favorites/list')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '获取当前用户收藏列表' })
   async getFavorites(@Request() req: any) {
@@ -313,7 +292,6 @@ export class SupplierController {
   }
 
   @Get('recent-activities')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '近期动态' })
   async getRecentActivities(@Query('limit') limit?: number) {
@@ -321,7 +299,6 @@ export class SupplierController {
   }
 
   @Get('evaluations/dimension-stats')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '评价五维度统计' })
   async getDimensionStats() {
@@ -329,7 +306,6 @@ export class SupplierController {
   }
 
   @Get('enterprise-type-distribution')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '企业类型分布（后端聚合，供看板）' })
   async getEnterpriseTypeDistribution() {
@@ -339,7 +315,6 @@ export class SupplierController {
   // ─── 动态路由 ───
 
   @Get(':id')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff', 'supplier') // 补角色白名单；supplier 归属校验在方法体内
   @ApiOperation({ summary: '供应商详情（supplier 角色仅见本企业，防跨企枚举与联系人 PII 泄露）' })
   async get(@Param('id') id: string, @Request() req: any) {
@@ -404,7 +379,6 @@ export class SupplierController {
   }
 
   @Post(':id/resubmit')
-  @UseGuards(AuthGuard)
   @Roles('supplier') // P1-16：供应商补正后重新提交（RETURNED → PENDING）；归属校验在 service 内
   @ApiOperation({ summary: '供应商补正后重新提交（RETURNED → PENDING）' })
   async resubmit(@Param('id') id: string, @Body() body: { note?: string }, @Request() req: any) {
@@ -412,7 +386,7 @@ export class SupplierController {
   }
 
   @Get(':id/changes')
-  @UseGuards(AuthGuard, OwnerGuard)
+  @UseGuards(OwnerGuard)
   @Roles('admin', 'leader', 'staff', 'supplier') // P0-3：杜绝 bid_expert/mall 越权读他企变更（含 oldValue/newValue PII）
   @ApiOperation({ summary: '变更记录列表' })
   async listChanges(@Param('id') id: string) {
@@ -420,7 +394,7 @@ export class SupplierController {
   }
 
   @Post(':id/changes')
-  @UseGuards(AuthGuard, OwnerGuard)
+  @UseGuards(OwnerGuard)
   @Roles('admin', 'leader', 'staff', 'supplier')
   @ApiOperation({ summary: '提交变更申请' })
   async createChangeRequest(@Param('id') id: string, @Body() dto: CreateChangeRequestDto, @Request() req: any) {
@@ -442,7 +416,7 @@ export class SupplierController {
   }
 
   @Get(':id/qualifications')
-  @UseGuards(AuthGuard, OwnerGuard)
+  @UseGuards(OwnerGuard)
   @Roles('admin', 'leader', 'staff', 'supplier') // P0-3：资质记录含 fileUrl（身份证/营业执照），杜绝跨角色读取
   @ApiOperation({ summary: '资质材料列表' })
   async listQualifications(@Param('id') id: string) {
@@ -450,7 +424,7 @@ export class SupplierController {
   }
 
   @Post(':id/qualifications')
-  @UseGuards(AuthGuard, OwnerGuard)
+  @UseGuards(OwnerGuard)
   @Roles('admin', 'leader', 'staff', 'supplier')
   @ApiOperation({ summary: '上传资质材料（supplier 仅本企业；他角色须采购侧）' })
   async addQualification(@Param('id') id: string, @Body() dto: CreateQualificationDto, @Request() req: any) {
@@ -465,7 +439,7 @@ export class SupplierController {
   }
 
   @Delete(':id/qualifications/:qid')
-  @UseGuards(AuthGuard, OwnerGuard)
+  @UseGuards(OwnerGuard)
   @Roles('admin', 'leader', 'staff', 'supplier')
   @ApiOperation({ summary: '删除资质材料（supplier 仅本企业；他角色须采购侧）' })
   async deleteQualification(@Param('id') id: string, @Param('qid') qid: string) {
@@ -473,7 +447,6 @@ export class SupplierController {
   }
 
   @Get(':id/evaluations')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff') // 补角色白名单，防 bid_expert/mall 读他企评价
   @ApiOperation({ summary: '评价记录列表' })
   async listEvaluations(@Param('id') id: string) {
@@ -481,7 +454,6 @@ export class SupplierController {
   }
 
   @Post(':id/evaluations')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '发起评价（采购侧角色；supplier 角色禁止评价，杜绝自评刷分）' })
   async createEvaluation(@Param('id') id: string, @Body() dto: CreateEvaluationDto, @Request() req: any) {
@@ -489,7 +461,6 @@ export class SupplierController {
   }
 
   @Get(':id/portrait')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff') // 补角色白名单，防跨角色读他企画像
   @ApiOperation({ summary: '供应商画像' })
   async getPortrait(@Param('id') id: string) {
@@ -511,7 +482,6 @@ export class SupplierController {
   }
 
   @Patch(':id/tags')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '管理员修改供应商业务标签（直接生效，不走变更审批）' })
   async updateTags(@Param('id') id: string, @Body() body: { tags: string[] }, @Request() req: any) {
@@ -519,7 +489,6 @@ export class SupplierController {
   }
 
   @Post(':id/favorite')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '切换供应商收藏' })
   async toggleFavorite(@Param('id') id: string, @Request() req: any) {

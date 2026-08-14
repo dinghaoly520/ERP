@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
@@ -8,10 +8,11 @@ import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dt
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { Public } from '../common/decorators/public.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('supplier-portal')
-
+@Roles('supplier')
 export class SupplierPortalController {
   constructor(
     private portalService: SupplierPortalService,

@@ -1,13 +1,14 @@
-import { Controller, Get, Patch, Body, UseGuards, Req } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
+import { Controller, Get, Patch, Body, Req } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { AUTHENTICATED_ROLES } from '../auth/auth-scope';
+import { Roles } from '../common/decorators/roles.decorator';
 import { UserSettingsService } from './user-settings.service';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { AuditService } from '../audit/audit.service';
 
 @Controller('user-settings')
-@UseGuards(AuthGuard)
+@Roles(...AUTHENTICATED_ROLES)
 export class UserSettingsController {
   constructor(
     private readonly userSettings: UserSettingsService,

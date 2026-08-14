@@ -294,7 +294,13 @@ export class AiService {
         项目概况及采购内容: overviewSummary || '',
       });
       const title0 = `关于${context.projectName || '采购项目'}采购项目候选供应商邀请的通知`;
-      const base = (this.config.get<string>('PUBLIC_PORTAL_URL') || 'http://localhost:3004').replace(/\/$/, '');
+      // 此 URL 用于生成「供应商邀请」链接，应指向供应商门户（:3004），而非公众门户（:3002）。
+      // 旧 env 名 PUBLIC_PORTAL_URL 实易误读为「公众门户」——保留作为向后兼容别名。
+      const base = (
+        this.config.get<string>('SUPPLIER_PORTAL_URL') ||
+        this.config.get<string>('PUBLIC_PORTAL_URL') ||
+        'http://localhost:3004'
+      ).replace(/\/$/, '');
 
       // ── 规范 projectId：若传入的是 PM-item id，反查 BidProject id 作为规范 id ──
       // 确保 rsvp 行始终建在 BidProject id 下，与开标确认面板 / 供应商确认页面一致。

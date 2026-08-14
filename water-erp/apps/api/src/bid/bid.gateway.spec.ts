@@ -235,8 +235,15 @@ describe('tokenFromHandshake 门户判定（多 cookie 共存）', () => {
     expect(tokenFromHandshake(mk(`${WEB}; ${SUP}; ${EXP}`))).toBe('web-jwt');
   });
 
-  it('供应商门户无 token_supplier 时回退 token_web', () => {
-    expect(tokenFromHandshake(mk(WEB, { 'x-portal': 'supplier' }))).toBe('web-jwt');
+  it('供应商门户无 token_supplier 时不再回退 token_web（2026-08 安全加固）', () => {
+    // 历史「软」回退 token_supplier → token_web → token 在 localhost 跨端口共享 cookie
+    // 的场景下会让残留 token_web 的供应商浏览器被识别为主持人角色——虽 join:project
+    // 房间隔离兜底，但纵深防御失效。各门户现严格只读对应命名空间的 cookie。
+    expect(tokenFromHandshake(mk(WEB, { 'x-portal': 'supplier' }))).toBeUndefined();
+  });
+
+  it('专家门户无 token_expert 时不再回退 token_web', () => {
+    expect(tokenFromHandshake(mk(WEB, { 'x-portal': 'expert' }))).toBeUndefined();
   });
 });
 

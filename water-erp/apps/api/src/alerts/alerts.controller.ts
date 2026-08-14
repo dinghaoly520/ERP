@@ -1,10 +1,13 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
+import { Roles } from '../common/decorators/roles.decorator';
+import { INTERNAL_ROLES } from '../auth/auth-scope';
 import { AlertsService } from './alerts.service';
 
 @ApiTags('告警')
 @ApiCookieAuth('token')
 @Controller('alerts')
+@Roles(...INTERNAL_ROLES)
 export class AlertsController {
   constructor(private alerts: AlertsService) {}
 

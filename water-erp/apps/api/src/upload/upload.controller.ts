@@ -6,7 +6,6 @@ import {
   Param,
   Query,
   Res,
-  UseGuards,
   UseInterceptors,
   UploadedFile,
   Request,
@@ -14,12 +13,14 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { AUTHENTICATED_ROLES } from '../auth/auth-scope';
+import { Roles } from '../common/decorators/roles.decorator';
 import { UploadService } from './upload.service';
 
 @ApiTags('文件上传')
 @ApiCookieAuth('token')
 @Controller('upload')
-
+@Roles(...AUTHENTICATED_ROLES)
 export class UploadController {
   constructor(private uploadService: UploadService) {}
 

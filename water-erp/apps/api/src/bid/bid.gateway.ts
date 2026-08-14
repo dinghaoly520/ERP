@@ -57,6 +57,11 @@ export const SUPPLIER_BLOCKED_EVENTS = new Set<string>([
  * 同源多门户 cookie 可能共存（localhost 各门户跨端口共享 cookie；同域部署同理）：
  * 优先按 X-Portal 头、其次 Origin 端口判定门户归属（与 HTTP 侧 portal-cookie.ts 的
  * 解析链一致），避免 token_web 永远压过 token_supplier 导致供应商 socket 被误判为主持人。
+ *
+ * 安全说明（2026-08 加固）：供应商/专家门户**不再回退**到 token_web。
+ * 历史回退链 `token_supplier → token_web → token` 在 localhost 跨端口共享 cookie 的场景下，
+ * 会让残留 token_web 的供应商浏览器被识别为主持人角色——虽 join:project 房间隔离兜底，
+ * 但纵深防御失效。各门户现严格只读对应命名空间的 cookie。
  */
 export function tokenFromHandshake(socket: Socket): string | undefined {
   const raw = socket.handshake.headers.cookie;
@@ -69,22 +74,40 @@ export function tokenFromHandshake(socket: Socket): string | undefined {
   const xPortal = (socket.handshake.headers['x-portal'] as string | undefined)?.toLowerCase();
   const originPort = (socket.handshake.headers.origin ?? '').split(':')[2]?.split('/')[0];
   if (xPortal === 'supplier' || originPort === String(PORTS.supplier)) {
-    return map.get('token_supplier') || map.get('token_web') || map.get('token');
+    return map.get('token_supplier');
   }
   if (xPortal === 'expert' || originPort === String(PORTS.expert)) {
-    return map.get('token_expert') || map.get('token_web') || map.get('token');
+    return map.get('token_expert');
   }
-  return (
-    map.get('token_web') ||
-    map.get('token_expert') ||
-    map.get('token_supplier') ||
-    map.get('token')
-  );
+  // 默认分支：web/bid-portal 共用 token_web 命名空间；保留 legacy `token` 兜底
+  // 仅用于直接访问 API（如 Swagger）的场景，与 HTTP 侧 portal-cookie.ts 一致。
+  return map.get('token_web') || map.get('token');
+}
+
+/**
+ * WS CORS origin 解析（镜像 main.ts 的 corsOrigins 逻辑，避免 origin:true 全放行）。
+ *
+ * - 生产环境：读 CORS_ORIGINS（逗号分隔），未设则回退到本地门户端口列表；
+ * - 非生产环境：放行任意 origin（局域网设备访问，与 HTTP 侧 CORS 一致）。
+ */
+function wsCorsOrigin(): string | string[] | ((origin: string, cb: (err: Error | null, ok?: boolean) => void) => void) {
+  if (process.env.NODE_ENV !== 'production') {
+    return (_origin: string, cb: (err: Error | null, ok?: boolean) => void) => cb(null, true);
+  }
+  const envOrigins = process.env.CORS_ORIGINS;
+  if (envOrigins) {
+    return envOrigins.split(',').map((o) => o.trim()).filter(Boolean);
+  }
+  const origins: string[] = [];
+  for (const port of Object.values(PORTS)) {
+    origins.push(`http://localhost:${port}`, `http://127.0.0.1:${port}`);
+  }
+  return origins;
 }
 
 @WebSocketGateway({
   namespace: 'bid',
-  cors: { origin: true, credentials: true },
+  cors: { origin: wsCorsOrigin(), credentials: true },
 })
 @Injectable()
 export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -107,21 +130,35 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(socket: Socket) {
     const token = tokenFromHandshake(socket);
+    // 严格握手鉴权（2026-08 加固）：无 token 或校验失败一律拒绝连接。
+    // 历史「软鉴权」依赖 join:project 的 join 层兜底（C1）——但连接本身保持匿名可挂，
+    // 与"分数永不出现在事件载荷"等铁律并行的纵深防御不一致。
+    // 拒绝连接后客户端会触发 socket.io 重连，重新走握手 → 用新 token 进。
+    if (!token) {
+      this.logger.warn(`WS 拒绝连接：无 token（origin=${socket.handshake.headers.origin ?? 'unknown'}）`);
+      socket.disconnect(true);
+      return;
+    }
     let role: string | undefined;
     let userId: string | undefined;
-    if (token) {
-      try {
-        const payload = await this.jwt.verifyAsync(token);
-        role = payload?.role;
-        userId = payload?.sub;
-      } catch {
-        role = undefined;
-      }
+    try {
+      const payload = await this.jwt.verifyAsync(token);
+      role = payload?.role;
+      userId = payload?.sub;
+    } catch (err) {
+      this.logger.warn(`WS 拒绝连接：JWT 校验失败（${(err as Error).message}）`);
+      socket.disconnect(true);
+      return;
+    }
+    if (!role || !userId) {
+      this.logger.warn('WS 拒绝连接：JWT 载荷缺 role/sub');
+      socket.disconnect(true);
+      return;
     }
     (socket.data as any).userId = userId;
     (socket.data as any).role = role;
     (socket.data as any).isHost = canJoinHostRoom(role);
-    this.logger.debug(`WS connected role=${role || 'unknown'} host=${(socket.data as any).isHost}`);
+    this.logger.debug(`WS connected role=${role} host=${(socket.data as any).isHost}`);
   }
 
   handleDisconnect(socket: Socket) {

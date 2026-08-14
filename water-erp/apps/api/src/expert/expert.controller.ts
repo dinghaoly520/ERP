@@ -36,11 +36,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { Public } from '../common/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
-import { UseGuards } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
+import { } from '@nestjs/common';
 
 @ApiTags('专家评审')
 @Controller('expert')
+@Roles('bid_expert')
 export class ExpertController {
   constructor(
     private expertService: ExpertService,

@@ -14,7 +14,6 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
-  UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
 import type { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
@@ -42,7 +41,6 @@ import { pickManualCommentAnchor } from './services/review-utils';
 import { ResolveIssueDto } from './dto/resolve-issue.dto';
 import { CreateRuleDto, UpdateRuleDto } from './dto/rule.dto';
 import { ReviewReport } from './services/report-generator.service';
-import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { canViewAllUserActivity } from '../auth/auth-scope';
@@ -50,7 +48,6 @@ import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('Tender Review')
 @Controller('tender-review')
-@UseGuards(AuthGuard)
 export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TenderReviewController.name);
   private readonly activeReviews = new Map<string, AbortController>();

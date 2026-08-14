@@ -310,7 +310,7 @@ The NestJS API (`apps/api`, :4001):
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
 | `Common` | Shared: `HttpExceptionFilter` (normalized errors), guards, decorators (`@CurrentUser`, `@Public`, `@Roles`) |
 
-> **LLM 调用未收口：** `local-ai/LlmService` 是集中的 DeepSeek/vLLM 网关，但 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 等模块**直接**用 `process.env.DEEPSEEK_API_URL` + `fetch` 调用，绕过 `LlmService`。改 `LlmService` 不会影响这些直连模块。
+> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移。残留：`apps/mall` 的 AI 路由（待整合）。
 
 ### Security Hardening (API)
 
