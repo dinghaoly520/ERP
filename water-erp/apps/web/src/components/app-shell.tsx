@@ -117,7 +117,7 @@ const navGroups: NavGroup[] = [
 ];
 
 const SWDG_USERNAME = "SWDG-01";
-const SWDG_NAV_KEYS = new Set(["tender-write", "tender-review", "bid-analysis"]);
+const SWDG_NAV_KEYS = new Set(["tender-write", "tender-review"]);
 
 const CHAIRMAN_USERNAME = "Swhi-CGZX-00";
 const CHAIRMAN_NAV_KEYS = new Set(["work-arrangements", "dashboard", "progress", "procurements", "projects"]);

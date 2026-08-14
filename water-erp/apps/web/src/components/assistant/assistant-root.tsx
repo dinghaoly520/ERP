@@ -17,8 +17,6 @@ const routeToKey: Record<string, string> = {
   "/work-arrangements": "work-arrangements",
   "/tender-write": "tender-write",
   "/tender-review": "tender-review",
-  "/smart-bid": "smart-bid",
-  "/bid-analysis": "bid-analysis",
   "/admin/password-requests": "password-requests",
 };
 
@@ -30,8 +28,6 @@ const routeToModule: Record<string, string> = {
   "/work-arrangements": "个人中心",
   "/tender-write": "招标文件编写",
   "/tender-review": "招标文件审查",
-  "/bid-analysis": "投标文件分析",
-  "/smart-bid": "智能投标",
   "/admin/password-requests": "密码审批",
 };
 

@@ -76,7 +76,7 @@ The admin/internal staff management console for procurement users (login roles `
 - **供应商管理中心** (`/supplier`) — supplier approval, repository, selection, evaluation
 - **专家管理中心** (`/expert`) — expert entry, repository, extraction, performance evaluation
 - **电子商城管理** (`/mall-management`) — price approval/entry, catalog management, sync & operation logs
-- **AI 投标分析** (`/ai-bid-analysis` · `/bid-analysis` · `/smart-bid`) — per-item LLM bid-analysis dashboards; they read jobs produced by the **separate worker process** (see Architecture → AI Bid Analysis Worker), so no analysis runs unless that worker is started
+- **AI 投标分析** — per-item LLM 投标分析：前端入口已随分工 v3 迁至 :3007 评标管理 tab（「AI 辅助评标进度」卡片：rerun-ai-analysis / retry-ai-bidders / ai-analysis-progress）；:3005 旧版 job 式页面（`/bid-analysis` 等）为死代码已删除（2026-08-14）。分析任务由 **separate worker process** 执行（见 Architecture → AI Bid Analysis Worker），不开 worker 不出队
 - **招投标文档** (`/tender-write` · `/tender-review`) — tender-document authoring + AI review
 - **项目 / 进度 / 工作安排** (`/procurements` · `/projects` · `/progress` · `/work-arrangements`) — procurement-project lifecycle, milestones, work assignments
 - **开评标指挥**（项目详情「开标确认」面板）— 评标前准备与评标后收尾：供应商投标状态/专家确认/评分标准编制/监督时间线/开标进度/归档（完整归档闸门=签字闭环+回流已接收）；评标过程操作在 :3007（分工 v3，见 spec）
@@ -107,7 +107,7 @@ Also includes a dashboard (project list + statistics) and profile management (ex
 
 - **开标任务板** (`/bid`) — 只读，按阶段分区：「开标中」（解密/唱标/确认/异议四计数）/「评标中」（专家签到·投标计数，进入工作区默认评标 tab）/「待确定开标」（截标已过的 DOWNLOAD/SUBMIT，仅提示）/「已结束」（归档·流标只读回看）；行操作进入对应项目工作区
 - **开标大厅** (`/bid/open?id=`) — 实时开标执行：组建开标会话（主持人+解密窗口必填/监督人选填，同阶段幂等写 `BidOpeningSession`）、供应商解密（单条/批量）、唱标录入、开标异议处理、会场交流（ExchangeDrawer）、**监督视图**（原监督端折叠内嵌：时间线/异常事件/批注/日志表/大厅交流只读）、开标完成后横幅【完成开标·移交】生成开标文件包（FileAsset `category=bid_opening_handover`，JSON + SHA-256 指纹，存 MinIO）并 WS 广播 `opening:completed` 回传 :3005（幂等、不改 stage、非启动评标闸门），:3005「开标进度」区块展示「资料已接收·下载」
-- **项目工作区** (`/bid/project/[id]?tab=`) — 四 tab「开标大厅（嵌入大厅组件）／评标管理（**全操作**，2026-08 从 :3005 迁回：启动评标·专家进度·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决（含评标中流标）·澄清答疑）／评分标准（只读：评分项+得分点，编制归 :3005）／评标签字（新增）」；默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；旧链接 `/bid/open?id=` 兼容重定向至此
+- **项目工作区** (`/bid/project/[id]?tab=`) — 四 tab「开标大厅（嵌入大厅组件）／评标管理（**全操作**，2026-08 从 :3005 迁回：启动评标·专家进度·AI 辅助评标进度卡片·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决（含评标中流标）·澄清答疑）／评分标准（只读：评分项+得分点，编制归 :3005）／评标签字（新增）」；默认 tab 随阶段（EVALUATING→评标管理，其余→开标大厅）；旧链接 `/bid/open?id=` 兼容重定向至此
 - **评标签字**（工作区 tab，2026-08 新增）— 评标结果生成后可用：生成签字包 PDF（《评标报告》十项法定内容 + 签字页含「评标专家声明」与在线操作留痕 + 个人评分确认表×N + 异议工单 + 澄清纪要 + 动议决议）→ 主持人打印 → 专家现场手写签字 → 扫描回传 → 逐专家登记「已签字 / 拒绝(附书面不同意见) / 视为同意(拒绝且未陈述理由)」→ 全员闭环 → 生成评标回流包流转回 :3005。完整归档闸门 = 签字闭环 + 回流已生成。详见 `docs/superpowers/specs/2026-08-13-expert-paper-signing-design.md`
 
 :3005 保留（不迁）：「开标确认」面板的评标前准备（供应商投标状态·催促未投递、专家确认·正选候补替换、评分标准编制、监督时间线、开标进度·开标前流标、主持人指派·延时开标·按时开标）与评标后收尾（评标回流接收、完整归档·签字闭环闸门、公示、中标通知书）。评标管理/异议裁决/澄清答疑已迁回 :3007（:3005 面板对应三区块已移除）。
