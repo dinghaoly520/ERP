@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import './rsvp.css';
 
@@ -14,7 +14,7 @@ interface RsvpView {
   rsvpNo?: string; respondedAt?: string | null;
 }
 
-export default function ExpertRsvpPage() {
+function ExpertRsvpPage() {
   const params = useSearchParams();
   const token = params.get('t') || '';
   const [view, setView] = useState<RsvpView | null>(null);
@@ -105,5 +105,15 @@ export default function ExpertRsvpPage() {
         <p className="rv-credit">智慧水发 · 蜀水云采 · 在线开评标</p>
       </section>
     </main>
+  );
+}
+
+// Next 16 CSR bailout：useSearchParams 须处于 Suspense 边界内方可静态预渲染；
+// 本文件为 client page，force-dynamic 不生效，故以包装组件提供边界（2026-08-14 修 build:expert 既有红）。
+export default function RsvpPage() {
+  return (
+    <Suspense fallback={null}>
+      <ExpertRsvpPage />
+    </Suspense>
   );
 }

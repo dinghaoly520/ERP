@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { portalURL } from '@water-erp/config';
@@ -33,7 +33,7 @@ const DEMO_ACCOUNTS: Record<Tab, { username: string; password: string }> =
     ? { expert: { username: '', password: '' }, admin: { username: '', password: '' } }
     : { expert: { username: '周祥志', password: 'expert@2026' }, admin: { username: 'Swhi-CGZX-admin', password: 'Swhi-CGZX-admin@2026' } };
 
-export default function ExpertLoginPage() {
+function ExpertLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // 平板深链登录后回到原页面：仅允许站内相对路径，防开放重定向
@@ -195,5 +195,15 @@ export default function ExpertLoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+// Next 16 CSR bailout：useSearchParams 须处于 Suspense 边界内方可静态预渲染；
+// 本文件为 client page，force-dynamic 不生效，故以包装组件提供边界（2026-08-14 修 build:expert 既有红）。
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <ExpertLoginPage />
+    </Suspense>
   );
 }
