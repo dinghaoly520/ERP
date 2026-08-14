@@ -20,12 +20,10 @@ import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
-import { openingHallApi } from '@/lib/opening-hall';
 import type { HallMessagePayload } from '@water-erp/shared';
 import { formatBytes } from '@/lib/utils';
 import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 import { ScoreHistoryDrawer } from '@/components/evaluate/score-history-drawer';
-import { getScoreHistory as _getScoreHistory } from '@/lib/api';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
