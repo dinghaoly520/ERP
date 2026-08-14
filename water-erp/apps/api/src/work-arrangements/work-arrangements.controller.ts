@@ -7,9 +7,7 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { AdminGuard } from '../auth/admin.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -38,7 +36,7 @@ export class WorkArrangementsController {
   }
 
   @Get('admin/all')
-  @UseGuards(AdminGuard)
+  @Roles('admin')
   listAll() {
     return this.workArrangementsService.listAll();
   }
@@ -60,7 +58,7 @@ export class WorkArrangementsController {
   }
 
   @Post('daily-plan/refresh-all')
-  @UseGuards(AdminGuard)
+  @Roles('admin')
   async refreshAllDailyPlans() {
     return this.workArrangementsService.refreshDailyGreeting();
   }

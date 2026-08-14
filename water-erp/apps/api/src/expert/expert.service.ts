@@ -21,8 +21,8 @@ import { decryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { recomputeExpertProgress, recomputeItemFromDecisions } from '../bid/score-recalculate.helper';
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
-import { parseConflictedIds } from './expert.util';
-import { checkScoreAnomaly, type ScoreRecordInput } from './expert-deviation';
+import { parseConflictedIds } from '../common/scoring/expert.util';
+import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
 
 @Injectable()

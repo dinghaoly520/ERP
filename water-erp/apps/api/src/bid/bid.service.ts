@@ -24,9 +24,9 @@ import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-ar
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { openField } from '../common/crypto/field-crypto';
-import { parseConflictedIds } from '../expert/expert.util';
+import { parseConflictedIds } from '../common/scoring/expert.util';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
-import { checkScoreAnomaly, type ScoreRecordInput } from '../expert/expert-deviation';
+import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { Prisma, ScoreCategory } from '@prisma/client';
 import { isBondQualified } from './bid-bond-status';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';

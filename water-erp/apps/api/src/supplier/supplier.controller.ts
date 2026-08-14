@@ -3,7 +3,6 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { SupplierService } from './supplier.service';
-import { ProcurementGuard } from './procurement.guard';
 import { OwnerGuard } from './owner.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -264,7 +263,7 @@ export class SupplierController {
   }
 
   @Get('eliminate-candidates')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '供应商淘汰候选扫描（预警，不自动停用）' })
   async reviewEliminationCandidates() {
     return this.supplierService.reviewEliminationCandidates();
@@ -327,28 +326,27 @@ export class SupplierController {
   }
 
   @Post(':id/approve')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '审核通过' })
   async approve(@Param('id') id: string, @Request() req: any) {
     return this.supplierService.approve(id, req.user?.sub);
   }
 
   @Post(':id/reject')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '审核不通过' })
   async reject(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
     return this.supplierService.reject(id, dto.reason, req.user?.sub);
   }
 
   @Post(':id/return')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '退回补正' })
   async return(@Param('id') id: string, @Body() dto: UpdateSupplierStatusDto, @Request() req: any) {
     return this.supplierService.return(id, dto.reason, req.user?.sub);
   }
 
   @Patch(':id/status')
-  @UseGuards(ProcurementGuard) // P1：与 restore 对齐，统一由 ProcurementGuard 收口角色
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '更新供应商状态（停用/黑名单）' })
   async updateStatus(
@@ -365,14 +363,14 @@ export class SupplierController {
   }
 
   @Post(':id/restore')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '恢复/解禁供应商（停用或黑名单 → 已入库；黑名单解禁须填理由）' })
   async restoreStatus(@Param('id') id: string, @Body() body: { reason?: string }, @Request() req: any) {
     return this.supplierService.restoreStatus(id, req.user?.sub, body?.reason);
   }
 
   @Post(':id/reactivate')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '复活被拒绝的供应商（REJECTED → PENDING）' })
   async reactivate(@Param('id') id: string, @Request() req: any) {
     return this.supplierService.reactivate(id, req.user?.sub);
@@ -402,14 +400,14 @@ export class SupplierController {
   }
 
   @Post('changes/:changeId/approve')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '审核变更通过' })
   async approveChange(@Param('changeId') changeId: string, @Request() req: any) {
     return this.supplierService.approveChange(changeId, req.user.sub);
   }
 
   @Post('changes/:changeId/reject')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '拒绝变更' })
   async rejectChange(@Param('changeId') changeId: string, @Body() dto: ApproveChangeDto, @Request() req: any) {
     return this.supplierService.rejectChange(changeId, req.user.sub, dto.rejectReason ?? '');
@@ -468,14 +466,14 @@ export class SupplierController {
   }
 
   @Post(':id/eliminate')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '人工确认供应商淘汰' })
   async confirmEliminate(@Param('id') id: string, @Body() body: { reason: string }, @Request() req: any) {
     return this.supplierService.confirmEliminate(id, body.reason, req.user?.sub);
   }
 
   @Get(':id/timeline')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '供应商生命周期时间线' })
   async getTimeline(@Param('id') id: string) {
     return this.supplierService.getSupplierTimeline(id);
@@ -496,28 +494,28 @@ export class SupplierController {
   }
 
   @Get(':id/communications')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '供应商沟通记录' })
   async getCommunications(@Param('id') id: string) {
     return this.supplierService.getSupplierCommunications(id);
   }
 
   @Get(':id/documents')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '供应商文件档案列表' })
   async listDocuments(@Param('id') id: string) {
     return this.supplierService.listDocuments(id);
   }
 
   @Post(':id/documents')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '上传供应商文件' })
   async uploadDocument(@Param('id') id: string, @Body() body: { type: string; name: string; fileUrl: string; fileSize?: number; note?: string }, @Request() req: any) {
     return this.supplierService.uploadDocument(id, body, req.user?.sub);
   }
 
   @Delete(':id/documents/:docId')
-  @UseGuards(ProcurementGuard)
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '删除供应商文件' })
   async deleteDocument(@Param('docId') docId: string) {
     return this.supplierService.deleteDocument(docId);

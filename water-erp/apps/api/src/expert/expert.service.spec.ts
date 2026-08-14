@@ -798,7 +798,7 @@ describe('ExpertService', () => {
     });
 
     it('checkScoreAnomaly：偏离≥30% 返回 danger 告警', () => {
-      const { checkScoreAnomaly } = require('./expert-deviation');
+      const { checkScoreAnomaly } = require('../common/scoring/expert-deviation');
       const alert = checkScoreAnomaly(
         { expertId: 'e3', scoreItemId: 'i1', supplierId: 's1', score: 30 },
         [
@@ -812,7 +812,7 @@ describe('ExpertService', () => {
     });
 
     it('checkScoreAnomaly：组内仅 1 人时返回 null', () => {
-      const { checkScoreAnomaly } = require('./expert-deviation');
+      const { checkScoreAnomaly } = require('../common/scoring/expert-deviation');
       const alert = checkScoreAnomaly(
         { expertId: 'e1', scoreItemId: 'i1', supplierId: 's1', score: 80 },
         [],

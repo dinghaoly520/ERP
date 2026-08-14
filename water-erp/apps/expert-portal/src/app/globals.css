@@ -2,8 +2,6 @@
 
 @import "tailwindcss";
 
-/* 让 Tailwind v4 扫描 @water-erp/ui（node_modules 默认被忽略），否则共享组件类名不会生成。 */
-@source "../../node_modules/@water-erp/ui";
 
 /* =============================================================================
    智慧水发 — 专家评审工作站 (Industrial Blue Color System)

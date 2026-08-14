@@ -6,6 +6,7 @@ import { motion, AnimatePresence, LayoutGroup, Reorder } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { portalURL } from '@water-erp/config';
+import { api as apiClient } from '@/lib/api';
 import PriceChart from './price-chart';
 import { HeroSection } from '@/components/hero-section';
 import type { MallAssistantContext } from './assistant/types';
@@ -276,40 +277,27 @@ export default function MallPage() {
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    fetch('/api/auth/me', { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
-      .then(async r => {
-        if (!r.ok) {
-          router.push('/login');
-          return;
-        }
-        const data = await r.json().catch(() => null);
-        setCurrentUser(data?.user || data || null);
-      })
+    apiClient.get('/auth/me')
+      .then((data: any) => setCurrentUser(data?.user || data || null))
       .catch(() => router.push('/login'));
   }, [router]);
 
   // ===== 数据获取：useAsyncState（消灭静默吞错） =====
   const catalogAsync = useAsyncState(async () => {
-    const r = await fetch('/api/catalog?includeInactive=true', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
-    if (!r.ok) throw new Error(`目录加载失败（${r.status}）`);
-    const data = await r.json();
-    return Array.isArray(data) ? (data as CatalogItem[]) : [];
+    const data = await apiClient.get<CatalogItem[]>('/catalog?includeInactive=true');
+    return Array.isArray(data) ? data : [];
   }, { deps: [] });
 
   const items = catalogAsync.data ?? [];
   const catalogLoading = catalogAsync.status === 'loading' || catalogAsync.status === 'idle';
 
   const suppliersAsync = useAsyncState(async () => {
-    const r = await fetch('/api/catalog/suppliers', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
-    if (!r.ok) throw new Error('供应商加载失败');
-    return (await r.json()) as SupplierAgg[];
+    return (await apiClient.get<SupplierAgg[]>('/catalog/suppliers')) ?? [];
   }, { deps: [] });
   const suppliers = suppliersAsync.data ?? [];
 
   const favoritesAsync = useAsyncState(async () => {
-    const r = await fetch('/api/catalog/favorites', { headers: { 'X-Portal': 'mall' }, credentials: 'include' });
-    if (!r.ok) throw new Error('收藏加载失败');
-    const data = await r.json();
+    const data = await apiClient.get<any[]>('/catalog/favorites');
     return (Array.isArray(data) ? data : []).map((i: any) => i.id as string);
   }, { deps: [] });
   useEffect(() => { if (favoritesAsync.data) setFavoriteIds(favoritesAsync.data); }, [favoritesAsync.data]);
@@ -317,8 +305,7 @@ export default function MallPage() {
   useEffect(() => {
     if (!detail) { setDetailHistory([]); setDetailHistoryLoading(false); return; }
     setDetailHistoryLoading(true);
-    fetch(`/api/catalog/${detail.id}/history`, { headers: { 'X-Portal': 'mall' }, credentials: 'include' })
-      .then(async r => (r.ok ? await r.json() : []))
+    apiClient.get<any[]>(`/catalog/${detail.id}/history`)
       .then(d => setDetailHistory(Array.isArray(d) ? d : []))
       .catch(() => setDetailHistory([]))
       .finally(() => setDetailHistoryLoading(false));
@@ -565,8 +552,11 @@ export default function MallPage() {
     setAssistantInitialQuestion(question);
   };
 
+  // 兼容层：既有调用方传完整 /api/... 路径并自行检查 res.ok —— 委托给共享客户端
+  // （X-Portal 注入 / credentials / 401 兜底统一在 @water-erp/client）。
+  // 新代码请直接用 apiClient.get/post/...（路径不带 /api 前缀）。
   const api = (path: string, init?: RequestInit) =>
-    fetch(path, { ...init, headers: { 'X-Portal': 'mall', ...((init?.headers as Record<string, string> | undefined) || {}) }, credentials: 'include' });
+    apiClient.raw(path.replace(/^\/api/, ''), init);
 
   const refreshLists = async () => {
     const res = await api('/api/budget/lists');
@@ -660,17 +650,11 @@ export default function MallPage() {
   const aiScenarioBudget = async (scenario: string): Promise<{ code: string; qty: number }[] | null> => {
     try {
       const catalog = items.map(i => ({ code: i.code, name: i.name, unit: i.unit, price: i.referencePrice, category: i.category }));
-      const res = await fetch('/api/ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `采购场景：${scenario}。请从下列采购目录中为该场景挑选合适物资并给出数量建议。严格只返回一个JSON数组，不要解释或markdown代码块，元素形如 {"code":"目录编码","qty":数量,"reason":"简短理由"}，code 必须为目录中真实编码，推荐6-10项。目录：${JSON.stringify(catalog)}`,
-          context: { scenario, totalItems: catalog.length },
-        }),
+      const data = await apiClient.post<{ answer?: string }>('/ai', {
+        message: `采购场景：${scenario}。请从下列采购目录中为该场景挑选合适物资并给出数量建议。严格只返回一个JSON数组，不要解释或markdown代码块，元素形如 {"code":"目录编码","qty":数量,"reason":"简短理由"}，code 必须为目录中真实编码，推荐6-10项。目录：${JSON.stringify(catalog)}`,
+        context: { scenario, totalItems: catalog.length },
       });
-      if (!res.ok) return null;
-      const { answer } = await res.json();
-      const match = answer && String(answer).match(/\[[\s\S]*\]/);
+      const match = data?.answer && String(data.answer).match(/\[[\s\S]*\]/);
       if (!match) return null;
       const arr = JSON.parse(match[0]);
       if (!Array.isArray(arr)) return null;
@@ -750,7 +734,7 @@ export default function MallPage() {
   const userInitial = registeredName.slice(0, 1);
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Portal': 'mall' }, credentials: 'include' });
+    try { await apiClient.post('/auth/logout'); } catch { /* 登出失败也照常跳转 */ }
     router.push('/login');
   };
 

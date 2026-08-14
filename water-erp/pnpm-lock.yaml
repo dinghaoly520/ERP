@@ -286,9 +286,6 @@ importers:
       '@water-erp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@water-erp/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
       lucide-react:
         specifier: ^1.8.0
         version: 1.17.0(react@19.2.4)
@@ -347,9 +344,6 @@ importers:
       '@water-erp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@water-erp/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
       atrament:
         specifier: ^5.1.0
         version: 5.1.0
@@ -396,6 +390,9 @@ importers:
 
   apps/mall:
     dependencies:
+      '@water-erp/client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@water-erp/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -537,18 +534,12 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.4.0(react-hook-form@7.80.0(react@19.2.4))
-      '@tanstack/react-query':
-        specifier: ^5.96.2
-        version: 5.101.0(react@19.2.4)
       '@water-erp/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@water-erp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@water-erp/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -656,6 +647,12 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/client:
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   packages/config:
     devDependencies:
       typescript:
@@ -663,37 +660,6 @@ importers:
         version: 6.0.3
 
   packages/shared: {}
-
-  packages/ui:
-    dependencies:
-      '@water-erp/shared':
-        specifier: workspace:*
-        version: link:../shared
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      tailwind-merge:
-        specifier: ^3.3.0
-        version: 3.6.0
-    devDependencies:
-      '@types/react':
-        specifier: ^19
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: ^19
-        version: 19.2.3(@types/react@19.2.17)
-      lucide-react:
-        specifier: ^1.17.0
-        version: 1.17.0(react@19.2.4)
-      react:
-        specifier: 19.2.4
-        version: 19.2.4
-      react-dom:
-        specifier: 19.2.4
-        version: 19.2.4(react@19.2.4)
-      typescript:
-        specifier: ^5
-        version: 5.9.3
 
 packages:
 
@@ -2940,14 +2906,6 @@ packages:
 
   '@tailwindcss/postcss@4.3.0':
     resolution: {integrity: sha512-Jm05Tjx+9yCLGv5qw1c+84Psds8MnyrEQYCB+FFk2lgGiUjlRqdxke4mVTuYrj2xnVZqKim2Apr5ySuQRYAw/w==}
-
-  '@tanstack/query-core@5.101.0':
-    resolution: {integrity: sha512-cQetA74EB+seWySv1TTKr828TnP0u39m6LykwDXIo84SNortpDkp30TMEjkqtYCNP9c40uT/iwl6MLiufEt0Ow==}
-
-  '@tanstack/react-query@5.101.0':
-    resolution: {integrity: sha512-rLlJXSpkqfizLWgkR5+eLeIk0MvTx/meEIR7LRjxic+qxiQP8zVjq7BqQkiCMNLQBlLfuOLqqr6KO5GtrDlmSg==}
-    peerDependencies:
-      react: ^18 || ^19
 
   '@tokenizer/inflate@0.4.1':
     resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
@@ -10418,13 +10376,6 @@ snapshots:
       '@tailwindcss/oxide': 4.3.0
       postcss: 8.5.15
       tailwindcss: 4.3.0
-
-  '@tanstack/query-core@5.101.0': {}
-
-  '@tanstack/react-query@5.101.0(react@19.2.4)':
-    dependencies:
-      '@tanstack/query-core': 5.101.0
-      react: 19.2.4
 
   '@tokenizer/inflate@0.4.1':
     dependencies:

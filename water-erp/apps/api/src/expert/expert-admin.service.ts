@@ -18,7 +18,7 @@ import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import type { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 import type { UpdateExpertProfileDto } from './dto/expert-admin-misc.dto';
-import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from './expert-deviation';
+import { computeExpertMeanDeviations, meanOrNull, shouldDeactivateExpert } from '../common/scoring/expert-deviation';
 import { buildExpertPortrait } from './expert-portrait.util';
 import { NotificationService } from '../notification/notification.service';
 
