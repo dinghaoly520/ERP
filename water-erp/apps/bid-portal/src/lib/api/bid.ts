@@ -154,23 +154,6 @@ export function resumeOpening(projectId: string) {
   return api.post(`/bid/projects/${projectId}/resume`, {});
 }
 
-/* ── 工作区·评标管理（只读）：评标结果汇总 ── */
-
-export interface EvaluationResultRow {
-  supplierId: string;
-  supplierName: string;
-  totalScore: number;
-  rank: number;
-  recommended: boolean;
-  bidPrice?: string | null;
-  disqualified?: boolean;
-  averageScore?: string;
-}
-
-export function listEvaluationResults(projectId: string) {
-  return api.get<EvaluationResultRow[]>(`/bid/projects/${projectId}/evaluation-results`);
-}
-
 /* ── 工作区·AI 辅助评标进度与补救（评标管理 tab 顶部卡片）── */
 
 export interface AiBidderProgressRow {

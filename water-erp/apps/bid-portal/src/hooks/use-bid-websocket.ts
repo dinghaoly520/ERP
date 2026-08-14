@@ -1,5 +1,11 @@
 'use client';
 
+/**
+ * 开评标实时事件 hook（与 apps/web/src/hooks/use-bid-websocket.ts 双份维护，改动需双向同步）。
+ * :3007 开标任务板/项目工作区用：开标进度（decrypt:status / opening:confirmed / opening:disputed）、
+ * 阶段流转（stage:change）、轮次（round:status-change）、评标在场（expert:presence）等事件驱动刷新。
+ */
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { portalURL } from '@water-erp/config';
@@ -8,6 +14,7 @@ import {
   type ConnectionState,
   type DecryptStatusPayload,
   type StageChangePayload,
+  type EvaluationStartedPayload,
   type SupervisionLogPayload,
   type AnomalyDetectedPayload,
   type HallMessagePayload,
@@ -21,6 +28,8 @@ import {
   type ExpertPresencePayload,
   type ExpertPresenceAggregatePayload,
   type RoundStatusChangePayload,
+  type ClarificationCreatedPayload,
+  type ClarificationRepliedPayload,
 } from '@water-erp/shared';
 
 function wsUrl(): string {
@@ -28,13 +37,12 @@ function wsUrl(): string {
   return portalURL('api', '/bid');
 }
 
-/** Phase 3 裁剪：:3007 保留开标执行相关事件组
- * （decrypt / stage / supervision / anomaly / hall / opening）；
- * 评标在场事件已随只读评标管理 tab 回归。
- * 澄清事件仍随澄清答疑留在 :3005。 */
+/** 分工 v3（2026-08-13）：评标管理/异议裁决/澄清答疑为 :3007 现场全操作——
+ * 启动评标、评标在场与澄清事件随迁回事件组归本 hook（解密/监督/大厅/开标事件组为开标执行保留）。 */
 export interface BidWsHandlers {
   onDecryptStatus?: (d: DecryptStatusPayload) => void;
   onStageChange?: (d: StageChangePayload) => void;
+  onEvaluationStarted?: (d: EvaluationStartedPayload) => void;
   onSupervisionLog?: (d: SupervisionLogPayload) => void;
   onAnomalyDetected?: (d: AnomalyDetectedPayload) => void;
   onHallMessage?: (d: HallMessagePayload) => void;
@@ -48,6 +56,8 @@ export interface BidWsHandlers {
   onRoundStatusChange?: (d: RoundStatusChangePayload) => void;
   onExpertPresence?: (d: ExpertPresencePayload) => void;
   onExpertPresenceAggregate?: (d: ExpertPresenceAggregatePayload) => void;
+  onClarificationCreated?: (d: ClarificationCreatedPayload) => void;
+  onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
   /** G1: 重连后回调——组件可执行全量数据刷新补偿丢失的事件 */
   onReconnected?: () => void;
 }
@@ -148,6 +158,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     };
     on(BID_EVENT.DECRYPT_STATUS, 'onDecryptStatus');
     on(BID_EVENT.STAGE_CHANGE, 'onStageChange');
+    on(BID_EVENT.EVALUATION_STARTED, 'onEvaluationStarted');
     on(BID_EVENT.SUPERVISION_LOG, 'onSupervisionLog');
     on(BID_EVENT.ANOMALY_DETECTED, 'onAnomalyDetected');
     on(BID_EVENT.HALL_MESSAGE_NEW, 'onHallMessage');
@@ -161,6 +172,8 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.ROUND_STATUS_CHANGE, 'onRoundStatusChange');
     on(BID_EVENT.EXPERT_PRESENCE, 'onExpertPresence');
     on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, 'onExpertPresenceAggregate');
+    on(BID_EVENT.CLARIFICATION_CREATED, 'onClarificationCreated');
+    on(BID_EVENT.CLARIFICATION_REPLIED, 'onClarificationReplied');
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {
@@ -172,6 +185,8 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
 
   useEffect(() => {
     if (!projectId) return;
+    // 切换项目时重置首连标记——新项目的第一次连接不算重连（与 web 版对齐）
+    hasConnectedOnce.current = false;
     connect();
     return () => {
       manualClose.current = true;
