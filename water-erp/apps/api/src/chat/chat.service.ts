@@ -7,6 +7,7 @@ export interface ChatUserRow {
   displayName: string;
   role: string;
   avatar: string | null;
+  company: string | null;
   department: { id: string; name: string } | null;
   isOnline: boolean;
 }
@@ -84,6 +85,7 @@ export class ChatService {
         displayName: true,
         role: true,
         avatar: true,
+        company: true,
         department: { select: { id: true, name: true } },
       },
       orderBy: [{ displayName: 'asc' }],
@@ -120,6 +122,7 @@ export class ChatService {
         displayName: true,
         role: true,
         avatar: true,
+        company: true,
         department: { select: { name: true } },
       },
     });
@@ -133,7 +136,7 @@ export class ChatService {
           peerId,
           peer: peer
             ? { ...peer }
-            : { id: peerId, displayName: '未知用户', role: '', avatar: null, department: null },
+            : { id: peerId, displayName: '未知用户', role: '', avatar: null, company: null, department: null },
           lastMessage: entry.lastMessage
             ? {
                 id: entry.lastMessage.id,
@@ -183,9 +186,7 @@ export class ChatService {
     if (!input?.receiverId) {
       throw new BadRequestException({ error: '缺少接收者', code: 'MISSING_RECEIVER' });
     }
-    if (input.receiverId === senderId) {
-      throw new BadRequestException({ error: '不能给自己发消息', code: 'SELF_MESSAGE' });
-    }
+    // 允许 receiverId === senderId：作为"资料备份"笔记本使用
     const type = input.type || 'text';
     if (!['text', 'image', 'file'].includes(type)) {
       throw new BadRequestException({ error: '消息类型非法', code: 'INVALID_TYPE' });

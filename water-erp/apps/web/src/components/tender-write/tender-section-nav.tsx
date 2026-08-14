@@ -69,10 +69,8 @@ export function TenderSectionNav({
               data-active={isActive}
               onClick={() => onSelect(section.key)}
               className={[
-                'group relative w-full rounded-[10px] px-3 py-2.5 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(107,149,240,0.24)]',
-                isActive
-                  ? 'bg-[color-mix(in_oklch,var(--accent)_12%,transparent)]'
-                  : 'hover:bg-[oklch(1_0_0_/_0.35)]',
+                'tender-nav-tile group relative w-full rounded-[10px] px-3 py-2.5 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(107,149,240,0.24)]',
+                isActive ? 'is-active' : '',
               ].join(' ')}
             >
               <div className="flex items-start justify-between gap-2">

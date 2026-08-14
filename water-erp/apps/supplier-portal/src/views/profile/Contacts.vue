@@ -4,7 +4,7 @@ import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createDialogLeaveGuard } from '@/composables'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { Contact, AlertTriangle } from 'lucide-vue-next'
+import { Contact, AlertTriangle, Phone as LucidePhone } from 'lucide-vue-next'
 
 const supplierStore = useSupplierStore();
 const loading = ref(true)
@@ -93,7 +93,7 @@ async function handleDelete(id: string) {
     </div>
 
     <div v-else class="detail-card ct-empty">
-      <div class="ct-empty-icon"><el-icon :size="28"><Phone /></el-icon></div>
+      <div class="sp-empty-icon"><LucidePhone :size="22" :stroke-width="1.75" /></div>
       <p class="ct-empty-title">暂无联系人</p>
       <p class="ct-empty-desc">请添加企业联系人信息</p>
     </div>
@@ -197,8 +197,7 @@ async function handleDelete(id: string) {
 .contact-name { font-weight: 700; font-size: 14px; color: var(--foreground); }
 
 /* ── Empty state ── */
-.ct-empty { text-align: center; padding: 64px 24px; margin-top: 16px; }
-.ct-empty-icon { color: var(--muted-foreground); margin-bottom: 8px; }
+.ct-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 64px 24px; margin-top: 16px; }
 .ct-empty-title { margin: 12px 0 4px; font-size: 15px; font-weight: 700; color: var(--muted-foreground); }
 .ct-empty-desc { margin: 0; font-size: 13px; color: var(--muted-foreground); }
 

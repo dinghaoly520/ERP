@@ -6,7 +6,7 @@ import { useNotificationStore } from '@/stores/notification'
 import { useBidStore } from '@/stores/bid'
 import SkeletonCard from '@/components/SkeletonCard.vue'
 import SpKpi from '@/components/SpKpi.vue'
-import { AlertTriangle } from 'lucide-vue-next'
+import { AlertTriangle, Folder, Bell } from 'lucide-vue-next'
 import { supplierApi } from '@/api/supplier'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
@@ -353,7 +353,7 @@ async function submitConvert() {
             <button class="neu-btn-xs" @click="router.push('/bids')">全部<el-icon style="font-size:12px"><ArrowRight /></el-icon></button>
           </div>
           <div v-if="projectRows.length === 0" class="sp-empty" style="padding:32px 0">
-            <div class="sp-empty-icon"><el-icon :size="20"><Folder /></el-icon></div>
+            <div class="sp-empty-icon"><Folder :size="22" :stroke-width="1.75" /></div>
             <div class="sp-empty-text">暂无采购项目</div>
           </div>
           <div v-else class="db-list">
@@ -443,7 +443,7 @@ async function submitConvert() {
               <button class="neu-btn-xs" @click="router.push('/notifications')">全部<el-icon style="font-size:12px"><ArrowRight /></el-icon></button>
             </div>
             <div v-if="notifFeed.length === 0" class="sp-empty" style="padding:24px 0">
-              <div class="sp-empty-icon"><el-icon :size="18"><Bell /></el-icon></div>
+              <div class="sp-empty-icon"><Bell :size="22" :stroke-width="1.75" /></div>
               <div class="sp-empty-text">暂无消息</div>
             </div>
             <div v-else class="db-msg-list">

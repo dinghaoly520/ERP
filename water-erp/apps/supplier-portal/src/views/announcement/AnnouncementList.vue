@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAnnouncementStore } from '@/stores/announcement'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { Megaphone, AlertTriangle } from 'lucide-vue-next'
+import { Megaphone, AlertTriangle, Bell } from 'lucide-vue-next'
 import dayjs from 'dayjs'
 
 const router = useRouter(); const store = useAnnouncementStore(); const loading = ref(true); const error = ref(false); const activeType = ref(''); const search = ref(''); const currentPage = ref(1)
@@ -46,7 +46,7 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
       <div style="display:flex;justify-content:center;padding-top:16px"><el-pagination v-model:current-page="currentPage" :total="store.total" :page-size="10" layout="prev,pager,next" @current-change="handlePageChange" /></div>
     </div>
 
-    <div v-else class="sp-empty-panel"><el-icon :size="32"><Bell /></el-icon><p class="sp-empty-text">暂无公告</p><p class="sp-empty-desc">当前没有符合条件的公告信息</p></div>
+    <div v-else class="sp-empty-panel"><div class="sp-empty-icon"><Bell :size="22" :stroke-width="1.75" /></div><p class="sp-empty-text">暂无公告</p><p class="sp-empty-desc">当前没有符合条件的公告信息</p></div>
     </template>
   </div>
 </template>

@@ -7,7 +7,7 @@ import dayjs from 'dayjs'
 import { uploadFile, type FileAssetResponse } from '@/api/upload'
 import { createDialogLeaveGuard } from '@/composables'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { Award, AlertTriangle } from 'lucide-vue-next'
+import { Award, AlertTriangle, Folder } from 'lucide-vue-next'
 
 const supplierStore = useSupplierStore()
 const loading = ref(true)
@@ -330,9 +330,7 @@ const nextExpiring = computed(() => {
 
       <!-- ═══ Empty State ═══ -->
       <div v-else class="qual-empty">
-        <div class="qual-empty-icon">
-          <el-icon :size="28"><Folder /></el-icon>
-        </div>
+        <div class="sp-empty-icon"><Folder :size="22" :stroke-width="1.75" /></div>
         <p class="qual-empty-title">暂无资质材料</p>
         <p class="qual-empty-desc">点击上方「添加资质」按钮，上传您的企业资质证照</p>
       </div>
@@ -795,6 +793,9 @@ const nextExpiring = computed(() => {
 /* ═══ Empty State — neumorphic plate ═══ */
 .qual-empty {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
   padding: 64px 24px;
   border-radius: 16px;
@@ -802,7 +803,6 @@ const nextExpiring = computed(() => {
   box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
 }
 
-.qual-empty-icon  { color: var(--muted-foreground); margin-bottom: 8px; }
 .qual-empty-title { font-size: 15px; font-weight: 700; color: var(--muted-foreground); margin: 12px 0 4px; }
 .qual-empty-desc  { font-size: 13px; color: var(--muted-foreground); margin: 0; }
 

@@ -41,7 +41,7 @@ onMounted(load)
     </div>
 
     <div v-if="filtered.length===0&&!loading" class="sp-empty app-empty">
-      <div class="sp-empty-icon"><Inbox :size="20" :stroke-width="1.75" /></div>
+      <div class="sp-empty-icon"><Inbox :size="22" :stroke-width="1.75" /></div>
       <div class="sp-empty-text">暂无申请记录</div>
       <div class="sp-empty-desc">前往「集中采购目录」申请供货或新增品类</div>
     </div>

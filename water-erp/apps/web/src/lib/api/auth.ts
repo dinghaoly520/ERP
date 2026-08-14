@@ -33,6 +33,7 @@ export type AuthUser = {
   email?: string | null;
   phone?: string | null;
   officeLocation?: string | null;
+  company?: string | null;
   avatar?: string | null;
   isActive?: boolean;
   createdAt?: string | null;
@@ -51,6 +52,7 @@ export type UpdateProfileInput = {
   departmentId?: string | null;
   phone?: string | null;
   officeLocation?: string | null;
+  company?: string | null;
   avatar?: string | null;
 };
 

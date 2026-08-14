@@ -102,9 +102,19 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
       });
       beginTenderWriteSession(createTenderWriteSessionId());
 
-      // Prefer the redirect param from the middleware (where user was trying to go),
-      // falling back to the role-based default destination.
-      const destination = redirectTo ?? getPostLoginDestination(result.role, result.username);
+      // Prefer the redirect param, then user's defaultHomePage, then role-based fallback.
+      let destination = redirectTo;
+      if (!destination) {
+        try {
+          const settings = await fetchUserSettings();
+          if (settings?.defaultHomePage) {
+            destination = getHomePageRoute(settings.defaultHomePage);
+          }
+        } catch { /* 设置加载失败，回退到角色路由 */ }
+      }
+      if (!destination) {
+        destination = getPostLoginDestination(result.role, result.username);
+      }
 
       startTransition(() => {
         router.push(destination);

@@ -29,6 +29,7 @@ model User {
   email          String?
   phone          String?
   officeLocation String?     @map("office_location")
+  company        String?
   avatar         String?
   passwordHash   String?
   role           String      @default("internal_user")
@@ -73,6 +74,9 @@ model User {
   catalogVersions                CatalogVersion[]
   catalogInquiries               CatalogInquiry[]
   invitationsCreated             SupplierInvitation[]      @relation("InvitationCreator")
+
+  // ── 工作印记 ──
+  userBadges                     UserBadge[]
 
   // ── 即时聊天 ──
   chatSent     ChatMessage[] @relation("ChatMessageSender")
@@ -2703,4 +2707,39 @@ model BidSignPacket {
 
   project BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // 无需 @@index([projectId])——@unique 已自带唯一索引
+}
+
+// ── 工作印记（Badge） ──
+
+/// 印记定义（全系统共用一份，seed 注入）
+model BadgeDefinition {
+  code            String   @id
+  name            String
+  category        String   // quantity | velocity | quality | tenure | collaboration
+  description     String
+  iconKey         String   // Lucide 图标名
+  levelThresholds Json     // { bronze: 50, silver: 200, gold: 500, platinum: 1000 }
+  unit            String   // "项" | "天" | "个"
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  userBadges      UserBadge[]
+}
+
+/// 用户印记进度（每日 cron 计算）
+model UserBadge {
+  id              String   @id @default(cuid())
+  userId          String
+  badgeCode       String
+  currentValue    Int      @default(0)
+  currentLevel    String?  // bronze | silver | gold | platinum | null
+  awardedLevels   Json     // { bronze: "2026-03-12", silver: null }
+  updatedAt       DateTime @updatedAt
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge           BadgeDefinition   @relation(fields: [badgeCode], references: [code])
+
+  @@unique([userId, badgeCode])
+  @@index([userId])
+  @@index([badgeCode])
 }

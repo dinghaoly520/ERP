@@ -29,6 +29,12 @@ export class UpdateProfileDto {
   @IsString()
   officeLocation?: string | null;
 
+  @ApiPropertyOptional({ description: '所属公司', example: '四川水发勘测设计研究有限公司', nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  company?: string | null;
+
   @ApiPropertyOptional({ description: '头像 URL', nullable: true })
   @IsOptional()
   @IsString()

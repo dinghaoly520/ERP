@@ -1,14 +1,18 @@
-import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Body, UseGuards, Req } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { UserSettingsService } from './user-settings.service';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
+import { AuditService } from '../audit/audit.service';
 
 @Controller('user-settings')
 @UseGuards(AuthGuard)
 export class UserSettingsController {
-  constructor(private readonly userSettings: UserSettingsService) {}
+  constructor(
+    private readonly userSettings: UserSettingsService,
+    private readonly auditService: AuditService,
+  ) {}
 
   @Get()
   async getSettings(@CurrentUser() user: AuthenticatedUser) {
@@ -19,7 +23,16 @@ export class UserSettingsController {
   async updateSettings(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateUserSettingsDto,
+    @Req() req: any,
   ) {
-    return this.userSettings.updateSettings(user.sub, dto);
+    const result = await this.userSettings.updateSettings(user.sub, dto);
+    // 审计：偏好设置修改
+    this.auditService.logFromRequest(req, {
+      action: 'SETTINGS_UPDATE',
+      resourceType: 'user-settings',
+      resourceId: user.sub,
+      details: { updatedFields: Object.keys(dto).filter(k => dto[k as keyof typeof dto] !== undefined) },
+    }).catch(() => { /* 审计静默失败 */ });
+    return result;
   }
 }

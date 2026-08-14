@@ -88,11 +88,11 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
   // Stats view (default)
   if (panelState === 'stats') {
     return (
-      <div className="wb-panel rounded-[20px] h-full flex flex-col overflow-hidden"
+      <div className="wb-panel h-full flex flex-col overflow-hidden"
         style={{ width: `${width}px` }}>
         {/* Header */}
         <div className="p-3 shrink-0" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <h3 className="text-sm font-semibold text-[color:var(--foreground)]">今日统计</h3>
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">今日统计</h3>
         </div>
 
         {/* Stats content */}
@@ -100,17 +100,17 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
           {/* Today stats */}
           <div className="space-y-2">
             <div className="grid grid-cols-3 gap-2">
-              <div className="p-2.5 rounded-[10px] text-center" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
-                <div className="text-lg font-bold text-[color:var(--foreground)]">{stats.totalReviews}</div>
-                <div className="text-[10px] text-[color:var(--muted-foreground)]">审查数</div>
+              <div className="neu-tile is-accent p-2.5 text-center">
+                <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--accent)]">{stats.totalReviews}</div>
+                <div className="text-[10px] tracking-[0.08em] text-[color:var(--foreground)] mt-1">审查数</div>
               </div>
-              <div className="p-2.5 rounded-[10px] text-center" style={{background:"color-mix(in oklch,var(--success) 10%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.5), 2px 2px 4px oklch(0.55 0.03 258 / 0.06)"}}>
-                <div className="text-lg font-bold text-[color:var(--success)]">{stats.passedCount}</div>
-                <div className="text-[10px] text-[color:var(--success)]/70">通过</div>
+              <div className="neu-tile is-success p-2.5 text-center">
+                <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--success)]">{stats.passedCount}</div>
+                <div className="text-[10px] tracking-[0.08em] text-[color:var(--success)]/80 mt-1">通过</div>
               </div>
-              <div className="p-2.5 rounded-[10px] text-center" style={{background:"color-mix(in oklch,var(--danger) 8%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.5), 2px 2px 4px oklch(0.55 0.03 258 / 0.06)"}}>
-                <div className="text-lg font-bold text-[color:var(--danger)]">{stats.failedCount}</div>
-                <div className="text-[10px] text-[color:var(--danger)]/70">违规</div>
+              <div className="neu-tile is-danger p-2.5 text-center">
+                <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--danger)]">{stats.failedCount}</div>
+                <div className="text-[10px] tracking-[0.08em] text-[color:var(--danger)]/80 mt-1">违规</div>
               </div>
             </div>
           </div>
@@ -126,7 +126,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
           {/* Running tasks */}
           {runningTasks.length > 0 && (
             <div className="space-y-2">
-              <div className="text-xs font-medium text-[color:var(--muted-foreground)]">进行中</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">进行中</div>
               {runningTasks.map((task) => (
                 <div key={task.id} className="flex items-center gap-2 p-2 rounded-[10px] bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)]">
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-[color:var(--accent)]" />
@@ -138,7 +138,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
 
           {/* Recent reviews */}
           <div className="space-y-2">
-            <div className="text-xs font-medium text-[color:var(--muted-foreground)]">最近审查</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">最近审查</div>
             {recentReviews.length === 0 ? (
               <div className="text-xs text-[color:var(--muted-foreground)] text-center py-4">
                 暂无审查记录
@@ -184,7 +184,7 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
         <div className="p-3 shrink-0" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
           <button
             onClick={() => setPanelState('kb-list')}
-            className="neu-btn-soft w-full flex items-center justify-center gap-2 !rounded-[10px] !h-[36px]"
+            className="neu-btn-soft w-full flex items-center justify-center gap-2 !rounded-[14px] !h-[36px]"
           >
             <Database className="h-3.5 w-3.5" />
             知识库
@@ -196,7 +196,8 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
 
   // KB list view
   return (
-    <div className="wb-panel rounded-[20px] w-96 h-full flex flex-col overflow-hidden">
+    <div className="wb-panel h-full flex flex-col overflow-hidden"
+      style={{ width: `${width}px` }}>
       {/* Header */}
       <div className="p-3 shrink-0" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
         <div className="flex items-center justify-between">

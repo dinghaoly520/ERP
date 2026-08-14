@@ -99,7 +99,7 @@ export default function FilesPanelCompact() {
       />
 
       {/* KB Info Header */}
-      <div className="flex items-center gap-3 p-3 rounded-[14px]" style={{background:"color-mix(in oklch,var(--accent-soft) 30%,transparent)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 4px oklch(0.55 0.03 258 / 0.06)"}}>
+      <div className="neu-tile is-accent flex items-center gap-3 p-3">
         <Database className="h-5 w-5 text-[var(--accent)]" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-[var(--foreground)]">{selectedKb.name}</div>

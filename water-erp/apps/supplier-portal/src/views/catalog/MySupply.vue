@@ -36,6 +36,7 @@ onMounted(load)
   <div class="page-container" v-loading="loading">
     <div v-if="error" class="sp-error-block">
       <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
+
       <div class="sp-error-text">数据加载失败</div>
       <div class="sp-error-desc">网络或服务异常，请稍后重试</div>
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
@@ -55,12 +56,12 @@ onMounted(load)
     </div>
 
     <div v-if="filteredSupply.length===0&&!loading&&supply.length>0" class="sp-empty supply-empty">
-      <div class="sp-empty-icon"><PackageSearch :size="20" :stroke-width="1.75" /></div>
+      <div class="sp-empty-icon"><PackageSearch :size="22" :stroke-width="1.75" /></div>
       <div class="sp-empty-text">未找到匹配的供货</div>
       <div class="sp-empty-desc">尝试其他关键词</div>
     </div>
     <div v-else-if="supply.length===0&&!loading" class="sp-empty supply-empty">
-      <div class="sp-empty-icon"><PackageX :size="20" :stroke-width="1.75" /></div>
+      <div class="sp-empty-icon"><PackageX :size="22" :stroke-width="1.75" /></div>
       <div class="sp-empty-text">暂无供货关系</div>
       <div class="sp-empty-desc">前往「集中采购目录」申请供货</div>
       <el-button type="primary" style="margin-top:16px" @click="$router.push('/catalog')">浏览采购目录</el-button>

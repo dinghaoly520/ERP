@@ -254,9 +254,6 @@ export function ProjectManagementPage() {
                 </div>
               </div>
               <div className="page-hero__right">
-                <span className="page-hero__stat page-hero__stat--info">
-                  {activeTab === 'active' ? `进行中 ${items.length} 项` : `已完成 ${archivedItems.length} 项`}
-                </span>
                 <button
                   type="button"
                   onClick={() => setShowRecycleBin(true)}

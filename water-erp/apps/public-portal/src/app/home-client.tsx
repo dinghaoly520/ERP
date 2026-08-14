@@ -201,6 +201,20 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     }
   }, [announceData, announceTab, featuredIndex]);
 
+  // ── 滚动位置恢复 ──
+  // 从公告详情页返回时，恢复离开首页时的滚动位置（router.back() + bfcache 的补充保障）
+  const saveHomeScroll = useCallback(() => {
+    sessionStorage.setItem('homeScrollY', String(window.scrollY));
+  }, []);
+  useEffect(() => {
+    const saved = sessionStorage.getItem('homeScrollY');
+    if (saved) {
+      sessionStorage.removeItem('homeScrollY');
+      const y = parseInt(saved, 10);
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  }, []);
+
   const features = [
     { icon: 'cart', title: '电子商城', desc: '集中采购目录', href: 'https://j.youzan.com/-khlqe?shopAutoEnter=1&kdt_id=157422811' },
     { icon: 'share', title: '供应商端', desc: '供应商注册、投标、反馈', href: `http://192.168.1.109:3004/login?forceLogin=1` },
@@ -402,7 +416,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
               <div
                 className="announce-featured lg:col-span-2 group"
                 style={{ '--card-color': currentAnnounce.color } as React.CSSProperties}
-                onClick={() => router.push(`/announcements/${featuredItem.id}?from=home`)}
+                onClick={() => { saveHomeScroll(); router.push(`/announcements/${featuredItem.id}?from=home`); }}
                 role="article">
                 <div className="announce-featured-border" />
                 <div className="announce-featured-inner">
@@ -420,7 +434,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   {/* 标题 — 内嵌 <a> 提供真实链接（SEO + 右键新窗口） */}
                   <h3 key={featuredItem.id} className="announce-featured-title" style={{ animation: 'announceContentIn 0.4s ease' }}>
                     <a href={`/announcements/${featuredItem.id}?from=home`}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); saveHomeScroll(); }}
                       className="announce-featured-title-link">
                       {featuredItem.title}
                     </a>
@@ -466,6 +480,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
                   {currentAnnounce.items.filter((_, i) => i !== featuredIndex).map((item, idx) => (
                     <a key={item.id} href={`/announcements/${item.id}?from=home`}
                       className="announce-side-item group"
+                      onClick={saveHomeScroll}
                       style={{ '--item-delay': `${idx * 60}ms`, '--rank-color': currentAnnounce.color } as React.CSSProperties}>
                       <div className="announce-side-item-rank">{String(idx + 1).padStart(2, '0')}</div>
                       <div className="flex flex-col gap-1.5 flex-1 min-w-0">

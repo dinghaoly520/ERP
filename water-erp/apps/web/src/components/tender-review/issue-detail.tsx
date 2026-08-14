@@ -24,7 +24,7 @@ export default function IssueDetail({
   return (
     <div className="space-y-6">
       {/* Problem detail */}
-      <section className="rounded-[18px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+      <section className="neu-tile p-4">
         <div className="text-xs font-semibold text-[color:var(--muted-foreground)] mb-3 flex items-center gap-2">
           {issue.notApplicable ? (
             <span>⬜ 不适用</span>
@@ -65,7 +65,7 @@ export default function IssueDetail({
 
       {/* Original text comparison */}
       {issue.documentExcerpt || issue.documentLocation?.excerpt || issue.kbExcerpt || issue.knowledgeBaseReferences?.[0]?.clauseContent ? (
-        <section className="rounded-[18px] p-4" style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
+        <section className="neu-tile p-4">
           <OriginalTextCompare
             documentExcerpt={issue.documentExcerpt}
             documentFileName={documentName}
