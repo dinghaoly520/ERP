@@ -210,6 +210,34 @@ describe('ExpertService', () => {
         expect.objectContaining({ data: { signedIn: true, signInIp: null, signInMeta: undefined } }),
       );
     });
+
+    it('带合法拍照留痕 → photoAssetId 并入 signInMeta', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
+      prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, signedIn: true });
+
+      await service.signIn('user-1', 'proj-1', { ip: '10.0.0.1', userAgent: 'ua' }, 'photo-1');
+
+      expect(prisma.fileAsset.findUnique).toHaveBeenCalledWith({ where: { id: 'photo-1' } });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            signInMeta: expect.objectContaining({ photoAssetId: 'photo-1', ip: '10.0.0.1' }),
+          }),
+        }),
+      );
+    });
+
+    it('照片不属于本人或分类不符 → 400 INVALID_SIGNIN_PHOTO', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(mockExpert);
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'photo-9', category: 'general', uploaderId: 'user-2' });
+
+      await expect(service.signIn('user-1', 'proj-1', undefined, 'photo-9'))
+        .rejects.toMatchObject({ response: { code: 'INVALID_SIGNIN_PHOTO' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('confirmAiConsent', () => {

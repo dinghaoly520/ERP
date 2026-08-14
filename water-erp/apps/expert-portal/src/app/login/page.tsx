@@ -92,9 +92,10 @@ function ExpertLoginPage() {
           if (returnTo.startsWith('/invitation')) {
             window.location.replace(returnTo);
           } else if (isTabletDevice()) {
-            // 平板设备 → 写 cookie + 整页跳转人脸识别核验（SPA 导航不会触发 beforeInteractive 脚本）
+            // 平板设备 → 写 cookie + 整页跳转平板首页（原 /tablet/face-verify 假人脸门禁已删除，
+            // 拍照留痕随按项目签到进行；SPA 导航不会触发 beforeInteractive 脚本，故整页跳转）
             document.cookie = 'device_mode=tablet;path=/;max-age=604800;SameSite=Lax';
-            window.location.replace('/tablet/face-verify');
+            window.location.replace('/tablet');
           } else {
             router.push(returnTo);
           }

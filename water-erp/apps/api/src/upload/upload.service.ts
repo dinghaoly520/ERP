@@ -27,6 +27,7 @@ const ALLOWED_CATEGORIES = [
   'bid_document',   // 投标文件
   'announcement',   // 公告附件
   'profile',        // 供应商资料
+  'expert_signin_photo', // 专家签到拍照留痕（evaluate 身份核验步骤，非人脸识别）
   'general',        // 通用
 ];
 

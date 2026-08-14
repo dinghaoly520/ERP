@@ -29,6 +29,7 @@ import { DraftClarificationDto } from './dto/draft-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
 import { ConfirmReportDto } from './dto/confirm-report.dto';
 import { ConfirmAvoidanceDto } from './dto/confirm-avoidance.dto';
+import { SignInDto } from './dto/sign-in.dto';
 import { UpdateAgreementsDto } from './dto/update-agreements.dto';
 import { CreateMemoDto } from './dto/create-memo.dto';
 import { UpdateMemoDto } from './dto/update-memo.dto';
@@ -185,12 +186,13 @@ export class ExpertController {
   signIn(
     @CurrentUser('sub') userId: string,
     @Param('projectId') projectId: string,
-    @Req() req: any,
+    @Body() body?: SignInDto,
+    @Req() req?: any,
   ) {
     return this.expertService.signIn(userId, projectId, {
-      ip: req.ip ?? req.socket?.remoteAddress,
-      userAgent: req.headers['user-agent'] ?? null,
-    });
+      ip: req?.ip ?? req?.socket?.remoteAddress,
+      userAgent: req?.headers?.['user-agent'] ?? null,
+    }, body?.photoAssetId);
   }
 
   @Post('projects/:projectId/avoidance')

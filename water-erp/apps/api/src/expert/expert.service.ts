@@ -351,7 +351,7 @@ export class ExpertService {
 
   /* ── 身份核验 ── */
 
-  async signIn(userId: string, projectId: string, env?: { ip: string; userAgent: string | null }) {
+  async signIn(userId: string, projectId: string, env?: { ip: string; userAgent: string | null }, photoAssetId?: string) {
     // P1: 阶段门控 — 仅开标/评标阶段可签到
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
     if (!project || (project.stage !== 'OPENING' && project.stage !== 'EVALUATING')) {
@@ -370,12 +370,22 @@ export class ExpertService {
       });
     }
 
+    // 拍照留痕（可选）：校验照片资产归属当前专家本人，防止冒用他人上传
+    if (photoAssetId) {
+      const asset = await this.prisma.fileAsset.findUnique({ where: { id: photoAssetId } });
+      if (!asset || asset.category !== 'expert_signin_photo' || asset.uploaderId !== userId) {
+        throw new BadRequestException({ error: '签到照片无效，请重新拍摄上传', code: 'INVALID_SIGNIN_PHOTO' });
+      }
+    }
+
     const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: {
         signedIn: true,
         signInIp: env?.ip ?? null,
-        signInMeta: env ? { ip: env.ip, userAgent: env.userAgent, timestamp: new Date().toISOString() } : undefined,
+        signInMeta: env
+          ? { ip: env.ip, userAgent: env.userAgent, timestamp: new Date().toISOString(), ...(photoAssetId ? { photoAssetId } : {}) }
+          : (photoAssetId ? { photoAssetId } : undefined),
       },
     });
     // P1-5: 签到监督日志
