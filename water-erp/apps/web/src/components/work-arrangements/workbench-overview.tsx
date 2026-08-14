@@ -4,6 +4,7 @@ import type { WorkArrangementDailyPlan, WorkArrangementWorkbenchOverview } from 
 import type { AuthUser } from '@/lib/api/auth';
 import { listNotifications } from '@/lib/api/notification';
 import type { WorkbenchStatKey } from '@/lib/work-arrangements/workbench';
+import { getWorkbenchProfile } from '@/lib/workbench-profiles';
 
 type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night';
 const TDP: Record<TimeOfDay,{g:string;gl:string;r:string;s:string;t:string;d:string}> = {
@@ -58,9 +59,9 @@ export function WorkbenchOverview({
   const now = new Date();
   const Icon = TDC[gtod2(now.getHours())].icon;
   const period = periodLabel(now.getHours());
-  const userName = currentUser?.username === 'Swhi-CGZX-00'
-    ? '张宏董事长'
-    : currentUser?.displayName || '用户';
+  const userName = getWorkbenchProfile(currentUser?.username)?.greetingName
+    ?? currentUser?.displayName
+    ?? '用户';
   const rawUsername = currentUser?.username ?? '';
   const loading = !dailyPlan;
   const headerGreeting = dailyPlan?.headerGreeting ?? '';

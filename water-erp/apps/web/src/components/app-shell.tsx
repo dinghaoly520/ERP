@@ -29,6 +29,7 @@ import { UnifiedHeader } from "@/components/workbench/unified-header";
 import { GlobalSearch } from "@/components/global-search";
 import { fetchCurrentUser, type AuthRole, type AuthUser } from "@/lib/api/auth";
 import { ChatPanel } from "@/components/assistant/chat-panel";
+import { getWorkbenchProfile } from "@/lib/workbench-profiles";
 
 type NavItem = {
   key: string;
@@ -116,12 +117,6 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-const SWDG_USERNAME = "SWDG-01";
-const SWDG_NAV_KEYS = new Set(["tender-write", "tender-review"]);
-
-const CHAIRMAN_USERNAME = "Swhi-CGZX-00";
-const CHAIRMAN_NAV_KEYS = new Set(["work-arrangements", "dashboard", "progress", "procurements", "projects"]);
-
 type AppShellProps = {
   activeKey: string;
   title?: string;
@@ -206,15 +201,17 @@ export function AppShell({
           if (!group.roles) return true;
           return !!effectiveRole && group.roles.includes(effectiveRole);
         })
-        .map((group) => ({
-          ...group,
-          items: group.items.filter((item) => {
-            if (effectiveUsername === SWDG_USERNAME && !SWDG_NAV_KEYS.has(item.key)) return false;
-            if (effectiveUsername === CHAIRMAN_USERNAME && !CHAIRMAN_NAV_KEYS.has(item.key)) return false;
-            if (!item.roles) return true;
-            return !!effectiveRole && item.roles.includes(effectiveRole);
-          }),
-        }))
+        .map((group) => {
+          const profile = getWorkbenchProfile(effectiveUsername);
+          return {
+            ...group,
+            items: group.items.filter((item) => {
+              if (profile?.navKeys && !profile.navKeys.includes(item.key)) return false;
+              if (!item.roles) return true;
+              return !!effectiveRole && item.roles.includes(effectiveRole);
+            }),
+          };
+        })
         .filter((group) => group.items.length > 0);
 
   // 默认展开含有当前 activeKey 的分组

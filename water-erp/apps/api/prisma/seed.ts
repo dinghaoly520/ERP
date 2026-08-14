@@ -405,8 +405,8 @@ async function main() {
   console.log(`    陈源远 ${staffUsers.length} 个账号口令已重置`);
 
   // ═══ 内部管理账号口令规整（与 ACCOUNTS.md「<用户名>@2026」约定一致，使 :3005 有可登录的 leader/staff）═══
-  console.log('▶ 规整内部管理账号口令（Swhi-CGZX-01~10 + admin）');
-  for (let i = 1; i <= 10; i++) {
+  console.log('▶ 规整内部管理账号口令（Swhi-CGZX-00~10 + admin）');
+  for (let i = 0; i <= 10; i++) {
     const uname = `Swhi-CGZX-${String(i).padStart(2, '0')}`;
     await prisma.user.updateMany({
       where: { username: uname },
@@ -417,6 +417,11 @@ async function main() {
   await prisma.user.updateMany({
     where: { username: 'Swhi-CGZX-admin' },
     data: { passwordHash: hashSync('Swhi-CGZX-admin@2026', 10) },
+  });
+  // 招标文档专项账号（workbench-profiles.ts 配置其落地页与导航，需可登录演示）
+  await prisma.user.updateMany({
+    where: { username: 'SWDG-01' },
+    data: { passwordHash: hashSync('SWDG-01@2026', 10) },
   });
 
   // ═══ 新增「开标主持人」bid_host 账号（演示 :3007 硬分流，与陈源远形成两个可指派对象）═══

@@ -23,6 +23,7 @@ import { RegisterDialog } from "@/components/login/register-dialog";
 import { login } from "@/lib/api/auth";
 import { fetchUserSettings } from "@/lib/api/user-settings";
 import { getPostLoginDestination, getHomePageRoute } from "@/lib/login/login-routing";
+import { getWorkbenchProfile } from "@/lib/workbench-profiles";
 import { beginTenderWriteSession, createTenderWriteSessionId } from "@/lib/tender-write/storage";
 
 type LoginFormValues = {
@@ -108,8 +109,11 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
       });
       beginTenderWriteSession(createTenderWriteSessionId());
 
-      // Prefer the redirect param, then user's defaultHomePage, then role-based fallback.
+      // 优先级：redirect 参数 → 个性化工作台配置（workbench-profiles）→ 用户设置 defaultHomePage → 角色默认
       let destination = redirectTo;
+      if (!destination) {
+        destination = getWorkbenchProfile(result.username)?.landingPath;
+      }
       if (!destination) {
         try {
           const settings = await fetchUserSettings();

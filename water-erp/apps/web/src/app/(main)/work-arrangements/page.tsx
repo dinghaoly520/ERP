@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { WorkArrangementsPage } from "@/components/work-arrangements/work-arrangements-page";
 import { WorkArrangementsPageChairman } from "@/components/work-arrangements/work-arrangements-page-chairman";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
+import { getWorkbenchProfile } from "@/lib/workbench-profiles";
 
 function WorkArrangementsRouter() {
   const searchParams = useSearchParams();
@@ -30,7 +31,7 @@ function WorkArrangementsRouter() {
     );
   }
 
-  if (user?.username === "Swhi-CGZX-00") {
+  if (getWorkbenchProfile(user?.username)?.chairman) {
     return <WorkArrangementsPageChairman initialProjectManagementItemId={projectManagementItemId} />;
   }
 

@@ -1,4 +1,5 @@
 import type { AuthRole } from "@/lib/api/auth";
+import { getWorkbenchProfile } from "@/lib/workbench-profiles";
 
 const POST_LOGIN_DESTINATIONS: Record<string, string> = {
   admin: "/dashboard",
@@ -8,14 +9,9 @@ const POST_LOGIN_DESTINATIONS: Record<string, string> = {
   mall: "/procurements",
 };
 
-const SWDG_USERNAME = "SWDG-01";
-const SWDG_LOGIN_DESTINATION = "/tender-write";
-
 export function getPostLoginDestination(role: string, username?: string) {
-  if (username === SWDG_USERNAME) {
-    return SWDG_LOGIN_DESTINATION;
-  }
-  return POST_LOGIN_DESTINATIONS[role] ?? "/work-arrangements";
+  // 个性化工作台配置（如 SWDG-01 落地 /tender-write）优先于角色默认
+  return getWorkbenchProfile(username)?.landingPath ?? POST_LOGIN_DESTINATIONS[role] ?? "/work-arrangements";
 }
 
 /** 有权限访问数据管理页面的角色 */

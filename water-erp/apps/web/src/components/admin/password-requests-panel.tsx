@@ -24,6 +24,7 @@ import {
   type PendingPasswordResetRequest,
 } from "@/lib/api/auth";
 import { Modal } from "@/components/workbench";
+import { ADMIN_USERNAME } from "@/lib/workbench-profiles";
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -425,7 +426,7 @@ export function PasswordRequestsPanel() {
     return (
       <div className="rounded-[20px] border border-white/60 bg-white/62 px-6 py-6 text-sm leading-7 text-[color:var(--muted-foreground)]">
         当前账号不是管理员，无法查看密码审批面板。请使用{" "}
-        <strong>Swhi-CGZX-admin</strong> 登录后再进行审批。
+        <strong>{ADMIN_USERNAME}</strong> 登录后再进行审批。
       </div>
     );
   }

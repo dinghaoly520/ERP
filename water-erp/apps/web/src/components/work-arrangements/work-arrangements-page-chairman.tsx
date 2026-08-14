@@ -8,6 +8,10 @@ import { AiAssistPanel } from "@/components/work-arrangements/ai-assist-panel";
 import { ProjectBriefCard } from "@/components/work-arrangements/project-brief-card";
 import { WorkTaskEditorDrawer } from "@/components/work-arrangements/work-task-editor-drawer";
 import { fetchCurrentUser, type AuthUser } from "@/lib/api/auth";
+import { WORKBENCH_PROFILES } from "@/lib/workbench-profiles";
+
+/** 董事长工作台配置（路由已按 chairman 标志分流，此页仅服务该 profile） */
+const chairmanProfile = WORKBENCH_PROFILES.find((p) => p.chairman)!;
 import { fetchProjectManagementList } from "@/lib/api/project-management";
 import {
   addWorkArrangementNote,
@@ -422,7 +426,7 @@ export function WorkArrangementsPageChairman({
     <>
     <div className="flex flex-col gap-4">
       <WorkbenchOverview
-        currentUser={currentUser ?? { id: '', username: 'Swhi-CGZX-00', displayName: '尊敬的张宏董事长', role: 'admin', createdAt: null, lastLoginAt: null } as AuthUser}
+        currentUser={currentUser ?? { id: '', username: chairmanProfile.username, displayName: `尊敬的${chairmanProfile.greetingName}`, role: 'leader', createdAt: null, lastLoginAt: null } as AuthUser}
         dailyPlan={dailyPlan}
         summary={workbenchSummary}
         onOpenStat={setStatKey}

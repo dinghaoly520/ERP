@@ -226,13 +226,17 @@ Passwords follow `<username>@2026` convention:
 | `成都华西物资供应有限公司` | `supplier@2026` | supplier (approved) · 原 `huaxi` · 参与旧种子项目 | 供应商门户 (:3004) |
 | `Swhi-CGZX-01` | `Swhi-CGZX-01@2026` | leader · 采购中心领导 | 采购管理工作台 (:3005) |
 | `Swhi-CGZX-05` | `Swhi-CGZX-05@2026` | staff · 采购中心员工 | 采购管理工作台 (:3005) |
+| `Swhi-CGZX-00` | `Swhi-CGZX-00@2026` | leader · 董事长（工作台董事长变体+受限导航，见 `apps/web/src/lib/workbench-profiles.ts`） | 采购管理工作台 (:3005) |
+| `SWDG-01` | `SWDG-01@2026` | staff · 水发集团（落地 /tender-write+受限导航，见 workbench-profiles.ts） | 采购管理工作台 (:3005) |
+| `Swhi-CGZX-admin` | `Swhi-CGZX-admin@2026` | admin · 密码审批等管理功能 | 采购管理工作台 (:3005) |
 | `陈源远` | `陈源远@2026` | procurement_staff · :3005 登录实际解析为 `bid_host`（见下注） | 采购管理工作台 (:3005) |
 | 专家姓名（如 `刘苡池`） | `expert@2026` | bid_expert | 专家门户 (:3006) |
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
 > **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` **不含 `procurement_staff`**，故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
+详见 `auth.service.ts`。另：专家门户 (:3006) 登录页 dev 模式演示提示账号（周祥志 / Swhi-CGZX-admin，`DEMO_ACCOUNTS`）生产构建自动剥离。
 
-> `admin` role exists in schema/RBAC but has no seeded user. Use `陈源远` (bid_host) for bid portal access.
+> `admin` role 已有种子账号 `Swhi-CGZX-admin`（密码审批等管理功能；登录口令 `<用户名>@2026`）。开评标管理端 (:3007) 演示请用 `陈源远` (bid_host)。
 
 > **评审专家库（186 名）**：来自真实专家库（`apps/api/prisma/seed-data/ExpertProfile.json`）。`seed.ts` 末尾会把真实库导出的编号用户名重置为专家姓名、口令统一为 `expert@2026`，便于演示登录。
 >
