@@ -118,9 +118,10 @@ export function Modal({
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
         style={{ maxWidth: `min(${width}px, 92vw)` }}
-        className={`relative w-full max-h-[90vh] overflow-y-auto rounded-[20px] bg-[var(--background)] p-6 shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)] outline-none ${className}`}
+        className={`relative flex w-full max-h-[90vh] flex-col rounded-[20px] bg-[var(--background)] shadow-[0_20px_60px_oklch(0.24_0.038_258/0.12)] outline-none ${className}`}
       >
-        <div className="flex items-start justify-between gap-4 pb-4">
+        {/* 标题栏 — 固定不滚动 */}
+        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-6 pb-4">
           <div className="min-w-0">
             {title && (
               <h2 id={titleId} className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">
@@ -138,13 +139,17 @@ export function Modal({
           </button>
         </div>
 
-        <div className="space-y-4">{children}</div>
+        {/* 内容区 — 仅此处滚动 */}
+        <div className="flex-1 overflow-y-auto px-6">
+          <div className="space-y-4 pb-4">{children}</div>
+        </div>
 
+        {/* 底部操作栏 — 固定不滚动 */}
         {footer && (
-          <>
-            <hr className="wb-section-rule mt-5" />
-            <div className="flex justify-end gap-3 pt-4">{footer}</div>
-          </>
+          <div className="shrink-0 px-6 pb-6 pt-3">
+            <hr className="wb-section-rule mb-4" />
+            <div className="flex justify-end gap-3">{footer}</div>
+          </div>
         )}
       </div>
     </div>,

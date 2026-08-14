@@ -335,3 +335,34 @@ export async function fetchDepartments(): Promise<DepartmentItem[]> {
     cache: 'no-store',
   });
 }
+
+// ── 注册 ──
+
+export type RegisterPayload = {
+  username: string;
+  displayName: string;
+  password: string;
+  company: string;
+  department: string;
+  email?: string;
+  phone: string;
+  officeLocation?: string;
+  verificationCode: string;
+  requestedRole: string;
+};
+
+export async function sendRegistrationCode(phone: string): Promise<{ maskedPhone: string }> {
+  return requestJson<{ maskedPhone: string }>(`${API_BASE}/verification/send-registration-code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function registerUser(payload: RegisterPayload): Promise<{ pending: true }> {
+  return requestJson<{ pending: true }>(`${API_BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}

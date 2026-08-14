@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Query, Res, Req, HttpCode, HttpStatus, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Query, Param, Res, Req, HttpCode, HttpStatus, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -7,11 +7,13 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from '../common/decorators/public.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from './current-user.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { getClientIp } from '../common/client-ip.util';
 import { cookieNameForPortal, portalForRole, portalFromRequest, LEGACY_COOKIE } from './portal-cookie';
+import { checkPortRole } from './port-roles';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -40,13 +42,25 @@ export class AuthController {
   @Post('register')
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiOperation({ summary: '注册新用户' })
-  async register(@Body() dto: RegisterDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  @ApiOperation({ summary: '注册新用户（需管理员审核）' })
+  async register(@Body() dto: RegisterDto) {
     const result = await this.authService.register(dto);
-    // cookie 名按用户所属门户命名，回退到请求来源门户，再回退到旧版 token
-    const portal = portalForRole(result.role) || portalFromRequest(req);
-    res.cookie(portal ? cookieNameForPortal(portal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
+    // 注册后返回 { pending: true }，不签发 token、不设 cookie —— 管理员审核通过后才能登录
     return result;
+  }
+
+  @Post('users/:id/approve')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: '审核通过注册用户' })
+  async approveUser(@Param('id') id: string) {
+    return this.authService.approveUser(id);
+  }
+
+  @Post('users/:id/reject')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: '拒绝注册用户' })
+  async rejectUser(@Param('id') id: string) {
+    return this.authService.rejectUser(id);
   }
 
   @Post('login')
@@ -65,7 +79,20 @@ export class AuthController {
       const msg = result.code === 'TEMPORARY_EXPIRED' ? '临时供应商有效期已过，请联系采购中心' : '账号待审核，尚未激活';
       throw new UnauthorizedException({ error: msg, code: result.code });
     }
-    const cookiePortal = portalForRole(result.role) || portalFromRequest(req);
+
+    // L3 端口-角色强绑定：角色不允许在当前端口登录 → 403
+    const roleCheck = checkPortRole(result.role, requestPortal);
+    if (roleCheck) {
+      throw new ForbiddenException({ error: roleCheck, code: 'PORT_ROLE_MISMATCH' });
+    }
+
+    let cookiePortal = portalForRole(result.role) || portalFromRequest(req);
+
+    // :3006 登录分流：非 bid_expert 角色都写 token_bid（跳 :3007）
+    // bid_expert 写 token_expert（留在 :3006）
+    if (requestPortal === 'expert' && result.role !== 'bid_expert') {
+      cookiePortal = 'bid';
+    }
     res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
 
     // Write login audit log

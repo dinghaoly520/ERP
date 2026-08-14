@@ -5,18 +5,14 @@ import { portalURL } from '@water-erp/config';
 /**
  * 开标管理端（:3007）鉴权拦截。
  *
- * 角色路由：admin / bid_host 经"在线开评标系统"登录后落到本门户；
- * 这两类角色在后端 portal-cookie 中命名 cookie 为 token_web（与采购管理端同命名空间），
- * 因此本门户读 token_web、并以 X-Portal: web 调用后端鉴权。
+ * 角色路由：admin / bid_host 经"在线开评标系统"(:3006)登录后写到 token_bid cookie 跳到本门户。
+ * 本门户读 token_bid、以 X-Portal: bid 调用后端鉴权。
  *
- * 未登录或 token 失效时，跳转"在线开评标系统"登录页（专家门户），
- * 与公众门户"在线开评标系统"卡片入口保持一致。
+ * 未登录或 token 失效时，跳转"在线开评标系统"登录页（专家门户）。
  */
-const PORTAL = 'web';
+const PORTAL = 'bid';
 const COOKIE = `token_${PORTAL}`;
 const publicPaths = ['/api', '/assets'];
-// 专家门户登录页是"在线开评标系统"的统一登录入口；由 PORTS 派生，端口重分配后无需手动同步。
-// middleware 运行在服务端（无 window），portalURL 回落到 localhost，与原硬编码行为一致。
 const LOGIN_URL = portalURL('expert', '/login?forceLogin=1');
 
 export default async function proxy(request: NextRequest) {
@@ -31,9 +27,6 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(LOGIN_URL));
   }
 
-  // 验证 token + 角色范围 — 调用后端 /auth/me。
-  // 允许角色与 bid.controller 的 @Roles('admin','bid_host','leader','staff') 保持一致，
-  // 避免"外壳被拦但 API 可调"的不一致；如需收紧为 admin/bid_host，仅改此数组即可。
   try {
     const res = await fetch(portalURL('api', '/api/auth/me'), {
       headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },

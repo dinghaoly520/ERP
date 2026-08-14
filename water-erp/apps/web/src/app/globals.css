@@ -774,6 +774,38 @@ a {
 .login-title {
   position: relative;
   display: inline-block;
+  font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+}
+
+/* 渐变流光标题（移植自 :3002 GradientText，适配浅色背景）*/
+.login-title--gradient {
+  background: linear-gradient(
+    90deg,
+    #0b3d7a 0%,
+    #064ea2 22%,
+    #0891a0 48%,
+    #18a56c 70%,
+    #064ea2 88%,
+    #0b3d7a 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: loginTitleFlow 8s ease-in-out infinite alternate;
+}
+
+@keyframes loginTitleFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-title--gradient {
+    animation: none;
+    background-position: 22% 50%;
+  }
 }
 
 .login-title::after {
@@ -975,6 +1007,37 @@ a {
   background: color-mix(in oklch, var(--accent) 24%, transparent);
 }
 
+/* 密码可见性切换按钮 */
+.login-field-toggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  z-index: 3;
+  display: inline-flex;
+  height: 30px;
+  width: 30px;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    color 200ms var(--ease-out-quint),
+    background 200ms var(--ease-out-quint);
+}
+
+.login-field-toggle:hover {
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+}
+
+.login-field-toggle:active {
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+}
+
 .login-field-input {
   position: relative;
   z-index: 2;
@@ -1119,6 +1182,49 @@ a {
 
 .login-submit-label {
   letter-spacing: 0.2em;
+}
+
+/* 注册按钮（登录按钮左侧）*/
+.login-register-button {
+  position: relative;
+  overflow: hidden;
+  border: 0;
+  background: oklch(0.965 0.012 258);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.7),
+    2px 2px 4px oklch(0.46 0.07 258 / 0.1),
+    -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.3s ease;
+  color: var(--muted-foreground);
+}
+
+.login-register-button:hover {
+  background: oklch(0.955 0.016 258);
+  color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.8),
+    3px 3px 6px oklch(0.46 0.07 258 / 0.14),
+    -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+
+/* 登录按钮箭头：圆形徽标（移植自 :3002 announce-view-all-arrow）*/
+.login-arrow-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: transparent;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.3s ease;
+}
+
+.login-submit-button:hover .login-arrow-badge,
+.login-submit-button:focus-visible .login-arrow-badge {
+  transform: translateX(4px);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
 }
 
 .login-credit__static {

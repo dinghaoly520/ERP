@@ -328,6 +328,8 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
 
   const bpId = bidProject?.id;
   const stage = bidProject?.stage;
+  // 开标已开始（OPENING/EVALUATING/ARCHIVED）→ 供应商和专家均锁定，不可修改
+  const isOpened = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
 
   /* ── 操作 ── */
   async function withBusy(fn: () => Promise<void>, errMsg = '操作失败') {
@@ -469,6 +471,26 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
             borderBottom: '1px solid oklch(0.6 0.04 258 / 0.14)',
           }}
         >
+          {/* 开标前 24h 提醒横幅 */}
+          {!isOpened && isWithin24hOfOpening && (
+            <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 mb-3"
+              style={{ background: 'color-mix(in oklch, var(--warning) 10%, transparent)', border: '1px solid color-mix(in oklch, var(--warning) 25%, transparent)' }}>
+              <AlertTriangle size={16} className="shrink-0 text-[var(--warning)]" />
+              <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
+                <strong>距开标不足 24 小时</strong>——请确认所有步骤（采购文件、公告、供应商邀请、专家抽取）已完成且内容正确。开标确认后，所有前置信息将锁定不可修改。
+              </div>
+            </div>
+          )}
+          {/* 开标后锁定提示 */}
+          {isOpened && (
+            <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 mb-3"
+              style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklch, var(--accent) 20%, transparent)' }}>
+              <Shield size={16} className="shrink-0 text-[var(--accent)]" />
+              <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
+                <strong>已开标</strong>——供应商名单、专家组、采购文件等前置信息均已锁定。开标确认页面仅供查看。
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-3 min-w-0">
             <div
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px]"
@@ -526,7 +548,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 accentSoft="var(--stage-supplier-soft)"
                 action={
                   <div className="flex items-center gap-2">
-                    {!isNegotiation && (
+                    {!isNegotiation && !isOpened && (
                       <span
                         className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
                         style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}
@@ -538,14 +560,19 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                         <span className="tabular-nums">{submitDeadline ? formatDateTime(submitDeadline.toISOString()) : '—'}</span>
                       </span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setNudgeOpen(true)}
-                      disabled={!bpId}
-                      className="neu-btn-soft !h-[32px] !text-xs"
-                    >
-                      <BellRing size={13} /> 催促未投递
-                    </button>
+                    {!isOpened && (
+                      <button
+                        type="button"
+                        onClick={() => setNudgeOpen(true)}
+                        disabled={!bpId}
+                        className="neu-btn-soft !h-[32px] !text-xs"
+                      >
+                        <BellRing size={13} /> 催促未投递
+                      </button>
+                    )}
+                    {isOpened && (
+                      <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent)]">已开标·锁定</span>
+                    )}
                   </div>
                 }
               >
@@ -598,14 +625,18 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 accent="var(--stage-expert)"
                 accentSoft="var(--stage-expert-soft)"
                 action={
-                  <button
-                    type="button"
-                    onClick={() => void handleNudgeExperts()}
-                    disabled={busy || stats.expertCount === 0}
-                    className="neu-btn-soft !h-[32px] !text-xs"
-                  >
-                    <Bell size={13} /> 催促确认
-                  </button>
+                  !isOpened ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleNudgeExperts()}
+                      disabled={busy || stats.expertCount === 0}
+                      className="neu-btn-soft !h-[32px] !text-xs"
+                    >
+                      <Bell size={13} /> 催促确认
+                    </button>
+                  ) : (
+                    <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent)]">已开标·锁定</span>
+                  )
                 }
               >
                 {workspace.experts.length === 0 ? (
@@ -654,7 +685,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                                   <td><StatusBadge tone={isAlt ? 'orange' : 'blue'}>{roleLabel(e.expertRole)}</StatusBadge></td>
                                   <td>{isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.invitationStatus === 'confirmed' ? <StatusBadge tone="green">确认参加</StatusBadge> : <StatusBadge tone="blue">待回复</StatusBadge>}</td>
                                   <td className="text-center">
-                                    {!isAlt && hasAlts && (
+                                    {!isAlt && hasAlts && !isOpened && (
                                       <button onClick={() => { setReplaceModalExpert({ id: e.id, name: e.expertName }); setReplaceModalOpen(true); }} className="neu-btn-xs">替换</button>
                                     )}
                                   </td>

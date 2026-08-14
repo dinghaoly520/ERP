@@ -28,6 +28,7 @@ import { StorageModule } from './storage/storage.module';
 import { AiBidAnalysisModule } from './ai-bid-analysis/ai-bid-analysis.module';
 import { BullModule } from '@nestjs/bullmq';
 import { AuthGuard } from './auth/auth.guard';
+import { PortRouteGuard } from './auth/port-route.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 // ── 采购中心迁入模块 ──
 import { ContactsModule } from './contacts/contacts.module';
@@ -106,6 +107,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: PortRouteGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],

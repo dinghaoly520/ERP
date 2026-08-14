@@ -7,7 +7,7 @@ import dayjs from 'dayjs'
 import { uploadFile, type FileAssetResponse } from '@/api/upload'
 import { createDialogLeaveGuard } from '@/composables'
 import SpPageHero from '@/components/SpPageHero.vue'
-import { FileEdit, AlertTriangle, Inbox } from 'lucide-vue-next'
+import { FileEdit, AlertTriangle, Inbox, Folder, Phone } from 'lucide-vue-next'
 
 const supplierStore = useSupplierStore()
 const loading = ref(true); const error = ref(false)
@@ -179,7 +179,7 @@ function since(ts: string): string { const d = Math.ceil((Date.now() - new Date(
                 <div class="qc-fr" v-if="q.fileUrl" @click="window.open(q.fileUrl,'_blank','noopener')"><span class="qc-fi"><el-icon :size="16"><Document /></el-icon></span><span class="qc-fn">{{ qFn(q.fileUrl) }}</span><span class="qc-fa">查看</span></div>
               </article>
             </el-col></el-row>
-            <div v-else class="qc-empty"><el-icon :size="28"><Folder /></el-icon><p>暂无资质材料</p></div>
+            <div v-else class="qc-empty"><div class="sp-empty-icon"><Folder :size="22" :stroke-width="1.75" /></div><p>暂无资质材料</p></div>
           </div>
 
           <!-- ══ 联系人 ══ -->
@@ -193,7 +193,7 @@ function since(ts: string): string { const d = Math.ceil((Date.now() - new Date(
                 <el-table-column label="操作" width="120" align="center"><template #default="{row}"><el-button link type="primary" @click="ctOpenEdit(row)">编辑</el-button><el-button link type="danger" @click="ctDel(row.id)">删除</el-button></template></el-table-column>
               </el-table>
             </div>
-            <div v-else class="qc-empty"><el-icon :size="28"><Phone /></el-icon><p>暂无联系人</p></div>
+            <div v-else class="qc-empty"><div class="sp-empty-icon"><Phone :size="22" :stroke-width="1.75" /></div><p>暂无联系人</p></div>
           </div>
         </div>
         <div class="dlg-foot">
@@ -318,7 +318,7 @@ function since(ts: string): string { const d = Math.ceil((Date.now() - new Date(
 .qc-fa { font-size: 10px; font-weight: 700; color: var(--brand); flex-shrink: 0; opacity: 0; transform: translateX(-4px); transition: opacity .15s, transform .15s; }
 .qc-fr:hover .qc-fa { opacity: 1; transform: translateX(0); }
 .qc-tl--lt { font-size: 11px; font-weight: 600; color: var(--muted-foreground); }
-.qc-empty { text-align: center; padding: 40px 20px; color: var(--muted-foreground); }
+.qc-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 40px 20px; color: var(--muted-foreground); }
 .qc-empty p { margin: 8px 0 0; font-size: 13px; font-weight: 700; }
 
 /* Contact table */

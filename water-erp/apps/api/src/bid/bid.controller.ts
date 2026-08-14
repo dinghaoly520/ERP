@@ -8,6 +8,7 @@ import { ScorePointExtractorService } from './score-point-extractor.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { portalFromRequest } from '../auth/portal-cookie';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
 import { CreateScoreDto } from './dto/create-score.dto';
@@ -50,7 +51,7 @@ export class BidController {
   cryptoHealth() { return verifyKmsHealth(process.env.KMS_SECRET!); }
 
   @Get('projects')
-  @ApiOperation({ summary: '项目列表（可选阶段过滤；bid_host 仅看派给自己的）' })
+  @ApiOperation({ summary: '项目列表（bid portal 仅看派给自己的）' })
   listProjects(
     @Query('stage') stage?: string | string[],
     @CurrentUser('sub') userId?: string,
@@ -60,17 +61,19 @@ export class BidController {
       ? (Array.isArray(stage) ? stage : [stage])
       : undefined;
     const actor = userId && req?.user?.role ? { id: userId, role: req.user.role } : undefined;
-    return this.bidService.listProjects(stages, actor);
+    const portal = portalFromRequest(req);
+    return this.bidService.listProjects(stages, actor, portal);
   }
 
   @Get('projects/dashboard')
-  @ApiOperation({ summary: 'Dashboard 聚合（bid_host 仅看派给自己的）' })
+  @ApiOperation({ summary: 'Dashboard 聚合（bid portal 仅看派给自己的）' })
   getProjectsDashboard(
     @CurrentUser('sub') userId?: string,
     @Req() req?: any,
   ) {
     const actor = userId && req?.user?.role ? { id: userId, role: req.user.role } : undefined;
-    return this.bidService.getProjectsDashboard(actor);
+    const portal = portalFromRequest(req);
+    return this.bidService.getProjectsDashboard(actor, portal);
   }
 
   @Get('hosts')
@@ -102,8 +105,16 @@ export class BidController {
   createProject(@Body() dto: CreateBidProjectDto) { return this.bidService.createProject(dto); }
 
   @Get('projects/:id')
-  @ApiOperation({ summary: '项目详情' })
-  getProject(@Param('id') id: string) { return this.bidService.getProject(id); }
+  @ApiOperation({ summary: '项目详情（bid portal 仅可访问指派给自己的项目）' })
+  getProject(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId?: string,
+    @Req() req?: any,
+  ) {
+    const actor = userId && req?.user?.role ? { id: userId, role: req.user.role } : undefined;
+    const portal = portalFromRequest(req);
+    return this.bidService.getProject(id, actor, portal);
+  }
 
   @Get('projects/:id/publicity-status')
   @ApiOperation({ summary: 'A1: 公示状态（公示截止时间 + 是否可发中标通知书）' })

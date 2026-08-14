@@ -423,7 +423,12 @@ export function ProjectDetailPanel({
   const archiveStepState = getArchiveStepState(item);
   const showArchiveStep = archiveStepState !== 'PENDING';
   const isCurrentStage = selectedStage.stageKey === localItem.currentStage && selectedRound === (localItem.currentRound ?? 1);
-  const stageLocked = selectedStage.status === 'NOT_STARTED';
+
+  // ★ 开标锁定：开标确认阶段已进行（IN_PROGRESS 或 COMPLETED）→ 所有前置内容不可修改
+  const bidEvalStage = localItem.stages.find(s => s.stageKey === 'BID_EVALUATION');
+  const isBidLocked = bidEvalStage?.status === 'IN_PROGRESS' || bidEvalStage?.status === 'COMPLETED';
+
+  const stageLocked = selectedStage.status === 'NOT_STARTED' || (isBidLocked && selectedStage.stageKey !== 'BID_EVALUATION');
   const hasStageFiles = (selectedStage.attachments?.length ?? 0) > 0;
   const stageProcessing = uploading || analysisLoading;
   const canCompleteStage =
@@ -674,6 +679,7 @@ export function ProjectDetailPanel({
 
 
   const markStageCompleted = async (stage: ProjectManagementStage) => {
+    if (isBidLocked && stage.stageKey !== 'BID_EVALUATION') { toast.warning('开标已确认，前置步骤已锁定'); return; }
     setSubmitting(true);
     setErrorMessage(null);
     try {
@@ -698,6 +704,7 @@ export function ProjectDetailPanel({
   };
 
   const uploadStageFiles = async () => {
+    if (isBidLocked && selectedStage.stageKey !== 'BID_EVALUATION') { toast.warning('开标已确认，文件不可上传'); return; }
     if (selectedFiles.length === 0) {
       setErrorMessage('请先选择要上传的文件。');
       return;
@@ -834,6 +841,7 @@ export function ProjectDetailPanel({
   };
 
   const handleStartEdit = (field: string, currentValue: string | number | null | undefined) => {
+    if (isBidLocked) { toast.warning('开标已确认，项目基本信息不可修改'); return; }
     setEditingField(field);
     let value = currentValue != null ? String(currentValue) : '';
     // 投标单位字段：将顿号分隔转换为换行分隔，以便表格正确解析
@@ -1107,6 +1115,7 @@ export function ProjectDetailPanel({
               activeRound={selectedRound}
               onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); }}
               onStageAction={(stageKey) => {
+                if (isBidLocked) { toast.warning('开标已确认，前置步骤已锁定'); return; }
                 if (stageKey === 'TENDER_DOCUMENT') {
                   setTenderWriteStageAction(stageKey);
                 } else if (stageKey === 'EXPERT_SELECTION') {
