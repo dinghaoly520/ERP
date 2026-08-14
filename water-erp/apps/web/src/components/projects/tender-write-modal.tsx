@@ -402,7 +402,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       const result = await uploadProjectStageAttachment(project.id, 'TENDER_DOCUMENT', file);
       if (result.extractedInfo) {
         // 将提取的信息合并到 draft 中
-        const extracted = result.extractedInfo as Record<string, string>;
+        const extracted = result.extractedInfo as unknown as Record<string, string>;
         const patch: Record<string, string> = {};
         if (extracted.projectOverview) patch.projectOverview = extracted.projectOverview;
         if (extracted.bidOpeningTime) patch.submissionAndNegotiationTime = extracted.bidOpeningTime;

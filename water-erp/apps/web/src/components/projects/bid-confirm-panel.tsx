@@ -33,7 +33,6 @@ import {
   nudgeExperts,
   nudgeSuppliers,
   notifyBidScheduleChange,
-  startEvaluation,
   startOpening,
   swapExpertRole,
   updateBidProjectSchedule,
@@ -364,15 +363,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       showToast('已确定开标，请主持人在「开标进度」区块进入开标大厅组建会话');
       await load();
     }, '开标失败');
-  }
-
-  async function handleConfirmOpening() {
-    if (!bpId) return;
-    await withBusy(async () => {
-      await startEvaluation(bpId);
-      showToast('已确认开标结果，进入评标');
-      await load();
-    }, '确认开标结果失败');
   }
 
   async function handleDelaySave() {
@@ -796,8 +786,6 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   <OpeningProgressBlock
                     bidProjectId={bpId}
                     detail={detail}
-                    onChanged={refreshDetail}
-                    onConfirmOpening={() => void handleConfirmOpening()}
                     onAbort={() => setAbortDialogOpen(true)}
                   />
                   {/* 评标管理/异议裁决/澄清答疑已迁至 :3007 开评标管理端（现场）——分工 v3（2026-08-13） */}

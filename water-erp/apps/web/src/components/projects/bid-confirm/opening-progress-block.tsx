@@ -7,16 +7,13 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle, CheckCircle2, Ban, PenLine } from 'lucide-react';
+import { ExternalLink, Gavel, KeyRound, FileCheck, UserCheck, AlertTriangle, Ban, PenLine } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { getSignPacket, type BidProjectDetail, type SignPacketResponse } from '@/lib/api/bid';
 
 type Props = {
   bidProjectId: string;
   detail: BidProjectDetail | null;
-  onChanged: () => void;
-  /** 开标完成后：确认开标结果（→ startEvaluation 进入评标） */
-  onConfirmOpening?: () => void;
   /** 开标完成后：流标（→ 打开流标公告制作） */
   onAbort?: () => void;
 };
@@ -61,7 +58,7 @@ function ProgressStat({
   );
 }
 
-export function OpeningProgressBlock({ bidProjectId, detail, onConfirmOpening, onAbort }: Props) {
+export function OpeningProgressBlock({ bidProjectId, detail, onAbort }: Props) {
   // 评标回流包接收状态（:3007 签字闭环 + 回流包生成后回传；与开标会话无依赖，独立拉取）
   const [signData, setSignData] = useState<SignPacketResponse | null>(null);
   useEffect(() => {
@@ -172,15 +169,10 @@ export function OpeningProgressBlock({ bidProjectId, detail, onConfirmOpening, o
           {openingDone && stage === 'OPENING' && (
             <div className="flex flex-wrap items-center gap-2 rounded-[14px] px-4 py-3" style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}>
               <UserCheck size={14} className="text-[var(--success)]" />
-              <span className="text-xs font-semibold text-[var(--success)] mr-auto">开标已完成——请确认开标结果进入评标，或流标。</span>
+              <span className="text-xs font-semibold text-[var(--success)] mr-auto">开标已完成——确认开标结果进入评标由开评标管理端（:3007）执行；如需流标，请在此发起。</span>
               {onAbort && (
                 <button type="button" onClick={onAbort} className="neu-btn-soft is-danger !h-[32px] !text-xs">
                   <Ban size={13} /> 流标
-                </button>
-              )}
-              {onConfirmOpening && (
-                <button type="button" onClick={onConfirmOpening} className="neu-btn-primary !h-[32px] !text-xs">
-                  <CheckCircle2 size={13} /> 确认开标结果
                 </button>
               )}
             </div>
