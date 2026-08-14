@@ -1,10 +1,15 @@
 import { isPassFailCategory } from '@water-erp/shared';
 
-export interface ScoreEntryLike {
+/** 评分条目（桌面端与平板端共用的规范定义，D3 收口） */
+export type ScoreEntry = {
+  score: number;
+  reason: string;
   passed?: boolean;
-  score?: number;
-  reason?: string;
-}
+  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
+};
+
+/** ScoreEntry 的校验视图——三字段均可缺省，半成品草稿也送校验 */
+export type ScoreEntryLike = Partial<Pick<ScoreEntry, 'passed' | 'score' | 'reason'>>;
 
 export interface MissingScore {
   itemId: string;

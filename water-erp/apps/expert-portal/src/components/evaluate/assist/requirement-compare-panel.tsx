@@ -8,7 +8,7 @@ import { CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory } from '@water-erp/s
 import { api } from '@/lib/api';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
 
-/** 桌面端评分条目态（与 page.tsx ScoreEntry 对齐，只取 panel 需要的字段） */
+/** 桌面端评分条目态（与 @/lib/score-validation 的 ScoreEntry 对齐，只取 panel 需要的字段） */
 type ScoreVal = { score: number; reason: string; passed?: boolean; points?: Record<string, PointDecisionValue> };
 
 interface ReqItem {

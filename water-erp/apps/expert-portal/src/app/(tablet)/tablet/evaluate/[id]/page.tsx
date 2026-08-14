@@ -9,6 +9,7 @@ import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
 import type { ExpertProjectDetail } from '@/lib/types';
+import type { ScoreEntry } from '@/lib/score-validation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
@@ -17,13 +18,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 
-// 与 (app) evaluate 页面一致的 score 条目结构（精简版，不含 passed/points 之外的 UI 态）
-type ScoreEntry = {
-  score: number;
-  reason: string;
-  passed?: boolean;
-  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
-};
+// ScoreEntry 从 @/lib/score-validation 导入（桌面/平板共用规范定义）
 
 const scoreKey = (supplierId: string, scoreItemId: string) => `${supplierId}:${scoreItemId}`;
 

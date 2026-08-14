@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL } from '@water-erp/shared';
-import { validateSupplierScores } from '@/lib/score-validation';
+import { validateSupplierScores, type ScoreEntry } from '@/lib/score-validation';
 import { ArrowLeft, Check, ShieldCheck, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History } from 'lucide-react';
 import { SigninCamera } from '@/components/signin-camera';
 import { AssistPanel } from '@/components/evaluate/assist/assist-panel';
@@ -37,14 +37,7 @@ const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: numb
 ];
 
 // CATEGORY_LABEL, CATEGORY_COLOR 从 @water-erp/shared 导入（单一来源）
-
-/** 评分条目内存态。 */
-type ScoreEntry = {
-  score: number;
-  reason: string;
-  passed?: boolean;
-  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
-};
+// ScoreEntry 从 @/lib/score-validation 导入（桌面/平板共用规范定义）
 
 export default function ExpertEvaluatePage() {
   const router = useRouter();
