@@ -41,7 +41,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 // 兜底链接：仅在后端未下发 link 时使用。注意 /bid、/bid/clarifications、
 // /supplier/qualifications 在 :3005 不存在（属开评标端 :3007 或写错），
-// 故此处一律改指 :3005 内真实页面；澄清答疑在 enrich 中特判跳 :3007 外链。
+// 故其余类型一律改指 :3005 内真实页面；澄清答疑归 :3007（分工 v3）。
 const TYPE_LINKS: Record<string, string> = {
   SUPPLIER_PENDING:       '/supplier/approval',
   SUPPLIER_APPROVED:      '/supplier/repository',
@@ -52,8 +52,8 @@ const TYPE_LINKS: Record<string, string> = {
   BID_PUBLISHED:          '/projects',
   BID_REMINDER:           '/projects',
   BID_OPENING:            portalURL('bid', '/bid'), // 开标大厅在 :3007（纯开标执行终端）
-  BID_EVALUATION_RESULT:  '/projects',              // 评标管理已归 :3005 开评标指挥中心
-  CLARIFICATION_REPLIED:  '/projects',              // 澄清答疑已归 :3005 开评标指挥中心
+  BID_EVALUATION_RESULT:  '/projects',              // 评标结果回传 :3005 指挥中心查看
+  CLARIFICATION_REPLIED:  portalURL('bid', '/bid'), // 澄清答疑归 :3007（分工 v3），:3005 无该页面
   CATALOG_APPLICATION:    '/mall-management/catalog?tab=approval',
   SYSTEM:                 '/notifications',
 };
@@ -93,11 +93,11 @@ type EnrichedItem = NotificationItem & {
 function enrich(item: NotificationItem): EnrichedItem {
   const meta = getNotificationMeta(item.type);
   const tone = statusTone[meta.tone] ?? statusTone.gray;
-  // 2026-07 重构：:3007 瘦身为纯开标执行终端（澄清页已删），澄清答疑归 :3005 指挥中心。
-  // 强制覆盖这两类链接（种子/历史写死的死链也失效）：BID_OPENING → :3007 任务板；CLARIFICATION_REPLIED → :3005。
+  // 强制覆盖跨端链接（种子/历史写死的死链也失效）：BID_OPENING / CLARIFICATION_REPLIED
+  // 的操作面都在 :3007（分工 v3：澄清答疑迁回现场端），:3005 内无对应页面。
   const forced =
     item.type === 'BID_OPENING' ? portalURL('bid', '/bid')
-    : item.type === 'CLARIFICATION_REPLIED' ? '/projects'
+    : item.type === 'CLARIFICATION_REPLIED' ? portalURL('bid', '/bid')
     : null;
   const link = (forced ?? item.link ?? TYPE_LINKS[item.type]) || '/notifications';
   return {

@@ -2950,6 +2950,15 @@ export class BidService {
     if (openDisputes > 0) {
       throw new BadRequestException({ error: `有 ${openDisputes} 个专家异议待裁决，无法生成评标结果`, code: 'OPEN_DISPUTES' });
     }
+    // spec §10：闭环签字包与结果快照一一对应——签字闭环后禁止重生成结果
+    // （重生成将使已物理签字的包失去对应对象；如需更正须先走数据修正流程重开签字包）
+    const closedPacket = await this.prisma.bidSignPacket.findUnique({
+      where: { projectId },
+      select: { closedAt: true },
+    });
+    if (closedPacket?.closedAt) {
+      throw new ConflictException({ error: '评标签字已闭环，禁止重生成评标结果；如需更正请走数据修正流程重开签字包', code: 'SIGN_PACKET_CLOSED' });
+    }
 
     // 谈判/竞价项目：专家评标完成后进行多轮报价，生成结果前校验轮次已完成 + 同步最终报价
     if (project.roundMode) {
@@ -3213,6 +3222,27 @@ export class BidService {
       // #34: FOR UPDATE 行锁——防止并发 generateEvaluationResults 互相覆盖
       await lockAndReassertStage(tx, projectId, 'EVALUATING');
       await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
+      // spec §10：结果重生成 → 已有签字包失效（未闭环的包快照将与新结果分叉）。
+      // 删除包记录 + 重置全员签字状态，主持人须重新生成签字包（闭环包已被上方闸门挡住）。
+      const stalePacket = await tx.bidSignPacket.findUnique({ where: { projectId } });
+      if (stalePacket) {
+        await tx.bidSignPacket.delete({ where: { projectId } });
+        await tx.bidExpert.updateMany({
+          where: { projectId, expertRole: '正选' },
+          data: {
+            signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, signScanFileId: null,
+            dissentingOpinion: null, dissentingReason: null,
+          },
+        });
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: new Date(), role: '系统', target: project.name,
+            action: '评标结果重生成·签字包已失效',
+            result: `旧包指纹 ${stalePacket.sha256.slice(0, 16)}… 已作废（快照与结果分叉），须重新生成签字包并重新登记签字`,
+            riskFlag: '高',
+          },
+        });
+      }
       if (ranked.length > 0) {
         await tx.bidEvaluationResult.createMany({
           data: ranked.map((r, index) => ({
@@ -4243,10 +4273,35 @@ export class BidService {
         // H6: 废标联动——清除已有评标结果，强制下次 generateEvaluationResults 重算
         const existingResults = await tx.bidEvaluationResult.count({ where: { projectId } });
         if (existingResults > 0) {
+          // spec §10：闭环签字包与结果一一对应——本裁决将清除结果，闭环后不可执行（事务回滚）
+          const closedPacket = await tx.bidSignPacket.findUnique({ where: { projectId }, select: { closedAt: true } });
+          if (closedPacket?.closedAt) {
+            throw new ConflictException({ error: '评标签字已闭环，裁决废标将清除已签字的评标结果；如需更正请走数据修正流程重开签字包', code: 'SIGN_PACKET_CLOSED' });
+          }
           await tx.bidEvaluationResult.deleteMany({ where: { projectId } });
           await tx.bidSupervisionLog.create({
             data: { projectId, time: now, role: '系统', target: invalidateTarget.supplierName, action: '废标联动·评标结果已清除', result: '请重新生成评标结果', riskFlag: '中' },
           });
+          // spec §10：结果清除 → 已有签字包同步失效（未闭环包），全员签字状态重置
+          const stalePacket = await tx.bidSignPacket.findUnique({ where: { projectId } });
+          if (stalePacket) {
+            await tx.bidSignPacket.delete({ where: { projectId } });
+            await tx.bidExpert.updateMany({
+              where: { projectId, expertRole: '正选' },
+              data: {
+                signStatus: 'PENDING', signStatusAt: null, signRegisteredBy: null, signScanFileId: null,
+                dissentingOpinion: null, dissentingReason: null,
+              },
+            });
+            await tx.bidSupervisionLog.create({
+              data: {
+                projectId, time: now, role: '系统', target: invalidateTarget.supplierName,
+                action: '废标联动·签字包已失效',
+                result: `旧包指纹 ${stalePacket.sha256.slice(0, 16)}… 已作废，重算结果后须重新生成签字包`,
+                riskFlag: '高',
+              },
+            });
+          }
         }
       }
 

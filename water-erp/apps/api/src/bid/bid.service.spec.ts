@@ -100,7 +100,7 @@ describe('BidService — stage transitions', () => {
         groupBy: jest.fn(),
       },
       bidSupervisionLog: { findMany: jest.fn(), create: jest.fn() },
-      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn() },
+      bidExpert: { groupBy: jest.fn(), findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       bidScoreItem: { findFirst: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreRecord: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn() },
       bidScorePoint: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
@@ -117,7 +117,7 @@ describe('BidService — stage transitions', () => {
       supplierBidSubmission: { findUnique: jest.fn() },
       bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
       // 签字闸门默认放行（闭环+回流齐）：full 归档用例不逐个 mock；单测闸门本身见 bid-sign-packet.service.spec
-      bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }) },
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }), delete: jest.fn().mockResolvedValue({}) },
       fileAsset: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       notification: { create: jest.fn(), createMany: jest.fn() },
       user: { findMany: jest.fn() },
@@ -648,6 +648,11 @@ describe('BidService — stage transitions', () => {
   });
 
   describe('generateEvaluationResults', () => {
+    beforeEach(() => {
+      // 本组不涉签字包——置 null 走通闸门（外层默认 mock 是闭环态，供归档组用）
+      prisma.bidSignPacket.findUnique.mockResolvedValue(null);
+    });
+
     it('rejects until all experts confirm reports', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', stage: 'EVALUATING', name: '测试项目',
@@ -673,6 +678,41 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', name: 'x', experts: [], suppliers: [] });
       await expect(service.generateEvaluationResults('p1'))
         .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_EVALUATING' } });
+    });
+
+    it('spec §10：签字包已闭环 → 重生成结果 409（闭环签字与结果一一对应）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [],
+      });
+      prisma.bidSignPacket.findUnique.mockResolvedValue({ closedAt: new Date() });
+      await expect(service.generateEvaluationResults('p1'))
+        .rejects.toMatchObject({ response: { code: 'SIGN_PACKET_CLOSED' } });
+    });
+
+    it('spec §10：未闭环签字包 → 重生成结果时删除包并重置全员签字状态', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreRecord.findMany.mockImplementation((args: any) =>
+        Promise.resolve(args.where.supplierId === 's1' ? [{ score: 90 }] : [{ score: 70 }]),
+      );
+      prisma.bidSignPacket.findUnique.mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-stale', closedAt: null });
+
+      await service.generateEvaluationResults('p1');
+
+      expect(prisma.bidSignPacket.delete).toHaveBeenCalledWith({ where: { projectId: 'p1' } });
+      expect(prisma.bidExpert.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { projectId: 'p1', expertRole: '正选' },
+          data: expect.objectContaining({ signStatus: 'PENDING', signScanFileId: null, dissentingOpinion: null }),
+        }),
+      );
     });
 
     it('ranks suppliers by average score and recommends the top supplier', async () => {
@@ -732,6 +772,7 @@ describe('BidService — stage transitions', () => {
 
     beforeEach(() => {
       prisma.bidProject.findUnique.mockResolvedValue(buildProject());
+      prisma.bidSignPacket.findUnique.mockResolvedValue(null); // spec §10 闸门放行
       prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
       prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 1 });
       prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
@@ -2519,11 +2560,16 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
       bidSupervisionLog: { create: jest.fn() },
+      // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
         bidSupervisionLog: { create: jest.fn() },
         bidSupplier: { update: jest.fn() },
+        bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+        bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         $queryRaw: jest.fn().mockResolvedValue(undefined),
       })),
     };
@@ -2554,6 +2600,8 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: txLogCreate },
       bidSupplier: { update: jest.fn() },
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $queryRaw: jest.fn().mockResolvedValue(undefined),
     }));
 
@@ -2577,6 +2625,8 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: txLogCreate },
       bidSupplier: { update: jest.fn() },
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $queryRaw: jest.fn().mockResolvedValue(undefined),
     }));
 
@@ -3253,11 +3303,16 @@ describe('generateEvaluationResults expertRole filter', () => {
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
       bidSupervisionLog: { create: jest.fn() },
+      // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
         bidSupervisionLog: { create: jest.fn() },
         bidSupplier: { update: jest.fn() },
+        bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+        bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         $queryRaw: jest.fn().mockResolvedValue(undefined),
       })),
     };
@@ -3312,11 +3367,16 @@ describe('generateEvaluationResults expertRole filter', () => {
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
       bidSupervisionLog: { create: jest.fn() },
+      // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: txCreateMany },
         bidSupervisionLog: { create: jest.fn() },
         bidSupplier: { update: jest.fn() },
+        bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
+        bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         $queryRaw: jest.fn().mockResolvedValue(undefined),
       })),
     };
