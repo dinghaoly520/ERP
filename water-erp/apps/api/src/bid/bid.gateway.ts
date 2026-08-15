@@ -57,6 +57,8 @@ export const SUPPLIER_BLOCKED_EVENTS = new Set<string>([
  * 同源多门户 cookie 可能共存（localhost 各门户跨端口共享 cookie；同域部署同理）：
  * 优先按 X-Portal 头、其次 Origin 端口判定门户归属（与 HTTP 侧 portal-cookie.ts 的
  * 解析链一致），避免 token_web 永远压过 token_supplier 导致供应商 socket 被误判为主持人。
+ * bid（:3007）自 2026-08-14 起为独立门户（token_bid），必须显式分支，
+ * 否则现场端 socket 拿不到 token、join:project 被硬门控 UNAUTHORIZED。
  */
 export function tokenFromHandshake(socket: Socket): string | undefined {
   const raw = socket.handshake.headers.cookie;
@@ -68,6 +70,10 @@ export function tokenFromHandshake(socket: Socket): string | undefined {
   }
   const xPortal = (socket.handshake.headers['x-portal'] as string | undefined)?.toLowerCase();
   const originPort = (socket.handshake.headers.origin ?? '').split(':')[2]?.split('/')[0];
+  if (xPortal === 'bid' || originPort === String(PORTS.bid)) {
+    // :3007 独立门户：优先 token_bid；回退 token_web/token 兼容旧会话（admin 经 :3005 登录）
+    return map.get('token_bid') || map.get('token_web') || map.get('token');
+  }
   if (xPortal === 'supplier' || originPort === String(PORTS.supplier)) {
     return map.get('token_supplier') || map.get('token_web') || map.get('token');
   }
@@ -78,6 +84,7 @@ export function tokenFromHandshake(socket: Socket): string | undefined {
     map.get('token_web') ||
     map.get('token_expert') ||
     map.get('token_supplier') ||
+    map.get('token_bid') ||
     map.get('token')
   );
 }

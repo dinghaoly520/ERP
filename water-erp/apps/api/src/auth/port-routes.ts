@@ -9,6 +9,8 @@
  * - :3005 独占 = 管理类接口（公告/供应商/专家/目录/项目/文档）
  * - :3007 独占 = 现场执行类接口（开标/解密/评标/评分/异议/签字）
  * - 共享 API（如 GET /api/bid/projects 列表/详情）不拦——靠 L6 数据过滤
+ * - 例外清单：:3007 现场评标所需的个别只读端点虽挂在 :3005 独占模块下，
+ *   仍放行（BID_ALLOWED_WITHIN_WEB_EXCLUSIVE，端点自身 @Roles 已含 bid_host）
  *
  * 用正则而非前缀：能精确区分 /api/bid/projects（共享）vs /api/bid/projects/:id/start-evaluation（独占）
  */
@@ -81,9 +83,19 @@ export const BID_EXCLUSIVE_PATTERNS: RegExp[] = [
   /^\/api\/bid\/projects\/[^/]+\/clarifications/,
   /^\/api\/bid\/projects\/[^/]+\/disputes/,
   /^\/api\/bid\/projects\/[^/]+\/result/,
-  // 评标签字包
+  // 评标签字包（写操作独占；基础 GET 共享——:3005 归档块展示签字闸门/回流状态，
+  // controller 该 GET 的 @Roles 已放 leader/staff，见 bid-sign-packet.controller.ts）
   /^\/api\/bid\/sign/,
-  /^\/api\/bid\/projects\/[^/]+\/sign-packet/,
+  /^\/api\/bid\/projects\/[^/]+\/sign-packet\//,
+];
+
+/**
+ * :3007 现场端在 :3005 独占模块内的例外路径（评标现场所需的只读端点）。
+ * 端点自身的 @Roles（admin/bid_host/leader/staff）仍生效，此处只豁免端口层。
+ */
+export const BID_ALLOWED_WITHIN_WEB_EXCLUSIVE: RegExp[] = [
+  // 专家批注/墨迹查看（评标管理 tab；expert-admin.controller.ts:237,248）
+  /^\/api\/expert-admin\/projects\/[^/]+\/memos/,
 ];
 
 /**
@@ -100,8 +112,9 @@ export function checkPortRouteAccess(
   // 公共路径放行
   if (PUBLIC_ROUTE_PREFIXES.some(p => path.startsWith(p))) return null;
 
-  // :3007 (bid) 调用 :3005 独占路径 → 拒绝
+  // :3007 (bid) 调用 :3005 独占路径 → 拒绝（评标现场所需的个别只读端点例外）
   if (portal === 'bid' && WEB_EXCLUSIVE_PREFIXES.some(p => path.startsWith(p))) {
+    if (BID_ALLOWED_WITHIN_WEB_EXCLUSIVE.some(re => re.test(path))) return null;
     return '该接口仅在采购管理端(:3005)可用';
   }
 
