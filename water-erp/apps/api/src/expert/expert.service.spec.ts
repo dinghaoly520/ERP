@@ -65,7 +65,8 @@ describe('ExpertService', () => {
       bidClarification: { create: jest.fn() },
       aiBidderResult: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidScoreDelta: { upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
-      expertDispute: { findFirst: jest.fn(), create: jest.fn() },
+      expertDispute: { findFirst: jest.fn(), create: jest.fn(), findMany: jest.fn() },
+      bidMotion: { findMany: jest.fn() },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn(async (arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
@@ -1840,6 +1841,57 @@ describe('ExpertService', () => {
 
       await expect(service.leaderCoSign('user-1', 'proj-1'))
         .rejects.toMatchObject({ response: { code: 'MEMBERS_NOT_CONFIRMED' } });
+    });
+  });
+
+  describe('P1 专家间可见性收口：listMotions / listDisputes / getProject', () => {
+    const votes = [
+      { expertId: 'exp-1', vote: 'approve' },
+      { expertId: 'exp-2', vote: 'reject' },
+      { expertId: 'exp-3', vote: 'abstain' },
+    ];
+
+    it('非组长：voting 期动议不返回 votes/赞反计数，仅本人票与已投数（防从众）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, isLead: false });
+      prisma.bidMotion.findMany.mockResolvedValue([{ id: 'm1', projectId: 'proj-1', title: '废标动议', status: 'voting', votes }]);
+
+      const res = await service.listMotions('user-1', 'proj-1');
+
+      expect((res[0] as any).votes).toBeUndefined();
+      expect(res[0].approveCount).toBeUndefined();
+      expect(res[0].myVote).toBe('approve'); // exp-1 = mockExpert.id
+      expect(res[0].votedCount).toBe(3);
+    });
+
+    it('非组长：closed 动议公布三向计数与结果，但仍不返回 votes 明细', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, isLead: false });
+      prisma.bidMotion.findMany.mockResolvedValue([{ id: 'm1', projectId: 'proj-1', title: '废标动议', status: 'closed', result: 'approved', votes }]);
+
+      const res = await service.listMotions('user-1', 'proj-1');
+
+      expect((res[0] as any).votes).toBeUndefined();
+      expect(res[0]).toMatchObject({ approveCount: 1, rejectCount: 1, abstainCount: 1, votedCount: 3 });
+    });
+
+    it('组长：保留 votes 明细（催票/主持需要）且带派生字段', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, isLead: true });
+      prisma.bidMotion.findMany.mockResolvedValue([{ id: 'm1', projectId: 'proj-1', title: '废标动议', status: 'closed', result: 'approved', votes }]);
+
+      const res = await service.listMotions('user-1', 'proj-1');
+
+      expect((res[0] as any).votes).toHaveLength(3);
+      expect(res[0].myVote).toBe('approve');
+    });
+
+    it('listDisputes 仅返回本人工单（偏差组均值不可跨专家可见）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert });
+      prisma.expertDispute.findMany.mockResolvedValue([]);
+
+      await service.listDisputes('user-1', 'proj-1');
+
+      expect(prisma.expertDispute.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ projectId: 'proj-1', expertId: 'exp-1' }) }),
+      );
     });
   });
 });

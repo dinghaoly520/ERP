@@ -261,7 +261,9 @@ export class ExpertService {
           include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
         },
         clarifications: { orderBy: { createdAt: 'desc' } },
-        supervisionLogs: { orderBy: { time: 'desc' }, take: 20 },
+        // P1 专家间可见性收口：专家端不再下发监督日志（逐条含他人评分/签到动作），
+        // 监督日志归主持端（WS 也只发 host 房）——2026-08-14 审计
+        // supervisionLogs: { orderBy: { time: 'desc' }, take: 20 },
       },
     });
     if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
@@ -342,6 +344,18 @@ export class ExpertService {
     });
     return {
       ...project,
+      // P1 专家间可见性收口：experts 数组只保留委员会公开信息（姓名/专业——评标报告本就载明成员名单）；
+      // 逐人签到/回避/进度/报告确认改为聚合计数，对齐 WS broadcastAggregatePresence「只发计数」设计
+      experts: project.experts.map(e => ({ id: e.id, expertName: e.expertName, major: e.major })),
+      expertPresence: {
+        totalExperts: project.experts.length,
+        signedInCount: project.experts.filter(e => e.signedIn).length,
+        avoidanceConfirmedCount: project.experts.filter(e => e.avoidanceConfirmed).length,
+        reportConfirmedCount: project.experts.filter(e => e.reportConfirmed).length,
+        averageProgressPercent: project.experts.length > 0
+          ? Math.round(project.experts.reduce((s, e) => s + (e.progress ?? 0), 0) / project.experts.length)
+          : 0,
+      },
       myExpertRecord,
       myScores,
       restricted: false,
@@ -2045,11 +2059,14 @@ export class ExpertService {
     });
   }
 
-  /** D2: 查询项目异议工单 */
+  /** D2: 查询项目异议工单（P1 收口：仅本人工单——偏差工单 content 含组均值，
+   * 全量下发等于向所有专家泄露组均分；主持端经 /bid/projects/:id 照见全量） */
   async listDisputes(userId: string, projectId: string) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
-    return this.prisma.expertDispute.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' } });
+    return this.prisma.expertDispute.findMany(
+      { where: { projectId, expertId: expert.id }, orderBy: { createdAt: 'desc' } },
+    );
   }
 
   /** C2: 组长末签 — 所有专家确认报告后,组长执行最终末签 */
@@ -2186,15 +2203,37 @@ export class ExpertService {
     });
   }
 
-  /** 查询项目动议列表 */
+  /** 查询项目动议列表（P1 收口：非组长不见逐人投票明细） */
   async listMotions(userId: string, projectId: string) {
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '不是项目评审专家', code: 'NOT_PROJECT_EXPERT' });
-    return this.prisma.bidMotion.findMany({
+    const motions = await this.prisma.bidMotion.findMany({
       where: { projectId },
       include: { votes: true },
       orderBy: { createdAt: 'desc' },
     });
+    return motions.map(m => this.stripMotionVotesForExpert(m, expert.id, !!expert.isLead));
+  }
+
+  /** P1 专家间可见性收口：非组长不返回逐人投票明细（votes）。
+   * voting 期仅本人票 + 已投人数（防从众引导）；closed 后公布三向计数与结果（记名表决结果披露）。
+   * 组长保留 votes（催促未投/主持表决需要）。派生字段（myVote/votedCount/计数）两组长均返回，前端统一消费。 */
+  private stripMotionVotesForExpert<
+    T extends { status: string; votes: Array<{ expertId: string; vote: string }> },
+  >(motion: T, expertId: string, isLead: boolean) {
+    const { votes, ...rest } = motion;
+    const derived = {
+      myVote: votes.find(v => v.expertId === expertId)?.vote ?? null,
+      votedCount: votes.length,
+      ...(rest.status === 'voting'
+        ? {}
+        : {
+            approveCount: votes.filter(v => v.vote === 'approve').length,
+            rejectCount: votes.filter(v => v.vote === 'reject').length,
+            abstainCount: votes.filter(v => v.vote === 'abstain').length,
+          }),
+    };
+    return isLead ? { ...motion, ...derived } : { ...rest, ...derived };
   }
 
   // ── 评审待办：跨项目聚合 ──
@@ -2228,11 +2267,15 @@ export class ExpertService {
         include: { votes: true },
         orderBy: { createdAt: 'desc' },
       }),
+      // P1 收口：待办只聚合本人工单（偏差组均值不可跨专家可见）
       this.prisma.expertDispute.findMany({
-        where: { projectId: { in: projectIds } },
+        where: { projectId: { in: projectIds }, expertId: { in: expertIds } },
         orderBy: { createdAt: 'desc' },
       }),
     ]);
+
+    // P1 收口：非组长剥离逐人 votes（per-project 专家身份不同）
+    const recByProject = new Map(records.map(r => [r.projectId, r]));
 
     return {
       projects: records.map(r => ({
@@ -2243,11 +2286,10 @@ export class ExpertService {
         isLead: r.isLead,
       })),
       motions: motions.map(m => ({
-        ...m,
+        ...this.stripMotionVotesForExpert(m, recByProject.get(m.projectId)!.id, !!recByProject.get(m.projectId)!.isLead),
         projectName: projectMap.get(m.projectId)?.name ?? '',
         projectStage: projectMap.get(m.projectId)?.stage ?? '',
         totalVoters: projectMap.get(m.projectId)?.totalVoters ?? 0,
-        myVote: m.votes.find(v => expertIds.includes(v.expertId))?.vote ?? null,
       })),
       disputes: disputes.map(d => ({
         ...d,

@@ -18,7 +18,12 @@ interface MotionItem {
   id: string; projectId: string; projectName: string; projectStage: string;
   title: string; status: string; result?: string | null; myVote: string | null;
   totalVoters?: number;
-  votes: Array<{ expertId: string; vote: string }>;
+  /** P1 收口：voting 期仅 votedCount（防从众）；closed 后有三向计数；组长额外带 votes */
+  votedCount?: number;
+  approveCount?: number;
+  rejectCount?: number;
+  abstainCount?: number;
+  votes?: Array<{ expertId: string; vote: string }>;
 }
 interface DisputeItem {
   id: string; projectId: string; projectName: string;
@@ -315,9 +320,11 @@ export default function ExpertDashboardPage() {
                 {activeMotions.length > 0 && (
                   <TaskGroup icon={<Gavel size={14} strokeWidth={1.8} />} color="var(--accent)" label="表决记录" count={activeMotions.length}>
                     {activeMotions.map(m => {
-                      const approves = m.votes.filter(v => v.vote === 'approve').length;
-                      const rejects = m.votes.filter(v => v.vote === 'reject').length;
-                      const total = m.votes.length;
+                      const approves = m.approveCount ?? 0;
+                      const rejects = m.rejectCount ?? 0;
+                      const abstains = m.abstainCount ?? 0;
+                      const total = m.votedCount ?? 0;
+                      const showCounts = m.approveCount != null;
                       const quorum = m.totalVoters ?? 0;
                       const sc = STAGE_COLOR[m.projectStage as keyof typeof STAGE_COLOR];
                       const isVoting = m.status === 'voting';
@@ -344,7 +351,7 @@ export default function ExpertDashboardPage() {
                           <p className="text-[11px] font-semibold text-[var(--foreground)] mb-1">{m.title}</p>
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">
-                              赞成 {approves} · 反对 {rejects} · 弃权 {total - approves - rejects}
+                              {showCounts ? `赞成 ${approves} · 反对 ${rejects} · 弃权 ${abstains}` : '投票进行中'}
                               {quorum > 0 && <span className="ml-1 font-semibold text-[var(--foreground)]">已投 {total}/{quorum}</span>}
                             </span>
                             <div className="flex items-center gap-2">

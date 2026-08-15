@@ -9,7 +9,13 @@ import { QuoteHistoryPanel } from './quote-history-panel';
 interface MotionItem {
   id: string; title: string; description?: string | null;
   status: string; result?: string | null;
-  votes: Array<{ expertId: string; vote: string }>;
+  /** P1 收口：服务端派生字段（voting 期无计数）；组长响应额外带 votes */
+  myVote?: string | null;
+  votedCount?: number;
+  approveCount?: number;
+  rejectCount?: number;
+  abstainCount?: number;
+  votes?: Array<{ expertId: string; vote: string }>;
 }
 interface DisputeItem {
   id: string; title: string; expertName: string;
@@ -32,7 +38,7 @@ interface ReportStepProps {
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
-export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], myExpertId, projectId }: ReportStepProps) {
+export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSigned, allMembersConfirmed, onLeaderCoSign, motions = [], disputes = [], projectId }: ReportStepProps) {
   // 逐项明细折叠态（默认折叠，点击 item 行展开）
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const toggleItem = (key: string) => setExpandedItems(prev => {
@@ -306,11 +312,14 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
           {hasMotions && (
             <div className="space-y-2">
               {motions.map(m => {
-                const approves = m.votes?.filter(v => v.vote === 'approve').length ?? 0;
-                const rejects = m.votes?.filter(v => v.vote === 'reject').length ?? 0;
-                const totalVotes = m.votes?.length ?? 0;
-                const myVote = m.votes?.find(v => v.expertId === myExpertId)?.vote;
+                // P1 收口：服务端已剥离 votes（组长保留）——统一消费派生字段；
+                // voting 期不显示赞/反分布（防从众），只显示已投进度
+                const approves = m.approveCount ?? 0;
+                const rejects = m.rejectCount ?? 0;
+                const totalVotes = m.votedCount ?? 0;
+                const myVote = m.myVote ?? null;
                 const isClosed = m.status === 'closed';
+                const showCounts = m.approveCount != null;
                 return (
                   <div key={m.id} className={`neu-card-static rounded-xl p-3 ${isClosed ? 'opacity-60' : ''}`}>
                     <div className="flex items-center justify-between mb-1">
@@ -329,9 +338,13 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
                     </div>
                     {m.description && <p className="mb-1 text-[11px] text-[var(--muted-foreground)]">{m.description}</p>}
                     <div className="flex items-center gap-3 text-[10px] tabular-nums text-[var(--muted-foreground)]">
-                      <span className="text-[var(--success)]">赞成 {approves}</span>
-                      <span className="text-[var(--danger)]">反对 {rejects}</span>
-                      <span>/ {totalVotes} 票</span>
+                      {showCounts ? (
+                        <>
+                          <span className="text-[var(--success)]">赞成 {approves}</span>
+                          <span className="text-[var(--danger)]">反对 {rejects}</span>
+                        </>
+                      ) : null}
+                      <span>/ 已投 {totalVotes} 票</span>
                       {myVote && <span className="ml-auto">本人：{VOTE_LABEL[myVote] ?? myVote}</span>}
                     </div>
                   </div>

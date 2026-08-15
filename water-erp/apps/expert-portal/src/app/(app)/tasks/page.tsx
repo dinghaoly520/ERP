@@ -18,7 +18,12 @@ interface MotionItem {
   result?: string | null;
   createdBy: string;
   myVote: string | null;
-  votes: Array<{ expertId: string; vote: string }>;
+  /** P1 收口：voting 期仅 votedCount（防从众）；closed 后有三向计数；组长额外带 votes */
+  votedCount?: number;
+  approveCount?: number;
+  rejectCount?: number;
+  abstainCount?: number;
+  votes?: Array<{ expertId: string; vote: string }>;
 }
 
 interface DisputeItem {
@@ -254,9 +259,10 @@ export default function ExpertTasksPage() {
             ) : (
               <div className="space-y-2">
                 {motions.map((m) => {
-                  const approves = m.votes.filter((v: any) => v.vote === 'approve').length;
-                  const rejects = m.votes.filter((v: any) => v.vote === 'reject').length;
-                  const totalVotes = m.votes.length;
+                  const approves = m.approveCount ?? 0;
+                  const rejects = m.rejectCount ?? 0;
+                  const totalVotes = m.votedCount ?? 0;
+                  const showCounts = m.approveCount != null;
                   const isVoting = m.status === 'voting';
                   const resultMeta = isVoting
                     ? { label: '投票中', color: 'var(--warning)' }
@@ -297,11 +303,15 @@ export default function ExpertTasksPage() {
                         <p className="mb-2 text-xs leading-5 text-[var(--muted-foreground)]">{m.description}</p>
                       )}
 
-                      {/* 票数 + 投票 */}
+                      {/* 票数 + 投票（voting 期只显示已投进度，closed 后显示三向票数） */}
                       <div className="flex flex-wrap items-center gap-3 text-xs">
-                        <span className="tabular-nums text-[var(--success)]">赞成 {approves}</span>
-                        <span className="tabular-nums text-[var(--danger)]">反对 {rejects}</span>
-                        <span className="tabular-nums text-[var(--muted-foreground)]">/ {totalVotes}</span>
+                        {showCounts ? (
+                          <>
+                            <span className="tabular-nums text-[var(--success)]">赞成 {approves}</span>
+                            <span className="tabular-nums text-[var(--danger)]">反对 {rejects}</span>
+                          </>
+                        ) : null}
+                        <span className="tabular-nums text-[var(--muted-foreground)]">已投 {totalVotes}</span>
 
                         {m.myVote ? (
                           <span className="ml-auto rounded px-2 py-1 text-xs font-semibold" style={{ background: 'color-mix(in oklch, var(--accent) 10%, transparent)', color: 'var(--accent)' }}>
