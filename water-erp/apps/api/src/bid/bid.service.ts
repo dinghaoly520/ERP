@@ -380,14 +380,19 @@ export class BidService {
       throw new ForbiddenException('无权访问该项目（未指派给您）');
     }
 
-    // 配置开关：评标期间对主持端匿名化专家身份（同 listScores）
-    const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL === 'true';
+    // 配置开关：评标期间对主持端匿名化专家身份（同 listScores）。
+    // 2026-08-15 审计整改：默认开启（未配置视为开启，显式 =false 才关闭）；
+    // 匿名标签按 expertId 排序稳定编号（专家 1/2/…），刷新不换号，矩阵行间可区分。
+    const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL !== 'false';
     if (anonymize) {
       const allConfirmed = project.experts.length > 0 && project.experts.every(e => e.reportConfirmed);
       if (project.stage === 'EVALUATING' && !allConfirmed) {
+        const anonLabel = new Map(
+          [...project.experts].map(e => e.id).sort().map((id, i) => [id, `专家 ${i + 1}`]),
+        );
         project.experts = project.experts.map(e => ({
           ...e,
-          expertName: '专家',
+          expertName: anonLabel.get(e.id) ?? '专家',
           scoreRecords: e.scoreRecords.map(r => ({ ...r, expertId: null } as unknown as typeof r)),
         })) as typeof project.experts;
       }
@@ -3550,20 +3555,24 @@ export class BidService {
       include: { expert: true, scoreItem: true },
     });
 
-    // 配置开关：评标期间对主持端匿名化专家身份
-    const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL === 'true';
+    // 配置开关：评标期间对主持端匿名化专家身份。
+    // 默认开启（显式 =false 才关闭）；标签按 expertId 排序稳定编号，与 getProject 口径一致。
+    const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL !== 'false';
     if (!anonymize) return records;
 
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, experts: { select: { reportConfirmed: true } } },
+      select: { stage: true, experts: { select: { id: true, reportConfirmed: true } } },
     });
     const allConfirmed = project?.experts.every(e => e.reportConfirmed) ?? false;
     if (project?.stage === 'EVALUATING' && !allConfirmed) {
+      const anonLabel = new Map(
+        [...project.experts].map(e => e.id).sort().map((id, i) => [id, `专家 ${i + 1}`]),
+      );
       return records.map(r => ({
         ...r,
         expertId: null,
-        expert: { ...r.expert, expertName: '专家', id: null },
+        expert: { ...r.expert, expertName: anonLabel.get(r.expert.id) ?? '专家', id: null },
       }));
     }
     return records;

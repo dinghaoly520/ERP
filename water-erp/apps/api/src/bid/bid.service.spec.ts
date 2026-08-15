@@ -1694,8 +1694,9 @@ describe('BidService — stage transitions', () => {
       const result = await service.getProject('p-anon');
 
       expect(result).not.toBeNull();
-      expect(result!.experts[0].expertName).toBe('专家');
-      expect(result!.experts[1].expertName).toBe('专家');
+      // 稳定编号：按 expertId 排序分配「专家 1/2/…」，行间可区分且刷新不换号
+      expect(result!.experts[0].expertName).toBe('专家 1');
+      expect(result!.experts[1].expertName).toBe('专家 2');
       expect(result!.experts[0].scoreRecords[0].expertId).toBeNull();
       expect(result!.experts[1].scoreRecords[0].expertId).toBeNull();
       // expert.id 保留（前端 Map 索引需要）
@@ -1729,14 +1730,27 @@ describe('BidService — stage transitions', () => {
       expect(result!.experts[1].expertName).toBe('李四');
     });
 
-    it('环境变量关闭时不剥离', async () => {
-      delete process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL;
+    it('显式 =false 关闭时不剥离', async () => {
+      process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL = 'false';
       prisma.bidProject.findUnique.mockResolvedValue({ ...mockProject, stage: 'EVALUATING' });
 
       const result = await service.getProject('p-anon');
 
       expect(result!.experts[0].expertName).toBe('张三');
       expect(result!.experts[1].expertName).toBe('李四');
+
+      // restore for subsequent tests
+      process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL = 'true';
+    });
+
+    it('未配置 → 默认开启匿名（2026-08-15 语义翻转：安全默认）', async () => {
+      delete process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL;
+      prisma.bidProject.findUnique.mockResolvedValue({ ...mockProject, stage: 'EVALUATING' });
+
+      const result = await service.getProject('p-anon');
+
+      expect(result!.experts[0].expertName).toBe('专家 1');
+      expect(result!.experts[1].expertName).toBe('专家 2');
 
       // restore for subsequent tests
       process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL = 'true';
