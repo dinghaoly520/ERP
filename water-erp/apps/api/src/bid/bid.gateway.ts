@@ -425,10 +425,11 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.ROUND_STATUS_CHANGE, payload);
   }
 
-  /** 评分提交里程碑：广播到专家房（所有本项目专家），不含分数值 */
+  /** 评分提交里程碑：广播到专家房 + 主持房（:3007 现场进度实时化），不含分数值 */
   notifyScoresSubmitted(projectId: string, expertId: string, supplierId: string) {
     const payload: ScoresSubmittedPayload = { projectId, expertId, supplierId, timestamp: Date.now() };
     this.server.to(`experts:${projectId}`).emit(BID_EVENT.SCORES_SUBMITTED, payload);
+    this.server.to(`host:${projectId}`).emit(BID_EVENT.SCORES_SUBMITTED, payload);
   }
 
   /** 草稿保存限流：键 `${projectId}:${expertId}`，3s 内不重复发送 */

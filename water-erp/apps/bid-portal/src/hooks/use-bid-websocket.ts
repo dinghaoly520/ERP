@@ -30,6 +30,7 @@ import {
   type RoundStatusChangePayload,
   type ClarificationCreatedPayload,
   type ClarificationRepliedPayload,
+  type ScoresSubmittedPayload,
 } from '@water-erp/shared';
 
 function wsUrl(): string {
@@ -58,6 +59,7 @@ export interface BidWsHandlers {
   onExpertPresenceAggregate?: (d: ExpertPresenceAggregatePayload) => void;
   onClarificationCreated?: (d: ClarificationCreatedPayload) => void;
   onClarificationReplied?: (d: ClarificationRepliedPayload) => void;
+  onScoresSubmitted?: (d: ScoresSubmittedPayload) => void;
   /** G1: 重连后回调——组件可执行全量数据刷新补偿丢失的事件 */
   onReconnected?: () => void;
 }
@@ -174,6 +176,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     on(BID_EVENT.EXPERT_PRESENCE_AGGREGATE, 'onExpertPresenceAggregate');
     on(BID_EVENT.CLARIFICATION_CREATED, 'onClarificationCreated');
     on(BID_EVENT.CLARIFICATION_REPLIED, 'onClarificationReplied');
+    on(BID_EVENT.SCORES_SUBMITTED, 'onScoresSubmitted');
   }, [projectId]);
 
   const reconnectNow = useCallback(() => {

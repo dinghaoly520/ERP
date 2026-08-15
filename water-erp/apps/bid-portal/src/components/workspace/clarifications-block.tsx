@@ -22,6 +22,8 @@ type Props = {
   bidProjectId: string;
   detail: BidProjectDetail | null;
   onChanged: () => void;
+  /** 远程澄清事件信号（页级 WS onClarificationCreated/Replied/onReconnected 递增）——变化即重拉列表 */
+  refreshSignal?: number;
 };
 
 function formatTime(iso: string | null): string {
@@ -31,7 +33,7 @@ function formatTime(iso: string | null): string {
   return d.toLocaleString('zh-CN');
 }
 
-export function ClarificationsBlock({ bidProjectId, detail, onChanged }: Props) {
+export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSignal }: Props) {
   const [items, setItems] = useState<BidClarificationInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -64,9 +66,9 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged }: Props) 
       .finally(() => setLoading(false));
   }, [bidProjectId]);
 
-  // 按项目挂载拉取（refreshTick 死 prop 已移除：唯一渲染点 workspace page 从未传该值，2026-08-14）；
-  // 增量刷新由本块内发起/回复成功后的 handler 直接 load() 重拉（onChanged 同步刷新父级项目数据）
-  useEffect(() => { load(); }, [load]);
+  // 按项目挂载拉取；增量刷新有两条：本块内发起/回复成功后 handler 直接 load()，
+  // 远程事件（专家发起 / 供应商回复 / 断线重连补偿）经 refreshSignal 触发重拉（2026-08-14 现场协同实时化）
+  useEffect(() => { load(); }, [load, refreshSignal]);
 
   if (!detail) return null;
   const stage = detail.stage;

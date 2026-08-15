@@ -48,6 +48,9 @@ function WorkspaceInner() {
   const [liveLogs, setLiveLogs] = useState<SupervisionLog[]>([]);
   const [anomalyEvents, setAnomalyEvents] = useState<AnomalyDetectedPayload[]>([]);
 
+  // ═══ 现场协同实时化（P0）：澄清事件信号——驱动 ClarificationsBlock 重拉 ═══
+  const [clarSignal, setClarSignal] = useState(0);
+
   // ═══ Audio（从 opening-hall 上提：解密音效由页级 socket 驱动，跨 tab 常驻）═══
   const sfx = useOpeningSfx();
   const seenDecrypt = useRef<Set<string>>(new Set());
@@ -72,6 +75,14 @@ function WorkspaceInner() {
     setAnomalyEvents([]);
     loadProject();
   }, [projectId, loadProject]);
+
+  // ═══ 高频事件防抖刷新：评分提交/专家在场成串到达（7 专家 × N 供应商），合并为一次全量重拉 ═══
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => { refreshTimer.current = null; loadProject(); }, 1200);
+  }, [loadProject]);
+  useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
 
   // ═══ 当前 tab ═══
   const stage = project?.stage ?? 'DOWNLOAD';
@@ -149,6 +160,37 @@ function WorkspaceInner() {
       loadProject();
       toast.warning(`${d.supplierName} 提出开标异议：${d.reason}`);
     },
+    // ── 现场协同实时化（P0）：专家端动作驱动主持端屏幕，替代手动 F5 ──
+    onScoresSubmitted: (d) => {
+      const expertName = project?.experts?.find(e => e.id === d.expertId)?.expertName;
+      const supplierName = project?.suppliers?.find(s => s.id === d.supplierId)?.supplierName;
+      if (expertName && supplierName) toast.success(`${expertName} 完成对 ${supplierName} 的评分`, { duration: 2500 });
+      scheduleRefresh();
+    },
+    // 专家签到/回避/报告确认/进度里程碑（host 房定向）
+    onExpertPresence: () => { scheduleRefresh(); },
+    onExpertPresenceAggregate: () => { scheduleRefresh(); },
+    onEvaluationStarted: () => {
+      loadProject();
+      toast.success('评标已启动，专家端进入评分');
+    },
+    // 澄清答疑：远程发起/供应商回复 → 列表重拉 + 提醒（project 房广播）
+    onClarificationCreated: (d) => {
+      scheduleRefresh();
+      setClarSignal(v => v + 1);
+      toast.warning(`新澄清请求（${d.issuer} · ${d.supplierName}）：${d.questionPreview}`, { duration: 5000 });
+    },
+    onClarificationReplied: (d) => {
+      scheduleRefresh();
+      setClarSignal(v => v + 1);
+      toast(`澄清已回复（${d.replier}）：${d.replyPreview}`, { duration: 4000 });
+    },
+    // G1: 断线重连——补拉断连窗口内丢失事件对应的数据（事件无离线持久化）
+    onReconnected: () => {
+      loadProject();
+      setClarSignal(v => v + 1);
+      toast.success('实时连接已恢复，数据已刷新');
+    },
     // 监督日志与异常事件：不限 tab 常驻累积，供监督视图消费
     onSupervisionLog: (data) => {
       setLiveLogs(prev => [data as unknown as SupervisionLog, ...prev].slice(0, 100));
@@ -187,7 +229,7 @@ function WorkspaceInner() {
             <>
               <EvaluationView projectId={projectId as string} project={project} onChanged={loadProject} />
               <DisputeBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />
-              <ClarificationsBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} />
+              <ClarificationsBlock bidProjectId={projectId as string} detail={project} onChanged={loadProject} refreshSignal={clarSignal} />
             </>
           )}
           {current === 'standard' && <ScoreStandardView projectId={projectId as string} project={project} />}
