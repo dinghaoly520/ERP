@@ -709,6 +709,11 @@ export class ExpertAdminService {
     });
     if (!project) throw new NotFoundException('项目不存在');
     if (!dto.experts?.length && !dto.candidates?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
+    // P1-6：评标启动/归档后禁「先清空再写入」的整体重抽（评分进度与签字状态挂 BidExpert，
+    // deleteMany 会连带摧毁）；追加补选仍允许。
+    if (!dto.append && (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED')) {
+      throw new ConflictException({ error: '项目已进入评标/归档，禁止整体重抽专家；如需补人请使用追加模式', code: 'RE_EXTRACTION_LOCKED' });
+    }
 
     // 供应商名集合（回避校验）——P1-5：回避口径=实际参与投标的供应商全集（已投递或开标后到终局态）。
     // 旧口径 confirmStatus==='CONFIRMED' 在开标前抽取时恒为空集（全员 PENDING），回避形同虚设。

@@ -289,6 +289,32 @@ describe('ExpertAdminService', () => {
       });
     });
 
+    it('P1-6：项目已进入评标阶段时禁非追加重抽（deleteMany 会摧毁评分/签字状态）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'EVALUATING', suppliers: [] });
+      await expect(service.confirmExtraction('p1', dto(), 'op1'))
+        .rejects.toMatchObject({ response: { code: 'RE_EXTRACTION_LOCKED' } });
+      expect(prisma.bidExpert.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('P1-6：评标阶段追加模式（append）仍放行补选', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'EVALUATING', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [] },
+      ]);
+      const res = await service.confirmExtraction('p1', { projectId: 'p1', experts: [{ userId: 'u1', expertName: '甲', major: '造价' }], candidates: [], append: true } as any, 'op1');
+      expect(res.success).toBe(true);
+      expect(prisma.bidExpert.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('P1-6：SUBMIT 阶段整体重抽仍允许（正常补抽场景）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'SUBMIT', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [] },
+      ]);
+      const res = await service.confirmExtraction('p1', dto(), 'op1');
+      expect(res.success).toBe(true);
+    });
+
     it('成功抽取应写入 BidExpert 与审计日志（同一事务）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
