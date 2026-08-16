@@ -680,6 +680,13 @@ export function ProjectDetailPanel({
 
   const markStageCompleted = async (stage: ProjectManagementStage) => {
     if (isBidLocked && stage.stageKey !== 'BID_EVALUATION') { toast.warning('开标已确认，前置步骤已锁定'); return; }
+    // P1-14（走查④）：开标评标是核心阶段——完成后推进定标不可逆，误点/连点会把整段
+    // 开评标流程跳过（走查实测：完成专家抽取后连点第二次直接 COMPLETED 本阶段，与
+    // BidProject 状态脱节）。加确认门槛。
+    if (stage.stageKey === 'BID_EVALUATION'
+        && !window.confirm('确认「开标评标」阶段已全部完成（开标、评标、签字、回流均已收尾）？完成后将进入定标阶段。')) {
+      return;
+    }
     setSubmitting(true);
     setErrorMessage(null);
     try {
