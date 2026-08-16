@@ -4680,29 +4680,21 @@ export class BidService {
     if (quotes.length === 0) return;
 
     await this.prisma.$transaction(async (tx) => {
-      const existingRecs = await tx.bidOpeningRecord.findMany({
-        where: { projectId, bidSupplierId: { in: quotes.map(q => q.bidSupplierId) } },
-        select: { id: true, bidSupplierId: true },
-      });
-      const recMap = new Map(existingRecs.map(r => [r.bidSupplierId!, r.id]));
-
       for (const q of quotes) {
-        const existId = recMap.get(q.bidSupplierId);
-        if (existId) {
-          await tx.bidOpeningRecord.update({ where: { id: existId }, data: { amount: String(q.quotePrice) } });
-        } else {
-          // C1 fix: 缺 record 时创建
-          const sup = await tx.bidSupplier.findUnique({ where: { id: q.bidSupplierId }, select: { supplierName: true } });
-          await tx.bidOpeningRecord.create({
-            data: {
-              projectId, bidSupplierId: q.bidSupplierId,
-              supplierName: sup?.supplierName ?? '—',
-              amount: String(q.quotePrice),
-              period: '', qualityTarget: '', bondStatus: '',
-              confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
-            },
-          });
-        }
+        // N1b 收尾：check-then-act 在唯一索引 (projectId, bidSupplierId) 下并发补建会裸抛 P2002，
+        // 与 decryptSupplier 同款 upsert（:1985）——update 只改价格，create 为缺 record 时补建（C1 fix）
+        const sup = await tx.bidSupplier.findUnique({ where: { id: q.bidSupplierId }, select: { supplierName: true } });
+        await tx.bidOpeningRecord.upsert({
+          where: { projectId_bidSupplierId: { projectId, bidSupplierId: q.bidSupplierId } },
+          create: {
+            projectId, bidSupplierId: q.bidSupplierId,
+            supplierName: sup?.supplierName ?? '—',
+            amount: String(q.quotePrice),
+            period: '', qualityTarget: '', bondStatus: '',
+            confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
+          },
+          update: { amount: String(q.quotePrice) },
+        });
       }
 
       await tx.bidSupervisionLog.create({
