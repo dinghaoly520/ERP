@@ -178,5 +178,125 @@
     "passed": true,
     "reason": null,
     "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_19",
+    "expertId": "be_seed_1",
+    "supplierId": "bs_seed_1",
+    "scoreItemId": "cms1iuh5j000quucs4k7e89qf",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_20",
+    "expertId": "be_seed_1",
+    "supplierId": "bs_seed_2",
+    "scoreItemId": "cms1iuh5j000quucs4k7e89qf",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_21",
+    "expertId": "be_seed_1",
+    "supplierId": "bs_seed_1",
+    "scoreItemId": "cms1iuh5j000ruucs1a1xj5mq",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_22",
+    "expertId": "be_seed_1",
+    "supplierId": "bs_seed_2",
+    "scoreItemId": "cms1iuh5j000ruucs1a1xj5mq",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_23",
+    "expertId": "be_seed_2",
+    "supplierId": "bs_seed_1",
+    "scoreItemId": "cms1iuh5j000quucs4k7e89qf",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_24",
+    "expertId": "be_seed_2",
+    "supplierId": "bs_seed_2",
+    "scoreItemId": "cms1iuh5j000quucs4k7e89qf",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_25",
+    "expertId": "be_seed_2",
+    "supplierId": "bs_seed_1",
+    "scoreItemId": "cms1iuh5j000ruucs1a1xj5mq",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_26",
+    "expertId": "be_seed_2",
+    "supplierId": "bs_seed_2",
+    "scoreItemId": "cms1iuh5j000ruucs1a1xj5mq",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_27",
+    "expertId": "be_seed_3",
+    "supplierId": "bs_seed_1",
+    "scoreItemId": "cms1iuh5j000quucs4k7e89qf",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_28",
+    "expertId": "be_seed_3",
+    "supplierId": "bs_seed_2",
+    "scoreItemId": "cms1iuh5j000quucs4k7e89qf",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_29",
+    "expertId": "be_seed_3",
+    "supplierId": "bs_seed_1",
+    "scoreItemId": "cms1iuh5j000ruucs1a1xj5mq",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
+  },
+  {
+    "id": "br_seed_30",
+    "expertId": "be_seed_3",
+    "supplierId": "bs_seed_2",
+    "scoreItemId": "cms1iuh5j000ruucs1a1xj5mq",
+    "score": 0,
+    "passed": true,
+    "reason": null,
+    "createdAt": "2026-08-12T02:00:00.000Z"
   }
 ]
