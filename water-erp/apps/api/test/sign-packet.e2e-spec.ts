@@ -21,7 +21,7 @@ describe('评标签字包全流程 (e2e)', () => {
   let leaderCookie: string[]; // Swhi-CGZX-01（:3005 归档）
   let projectId: string;
   let supplierId: string;
-  let expertIds: string[] = [];
+  const expertIds: string[] = [];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();

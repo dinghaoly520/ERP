@@ -2288,7 +2288,7 @@ stageMatch 字段需要输出两部分判断结果：
 
           // 解析修复结果回原结构
           if (repaired) {
-            let r = repaired.trim();
+            const r = repaired.trim();
             // 提取项目简报
             const briefMatch = r.match(/【项目简报】([\s\S]*?)(?=【|$)/);
             if (briefMatch && summaryGarbled) {
