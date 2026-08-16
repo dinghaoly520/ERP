@@ -1845,22 +1845,38 @@ export class BidService {
       throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
     }
 
-    // Phase 1: 原子抢占 RUNNING（PENDING/RUNNING → RUNNING；并发第二笔 count=0）
+    // Phase 1: 原子抢占（PENDING→RUNNING；并发第二笔 count=0）。
+    // N1 修复：旧 where 含 RUNNING → RUNNING→RUNNING 的 no-op 更新同样 count=1，互斥失效、双击双跑。
     const claim = await this.prisma.bidSupplier.updateMany({
-      where: { id: supplierId, decryptStatus: { in: ['PENDING', 'RUNNING'] } },
+      where: { id: supplierId, decryptStatus: 'PENDING' },
       data: { decryptStatus: 'RUNNING' },
     });
     if (claim.count === 0) {
-      const fresh = await this.prisma.bidSupplier.findUnique({ where: { id: supplierId }, select: { decryptStatus: true } });
+      const fresh = await this.prisma.bidSupplier.findUnique({
+        where: { id: supplierId },
+        select: { decryptStatus: true, updatedAt: true },
+      });
       if (fresh?.decryptStatus === 'SUCCESS') {
         throw new BadRequestException({ error: '标书已解密成功，无需重复解密', code: 'ALREADY_DECRYPTED' });
       }
-      throw new ConflictException({
-        error: fresh?.decryptStatus === 'DANGER'
-          ? '该供应商标书已定性为解密异常，无需重复操作'
-          : '该供应商标书正在解密中，请勿重复提交',
-        code: 'DECRYPT_ALREADY_IN_FLIGHT',
-      });
+      if (fresh?.decryptStatus === 'RUNNING') {
+        // 崩溃接管：RUNNING 停滞超 60s（进程崩溃/外部 IO 卡死遗留）方可重占。
+        // 条件更新带 updatedAt 上限：接管成功的 @updatedAt 刷新使并发第二笔接管 count=0。
+        const takeover = await this.prisma.bidSupplier.updateMany({
+          where: { id: supplierId, decryptStatus: 'RUNNING', updatedAt: { lt: new Date(Date.now() - 60_000) } },
+          data: { decryptStatus: 'RUNNING' },
+        });
+        if (takeover.count === 0) {
+          throw new ConflictException({ error: '该供应商标书正在解密中，请勿重复提交', code: 'DECRYPT_ALREADY_IN_FLIGHT' });
+        }
+      } else {
+        throw new ConflictException({
+          error: fresh?.decryptStatus === 'DANGER'
+            ? '该供应商标书已定性为解密异常，无需重复操作'
+            : '该供应商标书正在解密中，请勿重复提交',
+          code: 'DECRYPT_ALREADY_IN_FLIGHT',
+        });
+      }
     }
 
     // ── ② 事务外解密（MinIO 读流 + AES + SHA-256，不占 DB 连接）──

@@ -453,9 +453,13 @@ describe('BidService — stage transitions', () => {
       );
     });
 
-    it('P1-3：并发抢占失败（updateMany count=0）→ 409 DECRYPT_ALREADY_IN_FLIGHT，不进入解密', async () => {
-      prisma.bidSupplier.updateMany = jest.fn().mockResolvedValue({ count: 0 }); // 并发第二笔
-      prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'RUNNING' });
+    it('N1：并发抢占——PENDING claim count=0 且 RUNNING 未超时 → 409，不接管不终局写入', async () => {
+      prisma.bidSupplier.updateMany = jest.fn()
+        .mockResolvedValueOnce({ count: 0 })  // PENDING 抢占失败（首笔已抢）
+        .mockResolvedValueOnce({ count: 0 }); // 接管条件更新也失败（updatedAt 新鲜）
+      prisma.bidSupplier.findUnique.mockResolvedValue({
+        id: 'bs-1', decryptStatus: 'RUNNING', updatedAt: new Date(), // 1 秒前，未超时
+      });
 
       await expect(service.decryptSupplier('p1', 'bs-1')).rejects.toMatchObject({
         response: { code: 'DECRYPT_ALREADY_IN_FLIGHT' },
@@ -465,6 +469,43 @@ describe('BidService — stage transitions', () => {
         expect.objectContaining({ data: expect.objectContaining({ decryptStatus: 'SUCCESS' }) }),
       );
       expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    });
+
+    it('N1：RUNNING 停滞超过 60s（崩溃遗留）→ 接管成功进入解密', async () => {
+      prisma.bidSupplier.updateMany = jest.fn()
+        .mockResolvedValueOnce({ count: 0 })  // PENDING 抢占失败
+        .mockResolvedValueOnce({ count: 1 }); // 接管成功
+      // 简报中 Once(PENDING) 注明「方法首查（:1819）」——:1819 是 findFirst（非 findUnique），自包含重申在此；
+      // claim 失败后的复查（首个 findUnique 调用）须为停滞 RUNNING：
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs-1', projectId: 'p1', supplierName: '测试供应商', supplierId: 's1', decryptStatus: 'PENDING',
+      });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'RUNNING',
+        updatedAt: new Date(Date.now() - 120_000), supplierId: 'sup-1' });      // claim 失败后的复查（停滞 120s > 60s）
+      // 解密终局断言 SUCCESS：沿用既有用例的 submission/fileAsset 前置（复制自 beforeEach，自包含）——
+      // H1 规则下 submission=null 会判 DANGER「供应商未提交投标文件」，与本用例 SUCCESS 断言冲突
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'fa1', businessFileAssetId: null, coverLetterAssetId: null,
+        technicalSealedKey: null, businessSealedKey: null, coverLetterSealedKey: null,
+      });
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa1', key: 'uploads/test.pdf', sha256: 'abc123' });
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ pausedAt: null, decryptWindowStart: new Date(Date.now() - 3600_000), decryptWindowEnd: new Date(Date.now() + 3600_000) });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma));
+
+      const res = await service.decryptSupplier('p1', 'bs-1');
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ decryptStatus: 'SUCCESS' }) }),
+      );
+      expect(res).toBeTruthy();
+    });
+
+    it('N1：DANGER 态（已定性）→ 409 文案区分', async () => {
+      prisma.bidSupplier.updateMany = jest.fn().mockResolvedValue({ count: 0 });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'DANGER', updatedAt: new Date() });
+      await expect(service.decryptSupplier('p1', 'bs-1')).rejects.toMatchObject({
+        response: { code: 'DECRYPT_ALREADY_IN_FLIGHT' },
+      });
     });
 
     it('P1-3：解密即唱标重复提供字段时开标记录 upsert（并发不双建）', async () => {
