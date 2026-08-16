@@ -68,26 +68,40 @@ export class RsvpService {
     }
 
     const note = (body.note ?? '').trim().slice(0, 500) || null;
-    const updated = await this.prisma.invitationRsvp.update({
-      where: { id: row.id },
-      data: {
-        status: body.status,
-        note,
-        respondedAt: new Date(),
-        responseIp: body.ip?.slice(0, 64) ?? null,
-        responseUa: body.ua?.slice(0, 255) ?? null,
-      },
-    });
-
-    // 接受 + 带项目：确保供应商进入项目候选（已存在则不动其投标进度，仅保证行存在）。
-    // 拒绝：仅记录，不自动移出候选名单（由采购方在看板人工处理）——按用户确认的产品决策。
-    if (body.status === 'ACCEPTED' && row.projectId) {
-      await this.prisma.bidSupplier.upsert({
-        where: { projectId_supplierName: { projectId: row.projectId, supplierName: row.supplierName } },
-        create: { projectId: row.projectId, supplierId: row.supplierId, supplierName: row.supplierName },
-        update: { supplierId: row.supplierId },
+    // P0-1：回执落库 + 纳入候选同事务（此前分散写：状态更新成功而 upsert FK 失败 → 半成功 + 误报「被篡改」）
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const r = await tx.invitationRsvp.update({
+        where: { id: row.id },
+        data: {
+          status: body.status,
+          note,
+          respondedAt: new Date(),
+          responseIp: body.ip?.slice(0, 64) ?? null,
+          responseUa: body.ua?.slice(0, 255) ?? null,
+        },
       });
-    }
+
+      // 接受 + 带项目：确保供应商进入项目候选（已存在则不动其投标进度，仅保证行存在）。
+      // 拒绝：仅记录，不自动移出候选名单（由采购方在看板人工处理）——按用户确认的产品决策。
+      // P0-1：rsvp.projectId 是邀请页写入的 ProjectManagementItem id（非 BidProject id），
+      // 旧实现直接拿去 upsert BidSupplier → FK(P2003)。须先解析真实 BidProject；
+      // 尚未懒创建（ensureBidProject 未跑）时仅记录回执，候选行由后续流程补挂。
+      if (body.status === 'ACCEPTED' && row.projectId) {
+        const bp = await tx.bidProject.findFirst({
+          where: { projectManagementItemId: row.projectId },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        });
+        if (bp) {
+          await tx.bidSupplier.upsert({
+            where: { projectId_supplierName: { projectId: bp.id, supplierName: row.supplierName } },
+            create: { projectId: bp.id, supplierId: row.supplierId, supplierName: row.supplierName },
+            update: { supplierId: row.supplierId },
+          });
+        }
+      }
+      return r;
+    });
 
     return { success: true, status: updated.status as RsvpStatus, respondedAt: updated.respondedAt!.toISOString(), rsvpNo: updated.id.slice(-8).toUpperCase() };
   }
