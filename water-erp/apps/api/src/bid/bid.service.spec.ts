@@ -2160,6 +2160,39 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
     }
   });
 
+  it('P1-13：密封价万元单位（79.8）与录入元单位（798000）视为一致（唱标单位归一）', async () => {
+    const prev = process.env.KMS_SECRET; process.env.KMS_SECRET = T9_KMS;
+    try {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: sealField('79.8', T9_KMS) }); // 供应商表单单位=万元
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+      prisma.bidOpeningRecord.create.mockResolvedValue({ id: 'r1' });
+
+      const res = await service.enterOpeningRecord('p1', { ...dto, amount: '798000' } as any); // 唱标录入单位=元
+      expect(res).toBeDefined();
+      expect(prisma.bidOpeningRecord.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ amount: '798000' }),
+      }));
+    } finally { if (prev !== undefined) process.env.KMS_SECRET = prev; else delete process.env.KMS_SECRET; }
+  });
+
+  it('P1-13：万元/元归一不掩盖真实差异（密封 79.8 万 vs 录入 700000 元 → 仍 409）', async () => {
+    const prev = process.env.KMS_SECRET; process.env.KMS_SECRET = T9_KMS;
+    try {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: sealField('79.8', T9_KMS) });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+      await expect(service.enterOpeningRecord('p1', { ...dto, amount: '700000' } as any)).rejects.toMatchObject({
+        response: { code: 'PRICE_MISMATCH' },
+      });
+    } finally { if (prev !== undefined) process.env.KMS_SECRET = prev; else delete process.env.KMS_SECRET; }
+  });
+
   it('P1-4：密封报价缺失（null）→ 不校验直接通过（向后兼容）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });

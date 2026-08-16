@@ -2676,16 +2676,23 @@ export class BidService {
     const expected = Number(String(sealed).replace(/,/g, ''));
     const entered = Number(String(amount).replace(/,/g, ''));
     if (!Number.isFinite(expected) || !Number.isFinite(entered)) return null;
-    if (Math.abs(expected - entered) > 0.005) {
+    // P1-13：单位归一——供应商投递表单单位「万元」（79.8），唱标录入单位「元」（798000）。
+    // 金额比 >100 且 entered≈expected×10000（±0.5%）视为同一报价；真实差异仍走 409。
+    const expectedInYuan = Math.abs(expected - entered) > 0.005
+        && entered > expected * 100
+        && Math.abs(entered - expected * 10000) <= Math.max(entered, expected * 10000) * 0.005
+      ? expected * 10000
+      : expected;
+    if (Math.abs(expectedInYuan - entered) > Math.max(expectedInYuan, entered) * 0.005) {
       if (!confirmed) {
         throw new ConflictException({
-          error: `录入报价 ${entered} 与投标文件密封报价 ${expected} 不一致；如确认以录入值为准，请勾选「确认按录入值唱标」后重试`,
+          error: `录入报价 ${entered} 与投标文件密封报价 ${expectedInYuan} 不一致；如确认以录入值为准，请勾选「确认按录入值唱标」后重试`,
           code: 'PRICE_MISMATCH',
-          expected,
+          expected: expectedInYuan,
           entered,
         });
       }
-      return `（与密封报价 ${expected} 不一致，主持人确认按录入值唱标）`;
+      return `（与密封报价 ${expectedInYuan} 不一致，主持人确认按录入值唱标）`;
     }
     return null;
   }
