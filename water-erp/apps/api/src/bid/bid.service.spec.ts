@@ -493,6 +493,38 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('decryptAllSuppliers — N15 一键解密只取 PENDING', () => {
+    it('N15：一键解密只取 PENDING（DANGER 不再必然计 failed）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1', supplierName: 'A' }]);
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', supplierId: 's1', decryptStatus: 'PENDING' });
+      // 单供应商解密成功前置（复制自 decryptSupplier beforeEach，自包含）
+      prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
+      prisma.bidSupplier.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.bidSupplier.update.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' });
+      prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' });
+      prisma.supplierBidSubmission.findUnique = jest.fn().mockResolvedValue({
+        technicalFileAssetId: 'fa1', businessFileAssetId: null, coverLetterAssetId: null,
+        technicalSealedKey: null, businessSealedKey: null, coverLetterSealedKey: null,
+      });
+      prisma.fileAsset.findUnique = jest.fn().mockResolvedValue({ id: 'fa1', key: 'uploads/test.pdf', sha256: 'abc123' });
+      prisma.bidOpeningRecord.upsert.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidOpeningSession.findUnique = jest.fn().mockResolvedValue({
+        decryptWindowStart: new Date(Date.now() - 3600_000),
+        decryptWindowEnd: new Date(Date.now() + 3600_000),
+      });
+
+      const res = await service.decryptAllSuppliers('p1', 'u1');
+      expect(prisma.bidSupplier.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ decryptStatus: 'PENDING' }) }),
+      );
+      expect(res.total).toBe(1);
+      expect(res.failed).toBe(0);
+      expect(res.details[0].success).toBe(true);
+    });
+  });
+
   describe('decryptSupplier', () => {
     beforeEach(() => {
       prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));

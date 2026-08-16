@@ -1799,8 +1799,10 @@ export class BidService {
       throw new BadRequestException({ error: '项目不在开标阶段', code: 'PROJECT_NOT_OPENING' });
     }
 
+    // N15：只取 PENDING——已定性 DANGER（人工判定为异常）不重跑，避免一键解密把它们必然计 failed；
+    // 恢复路径不变：补传通道 reuploadBidFile 会把 DANGER 重置为 PENDING 后再解密
     const pendingSuppliers = await this.prisma.bidSupplier.findMany({
-      where: { projectId, decryptStatus: { in: ['PENDING', 'DANGER'] }, submitStatus: { not: '已撤回' } },
+      where: { projectId, decryptStatus: 'PENDING', submitStatus: { not: '已撤回' } },
       select: { id: true, supplierName: true },
     });
 
@@ -1816,7 +1818,7 @@ export class BidService {
 
     this.gateway?.notifySupervisionLog(projectId, {
       role: '系统', action: '一键解密', target: project.name,
-      result: `${results.filter(r => r.success).length}/${results.length} 成功`, riskFlag: '无',
+      result: `${results.filter(r => r.success).length}/${results.length} 成功（已定性异常者请走补传→重解密通道）`, riskFlag: '无',
     });
 
     return { total: results.length, success: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, details: results };
