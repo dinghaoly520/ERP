@@ -1790,90 +1790,86 @@ export class BidService {
   }
 
   async decryptSupplier(projectId: string, supplierId: string, dto?: DecryptSupplierDto, actorId?: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const bidSupplier = await tx.bidSupplier.findFirst({
-        where: { projectId, id: supplierId },
-      });
-      if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+    // ═══ P1-3 三段式重构 ═══
+    // 旧实现整段包在 $transaction 内：MinIO 读流/AES 解密等外部 I/O 长占连接（pgbouncer 池风险）、
+    // WS 事件事务内发射（回滚后客户端已收到假成功）、无行锁（并发双击双跑+重复建开标记录）。
+    // 新结构：①事务外校验+原子抢占 → ②事务外解密(外部 I/O) → ③短事务终局写入，WS 全部后置。
 
-      // P0: 重复解密保护 — 已成功解密的不允许再次解密（避免覆写 confirmStatus）
-      if (bidSupplier.decryptStatus === 'SUCCESS') {
+    // ── ① 校验 + 原子抢占（updateMany 条件更新即抢占，并发双击只有一方 count=1）──
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, id: supplierId },
+    });
+    if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+    // P0: 重复解密保护 — 已成功解密的不允许再次解密（避免覆写 confirmStatus）
+    if (bidSupplier.decryptStatus === 'SUCCESS') {
+      throw new BadRequestException({ error: '标书已解密成功，无需重复解密', code: 'ALREADY_DECRYPTED' });
+    }
+    // P0: 显式阶段门控 — 仅 OPENING 阶段可解密（兜底 session 校验）
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
+    if (!project || project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '项目不在开标阶段，无法解密', code: 'PROJECT_NOT_OPENING' });
+    }
+    // P0: 解密窗口校验 — 开标未启动或窗口未开启/已关闭/暂停中时拒绝解密
+    const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
+    if (!session) {
+      throw new BadRequestException({ error: '开标尚未启动，无法解密', code: 'OPENING_NOT_STARTED' });
+    }
+    if (session.pausedAt) {
+      throw new BadRequestException({ error: '开标已暂停，解密操作暂时禁止', code: 'OPENING_PAUSED' });
+    }
+    const now = new Date();
+    if (now < session.decryptWindowStart) {
+      throw new BadRequestException({ error: '解密窗口尚未开启', code: 'DECRYPT_WINDOW_NOT_OPEN' });
+    }
+    if (now > session.decryptWindowEnd) {
+      throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
+    }
+
+    // Phase 1: 原子抢占 RUNNING（PENDING/RUNNING → RUNNING；并发第二笔 count=0）
+    const claim = await this.prisma.bidSupplier.updateMany({
+      where: { id: supplierId, decryptStatus: { in: ['PENDING', 'RUNNING'] } },
+      data: { decryptStatus: 'RUNNING' },
+    });
+    if (claim.count === 0) {
+      const fresh = await this.prisma.bidSupplier.findUnique({ where: { id: supplierId }, select: { decryptStatus: true } });
+      if (fresh?.decryptStatus === 'SUCCESS') {
         throw new BadRequestException({ error: '标书已解密成功，无需重复解密', code: 'ALREADY_DECRYPTED' });
       }
-
-      // P0: 显式阶段门控 — 仅 OPENING 阶段可解密（兜底 session 校验）
-      const project = await tx.bidProject.findUnique({ where: { id: projectId } });
-      if (!project || project.stage !== 'OPENING') {
-        throw new BadRequestException({ error: '项目不在开标阶段，无法解密', code: 'PROJECT_NOT_OPENING' });
-      }
-
-      // P0: 解密窗口校验 — 开标未启动或窗口未开启/已关闭/暂停中时拒绝解密
-      const session = await tx.bidOpeningSession.findUnique({ where: { projectId } });
-      if (!session) {
-        throw new BadRequestException({ error: '开标尚未启动，无法解密', code: 'OPENING_NOT_STARTED' });
-      }
-      if (session.pausedAt) {
-        throw new BadRequestException({ error: '开标已暂停，解密操作暂时禁止', code: 'OPENING_PAUSED' });
-      }
-      const now = new Date();
-      if (now < session.decryptWindowStart) {
-        throw new BadRequestException({ error: '解密窗口尚未开启', code: 'DECRYPT_WINDOW_NOT_OPEN' });
-      }
-      if (now > session.decryptWindowEnd) {
-        throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
-      }
-
-      // Phase 1: 开始解密
-      await tx.bidSupplier.update({
-        where: { id: supplierId },
-        data: { decryptStatus: 'RUNNING' },
+      throw new ConflictException({
+        error: fresh?.decryptStatus === 'DANGER'
+          ? '该供应商标书已定性为解密异常，无需重复操作'
+          : '该供应商标书正在解密中，请勿重复提交',
+        code: 'DECRYPT_ALREADY_IN_FLIGHT',
       });
+    }
 
-      // 查找该供应商的提交记录（含加密封存密钥与文件引用）
-      // P0: Use tx (transaction client) for consistency inside $transaction
-      const submission = bidSupplier.supplierId
-        ? await tx.supplierBidSubmission.findUnique({
-            where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
-          })
-        : null;
+    // ── ② 事务外解密（MinIO 读流 + AES + SHA-256，不占 DB 连接）──
+    // 查找该供应商的提交记录（含加密封存密钥与文件引用）
+    const submission = bidSupplier.supplierId
+      ? await this.prisma.supplierBidSubmission.findUnique({
+          where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
+        })
+      : null;
 
-      // 真实解密 + 完整性校验（如有文件引用）：读取 MinIO 文件，重算 SHA-256 与 FileAsset.sha256 比对；
-      // 若存在 sealedKey 则先做真实 AES-256-GCM 解密。DANGER 由真实校验失败触发，不再依赖 simulateDanger。
-      let decryptOk: boolean | null = null;
-      let integrityOk: boolean | null = null;
-      let errorMsg = '';
-      let allFilesOk = true; // H1: 任一文件缺失/解密失败/完整性失败 → 整体失败，杜绝部分缺失误判 SUCCESS
+    // 真实解密 + 完整性校验（如有文件引用）：读取 MinIO 文件，重算 SHA-256 与 FileAsset.sha256 比对；
+    // 若存在 sealedKey 则先做真实 AES-256-GCM 解密。DANGER 由真实校验失败触发，不再依赖 simulateDanger。
+    let decryptOk: boolean | null = null;
+    let integrityOk: boolean | null = null;
+    let errorMsg = '';
+    let allFilesOk = true; // H1: 任一文件缺失/解密失败/完整性失败 → 整体失败，杜绝部分缺失误判 SUCCESS
 
-      const fileRefs: Array<{ assetId?: string | null; sealedKey?: string | null }> = submission
-        ? [
-            { assetId: submission.technicalFileAssetId, sealedKey: submission.technicalSealedKey },
-            { assetId: submission.businessFileAssetId, sealedKey: submission.businessSealedKey },
-            { assetId: submission.coverLetterAssetId, sealedKey: submission.coverLetterSealedKey },
-          ].filter(ref => !!ref.assetId)
-        : [];
+    const fileRefs: Array<{ assetId?: string | null; sealedKey?: string | null }> = submission
+      ? [
+          { assetId: submission.technicalFileAssetId, sealedKey: submission.technicalSealedKey },
+          { assetId: submission.businessFileAssetId, sealedKey: submission.businessSealedKey },
+          { assetId: submission.coverLetterAssetId, sealedKey: submission.coverLetterSealedKey },
+        ].filter(ref => !!ref.assetId)
+      : [];
 
-      // P0: 无投标文件 → 直接标记 DANGER，避免 classifyDecryptOutcome 默认判 SUCCESS
-      if (fileRefs.length === 0) {
-        const reason = submission
-          ? '投标文件引用缺失（未上传技术/商务/报价文件）'
-          : (bidSupplier.supplierId ? '供应商未提交投标文件' : '供应商未关联系统账户，无法查询投标记录');
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: reason } });
-        this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'DANGER');
-        await tx.bidSupervisionLog.create({
-          data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
-        });
-        this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
-        this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
-        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'DANGER', reason, phase: 'no_files' } } });
-        // 通知供应商解密失败（fire-and-forget，不阻塞主流程）
-        this.notifySupplierDecryptFailure(bidSupplier.supplierId, bidSupplier.supplierName, projectId, reason);
-        return tx.bidSupplier.findUnique({ where: { id: supplierId } });
-      }
-
+    if (fileRefs.length > 0) {
       for (const ref of fileRefs) {
         if (!ref.assetId) continue;
-        // P0: Use tx (transaction client) for consistency inside $transaction
-        const asset = await tx.fileAsset.findUnique({ where: { id: ref.assetId } });
+        const asset = await this.prisma.fileAsset.findUnique({ where: { id: ref.assetId } });
         if (!asset) { allFilesOk = false; errorMsg = `投标文件记录缺失: ${ref.assetId}`; break; }
         try {
           const readKey = asset.sealedPath || asset.key; // 兼容存量：无 sealedPath 时回退到原路径
@@ -1898,51 +1894,51 @@ export class BidService {
           break;
         }
       }
+    }
 
-      const hasSealedKey = !!submission && !!(submission.technicalSealedKey || submission.businessSealedKey || submission.coverLetterSealedKey);
-      // P0 Security: simulateDanger is gated to non-production environments only.
-      // In production, any attempt to force DANGER is rejected with an explicit error.
-      const simulateOk = dto?.simulateDanger === true;
-      if (simulateOk && process.env.NODE_ENV === 'production') {
-        throw new BadRequestException({ error: 'simulateDanger 不可在生产环境使用', code: 'FORBIDDEN_IN_PRODUCTION' });
-      }
-      const outcome = simulateOk
-        ? 'DANGER' as const  // 仅非生产环境可用：显式模拟开关用于演练（覆盖真实结果）
-        : (!allFilesOk
-            ? 'DANGER' as const  // H1: 任一文件缺失/解密失败/完整性失败 → 整体 DANGER
-            : classifyDecryptOutcome({ hasSealedKey, decryptOk, integrityOk }));
+    const hasSealedKey = !!submission && !!(submission.technicalSealedKey || submission.businessSealedKey || submission.coverLetterSealedKey);
+    // P0 Security: simulateDanger is gated to non-production environments only.
+    // In production, any attempt to force DANGER is rejected with an explicit error.
+    const simulateOk = dto?.simulateDanger === true;
+    if (simulateOk && process.env.NODE_ENV === 'production') {
+      throw new BadRequestException({ error: 'simulateDanger 不可在生产环境使用', code: 'FORBIDDEN_IN_PRODUCTION' });
+    }
+    // P0: 无投标文件 → 直接标记 DANGER，避免 classifyDecryptOutcome 默认判 SUCCESS
+    const noFiles = fileRefs.length === 0;
+    const outcome = simulateOk
+      ? 'DANGER' as const  // 仅非生产环境可用：显式模拟开关用于演练（覆盖真实结果）
+      : (noFiles || !allFilesOk
+          ? 'DANGER' as const  // H1: 任一文件缺失/解密失败/完整性失败 → 整体 DANGER
+          : classifyDecryptOutcome({ hasSealedKey, decryptOk, integrityOk }));
+    const dangerReason = noFiles
+      ? (submission
+          ? '投标文件引用缺失（未上传技术/商务/报价文件）'
+          : (bidSupplier.supplierId ? '供应商未提交投标文件' : '供应商未关联系统账户，无法查询投标记录'))
+      : (errorMsg || '标书文件校验失败：签名不匹配或文件损坏');
 
+    // ── ③ 短事务终局写入（DB 状态+记录+日志+审计；WS 事件事务提交后统一发射）──
+    let finalState: any = null;
+    await this.prisma.$transaction(async (tx) => {
       if (outcome === 'DANGER') {
-        const reason = errorMsg || '标书文件校验失败：签名不匹配或文件损坏';
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: reason } });
-        this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'DANGER');
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: dangerReason } });
         await tx.bidSupervisionLog.create({
-          data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${reason}`, riskFlag: '高风险' },
+          data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${dangerReason}`, riskFlag: '高风险' },
         });
-        this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${reason}`, riskFlag: '高风险' });
-        this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: reason, severity: 'danger' });
-        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'DANGER', reason, phase: 'decrypt_verify' } } });
-        // 通知供应商解密失败（fire-and-forget，不阻塞主流程）
-        this.notifySupplierDecryptFailure(bidSupplier.supplierId, bidSupplier.supplierName, projectId, reason);
-        return tx.bidSupplier.findUnique({ where: { id: supplierId } });
-      }
-
-      // 解密成功
-      await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'SUCCESS' } });
-      this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'SUCCESS');
-
-      // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED
-      if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
-        // P1-4：解密即唱标路径同样校验与密封报价的一致性（409 交由前端确认后带 confirmSealedPrice 重试）
-        const decryptPriceNote = await this.assertPriceMatchesSealed(projectId, supplierId, dto.amount, dto.confirmSealedPrice);
-        if (decryptPriceNote) {
-          await tx.bidSupervisionLog.create({
-            data: { projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName, action: '录入唱标信息', result: `报价 ${dto.amount}${decryptPriceNote}`, riskFlag: '中' },
-          });
-        }
-        await tx.bidOpeningRecord.create({
-          data: {
-            projectId,
+        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'DANGER', reason: dangerReason, phase: noFiles ? 'no_files' : 'decrypt_verify' } } });
+      } else {
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'SUCCESS' } });
+        // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED。
+        // P1-3：先查后写（upsert 语义），消除并发双击重复建记录。
+        if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
+          // P1-4：解密即唱标路径同样校验与密封报价的一致性（409 交由前端确认后带 confirmSealedPrice 重试）
+          const decryptPriceNote = await this.assertPriceMatchesSealed(projectId, supplierId, dto.amount, dto.confirmSealedPrice);
+          if (decryptPriceNote) {
+            await tx.bidSupervisionLog.create({
+              data: { projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName, action: '录入唱标信息', result: `报价 ${dto.amount}${decryptPriceNote}`, riskFlag: '中' },
+            });
+          }
+          const existingRecord = await tx.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: supplierId }, select: { id: true } });
+          const recordData = {
             supplierName: bidSupplier.supplierName,
             amount: dto.amount,
             period: dto.period,
@@ -1950,25 +1946,35 @@ export class BidService {
             bondStatus: dto.bondStatus,
             decryptResult: '解密成功',
             confirmStatus: '待供应商确认',
-            bidSupplierId: supplierId,
-          },
+          };
+          if (existingRecord) {
+            await tx.bidOpeningRecord.update({ where: { id: existingRecord.id }, data: recordData });
+          } else {
+            await tx.bidOpeningRecord.create({ data: { projectId, ...recordData, bidSupplierId: supplierId } });
+          }
+        }
+        const legacyNote = hasSealedKey ? '' : '（legacy 记录：未加密封存，仅完成完整性校验）';
+        await tx.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密成功，等待供应商确认唱标信息${legacyNote}`, riskFlag: '无' },
         });
+        if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'SUCCESS' } } });
       }
-
-      const confirmed = await tx.bidSupplier.update({
-        where: { id: supplierId },
-        data: { confirmStatus: 'PENDING' },
-      });
-      const legacyNote = hasSealedKey ? '' : '（legacy 记录：未加密封存，仅完成完整性校验）';
-      await tx.bidSupervisionLog.create({
-        data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密成功，等待供应商确认唱标信息${legacyNote}`, riskFlag: '无' },
-      });
-
-      this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密成功，等待供应商确认唱标信息${legacyNote}`, riskFlag: '无' });
-      if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_DECRYPT', resourceType: `${bidSupplier.supplierName}:${supplierId}`, details: { projectId, outcome: 'SUCCESS' } } });
-
-      return confirmed;
+      finalState = await tx.bidSupplier.update({ where: { id: supplierId }, data: { confirmStatus: outcome === 'DANGER' ? 'EXCEPTION' : 'PENDING' } });
     });
+
+    // WS 事件事务提交后发射（失败不回滚假通知）；供应商失败通知 fire-and-forget
+    if (outcome === 'DANGER') {
+      this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'DANGER');
+      this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密异常：${dangerReason}`, riskFlag: '高风险' });
+      this.gateway?.notifyAnomaly(projectId, { type: 'decrypt_failure', supplierId, supplierName: bidSupplier.supplierName, detail: dangerReason, severity: 'danger' });
+      this.notifySupplierDecryptFailure(bidSupplier.supplierId, bidSupplier.supplierName, projectId, dangerReason);
+    } else {
+      this.gateway?.notifyDecryptStatus(projectId, supplierId, bidSupplier.supplierName, 'SUCCESS');
+      const legacyNote2 = hasSealedKey ? '' : '（legacy 记录：未加密封存，仅完成完整性校验）';
+      this.gateway?.notifySupervisionLog(projectId, { role: '系统', action: '标书解密', target: bidSupplier.supplierName, result: `解密成功，等待供应商确认唱标信息${legacyNote2}`, riskFlag: '无' });
+    }
+
+    return finalState;
   }
 
   /**

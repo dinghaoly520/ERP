@@ -388,6 +388,8 @@ describe('BidService — stage transitions', () => {
       prisma.bidSupplier.findFirst.mockResolvedValue({
         id: 'bs-1', projectId: 'p1', supplierName: '测试供应商', supplierId: 's1', decryptStatus: 'PENDING',
       });
+      // P1-3：三段式重构后解密经 updateMany 原子抢占（默认抢占成功）
+      prisma.bidSupplier.updateMany = jest.fn().mockResolvedValue({ count: 1 });
       prisma.bidSupplier.update.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' });
       prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' });
       // Mock submission with file asset for decrypt loop
@@ -447,6 +449,28 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidSupplier.update).not.toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ confirmStatus: 'CONFIRMED' }) }),
       );
+    });
+
+    it('P1-3：并发抢占失败（updateMany count=0）→ 409 DECRYPT_ALREADY_IN_FLIGHT，不进入解密', async () => {
+      prisma.bidSupplier.updateMany = jest.fn().mockResolvedValue({ count: 0 }); // 并发第二笔
+      prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'RUNNING' });
+
+      await expect(service.decryptSupplier('p1', 'bs-1')).rejects.toMatchObject({
+        response: { code: 'DECRYPT_ALREADY_IN_FLIGHT' },
+      });
+      // 未发生终局写入（解密/日志均不动）
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ decryptStatus: 'SUCCESS' }) }),
+      );
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    });
+
+    it('P1-3：解密即唱标重复提供字段时开标记录 upsert（并发不双建）', async () => {
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({ id: 'rec-1' });
+      await service.decryptSupplier('p1', 'bs-1', { amount: '100', period: '30天', qualityTarget: '合格', bondStatus: '已缴纳' } as any);
+
+      expect(prisma.bidOpeningRecord.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'rec-1' } }));
+      expect(prisma.bidOpeningRecord.create).not.toHaveBeenCalled();
     });
 
     it('rejects decrypt when window is not yet open', async () => {
@@ -1634,24 +1658,25 @@ describe('BidService — stage transitions', () => {
         findUnique: jest.fn().mockResolvedValue({ id: 'fa1', key: 'uploads/test.pdf', sha256: 'abc123' }),
       };
 
+      // P1-3 三段式：①②段读 this.prisma、③段短事务读 tx——mock 直接把同一组模型挂到两者
       const logCreate = jest.fn().mockResolvedValue({});
-      prisma.$transaction = jest.fn(async (fn: any) => {
-        const tx = {
-          bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
-          bidSupplier: {
-            findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', supplierName: '供应商A', supplierId: 's1', decryptStatus: 'PENDING' }),
-            update: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
-            findUnique: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
-          },
-          bidOpeningRecord: { create: jest.fn().mockResolvedValue({}) },
-          bidSupervisionLog: { create: logCreate },
-          bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ decryptWindowStart: new Date(Date.now() - 3600_000), decryptWindowEnd: new Date(Date.now() + 3600_000) }) },
-          supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(null) },
-          fileAsset: { findUnique: jest.fn() },
-          auditLog: { create: jest.fn().mockResolvedValue({}) },
-        };
-        return fn(tx);
-      });
+      const shared = {
+        bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'OPENING' }) },
+        bidSupplier: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', supplierName: '供应商A', supplierId: 's1', decryptStatus: 'PENDING' }),
+          update: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUnique: jest.fn().mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING' }),
+        },
+        bidOpeningRecord: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}), update: jest.fn() },
+        bidSupervisionLog: { create: logCreate },
+        bidOpeningSession: { findUnique: jest.fn().mockResolvedValue({ decryptWindowStart: new Date(Date.now() - 3600_000), decryptWindowEnd: new Date(Date.now() + 3600_000) }) },
+        supplierBidSubmission: { findUnique: jest.fn().mockResolvedValue(null) },
+        fileAsset: { findUnique: jest.fn() },
+        auditLog: { create: jest.fn().mockResolvedValue({}) },
+      };
+      Object.assign(prisma, shared);
+      prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
 
       const result = await service.decryptSupplier('p1', 'bs-1');
 
@@ -1765,7 +1790,8 @@ describe('BidService — decryptSupplier 真实校验', () => {
     const tx: any = {
       bidProject: { findUnique: jest.fn(async () => ({ stage: 'OPENING' })) },
       bidSupplier: {
-        findFirst: jest.fn(async () => ({ id: 'bs1', projectId: 'p1', supplierName: 'S1' })),
+        findFirst: jest.fn(async () => ({ id: 'bs1', projectId: 'p1', supplierName: 'S1', decryptStatus: 'PENDING' })),
+        updateMany: jest.fn(async () => ({ count: 1 })),
         update: jest.fn(async ({ data }: any) => ({
           id: 'bs1', supplierName: 'S1',
           decryptStatus: data.decryptStatus ?? 'SUCCESS',
@@ -1780,7 +1806,8 @@ describe('BidService — decryptSupplier 真实校验', () => {
       fileAsset: { findUnique: jest.fn() },
       auditLog: { create: jest.fn(async () => ({})) },
     };
-    const prisma: any = { $transaction: jest.fn(async (cb: any) => cb(tx)) };
+    // P1-3 三段式：把 tx 上的模型摊到 prisma（①②段经 this.prisma 读），$transaction 仍回传 tx
+    const prisma: any = { ...tx, $transaction: jest.fn(async (cb: any) => cb(tx)) };
     const module = await Test.createTestingModule({
       providers: [
         { provide: PrismaService, useValue: prisma },
