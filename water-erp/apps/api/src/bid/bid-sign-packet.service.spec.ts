@@ -11,7 +11,7 @@ const prisma = {
   bidEvaluationResult: { count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
   bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
   auditLog: { create: jest.fn().mockResolvedValue({}) },
-  fileAsset: { create: jest.fn() },
+  fileAsset: { create: jest.fn(), upsert: jest.fn() },
   // buildSnapshot 的 12 个 delegate：findMany 必须回数组（快照代码直接 .map/断言）
   bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
   bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
@@ -178,7 +178,7 @@ describe('BidSignPacketService.generate', () => {
     (svc as any).docxService.generateDocument.mockResolvedValue(Buffer.from('fake-docx'));
     (svc as any).storage.upload.mockResolvedValue(undefined);
     (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.fileAsset.create as jest.Mock).mockResolvedValue({ id: fileAssetId });
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: fileAssetId });
     (prisma.bidSignPacket.upsert as jest.Mock).mockResolvedValue({ id: 'sp1', projectId, fileAssetId });
     (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
 
@@ -195,6 +195,29 @@ describe('BidSignPacketService.generate', () => {
         data: expect.objectContaining({ signStatus: 'PENDING', signScanFileId: null }),
       }),
     );
+  });
+
+  it('P1-17：重复 generate（重生成）走 fileAsset.upsert 不撞 key 唯一约束（非幂等 500 修复）', async () => {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'EVALUATING', name: 'p', projectCode: 'c' });
+    (prisma.bidEvaluationResult.count as jest.Mock).mockResolvedValue(2);
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue(null);
+    const svc = makeService();
+    (svc as any).docxService.generateDocument.mockResolvedValue(Buffer.from('fake-docx'));
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: fileAssetId });
+    (prisma.bidSignPacket.upsert as jest.Mock).mockResolvedValue({ id: 'sp1', projectId, fileAssetId });
+    (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+    await svc.generate(projectId, 'u1');
+
+    // 同 key 覆盖 MinIO 后 upsert FileAsset（旧实现 create 撞 key @unique → P2002 → 500）
+    expect(prisma.fileAsset.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { key: expect.stringContaining(`bid-sign-packet/${projectId}`) },
+      create: expect.objectContaining({ key: expect.stringContaining(`bid-sign-packet/${projectId}`), category: 'bid_sign_packet' }),
+      update: expect.objectContaining({ sha256: expect.any(String) }),
+    }));
+    expect(prisma.fileAsset.create).not.toHaveBeenCalled();
   });
 });
 

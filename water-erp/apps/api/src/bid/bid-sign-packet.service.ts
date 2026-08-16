@@ -363,10 +363,16 @@ export class BidSignPacketService {
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
     await this.storage.upload(objectKey, buffer, mimeType);
 
-    const asset = await this.prisma.fileAsset.create({
-      data: {
+    // P1-17：重生成时 MinIO 对象同 key 覆盖，但旧 FileAsset 行仍挂同 key——
+    // create 撞 key @unique（P2002 → 500）。改 upsert：同 key 更新行，与 MinIO 覆盖语义一致。
+    const asset = await this.prisma.fileAsset.upsert({
+      where: { key: objectKey },
+      create: {
         key: objectKey, originalName: fileName, mimeType, size: buffer.length, sha256,
         category: 'bid_sign_packet', uploaderId: actorId,
+      },
+      update: {
+        originalName: fileName, mimeType, size: buffer.length, sha256, uploaderId: actorId,
       },
     });
 
