@@ -1066,8 +1066,11 @@ export class ExpertAdminService {
       throw new ConflictException({ error: '您已确认参加，如需变更请联系采购方', code: 'ALREADY_CONFIRMED' });
     }
     await this.prisma.bidExpert.update({ where: { id: record.id }, data: { invitationStatus: 'declined' } });
-    // 婉拒 → 自动递补候补（与 RSVP 链接路径一致，见 expert.controller rsvpRespond）；递补失败静默，不影响婉拒结果
-    const promoted = await this.autoPromoteCandidate(projectId).catch(() => null);
+    // 婉拒 → 自动递补候补（与 RSVP 链接路径一致）；仅正选婉拒才递补——候补婉拒不产生正选空缺，
+    // 无条件递补会把另一候补超编转正并徒耗候补席位（D7 审查）；递补失败静默，不影响婉拒结果
+    const promoted = record.expertRole === '正选'
+      ? await this.autoPromoteCandidate(projectId).catch(() => null)
+      : null;
 
     return { success: true, status: 'declined', promoted };
   }

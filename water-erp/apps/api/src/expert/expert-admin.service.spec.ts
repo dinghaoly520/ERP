@@ -576,7 +576,7 @@ describe('ExpertAdminService', () => {
   describe('N7 婉拒/过期递补统一', () => {
     it('admin declineInvitation 触发 autoPromoteCandidate 并回传 promoted', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
       prisma.bidExpert.update.mockResolvedValue({});
       (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9', expertName: '候补A', major: '技术' });
       const res = await service.declineInvitation('p1', 'u1');
@@ -584,9 +584,18 @@ describe('ExpertAdminService', () => {
       expect(res.promoted).toMatchObject({ expertName: '候补A' });
     });
 
+    it('D7：候补 declineInvitation 不递补——无正选空缺，promoted=null（防超编转正+徒耗候补席）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-2', invitationStatus: 'pending', expertRole: '候补' });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9', expertName: '候补A' });
+      const res = await service.declineInvitation('p1', 'u1');
+      expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
+      expect(res).toEqual({ success: true, status: 'declined', promoted: null });
+    });
+
     it('declineInvitation 递补失败时静默——婉拒仍成功，promoted=null（与 RSVP 链接路径同款 catch）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
-      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
       (service as any).autoPromoteCandidate = jest.fn().mockRejectedValue(new Error('DB 抖动'));
       const res = await service.declineInvitation('p1', 'u1');
       expect(res).toEqual({ success: true, status: 'declined', promoted: null });

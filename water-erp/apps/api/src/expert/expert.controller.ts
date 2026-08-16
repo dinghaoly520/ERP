@@ -124,10 +124,13 @@ export class ExpertController {
       if (pm?.projectCode) projectCode = pm.projectCode;
     }
     const expired = be.rsvpExpiresAt ? new Date(be.rsvpExpiresAt).getTime() < Date.now() : false;
-    // 超时且未回复 → 自动弃权 + 递补候补
+    // 超时且未回复 → 自动弃权；正选席位空缺时自动递补候补（与 respond 路径同款正选守卫；失败静默不影响 verify 返回）
     if (expired && be.invitationStatus === 'pending') {
       await this.prisma.bidExpert.update({ where: { id: be.id }, data: { invitationStatus: 'declined', rsvpRespondedAt: new Date() } });
       be.invitationStatus = 'declined';
+      if (be.expertRole === '正选') {
+        await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null);
+      }
     }
     return {
       expertName: be.expertName,
@@ -171,11 +174,13 @@ export class ExpertController {
       where: { id: be.id },
       data: { invitationStatus: body.status, rsvpRespondedAt: new Date() },
     });
-    // 婉拒 → 自动递补候补
+    // 婉拒 → 自动递补候补；仅正选婉拒才递补——候补婉拒不产生正选空缺，无条件递补会超编转正另一候补（D7 审查）
     const rsvpNo = be.id.slice(-8).toUpperCase();
     const respondedAt = new Date().toISOString();
     if (body.status === 'declined') {
-      const promoted = await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null);
+      const promoted = be.expertRole === '正选'
+        ? await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null)
+        : null;
       return { success: true, status: body.status, rsvpNo, respondedAt, promoted };
     }
     return { success: true, status: body.status, rsvpNo, respondedAt };
