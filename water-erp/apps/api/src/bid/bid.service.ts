@@ -965,6 +965,12 @@ export class BidService {
 
     assertBidStageTransition(project.stage, 'ABORTED');
 
+    // N4c：已生成官方评标结果仍可流标（定标前发现重大问题的合法出口），但必须书面理由并高风险留痕
+    const resultCount = await this.prisma.bidEvaluationResult.count({ where: { projectId: id } });
+    if (resultCount > 0 && !reason?.trim()) {
+      throw new BadRequestException({ error: '本项目已生成官方评标结果，流标须填写书面理由（结果将作废并留痕）', code: 'ABORT_REASON_REQUIRED' });
+    }
+
     // #16 流标业务留痕：riskNote 记录采购方式 + 投标供应商数 + 时间 + 操作人
     // （请求级留痕含操作人 userId 由全局 OperationLogInterceptor 自动记录）
     const supplierCount = project._count.suppliers;
@@ -981,7 +987,7 @@ export class BidService {
       });
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name,
-          action: '流标', result: riskNote, riskFlag: '高风险' },
+          action: '流标', result: `${riskNote}${resultCount > 0 ? '；注意：已存在官方评标结果，随流标作废' : ''}`, riskFlag: '高风险' },
       });
       return result;
     });

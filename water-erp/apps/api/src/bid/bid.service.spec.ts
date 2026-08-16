@@ -412,6 +412,47 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('abortBidProject — N4c 有官方结果须书面理由', () => {
+    it('N4：已存在官方评标结果时流标须书面理由（ABORT_REASON_REQUIRED）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(2);
+      await expect(service.abortBidProject('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'ABORT_REASON_REQUIRED' },
+      });
+      expect(prisma.bidEvaluationResult.count).toHaveBeenCalledWith({ where: { projectId: 'p1' } });
+    });
+
+    it('N4：有官方结果且带书面理由 → 流标成功，监督日志 result 追加作废说明', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(2);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      const updated = await service.abortBidProject('p1', 'u1', '定标前发现重大问题');
+
+      expect(updated.stage).toBe('ABORTED');
+      const abortLog = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '流标');
+      expect(abortLog?.[0].data.result).toContain('已存在官方评标结果，随流标作废');
+      expect(abortLog?.[0].data.riskFlag).toBe('高风险');
+      expect(abortLog?.[0].data.result).toContain('原因：定标前发现重大问题');
+    });
+
+    it('N4：无官方结果时流标不需理由（原行为不变，日志无作废说明）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      const updated = await service.abortBidProject('p1', 'u1');
+
+      expect(updated.stage).toBe('ABORTED');
+      const abortLog = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '流标');
+      expect(abortLog?.[0].data.result).not.toContain('随流标作废');
+    });
+  });
+
   describe('decryptSupplier', () => {
     beforeEach(() => {
       prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));
