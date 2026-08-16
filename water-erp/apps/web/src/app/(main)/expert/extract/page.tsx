@@ -2732,6 +2732,29 @@ export function ExpertExtractPage({
                       <Check size={15} strokeWidth={2.5} />已通知
                     </span>
                   ) : (
+                    <>
+                    {/* P1-16（走查③）：候补通知文案 AI 生成入口——正选在步骤 3 有 AI 生成，
+                        候补从未生成文案导致「确认并通知候补」tasks 恒空死链。复用正选模式。 */}
+                    <button onClick={async () => {
+                      setAltNotifying(true);
+                      try {
+                        const links = (await prersvpLinks(pid)).links || {};
+                        const res = await generateNotification({ projectName: sel?.name || pd?.name || '采购项目', expertName: '[[专家姓名]]', isLead: false, totalExperts: altSelected.length, extractMode: MODE_LABELS[extractMode], openTime: openTimeFormatted, projectId: pid });
+                        if (res.generated && res.content) {
+                          const m = new Map(notifyMessages);
+                          for (const e of altSelected) {
+                            m.set(e.userId, res.content.replace(/\[\[专家姓名\]\]/g, e.name).replace(/\{RSVP_LINK\}/g, links[e.userId] || ''));
+                          }
+                          updateMessages(m);
+                          toast.success('候补通知文案已生成，可继续确认通知');
+                        } else {
+                          toast.error('AI 未生成有效文案，请稍后重试');
+                        }
+                      } catch (e: any) { toast.error(e?.message || 'AI 生成失败'); }
+                      setAltNotifying(false);
+                    }} disabled={altNotifying} className="neu-btn-soft">
+                      <Sparkles size={13} /> AI 生成
+                    </button>
                     <button onClick={async () => {
                       setAltNotifying(true);
                       try {
@@ -2741,7 +2764,7 @@ export function ExpertExtractPage({
                           if (!msg || channels.length === 0) return null;
                           return { eid: e.userId, msg, channels };
                         }).filter((x): x is { eid: string; msg: string; channels: string[] } => x !== null);
-                        if (tasks.length === 0) { toast.warning('无可用通知文案'); return; }
+                        if (tasks.length === 0) { toast.warning('候补通知文案为空——请先点击「AI 生成」生成文案后再通知'); return; }
                         // 1. 写入 BidExpert 表（expertRole='候补'），开源确认面板/开标端可读
                         const altCandidates = altSelected.map(e => ({ userId: e.userId, expertName: e.name, major: e.specialty }));
                         await confirmExtraction({ projectId: pid, experts: [], candidates: altCandidates, append: true });
@@ -2766,6 +2789,7 @@ export function ExpertExtractPage({
                     }} disabled={altNotifying} className="neu-btn-soft is-success">
                       {altNotifying ? '发送中...' : '确认并通知候补专家'}
                     </button>
+                    </>
                   )}
                 </div>
               </div>
