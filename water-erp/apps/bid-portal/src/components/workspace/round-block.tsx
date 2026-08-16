@@ -156,8 +156,8 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                         await closeRound(bidProjectId, r.id, false);
                         toast.info(
                           roundMode === 'negotiation'
-                            ? '最终轮报价已锁定。评标结果将在采购管理工作台(:3005)生成。'
-                            : '最终轮报价已锁定。请前往采购管理工作台(:3005)启动评标。'
+                            ? '最终轮报价已锁定。请切换到「评标管理」页签生成评标结果。'
+                            : '最终轮报价已锁定。请在「评标管理」页签启动评标。'
                         );
                       })}
                         disabled={busy} className="neu-btn-primary !h-[30px] !text-xs">
