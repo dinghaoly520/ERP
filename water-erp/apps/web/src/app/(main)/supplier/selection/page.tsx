@@ -1020,13 +1020,27 @@ export function SupplierSelectionPage({
     return `您好，请问是${supplierName}吗？我是四川水发集团采购中心。我们正在就${proj}项目邀请贵司参与，稍后将向贵司发送短信通知。请您留意查收短信，或登录供应商门户点击确认链接${dl}确认是否参加。如有疑问欢迎致电咨询，谢谢！`;
   };
 
-  // 进入步骤 4（确认通知）时，若无内容自动 AI 生成（与补选步骤一致）
+  // 进入步骤 4（确认通知）时：
+  // 1) 立即预填本地模板（可编辑、可直接发送——AI 不再是发送前置，P1-11）；
+  // 2) 后台仍自动 AI 生成，完成后覆盖模板并补入逐家回执链接（rsvpLink 仍由 AI 端点签发）。
   const notifyAutoGenRef = useRef(false);
   useEffect(() => {
     if (step !== 4 || notified) return;
-    if (notifyPerSupplier.size > 0) return;
-    if (notifyAutoGenRef.current) return;
     if (shortlist.size === 0) return;
+    if (notifyPerSupplier.size === 0) {
+      const ctx = buildNotifyContext();
+      const dateStr = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+      const prefilled = new Map<string, { title: string; body: string; phoneScript: string }>();
+      for (const [sid, { item: r }] of shortlist) {
+        prefilled.set(sid, {
+          title: `关于${ctx.projectName || '采购项目'}采购项目候选供应商邀请的通知`,
+          body: `${r.name} 您好！\n\n您已被纳入${ctx.projectName ? `「${ctx.projectName}」` : '本次采购'}（${ctx.procurementMethod || '采购'}${ctx.deadline ? `，响应截止 ${ctx.deadline}` : ''}）的候选供应商名单。\n\n四川水发集团\n${dateStr}\n\n（AI 正在生成更完整的正文与回执链接，完成后自动替换；您也可直接编辑本模板发送）`,
+          phoneScript: buildPhoneScript(r.name, ctx),
+        });
+      }
+      setNotifyPerSupplier(prefilled);
+    }
+    if (notifyAutoGenRef.current) return;
     notifyAutoGenRef.current = true;
     handleNotifyAi();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1067,6 +1081,11 @@ export function SupplierSelectionPage({
 
   const handleNotify = async () => {
     if (notifyPerSupplier.size === 0) { toast.error('请先生成供应商通知内容'); return; }
+    // P1-11：模板预填可直接发送；但回执链接由 AI 端点签发——未就绪时二次确认
+    if (Object.keys(notifyRsvpTokens || {}).length === 0) {
+      const proceed = window.confirm('AI 回执链接尚未生成（仍在生成或已失败）。此时发送的通知不含「点击确认参加」链接，供应商将无法在线回执。\n\n建议稍候 AI 完成后发送；仍要现在发送吗？');
+      if (!proceed) return;
+    }
     setNotifySending(true);
     try {
       // 为尚未生成 RSVP token 的供应商自动补签（手动编辑通知时未走 AI 生成，缺回执链接）
