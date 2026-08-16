@@ -453,6 +453,33 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('reopenFromAborted — N5 重启时间兜底', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ABORTED', name: 'P', projectCode: 'BID-1',
+        procurementMethod: '谈判采购', openTime: new Date('2026-08-01'), deadline: new Date('2026-08-01'),
+        downloadDeadline: new Date('2026-07-30'), round: 1 });
+      prisma.bidProject.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+    });
+
+    it('N5：流标重启的新项目 deadline 在未来（不再继承原项目过期时间）', async () => {
+      prisma.bidProject.create.mockImplementation(({ data }: any) => data);
+      const created = await service.reopenFromAborted('p1', 'u1');
+      expect(new Date(created.deadline).getTime()).toBeGreaterThan(Date.now());
+      expect(new Date(created.openTime).getTime()).toBeGreaterThan(new Date(created.deadline).getTime());
+    });
+
+    it('N5：downloadDeadline 清空、riskNote 留痕含重启默认时间并提示重新设定', async () => {
+      prisma.bidProject.create.mockImplementation(({ data }: any) => data);
+      await service.reopenFromAborted('p1', 'u1');
+      const createData = prisma.bidProject.create.mock.calls[0][0].data;
+      expect(createData.downloadDeadline).toBeNull();
+      expect(createData.riskNote).toContain('重启默认时间');
+      expect(createData.riskNote).toContain('请在项目编辑中重新设定');
+    });
+  });
+
   describe('decryptSupplier', () => {
     beforeEach(() => {
       prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));

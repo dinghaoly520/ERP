@@ -1044,6 +1044,9 @@ export class BidService {
       throw new BadRequestException({ error: '仅流标项目可重启', code: 'PROJECT_NOT_ABORTED' });
     }
 
+    // N5：原时间已随流标过期——重启项目给「截标 +3 天、开标 +2h」兜底窗口，并在留痕中提示重新设定
+    const fallbackDeadline = new Date(Date.now() + 3 * 24 * 3600 * 1000);
+    const fallbackOpenTime = new Date(fallbackDeadline.getTime() + 2 * 3600 * 1000);
     const newCode = `BID-${Date.now()}`;
     const now = new Date();
     const newProject = await this.prisma.bidProject.create({
@@ -1051,9 +1054,9 @@ export class BidService {
         name: original.name,
         projectCode: newCode,
         procurementMethod: original.procurementMethod,
-        openTime: original.openTime,
-        deadline: original.deadline,
-        downloadDeadline: original.downloadDeadline,
+        openTime: fallbackOpenTime,
+        deadline: fallbackDeadline,
+        downloadDeadline: null,
         budget: original.budget,
         scope: original.scope,
         qualification: original.qualification,
@@ -1064,7 +1067,7 @@ export class BidService {
         round: (original.round ?? 1) + 1,
         projectManagementItemId: original.projectManagementItemId,
         stage: 'DOWNLOAD',
-        riskNote: `（从流标项目 ${original.name} 重启，原项目编号 ${original.projectCode ?? id}，操作时间 ${now.toISOString()}${actorId ? `，操作人 ${actorId}` : ''}）`,
+        riskNote: `（从流标项目 ${original.name} 重启，原项目编号 ${original.projectCode ?? id}，操作时间 ${now.toISOString()}${actorId ? `，操作人 ${actorId}` : ''}；重启默认时间 截标 ${fallbackDeadline.toISOString()} / 开标 ${fallbackOpenTime.toISOString()}（请在项目编辑中重新设定））`,
       },
     });
 
