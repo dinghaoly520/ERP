@@ -287,21 +287,28 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     finally { setRecordEntryLoading(false); }
   };
 
-  const handleEnterRecord = async () => {
+  const handleEnterRecord = async (confirmSealedPrice = false) => {
     if (!projectId || !recordEntry) return;
     const { amount, period, qualityTarget, bondStatus } = recordDraft;
     if (!amount.trim() || !period.trim() || !qualityTarget.trim() || !bondStatus.trim()) {
       toast.error('请完整填写唱标信息'); return;
     }
     try {
-      await enterOpeningRecord(projectId, { bidSupplierId: recordEntry.bidSupplierId, amount, period, qualityTarget, bondStatus });
+      await enterOpeningRecord(projectId, { bidSupplierId: recordEntry.bidSupplierId, amount, period, qualityTarget, bondStatus, confirmSealedPrice: confirmSealedPrice || undefined });
       toast.success('唱标信息已录入，待供应商确认');
       setRecordEntry(null);
       onRefresh();
     } catch (e: any) {
       // M9：唱标重录对锁定态记录后端返回 409 code=RECORD_LOCKED
-      if (e?.code === 'RECORD_LOCKED') toast.error('该开标记录已锁定，无法重录');
-      else toast.error(e?.message || '录入失败');
+      if (e?.code === 'RECORD_LOCKED') { toast.error('该开标记录已锁定，无法重录'); return; }
+      // P1-4：录入价与投标文件密封报价不一致——主持人显式确认后带 flag 重试
+      if (e?.code === 'PRICE_MISMATCH' && !confirmSealedPrice) {
+        if (window.confirm(`${e?.message ?? '录入报价与密封报价不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`)) {
+          void handleEnterRecord(true);
+        }
+        return;
+      }
+      toast.error(e?.message || '录入失败');
     }
   };
 
@@ -792,7 +799,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" onClick={() => setRecordEntry(null)}
                 className="neu-btn-soft h-[38px] text-xs">取消</button>
-              <button type="button" onClick={handleEnterRecord}
+              <button type="button" onClick={() => void handleEnterRecord()}
                 className="neu-btn-primary !h-[38px] text-xs">提交唱标</button>
             </div>
           </div>

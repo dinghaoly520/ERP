@@ -1933,6 +1933,13 @@ export class BidService {
 
       // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED
       if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
+        // P1-4：解密即唱标路径同样校验与密封报价的一致性（409 交由前端确认后带 confirmSealedPrice 重试）
+        const decryptPriceNote = await this.assertPriceMatchesSealed(projectId, supplierId, dto.amount, dto.confirmSealedPrice);
+        if (decryptPriceNote) {
+          await tx.bidSupervisionLog.create({
+            data: { projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName, action: '录入唱标信息', result: `报价 ${dto.amount}${decryptPriceNote}`, riskFlag: '中' },
+          });
+        }
         await tx.bidOpeningRecord.create({
           data: {
             projectId,
@@ -2618,6 +2625,42 @@ export class BidService {
    * 据此生成/更新 BidOpeningRecord（confirmStatus=待供应商确认），供供应商确认或异议。
    * 仅在 OPENING 阶段可录入；投标须已解密成功。按 bidSupplierId 幂等 upsert。
    */
+  /**
+   * P1-4：唱标金额与供应商密封报价（supplierBidSubmission.bidPrice，v1: 密封可逆）比对。
+   * 不一致且未显式确认 → 409 PRICE_MISMATCH（附 expected/entered 供前端弹确认）；
+   * 密封价缺失/旧明文/不可解析 → 不校验（向后兼容）。返回不一致说明供监督日志拼接（一致时 null）。
+   */
+  private async assertPriceMatchesSealed(
+    projectId: string,
+    bidSupplierId: string,
+    amount: string | number,
+    confirmed?: boolean,
+  ): Promise<string | null> {
+    const bs = await this.prisma.bidSupplier.findUnique({ where: { id: bidSupplierId }, select: { supplierId: true } });
+    if (!bs?.supplierId) return null;
+    const sub = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId: bs.supplierId, projectId } },
+      select: { bidPrice: true },
+    });
+    const sealed = sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null;
+    if (sealed == null) return null;
+    const expected = Number(String(sealed).replace(/,/g, ''));
+    const entered = Number(String(amount).replace(/,/g, ''));
+    if (!Number.isFinite(expected) || !Number.isFinite(entered)) return null;
+    if (Math.abs(expected - entered) > 0.005) {
+      if (!confirmed) {
+        throw new ConflictException({
+          error: `录入报价 ${entered} 与投标文件密封报价 ${expected} 不一致；如确认以录入值为准，请勾选「确认按录入值唱标」后重试`,
+          code: 'PRICE_MISMATCH',
+          expected,
+          entered,
+        });
+      }
+      return `（与密封报价 ${expected} 不一致，主持人确认按录入值唱标）`;
+    }
+    return null;
+  }
+
   async enterOpeningRecord(projectId: string, dto: CreateOpeningRecordDto) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -2641,6 +2684,9 @@ export class BidService {
     if (bidSupplier.confirmStatus === 'CONFIRMED') {
       throw new ConflictException({ error: '该供应商已确认开标记录，禁止覆盖唱标信息', code: 'RECORD_ALREADY_CONFIRMED' });
     }
+
+    // P1-4：与供应商密封报价比对（误录一路进排名/中标公示的防线）
+    const priceNote = await this.assertPriceMatchesSealed(projectId, bidSupplier.id, dto.amount, dto.confirmSealedPrice);
 
     const payload = {
       amount: dto.amount,
@@ -2675,13 +2721,13 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName,
-          action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}`, riskFlag: '无',
+          action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}`, riskFlag: priceNote ? '中' : '无',
         },
       });
       return rec;
     });
 
-    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}`, riskFlag: '无' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}`, riskFlag: priceNote ? '中' : '无' });
     return record;
   }
 

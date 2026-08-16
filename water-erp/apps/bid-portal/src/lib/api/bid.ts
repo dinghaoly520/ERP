@@ -84,6 +84,8 @@ export function resolveOpeningDispute(projectId: string, recordId: string, body:
 /** 主持人录入唱标信息（报价/工期/质量目标/保证金）→ 生成/更新开标记录供供应商确认。 */
 export function enterOpeningRecord(projectId: string, body: {
   bidSupplierId: string; amount: string; period: string; qualityTarget: string; bondStatus: string;
+  /** P1-4：录入价与密封报价不一致时的主持人显式确认（409 PRICE_MISMATCH 后回传） */
+  confirmSealedPrice?: boolean;
 }) {
   return api.post(`/bid/projects/${projectId}/opening-records`, body);
 }

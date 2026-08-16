@@ -1981,7 +1981,8 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
   beforeEach(async () => {
     prisma = {
       bidProject: { findUnique: jest.fn() },
-      bidSupplier: { findFirst: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
+      supplierBidSubmission: { findUnique: jest.fn() },
       bidOpeningRecord: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
       $queryRaw: jest.fn().mockResolvedValue([]),
@@ -2058,6 +2059,76 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
 
     await expect(service.enterOpeningRecord('p1', dto as any)).resolves.toBeDefined();
     expect(prisma.bidOpeningRecord.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'r1' } }));
+  });
+
+  // ── P1-4：唱标录入与密封报价一致性校验 ──
+  const T9_KMS = 't9-price-mismatch-kms';
+  it('P1-4：录入价与密封报价不一致且未确认 → 409 PRICE_MISMATCH（附 expected/entered）', async () => {
+    const prev = process.env.KMS_SECRET;
+    process.env.KMS_SECRET = T9_KMS;
+    try {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+      prisma.bidSupplier.findUnique = jest.fn().mockResolvedValue({ supplierId: 's1' });
+      prisma.supplierBidSubmission = { findUnique: jest.fn().mockResolvedValue({ bidPrice: sealField('950000', T9_KMS) }) };
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+      await expect(service.enterOpeningRecord('p1', { ...dto } as any)).rejects.toMatchObject({
+        response: { code: 'PRICE_MISMATCH', expected: 950000, entered: 980000 },
+      });
+      expect(prisma.bidOpeningRecord.create).not.toHaveBeenCalled();
+    } finally {
+      if (prev !== undefined) process.env.KMS_SECRET = prev; else delete process.env.KMS_SECRET;
+    }
+  });
+
+  it('P1-4：不一致但 confirmSealedPrice=true → 按录入值落库且监督日志注明差异', async () => {
+    const prev = process.env.KMS_SECRET;
+    process.env.KMS_SECRET = T9_KMS;
+    try {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+      prisma.bidSupplier.findUnique = jest.fn().mockResolvedValue({ supplierId: 's1' });
+      prisma.supplierBidSubmission = { findUnique: jest.fn().mockResolvedValue({ bidPrice: sealField('950000', T9_KMS) }) };
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+      prisma.bidOpeningRecord.create.mockResolvedValue({ id: 'r2' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const res = await service.enterOpeningRecord('p1', { ...dto, confirmSealedPrice: true } as any);
+      expect(res).toBeDefined();
+      expect(prisma.bidOpeningRecord.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ amount: '980000' }),
+      }));
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ result: expect.stringContaining('950000') }),
+      }));
+    } finally {
+      if (prev !== undefined) process.env.KMS_SECRET = prev; else delete process.env.KMS_SECRET;
+    }
+  });
+
+  it('P1-4：密封报价缺失（null）→ 不校验直接通过（向后兼容）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: null });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+    prisma.bidOpeningRecord.create.mockResolvedValue({ id: 'r3' });
+
+    const res = await service.enterOpeningRecord('p1', { ...dto } as any);
+    expect(res).toBeDefined();
+  });
+
+  it('P1-4：旧明文报价（无 v1: 前缀）不一致 → 同样 409（数据可比即校验）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: '950000' }); // 旧明文
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+    await expect(service.enterOpeningRecord('p1', { ...dto } as any)).rejects.toMatchObject({
+      response: { code: 'PRICE_MISMATCH', expected: 950000 },
+    });
   });
 
   it('非 OPENING 阶段拒绝', async () => {

@@ -15,4 +15,8 @@ export class DecryptSupplierDto {
 
   @IsBoolean() @IsOptional()
   simulateDanger?: boolean;
+
+  /** P1-4：唱标金额与密封报价不一致时的主持人显式确认（同 CreateOpeningRecordDto） */
+  @IsBoolean() @IsOptional()
+  confirmSealedPrice?: boolean;
 }
