@@ -402,11 +402,11 @@ export class ExpertAdminService {
     });
     if (!project) throw new NotFoundException('项目不存在');
 
-    // 供应商名集合（回避校验）——仅已确认参与的供应商才需回避，
-    // 未回复/已拒绝的供应商不会参与投标，其关联专家不应被排除
+    // 供应商名集合（回避校验）——P1-5：回避口径=实际参与投标的供应商全集（已投递或开标后到终局态）。
+    // 旧口径 confirmStatus==='CONFIRMED' 在开标前抽取时恒为空集，抽取期单位回避形同虚设。
     const supplierNames = new Set(
       project.suppliers
-        .filter(s => s.confirmStatus === 'CONFIRMED')
+        .filter(s => s.submitStatus === '已提交' || s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION')
         .map(s => s.supplier?.name || s.supplierName)
         .filter(Boolean) as string[],
     );
@@ -710,11 +710,11 @@ export class ExpertAdminService {
     if (!project) throw new NotFoundException('项目不存在');
     if (!dto.experts?.length && !dto.candidates?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
 
-    // 供应商名集合（回避校验）——仅已确认参与的供应商才需回避，
-    // 未回复/已拒绝的供应商不会参与投标，其关联专家不应被排除
+    // 供应商名集合（回避校验）——P1-5：回避口径=实际参与投标的供应商全集（已投递或开标后到终局态）。
+    // 旧口径 confirmStatus==='CONFIRMED' 在开标前抽取时恒为空集（全员 PENDING），回避形同虚设。
     const supplierNames = new Set(
       project.suppliers
-        .filter(s => s.confirmStatus === 'CONFIRMED')
+        .filter(s => s.submitStatus === '已提交' || s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION')
         .map(s => s.supplier?.name || s.supplierName)
         .filter(Boolean) as string[],
     );
@@ -943,9 +943,10 @@ export class ExpertAdminService {
       where: { id: projectId },
       include: { suppliers: { include: { supplier: { select: { name: true } } } } },
     });
+    // P1-5：回避口径与 preview/confirm 同步——已投递 ∪ 开标后终局态（旧 CONFIRMED 口径开标前恒空集）
     const supplierNames = new Set(
       (project?.suppliers ?? [])
-        .filter(s => s.confirmStatus === 'CONFIRMED')
+        .filter(s => s.submitStatus === '已提交' || s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION')
         .map(s => s.supplier?.name || s.supplierName)
         .filter(Boolean) as string[],
     );

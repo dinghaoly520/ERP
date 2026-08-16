@@ -272,6 +272,23 @@ describe('ExpertAdminService', () => {
       await expect(service.confirmExtraction('p1', dto(), 'op1')).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('P1-5：回避口径含「已投递但尚未确认开标」的供应商（开标前抽取不再空集）', async () => {
+      // 已投递 / confirmStatus=PENDING——旧口径(confirmStatus===CONFIRMED)恒空集，回避形同虚设
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '项目',
+        suppliers: [
+          { supplier: { name: '川西建设' }, supplierName: '川西建设', submitStatus: '已提交', confirmStatus: 'PENDING' },
+          { supplier: { name: '待投递公司' }, supplierName: '待投递公司', submitStatus: '待提交', confirmStatus: 'PENDING' },
+        ],
+      });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', employer: '川西建设公司' }, bidExperts: [] },
+      ]);
+      await expect(service.confirmExtraction('p1', dto(), 'op1')).rejects.toMatchObject({
+        response: { code: 'EXPERT_CONFLICT' },
+      });
+    });
+
     it('成功抽取应写入 BidExpert 与审计日志（同一事务）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
