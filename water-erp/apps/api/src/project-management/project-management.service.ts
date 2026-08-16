@@ -285,11 +285,15 @@ export class ProjectManagementService {
       };
     }
 
-    // 开标时间：取项目基本信息 bidOpeningTime（兼容中文日期），fallback initiationDate → 当前时间
+    // 开标时间：取项目基本信息 bidOpeningTime（兼容中文日期），fallback initiationDate → 72h 后
+    // P0-5：fallback 不再取 now（旧行为 deadline=now-12h，项目一创建即 DEADLINE_PASSED，供应商无法投递）
     const parsedOpen = parseBidOpeningTime(item.bidOpeningTime);
-    const openTime = parsedOpen ?? (item.initiationDate ?? new Date());
-    // 投递截止 = 开标前 12 小时（业务规则）
-    const deadline = new Date(openTime.getTime() - 12 * 60 * 60 * 1000);
+    const openTime = parsedOpen ?? (item.initiationDate ?? new Date(Date.now() + 72 * 60 * 60 * 1000));
+    // 投递截止 = 开标前 12 小时（业务规则）；P0-5：算出的截止落在过去（陈旧开标时间/兜底值）时顺延至 24h 后
+    let deadline = new Date(openTime.getTime() - 12 * 60 * 60 * 1000);
+    if (deadline.getTime() <= Date.now()) {
+      deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
 
     const created = await this.prisma.bidProject.create({
       data: {

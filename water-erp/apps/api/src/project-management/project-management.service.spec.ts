@@ -1185,4 +1185,57 @@ describe('ProjectManagementService', () => {
       data: { status: 'ACTIVE' },
     });
   });
+
+  describe('ensureBidProject 时间兜底（P0-5）', () => {
+    const mockItem = (prisma: Record<string, any>, over: Record<string, unknown>) => {
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01', title: '测试项目', procurementMethod: '谈判采购', budgetAmount: null,
+        projectOverview: null, currentRound: 1, ...over,
+      });
+    };
+
+    it('未填开标时间/立项时间时：deadline 不得落在过去（兜底顺延）', async () => {
+      const { service, prisma } = makeService();
+      prisma.announcement = { findFirst: jest.fn() };
+      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn() };
+      mockItem(prisma, { bidOpeningTime: null, initiationDate: null });
+      prisma.announcement.findFirst.mockResolvedValue(null);
+      prisma.bidProject.findFirst.mockResolvedValue(null);
+      prisma.bidProject.create.mockImplementation(({ data }: any) => ({ ...data }));
+
+      const r = await service.ensureBidProject('pm-01');
+
+      expect(new Date(r.deadline).getTime()).toBeGreaterThan(Date.now() - 1000);
+      expect(new Date(r.openTime).getTime()).toBeGreaterThan(Date.now() - 1000);
+    });
+
+    it('开标时间早于 12h 前（陈旧值）时：deadline 同样顺延到未来', async () => {
+      const { service, prisma } = makeService();
+      prisma.announcement = { findFirst: jest.fn() };
+      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn() };
+      mockItem(prisma, { bidOpeningTime: new Date(Date.now() - 48 * 3600 * 1000).toISOString(), initiationDate: null });
+      prisma.announcement.findFirst.mockResolvedValue(null);
+      prisma.bidProject.findFirst.mockResolvedValue(null);
+      prisma.bidProject.create.mockImplementation(({ data }: any) => ({ ...data }));
+
+      const r = await service.ensureBidProject('pm-01');
+
+      expect(new Date(r.deadline).getTime()).toBeGreaterThan(Date.now() - 1000);
+    });
+
+    it('未来开标时间（>12h）时：保持「开标前 12h 截标」业务规则不变', async () => {
+      const { service, prisma } = makeService();
+      prisma.announcement = { findFirst: jest.fn() };
+      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn() };
+      const future = new Date(Date.now() + 72 * 3600 * 1000);
+      mockItem(prisma, { bidOpeningTime: future.toISOString(), initiationDate: null });
+      prisma.announcement.findFirst.mockResolvedValue(null);
+      prisma.bidProject.findFirst.mockResolvedValue(null);
+      prisma.bidProject.create.mockImplementation(({ data }: any) => ({ ...data }));
+
+      const r = await service.ensureBidProject('pm-01');
+
+      expect(Math.abs(new Date(r.deadline).getTime() - (future.getTime() - 12 * 3600 * 1000))).toBeLessThan(5000);
+    });
+  });
 });
