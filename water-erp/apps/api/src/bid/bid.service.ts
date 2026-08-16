@@ -735,8 +735,12 @@ export class BidService {
       const fresh = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
       if (fresh?.status === '开标完成') return fresh; // 并发幂等：后提交方走既有产物
       const now = new Date();
-      const asset = await tx.fileAsset.create({
-        data: {
+      // 终审 Important #2：upsert 而非裸 create——MinIO 上传在事务前且 payload 含 generatedAt，
+      // 亚秒级并发下第二笔先覆盖 MinIO 再早退，若 DB 仍 create 会撞 key @unique（P2002）；
+      // upsert 的 update 段同步刷新 size/sha256，DB 指纹不与 MinIO 内容分叉（N3/P1-17 同款）
+      const asset = await tx.fileAsset.upsert({
+        where: { key: objectKey },
+        create: {
           key: objectKey,
           originalName: `开标文件包-${project.projectCode}.json`,
           mimeType: 'application/json',
@@ -745,6 +749,7 @@ export class BidService {
           category: 'bid_opening_handover',
           uploaderId: actorId ?? null,
         },
+        update: { size: buffer.length, sha256, uploaderId: actorId ?? null },
       });
       const updated = await tx.bidOpeningSession.update({
         where: { projectId: id },
@@ -1611,8 +1616,14 @@ export class BidService {
 
     let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
     if (!task) {
-      // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口
-      task = await this.prisma.aiBidAnalysisTask.create({ data: { projectId, status: 'PENDING' } });
+      // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口。
+      // 终审 must-fix：upsert（与 startEvaluation 完全同款）而非裸 create——并发双 rerun 双双
+      // findUnique 落空时，后到方撞 projectId @unique 走 update 空分支复用对手已建 task，不 P2002 裸 500
+      task = await this.prisma.aiBidAnalysisTask.upsert({
+        where: { projectId },
+        create: { projectId, status: 'PENDING' },
+        update: {},
+      });
       const evaluable = await this.prisma.bidSupplier.findMany({
         where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
         select: { id: true },

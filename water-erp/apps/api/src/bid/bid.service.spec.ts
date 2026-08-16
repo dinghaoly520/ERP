@@ -3754,6 +3754,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
       aiBidAnalysisTask: {
         findUnique: jest.fn(async () => ({ id: 't1', projectId: 'p1', status: 'COMPLETED' })),
         create: jest.fn(async () => ({ id: 'task-1', projectId: 'p1', status: 'PENDING' })),
+        upsert: jest.fn(async () => ({ id: 'task-1', projectId: 'p1', status: 'PENDING' })),
         update: jest.fn(async () => ({})),
       },
       aiBidReport: { deleteMany: jest.fn(async () => ({ count: 0 })) },
@@ -3779,13 +3780,18 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
   it('N8：存量项目无 AI 任务时 rerunAiAnalysis 自动补建（不再 TASK_NOT_FOUND）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P' });
     prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(null);
-    prisma.aiBidAnalysisTask.create.mockResolvedValue({ id: 'task-1' });
+    prisma.aiBidAnalysisTask.upsert.mockResolvedValue({ id: 'task-1' });
     prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1' }]);
     prisma.aiBidderResult.createMany.mockResolvedValue({ count: 1 });
     await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toBeTruthy();
-    expect(prisma.aiBidAnalysisTask.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { projectId: 'p1', status: 'PENDING' } }),
-    );
+    // 终审 must-fix：补建用 upsert（与 startEvaluation :1515 完全同构，update 空分支）——
+    // 并发双 rerun 双双 findUnique 落空时，后到方撞 projectId @unique 走 update 分支而非 P2002 裸 500
+    expect(prisma.aiBidAnalysisTask.create).not.toHaveBeenCalled();
+    expect(prisma.aiBidAnalysisTask.upsert).toHaveBeenCalledWith({
+      where: { projectId: 'p1' },
+      create: { projectId: 'p1', status: 'PENDING' },
+      update: {},
+    });
     // 与 startEvaluation 同构：为解密成功供应商补 bidderResult（skipDuplicates 幂等）
     expect(prisma.aiBidderResult.createMany).toHaveBeenCalledWith(
       expect.objectContaining({ skipDuplicates: true }),
@@ -3794,9 +3800,23 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
     expect(createManyArg.data).toEqual([{ taskId: 'task-1', bidSupplierId: 'bs-1', status: 'PENDING' }]);
   });
 
+  it('终审：并发双 rerun 双双未见任务 → upsert 后到方走 update 空分支复用既有 task，不炸', async () => {
+    // 模拟竞输方：findUnique 读到 null（对手尚未提交），upsert 撞 key 返回对手已建的 task
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(null);
+    prisma.aiBidAnalysisTask.upsert.mockResolvedValue({ id: 't1-race', projectId: 'p1', status: 'PENDING' });
+    prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1' }]);
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toEqual({ taskId: 't1-race' });
+    // 复用竞胜方的 task 继续清空重跑——后续写入全部指向同一 taskId，无双任务分叉
+    expect(prisma.aiBidReport.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1-race' } });
+    expect(prisma.aiBidAnalysisTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 't1-race' } }),
+    );
+  });
+
   it('任务已存在 → 走原清空重跑路径，不补建', async () => {
     await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toBeTruthy();
     expect(prisma.aiBidAnalysisTask.create).not.toHaveBeenCalled();
+    expect(prisma.aiBidAnalysisTask.upsert).not.toHaveBeenCalled();
     expect(prisma.aiBidReport.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1' } });
     expect(prisma.aiBidderResult.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1' } });
     expect(prisma.aiBidAnalysisTask.update).toHaveBeenCalledWith(
