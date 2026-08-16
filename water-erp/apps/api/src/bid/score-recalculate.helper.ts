@@ -19,7 +19,8 @@ export async function recomputeExpertProgress(
   const activeIds = activeSuppliers.map((s: { id: string }) => s.id);
   const totalItems = expertScorableItems.length * activeIds.length;
   const scoredItems = await tx.bidScoreRecord.count({
-    where: { expertId, scoreItem: { projectId }, supplierId: { in: activeIds } },
+    // N8b：分子与分母同口径排 PRICE——手填价格分记录不得虚增进度（P1-12fix 分母已排）
+    where: { expertId, scoreItem: { projectId, category: { not: 'PRICE' } }, supplierId: { in: activeIds } },
   });
   const progress = totalItems > 0 ? Math.min(100, Math.floor((scoredItems / totalItems) * 100)) : 0; // P1-6 下取整 + P1-9 封顶
   const allRecords = await tx.bidScoreRecord.findMany({
