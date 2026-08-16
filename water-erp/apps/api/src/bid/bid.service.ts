@@ -596,8 +596,18 @@ export class BidService {
     });
     if (!existing) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    const openTime = metadata.openTime ? new Date(metadata.openTime) : undefined;
-    const deadline = metadata.deadline ? new Date(metadata.deadline) : undefined;
+    // P1-15（走查⑤）：时间合理性校验——AI 智能填入/字段提取可能产出「发布时刻」这类无效
+    // 开标时间并随公告 sync 覆盖 ensureBidProject 的合理兜底值（走查实测 openTime 回退当日
+    // 16:24 且早于投递截止，供应商门户显示时间矛盾）。无效值一律忽略、保留项目原值。
+    const parsedOpen = metadata.openTime ? new Date(metadata.openTime) : undefined;
+    const parsedDeadline = metadata.deadline ? new Date(metadata.deadline) : undefined;
+    const openTime = parsedOpen && !Number.isNaN(parsedOpen.getTime()) && parsedOpen.getTime() > Date.now()
+      ? parsedOpen
+      : undefined;
+    const deadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
+      && (!openTime || parsedDeadline.getTime() < openTime.getTime())
+      ? parsedDeadline
+      : undefined;
     const downloadDeadline = metadata.downloadDeadline ? new Date(metadata.downloadDeadline) : undefined;
 
     const updated = await this.prisma.bidProject.update({

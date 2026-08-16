@@ -4015,6 +4015,50 @@ describe('checkDisputeTimeout', () => {
     expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
   });
 
+describe('BidService — syncFromAnnouncement 时间合理性校验（P1-15/走查⑤）', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p1', projectCode: 'BID-1' }), update: jest.fn().mockResolvedValue({ projectCode: 'BID-1' }) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('开标时间早于当前时刻（AI 脏值）→ 忽略不覆盖项目原值', async () => {
+    await service.syncFromAnnouncement('p1', { title: 'T' }, {
+      openTime: new Date(Date.now() - 3600_000).toISOString(), // 发布时刻脏值
+      deadline: new Date(Date.now() + 86400_000).toISOString(),
+    });
+    const data = prisma.bidProject.update.mock.calls[0][0].data;
+    expect(data.openTime).toBeUndefined(); // 脏值被忽略，项目保留 ensureBidProject 兜底
+    expect(data.deadline).toBeDefined();    // 未来 deadline 本身合法，正常写入
+  });
+
+  it('开标时间在未来且 deadline 早于开标 → 两者正常写入', async () => {
+    const open = new Date(Date.now() + 5 * 86400_000);
+    const dl = new Date(open.getTime() - 24 * 3600_000);
+    await service.syncFromAnnouncement('p1', { title: 'T' }, {
+      openTime: open.toISOString(), deadline: dl.toISOString(),
+    });
+    const data = prisma.bidProject.update.mock.calls[0][0].data;
+    expect(data.openTime).toBeDefined();
+    expect(data.deadline).toBeDefined();
+  });
+});
+
 describe('BidService — acceptSupplierDanger（解密窗口到期定性，P1-1）', () => {
   let service: BidService;
   let prisma: any;
