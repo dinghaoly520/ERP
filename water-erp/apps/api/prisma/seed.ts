@@ -318,6 +318,54 @@ async function main() {
     console.log(`    ${tableName}: ${rows.length}`);
   }
 
+  // ═══ 公告↔项目挂钩修复（P2-1，2026-08-16 全链路审计）═══
+  // 种子公告 relatedProjectCode 是 SC 编号体系、种子项目是 BID- 码——两套编号互不挂钩，
+  // 导致 G3 投递闸门/门户可见性全部失配（供应商门户几乎无投标机会）。按标题对齐；
+  // 中标公示对未到 ARCHIVED 的项目回退草稿（时序矛盾：未评标先出中标公示）。
+  console.log('▶ 修复公告与招标项目挂钩（按标题对齐 relatedProjectCode）');
+  {
+    const projects = await prisma.bidProject.findMany({ select: { id: true, projectCode: true, name: true, stage: true } });
+    const normalize = (t: string) => t.replace(/(采购公示|中标公示|公示)$/u, '').trim();
+    const byName = new Map<string, (typeof projects)[number]>();
+    for (const p of projects) { byName.set(p.name, p); byName.set(normalize(p.name), p); }
+    let linked = 0, drafts = 0, kept = 0;
+    const anns = await prisma.announcement.findMany({
+      where: { type: { in: ['BID_NOTICE', 'WIN_NOTICE'] } },
+      select: { id: true, title: true, type: true, status: true, relatedProjectCode: true },
+    });
+    for (const a of anns) {
+      const p = byName.get(normalize(a.title)) ?? byName.get(a.title);
+      if (!p) { kept++; continue; }
+      if (a.type === 'BID_NOTICE') {
+        if (a.relatedProjectCode !== p.projectCode) {
+          await prisma.announcement.update({ where: { id: a.id }, data: { relatedProjectCode: p.projectCode } });
+        }
+        linked++;
+      } else if (a.type === 'WIN_NOTICE' && a.status === 'PUBLISHED' && p.stage !== 'ARCHIVED') {
+        await prisma.announcement.update({ where: { id: a.id }, data: { status: 'DRAFT' } });
+        drafts++;
+      }
+    }
+    console.log(`    BID_NOTICE 挂钩 ${linked} 条；中标公示回退草稿 ${drafts} 条（项目未归档）；无匹配项目 ${kept} 条`);
+  }
+
+  // ═══ SUBMIT 阶段种子项目演示时效续期（P2-1）═══
+  // 种子 SUBMIT 项目 deadline 均为历史时间（如 2026-07-08）——供应商门户「可投标项目」
+  // 因 deadline 已过不可见、投递必被 DEADLINE_PASSED 拦截，演示链路断头。续期到 seed 运行时刻
+  // 之后（截止 +3d / 开标 +4d / 下载截止 +2.5d），每次重跑 seed 自动顺延。
+  console.log('▶ SUBMIT 阶段种子项目演示时效续期（deadline=+3d / openTime=+4d）');
+  {
+    const renewed = await prisma.bidProject.updateMany({
+      where: { stage: 'SUBMIT' },
+      data: {
+        deadline: new Date(Date.now() + 3 * 86400_000),
+        openTime: new Date(Date.now() + 4 * 86400_000),
+        downloadDeadline: new Date(Date.now() + 2.5 * 86400_000),
+      },
+    });
+    console.log(`    续期 ${renewed.count} 个 SUBMIT 项目`);
+  }
+
   // ═══ 评审专家凭据规整 ═══
   // 真实库导出的专家用户名是编号（如 a000912）、口令为真实库哈希（本地不知明文）。
   // 统一重置为：用户名 = 专家姓名（displayName），口令 = expert@2026，便于演示登录。
