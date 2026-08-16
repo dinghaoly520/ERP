@@ -13,6 +13,7 @@ describe('ExpertAdminService', () => {
   let service: ExpertAdminService;
   let prisma: any;
   let extractionAi: any;
+  let notification: any;
 
   beforeEach(async () => {
     prisma = {
@@ -71,7 +72,7 @@ describe('ExpertAdminService', () => {
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
         { provide: ExpertExtractionAiService, useValue: extractionAi },
-        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn().mockResolvedValue({}) } },
         { provide: EmbeddingService, useValue: { embed: jest.fn().mockResolvedValue([]) } },
         { provide: LlmService, useValue: { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) } },
         { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
@@ -80,6 +81,7 @@ describe('ExpertAdminService', () => {
     }).compile();
 
     service = module.get<ExpertAdminService>(ExpertAdminService);
+    notification = module.get(NotificationService);
   });
 
   describe('listExperts', () => {
@@ -497,6 +499,42 @@ describe('ExpertAdminService', () => {
       expect(result).toEqual({ success: true });
       expect(prisma.bidExpert.update).toHaveBeenCalled();
       expect(prisma.bidProject.update).not.toHaveBeenCalled(); // 未末签，无需清理
+    });
+  });
+
+  describe('sendExtractionNotify — N6 补漏：追加链接文案与实际 TTL 一致', () => {
+    afterEach(() => {
+      delete process.env.EXPERT_RSVP_TTL_HOURS;
+    });
+
+    const setupNotify = () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ name: '测试项目', projectCode: 'BID-1' });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', displayName: '专家A', expertProfile: { phone: '13800000000' } },
+      ]);
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', rsvpToken: 'tok-1' });
+    };
+
+    it('无 {RSVP_LINK} 占位符时追加「确认链接（2小时内有效）」（默认 TTL，不再写死 15分钟）', async () => {
+      delete process.env.EXPERT_RSVP_TTL_HOURS;
+      setupNotify();
+
+      await service.sendExtractionNotify('p1', ['u1'], ['in_app'], '');
+
+      expect(notification.sendToUser).toHaveBeenCalledTimes(1);
+      const content = notification.sendToUser.mock.calls[0][2].content;
+      expect(content).toContain('确认链接（2小时内有效）');
+      expect(content).not.toContain('15分钟');
+    });
+
+    it('EXPERT_RSVP_TTL_HOURS=6 时追加文案同步为「6小时内有效」', async () => {
+      process.env.EXPERT_RSVP_TTL_HOURS = '6';
+      setupNotify();
+
+      await service.sendExtractionNotify('p1', ['u1'], ['in_app'], '');
+
+      const content = notification.sendToUser.mock.calls[0][2].content;
+      expect(content).toContain('确认链接（6小时内有效）');
     });
   });
 });

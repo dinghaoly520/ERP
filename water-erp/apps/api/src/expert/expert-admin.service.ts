@@ -10,7 +10,7 @@ import { LlmService } from '../local-ai/llm.service';
 import { OcrService } from '../local-ai/ocr.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { processFile } from '../ai-bid-analysis/utils/file-processor';
-import { ExpertExtractionAiService } from './expert-extraction-ai.service';
+import { ExpertExtractionAiService, rsvpTtlHours } from './expert-extraction-ai.service';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 import type { LlmSpecialtyQuota, ExpertExtractionLlmResult, ExtractMode } from './expert-extraction-ai.service';
 import type { CreateExpertDto } from './dto/create-expert.dto';
@@ -1228,7 +1228,7 @@ export class ExpertAdminService {
         });
         let rsvpLink = `${expertPortalUrl}/invitation/${projectId}`;
         if (be?.rsvpToken) {
-          // 刷新过期时间（从发送时刻重新计时15分钟）
+          // 刷新过期时间（从发送时刻重新计时 RSVP TTL——EXPERT_RSVP_TTL_HOURS 小时，默认 2）
           await this.prisma.bidExpert.update({
             where: { id: be.id },
             data: { rsvpExpiresAt: expiresAt },
@@ -1238,7 +1238,7 @@ export class ExpertAdminService {
         // 替换模板中的 {RSVP_LINK} 占位符；无占位符时追加链接
         const contentWithLink = body.includes('{RSVP_LINK}')
           ? body.replace(/\{RSVP_LINK\}/g, rsvpLink)
-          : `${body}\n确认链接（15分钟内有效）：${rsvpLink}`;
+          : `${body}\n确认链接（${rsvpTtlHours()}小时内有效）：${rsvpLink}`;
         return this.notification.sendToUser(expert.id, channels, {
           type: 'EXPERT_ASSIGNED',
           title: `评审任务通知 - ${project.name}`,
