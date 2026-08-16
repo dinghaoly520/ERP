@@ -1609,17 +1609,31 @@ export class BidService {
       throw new BadRequestException({ error: '项目不在评标阶段，无法重新分析', code: 'PROJECT_NOT_EVALUATING' });
     }
 
-    const task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
-    if (!task) throw new BadRequestException({ error: '未找到 AI 分析任务', code: 'TASK_NOT_FOUND' });
+    let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
+    if (!task) {
+      // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口
+      task = await this.prisma.aiBidAnalysisTask.create({ data: { projectId, status: 'PENDING' } });
+      const evaluable = await this.prisma.bidSupplier.findMany({
+        where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+        select: { id: true },
+      });
+      if (evaluable.length > 0) {
+        await this.prisma.aiBidderResult.createMany({
+          data: evaluable.map((s) => ({ taskId: task!.id, bidSupplierId: s.id, status: 'PENDING' })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    const taskId = task.id; // 补建后为非空；const 以便下方事务闭包内保持非空收窄
 
     // 清除旧结果：bidderResult + report + concordance（cascade 会处理部分）
     await this.prisma.$transaction(async (tx) => {
-      await tx.aiBidReport.deleteMany({ where: { taskId: task.id } });
-      await tx.aiConcordanceResult.deleteMany({ where: { taskId: task.id } });
-      await tx.aiBidderResult.deleteMany({ where: { taskId: task.id } });
+      await tx.aiBidReport.deleteMany({ where: { taskId } });
+      await tx.aiConcordanceResult.deleteMany({ where: { taskId } });
+      await tx.aiBidderResult.deleteMany({ where: { taskId } });
       // 重置 task 为 PENDING
       await tx.aiBidAnalysisTask.update({
-        where: { id: task.id },
+        where: { id: taskId },
         data: { status: 'PENDING', completedAt: null },
       });
       // 重新创建 evaluable bidderResult
@@ -1630,7 +1644,7 @@ export class BidService {
       if (evaluableSuppliers.length > 0) {
         await tx.aiBidderResult.createMany({
           data: evaluableSuppliers.map((s) => ({
-            taskId: task.id,
+            taskId,
             bidSupplierId: s.id,
             status: 'PENDING',
           })),
@@ -1644,20 +1658,20 @@ export class BidService {
       try {
         await this.tenderQueue.add(
           'process',
-          { taskId: task.id },
+          { taskId },
           {
-            jobId: `tender-rerun-${task.id}-${Date.now()}`,
+            jobId: `tender-rerun-${taskId}-${Date.now()}`,
             attempts: 3,
             backoff: { type: 'exponential', delay: 5000 },
             removeOnComplete: { age: 7 * 24 * 3600 },
             removeOnFail: { age: 30 * 24 * 3600 },
           },
         );
-        this.logger.log(`AI analysis rerun enqueued: task=${task.id}, project=${projectId}`);
+        this.logger.log(`AI analysis rerun enqueued: task=${taskId}, project=${projectId}`);
       } catch (err) {
-        this.logger.error(`Failed to enqueue rerun for task ${task.id}: ${(err as Error).message}`);
+        this.logger.error(`Failed to enqueue rerun for task ${taskId}: ${(err as Error).message}`);
         await this.prisma.aiBidAnalysisTask.update({
-          where: { id: task.id },
+          where: { id: taskId },
           data: { status: 'FAILED' },
         }).catch(() => {});
         throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
@@ -1668,6 +1682,8 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '系统', target: project.name, action: '重新启动AI辅助分析', result: '旧结果已清除，重新入队', riskFlag: '无' },
     }).catch(() => {});
+
+    return { taskId };
   }
 
   /**

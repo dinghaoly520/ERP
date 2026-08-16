@@ -3742,6 +3742,69 @@ describe('BidService — retryAiBidders', () => {
   });
 });
 
+/* ── N8：rerunAiAnalysis 存量项目补建任务 ── */
+
+describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn(async () => ({ stage: 'EVALUATING', name: 'P' })) },
+      aiBidAnalysisTask: {
+        findUnique: jest.fn(async () => ({ id: 't1', projectId: 'p1', status: 'COMPLETED' })),
+        create: jest.fn(async () => ({ id: 'task-1', projectId: 'p1', status: 'PENDING' })),
+        update: jest.fn(async () => ({})),
+      },
+      aiBidReport: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      aiConcordanceResult: { deleteMany: jest.fn(async () => ({ count: 0 })) },
+      aiBidderResult: { deleteMany: jest.fn(async () => ({ count: 0 })), createMany: jest.fn(async () => ({ count: 1 })) },
+      bidSupplier: { findMany: jest.fn(async () => [{ id: 'bs-1' }]) },
+      bidSupervisionLog: { create: jest.fn(async () => ({})) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('N8：存量项目无 AI 任务时 rerunAiAnalysis 自动补建（不再 TASK_NOT_FOUND）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P' });
+    prisma.aiBidAnalysisTask.findUnique.mockResolvedValue(null);
+    prisma.aiBidAnalysisTask.create.mockResolvedValue({ id: 'task-1' });
+    prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs-1' }]);
+    prisma.aiBidderResult.createMany.mockResolvedValue({ count: 1 });
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toBeTruthy();
+    expect(prisma.aiBidAnalysisTask.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { projectId: 'p1', status: 'PENDING' } }),
+    );
+    // 与 startEvaluation 同构：为解密成功供应商补 bidderResult（skipDuplicates 幂等）
+    expect(prisma.aiBidderResult.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
+    const createManyArg = prisma.aiBidderResult.createMany.mock.calls[0][0];
+    expect(createManyArg.data).toEqual([{ taskId: 'task-1', bidSupplierId: 'bs-1', status: 'PENDING' }]);
+  });
+
+  it('任务已存在 → 走原清空重跑路径，不补建', async () => {
+    await expect(service.rerunAiAnalysis('p1', 'u1')).resolves.toBeTruthy();
+    expect(prisma.aiBidAnalysisTask.create).not.toHaveBeenCalled();
+    expect(prisma.aiBidReport.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1' } });
+    expect(prisma.aiBidderResult.deleteMany).toHaveBeenCalledWith({ where: { taskId: 't1' } });
+    expect(prisma.aiBidAnalysisTask.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 't1' }, data: expect.objectContaining({ status: 'PENDING' }) }),
+    );
+  });
+});
+
 /* ── Task 2: completeOpening TOCTOU 收窄 —— 事务内复查 opening-done ── */
 
 describe('completeOpening TOCTOU', () => {
