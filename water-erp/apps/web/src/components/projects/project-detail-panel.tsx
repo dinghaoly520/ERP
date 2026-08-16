@@ -1115,7 +1115,9 @@ export function ProjectDetailPanel({
               activeRound={selectedRound}
               onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); }}
               onStageAction={(stageKey) => {
-                if (isBidLocked) { toast.warning('开标已确认，前置步骤已锁定'); return; }
+                // P0-3：开标锁定只锁前置阶段——BID_EVALUATION 自身的「开标确认」入口必须可进
+                //（阶段推进后 status=IN_PROGRESS 即 isBidLocked=true，旧守卫把面板唯一入口拦死）
+                if (isBidLocked && stageKey !== 'BID_EVALUATION') { toast.warning('开标已确认，前置步骤已锁定'); return; }
                 if (stageKey === 'TENDER_DOCUMENT') {
                   setTenderWriteStageAction(stageKey);
                 } else if (stageKey === 'EXPERT_SELECTION') {
