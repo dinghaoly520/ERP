@@ -39,6 +39,8 @@ import { BulkExtractReviewDialog, type EditableGroup } from './bulk-extract-revi
 
 const CATEGORY_OPTIONS: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE', 'BUSINESS', 'TECHNICAL', 'PRICE'];
 const inputCls = 'workbench-input';
+// N10：与后端 ScoreStandardValidator SCORE_ITEM_ZERO_MAX 文案一致
+const ZERO_MAX_SCORE_MSG = (name: string) => `评分项「${name}」为打分类但满分为 0，请删除或设置满分`;
 
 type Props = {
   project: ProjectManagementItem;
@@ -114,6 +116,12 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
 
   const handlePublish = async () => {
     if (!bpId) return;
+    // N10：打分类 0 满分「空项」不得随标准发布锁定（英雄项目「法」）
+    const zeroMaxScored = items.find((i) => !isPassFailCategory(i.category) && Number(i.maxScore) <= 0);
+    if (zeroMaxScored) {
+      toast.error(ZERO_MAX_SCORE_MSG(zeroMaxScored.name));
+      return;
+    }
     const scoredSum = items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0);
     const incomplete = items.filter((i) => Number(i.maxScore) > 0 && (!i.points || i.points.length === 0));
     if (scoredSum !== 100 || incomplete.length > 0) {
@@ -201,6 +209,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       toast.error('请填写评分项名称');
       return;
     }
+    // N10：打分类项满分须 >0（通过性审查满分恒为 0）
+    if (!isPassFailCategory(draft.category) && Number(draft.maxScore) <= 0) {
+      toast.error(ZERO_MAX_SCORE_MSG(draft.name.trim()));
+      return;
+    }
     try {
       const created = await createScoreItem(bpId, {
         category: draft.category,
@@ -226,6 +239,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     if (!bpId) return;
     if (!editDraft.name.trim()) {
       toast.error('请填写评分项名称');
+      return;
+    }
+    // N10：打分类项满分须 >0（通过性审查满分恒为 0）
+    if (!isPassFailCategory(editDraft.category) && Number(editDraft.maxScore) <= 0) {
+      toast.error(ZERO_MAX_SCORE_MSG(editDraft.name.trim()));
       return;
     }
     try {
@@ -395,7 +413,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                           ) : (
                             <input
                               type="number"
-                              min={0}
+                              min={1}
                               step="0.1"
                               value={editDraft.maxScore}
                               onChange={(e) => setEditDraft((d) => ({ ...d, maxScore: Number(e.target.value) }))}
@@ -477,7 +495,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                     ) : (
                       <input
                         type="number"
-                        min={0}
+                        min={1}
                         step="0.1"
                         value={draft.maxScore}
                         onChange={(e) => setDraft((d) => ({ ...d, maxScore: Number(e.target.value) }))}
