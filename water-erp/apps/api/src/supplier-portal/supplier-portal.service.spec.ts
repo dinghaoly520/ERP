@@ -685,4 +685,79 @@ describe('SupplierPortalService', () => {
       }
     });
   });
+
+  describe('投递准入「受邀即准入」+ 门户可见性（P0-2）', () => {
+    const futureProject = { id: 'p1', projectCode: 'BID-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), projectManagementItemId: 'pmi-1' };
+
+    it('无公告但存在 ACCEPTED 邀请回执（projectId=PMI id）→ 放行投递', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
+      prisma.bidProject.findUnique.mockResolvedValue(futureProject);
+      prisma.announcement.findFirst.mockResolvedValue(null);
+      prisma.invitationRsvp = { findFirst: jest.fn().mockResolvedValue({ id: 'rsvp-1' }) };
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      const r = await (service as any).assertCanSubmitBid('supplier-1', 'p1');
+      expect(r.project.id).toBe('p1');
+      expect(prisma.invitationRsvp.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { supplierId: 'supplier-1', projectId: 'pmi-1', status: 'ACCEPTED' } }),
+      );
+    });
+
+    it('无公告且已在候选名单（BidSupplier 行）→ 放行投递', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
+      prisma.bidProject.findUnique.mockResolvedValue(futureProject);
+      prisma.announcement.findFirst.mockResolvedValue(null);
+      prisma.invitationRsvp = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+
+      await expect((service as any).assertCanSubmitBid('supplier-1', 'p1')).resolves.toBeTruthy();
+    });
+
+    it('无公告、无回执、无候选行 → 仍拦截 BID_NOTICE_REQUIRED', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
+      prisma.bidProject.findUnique.mockResolvedValue(futureProject);
+      prisma.announcement.findFirst.mockResolvedValue(null);
+      prisma.invitationRsvp = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      await expect((service as any).assertCanSubmitBid('supplier-1', 'p1')).rejects.toMatchObject({
+        response: { code: 'BID_NOTICE_REQUIRED' },
+      });
+    });
+
+    it('listBidProjects：公开可见性含已发布公告解析的项目 + 阶段限定 DOWNLOAD/SUBMIT', async () => {
+      const future = new Date(Date.now() + 3600_000);
+      prisma.bidSupplier.findMany = jest.fn().mockResolvedValue([{ projectId: 'bp-inv' }]); // 受邀分支
+      prisma.bidDocument.findMany.mockImplementation(async ({ where }: any) => {
+        // openIds 查询（accessScope OPEN）与后续富化查询按 where 形状区分
+        if (where?.accessScope === 'OPEN') return [{ bidProjectId: 'bp-doc' }];
+        return [];
+      });
+      prisma.announcement.findMany = jest.fn().mockResolvedValue([{ relatedProjectCode: 'BID-ANN' }]);
+      const finalQueries: any[] = [];
+      prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+        finalQueries.push(where);
+        if (where?.projectCode?.in) return [{ id: 'bp-ann' }];          // 公告码→项目解析
+        if (where?.OR) return [{ id: 'bp-inv', projectCode: 'X', name: 'N', stage: 'SUBMIT', deadline: future, openTime: future, createdAt: new Date() }];
+        return [];                                                       // allProjectIds 计数查询
+      });
+      prisma.bidProject.count.mockResolvedValue(1);
+
+      await service.listBidProjects(1, 20, {}, 'supplier-1');
+
+      const listWhere = finalQueries.find(w => w?.OR);
+      expect(listWhere).toBeDefined();
+      const orBranches = listWhere!.OR as any[];
+      // 公开分支：公告解析出的 bp-ann 与 BidDocument 的 bp-doc 并入，且带 deadline+stage 限定
+      const openBranch = orBranches.find(b => b.id?.in?.includes('bp-ann'));
+      expect(openBranch).toBeDefined();
+      expect(openBranch!.id.in).toEqual(expect.arrayContaining(['bp-doc', 'bp-ann']));
+      expect(openBranch!.deadline.gt).toBeInstanceOf(Date);
+      expect(openBranch!.stage).toEqual({ in: ['DOWNLOAD', 'SUBMIT'] });
+      // 受邀分支：同样限定投递阶段（OPENING+ 靠投标进展/开标大厅，不再混入可投标列表）
+      const invitedBranch = orBranches.find(b => b.id?.in?.includes('bp-inv'));
+      expect(invitedBranch).toBeDefined();
+      expect(invitedBranch!.stage).toEqual({ in: ['DOWNLOAD', 'SUBMIT'] });
+    });
+  });
 });

@@ -320,12 +320,26 @@ export class SupplierPortalService {
     let invitedIds: string[] = [];
     let openIds: string[] = [];
     if (supplierId) {
-      const [invited, openDocs] = await Promise.all([
+      // P0-2：公开可见性 = BidDocument(OPEN) ∪ 已发布采购公告（relatedProjectCode→projectCode 解析）。
+      // 旧口径仅 BidDocument——谈判采购等无公告向导存档路径不产 BidDocument，供应商门户永远看不到。
+      const [invited, openDocs, openNotices] = await Promise.all([
         this.prisma.bidSupplier.findMany({ where: { supplierId }, select: { projectId: true } }),
         this.prisma.bidDocument.findMany({ where: { accessScope: 'OPEN', bidProjectId: { not: null } }, select: { bidProjectId: true } }),
+        this.prisma.announcement.findMany({
+          where: { type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: { not: null } },
+          select: { relatedProjectCode: true },
+        }),
       ]);
       invitedIds = invited.map(i => i.projectId);
       openIds = openDocs.map(d => d.bidProjectId!).filter(Boolean);
+      const noticeCodes = [...new Set(openNotices.map(n => n.relatedProjectCode!).filter(Boolean))];
+      if (noticeCodes.length > 0) {
+        const byCode = await this.prisma.bidProject.findMany({
+          where: { projectCode: { in: noticeCodes } },
+          select: { id: true },
+        });
+        openIds = [...new Set([...openIds, ...byCode.map(p => p.id)])];
+      }
     }
 
     // scope 过滤：公告项目=OPEN，受邀项目=INVITED|DESIGNATED
@@ -344,16 +358,18 @@ export class SupplierPortalService {
       }
     }
 
-    // 组装 OR 可见性分支：受邀(任意未归档) + 公开(deadline 未到)，再与 scope/keyword AND
+    // 组装 OR 可见性分支：受邀 + 公开，再与 scope/keyword AND。
+    // P0-2：两分支均限定 DOWNLOAD/SUBMIT——「可投标项目」只列投递期项目，
+    // OPENING 及之后经「投标进展」/开标大厅跟进（此前受邀分支把 EVALUATING 项目也列为可投标）。
     const orBranches: any[] = [];
     if (supplierId) {
       if (invitedIds.length > 0) {
         const ids = scopeIds ? invitedIds.filter(id => scopeIds.includes(id)) : invitedIds;
-        if (ids.length > 0) orBranches.push({ id: { in: ids } });
+        if (ids.length > 0) orBranches.push({ id: { in: ids }, stage: { in: ['DOWNLOAD', 'SUBMIT'] } });
       }
       if (openIds.length > 0) {
         const ids = scopeIds ? openIds.filter(id => scopeIds.includes(id)) : openIds;
-        if (ids.length > 0) orBranches.push({ id: { in: ids }, deadline: { gt: now } });
+        if (ids.length > 0) orBranches.push({ id: { in: ids }, deadline: { gt: now }, stage: { in: ['DOWNLOAD', 'SUBMIT'] } });
       }
     } else {
       // 无供应商上下文（防御）：沿用原"全部活跃项目"语义
@@ -656,7 +672,7 @@ export class SupplierPortalService {
       this.prisma.supplier.findUnique({ where: { id: supplierId } }),
       this.prisma.bidProject.findUnique({
         where: { id: projectId },
-        select: { id: true, projectCode: true, stage: true, deadline: true },
+        select: { id: true, projectCode: true, stage: true, deadline: true, projectManagementItemId: true },
       }),
     ]);
 
@@ -675,14 +691,26 @@ export class SupplierPortalService {
     if (project.deadline.getTime() < Date.now()) {
       throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
     }
-    // G3 权威兜底：未发布招标公告则供应商无法获取招标文件，禁止投递
-    // （与 openSubmission 的 UX 前置拦截并存；棘轮化后 DOWNLOAD 阶段即可投递，此为唯一权威闸门）
+    // G3 权威兜底（P0-2 放宽口径）：公告项目须已发布招标公示；邀请类采购（谈判采购等无公告阶段，
+    // 供应商邀请向导替代公告）以「已接受邀请回执（InvitationRsvp ACCEPTED，projectId=PMI id）
+    // 或已在候选名单（BidSupplier 行）」为投递准入，二者其一即可。
     const notice = await this.prisma.announcement.findFirst({
       where: { relatedProjectCode: project.projectCode, type: 'BID_NOTICE', status: 'PUBLISHED' },
       select: { id: true },
     });
     if (!notice) {
-      throw new BadRequestException({ error: '该项目尚未发布招标公告，暂无法投递', code: 'BID_NOTICE_REQUIRED' });
+      const [inPool, acceptedRsvp] = await Promise.all([
+        this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } }),
+        project.projectManagementItemId
+          ? this.prisma.invitationRsvp.findFirst({
+              where: { supplierId, projectId: project.projectManagementItemId, status: 'ACCEPTED' },
+              select: { id: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      if (!inPool && !acceptedRsvp) {
+        throw new BadRequestException({ error: '该项目尚未发布招标公告，也未见您的受邀确认记录，暂无法投递', code: 'BID_NOTICE_REQUIRED' });
+      }
     }
 
     return { supplier, project };
