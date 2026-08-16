@@ -315,6 +315,25 @@ export class ProjectManagementService {
     this.logger.log(
       `为项目管理项 ${itemId} 第 ${targetRound} 轮创建开评标项目 ${created.projectCode}`,
     );
+    // P0-2 收尾：回填已接受邀请回执的供应商进候选池（rsvp 常早于 BidProject 懒创建——
+    // respond() 在无 BidProject 时只记录回执；此处补挂，保证门户「可投标项目」受邀分支可见）
+    try {
+      const accepted = await this.prisma.invitationRsvp.findMany({
+        where: { projectId: itemId, status: 'ACCEPTED' },
+        select: { supplierId: true, supplierName: true },
+      });
+      for (const r of accepted) {
+        if (!r.supplierId) continue;
+        await this.prisma.bidSupplier.upsert({
+          where: { projectId_supplierName: { projectId: created.id, supplierName: r.supplierName } },
+          create: { projectId: created.id, supplierId: r.supplierId, supplierName: r.supplierName },
+          update: { supplierId: r.supplierId },
+        });
+      }
+      if (accepted.length > 0) this.logger.log(`  回填 ${accepted.length} 家已接受回执供应商进候选池`);
+    } catch (e) {
+      this.logger.warn(`候选回填失败（不阻塞）: ${(e as Error).message}`);
+    }
     return {
       id: created.id,
       projectCode: created.projectCode,

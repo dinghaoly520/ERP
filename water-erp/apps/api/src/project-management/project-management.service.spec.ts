@@ -1271,6 +1271,22 @@ describe('ProjectManagementService', () => {
       expect(new Date(r.deadline).getTime()).toBeGreaterThan(Date.now() - 1000);
     });
 
+    it('P0-2 收尾：创建后回填 ACCEPTED 回执供应商进候选池（rsvp 早于懒创建的时序洞）', async () => {
+      const { service, prisma } = makeService();
+      prisma.announcement = { findFirst: jest.fn() };
+      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn().mockImplementation(({ data }: any) => ({ ...data })) };
+      prisma.invitationRsvp = { findMany: jest.fn().mockResolvedValue([{ supplierId: 's1', supplierName: '甲公司' }]) };
+      prisma.bidSupplier = { upsert: jest.fn().mockResolvedValue({}) };
+      mockItem(prisma, { bidOpeningTime: null, initiationDate: null });
+
+      await service.ensureBidProject('pm-01');
+
+      expect(prisma.bidSupplier.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { projectId_supplierName: expect.objectContaining({ supplierName: '甲公司' }) },
+        create: expect.objectContaining({ supplierId: 's1', supplierName: '甲公司' }),
+      }));
+    });
+
     it('未来开标时间（>12h）时：保持「开标前 12h 截标」业务规则不变', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
