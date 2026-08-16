@@ -908,7 +908,7 @@ export class ExpertAdminService {
 
   /** 查询项目专家邀请状态（正选+候补） */
   async getProjectInvitations(projectId: string) {
-    // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（15分钟过期自动弃权）
+    // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（RSVP TTL 过期自动弃权，默认 2 小时，见 EXPERT_RSVP_TTL_HOURS）
     const expiredPending = await this.prisma.bidExpert.findMany({
       where: { projectId, invitationStatus: 'pending', rsvpExpiresAt: { lt: new Date() } },
       select: { id: true },
