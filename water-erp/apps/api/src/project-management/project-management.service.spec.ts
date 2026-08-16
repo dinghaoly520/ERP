@@ -1011,6 +1011,11 @@ describe('ProjectManagementService', () => {
   it('allows the current stage to complete and advances the next stage', async () => {
     const { service, prisma, aiService, readFileMock } = makeService();
 
+    // P1-12：完成实质校验的放行前提（采购文件阶段 ≥1 附件）
+    prisma.attachment = { count: jest.fn().mockResolvedValue(1) };
+    prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(1) };
+    prisma.bidExpert = { count: jest.fn().mockResolvedValue(1) };
+
     prisma.projectManagementStage.findFirst.mockResolvedValue({
       id: 'stage-tender',
       stageKey: 'TENDER_DOCUMENT',
@@ -1183,6 +1188,49 @@ describe('ProjectManagementService', () => {
     expect(prisma.projectManagementItem.update).toHaveBeenCalledWith({
       where: { id: 'pm-01' },
       data: { status: 'ACTIVE' },
+    });
+  });
+
+  describe('updateStage 阶段完成实质校验（P1-12）', () => {
+    const completing = { status: 'COMPLETED' } as any;
+
+    it('TENDER_DOCUMENT 完成 + 0 附件 → 400', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'TENDER_DOCUMENT' });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'TENDER_DOCUMENT' });
+      prisma.attachment = { count: jest.fn().mockResolvedValue(0) };
+      await expect(service.updateStage('pm-01', 'TENDER_DOCUMENT', completing)).rejects.toThrow('至少上传 1 份文件');
+    });
+
+    it('SUPPLIER_INVITATION 完成 + 0 邀请回执 → 400', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'SUPPLIER_INVITATION' });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'SUPPLIER_INVITATION' });
+      prisma.invitationRsvp = { count: jest.fn().mockResolvedValue(0) };
+      await expect(service.updateStage('pm-01', 'SUPPLIER_INVITATION', completing)).rejects.toThrow('发送邀请通知');
+    });
+
+    it('EXPERT_SELECTION 完成 + BidProject 存在但 0 专家 → 400', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'EXPERT_SELECTION' });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'EXPERT_SELECTION' });
+      prisma.bidProject = { findFirst: jest.fn().mockResolvedValue({ id: 'bp-1' }) };
+      prisma.bidExpert = { count: jest.fn().mockResolvedValue(0) };
+      await expect(service.updateStage('pm-01', 'EXPERT_SELECTION', completing)).rejects.toThrow('完成专家抽取');
+    });
+
+    it('EXPERT_SELECTION 完成 + BidProject 尚未懒创建 → 放行（不拦截）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'EXPERT_SELECTION' });
+      prisma.projectManagementItem.findUnique
+        .mockResolvedValueOnce({ currentStage: 'EXPERT_SELECTION' }) // updateStage 前置读
+        .mockResolvedValue({ id: 'pm-01', currentStage: 'CONTRACT', stages: [{ stageKey: 'EXPERT_SELECTION', attachments: [] }] }); // refreshProjectAnalysis
+      prisma.bidProject = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.projectManagementStage.update.mockResolvedValue({});
+      prisma.projectManagementStage.findMany.mockResolvedValue([{ stageKey: 'EXPERT_SELECTION', stageOrder: 5, status: 'COMPLETED' }]);
+      prisma.projectManagementItem.update.mockResolvedValue({});
+      prisma.attachment = { count: jest.fn().mockResolvedValue(1) };
+      await expect(service.updateStage('pm-01', 'EXPERT_SELECTION', completing)).resolves.toBeDefined();
     });
   });
 

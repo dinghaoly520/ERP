@@ -2804,6 +2804,26 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new BadRequestException('请先完成当前阶段后再推进下一阶段。');
     }
 
+    // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
+    // 一路放行到开标确认才发现缺前置，返工成本高）
+    if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
+      if (stageKey === 'TENDER_DOCUMENT') {
+        const files = await this.prisma.attachment.count({ where: { projectManagementStageId: stage.id } });
+        if (files === 0) throw new BadRequestException('采购文件阶段需至少上传 1 份文件（或在线编写保存）后再标记完成');
+      }
+      if (stageKey === 'SUPPLIER_INVITATION') {
+        const rsvps = await this.prisma.invitationRsvp.count({ where: { projectId } });
+        if (rsvps === 0) throw new BadRequestException('请先通过供应商邀请向导发送邀请通知，再标记完成');
+      }
+      if (stageKey === 'EXPERT_SELECTION') {
+        const bp = await this.prisma.bidProject.findFirst({ where: { projectManagementItemId: projectId }, select: { id: true } });
+        if (bp) {
+          const experts = await this.prisma.bidExpert.count({ where: { projectId: bp.id } });
+          if (experts === 0) throw new BadRequestException('请先完成专家抽取，再标记完成');
+        }
+      }
+    }
+
     const updatedStage = await this.prisma.projectManagementStage.update({
       where: { id: stage.id },
       data: {
