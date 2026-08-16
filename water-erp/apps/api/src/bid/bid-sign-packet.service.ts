@@ -250,14 +250,24 @@ export class BidSignPacketService {
     const objectKey = `bid-sign-packet/${projectId}/${suffix}.${ext}`;
     const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
     await this.storage.upload(objectKey, file.buffer, file.mimetype);
-    const asset = await this.prisma.fileAsset.create({
-      data: {
+    // N2：重传时 MinIO 对象同 key 覆盖，FileAsset 若仍 create 会撞 key @unique（P2002 → 500）。
+    // upsert：同 key 更新行（size/sha256/mimeType/originalName/uploaderId），与 MinIO 覆盖语义一致（P1-17 同款）。
+    const asset = await this.prisma.fileAsset.upsert({
+      where: { key: objectKey },
+      create: {
         key: objectKey,
         originalName: file.originalname || `scan.${ext}`,
         mimeType: file.mimetype,
         size: file.buffer.length,
         sha256,
         category,
+        uploaderId: actorId,
+      },
+      update: {
+        originalName: file.originalname || `scan.${ext}`,
+        mimeType: file.mimetype,
+        size: file.buffer.length,
+        sha256,
         uploaderId: actorId,
       },
     });
