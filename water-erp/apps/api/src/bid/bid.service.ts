@@ -1964,7 +1964,7 @@ export class BidService {
       } else {
         await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'SUCCESS' } });
         // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED。
-        // P1-3：先查后写（upsert 语义），消除并发双击重复建记录。
+        // P1-3/N1b：upsert（projectId+bidSupplierId 复合唯一兜底），消除并发双击重复建记录。
         if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
           // P1-4：解密即唱标路径同样校验与密封报价的一致性（409 交由前端确认后带 confirmSealedPrice 重试）
           const decryptPriceNote = await this.assertPriceMatchesSealed(projectId, supplierId, dto.amount, dto.confirmSealedPrice);
@@ -1973,7 +1973,6 @@ export class BidService {
               data: { projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName, action: '录入唱标信息', result: `报价 ${dto.amount}${decryptPriceNote}`, riskFlag: '中' },
             });
           }
-          const existingRecord = await tx.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: supplierId }, select: { id: true } });
           const recordData = {
             supplierName: bidSupplier.supplierName,
             amount: dto.amount,
@@ -1983,11 +1982,11 @@ export class BidService {
             decryptResult: '解密成功',
             confirmStatus: '待供应商确认',
           };
-          if (existingRecord) {
-            await tx.bidOpeningRecord.update({ where: { id: existingRecord.id }, data: recordData });
-          } else {
-            await tx.bidOpeningRecord.create({ data: { projectId, ...recordData, bidSupplierId: supplierId } });
-          }
+          await tx.bidOpeningRecord.upsert({
+            where: { projectId_bidSupplierId: { projectId, bidSupplierId: supplierId } },
+            create: { projectId, ...recordData, bidSupplierId: supplierId },
+            update: recordData,
+          });
         }
         const legacyNote = hasSealedKey ? '' : '（legacy 记录：未加密封存，仅完成完整性校验）';
         await tx.bidSupervisionLog.create({
@@ -2774,11 +2773,13 @@ export class BidService {
           code: 'RECORD_LOCKED',
         });
       }
-      const rec = existing
-        ? await tx.bidOpeningRecord.update({ where: { id: existing.id }, data: payload })
-        : await tx.bidOpeningRecord.create({
-            data: { projectId, supplierName: bidSupplier.supplierName, bidSupplierId: bidSupplier.id, ...payload },
-          });
+      // N1b：upsert（projectId+bidSupplierId 复合唯一兜底）——上面 findFirst 仅服务状态门，
+      // 写入不再 check-then-act，并发双击不会双建记录。
+      const rec = await tx.bidOpeningRecord.upsert({
+        where: { projectId_bidSupplierId: { projectId, bidSupplierId: bidSupplier.id } },
+        create: { projectId, supplierName: bidSupplier.supplierName, bidSupplierId: bidSupplier.id, ...payload },
+        update: payload,
+      });
 
       await tx.bidSupervisionLog.create({
         data: {
