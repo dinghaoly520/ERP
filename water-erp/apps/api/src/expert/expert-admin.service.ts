@@ -747,12 +747,14 @@ export class ExpertAdminService {
         }
       }
 
+      // P0-4 止血：验证码链路前端零接线（身份核验后期升级），抽取确认视为采购端已核验身份，
+      // phoneVerified 置 true——否则新抽取专家 signIn 403 PHONE_NOT_VERIFIED 死锁（种子预置 true 掩盖了此问题）。
       // 正选专家创建为 expertRole=正选
       for (const e of (dto.experts ?? [])) {
         await tx.bidExpert.upsert({
           where: { projectId_userId: { projectId, userId: e.userId } },
-          update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending' },
-          create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending' },
+          update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending', phoneVerified: true },
+          create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending', phoneVerified: true },
         });
       }
       // 候补专家：先清除旧候补记录（避免重复操作导致候补堆积），再写入新一批
@@ -762,8 +764,8 @@ export class ExpertAdminService {
       for (const c of dto.candidates ?? []) {
         await tx.bidExpert.upsert({
           where: { projectId_userId: { projectId, userId: c.userId } },
-          update: { expertName: c.expertName, major: c.major, expertRole: '候补', invitationStatus: 'pending' },
-          create: { projectId, userId: c.userId, expertName: c.expertName, major: c.major, expertRole: '候补', invitationStatus: 'pending' },
+          update: { expertName: c.expertName, major: c.major, expertRole: '候补', invitationStatus: 'pending', phoneVerified: true },
+          create: { projectId, userId: c.userId, expertName: c.expertName, major: c.major, expertRole: '候补', invitationStatus: 'pending', phoneVerified: true },
         });
       }
 
