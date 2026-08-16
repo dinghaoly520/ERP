@@ -12,6 +12,8 @@ interface RsvpView {
   openTime: string; status: string; expired: boolean; isLead: boolean;
   projectScope?: string | null;
   rsvpNo?: string; respondedAt?: string | null;
+  /** N6：后端 rsvp/verify 已返回实际过期时间——过期态文案展示真实时刻，不再写死时长 */
+  expiresAt?: string | null;
 }
 
 function ExpertRsvpPage() {
@@ -78,7 +80,11 @@ function ExpertRsvpPage() {
                 </div>
               )}
 
-              {view.expired && !isDone && <p className="rv-warn">该邀请链接已超过15分钟有效期，已自动视为无法参加。如有疑问请联系四川水发集团。</p>}
+              {view.expired && !isDone && (
+                <p className="rv-warn">
+                  {view.expiresAt ? `该邀请链接已于 ${fmt(view.expiresAt)} 过期` : '该邀请链接已过期'}，已自动视为无法参加。如有疑问请联系四川水发集团。
+                </p>
+              )}
 
               {isDone ? (
                 <div className={`rv-done ${view.status === 'confirmed' ? 'rv-done--accept' : 'rv-done--decline'}`}>

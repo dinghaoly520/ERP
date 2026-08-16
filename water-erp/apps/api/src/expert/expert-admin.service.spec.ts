@@ -537,4 +537,39 @@ describe('ExpertAdminService', () => {
       expect(content).toContain('确认链接（6小时内有效）');
     });
   });
+
+  describe('N6 收尾：rsvpTtlMs 真单源（非法 env 回退 2 小时）', () => {
+    // rsvpTtlMs 是类字段，实例化时取 env——须在编译模块前置 env（外层 beforeEach 已编译默认实例）
+    const buildSvc = async () => {
+      const mod = await Test.createTestingModule({
+        providers: [
+          ExpertAdminService,
+          { provide: PrismaService, useValue: prisma },
+          { provide: ExpertExtractionAiService, useValue: extractionAi },
+          { provide: NotificationService, useValue: notification },
+          { provide: EmbeddingService, useValue: { embed: jest.fn().mockResolvedValue([]) } },
+          { provide: LlmService, useValue: { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) } },
+          { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
+          { provide: ExpertCrossConflictService, useValue: { checkCrossConflicts: jest.fn().mockResolvedValue([]) } },
+        ],
+      }).compile();
+      return mod.get(ExpertAdminService);
+    };
+
+    afterEach(() => {
+      delete process.env.EXPERT_RSVP_TTL_HOURS;
+    });
+
+    it.each(['abc', '0'])('EXPERT_RSVP_TTL_HOURS=%s → rsvpTtlMs 回退 2 小时（7200000ms）', async (v) => {
+      process.env.EXPERT_RSVP_TTL_HOURS = v;
+      const svc = await buildSvc();
+      expect(svc['rsvpTtlMs']).toBe(2 * 60 * 60 * 1000);
+    });
+
+    it('EXPERT_RSVP_TTL_HOURS=6 → rsvpTtlMs=6 小时（与文案同源）', async () => {
+      process.env.EXPERT_RSVP_TTL_HOURS = '6';
+      const svc = await buildSvc();
+      expect(svc['rsvpTtlMs']).toBe(6 * 60 * 60 * 1000);
+    });
+  });
 });

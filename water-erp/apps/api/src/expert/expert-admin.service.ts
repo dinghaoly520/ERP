@@ -40,8 +40,9 @@ function computeOverallGrade(
 
 @Injectable()
 export class ExpertAdminService {
-  private readonly rsvpTtlMs =
-    parseFloat(process.env.EXPERT_RSVP_TTL_HOURS ?? '2') * 60 * 60 * 1000;
+  // N6 收尾：TTL 真单源——毫秒值复用 rsvpTtlHours()（含 "abc"/"0" 等非法值回退 2），
+  // 实际过期时间与所有文案（controller/extraction-ai/本文件）永远一致
+  private readonly rsvpTtlMs = rsvpTtlHours() * 60 * 60 * 1000;
 
   constructor(
     private prisma: PrismaService,
