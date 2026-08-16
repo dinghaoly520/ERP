@@ -185,7 +185,9 @@ describe('BidService — stage transitions', () => {
       prisma.bidProject.findUnique
         .mockResolvedValueOnce({ stage: 'OPENING', name: 'P' })   // pre-tx 读到 OPENING
         .mockResolvedValueOnce({ stage: 'ARCHIVED', name: 'P' }); // 锁后复查：并发对手已归档
-      prisma.bidExpert.count = jest.fn().mockResolvedValue(3);
+      prisma.bidExpert.count = jest.fn()
+        .mockResolvedValueOnce(3)  // 确认正选数
+        .mockResolvedValue(0);     // 采购人代表数（P1-7 占比闸门）
       prisma.bidSupplier.count = jest.fn().mockResolvedValue(3);
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
 
@@ -1552,7 +1554,7 @@ describe('BidService — stage transitions', () => {
   describe('BidService.startEvaluation — 前置校验 (G4/G9)', () => {
     beforeEach(() => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
-      prisma.bidExpert.count.mockResolvedValue(3);
+      prisma.bidExpert.count.mockResolvedValueOnce(3).mockResolvedValue(0); // P1-7：首次=确认正选数，其后=采购人代表数(0)
       prisma.bidSupplier.findMany.mockResolvedValue([]);
     });
 
@@ -1586,7 +1588,7 @@ describe('BidService — stage transitions', () => {
   describe('P3 — startEvaluation ≥3 家法定门槛', () => {
     beforeEach(() => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
-      prisma.bidExpert.count.mockResolvedValue(3);
+      prisma.bidExpert.count.mockResolvedValueOnce(3).mockResolvedValue(0); // P1-7：首次=确认正选数，其后=采购人代表数(0)
       prisma.bidSupplier.findMany.mockResolvedValue([]);
     });
 
@@ -1615,7 +1617,7 @@ describe('BidService — stage transitions', () => {
   describe('H4 — startEvaluation 开标完成度守卫', () => {
     it('存在未解密（PENDING）供应商时抛 OPENING_NOT_DONE，不写 EVALUATING', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
-      prisma.bidExpert.count.mockResolvedValue(3);
+      prisma.bidExpert.count.mockResolvedValueOnce(3).mockResolvedValue(0); // P1-7：首次=确认正选数，其后=采购人代表数(0)
       prisma.bidSupplier.count.mockResolvedValue(3);
       prisma.bidSupplier.findMany.mockResolvedValue([
         { supplierName: 'A', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
@@ -1628,9 +1630,33 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidProject.update).not.toHaveBeenCalled();
     });
 
+    it('P1-7：非采购人代表不足 2/3 → 409 COMMITTEE_RATIO（5 人组含 2 名代表）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidExpert.count
+        .mockResolvedValueOnce(5)  // confirmed 正选
+        .mockResolvedValueOnce(2); // 其中采购人代表
+      prisma.bidSupplier.count.mockResolvedValue(3);
+
+      await expect(service.startEvaluation('p1', 'u1')).rejects.toMatchObject({
+        response: { code: 'COMMITTEE_RATIO' },
+      });
+    });
+
+    it('P1-7：非代表占 4/5（≥2/3）→ 通过占比闸门（后续闸门另行拦截属正常）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidExpert.count
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce(1);
+      prisma.bidSupplier.count.mockResolvedValue(3);
+      // 供应商侧闸门抛错即可证明占比闸门已通过
+      await expect(service.startEvaluation('p1', 'u1')).rejects.not.toMatchObject({
+        response: { code: 'COMMITTEE_RATIO' },
+      });
+    });
+
     it('所有供应商到终局态（SUCCESS+CONFIRMED / DANGER）时放行', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
-      prisma.bidExpert.count.mockResolvedValue(3);
+      prisma.bidExpert.count.mockResolvedValueOnce(3).mockResolvedValue(0); // P1-7：首次=确认正选数，其后=采购人代表数(0)
       prisma.bidSupplier.count.mockResolvedValue(3);
       prisma.bidSupplier.findMany.mockResolvedValue([
         { supplierName: 'A', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },

@@ -13,6 +13,10 @@ export class ExtractionExpertDto {
 
   @IsOptional() @IsBoolean()
   isLead?: boolean;
+
+  /** P1-7：采购人代表标识（部门限定配额抽取的需求方代表；不得担任组长，不计入技术/经济专家 2/3 占比） */
+  @IsOptional() @IsBoolean()
+  isPurchaserRepresentative?: boolean;
 }
 
 export class ConfirmExtractionDto {

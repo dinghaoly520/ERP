@@ -26,8 +26,10 @@ describe('ExpertAdminService', () => {
       bidExpert: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
         upsert: jest.fn().mockResolvedValue({}),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       bidProject: {
@@ -289,6 +291,21 @@ describe('ExpertAdminService', () => {
       });
     });
 
+    it('P1-7：isPurchaserRepresentative 标识随抽取确认持久化（默认 false）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'SUBMIT', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [] },
+      ]);
+      await service.confirmExtraction('p1', {
+        projectId: 'p1',
+        experts: [{ userId: 'u1', expertName: '甲', major: '采购', isPurchaserRepresentative: true }],
+      } as any, 'op1');
+      expect(prisma.bidExpert.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        create: expect.objectContaining({ isPurchaserRepresentative: true }),
+        update: expect.objectContaining({ isPurchaserRepresentative: true }),
+      }));
+    });
+
     it('P1-6：项目已进入评标阶段时禁非追加重抽（deleteMany 会摧毁评分/签字状态）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'EVALUATING', suppliers: [] });
       await expect(service.confirmExtraction('p1', dto(), 'op1'))
@@ -353,6 +370,22 @@ describe('ExpertAdminService', () => {
         create: expect.objectContaining({ expertRole: '候补', phoneVerified: true }),
         update: expect.objectContaining({ expertRole: '候补', phoneVerified: true }),
       }));
+    });
+  });
+
+  describe('setLeader（P1-7 采购人代表禁任组长）', () => {
+    it('采购人代表被拒绝担任组长', async () => {
+      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', isPurchaserRepresentative: true });
+      await expect(service.setLeader('p1', 'u1')).rejects.toThrow('采购人代表不得担任评审组长');
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('非代表的正选专家可正常设为组长', async () => {
+      prisma.bidExpert.findUnique.mockResolvedValue({ projectId: 'p1', userId: 'u1', expertRole: '正选', isPurchaserRepresentative: false });
+      prisma.bidExpert.updateMany.mockResolvedValue({ count: 0 });
+      prisma.bidExpert.update.mockResolvedValue({});
+      const r = await service.setLeader('p1', 'u1');
+      expect(r.success).toBe(true);
     });
   });
 

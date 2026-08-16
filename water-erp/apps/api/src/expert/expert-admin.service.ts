@@ -639,7 +639,13 @@ export class ExpertAdminService {
       const drawn = this.drawByMode(pool, Math.min(q.count, pool.length), extractMode, scoreMap);
       const drawnSpecs = drawn.map(c => c.specialty);
       employerDrawnSpecs.set(emp, drawnSpecs);
-      for (const c of drawn) { usedIds.add(c.id); selected.push(this.toSelection(c, specFilter || c.specialty, '正选', scoreMap)); }
+      // P1-7：部门限定配额 = 需求方代表（采购人代表），选中结果打标供确认时持久化
+      for (const c of drawn) {
+        usedIds.add(c.id);
+        const sel = this.toSelection(c, specFilter || c.specialty, '正选', scoreMap);
+        (sel as any).isPurchaserRepresentative = true;
+        selected.push(sel);
+      }
     }
 
     // 候补：每个专业配额各抽 1 位候补（放宽到全部候选含 D/E，作后备用）
@@ -754,12 +760,12 @@ export class ExpertAdminService {
 
       // P0-4 止血：验证码链路前端零接线（身份核验后期升级），抽取确认视为采购端已核验身份，
       // phoneVerified 置 true——否则新抽取专家 signIn 403 PHONE_NOT_VERIFIED 死锁（种子预置 true 掩盖了此问题）。
-      // 正选专家创建为 expertRole=正选
+      // 正选专家创建为 expertRole=正选（isPurchaserRepresentative：P1-7 采购人代表标识）
       for (const e of (dto.experts ?? [])) {
         await tx.bidExpert.upsert({
           where: { projectId_userId: { projectId, userId: e.userId } },
-          update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending', phoneVerified: true },
-          create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending', phoneVerified: true },
+          update: { expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending', phoneVerified: true, isPurchaserRepresentative: e.isPurchaserRepresentative ?? false },
+          create: { projectId, userId: e.userId, expertName: e.expertName, major: e.major, isLead: e.isLead ?? false, expertRole: '正选', invitationStatus: 'pending', phoneVerified: true, isPurchaserRepresentative: e.isPurchaserRepresentative ?? false },
         });
       }
       // 候补专家：先清除旧候补记录（避免重复操作导致候补堆积），再写入新一批
@@ -881,6 +887,8 @@ export class ExpertAdminService {
     });
     if (!target) throw new NotFoundException('该专家不属于本项目');
     if (target.expertRole !== '正选') throw new BadRequestException('仅正选专家可设为组长');
+    // P1-7（#47）：采购人代表不得担任评审组长（多地采购管理办法明确规定）
+    if (target.isPurchaserRepresentative) throw new BadRequestException('采购人代表不得担任评审组长');
 
     await this.prisma.$transaction([
       // 取消所有现有组长

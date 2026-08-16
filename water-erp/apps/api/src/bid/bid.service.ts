@@ -1417,6 +1417,16 @@ export class BidService {
         code: 'EVEN_COMMITTEE_SIZE',
       });
     }
+    // P1-7（#15 补全）：评审专家（非采购人代表）不得少于成员总数的三分之二（暂行规定第九条）
+    const repCount = await this.prisma.bidExpert.count({
+      where: { projectId: id, invitationStatus: 'confirmed', expertRole: '正选', isPurchaserRepresentative: true },
+    });
+    if ((confirmedExperts - repCount) * 3 < confirmedExperts * 2) {
+      throw new BadRequestException({
+        error: `评审专家（非采购人代表）${confirmedExperts - repCount}/${confirmedExperts} 人，依法不得少于成员总数的三分之二`,
+        code: 'COMMITTEE_RATIO',
+      });
+    }
 
     // G4: 至少一个解密成功且未撤回的供应商，否则评标阶段无供应商可评（死局）
     const evaluableSupplierCount = await this.prisma.bidSupplier.count({
