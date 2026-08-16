@@ -507,7 +507,12 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
 
         {/* ── 专家×供应商评分矩阵 ── */}
         {experts.length > 0 && suppliers.length > 0 && (
-          <div className="overflow-x-auto rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
+          <div>
+            {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
+            <p className="mb-1.5 text-[10px] text-[var(--muted-foreground)]">
+              评分期间专家按「专家 1/2/…」稳定编号显示（互不可见他人分数）；全部专家确认评审报告后恢复实名。
+            </p>
+            <div className="overflow-x-auto rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
             <table className="w-full min-w-[560px] text-left text-xs">
               <thead>
                 <tr className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]" style={{ background: 'oklch(0.975 0.012 258 / 0.5)' }}>
@@ -609,6 +614,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                 <span>{anomalies.length} 处评分偏差超过 {ANOMALY_THRESHOLD}%（与全体均分相比），生成结果前请重点复核。</span>
               </div>
             )}
+            </div>
           </div>
         )}
 
