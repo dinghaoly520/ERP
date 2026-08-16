@@ -3040,8 +3040,10 @@ export class BidService {
       throw new ConflictException({ error: '评标签字已闭环，禁止重生成评标结果；如需更正请走数据修正流程重开签字包', code: 'SIGN_PACKET_CLOSED' });
     }
 
-    // 谈判/竞价项目：专家评标完成后进行多轮报价，生成结果前校验轮次已完成 + 同步最终报价
-    if (project.roundMode) {
+    // 谈判（negotiation）/多轮类项目：专家评标完成后进行多轮报价，生成结果前校验轮次已完成 + 同步最终报价。
+    // P1-13fix：sealed_auction（密封竞价）为单轮唱标模式——唱标价即最终价，无报价轮次流程，
+    // 旧口径 if (roundMode) 无差别拦截 → 竞价采购结果生成死锁（NO_ROUNDS）。
+    if (project.roundMode && project.roundMode !== 'sealed_auction') {
       const totalRounds = await this.prisma.bidRound.count({ where: { projectId } });
       if (totalRounds === 0) {
         throw new BadRequestException({ error: '本项目为多轮报价项目，请先在开标端(:3007)完成至少一轮报价后再生成结果', code: 'NO_ROUNDS' });
