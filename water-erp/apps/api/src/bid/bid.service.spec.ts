@@ -862,6 +862,46 @@ describe('BidService — stage transitions', () => {
       expect(created.find((r: any) => r.supplierId === 's3')).toBeUndefined();
       expect(results[0].supplierName).toBe('甲');
     });
+
+    it('N3：结果重生成时评标快照 fileAsset 走 upsert（不再 create 撞 key 被 catch 吞）', async () => {
+      // 沿用上方成功用例的 mock 前置（复制自包含）
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }, { id: 'e2', expertRole: '正选', reportConfirmed: true }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's3', supplierName: '丙', decryptStatus: 'SUCCESS', submitStatus: '已撤回', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      prisma.bidScoreRecord.findMany.mockImplementation((args: any) =>
+        Promise.resolve(args.where.supplierId === 's1' ? [{ score: 90 }, { score: 80 }] : [{ score: 70 }, { score: 60 }]),
+      );
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 2 });
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([
+        { supplierName: '甲', rank: 1, recommended: true, averageScore: 85 },
+        { supplierName: '乙', rank: 2, recommended: false, averageScore: 65 },
+      ]);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidSignPacket.findUnique.mockResolvedValue(null);
+      // buildEvaluationPackage 走到 fileAsset 写入所需 delegate（基础 mock 缺 findMany——旧代码在此被 catch 吞）
+      prisma.bidScoreRecordHistory.findMany = jest.fn().mockResolvedValue([]);
+      prisma.bidScorePointDecision.findMany = jest.fn().mockResolvedValue([]);
+      prisma.fileAsset.upsert = jest.fn().mockResolvedValue({ id: 'fa-1' });
+      prisma.fileAsset.create = jest.fn(); // 基础 mock 未挂 create——断言「未被调用」须其存在
+
+      await service.generateEvaluationResults('p1', 'u1');
+
+      // 结果重生成 = 同 key 覆盖 MinIO；FileAsset 须 upsert 使 DB 指纹与新内容一致（旧 create 撞 @unique 被外层 catch 吞）
+      expect(prisma.fileAsset.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { key: 'bid-evaluation-handover/p1.json' },
+          update: expect.objectContaining({ sha256: expect.any(String) }),
+        }),
+      );
+      expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('BidService.generateEvaluationResults — 去极值与候选人 (G2)', () => {

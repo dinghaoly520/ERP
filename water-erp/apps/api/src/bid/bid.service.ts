@@ -3437,8 +3437,14 @@ export class BidService {
       const objectKey = `bid-evaluation-handover/${projectId}.json`;
       await this.storage.upload(objectKey, buffer, 'application/json');
       const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
-      await this.prisma.fileAsset.create({
-        data: {
+      // N3：结果重生成 = 同 key 覆盖 MinIO；create 会撞 key @unique（P2002）且被下方 catch 吞掉，
+      // 造成 DB 仍留旧指纹、与 MinIO 新内容分叉。改 upsert：同 key 更新行（P1-17 同款）。
+      const existingSnapshot = await this.prisma.fileAsset.findUnique({
+        where: { key: objectKey }, select: { id: true },
+      });
+      await this.prisma.fileAsset.upsert({
+        where: { key: objectKey },
+        create: {
           key: objectKey,
           originalName: `评标包-${project.projectCode}.json`,
           mimeType: 'application/json',
@@ -3447,10 +3453,15 @@ export class BidService {
           category: 'bid_evaluation_handover',
           uploaderId: actorId ?? null,
         },
+        update: { size: buffer.length, sha256, uploaderId: actorId ?? null },
       });
       await this.prisma.bidSupervisionLog.create({
-        data: { projectId, time: new Date(), role: '系统', target: project.name,
-          action: '评标完整性快照', result: `指纹 ${sha256.slice(0, 16)}…`, riskFlag: '无' },
+        data: {
+          projectId, time: new Date(), role: '系统', target: project.name,
+          action: '评标完整性快照',
+          result: `${existingSnapshot ? '已更新（结果重生成，覆盖旧指纹）' : '指纹'} ${sha256.slice(0, 16)}…`,
+          riskFlag: '无',
+        },
       }).catch(() => {});
     } catch (e) {
       this.logger.error('评标快照生成失败（不阻塞结果生成）', e instanceof Error ? e.message : String(e));

@@ -317,7 +317,7 @@ describe('BidSignPacketService.generateHandover', () => {
     }); // 全字段（尾部组装走 generatedAt.toISOString 等），仅 closedAt 改为已闭环
     const svc = makeService();
     (svc as any).storage.upload.mockResolvedValue(undefined);
-    (prisma.fileAsset.create as jest.Mock).mockResolvedValue({ id: 'fa99' });
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa99' });
     (prisma.bidSignPacket.update as jest.Mock).mockResolvedValue({});
     // 快照 delegate（expertDispute/bidMotion/bidClarification/bidExpert.findMany）由 fake 常量 + baseArrange 回 []，无需再 mock
     // buildEvaluationPackage 由注入的 BidService 提供——spec 挂 mock
@@ -330,12 +330,36 @@ describe('BidSignPacketService.generateHandover', () => {
       expect.any(Buffer),
       'application/json',
     );
-    expect(prisma.fileAsset.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ category: 'bid_evaluation_sign_handover' }) }),
+    expect(prisma.fileAsset.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ category: 'bid_evaluation_sign_handover' }) }),
     );
     expect(prisma.bidSignPacket.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { projectId }, data: expect.objectContaining({ handoverFileAssetId: 'fa99' }) }),
     );
+  });
+
+  it('N14：generateHandover 回流包 fileAsset 走 upsert（幂等守卫外的防御性同 key 覆盖）', async () => {
+    baseArrange(); // 尾部 getStatus 需要；snapshot 里 bidProject.findUnique 也会走
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    });
+    const svc = makeService();
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa98' });
+    (prisma.bidSignPacket.update as jest.Mock).mockResolvedValue({});
+    (svc as any).bidService.buildEvaluationPackage.mockResolvedValue({ packageType: 'BID_EVALUATION_HANDOVER', fingerprint: 'x' });
+
+    await svc.generateHandover(projectId, 'u1');
+
+    // 回流包同 key 覆盖 MinIO；FileAsset upsert 使 DB 指纹与内容恒一致（与 N2/N3 同款，P1-17 同构）
+    expect(prisma.fileAsset.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { key: `bid-sign-handover/${projectId}.json` },
+        update: expect.objectContaining({ sha256: expect.any(String) }),
+      }),
+    );
+    expect(prisma.fileAsset.create).not.toHaveBeenCalled();
   });
 });
 
