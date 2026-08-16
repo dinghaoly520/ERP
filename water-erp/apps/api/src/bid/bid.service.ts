@@ -2016,19 +2016,32 @@ export class BidService {
       where: { projectId, id: supplierId },
     });
     if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
-    if (bidSupplier.decryptStatus !== 'DANGER') {
+    // P1-1：解密窗口到期后允许对 PENDING/RUNNING 未解密供应商定性——否则三面卡死
+    // （解密 403 DECRYPT_WINDOW_CLOSED / 本端点 400 / completeOpening 409 OPENING_NOT_DONE），
+    // 唯一出路「重新组建会话延长窗口」无任何提示。窗口未过期时仍仅 DANGER 可定性。
+    const session = await this.prisma.bidOpeningSession.findUnique({
+      where: { projectId },
+      select: { decryptWindowEnd: true },
+    });
+    const windowExpired = !session || session.decryptWindowEnd.getTime() <= Date.now();
+    const undecrypted = bidSupplier.decryptStatus === 'PENDING' || bidSupplier.decryptStatus === 'RUNNING';
+    if (bidSupplier.decryptStatus !== 'DANGER' && !(windowExpired && undecrypted)) {
       throw new BadRequestException({ error: '仅解密异常（DANGER）状态的供应商可确认接受', code: 'NOT_DANGER' });
     }
+
+    const finalReason = windowExpired && undecrypted
+      ? `解密窗口已过期未解密：${reason}`
+      : (bidSupplier.decryptError || reason);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.bidSupplier.update({
         where: { id: supplierId },
-        data: { confirmStatus: 'EXCEPTION', decryptError: bidSupplier.decryptError || reason },
+        data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: finalReason },
       });
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName,
-          action: '确认接受解密失败', result: reason, riskFlag: '高风险',
+          action: '确认接受解密失败', result: windowExpired && undecrypted ? finalReason : reason, riskFlag: '高风险',
         },
       });
       if (actorId) {
@@ -2040,7 +2053,7 @@ export class BidService {
 
     this.gateway?.notifySupervisionLog(projectId, {
       role: '开标主持人', action: '确认接受解密失败', target: bidSupplier.supplierName,
-      result: reason, riskFlag: '高风险',
+      result: windowExpired && undecrypted ? finalReason : reason, riskFlag: '高风险',
     });
 
     return { accepted: true, supplierId, supplierName: bidSupplier.supplierName };

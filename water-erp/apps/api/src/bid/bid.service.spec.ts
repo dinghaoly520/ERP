@@ -3928,4 +3928,67 @@ describe('checkDisputeTimeout', () => {
     await (service as any).checkDisputeTimeout('p1');
     expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
   });
+
+describe('BidService — acceptSupplierDanger（解密窗口到期定性，P1-1）', () => {
+  let service: BidService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidOpeningSession: { findUnique: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        BidService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('窗口已过期 + PENDING 未解密 → 可定性为 DANGER/EXCEPTION（前缀「解密窗口已过期未解密」）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: new Date(Date.now() - 60_000) });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'PENDING', decryptError: null });
+
+    const r = await service.acceptSupplierDanger('p1', 'bs1', '现场确认放弃', 'op1');
+    expect(r.accepted).toBe(true);
+    expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION' }),
+    }));
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ result: expect.stringContaining('解密窗口已过期未解密') }),
+    }));
+  });
+
+  it('窗口未过期 + PENDING → 仍 400 NOT_DANGER（正常窗口内不得提前定性）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: new Date(Date.now() + 600_000) });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'PENDING', decryptError: null });
+
+    await expect(service.acceptSupplierDanger('p1', 'bs1', 'r', 'op1'))
+      .rejects.toMatchObject({ response: { code: 'NOT_DANGER' } });
+  });
+
+  it('DANGER 状态原行为不变（窗口无关可定性）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: new Date(Date.now() + 600_000) });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'DANGER', decryptError: '校验失败' });
+
+    const r = await service.acceptSupplierDanger('p1', 'bs1', '接受', 'op1');
+    expect(r.accepted).toBe(true);
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ result: '接受' }),
+    }));
+  });
+});
 });

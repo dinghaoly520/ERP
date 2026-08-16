@@ -335,6 +335,18 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <AlertTriangle size={16} className="animate-pulse" /> 解密窗口仅剩 1 分钟！
         </div>
       )}
+      {/* P1-1：窗口已过期且仍有未到终局态的供应商——给出两条出路指引 */}
+      {session && remaining <= 0 && project.stage === 'OPENING'
+        && project.suppliers.some(s => s.submitStatus !== '已撤回' && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER') && (
+        <div className="space-y-1 rounded-xl bg-[oklch(0.66_0.175_27_/_0.12)] px-4 py-3 text-sm font-bold text-[var(--danger)]">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} /> 解密窗口已过期，仍有供应商未到终局态。
+          </div>
+          <div className="pl-6 text-xs font-medium text-[var(--foreground)]">
+            可重新「组建开标会话」延长窗口继续解密；或对未解密供应商执行「接受未解密」定性为解密异常（记入监督日志）。
+          </div>
+        </div>
+      )}
 
       {/* ═══ 前阶段引导（F7）：流转权在 :3005，大厅只做开标执行 ═══ */}
       {(project.stage === 'DOWNLOAD' || project.stage === 'SUBMIT') && (
@@ -592,6 +604,22 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           <button type="button" onClick={() => openRecordEntry(s)} disabled={recordEntryLoading}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)]">
                             <Volume2 size={12} strokeWidth={1.5} /> 唱标
+                          </button>
+                        )}
+                        {/* P1-1：窗口过期后的未解密定性通道（后端已放宽 PENDING/RUNNING） */}
+                        {!!session && remaining <= 0 && project.stage === 'OPENING' && !isSuccess && !isDanger && (
+                          <button type="button"
+                            onClick={async () => {
+                              const reason = prompt('解密窗口已过期未解密。请填写定性原因（如：供应商未在窗口内完成解密）：');
+                              if (!reason) return;
+                              try {
+                                await acceptSupplierDanger(project.id, s.id, reason);
+                                toast.success('已定性为解密异常（EXCEPTION）');
+                                onRefresh();
+                              } catch (e: any) { toast.error(e?.message || '操作失败'); }
+                            }}
+                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--danger)] transition-colors hover:text-[var(--accent-strong)]">
+                            <AlertTriangle size={12} strokeWidth={1.5} /> 接受未解密
                           </button>
                         )}
                         {isDanger && project.stage === 'OPENING' && !resealFailed && (
