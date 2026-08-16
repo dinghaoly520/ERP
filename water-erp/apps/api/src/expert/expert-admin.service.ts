@@ -909,16 +909,20 @@ export class ExpertAdminService {
 
   /** 查询项目专家邀请状态（正选+候补） */
   async getProjectInvitations(projectId: string) {
-    // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（RSVP TTL 过期自动弃权，默认 2 小时，见 EXPERT_RSVP_TTL_HOURS）
+    // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（TTL 过期自动弃权并递补）
     const expiredPending = await this.prisma.bidExpert.findMany({
       where: { projectId, invitationStatus: 'pending', rsvpExpiresAt: { lt: new Date() } },
-      select: { id: true },
+      select: { id: true, expertRole: true },
     });
     if (expiredPending.length > 0) {
       await this.prisma.bidExpert.updateMany({
         where: { id: { in: expiredPending.map(e => e.id) } },
         data: { invitationStatus: 'declined', rsvpRespondedAt: new Date() },
       });
+      // 仅正选过期才递补（候补过期不占正选席位）；失败静默，不阻塞列表返回
+      if (expiredPending.some(e => e.expertRole === '正选')) {
+        await this.autoPromoteCandidate(projectId).catch(() => null); // 与 RSVP 链接婉拒路径同款递补
+      }
     }
 
     const records = await this.prisma.bidExpert.findMany({
@@ -1062,8 +1066,10 @@ export class ExpertAdminService {
       throw new ConflictException({ error: '您已确认参加，如需变更请联系采购方', code: 'ALREADY_CONFIRMED' });
     }
     await this.prisma.bidExpert.update({ where: { id: record.id }, data: { invitationStatus: 'declined' } });
+    // 婉拒 → 自动递补候补（与 RSVP 链接路径一致，见 expert.controller rsvpRespond）；递补失败静默，不影响婉拒结果
+    const promoted = await this.autoPromoteCandidate(projectId).catch(() => null);
 
-    return { success: true, status: 'declined' };
+    return { success: true, status: 'declined', promoted };
   }
   async generateNotificationAi(params: {
     projectName: string; expertName: string; isLead: boolean;

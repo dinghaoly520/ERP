@@ -572,4 +572,45 @@ describe('ExpertAdminService', () => {
       expect(svc['rsvpTtlMs']).toBe(6 * 60 * 60 * 1000);
     });
   });
+
+  describe('N7 婉拒/过期递补统一', () => {
+    it('admin declineInvitation 触发 autoPromoteCandidate 并回传 promoted', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending' });
+      prisma.bidExpert.update.mockResolvedValue({});
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9', expertName: '候补A', major: '技术' });
+      const res = await service.declineInvitation('p1', 'u1');
+      expect((service as any).autoPromoteCandidate).toHaveBeenCalledWith('p1');
+      expect(res.promoted).toMatchObject({ expertName: '候补A' });
+    });
+
+    it('declineInvitation 递补失败时静默——婉拒仍成功，promoted=null（与 RSVP 链接路径同款 catch）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending' });
+      (service as any).autoPromoteCandidate = jest.fn().mockRejectedValue(new Error('DB 抖动'));
+      const res = await service.declineInvitation('p1', 'u1');
+      expect(res).toEqual({ success: true, status: 'declined', promoted: null });
+    });
+
+    it('getProjectInvitations 过期清扫含正选时触发一次递补', async () => {
+      prisma.bidExpert.findMany
+        .mockResolvedValueOnce([{ id: 'be-1', expertRole: '正选' }])   // 过期查询
+        .mockResolvedValue([]);                                        // 列表查询
+      prisma.bidExpert.updateMany.mockResolvedValue({ count: 1 });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue(null);
+      await service.getProjectInvitations('p1');
+      expect((service as any).autoPromoteCandidate).toHaveBeenCalledWith('p1');
+      expect((service as any).autoPromoteCandidate).toHaveBeenCalledTimes(1);
+    });
+
+    it('过期行全是候补时不递补（避免误替换仍待命的正选）', async () => {
+      prisma.bidExpert.findMany
+        .mockResolvedValueOnce([{ id: 'be-1', expertRole: '候补' }])   // 过期查询
+        .mockResolvedValue([]);                                        // 列表查询
+      prisma.bidExpert.updateMany.mockResolvedValue({ count: 1 });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue(null);
+      await service.getProjectInvitations('p1');
+      expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
+    });
+  });
 });
