@@ -1147,10 +1147,11 @@ export class BidService {
     // E4: 开标准备 checklist(仅阶段推进时检查,同阶段调用不检查)
     if (isTransitioning) {
       const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
-      const supplierCount = await this.prisma.bidSupplier.count({ where: { projectId: id } });
+      // N4d：家数口径 = 已提交——候选池行数（受邀未投递）不再计入，与 startEvaluation 有效投标口径对齐
+      const supplierCount = await this.prisma.bidSupplier.count({ where: { projectId: id, submitStatus: '已提交' } });
       const blocking: string[] = [];
       if (expertCount === 0) blocking.push('尚有专家未分配');
-      if (supplierCount < this.getMinBidders(project.procurementMethod)) blocking.push(`有效投标供应商仅 ${supplierCount} 家(法定最少 ${this.getMinBidders(project.procurementMethod)} 家，${project.procurementMethod ?? '未知方式'})`);
+      if (supplierCount < this.getMinBidders(project.procurementMethod)) blocking.push(`有效投标（已提交）仅 ${supplierCount} 家(法定最少 ${this.getMinBidders(project.procurementMethod)} 家，${project.procurementMethod ?? '未知方式'})`);
       if (blocking.length > 0) {
         if (dto?.force) {
           await this.prisma.bidSupervisionLog.create({

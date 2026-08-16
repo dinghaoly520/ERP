@@ -382,6 +382,34 @@ describe('BidService — stage transitions', () => {
         response: { code: 'INVALID_DECRYPT_WINDOW' },
       });
     });
+
+    it('N4：开标 checklist 按「已提交」计数——3 行候选仅 1 家已提交 → OPENING_CHECKLIST_FAILED', async () => {
+      const past = new Date(Date.now() - 3600_000);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', deadline: past, projectManagementItemId: null, round: 1, assignedHostUserId: 'u1', procurementMethod: '谈判采购' });
+      prisma.bidExpert.count.mockResolvedValue(3);
+      // 口径区分：候选池 3 行（受邀未投递也算），其中已提交仅 1 家
+      prisma.bidSupplier.count.mockImplementation(async (args: any) =>
+        args?.where?.submitStatus === '已提交' ? 1 : 3);
+      await expect(service.startOpening('p1', {}, 'u1')).rejects.toMatchObject({
+        response: {
+          code: 'OPENING_CHECKLIST_FAILED',
+          items: [expect.stringContaining('有效投标（已提交）仅 1 家')],
+        },
+      });
+    });
+
+    it('N4：候选 3 行且全部已提交 → checklist 通过', async () => {
+      const past = new Date(Date.now() - 3600_000);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', deadline: past, projectManagementItemId: null, round: 1, assignedHostUserId: 'u1', procurementMethod: '谈判采购' });
+      prisma.bidExpert.count.mockResolvedValue(3);
+      prisma.bidSupplier.count.mockImplementation(async (args: any) =>
+        args?.where?.submitStatus === '已提交' ? 3 : 3);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.startOpening('p1', {}, 'u1');
+      expect(result.stage).toBe('OPENING');
+    });
   });
 
   describe('decryptSupplier', () => {
