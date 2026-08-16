@@ -42,14 +42,15 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
   // 签字闸门状态（只读，来自 :3007 评标签字包）；静默失败——按钮不禁用，后端 409 兜底
   const [signStatus, setSignStatus] = useState<SignPacketResponse | null>(null);
 
+  // P1-9：依赖收敛到原始值签名（stage + updatedAt 刻度）——30s 轮询换引用但状态未变时不重拉
+  const refreshSignal = `${detail?.stage ?? ''}|${detail?.archiveItems?.length ?? 0}`;
   useEffect(() => {
     let alive = true;
     getSignPacket(bidProjectId)
       .then((r) => { if (alive) setSignStatus(r); })
       .catch(() => { /* 签字模块未就绪/无结果时静默——按钮不禁用，后端 409 兜底 */ });
     return () => { alive = false; };
-    // detail 由父面板 socket + 30s 轮询换引用，随 detail 重拉避免签字闸门三态陈旧（与 EvaluationHandoverBlock 同机制）
-  }, [bidProjectId, detail]);
+  }, [bidProjectId, refreshSignal]);
 
   if (!detail) return null;
   const { stage, archiveItems } = detail;

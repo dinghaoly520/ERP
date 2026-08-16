@@ -20,11 +20,13 @@ type Props = {
 export function EvaluationHandoverBlock({ bidProjectId, detail }: Props) {
   const [signData, setSignData] = useState<SignPacketResponse | null>(null);
 
+  // P1-9：依赖收敛到原始值签名——30s 轮询每轮换 detail 引用但 stage/回流产物未变时不重拉
+  const refreshSignal = `${detail?.stage ?? ''}|${detail?.openingSession?.handoverAssetId ?? ''}`;
   useEffect(() => {
     let alive = true;
     getSignPacket(bidProjectId).then((r) => { if (alive) setSignData(r); }).catch(() => {});
     return () => { alive = false; };
-  }, [bidProjectId, detail]);
+  }, [bidProjectId, refreshSignal]);
 
   if (!detail) return null;
   const { stage } = detail;
