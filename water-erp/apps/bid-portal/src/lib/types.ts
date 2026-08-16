@@ -43,6 +43,8 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
   };
   /** E2: 评标截止时间（供移植的评标管理块倒计时用；后端 GET /bid/projects/:id 对两端返回同数据） */
   evaluationDeadline?: string | null;
+  /** N4: 法定最少投标家数（直接采购=1，其余=3）——后端 getProject 下发，dispute-block 流标建议按采购方式取数 */
+  minBidders?: number;
   /** D2: 专家异议工单（getProject include，:3007 裁决用；与 :3005 同形状） */
   expertDisputes?: Array<{
     id: string; expertName: string; type: string; // scoring | procedure | other

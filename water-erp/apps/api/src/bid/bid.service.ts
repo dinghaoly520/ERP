@@ -409,11 +409,13 @@ export class BidService {
       }
     }
 
-    // L6 字段去敏：bid portal 视角移除管理内部字段
+    // N4a：法定最少投标家数随详情下发（直接采购=1，其余=3）——前端流标建议按采购方式取数，不再硬编码 3
+    const enriched = { ...project, minBidders: this.getMinBidders(project.procurementMethod) };
+    // L6 字段去敏：bid portal 视角移除管理内部字段（minBidders 不在去敏清单）
     if (portal === 'bid') {
-      return sanitizeForBidHost(project);
+      return sanitizeForBidHost(enriched);
     }
-    return project;
+    return enriched;
   }
 
   /** 项目工作台：聚合项目 + 供应商(含投标提交) + 专家组 + 统计，供采购管理端判断开标准备 */

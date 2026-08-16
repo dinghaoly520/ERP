@@ -1930,6 +1930,7 @@ describe('BidService — stage transitions', () => {
       suppliers: [], openingSession: null, openingRecords: [], scoreItems: [],
       clarifications: [], supervisionLogs: [], expertDisputes: [], archiveItems: [],
       bidRounds: [], assignedHostUser: null, projectManagementItemId: null,
+      procurementMethod: '谈判采购',
     };
 
     it('EVALUATING 阶段且未全部确认时，应剥离 expertName 和 scoreRecord.expertId', async () => {
@@ -1938,6 +1939,8 @@ describe('BidService — stage transitions', () => {
       const result = await service.getProject('p-anon');
 
       expect(result).not.toBeNull();
+      // N4a：法定最少投标家数随 getProject 下发（谈判采购等非直接采购 = 3）
+      expect(result!.minBidders).toBe(3);
       // 稳定编号：按 expertId 排序分配「专家 1/2/…」，行间可区分且刷新不换号
       expect(result!.experts[0].expertName).toBe('专家 1');
       expect(result!.experts[1].expertName).toBe('专家 2');
@@ -1998,6 +2001,36 @@ describe('BidService — stage transitions', () => {
 
       // restore for subsequent tests
       process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL = 'true';
+    });
+  });
+
+  describe('getProject — minBidders 下发（N4a：法定最少投标家数按采购方式）', () => {
+    const base = {
+      stage: 'OPENING', experts: [], suppliers: [], openingSession: null, openingRecords: [],
+      scoreItems: [], clarifications: [], supervisionLogs: [], expertDisputes: [],
+      archiveItems: [], bidRounds: [], assignedHostUser: null, projectManagementItemId: null,
+    };
+
+    it('谈判采购（及其余非直接采购方式）→ minBidders=3（非 host 路径）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...base, procurementMethod: '谈判采购' });
+      const res = await service.getProject('p-min');
+      expect(res!.minBidders).toBe(3);
+    });
+
+    it('直接采购 → minBidders=1', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...base, procurementMethod: '直接采购' });
+      const res = await service.getProject('p-min');
+      expect(res!.minBidders).toBe(1);
+    });
+
+    it('bid portal（sanitizeForBidHost）路径同样下发 minBidders，且不影响字段去敏', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        ...base, procurementMethod: '谈判采购', assignedHostUserId: 'host-1', budgetAmount: '100',
+      });
+      const res = await service.getProject('p-min', { id: 'host-1', role: 'bid_host' }, 'bid');
+      expect(res!.minBidders).toBe(3);
+      // 去敏仍生效：管理内部字段被剥离，minBidders 不在去敏清单
+      expect(res).not.toHaveProperty('budgetAmount');
     });
   });
 });
