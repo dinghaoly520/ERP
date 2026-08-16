@@ -616,7 +616,7 @@ describe('SupplierPortalService', () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({
         id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
       });
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', name: '测试项目' });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', name: '测试项目', deadline: new Date(Date.now() + 3600_000) });
       prisma.supplierBidSubmission.update.mockResolvedValue({
         id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'withdrawn',
       });
@@ -642,10 +642,20 @@ describe('SupplierPortalService', () => {
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({
         id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
       });
-      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'OPENING', name: '测试项目' });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'OPENING', name: '测试项目', deadline: new Date(Date.now() + 3600_000) });
 
       await expect(service.withdrawSubmission('supplier-1', 'sub-1'))
         .rejects.toMatchObject({ response: { code: 'PROJECT_ALREADY_OPENING' } });
+    });
+
+    it('P1-2：投标截止后（stage 仍 SUBMIT）禁止撤回——DEADLINE_PASSED', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
+      });
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'SUBMIT', name: '测试项目', deadline: new Date(Date.now() - 60_000) });
+
+      await expect(service.withdrawSubmission('supplier-1', 'sub-1'))
+        .rejects.toMatchObject({ response: { code: 'DEADLINE_PASSED' } });
     });
   });
 

@@ -1050,11 +1050,16 @@ export class SupplierPortalService {
 
     const project = await this.prisma.bidProject.findUnique({
       where: { id: submission.projectId },
-      select: { stage: true, name: true },
+      select: { stage: true, name: true, deadline: true },
     });
     if (!project) throw new BadRequestException({ error: '招标项目不存在', code: 'PROJECT_NOT_FOUND' });
     if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
       throw new BadRequestException({ error: '项目已进入开标或后续阶段，无法撤回', code: 'PROJECT_ALREADY_OPENING' });
+    }
+    // P1-2：截标后（:3005 尚未按时开标、stage 仍 SUBMIT 的窗口期）依法不得撤回
+    // （《招标投标法实施条例》第 35 条：撤回投标文件应当在投标截止时间前）。
+    if (project.deadline && project.deadline.getTime() < Date.now()) {
+      throw new BadRequestException({ error: '投标截止时间已过，依法不得撤回标书', code: 'DEADLINE_PASSED' });
     }
 
     // 收集密封文件路径供事务后异步清理
@@ -1078,6 +1083,7 @@ export class SupplierPortalService {
           role: '供应商',
           target: supplierId,
           action: '撤回投标',
+          // P1-2：按事实措辞（此前恒写「截止前」；截止后撤回已被上方闸门拦截，此路径必为截止前）
           result: '供应商在投递截止前撤回标书',
           riskFlag: '无',
         },
