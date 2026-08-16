@@ -8,13 +8,16 @@ export async function recomputeExpertProgress(
   projectId: string,
 ): Promise<{ progress: number; totalScore: number }> {
   const allScoreItems = await tx.bidScoreItem.findMany({ where: { projectId } });
+  // P1-12fix：PRICE 类评分项由公式引擎自动出分（专家不写 BidScoreRecord），
+  // 计入分母会使竞价采购（仅通过性+价格公式）专家进度封顶 66% → 报告确认死锁。
+  const expertScorableItems = allScoreItems.filter(i => i.category !== 'PRICE');
   // P1-9：活跃供应商（解密成功且未撤回）——分子分母同口径，避免撤回后 progress 漂移/超 100
   const activeSuppliers = await tx.bidSupplier.findMany({
     where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
     select: { id: true },
   });
   const activeIds = activeSuppliers.map((s: { id: string }) => s.id);
-  const totalItems = allScoreItems.length * activeIds.length;
+  const totalItems = expertScorableItems.length * activeIds.length;
   const scoredItems = await tx.bidScoreRecord.count({
     where: { expertId, scoreItem: { projectId }, supplierId: { in: activeIds } },
   });

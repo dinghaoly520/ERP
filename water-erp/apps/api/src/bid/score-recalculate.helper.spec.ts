@@ -124,6 +124,18 @@ describe('recomputeExpertProgress', () => {
     expect((await recomputeExpertProgress(tx, 'exp1', 'p1')).progress).toBe(0);
   });
 
+  it('P1-12fix：PRICE 公式项不计入专家进度分母（竞价采购仅通过性时可达 100）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([
+        { id: 'si-q', category: 'QUALIFICATION' }, { id: 'si-r', category: 'RESPONSIVE' }, { id: 'si-p', category: 'PRICE' },
+      ]) }, // 3 项含 PRICE → 专家可打 2 项
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }, { id: 'c' }]) },
+      bidScoreRecord: { count: jest.fn().mockResolvedValue(6), findMany: jest.fn().mockResolvedValue([]) }, // 2×3 全打
+    };
+    const r = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(r.progress).toBe(100); // 修复前 = 6/9 → 66，报告确认死锁
+  });
+
   it('P1-6：progress 用下取整（209/210 → 99，不误判 100）', async () => {
     const tx: any = {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }, { id: 'si2' }, { id: 'si3' }]) }, // 3 项
