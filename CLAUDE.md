@@ -81,7 +81,7 @@ The admin/internal staff management console for procurement users (login roles `
 - **项目 / 进度 / 工作安排** (`/procurements` · `/projects` · `/progress` · `/work-arrangements`) — procurement-project lifecycle, milestones, work assignments
 - **开评标指挥**（项目详情「开标确认」面板）— 评标前准备与评标后收尾：供应商投标状态/专家确认/评分标准编制/监督时间线/开标进度/归档（完整归档闸门=签字闭环+回流已接收）；评标过程操作在 :3007（分工 v3，见 spec）
 
-**Access:** Log in with a `staff`/`leader` account (e.g. `Swhi-CGZX-01` leader / `Swhi-CGZX-05` staff, password `<用户名>@2026`). `陈源远` resolves to `bid_host` here per `PORTAL_ROLE_PRIORITY.web` — it is NOT the procurement login.  
+**Access:** Log in with a `staff`/`leader` account (e.g. `Swhi-CGZX-01` leader / `Swhi-CGZX-05` staff, password `<用户名>@2026`). 登录后落地页由 `UserSettings.defaultHomePage` 决定（种子用户多为 `/work-arrangements`；未设置时按 `urls.ts` 兜底 `/dashboard`）。 `陈源远` resolves to `bid_host` here per `PORTAL_ROLE_PRIORITY.web` — it is NOT the procurement login.  
 **Login cookie:** `token_web`.  
 **Target audience:** Procurement administrators.
 
