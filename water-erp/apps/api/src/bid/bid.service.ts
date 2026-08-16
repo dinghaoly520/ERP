@@ -1004,10 +1004,10 @@ export class BidService {
       });
     } catch { /* 通知失败不阻塞流标 */ }
 
-    // P3-5: 通知已分配的评审专家
+    // P3-5: 通知已分配的评审专家（N9：仅已确认正选——候补/已婉拒/未确认不再收流标通知）
     try {
       const experts = await this.prisma.bidExpert.findMany({
-        where: { projectId: id },
+        where: { projectId: id, expertRole: '正选', invitationStatus: 'confirmed' },
         select: { userId: true, expertName: true },
       });
       for (const e of experts) {
@@ -1576,9 +1576,10 @@ export class BidService {
     }
 
     // 通知所有分配专家评标已启动（fire-and-forget，不阻塞）
+    // N9：仅通知已确认正选——候补/已婉拒/未确认专家不在评审之列，不应收到启动通知
     try {
       const experts = await this.prisma.bidExpert.findMany({
-        where: { projectId: id },
+        where: { projectId: id, expertRole: '正选', invitationStatus: 'confirmed' },
         select: { userId: true, expertName: true },
       });
       for (const expert of experts) {

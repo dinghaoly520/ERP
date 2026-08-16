@@ -451,6 +451,19 @@ describe('BidService — stage transitions', () => {
       const abortLog = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '流标');
       expect(abortLog?.[0].data.result).not.toContain('随流标作废');
     });
+
+    it('N9：流标通知只发已确认正选专家（候补/已婉拒不再收）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      await expect(service.abortBidProject('p1', 'u1', '测试原因')).resolves.toMatchObject({ stage: 'ABORTED' });
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ projectId: 'p1', expertRole: '正选', invitationStatus: 'confirmed' }) }),
+      );
+    });
   });
 
   describe('reopenFromAborted — N5 重启时间兜底', () => {
@@ -1767,6 +1780,29 @@ describe('BidService — stage transitions', () => {
         expect.objectContaining({
           data: expect.objectContaining({ action: '启动评标 (OPENING→EVALUATING)' }),
         }),
+      );
+    });
+
+    it('N9：评标启动通知只发已确认正选专家（候补/已婉拒/未确认不再收）', async () => {
+      // 自包含成功前置（复制自 H4「所有供应商到终局态时放行」用例）
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidExpert.count.mockResolvedValueOnce(3).mockResolvedValue(0); // P1-7：首次=确认正选数，其后=采购人代表数(0)
+      prisma.bidSupplier.count.mockResolvedValue(3);
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { supplierName: 'A', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+        { supplierName: 'B', decryptStatus: 'DANGER', confirmStatus: 'PENDING' },
+        { supplierName: 'C', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
+      ]);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'u1', expertName: 'A' }, { userId: null, expertName: 'B' },
+      ]);
+
+      await expect(service.startEvaluation('p1', 'host-1')).resolves.toMatchObject({ stage: 'EVALUATING' });
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed' }) }),
       );
     });
   });
