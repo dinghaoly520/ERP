@@ -10,7 +10,7 @@ import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { isSupplierChangeAllowedField } from '../supplier/supplier-change-fields';
 import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
-import { sealField } from '../common/crypto/field-crypto';
+import { sealField, openField } from '../common/crypto/field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
@@ -1020,6 +1020,8 @@ export class SupplierPortalService {
       for (const bs of bidSuppliers) confirmMap[bs.projectId] = bs.confirmStatus;
       for (const s of submissions) {
         (s as any).confirmStatus = confirmMap[s.projectId] || null;
+        // P2：本人报价回显解封（bidPrice 入库密封防采购侧窥视；供应商看自己的报价是明文权利）
+        if (s.bidPrice) (s as any).bidPrice = openField(s.bidPrice, process.env.KMS_SECRET!) ?? s.bidPrice;
       }
     }
     return submissions;
@@ -1033,6 +1035,8 @@ export class SupplierPortalService {
     if (sub) {
       (sub as any).fullBidFileAssetId = sub.technicalFileAssetId;
       (sub as any).coverLetterFileAssetId = sub.coverLetterAssetId;
+      // P2：本人报价回显解封（回读草稿时报价可编辑的前提）
+      if (sub.bidPrice) (sub as any).bidPrice = openField(sub.bidPrice, process.env.KMS_SECRET!) ?? sub.bidPrice;
     }
     return sub;
   }

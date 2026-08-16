@@ -696,6 +696,27 @@ describe('SupplierPortalService', () => {
     });
   });
 
+  describe('本人报价回显解封（P2）', () => {
+    it('getMySubmissions 返回明文 bidPrice（v1: 密封经 openField 解封）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
+      prisma.supplierBidSubmission.findMany = jest.fn().mockResolvedValue([
+        { id: 'sub-1', supplierId: 'supplier-1', projectId: 'p1', status: 'submitted', bidPrice: sealField('45', TEST_KMS), project: {} },
+      ]);
+      prisma.bidSupplier.findMany = jest.fn().mockResolvedValue([]);
+
+      const rows = await service.getMySubmissions('supplier-1');
+      expect(rows[0].bidPrice).toBe('45');
+    });
+
+    it('getSubmission 回读草稿同样解封', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', supplierId: 'supplier-1', projectId: 'p1', status: 'draft', bidPrice: sealField('39.8', TEST_KMS),
+      });
+      const sub = await service.getSubmission('supplier-1', 'p1');
+      expect((sub as any).bidPrice).toBe('39.8');
+    });
+  });
+
   describe('投递准入「受邀即准入」+ 门户可见性（P0-2）', () => {
     const futureProject = { id: 'p1', projectCode: 'BID-1', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), projectManagementItemId: 'pmi-1' };
 

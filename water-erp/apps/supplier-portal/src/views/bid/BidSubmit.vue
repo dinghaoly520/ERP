@@ -466,7 +466,7 @@ async function confirmSubmit() {
         </el-form>
 
         <div v-if="canSubmit && existingSubmission?.status!=='submitted'" class="submit-actions">
-          <span v-if="draft.lastSavedAt" class="auto-save-hint">已自动保存 {{ draft.lastSavedAt ? dayjs(draft.lastSavedAt).format('HH:mm') : '' }}</span>
+          <span v-if="draft.lastSavedAt && dayjs(draft.lastSavedAt).isValid()" class="auto-save-hint">已自动保存 {{ dayjs(draft.lastSavedAt).format('HH:mm') }}</span>
           <el-button size="large" :loading="saving" @click="saveDraft"><el-icon><FolderAdd /></el-icon>保存草稿</el-button>
           <el-button type="primary" size="large" :loading="submitting" @click="openSubmitDialog" title="标书文件由系统加密存储，开标时由主持人解密"><el-icon><CircleCheck /></el-icon>{{ submitting?'提交中...':'正式提交标书' }}</el-button>
         </div>
