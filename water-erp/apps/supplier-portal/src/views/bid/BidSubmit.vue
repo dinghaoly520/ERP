@@ -42,6 +42,7 @@ interface SplitCategory {
 const form = ref({
   bidPrice: '',
   deliveryPeriod: '',
+  qualityCommitment: '',
   fullBidFileAssetId: '',   // 完整标书模式
   coverLetter: '',
   coverLetterFileAssetId: '', // 投标函文件
@@ -206,6 +207,7 @@ onMounted(async () => {
         form.value = {
           bidPrice: sub.bidPrice || '',
           deliveryPeriod: sub.deliveryPeriod || '',
+          qualityCommitment: sub.qualityCommitment || '',
           fullBidFileAssetId: sub.fullBidFileAssetId || '',
           coverLetter: sub.coverLetter || '',
           coverLetterFileAssetId: sub.coverLetterFileAssetId || '',
@@ -232,7 +234,7 @@ async function retryLoad() {
       const sub = await supplierApi.getBidSubmission(projectId.value) as any
       if (sub) {
         existingSubmission.value = sub
-        form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', fullBidFileAssetId: sub.fullBidFileAssetId||'', coverLetter: sub.coverLetter||'', coverLetterFileAssetId: sub.coverLetterFileAssetId||'', bidBondAssetId: sub.bidBondAssetId || '' }
+        form.value = { bidPrice: sub.bidPrice||'', deliveryPeriod: sub.deliveryPeriod||'', qualityCommitment: sub.qualityCommitment||'', fullBidFileAssetId: sub.fullBidFileAssetId||'', coverLetter: sub.coverLetter||'', coverLetterFileAssetId: sub.coverLetterFileAssetId||'', bidBondAssetId: sub.bidBondAssetId || '' }
       }
     } catch {}
   } catch { error.value = true }
@@ -297,6 +299,7 @@ const preflightItems = computed(() => {
     { label:'供应商资质', detail:isApproved.value?'已入库，可投标':'未通过审核，无法投标', ok:isApproved.value, required:true },
     { label:'投标报价', detail:formatBidPrice(form.value.bidPrice), ok:!!form.value.bidPrice, required:true },
     { label:'交货工期', detail:form.value.deliveryPeriod||'未填写', ok:!!form.value.deliveryPeriod, required:true },
+    { label:'质量承诺', detail:form.value.qualityCommitment||'未填写', ok:true, required:false },
     { label: submissionMode.value === 'full' ? '完整标书文件' : '拆分标书文件', detail: fileDetail, ok: fileOk, required: true },
   ]
   if (bidStore.project?.bondRequired) {
@@ -357,6 +360,9 @@ async function confirmSubmit() {
           </el-form-item>
           <el-form-item label="交货/工期" required>
             <el-input v-model="form.deliveryPeriod" placeholder="例如：120日历天" />
+          </el-form-item>
+          <el-form-item label="质量承诺">
+            <el-input v-model="form.qualityCommitment" placeholder="选填，如：满足招标文件要求，一次验收合格" />
           </el-form-item>
 
           <!-- ═══ 提交模式选择 ═══ -->

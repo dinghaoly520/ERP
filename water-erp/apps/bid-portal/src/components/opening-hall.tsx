@@ -706,7 +706,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">供应商</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">报价</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">工期</th>
-                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">质量</th>
+                <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">质量承诺</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">保证金</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">确认状态</th>
                 <th className="px-5 py-3 text-[11px] font-medium uppercase tracking-wider">操作</th>
@@ -832,9 +832,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   className="neu-input mt-1 w-full" placeholder="如 180天" />
               </label>
               <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
-                质量目标
+                质量承诺
                 <input value={recordDraft.qualityTarget} onChange={e => setRecordDraft(d => ({ ...d, qualityTarget: e.target.value }))}
-                  className="neu-input mt-1 w-full" placeholder="如 合格" />
+                  className="neu-input mt-1 w-full" placeholder="如 满足招标文件要求（按投标承诺）" />
               </label>
               <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                 保证金
