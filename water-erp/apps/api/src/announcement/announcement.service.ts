@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { BidService } from '../bid/bid.service';
+import { ProjectManagementService } from '../project-management/project-management.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class AnnouncementService {
     private prisma: PrismaService,
     private announcementAi: AnnouncementAiService,
     @Optional() private bidService?: BidService,
+    @Optional() private projectManagementService?: ProjectManagementService,
   ) {}
 
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名） */
@@ -51,7 +53,7 @@ export class AnnouncementService {
     if (isBidNoticePublish) {
       await this.syncBidProject(result.id, {
         id: result.id, title: result.title, publishDate: result.publishDate,
-        metadata: result.metadata, relatedProjectCode: result.relatedProjectCode,
+        metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId,
       });
     }
     // 发布即通知（所有类型，不仅 BID_NOTICE）：按可见范围向供应商发站内信
@@ -208,7 +210,7 @@ export class AnnouncementService {
 
     // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
     if (isBidNoticePublish) {
-      await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode });
+      await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId });
     }
     // 发布即通知（所有类型）：按可见范围向供应商发站内信
     if (isPublishTransition) {
@@ -271,7 +273,7 @@ export class AnnouncementService {
   }
 
   /** 联动：BID_NOTICE 发布时自动创建/同步 BidProject，幂等安全 */
-  private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null }) {
+  private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null }) {
     if (!this.bidService) return;
     try {
       const meta = AnnouncementService.validateMetadata(announcement.metadata);
@@ -297,6 +299,27 @@ export class AnnouncementService {
         const bidDoc = await this.prisma.bidDocument.findUnique({ where: { announcementId: annId } });
         if (bidDoc) {
           await this.prisma.bidDocument.update({ where: { announcementId: annId }, data: { bidProjectId: project.id } });
+        }
+        // N16 方案 A（2026-08-17）：公告直建项目补最小 PMI 并回填关联（新建部分原子）——
+        // :3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主，此前此类项目无宿主
+        if (this.projectManagementService) {
+          const pmi = await this.prisma.$transaction(async (tx) => {
+            const created = await this.projectManagementService!.createItemFromAnnouncement(tx, {
+              title: announcement.title,
+              procurementMethod: meta.method || '公开招标',
+              budget: meta.budget != null ? Number(meta.budget) : null,
+              authorId: announcement.authorId ?? null,
+            });
+            await tx.bidProject.update({
+              where: { id: project.id },
+              data: {
+                projectManagementItemId: created.id,
+                riskNote: `${project.riskNote || ''}；PMI ${created.projectCode}`,
+              },
+            });
+            return created;
+          });
+          this.logger.log(`公告直建补 PMI ${pmi.projectCode} → BidProject ${project.projectCode}`);
         }
         this.logger.log(`公告首次发布，自动创建项目 ${project.projectCode}`);
       }

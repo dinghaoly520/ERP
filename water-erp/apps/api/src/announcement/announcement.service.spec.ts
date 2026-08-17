@@ -90,6 +90,7 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
       bidSupplier: { findMany: jest.fn() },
       supplierBidSubmission: { findMany: jest.fn() },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
       bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -147,5 +148,60 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
 
     const result = await service.getParticipants('ann1');
     expect(result.suppliers[0]).not.toHaveProperty('bidPrice');
+  });
+});
+
+describe('AnnouncementService — syncBidProject 公告直建补 PMI (N16-A)', () => {
+  const makeSvc = async (bidService: any, projectManagementService: any, prismaOverrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
+      announcement: { update: jest.fn().mockResolvedValue({}) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+      ...prismaOverrides,
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const service: any = new (Svc as any)(prisma, {}, bidService, projectManagementService);
+    return { service, prisma };
+  };
+
+  const ann = {
+    id: 'ann1', title: '公告直建项目X', publishDate: new Date('2026-08-17T08:00:00Z'),
+    authorId: 'author-1', relatedProjectCode: null,
+    metadata: { method: '竞价采购', budget: 900000, openTime: '2026-08-20T10:00:00', deadline: '2026-08-25T17:00:00' },
+  };
+
+  it('无既有项目 → 建 BidProject 同时补建 PMI 并回填关联', async () => {
+    const createFromAnnouncement = jest.fn().mockResolvedValue({ id: 'p1', projectCode: 'BID-1787000001', riskNote: '（来自公告自动创建）' });
+    const createItemFromAnnouncement = jest.fn().mockResolvedValue({ id: 'pm-1', projectCode: 'JJ-2026081701' });
+    const { service, prisma } = await makeSvc({ createFromAnnouncement }, { createItemFromAnnouncement });
+
+    await service.syncBidProject('ann1', { ...ann });
+
+    expect(createItemFromAnnouncement).toHaveBeenCalledTimes(1);
+    expect(createItemFromAnnouncement).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ title: '公告直建项目X', procurementMethod: '竞价采购', budget: 900000, authorId: 'author-1' }),
+    );
+    expect(prisma.bidProject.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'p1' },
+        data: expect.objectContaining({ projectManagementItemId: 'pm-1' }),
+      }),
+    );
+    expect(prisma.announcement.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { relatedProjectCode: 'BID-1787000001' } }),
+    );
+  });
+
+  it('已有既有项目（幂等分支）→ 不再补建 PMI', async () => {
+    const createItemFromAnnouncement = jest.fn();
+    const { service } = await makeSvc({}, { createItemFromAnnouncement }, {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-existing', projectCode: 'BID-1' }), update: jest.fn() },
+    });
+
+    await service.syncBidProject('ann1', { ...ann, relatedProjectCode: 'BID-1' });
+
+    expect(createItemFromAnnouncement).not.toHaveBeenCalled();
   });
 });

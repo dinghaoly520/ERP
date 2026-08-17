@@ -1302,4 +1302,59 @@ describe('ProjectManagementService', () => {
       expect(Math.abs(new Date(r.deadline).getTime() - (future.getTime() - 12 * 3600 * 1000))).toBeLessThan(5000);
     });
   });
+  describe('N16-A createItemFromAnnouncement（公告直建补 PMI）', () => {
+    it('竞价采购：编号前缀 JJ + 阶段集含 PUBLIC_ANNOUNCEMENT + 前置阶段 COMPLETED + currentStage=BID_EVALUATION', async () => {
+      const { service, prisma } = makeService();
+      (prisma as any).user = { findUnique: jest.fn().mockResolvedValue({ displayName: '陈晓峰', department: { name: '信息技术部' } }) };
+      prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-16', projectCode: 'JJ-2026081701' });
+
+      const res = await service.createItemFromAnnouncement(prisma as any, {
+        title: '公告直建测试项目', procurementMethod: '竞价采购', budget: 900000, authorId: 'u-1',
+      });
+
+      expect(res).toEqual({ id: 'pm-16', projectCode: 'JJ-2026081701' });
+      const createArg = prisma.projectManagementItem.create.mock.calls[0][0].data;
+      expect(createArg.title).toBe('公告直建测试项目');
+      expect(createArg.procurementMethod).toBe('竞价采购');
+      expect(createArg.currentStage).toBe('BID_EVALUATION');
+      expect(createArg.status).toBe('ACTIVE');
+      expect(createArg.requesterName).toBe('陈晓峰');
+      expect(createArg.requesterDepartment).toBe('信息技术部');
+      expect(createArg.procurementCategory).toBe('其他');
+      expect(String(createArg.projectCode)).toMatch(/^JJ-\d{10}$/);
+
+      const stages = prisma.projectManagementStage.createMany.mock.calls[0][0].data as any[];
+      const keys = stages.map((x) => x.stageKey);
+      expect(keys).toContain('PUBLIC_ANNOUNCEMENT');
+      const completed = new Set(stages.filter((x) => x.status === 'COMPLETED').map((x) => x.stageKey));
+      for (const k of ['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'SUPPLIER_INVITATION']) {
+        if (keys.includes(k)) expect(completed.has(k)).toBe(true);
+      }
+      expect(completed.has('EXPERT_SELECTION')).toBe(false);
+      expect(completed.has('BID_EVALUATION')).toBe(false);
+      const orders = stages.map((x) => x.stageOrder);
+      expect(orders.every((v, i) => i === 0 || v > orders[i - 1])).toBe(true);
+    });
+
+    it('谈判采购：无 PUBLIC_ANNOUNCEMENT 段，SUPPLIER_INVITATION 记 COMPLETED', async () => {
+      const { service, prisma } = makeService();
+      (prisma as any).user = { findUnique: jest.fn().mockResolvedValue(null) };
+      prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-17', projectCode: 'TP-2026081701' });
+
+      await service.createItemFromAnnouncement(prisma as any, {
+        title: '谈判公告直建', procurementMethod: '谈判采购', budget: null, authorId: 'u-2',
+      });
+
+      const createArg = prisma.projectManagementItem.create.mock.calls[0][0].data;
+      expect(createArg.requesterName).toBe('采购中心');
+      expect(createArg.requesterDepartment).toBe('采购中心');
+      expect(String(createArg.projectCode)).toMatch(/^TP-\d{10}$/);
+      const stages = prisma.projectManagementStage.createMany.mock.calls[0][0].data as any[];
+      const keys = stages.map((x) => x.stageKey);
+      expect(keys).not.toContain('PUBLIC_ANNOUNCEMENT');
+      const completed = new Set(stages.filter((x) => x.status === 'COMPLETED').map((x) => x.stageKey));
+      expect(completed.has('SUPPLIER_INVITATION')).toBe(true);
+    });
+  });
+
 });

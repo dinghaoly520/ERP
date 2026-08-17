@@ -7,9 +7,10 @@ import { AnnouncementAttachmentService } from './announcement-attachment.service
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { BidModule } from '../bid/bid.module';
+import { ProjectManagementModule } from '../project-management/project-management.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, BidModule],
+  imports: [AuthModule, PrismaModule, BidModule, ProjectManagementModule],
   controllers: [AnnouncementController],
   providers: [AnnouncementService, AnnouncementAiService, BidDocumentService, AnnouncementAttachmentService],
   exports: [AnnouncementService, BidDocumentService, AnnouncementAttachmentService],

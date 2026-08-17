@@ -5,7 +5,7 @@ import { basename, dirname, extname, join, resolve } from 'node:path';
 import { createReadStream } from 'node:fs';
 import JSZip = require('jszip');
 import { Response } from 'express';
-import { ResultStatus, SourceType } from '@prisma/client';
+import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
@@ -230,6 +230,83 @@ export class ProjectManagementService {
    * 已关联 → 返回该 BidProject 概要；未关联 → 按项目信息创建并回写 bidProjectId。
    * 兼容未来"立项时自动创建"：无论关联何时建立，本方法都幂等返回。
    */
+  /**
+   * N16 方案 A（2026-08-17）：公告直建项目自动补建最小 PMI。
+   * 信息发布中心独立发布 BID_NOTICE 且无既有项目时，BidProject 由 createFromAnnouncement 创建（无 PMI 挂钩），
+   * 而 :3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主——本方法补齐宿主。
+   * 编号复用 create 流程同款规则（procurementMethodPrefix + 当日序号）；阶段集复用 PROJECT_WORKFLOW_STAGES
+   * + 方法过滤（PUBLIC_ANNOUNCEMENT 仅竞价/直接/邀请）；前置阶段以公告为准补记 COMPLETED，
+   * currentStage 落 BID_EVALUATION（此后 syncPmStage 恢复正常联动）。
+   */
+  async createItemFromAnnouncement(
+    tx: Prisma.TransactionClient,
+    dto: { title: string; procurementMethod: string; budget: number | null; authorId: string | null },
+  ): Promise<{ id: string; projectCode: string }> {
+    // requester：公告作者解析，兜底「采购中心」
+    let requesterName = '采购中心';
+    let requesterDepartment = '采购中心';
+    if (dto.authorId) {
+      const author = await tx.user.findUnique({
+        where: { id: dto.authorId },
+        select: { displayName: true, department: { select: { name: true } } },
+      });
+      if (author?.displayName) requesterName = author.displayName;
+      if (author?.department?.name) requesterDepartment = author.department.name;
+    }
+
+    // 编号：与 create 流程同规则（勿另造格式）
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const todayCount = await tx.projectManagementItem.count({
+      where: { createdAt: { gte: startOfDay, lte: endOfDay } },
+    });
+    const projectCode = `${procurementMethodPrefix(dto.procurementMethod)}-${ymd}${String(todayCount + 1).padStart(2, '0')}`;
+
+    // 阶段集：全套 + 方法过滤（与 create 流程同口径）
+    const needsPublicAnnouncement = ['竞价采购', '直接采购', '邀请招标'].includes(dto.procurementMethod);
+    const stagesToCreate = PROJECT_WORKFLOW_STAGES.filter(
+      (s) => needsPublicAnnouncement || s.key !== 'PUBLIC_ANNOUNCEMENT',
+    );
+    // 公告直建=前置链路（需求/立项/采购文件/公告公示/供应商邀请）以公告为准补记 COMPLETED
+    const completedKeys = new Set(['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'SUPPLIER_INVITATION']);
+
+    const item = await tx.projectManagementItem.create({
+      data: {
+        projectCode,
+        title: dto.title,
+        requesterName,
+        requesterDepartment,
+        procurementMethod: dto.procurementMethod,
+        procurementCategory: '其他',
+        procurementOrganizationForm: '—',
+        budgetAmount: dto.budget ?? 0,
+        isAnnualBudget: false,
+        projectReason: '（公告直建自动补齐 PMI——N16 A 方案）',
+        supplierRequirements: '（以公告公示要求为准）',
+        initiationDate: now,
+        currentStage: 'BID_EVALUATION',
+        status: PROJECT_MANAGEMENT_STATUS.ACTIVE,
+        createdById: dto.authorId,
+        hasProcurementDemand: false,
+      },
+    });
+    await tx.projectManagementStage.createMany({
+      data: stagesToCreate.map((stage, index) => ({
+        projectManagementItemId: item.id,
+        stageKey: stage.key,
+        stageName: stage.label,
+        stageOrder: index + 1,
+        round: 1,
+        status: completedKeys.has(stage.key) ? PROJECT_STAGE_STATUS.COMPLETED : PROJECT_STAGE_STATUS.NOT_STARTED,
+        completedAt: completedKeys.has(stage.key) ? now : null,
+      })),
+    });
+    this.logger.log(`公告直建补 PMI: ${projectCode}（${stagesToCreate.length} 阶段，currentStage→BID_EVALUATION）`);
+    return { id: item.id, projectCode };
+  }
+
   async ensureBidProject(itemId: string, round?: number) {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: itemId },
