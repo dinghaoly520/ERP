@@ -1934,6 +1934,17 @@ export class BidService {
       throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
     }
 
+    // ── P1-4：解密即唱标路径——mismatch 断言前置于 phase-① 抢占（2026-08-17 fix round 2）──
+    // 409 若在 phase-③ 事务内抛出 → 回滚后 decryptStatus 已抢为 RUNNING（@updatedAt 刚刷新），确认重试
+    // 60s 内撞 claim 判 DECRYPT_ALREADY_IN_FLIGHT。两个断言均为只读（各自 fetch bidSupplier+submission），
+    // 前置安全：409 时供应商仍 PENDING 重试即时生效，还省一次不必要解密。
+    let decryptPriceNote: string | null = null;
+    let decryptPeriodNote: string | null = null;
+    if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
+      decryptPriceNote = await this.assertPriceMatchesSealed(projectId, supplierId, dto.amount, dto.confirmSealedPrice);
+      decryptPeriodNote = await this.assertPeriodMatchesSubmitted(projectId, supplierId, dto.period, dto.confirmSealedPeriod);
+    }
+
     // Phase 1: 原子抢占（PENDING→RUNNING；并发第二笔 count=0）。
     // N1 修复：旧 where 含 RUNNING → RUNNING→RUNNING 的 no-op 更新同样 count=1，互斥失效、双击双跑。
     const claim = await this.prisma.bidSupplier.updateMany({
@@ -2055,10 +2066,7 @@ export class BidService {
         // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED。
         // P1-3/N1b：upsert（projectId+bidSupplierId 复合唯一兜底），消除并发双击重复建记录。
         if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
-          // P1-4：解密即唱标路径同样校验与密封报价的一致性（409 交由前端确认后带 confirmSealedPrice 重试）
-          const decryptPriceNote = await this.assertPriceMatchesSealed(projectId, supplierId, dto.amount, dto.confirmSealedPrice);
-          // P1-4 同构：解密即唱标路径同样校验工期一致性（409 交由前端确认后带 confirmSealedPeriod 重试）
-          const decryptPeriodNote = await this.assertPeriodMatchesSubmitted(projectId, supplierId, dto.period, dto.confirmSealedPeriod);
+          // P1-4：mismatch 断言已前置于 phase-① 抢占（见上）——此处仅消费预计算 note 落监督日志
           if (decryptPriceNote || decryptPeriodNote) {
             await tx.bidSupervisionLog.create({
               data: { projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName, action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}${decryptPriceNote ?? ''}${decryptPeriodNote ?? ''}`, riskFlag: '中' },

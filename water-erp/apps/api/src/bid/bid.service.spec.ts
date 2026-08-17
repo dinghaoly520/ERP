@@ -757,7 +757,7 @@ describe('BidService — stage transitions', () => {
     });
 
     // ── P1-4 同构：解密即唱标路径同样校验工期一致性（第二入口）──
-    it('P1-4 同构：解密路径工期与投递不一致且未确认 → 409 PERIOD_MISMATCH（不落库）', async () => {
+    it('P1-4 同构：解密路径工期与投递不一致且未确认 → 409 PERIOD_MISMATCH（不落库、不抢占 RUNNING）', async () => {
       // findUnique 补 supplierId 以命中 assertPeriodMatchesSubmitted（beforeEach 基座 mock 无 supplierId → 跳过校验）
       prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS', confirmStatus: 'PENDING', supplierId: 's1' });
       prisma.supplierBidSubmission.findUnique = jest.fn().mockResolvedValue({
@@ -769,6 +769,8 @@ describe('BidService — stage transitions', () => {
       await expect(service.decryptSupplier('p1', 'bs-1', { amount: '980000', period: '90天', qualityTarget: '合格', bondStatus: '已缴纳' } as any))
         .rejects.toMatchObject({ response: { code: 'PERIOD_MISMATCH', expected: '180天', entered: '90天' } });
       expect(prisma.bidOpeningRecord.upsert).not.toHaveBeenCalled();
+      // fix round 2：mismatch 断言前置于 phase-① 抢占——409 时供应商仍 PENDING，确认重试即时生效（不卡 RUNNING 60s）
+      expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
     });
 
     it('P1-4 同构：解密路径工期不一致但 confirmSealedPeriod=true → 落库且监督日志注明差异', async () => {
