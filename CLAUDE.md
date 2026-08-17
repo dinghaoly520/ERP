@@ -403,3 +403,4 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **OCR 多副本**：`services/ocr/start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化。副本间 `OCR_HYBRID_PORT` 段不可重叠。API 侧 `OCR_SERVICE_URL` 支持逗号列表 round-robin（`ocr.service.ts`）。
 - **ai-bid worker 扩容**：`AI_BID_WORKER_CONCURRENCY`（默认 2）；水平扩容=多开 worker 进程，BullMQ 天然安全（job ID 去重）。见 `docs/ops-scaling.md`。
 - **操作日志排除默认值**：`operation-log.filter.ts` 新增 8 个高频轮询端点（通知角标/驾驶舱统计/审查任务轮询等，带方法限定 GET-only）。
+- **公告直建项目（N16 A 方案，2026-08-17）**：信息发布中心独立发布 BID_NOTICE 且无既有项目时，联动创建 BidProject 的同时自动补建最小 PMI（前置阶段补记 COMPLETED、currentStage=BID_EVALUATION）并回填关联——:3005 开标确认面板对公告直建项目可用。
