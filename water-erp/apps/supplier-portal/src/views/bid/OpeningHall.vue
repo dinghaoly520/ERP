@@ -160,7 +160,7 @@ onMounted(bootstrap)
           </el-descriptions-item>
           <el-descriptions-item label="质量承诺（唱标）">{{ record?.qualityTarget || '—' }}</el-descriptions-item>
           <el-descriptions-item v-if="record?.submitted?.qualityCommitment" label="质量承诺（投递）">
-            <span :class="{ 'mismatch': record.qualityTarget !== record.submitted.qualityCommitment }">{{ record.submitted.qualityCommitment }}</span>
+            <span :class="{ 'mismatch': record.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment }">{{ record.submitted.qualityCommitment }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="开标记录状态">{{ record?.confirmStatus || '—' }}</el-descriptions-item>
           <el-descriptions-item v-if="record?.handleResult" label="异议处理结果">{{ record.handleResult }}</el-descriptions-item>
