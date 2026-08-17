@@ -19,4 +19,8 @@ export class DecryptSupplierDto {
   /** P1-4：唱标金额与密封报价不一致时的主持人显式确认（同 CreateOpeningRecordDto） */
   @IsBoolean() @IsOptional()
   confirmSealedPrice?: boolean;
+
+  /** P1-4 同构：唱标工期与投递工期不一致时的主持人显式确认（同 CreateOpeningRecordDto） */
+  @IsBoolean() @IsOptional()
+  confirmSealedPeriod?: boolean;
 }

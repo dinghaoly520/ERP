@@ -2057,9 +2057,11 @@ export class BidService {
         if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
           // P1-4：解密即唱标路径同样校验与密封报价的一致性（409 交由前端确认后带 confirmSealedPrice 重试）
           const decryptPriceNote = await this.assertPriceMatchesSealed(projectId, supplierId, dto.amount, dto.confirmSealedPrice);
-          if (decryptPriceNote) {
+          // P1-4 同构：解密即唱标路径同样校验工期一致性（409 交由前端确认后带 confirmSealedPeriod 重试）
+          const decryptPeriodNote = await this.assertPeriodMatchesSubmitted(projectId, supplierId, dto.period, dto.confirmSealedPeriod);
+          if (decryptPriceNote || decryptPeriodNote) {
             await tx.bidSupervisionLog.create({
-              data: { projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName, action: '录入唱标信息', result: `报价 ${dto.amount}${decryptPriceNote}`, riskFlag: '中' },
+              data: { projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName, action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}${decryptPriceNote ?? ''}${decryptPeriodNote ?? ''}`, riskFlag: '中' },
             });
           }
           const recordData = {
