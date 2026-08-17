@@ -299,7 +299,7 @@ const preflightItems = computed(() => {
     { label:'供应商资质', detail:isApproved.value?'已入库，可投标':'未通过审核，无法投标', ok:isApproved.value, required:true },
     { label:'投标报价', detail:formatBidPrice(form.value.bidPrice), ok:!!form.value.bidPrice, required:true },
     { label:'交货工期', detail:form.value.deliveryPeriod||'未填写', ok:!!form.value.deliveryPeriod, required:true },
-    { label:'质量承诺', detail:form.value.qualityCommitment||'未填写', ok:true, required:false },
+    { label:'质量承诺', detail:form.value.qualityCommitment||'未填写', ok: !!form.value.qualityCommitment, required:false },
     { label: submissionMode.value === 'full' ? '完整标书文件' : '拆分标书文件', detail: fileDetail, ok: fileOk, required: true },
   ]
   if (bidStore.project?.bondRequired) {
