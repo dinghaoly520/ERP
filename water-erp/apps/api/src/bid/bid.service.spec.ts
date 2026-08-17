@@ -3126,6 +3126,17 @@ describe('BidService — getOpeningRecordDraft', () => {
     });
   });
 
+  it('供应商投递了质量承诺 → qualityTarget 优先取供应商承诺（回退项目 qualityRequirement）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: '980000', deliveryPeriod: '180天', bidBondAssetId: null, qualityCommitment: '供应商承诺：一次验收合格' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.canView).toBe(true);
+    expect(draft.qualityTarget).toBe('供应商承诺：一次验收合格');
+  });
+
   it('非 OPENING 阶段 → canView=false 且不抛异常', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'SUBMIT', qualityRequirement: null, bondRequired: false });
     const draft = await service.getOpeningRecordDraft('p1', 's1');
