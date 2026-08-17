@@ -2576,6 +2576,61 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
     });
   });
 
+  // ── 工期一致性校验（P1-4 同构；deliveryPeriod 明文，无需 KMS）──
+  it('工期与投递不一致且未确认 → 409 PERIOD_MISMATCH（附 expected/entered）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: null, deliveryPeriod: '180天' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+    await expect(service.enterOpeningRecord('p1', { ...dto, period: '90天' } as any)).rejects.toMatchObject({
+      response: { code: 'PERIOD_MISMATCH', expected: '180天', entered: '90天' },
+    });
+    expect(prisma.bidOpeningRecord.upsert).not.toHaveBeenCalled();
+  });
+
+  it('工期不一致但 confirmSealedPeriod=true → 按录入值落库且监督日志注明差异', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: null, deliveryPeriod: '180天' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+    prisma.bidOpeningRecord.upsert.mockResolvedValue({ id: 'r2' });
+    prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+    const res = await service.enterOpeningRecord('p1', { ...dto, period: '90天', confirmSealedPeriod: true } as any);
+    expect(res).toBeDefined();
+    expect(prisma.bidOpeningRecord.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ period: '90天' }),
+    }));
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ result: expect.stringContaining('180天') }),
+    }));
+  });
+
+  it('工期空白差异归一（投递 "120 日历天" vs 录入 "120日历天"）→ 视为一致', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: null, deliveryPeriod: '120 日历天' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+    prisma.bidOpeningRecord.upsert.mockResolvedValue({ id: 'r1' });
+
+    await expect(service.enterOpeningRecord('p1', { ...dto, period: '120日历天' } as any)).resolves.toBeDefined();
+  });
+
+  it('投递记录无工期（legacy）→ 跳过校验', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: null, deliveryPeriod: null });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+    prisma.bidOpeningRecord.upsert.mockResolvedValue({ id: 'r1' });
+
+    await expect(service.enterOpeningRecord('p1', dto as any)).resolves.toBeDefined();
+  });
+
   it('非 OPENING 阶段拒绝', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: '项目A' });
     await expect(service.enterOpeningRecord('p1', dto as any)).rejects.toThrow(BadRequestException);

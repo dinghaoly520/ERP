@@ -26,4 +26,9 @@ export class CreateOpeningRecordDto {
   @IsBoolean()
   @IsOptional()
   confirmSealedPrice?: boolean;
+
+  /** P1-4 同构：录入工期与投标投递工期不一致时，主持人显式确认按录入值唱标（前端经 409 确认后回传） */
+  @IsBoolean()
+  @IsOptional()
+  confirmSealedPeriod?: boolean;
 }

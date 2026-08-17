@@ -25,6 +25,7 @@ import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-ar
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { openField } from '../common/crypto/field-crypto';
+import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan } from './opening-compare.util';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
@@ -2786,28 +2787,49 @@ export class BidService {
     });
     const sealed = sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null;
     if (sealed == null) return null;
-    const expected = Number(String(sealed).replace(/,/g, ''));
-    const entered = Number(String(amount).replace(/,/g, ''));
-    if (!Number.isFinite(expected) || !Number.isFinite(entered)) return null;
-    // P1-13：单位归一——供应商投递表单单位「万元」（79.8），唱标录入单位「元」（798000）。
-    // 金额比 >100 且 entered≈expected×10000（±0.5%）视为同一报价；真实差异仍走 409。
-    const expectedInYuan = Math.abs(expected - entered) > 0.005
-        && entered > expected * 100
-        && Math.abs(entered - expected * 10000) <= Math.max(entered, expected * 10000) * 0.005
-      ? expected * 10000
-      : expected;
-    if (Math.abs(expectedInYuan - entered) > Math.max(expectedInYuan, entered) * 0.005) {
+    // P1-13 归一 + 容差比对统一走 opening-compare.util（供应商端回显同源）
+    const expectedInYuan = resolveExpectedInYuan(sealed, amount);
+    if (isPriceMismatch(expectedInYuan, amount)) {
       if (!confirmed) {
         throw new ConflictException({
-          error: `录入报价 ${entered} 与投标文件密封报价 ${expectedInYuan} 不一致；如确认以录入值为准，请勾选「确认按录入值唱标」后重试`,
+          error: `录入报价 ${Number(String(amount).replace(/,/g, ''))} 与投标文件密封报价 ${expectedInYuan} 不一致；如确认以录入值为准，请勾选「确认按录入值唱标」后重试`,
           code: 'PRICE_MISMATCH',
           expected: expectedInYuan,
-          entered,
+          entered: Number(String(amount).replace(/,/g, '')),
         });
       }
       return `（与密封报价 ${expectedInYuan} 不一致，主持人确认按录入值唱标）`;
     }
     return null;
+  }
+
+  /**
+   * 工期一致性校验（P1-4 同构，2026-08-17）：唱标录入工期与投递提交工期（deliveryPeriod 明文）
+   * 去空白后精确比对，不一致且未显式确认 → 409 PERIOD_MISMATCH（附 expected/entered 供前端弹确认）；
+   * 投递无工期（legacy）→ 不校验。返回不一致说明供监督日志拼接（一致时 null）。
+   */
+  private async assertPeriodMatchesSubmitted(
+    projectId: string,
+    bidSupplierId: string,
+    period: string,
+    confirmed?: boolean,
+  ): Promise<string | null> {
+    const bs = await this.prisma.bidSupplier.findUnique({ where: { id: bidSupplierId }, select: { supplierId: true } });
+    if (!bs?.supplierId) return null;
+    const sub = await this.prisma.supplierBidSubmission.findUnique({
+      where: { supplierId_projectId: { supplierId: bs.supplierId, projectId } },
+      select: { deliveryPeriod: true },
+    });
+    if (!sub?.deliveryPeriod || !isPeriodMismatch(sub.deliveryPeriod, period)) return null;
+    if (!confirmed) {
+      throw new ConflictException({
+        error: `录入工期 ${period} 与投标文件投递工期 ${sub.deliveryPeriod} 不一致；如确认以录入值为准，请勾选「确认按录入值唱标」后重试`,
+        code: 'PERIOD_MISMATCH',
+        expected: sub.deliveryPeriod,
+        entered: period,
+      });
+    }
+    return `（与投递工期 ${sub.deliveryPeriod} 不一致，主持人确认按录入值唱标）`;
   }
 
   async enterOpeningRecord(projectId: string, dto: CreateOpeningRecordDto) {
@@ -2836,6 +2858,8 @@ export class BidService {
 
     // P1-4：与供应商密封报价比对（误录一路进排名/中标公示的防线）
     const priceNote = await this.assertPriceMatchesSealed(projectId, bidSupplier.id, dto.amount, dto.confirmSealedPrice);
+    // P1-4 同构：与投递工期比对（误录工期一路进评标/公示的防线）
+    const periodNote = await this.assertPeriodMatchesSubmitted(projectId, bidSupplier.id, dto.period, dto.confirmSealedPeriod);
 
     const payload = {
       amount: dto.amount,
@@ -2872,13 +2896,13 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName,
-          action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}`, riskFlag: priceNote ? '中' : '无',
+          action: '录入唱标信息', result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}${periodNote ?? ''}`, riskFlag: priceNote || periodNote ? '中' : '无',
         },
       });
       return rec;
     });
 
-    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}`, riskFlag: priceNote ? '中' : '无' });
+    this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}${periodNote ?? ''}`, riskFlag: priceNote || periodNote ? '中' : '无' });
     // 唱标记录已录入/更新 → 供应商端实时刷新（此前无此事件，供应商页唱标后不更新，只能手动刷新）
     this.gateway?.notifyOpeningRecordUpdated(projectId, {
       supplierId: bidSupplier.id,
