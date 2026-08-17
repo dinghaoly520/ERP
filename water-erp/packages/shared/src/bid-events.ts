@@ -30,6 +30,8 @@ export const BID_EVENT = {
   OPENING_CONFIRMED: 'opening:confirmed',
   OPENING_DISPUTED: 'opening:disputed',
   OPENING_DISPUTE_RESOLVED: 'opening:dispute:resolved',
+  /** 唱标记录已录入/更新（不含密封报价原文，仅金额里程碑）——供应商端据此刷新开标记录 */
+  OPENING_RECORD_UPDATED: 'opening:record:updated',
   OPENING_COMPLETED: 'opening:completed',
   ROUND_STATUS_CHANGE: 'round:status:change',
   /** 评分已提交（不含分数值——仅里程碑通知，接收端自行刷新获取数据） */
@@ -195,6 +197,16 @@ export interface OpeningDisputeResolvedPayload {
   recordId: string;
   confirm: boolean;
   result: string;
+  timestamp: number;
+}
+
+export interface OpeningRecordUpdatedPayload {
+  projectId: string;
+  supplierId: string;
+  supplierName: string;
+  recordId: string;
+  /** 唱标金额（元）。事件只带里程碑数据，不含密封报价原文；接收端自行 refresh 拉全量 */
+  amount: number;
   timestamp: number;
 }
 

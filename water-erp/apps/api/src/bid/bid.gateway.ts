@@ -31,6 +31,7 @@ import {
   type OpeningConfirmedPayload,
   type OpeningDisputedPayload,
   type OpeningDisputeResolvedPayload,
+  type OpeningRecordUpdatedPayload,
   type OpeningCompletedPayload,
   type RoundStatusChangePayload,
   type ScoresSubmittedPayload,
@@ -312,6 +313,12 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   notifyOpeningCompleted(projectId: string, data: { handoverAt: string; handoverAssetId: string }) {
     const payload: OpeningCompletedPayload = { projectId, handoverAt: data.handoverAt, handoverAssetId: data.handoverAssetId, timestamp: Date.now() };
     this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_COMPLETED, payload);
+  }
+
+  /** 唱标记录已录入/更新 → 供应商端实时刷新开标记录（此前无此事件，唱标后供应商页不更新） */
+  notifyOpeningRecordUpdated(projectId: string, data: { supplierId: string; supplierName: string; recordId: string; amount: number }) {
+    const payload: OpeningRecordUpdatedPayload = { projectId, ...data, timestamp: Date.now() };
+    this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_RECORD_UPDATED, payload);
   }
 
   notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string }) {

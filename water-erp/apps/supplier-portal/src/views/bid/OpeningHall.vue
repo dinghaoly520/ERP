@@ -121,6 +121,8 @@ useBidWebSocket(projectId, {
     ElMessage.info(d.confirm ? `异议已处理（确认）：${d.result}` : `异议已处理（退回）：${d.result}`)
     refresh().catch(() => {})
   },
+  // 唱标录入/更新 → 实时刷新开标记录（此前无此事件，唱标后供应商页不更新，只能手动刷新）
+  onOpeningRecordUpdated: () => { refresh().catch(() => {}) },
 })
 
 onMounted(bootstrap)
