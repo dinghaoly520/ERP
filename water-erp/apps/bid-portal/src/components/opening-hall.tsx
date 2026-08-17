@@ -7,7 +7,7 @@ import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
 import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
-  Volume2, Zap, Loader, FileText, RotateCcw,
+  Volume2, Zap, Loader, FileText, RotateCcw, PencilLine,
 } from 'lucide-react';
 import { DECRYPT_LABEL, BOND_STATUS_OPTIONS } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -96,7 +96,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [disputeHandleConfirm, setDisputeHandleConfirm] = useState<'confirmed' | 'rejected' | null>(null);
   const [disputeSubmitting, setDisputeSubmitting] = useState(false); // M9：防双击 + 失败态按钮锁
   const [handingOver, setHandingOver] = useState(false); // T9：完成开标·移交按钮防双击
-  const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string } | null>(null);
+  const [recordEntry, setRecordEntry] = useState<{ bidSupplierId: string; supplierName: string; reentry?: boolean } | null>(null);
   const [recordDraft, setRecordDraft] = useState({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
   const [bidBondAssetId, setBidBondAssetId] = useState<string | null>(null);
   const [recordEntryLoading, setRecordEntryLoading] = useState(false);
@@ -272,9 +272,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     setDecryptTarget(pending.map(s => ({ id: s.id, name: s.supplierName })));
   };
 
-  const openRecordEntry = async (s: { id: string; supplierName: string }) => {
+  const openRecordEntry = async (s: { id: string; supplierName: string }, reentry = false) => {
     if (!projectId) return;
-    setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName });
+    setRecordEntry({ bidSupplierId: s.id, supplierName: s.supplierName, reentry });
     setRecordDraft({ amount: '', period: '', qualityTarget: '', bondStatus: '' });
     setBidBondAssetId(null);
     setRecordEntryLoading(true);
@@ -570,6 +570,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 const isDanger = s.decryptStatus === 'DANGER';
                 const resealFailed = isDanger && !!s.decryptError?.includes('重新封标失败');
                 const isDecrypting = decrypting.has(s.id);
+                // 唱标状态由该供应商的开标记录决定：无记录→唱标；待供应商确认→可重录（后端 upsert）；
+                // 已确认/异议态记录后端 409（RECORD_LOCKED/RECORD_ALREADY_CONFIRMED）→ 只读「已唱标」
+                const record = project.openingRecords.find(r => r.bidSupplierId === s.id);
                 return (
                   <tr key={s.id} className={`transition-all ${
                     isSuccess ? 'animate-[flash_500ms_ease-out]' : isDanger ? 'animate-[shake_300ms_ease-out]' : ''
@@ -608,10 +611,21 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                           </button>
                         )}
                         {isSuccess && project.stage === 'OPENING' && (
-                          <button type="button" onClick={() => openRecordEntry(s)} disabled={recordEntryLoading}
-                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)]">
-                            <Volume2 size={12} strokeWidth={1.5} /> 唱标
-                          </button>
+                          !record ? (
+                            <button type="button" onClick={() => openRecordEntry(s)} disabled={recordEntryLoading}
+                              className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
+                              <Volume2 size={12} strokeWidth={1.5} /> 唱标
+                            </button>
+                          ) : record.confirmStatus === '待供应商确认' ? (
+                            <button type="button" onClick={() => openRecordEntry(s, true)} disabled={recordEntryLoading}
+                              className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[color:var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] disabled:opacity-50">
+                              <PencilLine size={12} strokeWidth={1.5} /> 重录唱标
+                            </button>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[11px] font-semibold text-[color:var(--muted-foreground)]">
+                              <CheckCircle size={12} strokeWidth={1.5} /> 已唱标
+                            </span>
+                          )
                         )}
                         {/* P1-1：窗口过期后的未解密定性通道（后端已放宽 PENDING/RUNNING） */}
                         {!!session && remaining <= 0 && project.stage === 'OPENING' && !isSuccess && !isDanger && (
@@ -797,8 +811,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       {recordEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setRecordEntry(null)}>
           <div className="bid-dialog w-[480px] p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-black text-[color:var(--foreground)]">录入唱标信息 — {recordEntry.supplierName}</h3>
-            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">据解密后的投标内容填写，提交后生成开标记录（待供应商确认）。</p>
+            <h3 className="text-base font-black text-[color:var(--foreground)]">{recordEntry.reentry ? '重录唱标信息' : '录入唱标信息'} — {recordEntry.supplierName}</h3>
+            <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">据解密后的投标内容填写，提交后{recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。</p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                 报价（元）
