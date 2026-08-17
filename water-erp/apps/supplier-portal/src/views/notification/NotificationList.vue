@@ -13,9 +13,19 @@ const typeIconMap: Record<string, Component> = {SUPPLIER_APPROVED:CircleCheck,SU
 const typeColorMap: Record<string, string> = {SUPPLIER_APPROVED:'#059669',SUPPLIER_REJECTED:'#dc2626',SUPPLIER_RETURNED:'#d97706',BID_PUBLISHED:'#2563eb',BID_INVITED:'#db2777',BID_REMINDER:'#ea580c',SYSTEM:'#475569',CLARIFICATION_REPLIED:'#0d9488',BID_OPENING:'#0891b2',BID_EVALUATION_RESULT:'#7c3aed',ANNOUNCEMENT_PUBLISHED:'#0891b2'}
 const typeLabels: Record<string,string> = {SUPPLIER_APPROVED:'入库审批',SUPPLIER_REJECTED:'驳回通知',SUPPLIER_RETURNED:'退回补正',BID_PUBLISHED:'采购项目发布',BID_INVITED:'采购项目邀请',BID_REMINDER:'开标提醒',SYSTEM:'系统通知',CLARIFICATION_REPLIED:'澄清答疑',BID_OPENING:'开标通知',BID_EVALUATION_RESULT:'评标结果',ANNOUNCEMENT_PUBLISHED:'公告发布'}
 const filteredNotifications = computed(() => {
-  if (!typeFilter.value) return store.notifications
-  return store.notifications.filter((n:any) => n.type === typeFilter.value)
+  const list = typeFilter.value
+    ? store.notifications.filter((n:any) => n.type === typeFilter.value)
+    : store.notifications
+  // 未读置顶，其余按时间倒序（新通知永远排在最前面）
+  const unread = list.filter((n:any) => !n.isRead)
+  const read = list.filter((n:any) => n.isRead)
+  return [...unread, ...read]
 })
+// NEW 标记：未读且 48h 内到达（兜底首次访问也能看到新消息）
+const NEW_WINDOW_MS = 48 * 3600 * 1000
+function isNewArrival(n: any): boolean {
+  return !n.isRead && new Date(n.createdAt).getTime() > Date.now() - NEW_WINDOW_MS
+}
 async function fetchData() { loading.value = true; error.value = false; try { await store.fetchNotifications(currentPage.value,15) } catch { error.value = true } finally { loading.value = false } }
 function retryLoad() { fetchData() }
 onMounted(fetchData)
@@ -86,7 +96,7 @@ function goLink(link?: string) { if (link) { detailVisible.value = false; router
         <div class="notif-icon" :style="{ '--c': typeColorMap[n.type] || '#475569' } as any">
           <component :is="typeIconMap[n.type] || Inbox" :size="17" :stroke-width="1.75" />
         </div>
-        <div class="notif-body"><div class="notif-row-title">{{ n.title }}</div><div class="notif-row-content">{{ n.content }}</div></div>
+        <div class="notif-body"><div class="notif-row-title"><span v-if="isNewArrival(n)" class="notif-new-badge">NEW</span>{{ n.title }}</div><div class="notif-row-content">{{ n.content }}</div></div>
         <div class="notif-right"><div class="notif-row-time">{{ dayjs(n.createdAt).format('MM-DD HH:mm') }}</div><button v-if="!n.isRead" class="nd-btn nd-btn--xs nd-btn--danger" @click.stop="handleRead(n.id)">标为已读</button></div>
       </div>
       <div style="display:flex;justify-content:center;padding:16px"><el-pagination v-model:current-page="currentPage" :total="store.total" :page-size="15" layout="prev,pager,next" @current-change="handlePageChange" /></div>
@@ -141,6 +151,7 @@ function goLink(link?: string) { if (link) { detailVisible.value = false; router
 .notif-body { flex: 1; min-width: 0; }
 .notif-row-title { font-size: 15px; font-weight: 700; color: var(--foreground); margin-bottom: 4px; }
 .notif-row.unread .notif-row-title { font-weight: 800; }
+.notif-new-badge { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 6px; margin-right: 7px; vertical-align: 2px; color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
 .notif-row-content { font-size: 13px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .notif-right { text-align: right; flex-shrink: 0; }
 .notif-row-time { font-size: 12px; color: var(--muted-foreground); margin-bottom: 4px; font-variant-numeric: tabular-nums; }

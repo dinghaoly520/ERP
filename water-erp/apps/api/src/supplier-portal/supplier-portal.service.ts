@@ -297,6 +297,21 @@ export class SupplierPortalService {
   }
 
   // ─── Bid Projects (投标机会 — supplier-facing) ───
+
+  /** 用源项目管理的业务编号（TP-xxx / ZJ-xxx）覆盖 BidProject 内部编号（BID-时间戳），
+   *  与 :3005/:3007 的 resolveDisplayCodes 行为一致。仅用于返回展示——
+   *  公告 relatedProjectCode、下载权限等内部关联仍走 BidProject.projectCode。 */
+  private async resolveDisplayCode<T extends { projectManagementItemId?: string | null; projectCode?: string }>(
+    project: T,
+  ): Promise<T> {
+    if (!project.projectManagementItemId) return project;
+    const pm = await this.prisma.projectManagementItem.findUnique({
+      where: { id: project.projectManagementItemId },
+      select: { projectCode: true },
+    });
+    return pm?.projectCode ? { ...project, projectCode: pm.projectCode } : project;
+  }
+
   // 仅返回项目公开字段 + 投标方数量。绝不暴露其他投标方身份、开标记录、
   // 专家名单与评分等评审内部信息（这些是 BidController 受角色保护的原因）。
   // 仅返回截止时间未到的项目；公告项目=accessScope OPEN，受邀项目=INVITED/DESIGNATED。
@@ -390,6 +405,7 @@ export class SupplierPortalService {
         select: {
           id: true,
           projectCode: true,
+          projectManagementItemId: true,
           name: true,
           procurementMethod: true,
           openTime: true,
@@ -422,10 +438,10 @@ export class SupplierPortalService {
 
     // 富化谈判配置（来自 Redis）：采购文件获取窗口、开标时间、下载模式、文件数
     const negoConfigs = await this.fetchNegotiationConfigs(projectIds);
-    const finalItems = enrichedItems.map(i => ({
-      ...i,
+    const finalItems = await Promise.all(enrichedItems.map(async i => ({
+      ...await this.resolveDisplayCode(i),
       negotiation: negoConfigs[i.id] || null,
-    }));
+    })));
 
     // 按 scope 分组计数：基于 BidProject（deadline > now）+ BidDocument accessScope，
     // 保证"全部"=所有未到期项目数，与 total 一致；公告/受邀按 BidDocument 归因。
@@ -554,6 +570,7 @@ export class SupplierPortalService {
       select: {
         id: true,
         projectCode: true,
+        projectManagementItemId: true,
         name: true,
         procurementMethod: true,
         openTime: true,
@@ -600,6 +617,8 @@ export class SupplierPortalService {
       });
       (project as any).announcement = announcement;
     }
+    // 编号覆盖放最后：公告查找用内部编号，仅展示层换业务编号
+    if (project) return this.resolveDisplayCode(project);
     return project;
   }
 
@@ -972,7 +991,7 @@ export class SupplierPortalService {
       include: {
         project: {
           select: {
-            id: true, projectCode: true, name: true,
+            id: true, projectCode: true, projectManagementItemId: true, name: true,
             procurementMethod: true, stage: true, deadline: true, openTime: true,
           },
         },
@@ -994,7 +1013,11 @@ export class SupplierPortalService {
         (s as any).confirmStatus = confirmMap[s.projectId] || null;
       }
     }
-    return submissions;
+    // 展示编号统一为项目管理业务编号（与可投标项目列表一致）
+    return Promise.all(submissions.map(async s => ({
+      ...s,
+      project: await this.resolveDisplayCode(s.project),
+    })));
   }
 
   async getSubmission(supplierId: string, projectId: string) {

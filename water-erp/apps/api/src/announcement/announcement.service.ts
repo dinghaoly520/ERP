@@ -248,7 +248,7 @@ export class AnnouncementService {
       userIds = users.map(u => u.id);
     }
 
-    const typeLabel: Record<string, string> = { BID_NOTICE: '招标公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知' };
+    const typeLabel: Record<string, string> = { BID_NOTICE: '采购公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知' };
     const label = typeLabel[meta.__type] || '公告';
     let sent = 0;
     for (const userId of userIds) {

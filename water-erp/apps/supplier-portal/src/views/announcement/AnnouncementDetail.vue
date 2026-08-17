@@ -10,7 +10,7 @@ import dayjs from 'dayjs'
 
 const route = useRoute(); const router = useRouter(); const store = useAnnouncementStore()
 const loading = ref(true); const error = ref(false); const id = computed(() => route.params.id as string)
-const typeLabel: Record<string,string> = {BID_NOTICE:'招标公告',WIN_NOTICE:'中标公示',POLICY:'政策法规',PLATFORM:'平台通知'}
+const typeLabel: Record<string,string> = {BID_NOTICE:'采购公告',WIN_NOTICE:'中标公示',POLICY:'政策法规',PLATFORM:'平台通知'}
 const typeTagType: Record<string,string> = {BID_NOTICE:'primary',WIN_NOTICE:'success',POLICY:'warning',PLATFORM:'info'}
 
 const bidDoc = ref<any>(null); const bidDocLoading = ref(false); const paying = ref(false); const downloading = ref(false); const payDialog = ref(false); const paymentRef = ref('')
@@ -26,7 +26,7 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
 
 <template>
   <div class="page-container" v-loading="loading">
-    <SpPageHero :icon="ScrollText" title="公告详情" sub="阅读公告全文，招标公告可在此查阅并下载招标文件。" />
+    <SpPageHero :icon="ScrollText" title="公告详情" sub="阅读公告全文，采购公告可在此查阅并下载招标文件。" />
 
     <el-button link class="detail-back" @click="router.push('/announcements')"><el-icon><ArrowLeft /></el-icon>返回公告列表</el-button>
 

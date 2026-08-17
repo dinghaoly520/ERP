@@ -633,6 +633,7 @@ export function SupplierSelectionPage({
   }, []);
 
   // 直接采购：自动注入候选人列表。供应商名来源：awardedSupplier > 采购文件编写草稿 > 后端提取
+  // 注入时用名称到供应商库查真实 ID，确保后续发送通知能命中关联账户。
   const directInjectDone = useRef(false);
   useEffect(() => {
     if (directInjectDone.current) return;
@@ -640,44 +641,54 @@ export function SupplierSelectionPage({
     if (!project) return;
     if (shortlist.size > 0) return; // 会话已恢复，不覆盖
 
-    // 来源 1：DB 已提取的 awardedSupplier
-    let supplierName = project.awardedSupplier?.trim();
-
-    // 来源 2：采购文件编写草稿（localStorage）
-    if (!supplierName) {
+    // 用供应商名称到库中解析真实 id（精确优先，其次模糊）
+    const resolveSupplier = async (name: string): Promise<{ id: string; name: string } | null> => {
       try {
-        const raw = localStorage.getItem(`tender-write:project-drafts:v1:${project.id}`);
-        if (raw) {
-          supplierName = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
-        }
-      } catch {}
-    }
+        const r = await getSupplierList({ status: 'APPROVED', pageSize: 200 });
+        const exact = r.items.find(s => s.name === name);
+        const fuzzy = r.items.find(s => s.name.includes(name) || name.includes(s.name));
+        const found = exact || fuzzy;
+        return found ? { id: found.id, name: found.name } : null;
+      } catch { return null; }
+    };
 
-    if (supplierName) {
+    const inject = async (name: string) => {
       directInjectDone.current = true;
-      const sid = `direct-${project.id}`;
+      const resolved = await resolveSupplier(name);
+      // 命中真实供应商 → 用真实 id（可发通知）；未命中 → 保留名称 + 虚构 id（发通知会提示未找到）
+      const sid = resolved?.id ?? `direct-${project.id}`;
+      const displayName = resolved?.name ?? name;
       const m = new Map<string, { item: SupplierRecommendation; note: string }>();
-      m.set(sid, { item: { supplierId: sid, name: supplierName, matchScore: 100, reason: '直接采购已定供应商', activeProjects: 1 }, note: '' });
+      m.set(sid, { item: { supplierId: sid, name: displayName, matchScore: 100, reason: '直接采购已定供应商', activeProjects: 1 }, note: '' });
       setShortlist(m);
-      return;
-    }
+    };
 
-    // 来源 3：后端异步提取
-    const tenderStage = project.stages?.find((s: any) => s.stageKey === 'TENDER_DOCUMENT');
-    if (tenderStage?.attachments?.length) {
-      extractTenderFields(project.id)
-        .then((result: any) => {
-          const name = result?.awardedSupplier?.trim();
-          if (name) {
-            directInjectDone.current = true;
-            const sid = `direct-${project.id}`;
-            const m = new Map<string, { item: SupplierRecommendation; note: string }>();
-            m.set(sid, { item: { supplierId: sid, name, matchScore: 100, reason: '直接采购已定供应商', activeProjects: 1 }, note: '' });
-            setShortlist(m);
+    (async () => {
+      // 来源 1：DB 已提取的 awardedSupplier
+      let supplierName = project.awardedSupplier?.trim();
+
+      // 来源 2：采购文件编写草稿（localStorage）
+      if (!supplierName) {
+        try {
+          const raw = localStorage.getItem(`tender-write:project-drafts:v1:${project.id}`);
+          if (raw) {
+            supplierName = (JSON.parse(raw)?.SINGLE_SOURCE as Record<string, string>)?.supplierName?.trim();
           }
-        })
-        .catch(() => {});
-    }
+        } catch {}
+      }
+
+      if (supplierName) { await inject(supplierName); return; }
+
+      // 来源 3：后端异步提取
+      const tenderStage = project.stages?.find((s: any) => s.stageKey === 'TENDER_DOCUMENT');
+      if (tenderStage?.attachments?.length) {
+        try {
+          const result: any = await extractTenderFields(project.id);
+          const name = result?.awardedSupplier?.trim();
+          if (name) await inject(name);
+        } catch {}
+      }
+    })();
   }, [isDirect, project?.id, shortlist.size]);
 
   // 输入状态变化时持久化到 localStorage（跳过首次渲染，避免覆盖恢复的状态）
