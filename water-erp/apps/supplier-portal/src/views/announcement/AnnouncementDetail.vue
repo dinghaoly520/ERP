@@ -28,7 +28,10 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
   <div class="page-container" v-loading="loading">
     <SpPageHero :icon="ScrollText" title="公告详情" sub="阅读公告全文，采购公告可在此查阅并下载招标文件。" />
 
-    <el-button link class="detail-back" @click="router.push('/announcements')"><el-icon><ArrowLeft /></el-icon>返回公告列表</el-button>
+    <button class="flow-back" @click="router.push('/announcements')">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flow-back-arrow"><path d="M15 18l-6-6 6-6"/></svg>
+      返回公告列表
+    </button>
 
     <div v-if="error" class="sp-error-block">
       <div class="sp-error-icon"><AlertTriangle :size="22" :stroke-width="1.75" /></div>
@@ -70,7 +73,7 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
 </template>
 
 <style scoped>
-.detail-back { margin: 16px 0; }
+.flow-back { margin: 16px 0; }
 
 /* Detail card — neumorphic plate (no glass / no drift) */
 .detail-card {

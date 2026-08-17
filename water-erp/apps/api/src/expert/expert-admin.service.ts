@@ -1792,7 +1792,7 @@ export class ExpertAdminService {
         _count: true, orderBy: { _count: { title: 'desc' } },
       }),
       this.prisma.expertEvaluation.findMany({
-        select: { overallGrade: true, createdAt: true, expertUser: { select: { displayName: true } } },
+        select: { overallGrade: true, createdAt: true, expertUserId: true, expertUser: { select: { displayName: true } } },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.bidExpert.count({ where: { createdAt: { gte: cutoff7d } } }),
@@ -1833,6 +1833,7 @@ export class ExpertAdminService {
       evaluationStats: { levelCounts, excellentRatio, total: evalTotal },
       recentEvals: evals.slice(0, 8).map(e => ({
         expert: e.expertUser?.displayName ?? '—',
+        expertUserId: e.expertUserId,
         level: e.overallGrade,
         time: e.createdAt.toISOString(),
       })),

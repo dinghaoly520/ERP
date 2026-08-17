@@ -25,6 +25,7 @@ import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-ar
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { openField } from '../common/crypto/field-crypto';
+import { parseFlexibleDate } from '../common/parse-date.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
@@ -592,16 +593,10 @@ export class BidService {
     metadata: Record<string, any>,
   ) {
     const projectCode = `BID-${Date.now()}`;
-    const openTime = metadata.openTime
-      ? new Date(metadata.openTime)
-      : (announcement.publishDate || new Date());
-    const deadline = metadata.deadline
-      ? new Date(metadata.deadline)
-      : new Date(openTime.getTime() + 7 * 86400000);
+    const openTime = parseFlexibleDate(metadata.openTime) ?? (announcement.publishDate || new Date());
+    const deadline = parseFlexibleDate(metadata.deadline) ?? new Date(openTime.getTime() + 7 * 86400000);
     // 采购文件下载截止时间（= 公告截止时间），超时不可下载
-    const downloadDeadline = metadata.downloadDeadline
-      ? new Date(metadata.downloadDeadline)
-      : null;
+    const downloadDeadline = parseFlexibleDate(metadata.downloadDeadline);
 
     const procurementMethod = metadata.method || '公开招标';
     const project = await this.prisma.bidProject.create({
@@ -650,16 +645,16 @@ export class BidService {
     // P1-15（走查⑤）：时间合理性校验——AI 智能填入/字段提取可能产出「发布时刻」这类无效
     // 开标时间并随公告 sync 覆盖 ensureBidProject 的合理兜底值（走查实测 openTime 回退当日
     // 16:24 且早于投递截止，供应商门户显示时间矛盾）。无效值一律忽略、保留项目原值。
-    const parsedOpen = metadata.openTime ? new Date(metadata.openTime) : undefined;
-    const parsedDeadline = metadata.deadline ? new Date(metadata.deadline) : undefined;
-    const openTime = parsedOpen && !Number.isNaN(parsedOpen.getTime()) && parsedOpen.getTime() > Date.now()
+    const parsedOpen = parseFlexibleDate(metadata.openTime);
+    const parsedDeadline = parseFlexibleDate(metadata.deadline);
+    const openTime = parsedOpen && parsedOpen.getTime() > Date.now()
       ? parsedOpen
       : undefined;
-    const deadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime())
+    const deadline = parsedDeadline
       && (!openTime || parsedDeadline.getTime() < openTime.getTime())
       ? parsedDeadline
       : undefined;
-    const downloadDeadline = metadata.downloadDeadline ? new Date(metadata.downloadDeadline) : undefined;
+    const downloadDeadline = parseFlexibleDate(metadata.downloadDeadline) ?? undefined;
 
     const updated = await this.prisma.bidProject.update({
       where: { id: projectId },

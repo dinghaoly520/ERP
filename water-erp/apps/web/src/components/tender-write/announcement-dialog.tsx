@@ -249,7 +249,14 @@ function AnnouncementFieldEditor({
   onAiGenerate: (fieldKey: AnnouncementFieldKey, fieldLabel: string, value: string, aiPrompt?: string) => void;
   onContactOpen?: () => void;
 }) {
-  const hasValue = value.trim().length > 0;
+  // 有值判定：文本字段只看非空；date/datetime-local 字段需校验格式（否则 input 显示空白却标记"已填写"）
+  const hasValue = (() => {
+    const v = value.trim();
+    if (!v) return false;
+    if (field.type === 'date') return /^\d{4}-\d{2}-\d{2}$/.test(v);
+    if (field.type === 'datetime-local') return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v);
+    return true;
+  })();
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);

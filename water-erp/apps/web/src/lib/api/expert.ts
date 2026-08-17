@@ -276,7 +276,7 @@ export interface ExpertStatistics {
   specialtyDistribution: { name: string; count: number }[];
   titleDistribution: { name: string; count: number }[];
   evaluationStats: { levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number };
-  recentEvals: { level: string; score: number; expert: string; time: string }[];
+  recentEvals: { level: string; score: number; expert: string; expertUserId?: string; time: string }[];
   recentAssigns7d: number; recentExtractions30d: number;
   monthlyEvalTrend: { labels: string[]; counts: number[] };
 }

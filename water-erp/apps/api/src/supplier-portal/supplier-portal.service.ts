@@ -330,13 +330,15 @@ export class SupplierPortalService {
     };
 
     // 可见性 + 时效：
-    //  - 受邀项目（BidSupplier 命中）：确认参加即显示，不受 deadline 限制（谈判配置才定义真实窗口）
+    //  - 受邀项目（BidSupplier 命中）：谈判采购等确认参加即显示（sendNegotiationConfig 已下发时间窗口）；
+    //    直接采购须等公告发布后才显示（直接采购的时间在公告里发布，确认参加仅记录意向）。
     //  - 公开公告项目（accessScope=OPEN）：仅展示 deadline 未到的活跃项目
     let invitedIds: string[] = [];
     let openIds: string[] = [];
     if (supplierId) {
-      // P0-2：公开可见性 = BidDocument(OPEN) ∪ 已发布采购公告（relatedProjectCode→projectCode 解析）。
-      // 旧口径仅 BidDocument——谈判采购等无公告向导存档路径不产 BidDocument，供应商门户永远看不到。
+      // P0-2：公开可见性 = BidDocument(OPEN) ∪ 已发布采购公告（relatedProjectCode 解析）。
+      // relatedProjectCode 存的是业务编号（PMI.projectCode，如 ZJ-xxx/TP-xxx），
+      // 须经 ProjectManagementItem 桥接回 BidProject（BidProject.projectCode 是内部 BID-时间戳）。
       const [invited, openDocs, openNotices] = await Promise.all([
         this.prisma.bidSupplier.findMany({ where: { supplierId }, select: { projectId: true } }),
         this.prisma.bidDocument.findMany({ where: { accessScope: 'OPEN', bidProjectId: { not: null } }, select: { bidProjectId: true } }),
@@ -345,12 +347,48 @@ export class SupplierPortalService {
           select: { relatedProjectCode: true },
         }),
       ]);
-      invitedIds = invited.map(i => i.projectId);
+      const rawInvitedIds = invited.map(i => i.projectId);
       openIds = openDocs.map(d => d.bidProjectId!).filter(Boolean);
       const noticeCodes = [...new Set(openNotices.map(n => n.relatedProjectCode!).filter(Boolean))];
+
+      // 受邀项目：区分直接采购（须公告发布）与其他（确认参加即显示）
+      if (rawInvitedIds.length > 0) {
+        const invitedProjects = await this.prisma.bidProject.findMany({
+          where: { id: { in: rawInvitedIds } },
+          select: { id: true, procurementMethod: true, projectManagementItemId: true, projectCode: true },
+        });
+        const pmis = invitedProjects.some(p => p.projectManagementItemId)
+          ? await this.prisma.projectManagementItem.findMany({
+              where: { id: { in: invitedProjects.map(p => p.projectManagementItemId).filter((x): x is string => !!x) } },
+              select: { id: true, projectCode: true },
+            })
+          : [];
+        const pmCodeMap = new Map(pmis.map(pm => [pm.id, pm.projectCode]));
+        const publishedCodeSet = new Set(noticeCodes);
+        invitedIds = invitedProjects
+          .filter(p => {
+            if (p.procurementMethod !== '直接采购') return true;
+            // 直接采购：业务编号（PMI.projectCode）或内部编号命中已发布公告 → 视为公告已发布
+            const bizCode = p.projectManagementItemId ? pmCodeMap.get(p.projectManagementItemId) : undefined;
+            return (!!bizCode && publishedCodeSet.has(bizCode)) || publishedCodeSet.has(p.projectCode);
+          })
+          .map(p => p.id);
+      }
+
+      // 公告已发布 → 公开项目：按业务编号（PMI.projectCode）或内部编号桥接回 BidProject
       if (noticeCodes.length > 0) {
-        const byCode = await this.prisma.bidProject.findMany({
+        const pmByCode = await this.prisma.projectManagementItem.findMany({
           where: { projectCode: { in: noticeCodes } },
+          select: { id: true },
+        });
+        const pmIds = pmByCode.map(p => p.id);
+        const byCode = await this.prisma.bidProject.findMany({
+          where: {
+            OR: [
+              { projectCode: { in: noticeCodes } },
+              { projectManagementItemId: { in: pmIds } },
+            ],
+          },
           select: { id: true },
         });
         openIds = [...new Set([...openIds, ...byCode.map(p => p.id)])];

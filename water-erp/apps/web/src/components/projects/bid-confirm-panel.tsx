@@ -11,6 +11,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock,
+  Crown,
   FileText,
   Gavel,
   Loader2,
@@ -678,7 +679,18 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                               return (
                                 <tr key={e.id} className="row-clickable">
                                   <td className="text-center text-[var(--muted-foreground)] tabular-nums">{i + 1}</td>
-                                  <td className="font-medium text-[var(--foreground)]">{e.expertName}</td>
+                                  <td className="font-medium text-[var(--foreground)]">
+                                    {e.expertName}
+                                    {e.isLead && (
+                                      <span
+                                        className="ml-2 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                                        style={{ background: 'color-mix(in oklch, var(--warning) 16%, transparent)', color: 'color-mix(in oklch, var(--warning) 70%, black)' }}
+                                        title="评审组长（专家抽取步骤第 5 步选定）"
+                                      >
+                                        <Crown size={11} /> 组长
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="text-[var(--muted-foreground)]">{e.major || '—'}</td>
                                   <td className="text-[var(--muted-foreground)]">{resolveEmployer(e) || '—'}</td>
                                   <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>

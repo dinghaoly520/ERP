@@ -29,6 +29,7 @@ import {
   applyAutoFill,
   getAvailableAnnouncementCategories,
   getAnnouncementLabel,
+  numberToChineseAmount,
 } from '@/lib/tender-write/announcement-templates';
 import { TENDER_DOCUMENT_TYPES } from '@/lib/tender-write/templates';
 import type {
@@ -251,7 +252,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
     // ★ 缓存命中 —— 恢复上次完整状态，跳过全新预填
     if (cachedWiz?.draft) {
-      setStep(cachedWiz.step ?? 1);
+      // 恢复时回到编辑页（step 1），让用户看到之前填写的内容
+      setStep(1);
       setCategory((cachedWiz.category as AnnouncementCategory) ?? initialCategory);
       setDraft(cachedWiz.draft as AnnouncementDraft);
       setVisibility(cachedWiz.visibility ?? 'PUBLIC');
@@ -309,13 +311,18 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (!fd.projectOverview?.trim() && project.projectOverview?.trim()) fd.projectOverview = project.projectOverview;
       if (!fd.qualificationRequirements?.trim() && project.supplierRequirements?.trim()) fd.qualificationRequirements = project.supplierRequirements;
 
-      // 采购时间 = 开标时间
-      if (!fd.procurementTime?.trim() && project.bidOpeningTime?.trim()) fd.procurementTime = project.bidOpeningTime;
+      // 采购时间 = 开标时间（转 datetime-local ISO 格式）
+      if (!fd.procurementTime?.trim() && project.bidOpeningTime?.trim()) fd.procurementTime = toDatetimeLocalValue(project.bidOpeningTime);
 
       // 落款日期 = 当前日期
       if (!fd.signatureDate?.trim()) {
         const today = new Date();
         fd.signatureDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      }
+
+      // ★ 大写金额：增强预填设置了 maxPriceNumeric 后，同步生成中文大写
+      if (fd.maxPriceNumeric?.trim() && !fd.maxPriceChinese?.trim()) {
+        fd.maxPriceChinese = numberToChineseAmount(fd.maxPriceNumeric);
       }
 
       // 直接采购：供应商名称补充来源
@@ -343,9 +350,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         const startRaw = acquireTime.slice(0, sepIdx).trim();
         const endRaw = acquireTime.slice(sepIdx + 1).trim();
         const fd = filledDraft as Record<string, string>;
-        if (!fd.announcementStart) fd.announcementStart = toDateInputValue(startRaw);
-        // 公示期限（止）保留完整日期时间（含时分）
-        if (!fd.announcementEnd) fd.announcementEnd = isSingleSource ? endRaw : toDateInputValue(endRaw);
+        // 公示期限（起/止）均为 datetime-local，需带时分（YYYY-MM-DDTHH:MM）
+        if (!fd.announcementStart) fd.announcementStart = toDatetimeLocalValue(startRaw);
+        if (!fd.announcementEnd) fd.announcementEnd = toDatetimeLocalValue(endRaw);
         // 自动计算天数
         if (!fd.announcementDays) {
           try {
@@ -681,7 +688,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           toast.error('再次采购失败：' + (e instanceof Error ? e.message : '未知错误'));
         }
       }
-      if (project) clearWizardState(project.id);
       onPublished();
       onClose();
     } catch (e) {

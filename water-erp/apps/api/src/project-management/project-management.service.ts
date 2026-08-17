@@ -7,6 +7,7 @@ import JSZip = require('jszip');
 import { Response } from 'express';
 import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
+import { parseFlexibleDate } from '../common/parse-date.util';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
@@ -101,13 +102,7 @@ const KNOWN_ORGANIZATION_FORMS = ['自行招标', '委托招标'];
 
 /** 解析项目基本信息中的开标时间字符串：兼容 ISO、"2026年8月15日"、"2026-08-15"、"2026/8/15 10:00" 等 */
 function parseBidOpeningTime(raw: string | null | undefined): Date | null {
-  if (!raw) return null;
-  const direct = new Date(raw);
-  if (!Number.isNaN(direct.getTime())) return direct;
-  const m = raw.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):?(\d{2}))?/);
-  if (!m) return null;
-  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0));
-  return Number.isNaN(dt.getTime()) ? null : dt;
+  return parseFlexibleDate(raw);
 }
 
 /** 再次采购时按采购方式插入的阶段段（与前端 PROCUREMENT_METHOD_STAGES 的 TENDER_DOCUMENT→AWARD_DECISION 一致）*/

@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { getExpertStatistics, type ExpertStatistics } from '@/lib/api/expert';
-import { StatusBadge } from '@/components/workbench';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { BarChart3, Clock, UsersRound } from 'lucide-react';
+import { BarChart3, RefreshCw, AlertTriangle, Layers, Award, TrendingUp, Activity } from 'lucide-react';
 import { LEVEL_LABEL } from '@water-erp/shared';
 
 export default function ExpertStatisticsPage() {
@@ -24,19 +23,25 @@ export default function ExpertStatisticsPage() {
 
   if (loading) return (
     <div className="space-y-5 animate-pulse">
-      <div className="skeleton h-7 w-48 rounded mb-2" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{[1,2,3,4].map(i => <div key={i} className="skeleton h-24 rounded-2xl" />)}</div>
+      <div className="neu-card-static !rounded-2xl h-24" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">{[1,2,3,4].map(i => <div key={i} className="neu-card-static !rounded-2xl h-56" />)}</div>
     </div>
   );
   if (errored || !data) return (
-    <div className="py-24 text-center">
-      <p className="text-sm font-semibold text-[var(--danger)] mb-3">统计数据加载失败</p>
-      <button onClick={load} className="neu-btn-xs is-info">重试</button>
+    <div className="neu-table-card py-16 text-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
+        <p className="text-sm font-semibold text-[var(--danger)]">统计数据加载失败</p>
+        <button onClick={load} className="neu-btn-soft"><RefreshCw size={15} />重试</button>
+      </div>
     </div>
   );
 
   const maxSpec = Math.max(...data.specialtyDistribution.map(s => s.count), 1);
   const availRate = data.totalExperts > 0 ? Math.round((data.available / data.totalExperts) * 100) : 0;
+  const trendTotal = data.monthlyEvalTrend.counts.reduce((s, c) => s + c, 0);
+  const trendMax = Math.max(...data.monthlyEvalTrend.counts, 1);
+  const GRADE_COLORS: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
 
   return (
     <div className="flex flex-col gap-5">
@@ -53,12 +58,14 @@ export default function ExpertStatisticsPage() {
           </div>
         </div>
         <div className="page-hero__divider">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
             {[
               ['专家总数', data.totalExperts, '入库总量'],
               ['可用', data.available, `占比 ${availRate}%`],
               ['占用中', data.occupied, '正参与评审'],
               ['已停用', data.disabled, '退库/停用'],
+              ['近7日分配', data.recentAssigns7d, '专家被分配至项目'],
+              ['近30日抽取', data.recentExtractions30d, '专家组组建次数'],
             ].map(([label, value, sub]) => (
               <div key={label} className="kpi-card group flex h-full flex-col gap-1.5 p-3">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
@@ -73,8 +80,8 @@ export default function ExpertStatisticsPage() {
       {/* 评价趋势 + 活跃度 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* 专业分布 */}
-        <div className="neu-table-card p-5">
-          <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">专业领域分布</h3>
+        <section className="neu-card-static !rounded-2xl p-5">
+          <h3 className="mb-4 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]"><Layers size={13} />专业领域分布</h3>
           <div className="space-y-2.5">
             {data.specialtyDistribution.slice(0, 8).map(s => (
               <div key={s.name} className="flex items-center gap-3">
@@ -86,11 +93,11 @@ export default function ExpertStatisticsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
         {/* 评价等级分布 */}
-        <div className="neu-table-card p-5">
-          <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">评价等级分布</h3>
+        <section className="neu-card-static !rounded-2xl p-5">
+          <h3 className="mb-4 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]"><Award size={13} />评价等级分布</h3>
           <div className="grid grid-cols-5 gap-2">
             {(['A','B','C','D','E'] as const).map(lv => {
               const count = data.evaluationStats.levelCounts[lv];
@@ -113,55 +120,77 @@ export default function ExpertStatisticsPage() {
             <span>累计评价 <strong className="tabular-nums text-[var(--foreground)]">{data.evaluationStats.total}</strong> 次</span>
             <span>优良率 <strong className="tabular-nums text-[var(--accent)]">{data.evaluationStats.excellentRatio}%</strong></span>
           </div>
-        </div>
+        </section>
 
         {/* 月度评价趋势 */}
-        <div className="neu-table-card p-5">
-          <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">月度评价趋势（近12月）</h3>
-          <div className="flex items-end gap-1 h-32">
-            {data.monthlyEvalTrend.counts.map((c, i) => {
-              const max = Math.max(...data.monthlyEvalTrend.counts, 1);
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[9px] tabular-nums font-bold text-[var(--foreground)]">{c}</span>
-                  <div className="w-full rounded-t-md bg-[var(--accent)]/80 transition-all hover:bg-[var(--accent)]" style={{ height: `${Math.round((c / max) * 100)}%`, minHeight: c > 0 ? 4 : 0 }} />
-                  <span className="text-[9px] text-[var(--muted-foreground)]">{data.monthlyEvalTrend.labels[i]}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <section className="neu-card-static !rounded-2xl p-5">
+          <h3 className="mb-4 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]">
+            <TrendingUp size={13} />月度评价趋势（近12月）
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal text-[var(--accent)] tabular-nums">累计 {trendTotal} 次</span>
+          </h3>
+          {trendTotal === 0 ? (
+            <div className="flex h-32 flex-col items-center justify-center gap-2">
+              <div className="neu-icon-well flex h-10 w-10 items-center justify-center rounded-xl"><TrendingUp size={16} className="text-[var(--muted-foreground)]" /></div>
+              <p className="text-xs text-[var(--muted-foreground)]">近 12 个月暂无评价记录</p>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-end gap-1 h-32">
+                {data.monthlyEvalTrend.counts.map((c, i) => {
+                  const isCurrent = i === data.monthlyEvalTrend.counts.length - 1;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 h-full" title={`${data.monthlyEvalTrend.labels[i]}：${c} 次`}>
+                      {c > 0 && <span className="text-[9px] tabular-nums font-bold text-[var(--foreground)]">{c}</span>}
+                      <div
+                        className={`w-full rounded-t-md transition-all ${isCurrent ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/50 hover:bg-[var(--accent)]/80'}`}
+                        style={{ height: `${Math.max(Math.round((c / trendMax) * 88), c > 0 ? 6 : 2)}%` }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {/* 基线 + 月份标签 */}
+              <div className="h-px bg-[color-mix(in_oklch,var(--foreground)_12%,transparent)]" />
+              <div className="mt-1 flex gap-1">
+                {data.monthlyEvalTrend.labels.map((l, i) => (
+                  <span key={i} className={`flex-1 text-center text-[9px] tabular-nums ${i === data.monthlyEvalTrend.labels.length - 1 ? 'font-bold text-[var(--accent)]' : 'text-[var(--muted-foreground)]'}`}>{l}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
 
-        {/* 近期动态 */}
-        <div className="neu-table-card p-5">
-          <h3 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-4">近期动态</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="kpi-card flex flex-col gap-1 p-3">
-              <div className="flex items-center gap-2"><Clock size={14} className="text-[var(--accent)]" /><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">近7日分配</span></div>
-              <span className="text-[1.55rem] font-black tabular-nums text-[var(--foreground)]">{data.recentAssigns7d}</span>
-              <span className="text-[10px] text-[var(--muted-foreground)]">专家被分配至项目</span>
+        {/* 最新评价 */}
+        <section className="neu-card-static !rounded-2xl p-5">
+          <h3 className="mb-3 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted-foreground)]">
+            <Activity size={13} />最新评价
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal text-[var(--accent)] tabular-nums">累计 {data.evaluationStats.total} 次</span>
+          </h3>
+          {data.recentEvals.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-8">
+              <div className="neu-icon-well flex h-10 w-10 items-center justify-center rounded-xl"><Activity size={16} className="text-[var(--muted-foreground)]" /></div>
+              <p className="text-xs text-[var(--muted-foreground)]">暂无评价记录</p>
             </div>
-            <div className="kpi-card flex flex-col gap-1 p-3">
-              <div className="flex items-center gap-2"><UsersRound size={14} className="text-[var(--accent)]" /><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">近30日抽取</span></div>
-              <span className="text-[1.55rem] font-black tabular-nums text-[var(--foreground)]">{data.recentExtractions30d}</span>
-              <span className="text-[10px] text-[var(--muted-foreground)]">专家组组建次数</span>
-            </div>
-          </div>
-          {data.recentEvals.length > 0 && (
-            <div className="mt-4 space-y-1.5">
-              <span className="text-[10px] font-semibold text-[var(--muted-foreground)]">最新评价</span>
-              {data.recentEvals.slice(0, 6).map((e, i) => (
-                <div key={i} className="flex items-center justify-between text-xs py-1" style={{ borderBottom: i < 5 ? '1px solid oklch(0.6 0.04 258 / 0.08)' : 'none' }}>
-                  <span className="font-medium text-[var(--foreground)] truncate">{e.expert}</span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <StatusBadge tone={e.level === 'A' ? 'green' : e.level === 'B' ? 'blue' : e.level === 'C' ? 'orange' : e.level === 'D' ? 'orange' : 'red'}>{LEVEL_LABEL[e.level]}</StatusBadge>
-                    <span className="tabular-nums font-bold text-[var(--muted-foreground)]">{new Date(e.time).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}</span>
-                  </div>
-                </div>
+          ) : (
+            <div>
+              {data.recentEvals.map((e, i) => (
+                <button
+                  key={i}
+                  onClick={() => e.expertUserId && router.push(`/expert/${e.expertUserId}`)}
+                  className="flex w-full items-center gap-2.5 px-2 py-2 text-left rounded-lg transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]"
+                  style={{ boxShadow: i < data.recentEvals.length - 1 ? 'inset 0 -1px 0 oklch(0.6 0.04 258 / 0.08)' : 'none' }}
+                  title={e.expertUserId ? `查看 ${e.expert} 的专家档案` : undefined}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-extrabold text-white">{e.expert[0]}</div>
+                  <span className="flex-1 min-w-0 truncate text-sm font-bold text-[var(--foreground)]">{e.expert}</span>
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-[10px] font-extrabold text-white" style={{ backgroundColor: GRADE_COLORS[e.level] ?? 'var(--muted-foreground)' }}>{e.level}</span>
+                  <span className="w-12 shrink-0 text-[11px] text-[var(--muted-foreground)]">{LEVEL_LABEL[e.level]}</span>
+                  <span className="shrink-0 text-[10px] tabular-nums text-[var(--muted-foreground)]">{new Date(e.time).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}</span>
+                </button>
               ))}
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

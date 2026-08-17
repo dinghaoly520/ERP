@@ -69,6 +69,7 @@ export interface BidWorkspaceExpert {
   expertRole: string; // 正选 | 候补
   invitationStatus: string; // pending | confirmed | declined
   title?: string | null; // 职称，来自 ExpertProfile
+  isLead?: boolean; // 评审组长标记（专家抽取步骤第 5 步选定）
   signedIn: boolean;
   avoidanceConfirmed: boolean;
   progress: string;
