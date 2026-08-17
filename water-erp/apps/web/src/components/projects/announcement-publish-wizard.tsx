@@ -623,7 +623,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
       else if (publishTiming === 'announcement_start') meta.scheduledPublishDate = (finalDraft as Record<string, string>).announcementStart;
       meta.notifyOnPublish = notifyOnPublish;
-      if (selectedTenderObjectKey) meta.selectedTenderObjectKey = selectedTenderObjectKey;
+      if (selectedTenderObjectKey) {
+        meta.selectedTenderObjectKey = selectedTenderObjectKey;
+        const tenderFile = tenderFiles.find((f) => f.objectKey === selectedTenderObjectKey) ?? tenderFiles[0];
+        // P1b：后端据此自动生成加密 BidDocument（附文件名/MIME，docx 会转 PDF）
+        if (tenderFile) {
+          meta.selectedTenderFileName = tenderFile.fileName;
+          meta.selectedTenderMimeType = tenderFile.mimeType;
+        }
+      }
       // 投递截止（bid deadline）—— 优先标书投递截止，兜底公告截止
       meta.deadline = bidSubmissionDeadline.trim() || announcementEndDate;
       // 下载截止（downloadDeadline）—— 公告截止时间

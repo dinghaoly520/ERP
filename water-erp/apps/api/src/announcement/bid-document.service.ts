@@ -81,6 +81,87 @@ export class BidDocumentService {
     return this.getForManagement(announcementId);
   }
 
+  /* ── 管理端：从已有 MinIO 对象创建加密招标文件（公告发布「引用采购文件」链路）──
+   *  P1b（2026-08-17）：发布向导勾选「引用采购文件」后原仅挂普通附件，BidDocument 断链，
+   *  导致供应商端下载、AI 提取得分点（TENDER_NOT_READY）全挂。此处与 upload 共用
+   *  「docx→PDF 转换 + 加密 + MinIO + FileAsset + BidDocument」链路。 */
+  async attachFromObject(
+    announcementId: string,
+    input: {
+      objectKey: string;
+      fileName?: string;
+      mimeType?: string;
+      title?: string;
+      bidProjectId?: string;
+      uploaderId?: string | null;
+    },
+  ) {
+    const announcement = await this.prisma.announcement.findUnique({ where: { id: announcementId } });
+    if (!announcement) throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
+    if (announcement.type !== 'BID_NOTICE') {
+      throw new BadRequestException({ error: '仅招标公示可创建招标文件', code: 'NOT_BID_NOTICE' });
+    }
+    const existing = await this.prisma.bidDocument.findUnique({ where: { announcementId } });
+    if (existing) {
+      this.logger.log(`公告 ${announcementId} 已有招标文件，跳过 attachFromObject`);
+      return this.getForManagement(announcementId);
+    }
+
+    // ① 从 MinIO 读取源对象（PMI 阶段上传的采购文件）
+    const source = await minioClient.getObject(MINIO_BUCKET, input.objectKey);
+    const sourceBuffer = await streamToBuffer(source);
+    if (sourceBuffer.length === 0) {
+      throw new BadRequestException({ error: '采购文件对象为空', code: 'EMPTY_SOURCE' });
+    }
+
+    // ② 文件名/类型兜底 + docx/doc 转 PDF（与 upload 一致）
+    const rawName = input.fileName || input.objectKey.split('/').pop() || '招标文件';
+    const originalName = sanitizeFileName(rawName);
+    let buffer = sourceBuffer;
+    let mimeType = input.mimeType || 'application/octet-stream';
+    let displayName = originalName;
+    const converted = convertOfficeToPdf(sourceBuffer, mimeType, originalName);
+    if (converted) {
+      buffer = converted.buffer;
+      mimeType = converted.mimeType;
+      displayName = converted.fileName;
+    }
+
+    // ③ 加密 + 存 MinIO + FileAsset + BidDocument（与 upload 相同）
+    const { ciphertext, decryptKey } = encryptBuffer(buffer);
+    const date = new Date().toISOString().slice(0, 10);
+    const key = `bid-doc/${date}/${crypto.randomBytes(8).toString('hex')}.enc`;
+    await minioClient.putObject(MINIO_BUCKET, key, ciphertext, ciphertext.length, { 'Content-Type': 'application/octet-stream' });
+    const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+    const asset = await this.prisma.fileAsset.create({
+      data: {
+        key,
+        originalName: displayName,
+        mimeType,
+        size: buffer.length,
+        sha256,
+        category: 'bid_document',
+        uploaderId: input.uploaderId ?? null,
+      },
+    });
+    await this.prisma.bidDocument.create({
+      data: {
+        announcementId,
+        fileAssetId: asset.id,
+        title: input.title || displayName,
+        accessScope: 'OPEN',
+        requirePayment: false,
+        price: null,
+        decryptKey: wrapKey(decryptKey, process.env.KMS_SECRET!),
+        bidProjectId: input.bidProjectId ?? null,
+      },
+    });
+    this.logger.log(
+      `公告 ${announcementId} 已从对象 ${input.objectKey} 创建加密招标文件（${displayName}）`,
+    );
+    return this.getForManagement(announcementId);
+  }
+
   /* ── 管理端：更新访问配置 ── */
   async updateConfig(announcementId: string, config: {
     accessScope?: AccessScope;

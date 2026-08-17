@@ -1213,7 +1213,7 @@ export class ExpertAdminService {
     projectId: string,
     expertIds: string[],
     channels: string[],
-    message: string,
+    message?: string,
   ) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },

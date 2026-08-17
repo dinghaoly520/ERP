@@ -218,7 +218,7 @@ export class LlmService {
     options?: LlmCallOptions,
   ): Promise<string> {
     this.getPrimary();
-    return this.withRetry(
+    const r = await this.withRetry(
       () =>
         this.requestOnce({
           messages: [
@@ -235,6 +235,7 @@ export class LlmService {
       options,
       signal,
     );
+    return r.content;
   }
 
   async chatJson<T>(
@@ -246,14 +247,19 @@ export class LlmService {
     options?: LlmCallOptions,
   ): Promise<T> {
     this.getPrimary();
-    // DeepSeek 支持 response_format 强制 JSON；解析失败不重试（在 withRetry 之外）
+    // DeepSeek 官方 JSON mode（api-docs.deepseek.com/guides/json_mode）：
+    //  - response_format {'type':'json_object'} + prompt 含 "json" 词 + 格式示例
+    //  - 明示禁止 Markdown 代码围栏（v4 系模型偶发包裹围栏/空内容，官方已知问题）
+    //  - 空 content / finish_reason=length 截断 → 抛 retryable 错误走 withRetry 重试
     const content = await this.withRetry(
       () =>
         this.requestOnce({
           messages: [
             {
               role: 'system',
-              content: systemPrompt + '\n\n请以 JSON 格式输出。',
+              content:
+                systemPrompt +
+                '\n\n请以 JSON 格式输出。Return only valid JSON, no Markdown fences, no extra text.',
             },
             { role: 'user', content: userPrompt },
           ],
@@ -264,6 +270,24 @@ export class LlmService {
           seed,
           signal,
           responseFormat: { type: 'json_object' },
+        }).then((r) => {
+          // 官方已知问题：JSON 输出偶发空 content → 可重试
+          if (!r.content.trim()) {
+            const e = new ServiceUnavailableException(
+              'LLM 返回空内容（DeepSeek JSON mode 已知问题），将重试',
+            ) as ServiceUnavailableException & { retryable: boolean };
+            e.retryable = true;
+            throw e;
+          }
+          // 截断检测：finish_reason=length → JSON 必不完整，重试
+          if (r.finishReason === 'length') {
+            const e = new ServiceUnavailableException(
+              'LLM 输出被截断（finish_reason=length），将重试',
+            ) as ServiceUnavailableException & { retryable: boolean };
+            e.retryable = true;
+            throw e;
+          }
+          return r.content;
         }),
       options,
       signal,
@@ -281,7 +305,7 @@ export class LlmService {
     },
   ): Promise<string> {
     this.getPrimary();
-    return this.withRetry(
+    const r = await this.withRetry(
       () =>
         this.requestOnce({
           messages,
@@ -295,6 +319,7 @@ export class LlmService {
       options,
       options?.signal,
     );
+    return r.content;
   }
 
   /** 重试外壳：仅 retryable 错误重试；调用方 abort 立即放弃 */
@@ -340,7 +365,15 @@ export class LlmService {
     apiKey: string,
     body: Record<string, unknown>,
     signal?: AbortSignal,
-  ): Promise<{ ok: boolean; status: number; content: string; errorText: string; retryAfter: string | null }> {
+  ): Promise<{
+    ok: boolean;
+    status: number;
+    content: string;
+    reasoningContent: string;
+    finishReason: string | null;
+    errorText: string;
+    retryAfter: string | null;
+  }> {
     return new Promise((resolve, reject) => {
       const url = new URL(`${baseUrl}/chat/completions`);
       const payload = JSON.stringify(body);
@@ -359,13 +392,29 @@ export class LlmService {
       }, (res) => {
         let data = '';
         res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
-        res.on('end', () => resolve({
-          ok: res.statusCode != null && res.statusCode >= 200 && res.statusCode < 300,
-          status: res.statusCode ?? 0,
-          content: (() => { try { return JSON.parse(data).choices?.[0]?.message?.content ?? ''; } catch { return ''; } })(),
-          errorText: data,
-          retryAfter: res.headers['retry-after'] ?? null,
-        }));
+        res.on('end', () => {
+          let content = '';
+          let reasoningContent = '';
+          let finishReason: string | null = null;
+          try {
+            const parsed = JSON.parse(data);
+            const msg = parsed.choices?.[0]?.message;
+            content = msg?.content ?? '';
+            reasoningContent = msg?.reasoning_content ?? '';
+            finishReason = parsed.choices?.[0]?.finish_reason ?? null;
+          } catch {
+            // 非 JSON 响应体：content 留空，由上层按错误处理
+          }
+          resolve({
+            ok: res.statusCode != null && res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode ?? 0,
+            content,
+            reasoningContent,
+            finishReason,
+            errorText: data,
+            retryAfter: res.headers['retry-after'] ?? null,
+          });
+        });
       });
       req.on('error', (err) => {
         if ((err as NodeJS.ErrnoException).code === 'ECONNRESET' && signal?.aborted) return;
@@ -398,7 +447,7 @@ export class LlmService {
     seed?: number;
     signal?: AbortSignal;
     responseFormat?: { type: 'json_object' };
-  }): Promise<string> {
+  }): Promise<{ content: string; finishReason: string | null }> {
     const provider = this.getPrimary();
     // 调用方已取消：快速失败，不发起请求
     if (p.signal?.aborted) {
@@ -435,7 +484,16 @@ export class LlmService {
         );
       }
 
-      return response.content;
+      // 思考模式兜底：content 为空但 reasoning_content 有内容时取后者（官方文档：
+      // 思考模式下仅读 message.content；偶发空 content 属已知问题）
+      if (!response.content.trim() && response.reasoningContent.trim()) {
+        this.logger.warn(
+          'LLM message.content 为空，回退使用 reasoning_content（思考模式）',
+        );
+        return { content: response.reasoningContent, finishReason: response.finishReason };
+      }
+
+      return { content: response.content, finishReason: response.finishReason };
     } catch (err) {
       if (err instanceof LlmHttpError) throw err;
       // 调用方主动取消：原样上抛（不重试）
@@ -461,15 +519,29 @@ export class LlmService {
 
   private parseJson<T>(content: string): T {
     let cleaned = content.trim();
-    if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '');
-      cleaned = cleaned.replace(/\n?```\s*$/, '');
-      cleaned = cleaned.trim();
+    // 围栏剥离：容忍模型在任意位置包裹 ```json ... ``` 或 ``` ... ```
+    cleaned = cleaned.replace(/```(?:json)?/g, '`').replace(/`/g, '').trim();
+    if (!cleaned) {
+      this.logger.warn('JSON parse failed: content is empty');
+      throw new ServiceUnavailableException(
+        'LLM 返回内容为空，无法解析为 JSON，请重试或检查模型配置',
+      );
     }
-
     try {
       return JSON.parse(cleaned) as T;
     } catch {
+      // 兜底：截取首 '{' 到末 '}'（容忍前后夹杂说明文字）
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        const slice = cleaned.slice(start, end + 1);
+        try {
+          this.logger.warn('JSON 解析失败后按首{尾}截取成功（模型输出夹杂额外文本）');
+          return JSON.parse(slice) as T;
+        } catch {
+          /* 继续走统一报错 */
+        }
+      }
       this.logger.warn(
         `JSON parse failed, raw content (first 500): ${cleaned.slice(0, 500)}`,
       );

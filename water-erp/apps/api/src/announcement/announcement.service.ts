@@ -4,6 +4,7 @@ import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-annou
 import { AnnouncementAiService } from './announcement-ai.service';
 import { BidService } from '../bid/bid.service';
 import { ProjectManagementService } from '../project-management/project-management.service';
+import { BidDocumentService } from './bid-document.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class AnnouncementService {
     private announcementAi: AnnouncementAiService,
     @Optional() private bidService?: BidService,
     @Optional() private projectManagementService?: ProjectManagementService,
+    @Optional() private bidDocumentService?: BidDocumentService,
   ) {}
 
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名） */
@@ -51,6 +53,28 @@ export class AnnouncementService {
     // P1: create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
     const isBidNoticePublish = dto.type === 'BID_NOTICE' && status === 'PUBLISHED';
     if (isBidNoticePublish) {
+      // P1b（2026-08-17）：「引用采购文件」发布时自动生成加密 BidDocument。
+      // 前端把 PMI 阶段采购文件的 MinIO objectKey 放进 metadata.selectedTenderObjectKey，
+      // 此前无人消费导致招标文件断链（供应商下载/专家获取/AI 提取得分点全挂）。
+      // 先建文档再 syncBidProject——后者会在建项/关联项时回填 bidDocument.bidProjectId。
+      const meta = (result.metadata as Record<string, any>) || {};
+      const sourceKey: string | undefined = meta.selectedTenderObjectKey;
+      if (sourceKey && this.bidDocumentService) {
+        try {
+          await this.bidDocumentService.attachFromObject(result.id, {
+            objectKey: sourceKey,
+            fileName: meta.selectedTenderFileName,
+            mimeType: meta.selectedTenderMimeType,
+            title: meta.selectedTenderFileName,
+            uploaderId: authorId ?? null,
+          });
+        } catch (e) {
+          // 招标文件生成失败不阻塞公告发布（前端可事后在详情页手动补传）
+          this.logger.warn(
+            `公告 ${result.id} 引用采购文件生成招标文件失败: ${(e as Error).message}`,
+          );
+        }
+      }
       await this.syncBidProject(result.id, {
         id: result.id, title: result.title, publishDate: result.publishDate,
         metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId,
@@ -290,6 +314,14 @@ export class AnnouncementService {
         if (meta.category === 'failed_bid') {
           await this.bidService.abortBidProject(existingProject.id);
           this.logger.log(`流标公告已发布，项目 ${existingProject.projectCode} 已标记为 ABORTED`);
+        }
+        // P1b：既有项目分支同样回填招标文件关联（此前只在新项目分支做）
+        const bidDoc = await this.prisma.bidDocument.findUnique({ where: { announcementId: annId } });
+        if (bidDoc && !bidDoc.bidProjectId) {
+          await this.prisma.bidDocument.update({
+            where: { announcementId: annId },
+            data: { bidProjectId: existingProject.id },
+          });
         }
       } else {
         const project = await this.bidService.createFromAnnouncement(
