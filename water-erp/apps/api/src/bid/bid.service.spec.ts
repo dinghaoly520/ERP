@@ -1817,6 +1817,28 @@ describe('BidService — stage transitions', () => {
       );
     });
 
+    it('E2：自定义评标时长——evaluationHours 生效，缺省回退 72h', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '测试项目' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'EVALUATING' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+
+      // 自定义 120h
+      await service.startEvaluation('p1', undefined, 120);
+      const data = prisma.bidProject.update.mock.calls[0][0].data;
+      expect(data.stage).toBe('EVALUATING');
+      const hours = (new Date(data.evaluationDeadline).getTime() - Date.now()) / 3600_000;
+      expect(hours).toBeGreaterThan(119);
+      expect(hours).toBeLessThan(121);
+
+      // 缺省 → 72h
+      await service.startEvaluation('p1');
+      const data2 = prisma.bidProject.update.mock.calls[1][0].data;
+      const hours2 = (new Date(data2.evaluationDeadline).getTime() - Date.now()) / 3600_000;
+      expect(hours2).toBeGreaterThan(71);
+      expect(hours2).toBeLessThan(73);
+    });
+
     it('N9：评标启动通知只发已确认正选专家（候补/已婉拒/未确认不再收）', async () => {
       // 自包含成功前置（复制自 H4「所有供应商到终局态时放行」用例）
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });

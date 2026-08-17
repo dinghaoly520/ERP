@@ -10,10 +10,11 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck,
+  AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck,
   Clock, FileCheck, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
 } from 'lucide-react';
 import {
+  extendEvaluation,
   generateEvaluationResults,
   getExpertMemoInkUrlForAdmin,
   listEvaluationResults,
@@ -25,6 +26,7 @@ import {
 } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
 import AiAnalysisCard from './ai-analysis-card';
+import { useBidUser } from '@/hooks/use-bid-user';
 
 type Props = {
   projectId: string;
@@ -139,6 +141,16 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   const [annotationLoading, setAnnotationLoading] = useState(false);
   const [annotationCounts, setAnnotationCounts] = useState<Record<string, number>>({});
   const [inkUrls, setInkUrls] = useState<Record<string, string>>({}); // memoId → presigned URL
+  // E2: 「自定义评标时长」（启动评标弹窗）与「评标延期审批」（弹窗）
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [durationHours, setDurationHours] = useState(72);
+  const [extendDialogOpen, setExtendDialogOpen] = useState(false);
+  const [extendHours, setExtendHours] = useState(24);
+  const [extendReason, setExtendReason] = useState('');
+  const [extendBusy, setExtendBusy] = useState(false);
+  const me = useBidUser();
+  /** 评标延期审批 leader/admin/bid_host 可见（与后端 @Roles('leader','admin','bid_host') 对齐） */
+  const canApproveExtend = me?.role === 'leader' || me?.role === 'admin' || me?.role === 'bid_host';
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
@@ -271,16 +283,36 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   }
 
   /* ── 操作 ── */
-  async function handleStartEvaluation() {
+  async function handleStartEvaluation(hours: number) {
     setBusy(true);
     try {
-      await startEvaluation(projectId);
-      showToast('评标已启动，项目进入评标阶段');
+      await startEvaluation(projectId, hours);
+      setStartDialogOpen(false);
+      showToast(`评标已启动（评标时限 ${hours} 小时），项目进入评标阶段`);
       onChanged();
     } catch (e) {
       showToast(e instanceof Error ? e.message : '启动评标失败', 'err');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleExtendEvaluation() {
+    if (!extendReason.trim()) {
+      showToast('请填写延期理由', 'err');
+      return;
+    }
+    setExtendBusy(true);
+    try {
+      const r = await extendEvaluation(projectId, { extendHours, reason: extendReason.trim() });
+      setExtendDialogOpen(false);
+      setExtendReason('');
+      showToast(`评标延期审批通过：延长 ${extendHours} 小时，新截止 ${new Date(r.evaluationDeadline).toLocaleString('zh-CN')}`);
+      onChanged();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '延期审批失败', 'err');
+    } finally {
+      setExtendBusy(false);
     }
   }
 
@@ -336,12 +368,19 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
         const remaining = Math.ceil((new Date(project.evaluationDeadline).getTime() - Date.now()) / 3600000);
         const expired = remaining <= 0;
         return (
-          <div className={`mb-3 flex items-center gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold ${expired ? '' : ''}`}
+          <div className={`mb-3 flex items-center justify-between gap-2 rounded-[12px] px-3.5 py-2 text-xs font-semibold ${expired ? '' : ''}`}
             style={{ background: expired ? 'color-mix(in oklch, var(--danger) 8%, transparent)' : 'color-mix(in oklch, var(--warning, var(--accent)) 8%, transparent)' }}>
-            <Clock size={13} className={expired ? 'text-[var(--danger)]' : 'text-[var(--accent)]'} />
-            <span className={expired ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}>
-              {expired ? `评标已超时（截止 ${new Date(project.evaluationDeadline).toLocaleString('zh-CN')}）` : `评标时限剩余约 ${remaining} 小时（截止 ${new Date(project.evaluationDeadline).toLocaleString('zh-CN')}）`}
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              <Clock size={13} className={expired ? 'text-[var(--danger)]' : 'text-[var(--accent)]'} />
+              <span className={expired ? 'text-[var(--danger)]' : 'text-[var(--muted-foreground)]'}>
+                {expired ? `评标已超时（截止 ${new Date(project.evaluationDeadline).toLocaleString('zh-CN')}）` : `评标时限剩余约 ${remaining} 小时（截止 ${new Date(project.evaluationDeadline).toLocaleString('zh-CN')}）`}
+              </span>
+            </div>
+            {canApproveExtend && (
+              <button type="button" onClick={() => setExtendDialogOpen(true)} className="neu-btn-soft !h-[30px] !text-[11px] shrink-0">
+                <CalendarClock size={12} /> 评标延期审批
+              </button>
+            )}
           </div>
         );
       })()}
@@ -377,7 +416,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
           </div>
           <button
             type="button"
-            onClick={() => void handleStartEvaluation()}
+            onClick={() => { setDurationHours(72); setStartDialogOpen(true); }}
             disabled={busy || !openingDone}
             title={openingDone ? '' : `开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 未到终局态`}
             className="neu-btn-primary !h-[32px] !text-xs shrink-0 disabled:opacity-40"
@@ -843,6 +882,87 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
           </div>
         );
       })()}
+
+      {/* ── 自定义评标时长（启动评标弹窗，E2）── */}
+      {startDialogOpen && stage === 'OPENING' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+          <div className="w-full max-w-[440px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">启动评标 · 自定义评标时长</h2>
+              <button type="button" onClick={() => setStartDialogOpen(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={16} /></button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                评标时限 = 启动评标时刻 + 时长（小时）。截止后仍可在本页经「评标延期审批」延长。
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">评标时长（小时）</label>
+              <input
+                type="number"
+                min={1}
+                max={720}
+                step={1}
+                value={durationHours}
+                onChange={(e) => setDurationHours(Math.max(1, Math.min(720, Math.floor(Number(e.target.value) || 1))))}
+                className="workbench-input w-full font-mono"
+              />
+              <p className="mt-2 text-[11px] tabular-nums text-[var(--muted-foreground)]">
+                预计截止：{new Date(Date.now() + durationHours * 3600_000).toLocaleString('zh-CN')}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+              <button type="button" onClick={() => setStartDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleStartEvaluation(durationHours)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
+                <Play size={13} /> {busy ? '启动中…' : '启动评标'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 评标延期审批（leader/admin，E2）── */}
+      {extendDialogOpen && stage === 'EVALUATING' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: 'oklch(0.2 0.02 258 / 0.4)', backdropFilter: 'blur(2px)' }}>
+          <div className="w-full max-w-[460px] rounded-[20px]" style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.88), 3px 4px 16px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">评标延期审批</h2>
+              <button type="button" onClick={() => setExtendDialogOpen(false)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={16} /></button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="mb-3 text-xs leading-5 text-[var(--muted-foreground)]">
+                当前截止：<span className="tabular-nums text-[var(--foreground)]">{project?.evaluationDeadline ? new Date(project.evaluationDeadline).toLocaleString('zh-CN') : '—'}</span>
+                {project?.evaluationDeadline && new Date(project.evaluationDeadline).getTime() < Date.now() && <span className="ml-1 font-semibold text-[var(--danger)]">（已超时）</span>}
+              </p>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数</label>
+              <input
+                type="number"
+                min={1}
+                max={720}
+                step={1}
+                value={extendHours}
+                onChange={(e) => setExtendHours(Math.max(1, Math.min(720, Math.floor(Number(e.target.value) || 1))))}
+                className="workbench-input w-full font-mono"
+              />
+              <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延期理由</label>
+              <textarea
+                value={extendReason}
+                onChange={(e) => setExtendReason(e.target.value)}
+                rows={3}
+                placeholder="请填写延期原因…"
+                className="workbench-input w-full resize-none"
+              />
+              <p className="mt-3 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                审批后将在当前截止时间（已超时则自当前时刻）基础上累加 {extendHours} 小时，并写入监督日志与审计日志。
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+              <button type="button" onClick={() => setExtendDialogOpen(false)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
+              <button type="button" onClick={() => void handleExtendEvaluation()} disabled={extendBusy || !extendReason.trim()} className="neu-btn-primary !h-[36px] !text-xs disabled:opacity-40">
+                <CalendarClock size={13} /> {extendBusy ? '审批中…' : '确认延期'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

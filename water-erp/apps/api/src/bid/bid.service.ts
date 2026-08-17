@@ -1457,7 +1457,7 @@ export class BidService {
     } catch { /* 通知失败不阻塞 */ }
   }
 
-  async startEvaluation(id: string, actorId?: string) {
+  async startEvaluation(id: string, actorId?: string, evaluationHours?: number) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: { stage: true, name: true, procurementMethod: true, roundMode: true },
@@ -1550,13 +1550,15 @@ export class BidService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, id, 'EVALUATING'); // C1: 行锁后复查阶段（含 P1-17 与评分标准编辑互斥的 FOR UPDATE）
+      // E2: 评标时限可自定义（缺省 72h，上限 720h）——「自定义评标时长」；超时可经「评标延期审批」延长
+      const hours = evaluationHours && evaluationHours > 0 ? Math.min(Math.floor(evaluationHours), 720) : 72;
       const result = await tx.bidProject.update({
         where: { id },
-        data: { stage: 'EVALUATING', evaluationDeadline: new Date(Date.now() + 72 * 60 * 60 * 1000) }, // E2: 72h 评标时限
+        data: { stage: 'EVALUATING', evaluationDeadline: new Date(Date.now() + hours * 60 * 60 * 1000) },
       });
 
       await tx.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: `启动评标 (${project.stage}→EVALUATING)`, result: '阶段变更成功', riskFlag: '无' },
+        data: { projectId: id, time: new Date(), role: '系统', target: project.name, action: `启动评标 (${project.stage}→EVALUATING)`, result: `阶段变更成功（评标时限 ${hours}h）`, riskFlag: '无' },
       });
       if (actorId) await tx.auditLog.create({ data: { userId: actorId, action: 'BID_STAGE_CHANGE', resourceType: `BidProject:${id}`, details: { from: project.stage, to: 'EVALUATING', stage: 'EVALUATING' } } });
 
@@ -2877,6 +2879,13 @@ export class BidService {
     });
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}`, riskFlag: priceNote ? '中' : '无' });
+    // 唱标记录已录入/更新 → 供应商端实时刷新（此前无此事件，供应商页唱标后不更新，只能手动刷新）
+    this.gateway?.notifyOpeningRecordUpdated(projectId, {
+      supplierId: bidSupplier.id,
+      supplierName: bidSupplier.supplierName,
+      recordId: record.id,
+      amount: Number(dto.amount),
+    });
     return record;
   }
 

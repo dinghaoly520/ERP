@@ -141,9 +141,14 @@ export function resolveExpertDispute(
 
 /* ── 评标管理 ── */
 
-/** 启动评标（OPENING → EVALUATING；前置：有专家 + 有可评供应商 + 评分标准完整） */
-export function startEvaluation(bidProjectId: string) {
-  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/start-evaluation`, {});
+/** 启动评标（OPENING → EVALUATING；前置：有专家 + 有可评供应商 + 评分标准完整）。evaluationHours：自定义评标时长（小时），缺省 72 */
+export function startEvaluation(bidProjectId: string, evaluationHours?: number) {
+  return api.post<{ stage: BidStage }>(`/bid/projects/${bidProjectId}/start-evaluation`, { evaluationHours });
+}
+
+/** 评标延期审批（leader/admin/bid_host）：在现有截止时间上累加小时数，写入监督日志（中风险）+ 审计日志 */
+export function extendEvaluation(bidProjectId: string, dto: { extendHours: number; reason: string }) {
+  return api.post<{ evaluationDeadline: string }>(`/bid/projects/${bidProjectId}/extend-evaluation`, dto);
 }
 
 export interface BidEvaluationResultInfo {

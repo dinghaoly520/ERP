@@ -15,6 +15,7 @@ import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
+import { StartEvaluationDto } from './dto/start-evaluation.dto';
 import { AssignHostDto } from './dto/assign-host.dto';
 import { ArchiveAllDto } from './dto/archive-all.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
@@ -244,8 +245,12 @@ export class BidController {
   resumeOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.resumeOpening(id, userId); }
 
   @Post('projects/:id/start-evaluation')
-  @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)' })
-  startEvaluation(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.startEvaluation(id, userId); }
+  @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)；可选 evaluationHours 自定义评标时长（缺省 72h）' })
+  startEvaluation(
+    @Param('id') id: string,
+    @Body() dto: StartEvaluationDto,
+    @CurrentUser('sub') userId: string,
+  ) { return this.bidService.startEvaluation(id, userId, dto?.evaluationHours); }
 
   @Post('projects/:id/complete-opening')
   @ApiOperation({ summary: '完成开标·资料移交（生成开标文件包回传 :3005；幂等，不改 stage）' })
@@ -754,7 +759,7 @@ export class BidController {
   }
 
   @Post('projects/:id/extend-evaluation')
-  @Roles('leader', 'admin')
+  @Roles('leader', 'admin', 'bid_host')
   @ApiOperation({ summary: '审批延期评标（延长 evaluationDeadline）' })
   extendEvaluation(
     @Param('id') id: string,
