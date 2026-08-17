@@ -385,6 +385,10 @@ export class BidService {
     // 配置开关：评标期间对主持端匿名化专家身份（同 listScores）。
     // 2026-08-15 审计整改：默认开启（未配置视为开启，显式 =false 才关闭）；
     // 匿名标签按 expertId 排序稳定编号（专家 1/2/…），刷新不换号，矩阵行间可区分。
+    // 2026-08-17 方案 A（角色分层实名）：admin/bid_host 是现场组织者，评标期间需实名管理
+    // 专家（点名/签到核对/打印签字/面对面沟通）——expertName 保留实名并额外下发 anonLabel，
+    // 评分矩阵/排名/偏差清单仍按 anonLabel 呈现（组织视图实名、评分视图匿名）；
+    // 其余角色（leader/staff/其他）维持原匿名口径。实名查看写监督日志留痕（logExpertRosterView）。
     const anonymize = process.env.EXPERT_SCORE_ANONYMIZED_DURING_EVAL !== 'false';
     if (anonymize) {
       const allConfirmed = project.experts.length > 0 && project.experts.every(e => e.reportConfirmed);
@@ -392,11 +396,18 @@ export class BidService {
         const anonLabel = new Map(
           [...project.experts].map(e => e.id).sort().map((id, i) => [id, `专家 ${i + 1}`]),
         );
+        const privileged = !!actor && (actor.role === 'admin' || actor.role === 'bid_host');
         project.experts = project.experts.map(e => ({
           ...e,
-          expertName: anonLabel.get(e.id) ?? '专家',
+          // 评分视图匿名标签（矩阵等）——所有角色统一使用
+          anonLabel: anonLabel.get(e.id) ?? '专家',
+          // 组织视图：特权角色保留实名，其余角色匿名
+          expertName: privileged ? e.expertName : (anonLabel.get(e.id) ?? '专家'),
           scoreRecords: e.scoreRecords.map(r => ({ ...r, expertId: null } as unknown as typeof r)),
         })) as typeof project.experts;
+        if (privileged && actor) {
+          void this.logExpertRosterView(project.id, actor);
+        }
       }
     }
 
@@ -418,6 +429,42 @@ export class BidService {
       return sanitizeForBidHost(enriched);
     }
     return enriched;
+  }
+
+  /** 方案 A 留痕：特权角色（admin/bid_host）评标期间查看专家实名名单写监督日志。
+   *  按 operatorId+action 30 分钟去重，避免详情轮询刷屏。 */
+  private async logExpertRosterView(
+    projectId: string,
+    actor: { id: string; role: string },
+  ): Promise<void> {
+    try {
+      const windowStart = new Date(Date.now() - 30 * 60_000);
+      const recent = await this.prisma.bidSupervisionLog.findFirst({
+        where: {
+          projectId,
+          operatorId: actor.id,
+          action: '查看专家实名名单',
+          time: { gte: windowStart },
+        },
+        select: { id: true },
+      });
+      if (recent) return;
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId,
+          time: new Date(),
+          role: actor.role === 'admin' ? '管理员' : '开标主持人',
+          target: '评标管理',
+          action: '查看专家实名名单',
+          result: '角色分层实名：现场组织者可见专家实名（评分矩阵与分数仍按编号匿名）',
+          riskFlag: '低',
+          operatorId: actor.id,
+          operatorRole: actor.role,
+        },
+      });
+    } catch (e) {
+      this.logger.warn(`专家实名查看留痕失败: ${(e as Error).message}`);
+    }
   }
 
   /** 项目工作台：聚合项目 + 供应商(含投标提交) + 专家组 + 统计，供采购管理端判断开标准备 */

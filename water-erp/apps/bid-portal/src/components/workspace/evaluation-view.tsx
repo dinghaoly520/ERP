@@ -510,7 +510,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
           <div>
             {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
             <p className="mb-1.5 text-[10px] text-[var(--muted-foreground)]">
-              评分期间专家按「专家 1/2/…」稳定编号显示（互不可见他人分数）；全部专家确认评审报告后恢复实名。
+              评分矩阵与分数明细在评标期间按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；现场组织者（主持人/管理员）可在专家状态卡片查看实名，用于签到、签字与现场沟通（查看留痕）；全部专家确认评审报告后恢复实名。
             </p>
             <div className="overflow-x-auto rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
             <table className="w-full min-w-[560px] text-left text-xs">
@@ -526,7 +526,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                 {experts.map(expert => (
                   <Fragment key={expert.id}>
                     <tr style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.1)' }}>
-                      <td className="px-3.5 py-2 font-medium text-[var(--foreground)]">{expert.expertName}</td>
+                      <td className="px-3.5 py-2 font-medium text-[var(--foreground)]">{expert.anonLabel ?? expert.expertName}</td>
                       {suppliers.map(s => {
                         const cell = matrix.get(expert.id)?.get(s.id);
                         const scored = cell && cell.scoredCount > 0;
@@ -570,7 +570,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                           <td colSpan={suppliers.length + 1} className="px-6 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.35)', borderTop: '1px dashed oklch(0.6 0.04 258 / 0.12)' }}>
                             <div className="mb-1 flex items-center justify-between">
                               <span className="text-[10px] font-bold text-[var(--muted-foreground)]">
-                                {expert.expertName} → {supplier?.supplierName} · {cell.totalScore.toFixed(1)}/{cell.maxScore}（{cell.scoredCount}/{scoreItems.length} 项）
+                                {expert.anonLabel ?? expert.expertName} → {supplier?.supplierName} · {cell.totalScore.toFixed(1)}/{cell.maxScore}（{cell.scoredCount}/{scoreItems.length} 项）
                               </span>
                               <button type="button" onClick={() => setExpandedCell(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><X size={11} /></button>
                             </div>
@@ -744,7 +744,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                         <div key={i} className="flex items-center gap-2 rounded-[10px] px-3 py-2" style={{ background: 'color-mix(in oklch, var(--danger) 7%, transparent)' }}>
                           <AlertTriangle size={12} className="shrink-0 text-[var(--danger)]" />
                           <span className="flex-1 text-[11px]">
-                            <b>{a.expert.expertName}</b> 对 <b>{a.supplier.supplierName}</b> 打分
+                            <b>{a.expert.anonLabel ?? a.expert.expertName}</b> 对 <b>{a.supplier.supplierName}</b> 打分
                             <b className="mx-1 tabular-nums" style={{ color: 'var(--danger)' }}>{a.pct.toFixed(1)}%</b>
                             （全体均分 <b className="tabular-nums">{a.avg.toFixed(1)}%</b>）
                           </span>
@@ -795,7 +795,8 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
       {/* 批注查看弹窗 */}
       {annotationCell && (() => {
         const [exId, spId] = annotationCell.split(':');
-        const expertName = experts.find(e => e.id === exId)?.expertName ?? '';
+        const expert = experts.find(e => e.id === exId);
+        const expertName = expert ? (expert.anonLabel ?? expert.expertName) : '';
         const supplierName = suppliers.find(s => s.id === spId)?.supplierName ?? '';
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-6"

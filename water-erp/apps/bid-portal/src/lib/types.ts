@@ -54,6 +54,9 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
   }>;
   experts: (SharedBidExpert & {
     expertRole?: string; // EXPERT_ROLE.REGULAR | EXPERT_ROLE.ALTERNATE（Prisma BidExpert.expertRole）
+    /** 方案 A（角色分层实名）：评标期间后端下发的稳定编号（专家 1/2/…），评分矩阵/偏差/批注用；
+     *  组织卡片用 expertName（特权角色为实名）。全部确认后不再下发。 */
+    anonLabel?: string;
     scoreRecords: ExpertScoreRecordInfo[];
   })[];
   scoreItems: (Omit<SharedBidScoreItem, 'category'> & { category: ScoreCategory })[];
