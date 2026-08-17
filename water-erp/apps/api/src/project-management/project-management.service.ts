@@ -11,6 +11,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
 import { htmlToDocxChildren } from './docx/html-to-docx.converter';
+import { getTenderTextCachePath, isLabelLine, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getComplianceCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName } from './docx/file-utils';
 import { parseArchiveTxt } from './docx/archive-txt-parser';
 import { decodeXmlText, extractPlainText, applyTextToParagraphXml } from './docx/paragraph-xml';
 import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractContractAmountFromText, extractAwardedSupplierFromAwardTable, extractAwardedSupplierFromContract, extractContractNumberFromText, extractExpertInfoFromText, extractProjectOverviewFromText } from './docx/field-extractor';
@@ -403,7 +404,7 @@ export class ProjectManagementService {
     });
     const procurementMethod = itemMeta?.procurementMethod ?? undefined;
 
-    const cachePath = this.getTenderTextCachePath(itemId);
+    const cachePath = getTenderTextCachePath(itemId);
     let text: string;
     try {
       text = await readFile(cachePath, 'utf8');
@@ -816,7 +817,7 @@ export class ProjectManagementService {
     }
 
     // 同名文件覆盖：先删除旧版本再上传新版本（采购文件只需保留最新一份）
-    const decodedNewFileName = this.normalizeUploadedFileName(file.originalname);
+    const decodedNewFileName = normalizeUploadedFileName(file.originalname);
     const duplicate = stage.attachments.find(
       (a) => a.fileName === decodedNewFileName,
     );
@@ -831,7 +832,7 @@ export class ProjectManagementService {
     );
 
     // Decode filename (Multer sends latin1-encoded UTF-8)
-    const decodedFileName = this.normalizeUploadedFileName(file.originalname).toLowerCase();
+    const decodedFileName = normalizeUploadedFileName(file.originalname).toLowerCase();
 
     // For AWARD_DECISION and BID_EVALUATION stages, extract info from the document
     if (stageKey === 'AWARD_DECISION' || stageKey === 'BID_EVALUATION') {
@@ -3111,7 +3112,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   /** 读取某阶段上传文件的内容上下文：优先 AI 分析缓存，回退附件原文（带截断保护）。 */
   private async getStageFileContext(itemId: string, stageKey: string): Promise<string> {
     try {
-      const cachePath = this.getStageAnalysisCachePath(itemId, stageKey);
+      const cachePath = getStageAnalysisCachePath(itemId, stageKey);
       const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
         files?: Array<{ fileName?: string; contentSummary?: string }>;
       };
@@ -3178,7 +3179,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // Load file analysis cache and project summary
-    const summaryCachePath = this.getProjectSummaryCachePath(project.id);
+    const summaryCachePath = getProjectSummaryCachePath(project.id);
     let summary = '';
     try {
       const cachedSummary = JSON.parse(await readFile(summaryCachePath, 'utf8')) as { summary?: string };
@@ -3189,7 +3190,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     const stageAnalysisMap = new Map<string, Array<{ fileName: string; contentSummary: string }>>();
     for (const stage of stages) {
-      const cachePath = this.getStageAnalysisCachePath(project.id, stage.stageKey);
+      const cachePath = getStageAnalysisCachePath(project.id, stage.stageKey);
       try {
         const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
           files?: Array<{ fileName: string; contentSummary: string }>;
@@ -3371,7 +3372,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    const summaryCachePath = this.getProjectSummaryCachePath(projectId);
+    const summaryCachePath = getProjectSummaryCachePath(projectId);
 
     // Collect all attachments
     const allAttachments = project.stages.flatMap((stage) =>
@@ -3383,7 +3384,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (allAttachments.length === 0) {
       const emptySummary = '当前项目尚未上传可供分析的材料，暂无法生成项目简报。';
-      await mkdir(this.getUploadDir(), { recursive: true });
+      await mkdir(getUploadDir(), { recursive: true });
       await writeFile(
         summaryCachePath,
         JSON.stringify({ summary: emptySummary }, null, 2),
@@ -3397,8 +3398,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     for (const stage of project.stages) {
       if (stage.attachments.length === 0) continue;
 
-      const stageAnalysisCachePath = this.getStageAnalysisCachePath(projectId, stage.stageKey);
-      const fingerprint = this.buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
+      const stageAnalysisCachePath = getStageAnalysisCachePath(projectId, stage.stageKey);
+      const fingerprint = buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
 
       let cachedFiles: Array<{
         objectKey: string;
@@ -3468,12 +3469,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
           cachedFiles = analysis.fileAnalyses.map((file) => ({
             objectKey: file.objectKey,
             fileName: file.fileName,
-            stageMatch: this.normalizeStageMatchText(file.stageMatch),
+            stageMatch: normalizeStageMatchText(file.stageMatch),
             contentSummary: file.contentSummary,
           }));
 
           // Cache the stage analysis
-          await mkdir(this.getUploadDir(), { recursive: true });
+          await mkdir(getUploadDir(), { recursive: true });
           await writeFile(
             stageAnalysisCachePath,
             JSON.stringify({ fingerprint, files: cachedFiles }, null, 2),
@@ -3518,7 +3519,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       isCompleted,
     });
 
-    await mkdir(this.getUploadDir(), { recursive: true });
+    await mkdir(getUploadDir(), { recursive: true });
     await writeFile(
       summaryCachePath,
       JSON.stringify({ summary }, null, 2),
@@ -3552,7 +3553,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // 检查合规审查缓存：指纹匹配时直接返回
-    const complianceCachePath = this.getComplianceCachePath(projectId, targetStage.stageKey);
+    const complianceCachePath = getComplianceCachePath(projectId, targetStage.stageKey);
 
     // 步骤分析 fingerprint（供应商邀请/专家抽取）：名单变更 → 合规缓存失效
     let stepFingerprint = '';
@@ -3564,7 +3565,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         stepFingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
       }
     }
-    const fingerprint = this.buildStageAnalysisFingerprint(targetStage.stageKey, targetStage.attachments) + (stepFingerprint ? `|step:${stepFingerprint}` : '');
+    const fingerprint = buildStageAnalysisFingerprint(targetStage.stageKey, targetStage.attachments) + (stepFingerprint ? `|step:${stepFingerprint}` : '');
     if (!force) {
       try {
         const cached = JSON.parse(await readFile(complianceCachePath, 'utf8')) as {
@@ -3586,7 +3587,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 收集当前阶段的文件分析结果（如果有缓存）
     const stageFiles: Array<{ fileName: string; stageMatch: string; contentSummary: string }> = [];
     if (targetStage.attachments.length > 0) {
-      const cachePath = this.getStageAnalysisCachePath(projectId, targetStage.stageKey);
+      const cachePath = getStageAnalysisCachePath(projectId, targetStage.stageKey);
       try {
         const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
           files?: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>;
@@ -3612,7 +3613,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     let stepAnalysisContent: string | undefined;
     if (targetStage.stageKey === 'SUPPLIER_INVITATION' || targetStage.stageKey === 'EXPERT_SELECTION') {
       try {
-        const stepCache = JSON.parse(await readFile(this.getStepAnalysisCachePath(projectId, targetStage.stageKey), 'utf8')) as { content?: string };
+        const stepCache = JSON.parse(await readFile(getStepAnalysisCachePath(projectId, targetStage.stageKey), 'utf8')) as { content?: string };
         if (stepCache.content?.trim()) {
           stepAnalysisContent = stepCache.content.trim();
         }
@@ -3645,7 +3646,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
 
     // 写入合规审查缓存（含指纹）
-    await mkdir(this.getUploadDir(), { recursive: true });
+    await mkdir(getUploadDir(), { recursive: true });
     await writeFile(
       complianceCachePath,
       JSON.stringify({ fingerprint, results: result.results, summary: result.summary }, null, 2),
@@ -3686,7 +3687,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const fingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
 
     // 读缓存
-    const cachePath = this.getStepAnalysisCachePath(projectId, stageKey);
+    const cachePath = getStepAnalysisCachePath(projectId, stageKey);
     if (!forceRefresh) {
       try {
         const cached = JSON.parse(await readFile(cachePath, 'utf8')) as { fingerprint?: string; content?: string };
@@ -3741,7 +3742,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const content = await this.aiService.chat(systemPrompt, userPrompt, 0.4);
 
     // 写缓存
-    await mkdir(this.getUploadDir(), { recursive: true });
+    await mkdir(getUploadDir(), { recursive: true });
     await writeFile(cachePath, JSON.stringify({ fingerprint, content }, null, 2), 'utf8');
 
     return { content, empty: false };
@@ -3763,7 +3764,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // Load the project summary from cache, or generate if missing (but only when there are files to analyze)
-    const summaryCachePath = this.getProjectSummaryCachePath(project.id);
+    const summaryCachePath = getProjectSummaryCachePath(project.id);
     let summary = '';
     let summaryFromCache = false;
 
@@ -3796,8 +3797,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     for (const stage of stagesToAnalyze) {
       if (stage.attachments.length === 0) continue;
 
-      const cachePath = this.getStageAnalysisCachePath(project.id, stage.stageKey);
-      const fingerprint = this.buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
+      const cachePath = getStageAnalysisCachePath(project.id, stage.stageKey);
+      const fingerprint = buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
 
       let stageFiles: Array<{
         objectKey: string;
@@ -3879,7 +3880,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
             newFileAnalyses = analysis.fileAnalyses.map((file) => ({
               ...file,
-              stageMatch: this.normalizeStageMatchText(file.stageMatch),
+              stageMatch: normalizeStageMatchText(file.stageMatch),
             }));
           }
         }
@@ -3905,7 +3906,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
         if (stageFiles.length > 0 || stage.attachments.length === 0) {
           // Cache the stage analysis
-          await mkdir(this.getUploadDir(), { recursive: true });
+          await mkdir(getUploadDir(), { recursive: true });
           await writeFile(cachePath, JSON.stringify({ fingerprint, files: stageFiles }, null, 2), 'utf8');
         }
       }
@@ -3913,7 +3914,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       if (stageFiles) {
         allFileAnalyses.push(...stageFiles.map((f) => ({
           ...f,
-          stageMatch: this.normalizeStageMatchText(f.stageMatch),
+          stageMatch: normalizeStageMatchText(f.stageMatch),
         })));
       }
     }
@@ -3948,7 +3949,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         });
         summary = generated;
         // Cache the generated summary
-        await mkdir(this.getUploadDir(), { recursive: true });
+        await mkdir(getUploadDir(), { recursive: true });
         await writeFile(summaryCachePath, JSON.stringify({ summary: generated }, null, 2), 'utf8');
       } catch {
         summary = '项目简报生成中，请稍后点击刷新。';
@@ -3977,7 +3978,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    const summaryCachePath = this.getProjectSummaryCachePath(projectId);
+    const summaryCachePath = getProjectSummaryCachePath(projectId);
 
     try {
       const cachedSummary = JSON.parse(
@@ -4351,7 +4352,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         select: { stageKey: true, id: true },
       });
       if (stage) {
-        const cachePath = this.getStageAnalysisCachePath(projectId, stage.stageKey);
+        const cachePath = getStageAnalysisCachePath(projectId, stage.stageKey);
         try {
           const cachedRaw = await readFile(cachePath, 'utf8');
           const cached = JSON.parse(cachedRaw) as {
@@ -4377,7 +4378,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
                 },
                 select: { objectKey: true, fileSize: true, createdAt: true },
               });
-              const newFingerprint = this.buildStageAnalysisFingerprint(
+              const newFingerprint = buildStageAnalysisFingerprint(
                 stage.stageKey,
                 remainingAttachments,
               );
@@ -4553,7 +4554,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     stopLabels: string[],
   ) {
     const section = this.collectSection(lines, label, stopLabels);
-    return section.find((line) => !this.isLabelLine(line)) ?? '';
+    return section.find((line) => !isLabelLine(line)) ?? '';
   }
 
   private findRequesterNameFromLayout(lines: string[]) {
@@ -5021,125 +5022,19 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
 
-  private getTenderTextCachePath(projectId: string): string {
-    // /tmp 始终可写，避免 uploads/project-management 目录不存在
-    const dir = join('/tmp', 'project-management-cache');
-    mkdir(dir, { recursive: true }).catch(() => {});
-    return join(dir, `tender-text-${projectId}.txt`);
-  }
-  private isLabelLine(line: string) {
-    return [
-      '需求申请人',
-      '需求部门',
-      '申请采购事项名称',
-      '采购方式',
-      '采购类别',
-      '采购组织形式',
-      '是否属于年度预算',
-      '申请立项事由',
-      '对供方的主要要求',
-      '所属项目/合同及编号',
-    ].includes(line);
-  }
-
-  private normalizeStageMatchText(stageMatch: string) {
-    return stageMatch
-      .replace(/INITIATION/g, '项目立项')
-      .replace(/TENDER_DOCUMENT/g, '采购文件')
-      .replace(/PUBLIC_ANNOUNCEMENT/g, '采购公示')
-      .replace(/EXPERT_SELECTION/g, '专家抽取')
-      .replace(/BID_EVALUATION/g, '评标过程')
-      .replace(/AWARD_DECISION/g, '定标')
-      .replace(/CONTRACT/g, '合同');
-  }
-
-  private getUploadDir() {
-    return resolve(process.cwd(), 'uploads', 'project-management');
-  }
-
-  private getProjectSummaryCachePath(projectId: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `summary-${projectId}.json`,
-    );
-  }
-
-  private getStageAnalysisCachePath(projectId: string, stageKey: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `analysis-${projectId}-${stageKey.toLowerCase()}.json`,
-    );
-  }
-
-  private getComplianceCachePath(projectId: string, stageKey: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `compliance-${projectId}-${stageKey.toLowerCase()}.json`,
-    );
-  }
-
-  private getStepAnalysisCachePath(projectId: string, stageKey: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `step-${projectId}-${stageKey.toLowerCase()}.json`,
-    );
-  }
-
-  private buildStageAnalysisFingerprint(
-    stageKey: string,
-    attachments: Array<{
-      objectKey: string;
-      createdAt?: Date | null;
-      fileSize: number;
-    }>,
-  ) {
-    const fileSignature = attachments
-      .map((attachment) =>
-        [attachment.objectKey, attachment.fileSize].join('@'),
-      )
-      .sort()
-      .join('|');
-
-    return `${stageKey}:${fileSignature}`;
-  }
-
-  private sanitizeFileName(fileName: string) {
-    const normalizedFileName = this.normalizeUploadedFileName(fileName);
-    const base = basename(normalizedFileName, extname(normalizedFileName));
-    const extension = extname(normalizedFileName) || '.bin';
-    const safeBase = base.replace(/[^a-zA-Z0-9一-龥_-]+/g, '-');
-    return `${safeBase}${extension}`;
-  }
-
-  private normalizeUploadedFileName(fileName: string) {
-    if (/[\x00-\x7f]*[一-龥]/.test(fileName)) {
-      return fileName;
-    }
-
-    const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
-    return decoded.includes('�') ? fileName : decoded;
-  }
 
   private async persistUploadedFile(
     file: Express.Multer.File,
     prefix: string,
     uploadedById?: string,
   ) {
-    const uploadDir = this.getUploadDir();
+    const uploadDir = getUploadDir();
     await mkdir(uploadDir, { recursive: true });
 
-    const normalizedFileName = this.normalizeUploadedFileName(
+    const normalizedFileName = normalizeUploadedFileName(
       file.originalname,
     );
-    const storedFileName = `${Date.now()}-${prefix}-${this.sanitizeFileName(normalizedFileName)}`;
+    const storedFileName = `${Date.now()}-${prefix}-${sanitizeFileName(normalizedFileName)}`;
     const absolutePath = resolve(uploadDir, storedFileName);
 
     await writeFile(absolutePath, file.buffer);
