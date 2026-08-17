@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSupplierStore } from '@/stores/supplier'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -33,6 +33,21 @@ function stageColor(stage: string): string {
 onMounted(async () => {
   try { await supplierStore.fetchBidSubmissions() } catch { error.value = true }
   finally { loading.value = false; firstLoad.value = false }
+})
+
+// 实时兜底：回到页面（焦点/可见）自动重载——阶段流转（在线开标/专家评标/已归档）即时反映
+function onPageVisible() {
+  if (document.visibilityState === 'visible' && !loading.value && !firstLoad.value) {
+    supplierStore.fetchBidSubmissions().catch(() => {})
+  }
+}
+onMounted(() => {
+  window.addEventListener('focus', onPageVisible)
+  document.addEventListener('visibilitychange', onPageVisible)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', onPageVisible)
+  document.removeEventListener('visibilitychange', onPageVisible)
 })
 
 function retryLoad() {
