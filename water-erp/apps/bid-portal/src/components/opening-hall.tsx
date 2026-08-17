@@ -293,24 +293,31 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     finally { setRecordEntryLoading(false); }
   };
 
-  const handleEnterRecord = async (confirmSealedPrice = false) => {
+  const handleEnterRecord = async (confirmSealedPrice = false, confirmSealedPeriod = false) => {
     if (!projectId || !recordEntry) return;
     const { amount, period, qualityTarget, bondStatus } = recordDraft;
     if (!amount.trim() || !period.trim() || !qualityTarget.trim() || !bondStatus.trim()) {
       toast.error('请完整填写唱标信息'); return;
     }
     try {
-      await enterOpeningRecord(projectId, { bidSupplierId: recordEntry.bidSupplierId, amount, period, qualityTarget, bondStatus, confirmSealedPrice: confirmSealedPrice || undefined });
+      await enterOpeningRecord(projectId, { bidSupplierId: recordEntry.bidSupplierId, amount, period, qualityTarget, bondStatus, confirmSealedPrice: confirmSealedPrice || undefined, confirmSealedPeriod: confirmSealedPeriod || undefined });
       toast.success('唱标信息已录入，待供应商确认');
       setRecordEntry(null);
       onRefresh();
     } catch (e: any) {
       // M9：唱标重录对锁定态记录后端返回 409 code=RECORD_LOCKED
       if (e?.code === 'RECORD_LOCKED') { toast.error('该开标记录已锁定，无法重录'); return; }
-      // P1-4：录入价与投标文件密封报价不一致——主持人显式确认后带 flag 重试
+      // P1-4：录入价与投标文件密封报价不一致——主持人显式确认后带 flag 重试（保留工期 flag 状态）
       if (e?.code === 'PRICE_MISMATCH' && !confirmSealedPrice) {
         if (window.confirm(`${e?.message ?? '录入报价与密封报价不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`)) {
-          void handleEnterRecord(true);
+          void handleEnterRecord(true, confirmSealedPeriod);
+        }
+        return;
+      }
+      // 工期一致性校验（P1-4 同构）：录入工期与投递工期不一致——确认后带 flag 重试（保留报价 flag 状态）
+      if (e?.code === 'PERIOD_MISMATCH' && !confirmSealedPeriod) {
+        if (window.confirm(`${e?.message ?? '录入工期与投递工期不一致'}\n\n是否确认按录入值唱标？（差异将记入监督日志）`)) {
+          void handleEnterRecord(confirmSealedPrice, true);
         }
         return;
       }

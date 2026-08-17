@@ -86,6 +86,8 @@ export function enterOpeningRecord(projectId: string, body: {
   bidSupplierId: string; amount: string; period: string; qualityTarget: string; bondStatus: string;
   /** P1-4：录入价与密封报价不一致时的主持人显式确认（409 PRICE_MISMATCH 后回传） */
   confirmSealedPrice?: boolean;
+  /** P1-4 同构：录入工期与投递工期不一致时的主持人显式确认（409 PERIOD_MISMATCH 后回传） */
+  confirmSealedPeriod?: boolean;
 }) {
   return api.post(`/bid/projects/${projectId}/opening-records`, body);
 }
