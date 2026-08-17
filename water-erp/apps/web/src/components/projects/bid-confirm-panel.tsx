@@ -760,24 +760,26 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   —— :3007 开标执行数据经同一 API 回流；评标管理/异议裁决/澄清答疑已迁 :3007（分工 v3，2026-08-13） */}
               {/* D1/G2: 专家在线 + 监督时间线 */}
               {bpId && (
-                <div className="mb-3 rounded-xl bg-[#f8fbff] px-4 py-2 text-xs">
-                  <div className="flex flex-wrap items-center gap-3">
-                    {expertOnlineCount > 0 && (
-                      <span className="flex items-center gap-1 font-semibold text-[var(--success)]">
+                <SectionCard
+                  icon={<Shield size={14} />}
+                  title="监督时间线"
+                  accent="var(--stage-evaluation)"
+                  accentSoft="var(--stage-evaluation-soft)"
+                  action={
+                    expertOnlineCount > 0 ? (
+                      <span className="flex items-center gap-1 text-xs font-semibold text-[var(--success)]">
                         <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
                         专家在线 {expertOnlineCount} 人
                       </span>
-                    )}
-                    <span className="flex items-center gap-1 text-[var(--accent)]">
-                      <Shield size={12} /> 监督时间线
-                    </span>
-                  </div>
+                    ) : undefined
+                  }
+                >
                   {/* G2: 监督日志表（全量滚动 + 风险高亮） */}
                   {detail?.supervisionLogs && detail.supervisionLogs.length > 0 && (() => {
                     const logs = detail.supervisionLogs.slice().reverse();
                     const highRiskCount = logs.filter((l: any) => l.riskFlag === '高风险').length;
                     return (
-                      <div className="mt-2">
+                      <div>
                         <div className="mb-1 flex items-center gap-2 text-[10px] text-[var(--muted-foreground)]">
                           <span>{logs.length} 条记录</span>
                           {highRiskCount > 0 && <span className="font-semibold text-[var(--danger)]">{highRiskCount} 条高风险</span>}
@@ -811,7 +813,10 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                       </div>
                     );
                   })()}
-                </div>
+                  {!detail?.supervisionLogs?.length && (
+                    <p className="text-xs text-[var(--muted-foreground)]">暂无监督记录</p>
+                  )}
+                </SectionCard>
               )}
               {bpId && detail && (
                 <>
