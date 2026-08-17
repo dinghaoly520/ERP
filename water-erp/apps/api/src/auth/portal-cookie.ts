@@ -7,8 +7,16 @@ import { PORTS, type AppName } from '@water-erp/config';
  * 来隔离各门户的登录态。
  */
 
-/** 角色 → 所属门户 */
-export const ROLE_PORTAL: Record<string, string> = {
+/**
+ * 角色 → cookie 命名空间所属门户。
+ *
+ * 命名说明：此映射与 `@water-erp/config` 的 `ROLE_PORTAL`（角色 → 登录后落地门户）
+ * 语义不同——这里关心的是「该角色的登录 cookie 存在哪个命名空间」。
+ * 例如 admin 登录后浏览器跳转到 bid 门户（config.ROLE_PORTAL.admin='bid'），
+ * 但其 cookie 写在 token_web 命名空间（admin/bid_host 共用 token_web，无 token_bid）。
+ * 故本表把 admin/leader/staff 都映射到 'web'。为避免与 config 端同名常量混淆，特此改名。
+ */
+export const ROLE_COOKIE_PORTAL: Record<string, string> = {
   admin: 'web',
   bid_host: 'bid',
   leader: 'web',
@@ -22,8 +30,8 @@ export const ROLE_PORTAL: Record<string, string> = {
  * 本地端口 → 门户名。由 @water-erp/config 的 PORTS 派生，端口重分配后无需手动同步。
  *
  * 仅收录「持有登录 cookie」的门户：assistant(:3008) 公开无 cookie、api(:4001) 是服务端自身，故排除。
- * bid-portal(:3007) 复用 token_web 命名空间（admin/bid_host 的 cookie 即 token_web，无 token_bid），
- * 故把 3007 映射到 'web'，使无 X-Portal 头的客户端请求（如 AppShell 的 /auth/me）能读到 token_web。
+ * bid-portal(:3007) 使用独立的 token_bid 命名空间（auth port-roles 体系：
+ * :3006 登录分流时非 bid_expert 角色写 token_bid 后跳 :3007）。
  */
 const COOKIE_PORTALS: AppName[] = ['public', 'mall', 'supplier', 'web', 'expert', 'bid'];
 const PORT_TO_PORTAL: Record<string, string> = (() => {
@@ -42,7 +50,7 @@ export function cookieNameForPortal(portal: string): string {
 
 /** 角色对应的门户（找不到时返回 undefined） */
 export function portalForRole(role: string | undefined | null): string | undefined {
-  return role ? ROLE_PORTAL[role] : undefined;
+  return role ? ROLE_COOKIE_PORTAL[role] : undefined;
 }
 
 /**

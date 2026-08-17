@@ -1,12 +1,12 @@
-import { Controller, Get, Query, UseGuards, ForbiddenException } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
+import { Controller, Get, Query, ForbiddenException } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
-import { canViewGlobalBusinessData } from '../auth/auth-scope';
+import { canViewGlobalBusinessData, INTERNAL_ROLES } from '../auth/auth-scope';
+import { Roles } from '../common/decorators/roles.decorator';
 import { DashboardService } from './dashboard.service';
 
 @Controller('dashboard')
-@UseGuards(AuthGuard)
+@Roles(...INTERNAL_ROLES)
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 

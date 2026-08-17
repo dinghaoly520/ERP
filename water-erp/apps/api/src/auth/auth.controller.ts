@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { getClientIp } from '../common/client-ip.util';
 import { cookieNameForPortal, portalForRole, portalFromRequest, LEGACY_COOKIE } from './portal-cookie';
 import { checkPortRole } from './port-roles';
+import { PORTS } from '@water-erp/config';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -211,15 +212,18 @@ export class AuthController {
 
     // 白名单校验 redirect_uri，防止开放重定向
     // （SSO_ALLOWED_REDIRECTS：环境追加的可信商城地址，逗号分隔）
+    // mall 门户 origin 由 @water-erp/config 的 PORTS 派生（审计 D：原硬编码 :3003）；
+    // 生产经 MALL_URL 环境变量补充真实域名。
+    const mallOrigin = `http://localhost:${PORTS.mall}`;
     const ALLOWED_REDIRECTS = new Set([
-      'http://localhost:3003',
+      mallOrigin,
       ...(process.env.MALL_URL ? [process.env.MALL_URL] : []),
       ...(process.env.SSO_ALLOWED_REDIRECTS?.split(',').map((s) => s.trim()).filter(Boolean) ?? []),
     ]);
     if (redirectUri && !ALLOWED_REDIRECTS.has(redirectUri)) {
       throw new BadRequestException({ error: '非法重定向地址', code: 'INVALID_REDIRECT' });
     }
-    const mallRedirect = redirectUri || 'http://localhost:3003';
+    const mallRedirect = redirectUri || mallOrigin;
 
     if (currentUserId) {
       const currentUser = await this.prisma.user.findUnique({

@@ -1,49 +1,22 @@
-const BASE = '/api';
-const PORTAL = 'bid';
+/**
+ * bid-portal 开评标管理端 API 客户端 —— 基于 @water-erp/client 统一封装。
+ * （2026-08 审计收敛：此前为本地复制的 fetchApi 副本之一。）
+ *
+ * 注意：本门户 X-Portal 发 'bid'（auth port-roles 体系；token_bid cookie 命名空间，
+ * :3006 登录分流时由后端写入）。CLAUDE.md 中「共用 token_web」的说法是旧文，已过时。
+ */
+import { createApiClient } from '@water-erp/client';
 
-export class ApiError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
+export { ApiError } from '@water-erp/client';
 
-async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    credentials: 'include',
-    ...init,
-    headers: { 'X-Portal': PORTAL, ...((init?.headers as Record<string, string>) || {}) },
-  });
-  if (!res.ok) {
-    let code = 'UNKNOWN';
-    let message = `请求失败 (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body.code) code = body.code;
-      if (body.error) message = body.error;
-    } catch {
-      // response body is not JSON, keep default message
-    }
-    // Error handling is the caller's responsibility — each page .catch handles toast display.
-    throw new ApiError(res.status, code, message);
-  }
-  return res.json();
-}
+const client = createApiClient({ portal: 'bid' });
 
 export const api = {
-  get: <T>(path: string, init?: RequestInit) => fetchApi<T>(path, init),
-  post: <T>(path: string, body: unknown, options?: RequestInit) =>
-    fetchApi<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...options }),
-  patch: <T>(path: string, body: unknown) =>
-    fetchApi<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
-  delete: <T>(path: string) =>
-    fetchApi<T>(path, { method: 'DELETE' }),
-  upload: <T>(path: string, formData: FormData) =>
-    fetchApi<T>(path, { method: 'POST', body: formData }),
+  get: <T>(path: string, init?: RequestInit) => client.get<T>(path, init),
+  post: <T>(path: string, body: unknown, options?: RequestInit) => client.post<T>(path, body, options),
+  patch: <T>(path: string, body: unknown) => client.patch<T>(path, body),
+  delete: <T>(path: string) => client.delete<T>(path),
+  upload: <T>(path: string, formData: FormData) => client.postForm<T>(path, formData),
 };
 
 export * from './api/supplier';

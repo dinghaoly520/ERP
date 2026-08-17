@@ -1,12 +1,12 @@
-import { Controller, Get, Query, UseGuards, ForbiddenException } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
+import { Controller, Get, Query, ForbiddenException } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
-import { canViewAllUserActivity } from '../auth/auth-scope';
+import { canViewAllUserActivity, AUTHENTICATED_ROLES } from '../auth/auth-scope';
+import { Roles } from '../common/decorators/roles.decorator';
 import { AuditService } from './audit.service';
 
 @Controller('audit-log')
-@UseGuards(AuthGuard)
+@Roles(...AUTHENTICATED_ROLES)
 export class AuditController {
   constructor(private readonly auditLog: AuditService) {}
 

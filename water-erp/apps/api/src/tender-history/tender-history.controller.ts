@@ -6,19 +6,18 @@ import {
   Delete,
   Body,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { Roles } from '../common/decorators/roles.decorator';
 import { TenderHistoryService } from './tender-history.service';
 import {
   CreateTenderHistoryDto,
   QueryTenderHistoryDto,
 } from './dto/tender-history.dto';
 
-@UseGuards(AuthGuard)
 @Controller('tender-history')
+@Roles('admin', 'leader', 'staff')
 export class TenderHistoryController {
   constructor(private readonly tenderHistoryService: TenderHistoryService) {}
 

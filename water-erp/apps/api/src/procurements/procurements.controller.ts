@@ -7,9 +7,7 @@ import {
   Query,
   Param,
   Body,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -18,7 +16,6 @@ import { CreateProcurementRoundDto } from './dto/create-procurement-round.dto';
 import { UpdateProcurementRoundDto } from './dto/update-procurement-round.dto';
 import { QueryProcurementsDto } from './dto/query-procurements.dto';
 
-@UseGuards(AuthGuard)
 @Controller('procurements')
 export class ProcurementsController {
   constructor(private readonly procurementsService: ProcurementsService) {}

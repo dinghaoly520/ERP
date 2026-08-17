@@ -8,7 +8,6 @@ import {
   Body,
   UseInterceptors,
   UploadedFile,
-  UseGuards,
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -19,14 +18,12 @@ import {
   CreateKnowledgeBaseDto,
   UpdateKnowledgeBaseDto,
 } from './dto/knowledge.dto';
-import { AuthGuard } from '../auth/auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
 @ApiTags('Knowledge')
 @Controller('knowledge')
-@UseGuards(AuthGuard)
 @Roles('leader', 'admin', 'staff')
 export class KnowledgeController {
   constructor(private knowledge: KnowledgeService) {}

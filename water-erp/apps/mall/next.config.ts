@@ -1,9 +1,10 @@
 import type { NextConfig } from 'next';
+import { apiOrigin } from '@water-erp/config';
 
 const config: NextConfig = {
   allowedDevOrigins: ["*"],
   rewrites: async () => [
-    { source: '/api/:path*', destination: 'http://localhost:4001/api/:path*' },
+    { source: '/api/:path*', destination: `${apiOrigin()}/api/:path*` },
   ],
 };
 

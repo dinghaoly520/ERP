@@ -17,6 +17,10 @@
  * 注意
  *   `ProcurementProject.json` 为空——导出快照前该表数据已被一次失败的 seed 清空且未能恢复，
  *   故 BudgetList 的 procurementProjectId 一并被置空。如需采购立项演示数据，请重新创建后重跑 dump。
+ *
+ * 生产保护
+ *   NODE_ENV=production 下默认拒绝执行（避免再次误清生产数据）；
+ *   如确需执行，须显式设置 ALLOW_PROD_SEED=1。
  */
 import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
@@ -272,6 +276,15 @@ async function ensureTenderFiles() {
 }
 
 async function main() {
+  // 生产环境保护闸门：seed 会 TRUNCATE 全部业务表（已在历史上造成过一次误清事故），
+  // 在 NODE_ENV=production 下必须显式设 ALLOW_PROD_SEED=1 才放行。
+  // 开发环境（默认）不受影响。
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PROD_SEED !== '1') {
+    throw new Error(
+      '⛔ seed 脚本拒绝在生产环境执行（会 TRUNCATE 全部业务表）。\n' +
+      '   如确需在生产环境重置数据，请显式设置 ALLOW_PROD_SEED=1 后重试。',
+    );
+  }
   console.log('▶ 清空业务表（TRUNCATE … RESTART IDENTITY CASCADE）');
   // 先探测数据库中实际存在的表，避免 schema 中有但迁移未创建导致 fail-fast
   const existingTables = await prisma.$queryRawUnsafe<{ tablename: string }[]>(

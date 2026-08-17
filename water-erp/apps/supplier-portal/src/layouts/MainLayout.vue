@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useSupplierStore } from '@/stores/supplier'
@@ -12,6 +12,7 @@ import {
   Document, DocumentChecked, Bell, ChatDotRound,
   Fold, Expand, SwitchButton, User, Lock,
   Goods, Connection, Box, ArrowDown,
+  Close, View, Hide,
 } from '@element-plus/icons-vue'
 import BackToTop from '@/components/BackToTop.vue'
 import dayjs from 'dayjs'
@@ -38,6 +39,9 @@ const mobileDrawer = ref(false)
 const isMobile = ref(false)
 const pwdDialog = ref(false)
 const pwdLoading = ref(false)
+const pwdShow = ref({ old: false, newPwd: false, confirm: false })
+// 关闭即重置（对齐原 el-dialog 的 destroy-on-close 行为）
+watch(pwdDialog, (open) => { if (!open) { pwdForm.value = { old: '', newPwd: '', confirm: '' }; pwdShow.value = { old: false, newPwd: false, confirm: false } } })
 const pwdForm = ref({ old: '', newPwd: '', confirm: '' })
 
 function checkMobile() {
@@ -91,6 +95,20 @@ function handleCommand(cmd: string) {
   if (cmd === 'profile') router.push('/profile')
   else if (cmd === 'password') pwdDialog.value = true
 }
+
+// 弹窗底部动态提示：实时校验三段输入（与 ChangeRequest dlg-hint 同交互模式）
+const pwdReady = computed(() =>
+  pwdForm.value.old.trim().length > 0 &&
+  pwdForm.value.newPwd.length >= 6 &&
+  pwdForm.value.confirm === pwdForm.value.newPwd)
+const pwdHint = computed(() => {
+  const { old, newPwd, confirm } = pwdForm.value
+  if (!old.trim()) return { text: '请先输入原密码', cls: '' }
+  if (newPwd.length === 0) return { text: '请设置新密码', cls: '' }
+  if (newPwd.length < 6) return { text: `新密码还差 ${6 - newPwd.length} 位`, cls: '' }
+  if (confirm !== newPwd) return { text: '两次输入的密码不一致', cls: '' }
+  return { text: '已准备好提交', cls: 'ok' }
+})
 
 async function handleChangePassword() {
   if (pwdForm.value.newPwd !== pwdForm.value.confirm) { ElMessage.warning('两次密码不一致'); return }
@@ -274,18 +292,57 @@ notifStore.fetchUnreadCount()
       </nav>
     </el-drawer>
 
-    <!-- Change password dialog -->
-    <el-dialog v-model="pwdDialog" title="修改密码" width="420px" destroy-on-close>
-      <el-form :model="pwdForm" label-width="90px" size="large">
-        <el-form-item label="原密码"><el-input v-model="pwdForm.old" type="password" placeholder="请输入当前密码" show-password /></el-form-item>
-        <el-form-item label="新密码"><el-input v-model="pwdForm.newPwd" type="password" placeholder="不少于6位" show-password /></el-form-item>
-        <el-form-item label="确认密码"><el-input v-model="pwdForm.confirm" type="password" placeholder="请再次输入新密码" show-password /></el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="pwdDialog = false">取消</el-button>
-        <el-button type="primary" :loading="pwdLoading" @click="handleChangePassword">确认修改</el-button>
-      </template>
-    </el-dialog>
+    <!-- Change password dialog — cgzxui neumorphic (ChangeRequest dlg 同款) -->
+    <Teleport to="body"><Transition name="pdlg"><div v-if="pwdDialog" class="pwd-ov" @click.self="pwdDialog = false"><div class="pwd-pn">
+      <div class="pwd-h">
+        <div class="pwd-hl">
+          <div class="pwd-hi"><el-icon :size="20"><Lock /></el-icon></div>
+          <div>
+            <h2 class="pwd-t">修改密码</h2>
+            <p class="pwd-sub">修改后下次登录使用新密码</p>
+          </div>
+        </div>
+        <button class="pwd-x" @click="pwdDialog = false"><el-icon :size="18"><Close /></el-icon></button>
+      </div>
+      <div class="pwd-b">
+        <div class="pwd-f">
+          <label>原密码 <i>*</i></label>
+          <div class="pwd-iw">
+            <input class="pwd-inp" v-model="pwdForm.old" :type="pwdShow.old ? 'text' : 'password'" placeholder="请输入当前密码" autocomplete="current-password" />
+            <button type="button" class="pwd-eye" :class="{ on: pwdShow.old }" @click="pwdShow.old = !pwdShow.old" tabindex="-1">
+              <el-icon :size="15"><component :is="pwdShow.old ? View : Hide" /></el-icon>
+            </button>
+          </div>
+        </div>
+        <div class="pwd-f">
+          <label>新密码 <i>*</i></label>
+          <div class="pwd-iw">
+            <input class="pwd-inp" v-model="pwdForm.newPwd" :type="pwdShow.newPwd ? 'text' : 'password'" placeholder="不少于6位，建议字母+数字组合" autocomplete="new-password" />
+            <button type="button" class="pwd-eye" :class="{ on: pwdShow.newPwd }" @click="pwdShow.newPwd = !pwdShow.newPwd" tabindex="-1">
+              <el-icon :size="15"><component :is="pwdShow.newPwd ? View : Hide" /></el-icon>
+            </button>
+          </div>
+        </div>
+        <div class="pwd-f">
+          <label>确认新密码 <i>*</i></label>
+          <div class="pwd-iw">
+            <input class="pwd-inp" v-model="pwdForm.confirm" :type="pwdShow.confirm ? 'text' : 'password'" placeholder="请再次输入新密码" autocomplete="new-password" @keyup.enter="handleChangePassword" />
+            <button type="button" class="pwd-eye" :class="{ on: pwdShow.confirm }" @click="pwdShow.confirm = !pwdShow.confirm" tabindex="-1">
+              <el-icon :size="15"><component :is="pwdShow.confirm ? View : Hide" /></el-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="pwd-ft">
+        <span class="pwd-hint" :class="pwdHint.cls">{{ pwdHint.text }}</span>
+        <div class="pwd-acts">
+          <button class="neu-btn-soft" @click="pwdDialog = false">取消</button>
+          <button class="neu-btn-primary" :disabled="!pwdReady || pwdLoading" @click="handleChangePassword">
+            <span v-if="pwdLoading">提交中…</span><template v-else><el-icon :size="15"><Lock /></el-icon>确认修改</template>
+          </button>
+        </div>
+      </div>
+    </div></div></Transition></Teleport>
     <BackToTop />
   </div>
 </template>
@@ -822,5 +879,53 @@ notifStore.fetchUnreadCount()
   .sp-user-name {
     display: none;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Change password dialog — cgzxui neumorphic
+   规格对齐 ChangeRequest .dlg-*（同款头部图标井 / footer hint / neu 按钮）
+   ═══════════════════════════════════════════════════════════ */
+.pwd-ov { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 32px; background: oklch(0.35 0.06 258 / 0.28); }
+.pwd-pn { position: relative; width: 420px; max-width: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: 20px; background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258)); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18); }
+
+.pwd-h { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 26px 16px; border-bottom: 1px solid var(--hairline); }
+.pwd-hl { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.pwd-hi { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: oklch(0.985 0.005 258); color: var(--brand); box-shadow: inset 2.5px 2.5px 5px oklch(0.55 0.03 258 / 0.14), inset -2px -2px 5px oklch(1 0 0 / 0.75); flex-shrink: 0; }
+.pwd-t { margin: 0; font-size: 18px; font-weight: 900; color: var(--foreground); }
+.pwd-sub { margin: 3px 0 0; font-size: 12px; color: var(--muted-foreground); }
+.pwd-x { width: 34px; height: 34px; border-radius: 10px; border: none; background: var(--surface); color: var(--muted-foreground); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85); transition: all .2s ease; }
+.pwd-x:hover { color: var(--brand); transform: translateY(-1px); }
+.pwd-x:active { box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
+
+.pwd-b { padding: 20px 26px 6px; display: flex; flex-direction: column; gap: 16px; }
+.pwd-f { display: flex; flex-direction: column; gap: 7px; }
+.pwd-f label { font-size: 12.5px; font-weight: 700; color: var(--foreground); }
+.pwd-f label i { color: var(--danger); font-style: normal; }
+.pwd-iw { position: relative; }
+.pwd-inp { width: 100%; height: 44px; padding: 0 42px 0 14px; font: inherit; font-size: 14px; color: var(--ink); background: oklch(0.99 0.004 258); border: 1px solid oklch(0.78 0.03 258 / 0.4); border-radius: 9px; outline: none; box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7); transition: all .2s ease; }
+.pwd-inp::placeholder { color: oklch(0.74 0.02 258); }
+.pwd-inp:focus { border-color: oklch(0.5 0.16 258 / 0.5); box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08); }
+.pwd-eye { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border: none; border-radius: 8px; background: transparent; color: oklch(0.62 0.02 258); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s ease; }
+.pwd-eye:hover { color: var(--brand); background: oklch(0.5 0.16 258 / 0.06); }
+.pwd-eye.on { color: var(--brand); }
+
+.pwd-ft { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 26px; border-top: 1px solid var(--hairline); background: oklch(1 0 0 / 0.3); }
+.pwd-hint { font-size: 12px; color: var(--muted-foreground); }
+.pwd-hint.ok { color: var(--success); font-weight: 700; }
+.pwd-acts { display: flex; align-items: center; gap: 10px; }
+/* footer 内按钮统一 38px（cgzxui .neu-btn-group 规范：主次按钮等高） */
+.pwd-acts .neu-btn-primary { height: 38px; font-size: 13px; padding: 0 20px; }
+.pwd-acts .neu-btn-soft { height: 38px; }
+
+/* 过渡 — 同 ChangeRequest dlg */
+.pdlg-enter-active, .pdlg-leave-active { transition: opacity .22s; }
+.pdlg-enter-active .pwd-pn, .pdlg-leave-active .pwd-pn { transition: transform .26s cubic-bezier(.22,.61,.36,1), opacity .22s; }
+.pdlg-enter-from, .pdlg-leave-to { opacity: 0; }
+.pdlg-enter-from .pwd-pn, .pdlg-leave-to .pwd-pn { transform: scale(.96) translateY(12px); opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pwd-x, .pwd-eye, .pwd-inp { transition: none !important; }
+  .pdlg-enter-active, .pdlg-leave-active,
+  .pdlg-enter-active .pwd-pn, .pdlg-leave-active .pwd-pn { transition: none !important; }
 }
 </style>

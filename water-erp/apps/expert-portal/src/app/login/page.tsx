@@ -25,7 +25,7 @@ const IconEyeOff = (
 
 type Tab = 'expert' | 'admin';
 
-/** 管理员 Tab 接受的 web 端角色（与后端 portal-cookie 的 ROLE_PORTAL 对齐） */
+/** 管理员 Tab 接受的 web 端角色（与后端 portal-cookie 的 ROLE_COOKIE_PORTAL 对齐：admin/bid_host/leader/staff 共用 token_web 命名空间） */
 const WEB_ROLES = ['admin', 'bid_host', 'leader', 'staff'];
 
 // Dev-only demo accounts — stripped to empty in production builds.

@@ -2,6 +2,20 @@ import type { AuthenticatedUser } from './auth.types';
 
 export type AuthRole = 'admin' | 'leader' | 'staff' | 'bid_host' | 'supplier' | 'bid_expert' | 'mall';
 
+/**
+ * 所有「已登录即合法」的角色全集。
+ *
+ * 用于那些「任何已登录用户都可访问自己的数据」类端点（如通知、个人设置、个人印记、
+ * 文件上传），与 RolesGuard 的默认放行行为等价，但显式声明可让授权意图可读、可审计，
+ * 并为将来 RolesGuard 改为默认拒绝时无需再补装饰器。
+ */
+export const AUTHENTICATED_ROLES: readonly AuthRole[] = [
+  'admin', 'leader', 'staff', 'bid_host', 'supplier', 'bid_expert', 'mall',
+];
+
+/** 内部角色（采购办/开标现场）—— 可查看全局业务数据。 */
+export const INTERNAL_ROLES: readonly AuthRole[] = ['admin', 'leader', 'staff', 'bid_host'];
+
 /** Admin 和 bid_host 可以查看全局业务数据 */
 export function canViewGlobalBusinessData(role: string): boolean {
   return role === 'leader' || role === 'admin' || role === 'bid_host' || role === 'staff';

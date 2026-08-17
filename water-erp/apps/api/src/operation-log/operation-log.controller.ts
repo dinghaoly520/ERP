@@ -1,6 +1,5 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '../auth/auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -9,7 +8,6 @@ import type { OperationLogQuery } from './operation-log.types';
 
 @ApiTags('操作日志')
 @Controller('operation-log')
-@UseGuards(AuthGuard)
 export class OperationLogController {
   constructor(private readonly service: OperationLogService) {}
 

@@ -3,6 +3,8 @@
     "module": "commonjs",
     "declaration": true,
     "target": "ES2021",
+    "lib": ["ES2021", "DOM"],
+    "types": ["node"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,

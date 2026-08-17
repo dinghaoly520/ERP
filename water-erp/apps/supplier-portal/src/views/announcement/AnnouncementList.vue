@@ -8,10 +8,18 @@ import dayjs from 'dayjs'
 
 const router = useRouter(); const store = useAnnouncementStore(); const loading = ref(true); const error = ref(false); const activeType = ref(''); const search = ref(''); const currentPage = ref(1)
 
-const typeOptions = [{label:'全部',value:''},{label:'招标公告',value:'BID_NOTICE'},{label:'中标公示',value:'WIN_NOTICE'},{label:'政策法规',value:'POLICY'},{label:'平台通知',value:'PLATFORM'}]
-const typeTagMap: Record<string,{label:string;type:string}> = {BID_NOTICE:{label:'招标公告',type:'primary'},WIN_NOTICE:{label:'中标公示',type:'success'},POLICY:{label:'政策法规',type:'warning'},PLATFORM:{label:'平台通知',type:'info'}}
+const typeOptions = [{label:'全部',value:''},{label:'采购公告',value:'BID_NOTICE'},{label:'中标公示',value:'WIN_NOTICE'},{label:'政策法规',value:'POLICY'},{label:'平台通知',value:'PLATFORM'}]
+const typeTagMap: Record<string,{label:string;type:string}> = {BID_NOTICE:{label:'采购公告',type:'primary'},WIN_NOTICE:{label:'中标公示',type:'success'},POLICY:{label:'政策法规',type:'warning'},PLATFORM:{label:'平台通知',type:'info'}}
 const lastVisit = ref<number>(0); try { const v = localStorage.getItem('supplier_announce_visit'); if (v) lastVisit.value = parseInt(v, 10) } catch {}
-function isNew(ts: string): boolean { if (!ts || !lastVisit.value) return false; return new Date(ts).getTime() > lastVisit.value }
+// NEW 标记：上次访问之后发布，或 48h 内发布（兜底首次访问 lastVisit=0 也能看到新公告）。
+// 未来时间（脏数据）不标，避免"还没发生的公告"被误标 NEW。
+const NEW_WINDOW_MS = 48 * 3600 * 1000
+function isNew(ts: string): boolean {
+  if (!ts) return false
+  const t = new Date(ts).getTime()
+  if (t > Date.now()) return false
+  return t > Date.now() - NEW_WINDOW_MS || (lastVisit.value > 0 && t > lastVisit.value)
+}
 
 async function fetchData() { loading.value = true; error.value = false; try { await store.fetchAnnouncements({type:activeType.value||undefined,search:search.value||undefined,page:currentPage.value,pageSize:10}); localStorage.setItem('supplier_announce_visit', String(Date.now())); lastVisit.value = Date.now() } catch { error.value = true } finally { loading.value = false } }
 function retryLoad() { fetchData() }
@@ -29,7 +37,7 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
       <el-button type="primary" @click="retryLoad">重新加载</el-button>
     </div>
     <template v-else>
-    <SpPageHero :icon="Megaphone" title="公告公示" sub="集中查看招标公告、中标公示、政策法规和平台通知。" />
+    <SpPageHero :icon="Megaphone" title="公告公示" sub="集中查看采购公告、中标公示、政策法规和平台通知。" />
 
       <div class="neu-card ann-filter">
         <div class="neu-tab-bar ann-tabs">
@@ -41,7 +49,7 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
     <div v-if="store.announcements.length>0" class="announcement-list">
       <div v-for="a in store.announcements" :key="a.id" class="announcement-row" @click="router.push(`/announcements/${a.id}`)">
         <div class="ann-row-left"><el-tag :type="(typeTagMap[a.type]?.type as any)" size="small" effect="plain">{{ typeTagMap[a.type]?.label||a.type }}</el-tag><div class="ann-row-body"><span class="ann-row-title">{{ a.title }}</span><span class="ann-row-summary" v-if="a.summary">{{ a.summary }}</span></div></div>
-        <div class="ann-row-right"><span v-if="a.isTop" class="top-badge">置顶</span><span v-if="isNew(a.publishDate||a.createdAt)" class="new-badge">新</span><span class="ann-row-date">{{ dayjs(a.publishDate||a.createdAt).format('YYYY-MM-DD') }}</span><el-icon class="ann-arrow"><ArrowRight /></el-icon></div>
+        <div class="ann-row-right"><span v-if="a.isTop" class="top-badge">置顶</span><span v-if="isNew(a.publishDate||a.createdAt)" class="new-badge">NEW</span><span class="ann-row-date">{{ dayjs(a.publishDate||a.createdAt).format('YYYY-MM-DD') }}</span><el-icon class="ann-arrow"><ArrowRight /></el-icon></div>
       </div>
       <div style="display:flex;justify-content:center;padding-top:16px"><el-pagination v-model:current-page="currentPage" :total="store.total" :page-size="10" layout="prev,pager,next" @current-change="handlePageChange" /></div>
     </div>
@@ -77,7 +85,7 @@ function handlePageChange(page:number) { currentPage.value = page; fetchData() }
 .ann-row-summary { font-size: 13px; color: var(--muted-foreground); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ann-row-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .top-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; color: var(--danger); background: color-mix(in oklab, var(--danger) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
-.new-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-right: 8px; color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.new-badge { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 6px; margin-right: 8px; color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
 .ann-row-date { font-size: 13px; color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ann-arrow { color: var(--muted-foreground); }
 

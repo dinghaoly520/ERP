@@ -7,7 +7,7 @@
 export type AppRole = 'admin' | 'bid_host' | 'bid_expert' | 'supplier' | 'mall';
 export type SupplierStatus = 'PENDING' | 'RETURNED' | 'APPROVED' | 'REJECTED' | 'DISABLED' | 'BLACKLIST';
 export type ChangeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED';
+export type BidStage = 'DOWNLOAD' | 'SUBMIT' | 'OPENING' | 'EVALUATING' | 'ARCHIVED' | 'ABORTED';
 
 /* ── AI 辅助评标 per-item（Phase 6）── */
 

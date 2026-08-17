@@ -7,12 +7,10 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
-import { AdminGuard } from '../auth/admin.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CreateWorkArrangementDto } from './dto/create-work-arrangement.dto';
 import { CreateWorkArrangementNoteDto } from './dto/create-work-arrangement-note.dto';
 import { CreateWorkArrangementTemplateDto } from './dto/create-work-arrangement-template.dto';
@@ -22,8 +20,8 @@ import { UpdateWorkArrangementDto } from './dto/update-work-arrangement.dto';
 import { UpdateWorkArrangementTemplateDto } from './dto/update-work-arrangement-template.dto';
 import { WorkArrangementsService } from './work-arrangements.service';
 
-@UseGuards(AuthGuard)
 @Controller('work-arrangements')
+@Roles('admin', 'leader', 'staff')
 export class WorkArrangementsController {
   constructor(
     private readonly workArrangementsService: WorkArrangementsService,
@@ -38,7 +36,7 @@ export class WorkArrangementsController {
   }
 
   @Get('admin/all')
-  @UseGuards(AuthGuard, AdminGuard)
+  @Roles('admin')
   listAll() {
     return this.workArrangementsService.listAll();
   }
@@ -60,7 +58,7 @@ export class WorkArrangementsController {
   }
 
   @Post('daily-plan/refresh-all')
-  @UseGuards(AuthGuard, AdminGuard)
+  @Roles('admin')
   async refreshAllDailyPlans() {
     return this.workArrangementsService.refreshDailyGreeting();
   }

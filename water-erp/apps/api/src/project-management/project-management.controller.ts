@@ -10,13 +10,11 @@ import {
   Query,
   Res,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
-import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { AnalyzeBudgetReferenceDto } from './dto/analyze-budget-reference.dto';
@@ -28,7 +26,6 @@ import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { ProjectManagementService } from './project-management.service';
 import { Roles } from '../common/decorators/roles.decorator';
 
-@UseGuards(AuthGuard)
 @Roles('leader', 'admin', 'staff')
 @Controller('project-management')
 export class ProjectManagementController {

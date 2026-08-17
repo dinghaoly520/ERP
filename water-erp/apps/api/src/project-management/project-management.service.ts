@@ -10,8 +10,13 @@ import { AiService } from '../ai/ai.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
+import { htmlToDocxChildren } from './docx/html-to-docx.converter';
+import { getTenderTextCachePath, isLabelLine, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getComplianceCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName } from './docx/file-utils';
+import { parseArchiveTxt } from './docx/archive-txt-parser';
+import { decodeXmlText, extractPlainText, applyTextToParagraphXml } from './docx/paragraph-xml';
+import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractContractAmountFromText, extractAwardedSupplierFromAwardTable, extractAwardedSupplierFromContract, extractContractNumberFromText, extractExpertInfoFromText, extractProjectOverviewFromText } from './docx/field-extractor';
 import { patchDocx, ConcurrentEditError } from './docx/html-to-docx.patcher';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx';
+import { Document, Packer } from 'docx';
 import { DocumentParserService } from '../knowledge/services/document-parser.service';
 import { StorageService } from '../storage/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -93,20 +98,6 @@ const KNOWN_METHODS = [
 const KNOWN_ORGANIZATION_FORMS = ['自行招标', '委托招标'];
 
 // 本单位名称，不应被拾取为中标单位
-const SELF_COMPANY_NAMES = [
-  '四川水发勘测设计研究有限公司',
-  '四川省水利水电勘测设计研究院',
-  '四川水发勘测设计研究院',
-  '水发勘测设计研究有限公司',
-  '四川省水利科学研究院',
-];
-
-function isSelfCompany(name: string): boolean {
-  const normalized = name.replace(/[\s（）()\-—]/g, '');
-  return SELF_COMPANY_NAMES.some(
-    (self) => normalized === self || normalized.includes(self) || self.includes(normalized),
-  );
-}
 
 /** 解析项目基本信息中的开标时间字符串：兼容 ISO、"2026年8月15日"、"2026-08-15"、"2026/8/15 10:00" 等 */
 function parseBidOpeningTime(raw: string | null | undefined): Date | null {
@@ -513,7 +504,7 @@ export class ProjectManagementService {
     });
     const procurementMethod = itemMeta?.procurementMethod ?? undefined;
 
-    const cachePath = this.getTenderTextCachePath(itemId);
+    const cachePath = getTenderTextCachePath(itemId);
     let text: string;
     try {
       text = await readFile(cachePath, 'utf8');
@@ -556,7 +547,7 @@ export class ProjectManagementService {
     const result: Record<string, string | null> = {};
 
     if (wants('projectOverview')) {
-      let raw = this.extractProjectOverviewFromText(text, procurementMethod);
+      let raw = extractProjectOverviewFromText(text, procurementMethod);
       if (!raw) raw = await this.aiExtractProjectOverview(text, procurementMethod);
       const val = raw ? await this.aiMinimalPolish(raw) : null;
       if (val) updateData.projectOverview = val;
@@ -582,7 +573,7 @@ export class ProjectManagementService {
         where: { id: itemId }, select: { awardedSupplier: true },
       });
       if (!existing?.awardedSupplier?.trim()) {
-        const supplierName = this.extractAwardedSupplierFromText(text);
+        const supplierName = extractAwardedSupplierFromText(text);
         if (supplierName) {
           updateData.awardedSupplier = supplierName;
           result.awardedSupplier = supplierName;
@@ -926,7 +917,7 @@ export class ProjectManagementService {
     }
 
     // 同名文件覆盖：先删除旧版本再上传新版本（采购文件只需保留最新一份）
-    const decodedNewFileName = this.normalizeUploadedFileName(file.originalname);
+    const decodedNewFileName = normalizeUploadedFileName(file.originalname);
     const duplicate = stage.attachments.find(
       (a) => a.fileName === decodedNewFileName,
     );
@@ -941,7 +932,7 @@ export class ProjectManagementService {
     );
 
     // Decode filename (Multer sends latin1-encoded UTF-8)
-    const decodedFileName = this.normalizeUploadedFileName(file.originalname).toLowerCase();
+    const decodedFileName = normalizeUploadedFileName(file.originalname).toLowerCase();
 
     // For AWARD_DECISION and BID_EVALUATION stages, extract info from the document
     if (stageKey === 'AWARD_DECISION' || stageKey === 'BID_EVALUATION') {
@@ -951,7 +942,7 @@ export class ProjectManagementService {
 
         // Extract bidding units from 定标审批表 or 评标/开标相关文件
         if (stageKey === 'AWARD_DECISION' || fileName.includes('评标') || fileName.includes('开标')) {
-          const biddingUnits = this.extractBiddingUnitsFromText(text);
+          const biddingUnits = extractBiddingUnitsFromText(text);
           this.logger.log(`[Extraction] biddingUnits: ${biddingUnits || '(empty)'}`);
           if (biddingUnits) {
             await this.prisma.projectManagementItem.update({
@@ -963,7 +954,7 @@ export class ProjectManagementService {
 
         // Extract awarded supplier from 定标审批表 (AWARD_DECISION only)
         if (stageKey === 'AWARD_DECISION' && (fileName.includes('定标') || fileName.includes('审批表'))) {
-          const awardedSupplier = this.extractAwardedSupplierFromAwardTable(text);
+          const awardedSupplier = extractAwardedSupplierFromAwardTable(text);
           if (awardedSupplier) {
             await this.prisma.projectManagementItem.update({
               where: { id: projectId },
@@ -974,7 +965,7 @@ export class ProjectManagementService {
 
         // Extract awarded supplier from 中标通知书 (takes precedence)
         if (fileName.includes('中标') || fileName.includes('通知书')) {
-          const awardedSupplier = this.extractAwardedSupplierFromText(text);
+          const awardedSupplier = extractAwardedSupplierFromText(text);
           if (awardedSupplier) {
             await this.prisma.projectManagementItem.update({
               where: { id: projectId },
@@ -996,7 +987,7 @@ export class ProjectManagementService {
 
         // Extract expert info from 抽取结果单
         if (fileName.includes('抽取结果单') || fileName.includes('抽取结果')) {
-          const expertInfo = this.extractExpertInfoFromText(text);
+          const expertInfo = extractExpertInfoFromText(text);
           this.logger.log(`[Extraction] expertInfo: ${expertInfo || '(empty)'}`);
           if (expertInfo) {
             await this.prisma.projectManagementItem.update({
@@ -1027,7 +1018,7 @@ export class ProjectManagementService {
         });
         const procurementMethod = pm?.procurementMethod ?? undefined;
 
-        let rawOverview = this.extractProjectOverviewFromText(text, procurementMethod);
+        let rawOverview = extractProjectOverviewFromText(text, procurementMethod);
         if (!rawOverview) rawOverview = await this.aiExtractProjectOverview(text, procurementMethod);
         if (rawOverview) {
           const projectOverview = await this.aiMinimalPolish(rawOverview);
@@ -1053,7 +1044,7 @@ export class ProjectManagementService {
             select: { awardedSupplier: true },
           });
           if (!existingProject?.awardedSupplier?.trim()) {
-            const supplierName = this.extractAwardedSupplierFromText(text);
+            const supplierName = extractAwardedSupplierFromText(text);
             if (supplierName) {
               await this.prisma.projectManagementItem.update({
                 where: { id: projectId },
@@ -1104,11 +1095,11 @@ export class ProjectManagementService {
           select: { contractAmount: true, awardedSupplier: true, contractNumber: true },
         });
 
-        const contractAmount = currentProject?.contractAmount ? null : this.extractContractAmountFromText(text);
-        const contractNumber = currentProject?.contractNumber ? null : this.extractContractNumberFromText(text);
+        const contractAmount = currentProject?.contractAmount ? null : extractContractAmountFromText(text);
+        const contractNumber = currentProject?.contractNumber ? null : extractContractNumberFromText(text);
         const awardedSupplier = fileName.includes('合同') || fileName.includes('购销')
-          ? this.extractAwardedSupplierFromContract(text)
-          : this.extractAwardedSupplierFromText(text);
+          ? extractAwardedSupplierFromContract(text)
+          : extractAwardedSupplierFromText(text);
 
         this.logger.log(
           `[CONTRACT] Extracted — contractNumber=${contractNumber ?? '(none)'}, ` +
@@ -1289,11 +1280,11 @@ export class ProjectManagementService {
           if (stage.stageKey === 'AWARD_DECISION' && (fileName.includes('定标') || fileName.includes('审批表'))) {
             const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
             if (!project.biddingUnits && !updates.biddingUnits) {
-              const biddingUnits = this.extractBiddingUnitsFromText(text);
+              const biddingUnits = extractBiddingUnitsFromText(text);
               if (biddingUnits) updates.biddingUnits = biddingUnits;
             }
             if (!project.awardedSupplier && !updates.awardedSupplier) {
-              const awardedSupplier = this.extractAwardedSupplierFromAwardTable(text);
+              const awardedSupplier = extractAwardedSupplierFromAwardTable(text);
               if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
             }
           }
@@ -1301,14 +1292,14 @@ export class ProjectManagementService {
           // BID_EVALUATION stage — also extract bidding units
           if (stage.stageKey === 'BID_EVALUATION' && !project.biddingUnits && !updates.biddingUnits) {
             const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
-            const biddingUnits = this.extractBiddingUnitsFromText(text);
+            const biddingUnits = extractBiddingUnitsFromText(text);
             if (biddingUnits) updates.biddingUnits = biddingUnits;
           }
 
           if (stage.stageKey === 'AWARD_DECISION' && (fileName.includes('中标') || fileName.includes('通知书'))) {
             const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
             if (!project.awardedSupplier && !updates.awardedSupplier) {
-              const awardedSupplier = this.extractAwardedSupplierFromText(text);
+              const awardedSupplier = extractAwardedSupplierFromText(text);
               if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
             }
           }
@@ -1317,18 +1308,18 @@ export class ProjectManagementService {
           if (stage.stageKey === 'CONTRACT') {
             const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
             if (!project.contractAmount && !updates.contractAmount) {
-              const contractAmount = this.extractContractAmountFromText(text);
+              const contractAmount = extractContractAmountFromText(text);
               if (contractAmount !== null) updates.contractAmount = contractAmount;
             }
             if (!project.contractNumber && !updates.contractNumber) {
-              const contractNumber = this.extractContractNumberFromText(text);
+              const contractNumber = extractContractNumberFromText(text);
               if (contractNumber !== null) updates.contractNumber = contractNumber;
             }
             if (!project.awardedSupplier && !updates.awardedSupplier) {
               const fileName = attachment.fileName;
               const awardedSupplier = fileName.includes('中标通知书') || fileName.includes('中标')
-                ? this.extractAwardedSupplierFromText(text)
-                : this.extractAwardedSupplierFromContract(text);
+                ? extractAwardedSupplierFromText(text)
+                : extractAwardedSupplierFromContract(text);
               if (awardedSupplier) updates.awardedSupplier = awardedSupplier;
             }
           }
@@ -1337,7 +1328,7 @@ export class ProjectManagementService {
           if (stage.stageKey === 'EXPERT_SELECTION' && (fileName.includes('抽取结果单') || fileName.includes('抽取结果'))) {
             const text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
             if (!project.expertInfo && !updates.expertInfo) {
-              const expertInfo = this.extractExpertInfoFromText(text);
+              const expertInfo = extractExpertInfoFromText(text);
               if (expertInfo) updates.expertInfo = expertInfo;
             }
           }
@@ -3241,7 +3232,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   /** 读取某阶段上传文件的内容上下文：优先 AI 分析缓存，回退附件原文（带截断保护）。 */
   private async getStageFileContext(itemId: string, stageKey: string): Promise<string> {
     try {
-      const cachePath = this.getStageAnalysisCachePath(itemId, stageKey);
+      const cachePath = getStageAnalysisCachePath(itemId, stageKey);
       const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
         files?: Array<{ fileName?: string; contentSummary?: string }>;
       };
@@ -3308,7 +3299,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // Load file analysis cache and project summary
-    const summaryCachePath = this.getProjectSummaryCachePath(project.id);
+    const summaryCachePath = getProjectSummaryCachePath(project.id);
     let summary = '';
     try {
       const cachedSummary = JSON.parse(await readFile(summaryCachePath, 'utf8')) as { summary?: string };
@@ -3319,7 +3310,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     const stageAnalysisMap = new Map<string, Array<{ fileName: string; contentSummary: string }>>();
     for (const stage of stages) {
-      const cachePath = this.getStageAnalysisCachePath(project.id, stage.stageKey);
+      const cachePath = getStageAnalysisCachePath(project.id, stage.stageKey);
       try {
         const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
           files?: Array<{ fileName: string; contentSummary: string }>;
@@ -3501,7 +3492,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    const summaryCachePath = this.getProjectSummaryCachePath(projectId);
+    const summaryCachePath = getProjectSummaryCachePath(projectId);
 
     // Collect all attachments
     const allAttachments = project.stages.flatMap((stage) =>
@@ -3513,7 +3504,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (allAttachments.length === 0) {
       const emptySummary = '当前项目尚未上传可供分析的材料，暂无法生成项目简报。';
-      await mkdir(this.getUploadDir(), { recursive: true });
+      await mkdir(getUploadDir(), { recursive: true });
       await writeFile(
         summaryCachePath,
         JSON.stringify({ summary: emptySummary }, null, 2),
@@ -3527,8 +3518,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     for (const stage of project.stages) {
       if (stage.attachments.length === 0) continue;
 
-      const stageAnalysisCachePath = this.getStageAnalysisCachePath(projectId, stage.stageKey);
-      const fingerprint = this.buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
+      const stageAnalysisCachePath = getStageAnalysisCachePath(projectId, stage.stageKey);
+      const fingerprint = buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
 
       let cachedFiles: Array<{
         objectKey: string;
@@ -3598,12 +3589,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
           cachedFiles = analysis.fileAnalyses.map((file) => ({
             objectKey: file.objectKey,
             fileName: file.fileName,
-            stageMatch: this.normalizeStageMatchText(file.stageMatch),
+            stageMatch: normalizeStageMatchText(file.stageMatch),
             contentSummary: file.contentSummary,
           }));
 
           // Cache the stage analysis
-          await mkdir(this.getUploadDir(), { recursive: true });
+          await mkdir(getUploadDir(), { recursive: true });
           await writeFile(
             stageAnalysisCachePath,
             JSON.stringify({ fingerprint, files: cachedFiles }, null, 2),
@@ -3648,7 +3639,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       isCompleted,
     });
 
-    await mkdir(this.getUploadDir(), { recursive: true });
+    await mkdir(getUploadDir(), { recursive: true });
     await writeFile(
       summaryCachePath,
       JSON.stringify({ summary }, null, 2),
@@ -3682,7 +3673,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // 检查合规审查缓存：指纹匹配时直接返回
-    const complianceCachePath = this.getComplianceCachePath(projectId, targetStage.stageKey);
+    const complianceCachePath = getComplianceCachePath(projectId, targetStage.stageKey);
 
     // 步骤分析 fingerprint（供应商邀请/专家抽取）：名单变更 → 合规缓存失效
     let stepFingerprint = '';
@@ -3694,7 +3685,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         stepFingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
       }
     }
-    const fingerprint = this.buildStageAnalysisFingerprint(targetStage.stageKey, targetStage.attachments) + (stepFingerprint ? `|step:${stepFingerprint}` : '');
+    const fingerprint = buildStageAnalysisFingerprint(targetStage.stageKey, targetStage.attachments) + (stepFingerprint ? `|step:${stepFingerprint}` : '');
     if (!force) {
       try {
         const cached = JSON.parse(await readFile(complianceCachePath, 'utf8')) as {
@@ -3716,7 +3707,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 收集当前阶段的文件分析结果（如果有缓存）
     const stageFiles: Array<{ fileName: string; stageMatch: string; contentSummary: string }> = [];
     if (targetStage.attachments.length > 0) {
-      const cachePath = this.getStageAnalysisCachePath(projectId, targetStage.stageKey);
+      const cachePath = getStageAnalysisCachePath(projectId, targetStage.stageKey);
       try {
         const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
           files?: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>;
@@ -3742,7 +3733,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     let stepAnalysisContent: string | undefined;
     if (targetStage.stageKey === 'SUPPLIER_INVITATION' || targetStage.stageKey === 'EXPERT_SELECTION') {
       try {
-        const stepCache = JSON.parse(await readFile(this.getStepAnalysisCachePath(projectId, targetStage.stageKey), 'utf8')) as { content?: string };
+        const stepCache = JSON.parse(await readFile(getStepAnalysisCachePath(projectId, targetStage.stageKey), 'utf8')) as { content?: string };
         if (stepCache.content?.trim()) {
           stepAnalysisContent = stepCache.content.trim();
         }
@@ -3775,7 +3766,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
 
     // 写入合规审查缓存（含指纹）
-    await mkdir(this.getUploadDir(), { recursive: true });
+    await mkdir(getUploadDir(), { recursive: true });
     await writeFile(
       complianceCachePath,
       JSON.stringify({ fingerprint, results: result.results, summary: result.summary }, null, 2),
@@ -3816,7 +3807,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const fingerprint = createHash('sha256').update(rosterRaw).digest('hex').slice(0, 16);
 
     // 读缓存
-    const cachePath = this.getStepAnalysisCachePath(projectId, stageKey);
+    const cachePath = getStepAnalysisCachePath(projectId, stageKey);
     if (!forceRefresh) {
       try {
         const cached = JSON.parse(await readFile(cachePath, 'utf8')) as { fingerprint?: string; content?: string };
@@ -3871,7 +3862,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const content = await this.aiService.chat(systemPrompt, userPrompt, 0.4);
 
     // 写缓存
-    await mkdir(this.getUploadDir(), { recursive: true });
+    await mkdir(getUploadDir(), { recursive: true });
     await writeFile(cachePath, JSON.stringify({ fingerprint, content }, null, 2), 'utf8');
 
     return { content, empty: false };
@@ -3893,7 +3884,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // Load the project summary from cache, or generate if missing (but only when there are files to analyze)
-    const summaryCachePath = this.getProjectSummaryCachePath(project.id);
+    const summaryCachePath = getProjectSummaryCachePath(project.id);
     let summary = '';
     let summaryFromCache = false;
 
@@ -3926,8 +3917,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     for (const stage of stagesToAnalyze) {
       if (stage.attachments.length === 0) continue;
 
-      const cachePath = this.getStageAnalysisCachePath(project.id, stage.stageKey);
-      const fingerprint = this.buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
+      const cachePath = getStageAnalysisCachePath(project.id, stage.stageKey);
+      const fingerprint = buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
 
       let stageFiles: Array<{
         objectKey: string;
@@ -4009,7 +4000,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
             newFileAnalyses = analysis.fileAnalyses.map((file) => ({
               ...file,
-              stageMatch: this.normalizeStageMatchText(file.stageMatch),
+              stageMatch: normalizeStageMatchText(file.stageMatch),
             }));
           }
         }
@@ -4035,7 +4026,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
         if (stageFiles.length > 0 || stage.attachments.length === 0) {
           // Cache the stage analysis
-          await mkdir(this.getUploadDir(), { recursive: true });
+          await mkdir(getUploadDir(), { recursive: true });
           await writeFile(cachePath, JSON.stringify({ fingerprint, files: stageFiles }, null, 2), 'utf8');
         }
       }
@@ -4043,7 +4034,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       if (stageFiles) {
         allFileAnalyses.push(...stageFiles.map((f) => ({
           ...f,
-          stageMatch: this.normalizeStageMatchText(f.stageMatch),
+          stageMatch: normalizeStageMatchText(f.stageMatch),
         })));
       }
     }
@@ -4078,7 +4069,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         });
         summary = generated;
         // Cache the generated summary
-        await mkdir(this.getUploadDir(), { recursive: true });
+        await mkdir(getUploadDir(), { recursive: true });
         await writeFile(summaryCachePath, JSON.stringify({ summary: generated }, null, 2), 'utf8');
       } catch {
         summary = '项目简报生成中，请稍后点击刷新。';
@@ -4107,7 +4098,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    const summaryCachePath = this.getProjectSummaryCachePath(projectId);
+    const summaryCachePath = getProjectSummaryCachePath(projectId);
 
     try {
       const cachedSummary = JSON.parse(
@@ -4209,7 +4200,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const txtContent = await readFile(txtPath, 'utf8');
 
     // Parse the TXT content into structured data
-    const parsed = this.parseArchiveTxt(txtContent);
+    const parsed = parseArchiveTxt(txtContent);
 
     // Build file list with paths for preview
 
@@ -4256,215 +4247,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
       extractedInfo: parsed.extractedInfo,
       stages: stagesWithFiles,
       summary: parsed.summary,
-    };
-  }
-
-  /**
-   * Parse archive TXT content into structured data
-   */
-    private parseArchiveTxt(content: string) {
-    const lines = content.split('\n');
-    const basicInfo: Record<string, string> = {};
-    const extractedInfo: Record<string, string> = {};
-    const stages: Array<{
-      stageName: string;
-      status: string;
-      files: Array<{ fileName: string; analysis: string }>;
-    }> = [];
-    let summary = '';
-    let archiveHook = '';
-
-    let currentSection = '';
-    let currentStage: typeof stages[0] | null = null;
-    let currentExtractedKey: string | null = null;
-
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-
-      // Detect sections
-      if (trimmedLine.includes('【项目基本信息】')) {
-        currentSection = 'basicInfo';
-        continue;
-      }
-      if (trimmedLine.includes('【提取信息】')) {
-        currentSection = 'extractedInfo';
-        continue;
-      }
-      if (trimmedLine.startsWith('【') && trimmedLine.includes('】') && trimmedLine.includes('步骤')) {
-        // New stage section
-        if (currentStage) {
-          stages.push(currentStage);
-        }
-        const match = trimmedLine.match(/【(.+?)】.*（(.+?)）(.+)/);
-        if (match) {
-          currentStage = {
-            stageName: match[1],
-            status: match[3] || '',
-            files: [],
-          };
-        }
-        currentSection = 'stage';
-        continue;
-      }
-      if (trimmedLine.includes('【项目简报】')) {
-        if (currentStage) {
-          stages.push(currentStage);
-          currentStage = null;
-        }
-        currentSection = 'summary';
-        continue;
-      }
-
-      // Note: Don't reset currentExtractedKey here - it needs to persist for continuation lines
-
-      if (currentSection === 'basicInfo') {
-        // Parse "  项目名称：xxx" format
-        const match = trimmedLine.match(/^[　\s]*(.+?)[：:]\s*(.*)$/);
-        if (match && match[2]) {
-          const key = match[1].replace(/\s/g, '');
-          const value = match[2].trim();
-          // For multi-line fields like 专家信息/投标单位, skip count-only values like "共 5 位专家"
-          if (['专家信息', '投标单位'].includes(key)) {
-            if (/^共\s*\d+\s*(位专家|家单位)$/.test(value)) {
-              // Initialize as empty - actual content will come from continuation lines
-              basicInfo[key] = '';
-            } else {
-              basicInfo[key] = value;
-            }
-            currentExtractedKey = key;
-          } else {
-            basicInfo[key] = value;
-            currentExtractedKey = null; // Reset for non-multi-line fields
-          }
-        } else if (currentExtractedKey && trimmedLine && !trimmedLine.startsWith('─') && !trimmedLine.startsWith('═') && !trimmedLine.startsWith('【')) {
-          // This is a continuation line for 专家信息 or 投标单位
-          // Skip the count line like "共 5 位专家" or "共 3 家单位"
-          const isCountLine = /^共\s*\d+\s*(位专家|家单位)$/.test(trimmedLine);
-          if (!isCountLine) {
-            basicInfo[currentExtractedKey] += `${basicInfo[currentExtractedKey] ? '\n' : ''}${trimmedLine}`;
-          }
-        }
-      }
-
-      if (currentSection === 'extractedInfo') {
-        const match = trimmedLine.match(/^[　\s]*(.+?)[：:]\s*(.*)$/);
-        if (match) {
-          const key = match[1].replace(/\s/g, '');
-          const value = match[2].trim();
-          // For multi-line fields, skip count-only values
-          if (['专家信息', '投标单位'].includes(key)) {
-            if (/^共\s*\d+\s*(位专家|家单位)$/.test(value)) {
-              extractedInfo[key] = '';
-            } else {
-              extractedInfo[key] = value;
-            }
-            currentExtractedKey = key;
-          } else {
-            extractedInfo[key] = value;
-            currentExtractedKey = null;
-          }
-        } else if (currentExtractedKey && trimmedLine && !trimmedLine.startsWith('─') && !trimmedLine.startsWith('═') && !trimmedLine.startsWith('【')) {
-          const isCountLine = /^共\s*\d+\s*(位专家|家单位)$/.test(trimmedLine);
-          if (!isCountLine) {
-            extractedInfo[currentExtractedKey] += `${extractedInfo[currentExtractedKey] ? '\n' : ''}${trimmedLine}`;
-          }
-        }
-      }
-
-      // Reset currentExtractedKey when leaving basicInfo or extractedInfo sections
-      if (currentSection !== 'basicInfo' && currentSection !== 'extractedInfo') {
-        currentExtractedKey = null;
-      }
-
-      if (currentSection === 'stage' && currentStage) {
-        // Parse file info - handle both single file and multi-file formats
-        if (trimmedLine === '文件：' || trimmedLine === '文件:') {
-          // Multi-file format: files listed on subsequent lines
-          continue;
-        }
-
-        // Skip "文件分析：" marker line - it's not a file, just a section header
-        if (trimmedLine === '文件分析：' || trimmedLine === '文件分析:') {
-          continue;
-        }
-
-        // Check for file line format: "文件：xxx.pdf" or "文件1：xxx.pdf" or "文件2：xxx.pdf"
-        // But NOT "文件分析：" which is a different thing
-        if (trimmedLine.startsWith('文件') && (trimmedLine.includes('：') || trimmedLine.includes(':'))) {
-          const match = trimmedLine.match(/文件\d*[:：]\s*(.+)/);
-          if (match && match[1] && match[1].trim() !== '（无）') {
-            currentStage.files.push({
-              fileName: match[1].trim(),
-              analysis: '',
-            });
-          }
-        } else if (trimmedLine === '文件：（无）') {
-          // No files in this stage
-          continue;
-        } else if (trimmedLine && !trimmedLine.startsWith('─') && !trimmedLine.startsWith('═') && !trimmedLine.startsWith('【')) {
-          // This could be a file name (in multi-file format) or analysis content
-          // Check if it looks like a file name (contains .pdf, .doc, .xlsx etc)
-          const isFileName = /\.(pdf|doc|docx|xlsx|xls|txt|zip|rar)$/i.test(trimmedLine);
-
-          if (isFileName && currentStage) {
-            // This is a file name in multi-file format
-            currentStage.files.push({
-              fileName: trimmedLine,
-              analysis: '',
-            });
-          } else if (currentStage && currentStage.files.length > 0) {
-            // This is analysis content - append to the last file
-            const lastFile = currentStage.files[currentStage.files.length - 1];
-
-            // For multi-file case, try to split analysis by paragraphs
-            if (currentStage.files.length > 1) {
-              // Check if this line starts a new analysis paragraph (starts with "该文件为")
-              if (trimmedLine.startsWith('该文件为') && lastFile.analysis) {
-                // This is a new file's analysis, find which file doesn't have analysis yet
-                const fileWithoutAnalysis = currentStage.files.find(f => !f.analysis);
-                if (fileWithoutAnalysis) {
-                  fileWithoutAnalysis.analysis = trimmedLine;
-                } else {
-                  lastFile.analysis += '\n' + trimmedLine;
-                }
-              } else {
-                lastFile.analysis += (lastFile.analysis ? '\n' : '') + trimmedLine;
-              }
-            } else {
-              // Single file - just append
-              lastFile.analysis += (lastFile.analysis ? '\n' : '') + trimmedLine;
-            }
-          }
-        }
-      }
-
-      if (currentSection === 'summary') {
-        if (trimmedLine && !trimmedLine.startsWith('═') && !trimmedLine.startsWith('归档时间')) {
-          summary += (summary ? '\n' : '') + trimmedLine;
-        }
-      }
-
-      // Extract archive hook from line like "归档标识：ARCHIVE-xxx"
-      if (trimmedLine.startsWith('归档标识：')) {
-        archiveHook = trimmedLine.replace('归档标识：', '').trim();
-      }
-    }
-
-    // Map extracted info fields from basicInfo for frontend compatibility
-    // Frontend expects these fields in extractedInfo
-    const extractedInfoFields = ['立项时间', '专家信息', '投标单位', '中标单位', '合同金额'];
-    for (const field of extractedInfoFields) {
-      if (basicInfo[field]) {
-        extractedInfo[field] = basicInfo[field];
-      }
-    }
-
-    return {
-      basicInfo,
-      extractedInfo,
-      stages,
-      summary,
-      archiveHook,
     };
   }
 
@@ -4690,7 +4472,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         select: { stageKey: true, id: true },
       });
       if (stage) {
-        const cachePath = this.getStageAnalysisCachePath(projectId, stage.stageKey);
+        const cachePath = getStageAnalysisCachePath(projectId, stage.stageKey);
         try {
           const cachedRaw = await readFile(cachePath, 'utf8');
           const cached = JSON.parse(cachedRaw) as {
@@ -4716,7 +4498,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
                 },
                 select: { objectKey: true, fileSize: true, createdAt: true },
               });
-              const newFingerprint = this.buildStageAnalysisFingerprint(
+              const newFingerprint = buildStageAnalysisFingerprint(
                 stage.stageKey,
                 remainingAttachments,
               );
@@ -4892,7 +4674,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     stopLabels: string[],
   ) {
     const section = this.collectSection(lines, label, stopLabels);
-    return section.find((line) => !this.isLabelLine(line)) ?? '';
+    return section.find((line) => !isLabelLine(line)) ?? '';
   }
 
   private findRequesterNameFromLayout(lines: string[]) {
@@ -5171,598 +4953,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return '';
   }
 
-  /**
-   * Extract bidding units from award decision document text
-   * Looks for company names in the "投标情况" section
-   */
-  private extractBiddingUnitsFromText(text: string): string {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-
-    // --- Phase 1: Locate the bidding section ---
-    const sectionStartKeywords = ['投标情况', '投标人名称', '投标单位', '投标方', '供应商名称', '投标人'];
-    let sectionStartIndex = -1;
-    for (const kw of sectionStartKeywords) {
-      const idx = lines.findIndex((l) => l.includes(kw));
-      if (idx >= 0) { sectionStartIndex = idx; break; }
-    }
-    if (sectionStartIndex < 0) return '';
-
-    // --- Phase 2: Find section end ---
-    const endMarkers = [
-      '评标委员会意见', '评标小组意见', '推荐中标', '推荐成交',
-      '中标候选人', '定标意见', '附件', '备注', '流转意见',
-      '评审意见', '评审结论', '签章', '审批意见',
-    ];
-    let endSectionIndex = -1;
-    for (let i = sectionStartIndex + 1; i < lines.length; i++) {
-      if (endMarkers.some((m) => lines[i].includes(m))) {
-        endSectionIndex = i;
-        break;
-      }
-    }
-
-    const sectionLines = endSectionIndex > 0
-      ? lines.slice(sectionStartIndex + 1, endSectionIndex)
-      : lines.slice(sectionStartIndex + 1, sectionStartIndex + 40);
-
-    // --- Phase 3: Extract company names ---
-    const companySuffixes = '有限责任公司|有限公司|股份有限公司|公司|集团|企业|研究所|事务所|中心|院|合伙|工作室|工程处|项目部|经营部|营业部|经销部|服务部|事务所|事务所';
-    const companySuffixRegex = new RegExp(companySuffixes);
-    const hasSuffix = (s: string) => companySuffixRegex.test(s);
-
-    // Match a company name: Chinese chars + optional suffix
-    const extractName = (raw: string): string => {
-      // Strip leading sequence number: "1", "1.", "1、", "1）", "1)"
-      let cleaned = raw.replace(/^\d+[.、）)\s]*/, '');
-      // Split at column boundaries (numbers like prices, scores)
-      const beforeNumbers = cleaned.split(/\s+[\d,.]/)[0] ?? cleaned;
-      cleaned = beforeNumbers.replace(/[|｜\t]/g, '').trim();
-      // Remove trailing punctuation
-      cleaned = cleaned.replace(/[，,。.、:：;；]+$/, '');
-
-      // Try to match a company-like name with a known suffix
-      const match = cleaned.match(/([一-鿿A-Za-z（）()·\s]+?(?:有限责任公司|有限公司|股份有限公司|公司|集团|企业|研究所|事务所|中心))/);
-      if (match) return match[1].replace(/\s+/g, '').trim();
-
-      // If it has any suffix indicator, return the cleaned text
-      if (hasSuffix(cleaned)) return cleaned.replace(/\s+/g, '').trim();
-
-      // Otherwise, if it's pure Chinese text and reasonably long, return as-is
-      if (/^[一-鿿A-Za-z（）()]+$/.test(cleaned) && cleaned.length >= 3) {
-        return cleaned;
-      }
-      return '';
-    };
-
-    const companies: string[] = [];
-    let currentCompany = '';
-
-    const saveCurrentCompany = () => {
-      if (!currentCompany) return;
-      const name = extractName(currentCompany);
-      if (name.length >= 3) companies.push(name);
-      currentCompany = '';
-    };
-
-    const isSkippable = (line: string) => {
-      // Skip table headers
-      if (line.includes('序号') && (line.includes('投标') || line.includes('名称'))) return true;
-      if (line.includes('投标报价') || line.includes('评审报价') || line.includes('综合得分')) return true;
-      // Skip standalone numbers
-      if (/^\d+$/.test(line)) return true;
-      // Skip price lines "63800.00" or "63800.00 63800.00"
-      if (/^[\d,.]+(\s+[\d,.]+)?$/.test(line)) return true;
-      // Skip short numeric lines
-      if (/^\d+[.、）)]$/.test(line)) return true;
-      return false;
-    };
-
-    for (const line of sectionLines) {
-      if (isSkippable(line)) {
-        if (/^\d+$/.test(line) || /^\d+[.、）)]$/.test(line)) saveCurrentCompany();
-        continue;
-      }
-
-      // Pattern: "1 四川雏雁档案馆服务有限责任公司 140120.00 136400.00"
-      const inlineMatch = line.match(/^\d+[.、）)\s]+(.+)/);
-      if (inlineMatch) {
-        saveCurrentCompany();
-        const name = extractName(inlineMatch[1]);
-        if (name.length >= 3) companies.push(name);
-        continue;
-      }
-
-      // Pattern: company name on its own line (possibly split across lines)
-      if (line.length >= 2) {
-        if (hasSuffix(line) || /[一-鿿]{2,}/.test(line)) {
-          // Could be a standalone company or the suffix portion
-          if (currentCompany) {
-            currentCompany += line;
-            const name = extractName(currentCompany);
-            if (name.length >= 3) {
-              companies.push(name);
-              currentCompany = '';
-            }
-          } else {
-            const name = extractName(line);
-            if (name.length >= 3 && hasSuffix(name)) {
-              companies.push(name);
-              currentCompany = '';
-            } else if (name.length >= 2) {
-              currentCompany = line;
-            }
-          }
-        } else if (currentCompany) {
-          // Append to current company (might be suffix on next line)
-          currentCompany += line;
-          const name = extractName(currentCompany);
-          if (name.length >= 3 && hasSuffix(name)) {
-            companies.push(name);
-            currentCompany = '';
-          }
-        }
-      }
-    }
-
-    saveCurrentCompany();
-
-    return [...new Set(companies.filter((c) => c.length >= 3))].join('、');
-  }
-
-  /**
-   * Extract awarded supplier from award notification document text
-   * Looks for company name after "中标通知书" heading
-   */
-  /**
-   * 从定标审批表 / 中标通知书 / 供方确认表 等文件中提取中标单位。
-   * 支持多种定标文件表述，不依赖文件名。
-   */
-  private extractAwardedSupplierFromText(text: string): string {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-
-    const anchors = [
-      '中标通知书', '中标公告',
-      '供方确认', '确认供方', '拟定供应商', '拟成交供应商', '推荐供应商', '推荐中标人',
-      '定标意见', '定标结论', '中标单位', '中标人', '中标供应商',
-      '评审结论', '拟推荐', '同意确定', '拟确定', '确认以下', '定标结果',
-      '销售方', '卖方', '乙方', '买受人',
-    ];
-
-    for (const anchor of anchors) {
-      const idx = lines.findIndex((l) => l.includes(anchor));
-      if (idx < 0) continue;
-
-      // 同行锚点后紧跟公司名
-      const inline = lines[idx];
-      const inlineM = inline.match(
-        new RegExp(anchor + '\\s*(?::|：)?\\s*(.+?(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))')
-      );
-      if (inlineM) {
-        const name = inlineM[1].trim().replace(/[：:]*$/, '').trim();
-        if (!isSelfCompany(name)) return name;
-      }
-
-      // 后续 1-5 行提取公司名
-      for (let i = idx + 1; i < Math.min(lines.length, idx + 6); i++) {
-        const line = lines[i];
-        const m = line.match(/^(.+(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))[：:]?$/);
-        if (m) {
-          const name = m[1].replace(/[：:]*$/, '').trim();
-          if (!isSelfCompany(name)) return name;
-        }
-        const mid = line.match(/([^\s。，,;；：:]{2,}(?:公司|企业|单位))/);
-        if (mid && !isSelfCompany(mid[1].trim())) return mid[1].trim();
-      }
-    }
-
-    return '';
-  }
-
-  /**
-   * Extract contract amount from contract approval document text.
-   * Handles:
-   *   "合同金额(元)\n63000.00元"        — label + value on adjacent lines (most common)
-   *   "合同金额(元) 63000.00元"         — label + value on same line
-   *   "合同金额 750,000.00元"           — comma-separated numbers
-   *   "合同金额为人民币：132680.00 元"   — prose-style label
-   *   "¥ 229000元"                      — yuan symbol prefix
-   *
-   * Strategy: scan for "合同金额" label, then search nearby lines for a
-   * monetary value. Candidates are scored by proximity to the label, not
-   * by magnitude — this prevents distant large numbers (e.g. budget
-   * figures elsewhere in the document) from winning.
-   */
-  /** 中文大写金额 → 数字（简版：处理万/亿段，如 肆佰贰拾万 → 4200000） */
-  private chineseAmountToNumber(text: string): number {
-    const digit: Record<string, number> = { '壹':1,'贰':2,'叁':3,'肆':4,'伍':5,'陆':6,'柒':7,'捌':8,'玖':9,'零':0 };
-    const unit: Record<string, number> = { '亿':1e8,'万':1e4,'仟':1e3,'佰':100,'拾':10 };
-    let result = 0, section = 0, current = 0;
-    for (const ch of text) {
-      if (digit[ch] !== undefined) { current = digit[ch]; continue; }
-      if (unit[ch] !== undefined) {
-        const u = unit[ch];
-        if (current === 0) current = 1;
-        if (u >= 1e4) { section = (section + current) * u; current = 0; result += section; section = 0; }
-        else { section += current * u; current = 0; }
-      }
-    }
-    return result + section + current;
-  }
-
-  private extractContractAmountFromText(text: string): number | null {
-  
-    const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
-
-    // Strip commas and Chinese commas from a numeric string before parsing
-    const clean = (s: string) => s.replace(/[,，、\s　]/g, '');
-
-    // A monetary amount: optional ¥/￥ prefix, digits + optional commas + optional .dd suffix, optional 元 suffix
-    const AMOUNT_RE = /(?:[¥￥]\s*)?([\d,，]+(?:\.\d{1,2})?)\s*(?:元|$)/;
-
-    // A "合同金额" label line — matches the various forms we see
-    const isContractLabel = (s: string) =>
-      /^合同金额/.test(s) || s.includes('合同金额') || s.includes('合同总价') ||
-      s.includes('签约合同价') || s.includes('总价') ||
-      s.includes('中标金额') || s.includes('中标价') || s.includes('成交金额');
-
-    // Score-and-value tuple — higher score = more likely correct
-    const candidates: Array<{ value: number; score: number }> = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (!isContractLabel(line)) continue;
-
-      // ── Same-line match ──────────────────────────────────────────
-      // "合同金额(元) 63000.00元"  or  "合同金额为人民币：132680.00 元"
-      const sameLine = line.match(AMOUNT_RE);
-      if (sameLine) {
-        const val = parseFloat(clean(sameLine[1]));
-        if (!Number.isNaN(val) && val > 0) {
-          candidates.push({ value: val, score: 100 });
-        }
-      }
-
-      // ── Adjacent-line scan (up to 3 lines below the label) ──────
-      // "合同金额(元)\n63000.00元" — but OCR may insert an empty or
-      // header line between the label and the value.
-      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
-        const nextLine = lines[j];
-
-        // Stop if we hit another form-section label
-        if (/^(合同|需求|经办|附件|相关|采购|中标|预算|相对方)/.test(nextLine)) break;
-
-        const m = nextLine.match(AMOUNT_RE);
-        if (m) {
-          const val = parseFloat(clean(m[1]));
-          if (!Number.isNaN(val) && val > 0) {
-            // Closer lines get higher scores
-            candidates.push({ value: val, score: 90 - (j - i - 1) * 25 });
-            break; // found the value, stop scanning for this label
-          }
-        }
-      }
-
-      // Bail early: the first "合同金额" label in the document header
-      // is essentially always the correct one. Subsequent mentions (in
-      // contract body text) are downstream payment milestones etc.
-      if (candidates.length > 0 && candidates[0].score >= 90) break;
-    }
-
-    // ── Fallback: "中标金额" label (award notification, not contract table) ──
-    if (candidates.length === 0) {
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.includes('中标金额')) continue;
-        const sameLine = line.match(AMOUNT_RE);
-        if (sameLine) {
-          const val = parseFloat(clean(sameLine[1]));
-          if (!Number.isNaN(val) && val > 0) {
-            candidates.push({ value: val, score: 80 });
-          }
-        }
-        for (let j = i + 1; j < Math.min(lines.length, i + 3); j++) {
-          const nextLine = lines[j];
-          if (/^(合同|需求|经办|中标单位)/.test(nextLine)) break;
-          const m = nextLine.match(AMOUNT_RE);
-          if (m) {
-            const val = parseFloat(clean(m[1]));
-            if (!Number.isNaN(val) && val > 0) {
-              candidates.push({ value: val, score: 70 - (j - i - 1) * 25 });
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // ── Fallback: Chinese uppercase amount (e.g. 肆佰贰拾万元整 → 4200000) ──
-    if (candidates.length === 0) {
-      const upperMatch = text.match(
-        /([壹贰叁肆伍陆柒捌玖拾佰仟万亿零]{2,30})\s*(?:元[整正]?|万[元整正]?)/
-      );
-      if (upperMatch) {
-        const val = this.chineseAmountToNumber(upperMatch[1]);
-        if (val > 0) candidates.push({ value: val, score: 60 });
-      }
-    }
-
-    if (candidates.length === 0) return null;
-
-    // Pick the highest-scored candidate (ties broken by larger value —
-    // the contract amount is rarely the smallest number on the page)
-    candidates.sort((a, b) => b.score - a.score || b.value - a.value);
-    return candidates[0].value;
-  }
-
-  /**
-   * Extract awarded supplier from award decision table (定标审批表)
-   * Looks for the first recommended candidate in "评标委员会意见" section
-   */
-  private extractAwardedSupplierFromAwardTable(text: string): string {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-
-    // Find "评标委员会意见" section
-    const committeeIndex = lines.findIndex((l) => l.includes('评标委员会意见'));
-    if (committeeIndex < 0) {
-      return '';
-    }
-
-    // Find the first company name after sequence number "1"
-    let foundFirstCandidate = false;
-    for (let i = committeeIndex + 1; i < Math.min(lines.length, committeeIndex + 15); i++) {
-      const line = lines[i];
-
-      // Skip sequence number "1"
-      if (line === '1') {
-        foundFirstCandidate = true;
-        continue;
-      }
-
-      // Skip header lines
-      if (line.includes('序号') || line.includes('推荐中标候选人') || line.includes('综合得分') || line.includes('评审报价')) {
-        continue;
-      }
-
-      // Skip price lines
-      if (/^[\d,.]+$/.test(line)) {
-        continue;
-      }
-
-      // Found company name (first candidate after "1")
-      if (foundFirstCandidate && line.length > 2) {
-        // Build company name - check next lines for continuation
-        let companyName = line;
-
-        // Check next line for company suffix like "有限公司"
-        for (let j = i + 1; j < Math.min(lines.length, i + 3); j++) {
-          const nextLine = lines[j]?.trim() || '';
-          // If next line is a price or number, stop
-          if (/^[\d,.]+$/.test(nextLine)) break;
-          // If next line contains company keywords, append it
-          if (nextLine.includes('公司') || nextLine.includes('有限') || nextLine.includes('责任')) {
-            companyName += nextLine;
-            break;
-          }
-          // If next line is short continuation, append it
-          if (nextLine.length > 0 && nextLine.length < 6) {
-            companyName += nextLine;
-          }
-        }
-        if (!isSelfCompany(companyName)) return companyName;
-        // Self company matched, skip to look for next candidate
-        foundFirstCandidate = false;
-        continue;
-      }
-    }
-
-    return '';
-  }
-
-  /**
-   * Extract awarded supplier from contract approval document (合同审批表)
-   * Looks for "相对方名称" field
-   */
-  private extractAwardedSupplierFromContract(text: string): string {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      if (line.includes('相对方名称') || line.includes('合同相对方名称')) {
-        const inlineMatch = line.match(/(?:合同)?相对方名称\s*(.+(?:公司|企业|单位|中心|院|所|局|部|办|处|室|队|组))/);
-        if (inlineMatch) {
-          const name = inlineMatch[1].trim();
-          if (!isSelfCompany(name)) return name;
-        }
-
-        const nextLine = lines[i + 1]?.trim() || '';
-        if (nextLine.length > 2 && (nextLine.includes('公司') || nextLine.includes('有限') || nextLine.includes('责任'))) {
-          if (!isSelfCompany(nextLine)) return nextLine;
-        }
-      }
-    }
-
-    return '';
-  }
-
-  /**
-   * Extract contract number from contract approval document (合同审批表) text.
-   * Looks for "合同编号：" pattern: letter prefix + digits (e.g., E202509012).
-   */
-  private extractContractNumberFromText(text: string): string | null {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      // Pattern: "合同编号E202605002" / "合同编号：E202605002" / "合同编号: HT-2025-001"
-      // Colon/space separators are optional after "合同编号"
-      const match = line.match(/合同编号[：:\s]*([A-Za-z0-9][-A-Za-z0-9\/\.]{2,})/);
-      if (match) {
-        return match[1].trim();
-      }
-      // "合同编号" may appear alone on a line, with the actual number on the next line
-      if (line === '合同编号' && i + 1 < lines.length) {
-        const nextLine = lines[i + 1];
-        const nextMatch = nextLine.match(/^([A-Za-z0-9][-A-Za-z0-9\/\.]{2,})$/);
-        if (nextMatch) {
-          return nextMatch[1].trim();
-        }
-      }
-    }
-
-    // Broader fallback: search the full text (handles PDF table extraction where
-    // "合同编号" and its value may be separated by whitespace or line breaks)
-    const fullMatch = text.replace(/\s+/g, ' ').match(/合同编号[：:\s]*([A-Za-z0-9][-A-Za-z0-9\/\.]{2,})/);
-    if (fullMatch) {
-      return fullMatch[1].trim();
-    }
-
-    // Fallback 2: search for lines that look like contract numbers near "合同编号" context
-    // (handles OCR output where "合同编号" and the value get concatenated without space)
-    const cnMatch = text.match(/合同编号\s*([A-Za-z0-9]+[A-Za-z0-9]?)/);
-    if (cnMatch && cnMatch[1].length >= 3) {
-      return cnMatch[1].trim();
-    }
-
-    return null;
-  }
-
-  /**
-   * Extract expert info from 抽取结果单 text.
-   * Output format: "姓名|部门|专业|职称" per line (matches ExpertInfoField display component).
-   */
-  private extractExpertInfoFromText(text: string): string | null {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    const experts: Array<{ name: string; department: string; specialty: string; title: string }> = [];
-    const seen = new Set<string>();
-
-    const addExpert = (name: string, department: string, specialty: string, title: string) => {
-      const cleanName = name.trim().replace(/[\s,，、　]/g, '');
-      if (cleanName.length < 2 || cleanName.length > 4) return;
-      if (!/^[一-鿿·]+$/.test(cleanName)) return;
-      if (seen.has(cleanName)) return;
-      seen.add(cleanName);
-      experts.push({ name: cleanName, department: department.trim(), specialty: specialty.trim(), title: title.trim() });
-    };
-
-    // Track the current expert category from "XXX专业专家N人：" lines
-    let currentSpecialty = '';
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Detect category line: "测绘专业专家1人：" or "职工代表专业专家1人："
-      const categoryMatch = line.match(/^(.+?专业|职工代表.{0,4})专家\d+人[：:]/);
-      if (categoryMatch) {
-        currentSpecialty = categoryMatch[1].replace(/专业$/, '').trim();
-        continue;
-      }
-
-      // Pattern 1 (most common): "黄伟 数字信息化院 测绘 高级工程师;"
-      // Structure: 姓名 部门 专业 职称;
-      if (line.match(/^[一-鿿]/) && line.includes(' ')) {
-        const cleanLine = line.replace(/[;；，,]$/, '').trim();
-        const parts = cleanLine.split(/\s+/).filter(Boolean);
-
-        if (parts.length >= 2 && parts[0].length >= 2 && parts[0].length <= 4) {
-          const name = parts[0];
-          const skip = ['系统', '抽取', '结果', '备注', '注', '采购', '专家', '需求', '经办', '开标', '预算', '合同'];
-          if (/^[一-鿿·]+$/.test(name) && !skip.includes(name)) {
-            // parts: [姓名, 部门, 专业, 职称]
-            const department = parts[1] || '';
-            const specialty = parts.length >= 3 ? parts[2] : currentSpecialty;
-            const title = parts.length >= 4 ? parts.slice(3).join('') : (parts.length >= 3 ? parts[parts.length - 1] : '');
-            addExpert(name, department, specialty || currentSpecialty, title);
-            continue;
-          }
-        }
-      }
-
-      // Pattern 2: "姓名：张三" key-value style
-      const nameMatch = line.match(/(?:专家)?姓名[：:]\s*([一-鿿·]{2,4})/);
-      if (nameMatch) {
-        const name = nameMatch[1];
-        let department = '', specialty = currentSpecialty, title = '';
-        const deptMatch = line.match(/(?:单位|部门|院)[：:]\s*(.+)/);
-        if (deptMatch) department = deptMatch[1].trim();
-        const titleMatch = line.match(/(?:职称|职务)[：:]\s*(.+)/);
-        if (titleMatch) title = titleMatch[1].trim();
-        addExpert(name, department, specialty, title);
-        continue;
-      }
-
-      // Pattern 3: Numbered table rows "1. 张三 教授"
-      if (line.match(/^\d+[.\s\t、）)]/)) {
-        const parts = line.split(/[\s\t|]+/).filter(Boolean);
-        if (parts.length >= 2) {
-          const name = parts[1].replace(/[,，、]/g, '');
-          const specialty = parts.length >= 3 ? parts.slice(2, -1).join(' ') || currentSpecialty : currentSpecialty;
-          const title = parts.length >= 3 ? parts[parts.length - 1] : '';
-          addExpert(name, '', specialty, title);
-          continue;
-        }
-      }
-
-      // Pattern 4: "评审专家：张三、李四"
-      const multiMatch = line.match(/(?:评审)?专家[：:]\s*(.+)/);
-      if (multiMatch && !line.includes('抽取') && !line.includes('系统') && !line.includes('人数')) {
-        const names = multiMatch[1].split(/[,，、\s]+/).filter(Boolean);
-        for (const n of names) {
-          const parenM = n.match(/([一-鿿·]{2,4})[（(]([^）)]+)[）)]/);
-          if (parenM) {
-            addExpert(parenM[1], '', parenM[2], '');
-          } else {
-            addExpert(n, '', currentSpecialty, '');
-          }
-        }
-        continue;
-      }
-    }
-
-    if (experts.length === 0) return null;
-
-    // Output format: "姓名|部门|专业|职称" per line
-    return experts.map(e => `${e.name}|${e.department}|${e.specialty}|${e.title}`).join('\n');
-  }
-
-  /** 从采购文件正文中提取项目概况描述。procurementMethod 用于适配不同采购方式的段落结构。 */
-  private extractProjectOverviewFromText(text: string, procurementMethod?: string): string | null {
-    const isDirect = procurementMethod === '直接采购';
-    const sectionKeywords = isDirect
-      ? ['采购内容', '采购项目', '采购标的', '采购范围及内容', '采购需求', '项目内容', '项目采购']
-      : ['项目概况', '采购内容', '项目概述', '项目背景', '采购需求概述', '项目简介'];
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-    let startIdx = -1;
-    for (const kw of sectionKeywords) {
-      const idx = lines.findIndex(l => l.includes(kw));
-      if (idx >= 0) { startIdx = idx; break; }
-    }
-    if (startIdx < 0) return null;
-
-    // Collect lines until next major section (Chinese/English section numbers)
-    const endMarkers = /^(一[、.]|二[、.]|三[、.]|四[、.]|五[、.]|[2-9][、.]|[2-9]\s|第[二三四五六七八九]|[A-D]\s|[IVX]+[、.])/;
-    // 段落切割补充：以下关键词标志"采购内容"段结束、"采购要求/资格/条款"段开始，立即停收
-    const stopKeywords = /供应商资格|资格要求|商务要求|技术要求|供货要求|验收标准|付款条件|评审办法|评审标准|评标办法|投标人须知|供应商须知|合同条款|报价要求|响应文件[^提]|申请文件|履约保证金|售后服务|培训要求|交货期限|交付要求/;
-    const parts: string[] = [];
-
-    // Clean up first line: remove section number prefix (e.g. "二、项目概况：", "一、采购内容", "1.项目概况")
-    let firstLine = lines[startIdx];
-    firstLine = firstLine.replace(/^[一二三四五六七八九十\d]+[、.）:：\s]+/, ''); // strip "二、" etc
-    for (const kw of sectionKeywords) firstLine = firstLine.replace(kw, '');       // strip keyword
-    firstLine = firstLine.replace(/^[和与及以及：:、.\s]+/, '');                  // strip leading connectors & colons
-    if (firstLine.trim()) parts.push(firstLine.trim());
-
-    for (let i = startIdx + 1; i < Math.min(lines.length, startIdx + 40); i++) {
-      const line = lines[i];
-      if (endMarkers.test(line)) break;
-      if (stopKeywords.test(line)) break;  // 遇到"要求/资格/条件/条款"类段落头即停
-      if (line.trim()) parts.push(line.trim());
-    }
-
-    const result = parts.join('\n');
-    return result.length >= 20 ? result : null;
-  }
-
   /** 从采购文件正文中提取开标/投标截止时间。procurementMethod 用于适配不同采购方式的时间表述。 */
   private extractBidOpeningTimeFromText(text: string, procurementMethod?: string): string | null {
     const isDirect = procurementMethod === '直接采购';
@@ -5952,125 +5142,19 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
 
-  private getTenderTextCachePath(projectId: string): string {
-    // /tmp 始终可写，避免 uploads/project-management 目录不存在
-    const dir = join('/tmp', 'project-management-cache');
-    mkdir(dir, { recursive: true }).catch(() => {});
-    return join(dir, `tender-text-${projectId}.txt`);
-  }
-  private isLabelLine(line: string) {
-    return [
-      '需求申请人',
-      '需求部门',
-      '申请采购事项名称',
-      '采购方式',
-      '采购类别',
-      '采购组织形式',
-      '是否属于年度预算',
-      '申请立项事由',
-      '对供方的主要要求',
-      '所属项目/合同及编号',
-    ].includes(line);
-  }
-
-  private normalizeStageMatchText(stageMatch: string) {
-    return stageMatch
-      .replace(/INITIATION/g, '项目立项')
-      .replace(/TENDER_DOCUMENT/g, '采购文件')
-      .replace(/PUBLIC_ANNOUNCEMENT/g, '采购公示')
-      .replace(/EXPERT_SELECTION/g, '专家抽取')
-      .replace(/BID_EVALUATION/g, '评标过程')
-      .replace(/AWARD_DECISION/g, '定标')
-      .replace(/CONTRACT/g, '合同');
-  }
-
-  private getUploadDir() {
-    return resolve(process.cwd(), 'uploads', 'project-management');
-  }
-
-  private getProjectSummaryCachePath(projectId: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `summary-${projectId}.json`,
-    );
-  }
-
-  private getStageAnalysisCachePath(projectId: string, stageKey: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `analysis-${projectId}-${stageKey.toLowerCase()}.json`,
-    );
-  }
-
-  private getComplianceCachePath(projectId: string, stageKey: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `compliance-${projectId}-${stageKey.toLowerCase()}.json`,
-    );
-  }
-
-  private getStepAnalysisCachePath(projectId: string, stageKey: string) {
-    return resolve(
-      process.cwd(),
-      'uploads',
-      'project-management',
-      `step-${projectId}-${stageKey.toLowerCase()}.json`,
-    );
-  }
-
-  private buildStageAnalysisFingerprint(
-    stageKey: string,
-    attachments: Array<{
-      objectKey: string;
-      createdAt?: Date | null;
-      fileSize: number;
-    }>,
-  ) {
-    const fileSignature = attachments
-      .map((attachment) =>
-        [attachment.objectKey, attachment.fileSize].join('@'),
-      )
-      .sort()
-      .join('|');
-
-    return `${stageKey}:${fileSignature}`;
-  }
-
-  private sanitizeFileName(fileName: string) {
-    const normalizedFileName = this.normalizeUploadedFileName(fileName);
-    const base = basename(normalizedFileName, extname(normalizedFileName));
-    const extension = extname(normalizedFileName) || '.bin';
-    const safeBase = base.replace(/[^a-zA-Z0-9一-龥_-]+/g, '-');
-    return `${safeBase}${extension}`;
-  }
-
-  private normalizeUploadedFileName(fileName: string) {
-    if (/[ -]*[一-龥]/.test(fileName)) {
-      return fileName;
-    }
-
-    const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
-    return decoded.includes('�') ? fileName : decoded;
-  }
 
   private async persistUploadedFile(
     file: Express.Multer.File,
     prefix: string,
     uploadedById?: string,
   ) {
-    const uploadDir = this.getUploadDir();
+    const uploadDir = getUploadDir();
     await mkdir(uploadDir, { recursive: true });
 
-    const normalizedFileName = this.normalizeUploadedFileName(
+    const normalizedFileName = normalizeUploadedFileName(
       file.originalname,
     );
-    const storedFileName = `${Date.now()}-${prefix}-${this.sanitizeFileName(normalizedFileName)}`;
+    const storedFileName = `${Date.now()}-${prefix}-${sanitizeFileName(normalizedFileName)}`;
     const absolutePath = resolve(uploadDir, storedFileName);
 
     await writeFile(absolutePath, file.buffer);
@@ -6229,7 +5313,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         const tMatches = rXml.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g);
         if (tMatches) {
           for (const t of tMatches) {
-            const txt = this.decodeXmlText(t.replace(/<[^>]+>/g, ''));
+            const txt = decodeXmlText(t.replace(/<[^>]+>/g, ''));
             if (!txt) continue;
             const tag = bold ? 'strong' : 'span';
             let inline = '';
@@ -6243,7 +5327,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
       // plain text (for save/AI) — 换行保留：<w:br/> → \n
       const withLineBreaks = pXml.replace(/<w:br[^>]*\/?>/g, '\n');
-      const textContent = this.decodeXmlText(withLineBreaks.replace(/<[^>]+>/g, '')).trim();
+      const textContent = decodeXmlText(withLineBreaks.replace(/<[^>]+>/g, '')).trim();
       if (textContent.length > 0) {
         rawParagraphs.push({ text: textContent, html, style, origIdx: rawParagraphs.length });
       }
@@ -6414,7 +5498,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     let pm;
     while ((pm = pRegex.exec(docXml)) !== null) {
       const xml = pm[0];
-      const text = this.extractPlainText(xml);
+      const text = extractPlainText(xml);
       if (text.length > 0) {
         rawParas.push({ xml, text, start: pm.index, end: pm.index + xml.length });
       }
@@ -6446,20 +5530,20 @@ ${JSON.stringify(algorithmResult, null, 2)}
         edits.push({
           start: rawParas[range.from].start,
           end: rawParas[range.from].end,
-          newXml: this.applyTextToParagraphXml(rawParas[range.from].xml, ep.text),
+          newXml: applyTextToParagraphXml(rawParas[range.from].xml, ep.text),
         });
       } else {
         // 多段落合并：全文写入第一段，其余清空
         edits.push({
           start: rawParas[range.from].start,
           end: rawParas[range.from].end,
-          newXml: this.applyTextToParagraphXml(rawParas[range.from].xml, ep.text),
+          newXml: applyTextToParagraphXml(rawParas[range.from].xml, ep.text),
         });
         for (let i = range.from + 1; i <= to; i++) {
           edits.push({
             start: rawParas[i].start,
             end: rawParas[i].end,
-            newXml: this.applyTextToParagraphXml(rawParas[i].xml, ''),
+            newXml: applyTextToParagraphXml(rawParas[i].xml, ''),
           });
         }
       }
@@ -6522,89 +5606,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
     );
 
     return { success: true, attachmentId: newAttachment.id };
-  }
-
-  /** 对 XML 文本内容进行转义（在 <w:t> 节点中放置）。 */
-  private escapeXmlText(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  /** 解码 XML 实体（&amp; &lt; &gt; &quot; &apos;），修复原先被 .replace(/&\w+;/g,'') 删光的 bug。 */
-  private decodeXmlText(s: string): string {
-    return s
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .replace(/&\w+;/g, '');
-  }
-
-  /** 从 <w:p> XML 中提取纯文本。保持与 getAttachmentParagraphs 一致的 <w:br/> → \n 转换，确保两次解析产生相同的非空段落集合。 */
-  private extractPlainText(xml: string): string {
-    const withLineBreaks = xml.replace(/<w:br[^>]*\/?>/g, '\n');
-    return this.decodeXmlText(withLineBreaks.replace(/<[^>]+>/g, '')).trim();
-  }
-
-
-  /** 将新文本写入 <w:p> XML，保留所有 <w:r>/<w:rPr> 结构与格式。
-   *  文字按比例分配到各 <w:t> 节点，\n 转换为 <w:br/> 保留换行。 */
-  private applyTextToParagraphXml(paragraphXml: string, newText: string): string {
-    // 多行文本：第一行按比例分配到现有 <w:t>，后续行追加 <w:r><w:br/></w:r> + <w:r><w:t>...</w:t></w:r>
-    const lines = newText.split('\n');
-    let result = this.distributeTextIntoTNodes(paragraphXml, lines[0]);
-
-    for (let i = 1; i < lines.length; i++) {
-      const insertPos = result.lastIndexOf('</w:p>');
-      if (insertPos === -1) break;
-      const escaped = this.escapeXmlText(lines[i]);
-      result = result.slice(0, insertPos) +
-        `<w:r><w:br/></w:r><w:r><w:t xml:space="preserve">${escaped}</w:t></w:r>` +
-        result.slice(insertPos);
-    }
-    return result;
-  }
-
-  /** 在 <w:p> XML 的现有 <w:t> 节点中按比例分配单行文字，保留 <w:r> 格式。 */
-  private distributeTextIntoTNodes(paragraphXml: string, text: string): string {
-    const tNodes: Array<{ start: number; end: number; text: string }> = [];
-    const tRegex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
-    let tm: RegExpExecArray | null;
-    while ((tm = tRegex.exec(paragraphXml)) !== null) {
-      tNodes.push({ start: tm.index, end: tm.index + tm[0].length, text: tm[1] });
-    }
-
-    if (tNodes.length === 0) return paragraphXml;
-
-    const totalOldLen = tNodes.reduce((s, n) => s + n.text.length, 0);
-    const localEdits: Array<{ start: number; end: number; replacement: string }> = [];
-    let remaining = text;
-
-    for (let i = 0; i < tNodes.length; i++) {
-      const node = tNodes[i];
-      let slice: string;
-      if (totalOldLen === 0) {
-        slice = i === 0 ? remaining : '';
-      } else {
-        const proportion = node.text.length / totalOldLen;
-        const charCount = i === tNodes.length - 1
-          ? remaining.length
-          : Math.max(0, Math.round(text.length * proportion));
-        slice = remaining.slice(0, Math.min(charCount, remaining.length));
-        remaining = remaining.slice(slice.length);
-      }
-      localEdits.push({
-        start: node.start,
-        end: node.end,
-        replacement: `<w:t xml:space="preserve">${this.escapeXmlText(slice)}</w:t>`,
-      });
-    }
-
-    let result = paragraphXml;
-    for (const edit of localEdits.reverse()) {
-      result = result.slice(0, edit.start) + edit.replacement + result.slice(edit.end);
-    }
-    return result;
   }
 
   /** 两个文本的相似度（0-1），用于段落匹配。 */
@@ -6960,7 +5961,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       );
     } else {
       // legacy 回退：整体重建
-      const children = this.htmlToDocxChildren(dto.html);
+      const children = htmlToDocxChildren(dto.html);
       const doc = new Document({ sections: [{ properties: {}, children }] });
       newBuffer = (await Packer.toBuffer(doc)) as Buffer;
     }
@@ -7025,258 +6026,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
         createdAt: true,
         createdById: true,
       },
-    });
-  }
-
-  /* ══════════ HTML → DOCX 解析器 ══════════ */
-
-  /** 将编辑后的 HTML 解析为 docx Paragraph/Table 数组。 */
-  private htmlToDocxChildren(html: string): (Paragraph | Table)[] {
-    const result: (Paragraph | Table)[] = [];
-    let remaining = html
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"');
-
-    while (remaining.length > 0) {
-      remaining = remaining.trimStart();
-      if (remaining.length === 0) break;
-
-      // 1) 表格
-      if (/^<table[\s>]/i.test(remaining)) {
-        const inner = this.extractTagInner(remaining, 'table');
-        if (inner !== null) {
-          const table = this.parseTable(inner);
-          if (table) result.push(table);
-          remaining = this.skipTag(remaining, 'table');
-          continue;
-        }
-      }
-
-      // 2) 列表
-      if (/^<(ul|ol)[\s>]/i.test(remaining)) {
-        const tag = remaining.match(/^<(ul|ol)/i)![1];
-        const inner = this.extractTagInner(remaining, tag);
-        if (inner !== null) {
-          const items = this.extractAllTagInners(inner, 'li');
-          for (const liHtml of items) {
-            const p = this.inlineHtmlToParagraph(liHtml);
-            if (p) result.push(p);
-          }
-          remaining = this.skipTag(remaining, tag);
-          continue;
-        }
-      }
-
-      // 3) 块级元素
-      const blockMatch = remaining.match(/^<(h[1-6]|p|div|li|blockquote|th|td)([\s>])/i);
-      if (blockMatch) {
-        const tag = blockMatch[1].toLowerCase();
-        const inner = this.extractTagInner(remaining, tag);
-        if (inner !== null) {
-          const heading = this.parseHeadingLevel(tag);
-          const p = this.inlineHtmlToParagraph(inner, heading);
-          if (p) result.push(p);
-          remaining = this.skipTag(remaining, tag);
-          continue;
-        }
-      }
-
-      // 4) <br/> 独立换行
-      if (/^<br[\s/>]/i.test(remaining)) {
-        result.push(new Paragraph({ children: [] }));
-        const end = remaining.indexOf('>') + 1;
-        remaining = remaining.slice(end);
-        continue;
-      }
-
-      // 5) 独立 <img> → 跳过（base64 图片回写 DOCX 需原始数据）
-      if (/^<img[\s>]/i.test(remaining)) {
-        const end = remaining.indexOf('>') + 1;
-        remaining = remaining.slice(end);
-        continue;
-      }
-
-      // 6) HTML 注释
-      if (remaining.startsWith('<!--')) {
-        const end = remaining.indexOf('-->') + 3;
-        remaining = remaining.slice(end);
-        continue;
-      }
-
-      // 7) 未知标签或裸文本 — 跳过标签，提取文本
-      if (remaining.startsWith('<')) {
-        const end = remaining.indexOf('>');
-        if (end !== -1) { remaining = remaining.slice(end + 1); continue; }
-      }
-
-      // 裸文本（无标签包裹）
-      const nextTag = remaining.indexOf('<');
-      if (nextTag === -1) {
-        const text = remaining.trim();
-        if (text) result.push(new Paragraph({ children: [new TextRun({ text, size: 21 })] }));
-        break;
-      }
-      const text = remaining.slice(0, nextTag).trim();
-      if (text) result.push(new Paragraph({ children: [new TextRun({ text, size: 21 })] }));
-      remaining = remaining.slice(nextTag);
-    }
-
-    return result;
-  }
-
-  /** 提取 <tag>...</tag> 内部内容（处理嵌套）。返回 null 表示未匹配。 */
-  private extractTagInner(html: string, tag: string): string | null {
-    const openMatch = html.match(new RegExp(`<${tag}[^>]*>`, 'i'));
-    if (!openMatch) return null;
-    let depth = 1;
-    const pos = (openMatch.index || 0) + openMatch[0].length;
-    const tagRegex = new RegExp(`<(/?)${tag}([\\s>])`, 'gi');
-    tagRegex.lastIndex = pos;
-    let m: RegExpExecArray | null;
-    while ((m = tagRegex.exec(html)) !== null) {
-      if (m[1] === '/') { depth--; } else { depth++; }
-      if (depth === 0) return html.slice(pos, m.index);
-    }
-    return null;
-  }
-
-  /** 提取所有 <tag> 的内部内容（用于 li 等）。 */
-  private extractAllTagInners(html: string, tag: string): string[] {
-    const results: string[] = [];
-    const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'gi');
-    let m: RegExpExecArray | null;
-    while ((m = regex.exec(html)) !== null) results.push(m[1]);
-    return results;
-  }
-
-  /** 跳过整个 <tag>...</tag>，返回后续内容。 */
-  private skipTag(html: string, tag: string): string {
-    const openMatch = html.match(new RegExp(`<${tag}[^>]*>`, 'i'));
-    if (!openMatch) return html;
-    let depth = 1;
-    const pos = (openMatch.index || 0) + openMatch[0].length;
-    const tagRegex = new RegExp(`<(/?)${tag}([\\s>])`, 'gi');
-    tagRegex.lastIndex = pos;
-    let m: RegExpExecArray | null;
-    while ((m = tagRegex.exec(html)) !== null) {
-      if (m[1] === '/') depth--; else depth++;
-      if (depth === 0) return html.slice(m.index + m[0].length + 1); // +1 for >
-    }
-    return html.slice(pos); // 未找到闭合标签，跳过剩余
-  }
-
-  /** 将 h1-h6 映射为 docx HeadingLevel。 */
-  private parseHeadingLevel(tag: string) {
-    const map: Record<string, any> = {
-      h1: HeadingLevel.HEADING_1, h2: HeadingLevel.HEADING_2, h3: HeadingLevel.HEADING_3,
-      h4: HeadingLevel.HEADING_4, h5: HeadingLevel.HEADING_5, h6: HeadingLevel.HEADING_6,
-    };
-    return map[tag];
-  }
-
-  /** 解析带内联格式的 HTML 片段 → Paragraph（含粗体/斜体/下划线/换行）。 */
-  private inlineHtmlToParagraph(innerHtml: string, heading?: any): Paragraph | null {
-    const runs = this.parseInlineRuns(innerHtml);
-    if (runs.length === 0) return null;
-    return new Paragraph(heading ? { heading, children: runs } : { children: runs });
-  }
-
-  /** 将内联 HTML 解析为 TextRun 数组。处理：<strong>/<b>、<em>/<i>、<u>、<br>。 */
-  private parseInlineRuns(html: string): TextRun[] {
-    const runs: TextRun[] = [];
-    let remaining = html;
-    let bold = false, italic = false, underline = false;
-
-    while (remaining.length > 0) {
-      if (remaining.startsWith('<br')) {
-        runs.push(new TextRun({ break: 1 }));
-        const end = remaining.indexOf('>') + 1;
-        remaining = remaining.slice(end > 0 ? end : 4);
-        continue;
-      }
-
-      // 检查开关标签
-      const tagMatch = remaining.match(/^<\s*\/?\s*(\w+)[^>]*>/);
-      if (tagMatch) {
-        const fullTag = tagMatch[0];
-        const tag = tagMatch[1].toLowerCase();
-        const isClose = fullTag.startsWith('</');
-
-        if (tag === 'strong' || tag === 'b') { bold = !isClose; remaining = remaining.slice(fullTag.length); continue; }
-        if (tag === 'em' || tag === 'i') { italic = !isClose; remaining = remaining.slice(fullTag.length); continue; }
-        if (tag === 'u') { underline = !isClose; remaining = remaining.slice(fullTag.length); continue; }
-        if (tag === 'span' || tag === 'a' || tag === 'sub' || tag === 'sup') {
-          // 保留文本内容，忽略样式标签
-          remaining = remaining.slice(fullTag.length);
-          continue;
-        }
-        // 未知标签 → 当作文本处理
-      }
-
-      // 提取直到下一个 < 的纯文本
-      const lt = remaining.indexOf('<');
-      const chunk = lt === -1 ? remaining : remaining.slice(0, lt);
-      remaining = lt === -1 ? '' : remaining.slice(lt);
-
-      if (chunk) {
-        const lines = chunk.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-          if (i > 0) runs.push(new TextRun({ break: 1 }));
-          if (lines[i]) {
-            runs.push(new TextRun({
-              text: lines[i],
-              bold: bold || undefined,
-              italics: italic || undefined,
-              underline: underline ? { type: 'single' as any } : undefined,
-              size: 21,
-            }));
-          }
-        }
-      }
-    }
-
-    return runs;
-  }
-
-  /** 解析 <table> 内部 HTML → docx Table（含框线）。 */
-  private parseTable(innerHtml: string): Table | null {
-    const rows: TableRow[] = [];
-    const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    let trMatch: RegExpExecArray | null;
-
-    const cellBorder = {
-      style: BorderStyle.SINGLE,
-      size: 4,
-      color: '000000',
-    };
-    const cb = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
-
-    while ((trMatch = trRegex.exec(innerHtml)) !== null) {
-      const cells: TableCell[] = [];
-      const tdRegex = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
-      let tdMatch: RegExpExecArray | null;
-
-      while ((tdMatch = tdRegex.exec(trMatch[1])) !== null) {
-        const p = this.inlineHtmlToParagraph(tdMatch[1]);
-        cells.push(new TableCell({
-          borders: cb,
-          width: { size: 4680, type: WidthType.DXA },
-          children: p ? [p] : [new Paragraph({ children: [] })],
-        }));
-      }
-
-      if (cells.length > 0) {
-        rows.push(new TableRow({ children: cells }));
-      }
-    }
-
-    if (rows.length === 0) return null;
-    return new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows,
     });
   }
 

@@ -1,7 +1,6 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import { IsString } from 'class-validator';
 import { ImportsService } from './imports.service';
-import { AuthGuard } from '../auth/auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 
 class ImportFromPathDto {
@@ -10,7 +9,6 @@ class ImportFromPathDto {
 }
 
 @Controller('imports')
-@UseGuards(AuthGuard)
 @Roles('leader', 'admin', 'staff')
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}

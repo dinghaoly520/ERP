@@ -1,7 +1,6 @@
-import { Controller, Get, Post, Query, Body, Req, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Query, Body, Req, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthGuard } from '../auth/auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { RsvpService } from './rsvp.service';
@@ -57,7 +56,6 @@ export class RsvpController {
   }
 
   @Get('list')
-  @UseGuards(AuthGuard)
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '回执看板（采购端，按项目/批次聚合 接受/拒绝/未回复）' })
   async list(@Query('projectId') projectId?: string, @Query('invitationId') invitationId?: string) {

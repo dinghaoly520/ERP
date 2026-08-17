@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { apiOrigin } from '@water-erp/config';
 
 const AUTH_COOKIE_NAME = 'token_web';
-const API_TARGET = process.env.API_SERVER_URL ?? 'http://localhost:4001';
+// API 目标统一从 @water-erp/config 的 apiOrigin() 取（默认本地 PORTS.api，
+// API_ORIGIN 环境变量可覆盖；旧名 API_SERVER_URL 保留作兼容别名）。
+const API_TARGET = process.env.API_SERVER_URL ?? apiOrigin();
 
 export async function proxy(request: NextRequest) {
   // ★ API proxy: forward /api/* to NestJS with full cookie passthrough

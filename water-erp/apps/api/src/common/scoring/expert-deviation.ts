@@ -1,3 +1,6 @@
+// 位置说明：原位于 expert/ 模块内。2026-08 审计加固时移至 common/scoring 共享内核——
+// 这些是纯函数（无 Nest 依赖），bid 与 expert 两模块都使用；放在中立位置避免
+// bid.service ↔ expert 模块的文件级双向依赖（模块图诚实化）。
 export interface ScoreRecordInput {
   expertId: string; // 评分者标识（接入时用 expertUserId，使偏离可跨项目归属到人）
   scoreItemId: string;

@@ -6,6 +6,10 @@ import { AiService } from './ai.service';
 import { SupplierEvaluationAnalysisService } from './supplier-evaluation-analysis.service';
 import { SupplierPortraitAnalysisService } from './supplier-portrait-analysis.service';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
+import { DashboardAnalysisDto } from './dto/dashboard-analysis.dto';
+import { ProcurementAnalysisDto } from './dto/procurement-analysis.dto';
+import { TenderFieldGenerateDto } from './dto/tender-field-generate.dto';
+import { ReferenceBudgetDto } from './dto/reference-budget.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('AI辅助评标')
@@ -134,28 +138,28 @@ export class AiController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'AI采购仪表盘深度分析（从procurement迁入）' })
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  async dashboardAnalysis(@Body() payload: any) {
+  async dashboardAnalysis(@Body() payload: DashboardAnalysisDto) {
     return this.aiService.analyzeDashboard(payload);
   }
 
   @Post('procurement-analysis')
   @ApiOperation({ summary: 'AI采购台账分析' })
   @Roles('admin', 'leader', 'staff')
-  async procurementAnalysis(@Body() payload: any) {
+  async procurementAnalysis(@Body() payload: ProcurementAnalysisDto) {
     return this.aiService.analyzeProcurementLedger(payload);
   }
 
   @Post('tender-field-generate')
   @ApiOperation({ summary: 'AI招标字段内容生成' })
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  async tenderFieldGenerate(@Body() payload: any) {
+  async tenderFieldGenerate(@Body() payload: TenderFieldGenerateDto) {
     return this.aiService.generateTenderFieldContent(payload);
   }
 
   @Post('reference-budget')
   @ApiOperation({ summary: 'AI参考预算生成' })
   @Roles('admin', 'leader', 'staff')
-  async referenceBudget(@Body() payload: any) {
+  async referenceBudget(@Body() payload: ReferenceBudgetDto) {
     return this.aiService.generateReferenceBudget(payload);
   }
 

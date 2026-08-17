@@ -5,18 +5,18 @@ import {
   Param,
   Query,
   Request,
-  UseGuards,
   BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
-import { AuthGuard } from '../auth/auth.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { INTERNAL_ROLES } from '../auth/auth-scope';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 
 @ApiTags('即时聊天')
 @ApiCookieAuth('token')
 @Controller('chat')
-@UseGuards(AuthGuard)
+@Roles(...INTERNAL_ROLES)
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,

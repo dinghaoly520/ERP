@@ -1,12 +1,14 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Request, Res } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
+import { Roles } from '../common/decorators/roles.decorator';
 import { BudgetService } from './budget.service';
 import { CloneBudgetListDto, CreateBudgetListDto, SyncBudgetItemsDto, UpdateBudgetListDto } from './dto';
 
 @ApiTags('预算清单')
 @ApiCookieAuth('token')
 @Controller('budget')
+@Roles('admin', 'leader', 'staff')
 export class BudgetController {
   constructor(private readonly budgetService: BudgetService) {}
 

@@ -1,13 +1,14 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { AUTHENTICATED_ROLES } from '../auth/auth-scope';
+import { Roles } from '../common/decorators/roles.decorator';
 import { BadgeService } from './badge.service';
 
 @ApiTags('工作印记')
 @Controller('badge')
-@UseGuards(AuthGuard)
+@Roles(...AUTHENTICATED_ROLES)
 export class BadgeController {
   constructor(private readonly service: BadgeService) {}
 

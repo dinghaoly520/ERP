@@ -1,5 +1,18 @@
 import { PORTS, type AppName } from './ports';
 
+/** API 服务 origin —— 各门户 next.config rewrites / middleware 代理目标的唯一来源。
+ *  环境变量 API_ORIGIN 可覆盖（生产指向真实后端域名）；默认本地端口（PORTS.api）。
+ *  2026-08 审计 D：此前 7 个 next.config + vite + proxy.ts 各自硬编码 localhost:4001。 */
+export function apiOrigin(): string {
+  return (process.env.API_ORIGIN || `http://localhost:${PORTS.api}`).replace(/\/+$/, '');
+}
+
+/** 门户 origin（无路径、无尾斜杠）—— 后端生成跨门户跳转/白名单的兜底值。
+ *  env 覆盖优先（如 EXPERT_PORTAL_URL / SUPPLIER_PORTAL_URL），未设用本地端口。 */
+export function portalOrigin(app: AppName, envOverride?: string): string {
+  return (envOverride || `http://localhost:${PORTS[app]}`).replace(/\/+$/, '');
+}
+
 /** 构建门户完整 URL（浏览器端使用） */
 export function portalURL(app: AppName, path = '/'): string {
   const port = PORTS[app];

@@ -33,6 +33,7 @@ export const STAGE_LABEL: Record<string, string> = {
   OPENING: '在线开标',
   EVALUATING: '专家评标',
   ARCHIVED: '资料归档',
+  ABORTED: '流标',
 };
 
 export const STAGE_COLOR: Record<string, string> = {
@@ -41,6 +42,7 @@ export const STAGE_COLOR: Record<string, string> = {
   OPENING: '#f5a623',
   EVALUATING: '#7c3aed',
   ARCHIVED: '#11a874',
+  ABORTED: '#e74c3c',
 };
 
 /* ── 供应商状态 ── */

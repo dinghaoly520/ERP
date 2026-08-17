@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
@@ -7,11 +7,13 @@ import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
 import { ReactivateDto } from './dto/reactivate.dto';
+import { CreateCatalogApplicationDto, UpdateCatalogApplicationDto } from './dto/catalog-application.dto';
 import { Public } from '../common/decorators/public.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('supplier-portal')
-
+@Roles('supplier')
 export class SupplierPortalController {
   constructor(
     private portalService: SupplierPortalService,
@@ -336,13 +338,13 @@ export class SupplierPortalController {
   }
 
   @Post('catalog-applications')
-  async createCatalogApplication(@Request() req: any, @Body() body: any) {
+  async createCatalogApplication(@Request() req: any, @Body() body: CreateCatalogApplicationDto) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.createCatalogApplication(supplierId, body);
   }
 
   @Patch('catalog-applications/:id')
-  async updateCatalogApplication(@Request() req: any, @Param('id') id: string, @Body() body: any) {
+  async updateCatalogApplication(@Request() req: any, @Param('id') id: string, @Body() body: UpdateCatalogApplicationDto) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.updateMyCatalogApplication(supplierId, req.user.sub, id, body);
   }

@@ -1,3 +1,5 @@
+// 位置说明：原位于 expert/expert.util.ts。2026-08 审计加固时移至 common/scoring 共享内核——
+// 纯函数，bid 与 expert 两模块都使用，中立位置避免文件级双向依赖。
 /**
  * P2：健壮解析 expert.conflictedSupplierIds。
  * Prisma Json 字段可能返回数组，也可能是 JSON 字符串（seed 数据历史遗留）；

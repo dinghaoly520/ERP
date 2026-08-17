@@ -37,7 +37,7 @@ export const ANNOUNCEMENT_STATUS_LABEL: Record<string, string> = {
 };
 
 export const ANNOUNCEMENT_TYPE_LABEL: Record<string, string> = {
-  BID_NOTICE: '招标公告',
+  BID_NOTICE: '采购公告',
   WIN_NOTICE: '中标公示',
   POLICY: '政策法规',
   PLATFORM: '平台通知',

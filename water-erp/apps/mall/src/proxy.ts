@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { apiOrigin } from '@water-erp/config';
 
 const publicPaths = ['/login', '/api', '/assets'];
 const PORTAL = 'mall';
@@ -18,8 +19,10 @@ export default async function proxy(request: NextRequest) {
   }
 
   // 验证 token 是否有效 — 直接调用后端 API
+  // （middleware 运行在服务端，不能用相对路径；origin 统一从 @water-erp/config 的 apiOrigin() 取，
+  //   生产经 API_ORIGIN 环境变量指向真实后端域名）
   try {
-    const res = await fetch('http://localhost:4001/api/auth/me', {
+    const res = await fetch(`${apiOrigin()}/api/auth/me`, {
       headers: { Cookie: `${COOKIE}=${token}`, 'X-Portal': PORTAL },
     });
     if (!res.ok) {

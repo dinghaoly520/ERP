@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { api } from '@/lib/api';
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    电子商城 · 登录页 — 浅色炫彩毛玻璃 · 浅黄
@@ -89,7 +90,7 @@ export default function MallLoginPage() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('forceLogin') !== '1') return;
-    fetch('/api/auth/logout', { method: 'POST', headers: { 'X-Portal': 'mall' }, credentials: 'include' });
+    api.post('/auth/logout').catch(() => {});
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -97,17 +98,11 @@ export default function MallLoginPage() {
     if (!form.username || !form.password) { toast.error('请输入用户名和密码'); return; }
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Portal': 'mall' },
-        credentials: 'include',
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (data.error) { toast.error(data.error); setLoading(false); return; }
+      const data = await api.post<any>('/auth/login', form);
+      if (data?.error) { toast.error(data.error); setLoading(false); return; }
       router.push('/');
-    } catch {
-      toast.error('请求失败，请重试');
+    } catch (err: any) {
+      toast.error(err?.message || '请求失败，请重试');
     }
     setLoading(false);
   };

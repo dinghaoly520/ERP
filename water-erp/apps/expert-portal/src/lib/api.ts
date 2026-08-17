@@ -1,7 +1,13 @@
+import { createApiClient } from '@water-erp/client';
 import type { ExpertMemo } from '@water-erp/shared';
 
-const BASE = '/api';
-const PORTAL = 'expert';
+/**
+ * expert-portal 专家门户 API 客户端 —— 基于 @water-erp/client 统一封装。
+ * （2026-08 审计收敛：此前为本地复制的 fetchApi 副本之一。）
+ *
+ * 本门户的 ApiError 签名与共享包不同（message 在前 + data 附带错误体），
+ * 为保持既有调用方的 instanceof/字段访问不变，保留本地类并做映射。
+ */
 
 export class ApiError extends Error {
   constructor(
@@ -14,25 +20,16 @@ export class ApiError extends Error {
   }
 }
 
-async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
-  // Merge headers safely: handle both plain objects and Headers instances
-  const mergedHeaders = new Headers({ 'X-Portal': PORTAL });
-  if (init?.headers) {
-    const src = new Headers(init.headers as HeadersInit);
-    for (const [k, v] of src) mergedHeaders.set(k, v);
-  }
+const client = createApiClient({
+  portal: 'expert',
+  // 401 全局兜底：JWT 过期 / 服务端踢人 / cookie 被清 → 直接跳登录页，
+  // 不让调用方的 .catch(() => {}) 静默吞掉鉴权失败。
+  on401: () => { window.location.href = '/login'; },
+});
 
-  const res = await fetch(`${BASE}${path}`, {
-    credentials: 'include',
-    ...init,
-    headers: mergedHeaders,
-  });
+async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await client.raw(path, init);
   if (!res.ok) {
-    // 401 全局兜底：JWT 过期 / 服务端踢人 / cookie 被清 → 直接跳登录页，
-    // 不让调用方的 .catch(() => {}) 静默吞掉鉴权失败。
-    if (res.status === 401 && typeof window !== 'undefined') {
-      window.location.href = '/login';
-    }
     let message = `请求失败 (${res.status})`;
     let body: Record<string, unknown> = {};
     try {
@@ -56,10 +53,8 @@ export const api = {
     }
     return fetchApi<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   },
-  patch: <T>(path: string, body: unknown) =>
-    fetchApi<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
-  delete: <T>(path: string) =>
-    fetchApi<T>(path, { method: 'DELETE' }),
+  patch: <T>(path: string, body: unknown) => fetchApi<T>(path, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  delete: <T>(path: string) => fetchApi<T>(path, { method: 'DELETE' }),
 };
 
 // ── Expert score-review verify ──

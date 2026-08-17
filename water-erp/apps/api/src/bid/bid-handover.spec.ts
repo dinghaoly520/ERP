@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, BadRequestException } from '@nestjs/common';
 import { BidService } from './bid.service';
+import { BidScoreStandardService } from './bid-score-standard.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from './clarification-ai.service';
@@ -41,6 +42,7 @@ async function buildService(prisma: any) {
   const moduleRef: TestingModule = await Test.createTestingModule({
     providers: [
       BidService,
+      BidScoreStandardService,
       { provide: PrismaService, useValue: prisma },
       { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue(undefined) } },
       { provide: ScoreStandardValidator, useValue: { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
