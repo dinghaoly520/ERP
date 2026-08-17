@@ -10,7 +10,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck,
+  AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, ClipboardCheck,
   Clock, FileCheck, MessageSquare, Play, ShieldCheck, Sparkles, Star, Trophy, UserCheck, X,
 } from 'lucide-react';
 import {
@@ -132,7 +132,6 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
   const [results, setResults] = useState<BidEvaluationResultInfo[]>([]);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
-  const [expandedExperts, setExpandedExperts] = useState<Set<string>>(new Set());
   const [expandedCell, setExpandedCell] = useState<string | null>(null); // `${expertId}:${supplierId}`
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<0 | 1 | 2>(0);
@@ -455,7 +454,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
         <div className="rounded-[14px]" style={{ border: '1px solid oklch(0.6 0.04 258 / 0.14)' }}>
           <div className="px-3.5 py-2.5" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.1)', background: 'oklch(0.975 0.012 258 / 0.5)' }}>
             <span className="text-[11px] font-bold text-[var(--foreground)]">专家状态</span>
-            <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">点击展开查看各供应商评分明细</span>
+            <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">实名组织视图——签到·签字·现场沟通（查看留痕）；评分明细见下方编号矩阵</span>
           </div>
           {experts.length === 0 ? (
             <div className="px-3.5 py-6 text-center text-xs text-[var(--muted-foreground)]">
@@ -463,83 +462,27 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
             </div>
           ) : (
             <div>
-              {experts.map(expert => {
-                const expanded = expandedExperts.has(expert.id);
-                const row = matrix.get(expert.id);
-                return (
-                  <Fragment key={expert.id}>
-                    <button
-                      type="button"
-                      onClick={() => setExpandedExperts(prev => {
-                        const next = new Set(prev);
-                        if (next.has(expert.id)) next.delete(expert.id); else next.add(expert.id);
-                        return next;
-                      })}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-[oklch(0.97_0.01_258_/_0.5)]"
-                      style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.08)' }}
-                    >
-                      {expanded ? <ChevronDown size={13} className="shrink-0 text-[var(--muted-foreground)]" /> : <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />}
-                      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
-                        {expert.expertName}
-                        <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
-                      </span>
-                      <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.signedIn ? 'var(--success)' : 'var(--muted-foreground)' }}>
-                        <UserCheck size={11} /> {expert.signedIn ? '已签到' : '未签到'}
-                      </span>
-                      <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.avoidanceConfirmed ? 'var(--success)' : 'var(--warning)' }}>
-                        <ShieldCheck size={11} /> {expert.avoidanceConfirmed ? '已回避确认' : '待回避确认'}
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold" style={{ color: expert.reportConfirmed ? 'var(--success)' : 'var(--muted-foreground)' }}>
-                        <FileCheck size={11} /> {expert.reportConfirmed ? '报告已确认' : '报告未确认'}
-                      </span>
-                    </button>
-                    {expanded && row && (
-                      <div className="px-6 py-2.5" style={{ background: 'oklch(0.975 0.012 258 / 0.35)', borderTop: '1px dashed oklch(0.6 0.04 258 / 0.12)' }}>
-                        {suppliers.length === 0 ? (
-                          <span className="text-[11px] text-[var(--muted-foreground)]">暂无投标供应商</span>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {suppliers.map(s => {
-                              const cell = row.get(s.id);
-                              const scored = cell && cell.scoredCount > 0;
-                              return (
-                                <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                  <span className="w-40 shrink-0 truncate text-[11px] font-medium text-[var(--foreground)]">{s.supplierName}</span>
-                                  {scored ? (
-                                    <>
-                                      <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--accent-strong)]">
-                                        {cell.totalScore.toFixed(1)}<span className="font-normal text-[var(--muted-foreground)]">/{cell.maxScore}</span>
-                                      </span>
-                                      <span className="text-[10px] text-[var(--muted-foreground)]">{cell.scoredCount}/{scoreItems.length} 项</span>
-                                      <span className="flex flex-wrap gap-1">
-                                        {cell.items.map((it: ExpertSupplierCell['items'][number]) => (
-                                          <span
-                                            key={it.name}
-                                            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px]"
-                                            title={it.reason ?? undefined}
-                                            style={{
-                                              background: it.passed === false ? 'color-mix(in oklch, var(--danger) 12%, transparent)' : 'oklch(0.94 0.01 258 / 0.7)',
-                                              color: it.passed === false ? 'var(--danger)' : 'var(--muted-foreground)',
-                                            }}
-                                          >
-                                            {it.name}：{PASS_FAIL_CATEGORIES.includes(it.category) ? (it.passed === false ? '不通过' : '通过') : `${it.score}/${it.maxScore}`}
-                                          </span>
-                                        ))}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <span className="text-[10px] text-[var(--muted-foreground)]">未评分</span>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </Fragment>
-                );
-              })}
+              {experts.map(expert => (
+                <div
+                  key={expert.id}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left"
+                  style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.08)' }}
+                >
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
+                    {expert.expertName}
+                    <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
+                  </span>
+                  <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.signedIn ? 'var(--success)' : 'var(--muted-foreground)' }}>
+                    <UserCheck size={11} /> {expert.signedIn ? '已签到' : '未签到'}
+                  </span>
+                  <span className="hidden items-center gap-1 text-[10px] font-semibold sm:inline-flex" style={{ color: expert.avoidanceConfirmed ? 'var(--success)' : 'var(--warning)' }}>
+                    <ShieldCheck size={11} /> {expert.avoidanceConfirmed ? '已回避确认' : '待回避确认'}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold" style={{ color: expert.reportConfirmed ? 'var(--success)' : 'var(--muted-foreground)' }}>
+                    <FileCheck size={11} /> {expert.reportConfirmed ? '报告已确认' : '报告未确认'}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
