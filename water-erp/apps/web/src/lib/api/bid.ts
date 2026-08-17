@@ -188,7 +188,7 @@ export function deleteScorePoint(bidProjectId: string, itemId: string, pointId: 
   return api.delete<{ deleted?: boolean }>(`/bid/projects/${bidProjectId}/score-items/${itemId}/points/${pointId}`);
 }
 
-/** 发布评分标准（锁定：置 scoreStandardPublishedAt）。后端校验打分类 Σ=100 且每项 ≥1 得分点，不满足 → 409。*/
+/** 发布评分标准（定稿标记：置 scoreStandardPublishedAt；开标前仍可修改，修改即作废发布需重新发布）。后端校验打分类 Σ=100 且每项 ≥1 得分点，不满足 → 409；开标后锁定 → 409。*/
 export function publishScoreStandard(bidProjectId: string) {
   return api.post<BidProjectDetail>(`/bid/projects/${bidProjectId}/score-items/publish`, {});
 }

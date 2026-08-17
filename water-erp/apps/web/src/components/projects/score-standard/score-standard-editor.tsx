@@ -91,23 +91,26 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 按项目/轮次重载；bidProject 仅作首屏捷径
-  }, [project.id, round, bidProject?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 按项目/轮次重载；bidProject 仅作首屏捷径（stage 变化时重载以同步锁定态）
+  }, [project.id, round, bidProject?.id, bidProject?.stage]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const locked = !!publishedAt || stage === 'EVALUATING' || stage === 'ARCHIVED';
+  // 开标（OPENING）后锁定；发布不再锁定——发布后开标前仍可修改（修改即作废发布，需重新发布）
+  const locked = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
   const totalMax = useMemo(() => items.reduce((s, i) => s + Number(i.maxScore), 0), [items]);
   const scoredTotal = useMemo(
     () => items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0),
     [items],
   );
 
-  // 得分点增删改后刷新 items（含 points 字段）并通知父组件
+  // 得分点增删改后刷新 items（含 points 字段）+ 同步阶段/发布态（修改会作废已发布状态）并通知父组件
   const reloadItems = useCallback(async () => {
     if (!bpId) return;
     try {
-      const refreshed = await listScoreItems(bpId);
+      const [refreshed, detail] = await Promise.all([listScoreItems(bpId), getBidProjectDetail(bpId)]);
       setItems(refreshed);
+      setStage(detail.stage);
+      setPublishedAt(detail.scoreStandardPublishedAt ?? null);
     } catch {
       /* 保留旧数据 */
     }
@@ -128,7 +131,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       toast.error(`发布前请确保:打分项满分合计=100(当前 ${scoredSum}),且每个打分项至少 1 个得分点`);
       return;
     }
-    if (!window.confirm('发布后评分标准将锁定,不可再修改。确认发布?')) return;
+    if (!window.confirm('发布后开标前仍可修改，但修改后原发布作废、需重新发布。确认发布?')) return;
     try {
       const res = await publishScoreStandard(bpId);
       setPublishedAt(res.scoreStandardPublishedAt ?? null);
@@ -223,6 +226,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       setItems((prev) => [...prev, created]);
       setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 });
       setShowAdd(false);
+      setPublishedAt(null); // 修改作废已发布状态，需重新发布
       toast.success('评分项已新增');
       onChanged?.();
     } catch (e) {
@@ -254,6 +258,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
       });
       setItems((prev) => prev.map((i) => (i.id === id ? updated : i)));
       setEditingId(null);
+      setPublishedAt(null); // 修改作废已发布状态，需重新发布
       toast.success('已保存');
       onChanged?.();
     } catch (e) {
@@ -267,6 +272,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     try {
       await deleteScoreItem(bpId, id);
       setItems((prev) => prev.filter((i) => i.id !== id));
+      setPublishedAt(null); // 修改作废已发布状态，需重新发布
       toast.success('已删除');
       onChanged?.();
     } catch (e) {
@@ -306,15 +312,25 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           </button>
         )}
       </div>
-      {/* 右侧：发布与新增 */}
+      {/* 右侧：发布与新增（发布后开标前仍可编辑，修改后需重新发布） */}
       {!locked && (
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => { setShowAdd(true); setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 }); }} className="neu-btn-soft gap-1.5">
             <Plus size={14} />新增评分项
           </button>
-          <button onClick={handlePublish} className="neu-btn-primary !h-[38px] !text-xs gap-1.5">
-            <Check size={14} />发布评分标准
-          </button>
+          {publishedAt ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-[var(--success)]"
+              style={{ background: 'color-mix(in oklch, var(--success) 10%, transparent)' }}
+              title="开标前仍可修改；修改后原发布作废，需重新发布"
+            >
+              <Check size={12} /> 已发布 · 开标前可修改
+            </span>
+          ) : (
+            <button onClick={handlePublish} className="neu-btn-primary !h-[38px] !text-xs gap-1.5">
+              <Check size={14} />发布评分标准
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -537,7 +553,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           <Lock size={14} />
           <span>
             {publishedAt
-              ? `评分标准已发布(${new Date(publishedAt).toLocaleString('zh-CN')}),不可修改。`
+              ? `评分标准已发布(${new Date(publishedAt).toLocaleString('zh-CN')}),项目已进入「${STAGE_LABEL[stage] || stage}」阶段,锁定不可修改。`
               : `项目处于「${STAGE_LABEL[stage] || stage}」阶段,评分标准已锁定,不可修改。${stage === 'EVALUATING' ? ' 专家已开始打分。' : ''}`}
           </span>
         </div>
@@ -595,6 +611,8 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           locked={locked}
           onChanged={(updated) => {
             setItems(updated);
+            // 应用模板可能作废已发布状态，回读详情同步
+            getBidProjectDetail(bpId).then((d) => setPublishedAt(d.scoreStandardPublishedAt ?? null)).catch(() => {});
             onChanged?.();
           }}
         />

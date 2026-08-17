@@ -2187,7 +2187,7 @@ describe('BidService — score items (评分标准)', () => {
 
   beforeEach(async () => {
     prisma = {
-      bidProject: { findUnique: jest.fn() },
+      bidProject: { findUnique: jest.fn(), update: jest.fn() },
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
@@ -2228,10 +2228,11 @@ describe('BidService — score items (评分标准)', () => {
     expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
   });
 
-  it('createScoreItem 在 OPENING 阶段仍可编辑（评标前最后窗口）', async () => {
+  it('createScoreItem 在 OPENING 阶段锁定抛 ConflictException（开标后锁定）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
-    prisma.bidScoreItem.create.mockResolvedValue({ id: 'i1' });
-    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }, { userId: 'u1', role: 'bid_host' })).resolves.toBeDefined();
+    await expect(service.createScoreItem('p1', { category: 'PRICE' as any, name: '价格', maxScore: 30 }, { userId: 'u1', role: 'bid_host' }))
+      .rejects.toThrow(ConflictException);
+    expect(prisma.bidScoreItem.create).not.toHaveBeenCalled();
   });
 
   it('createScoreItem 在 EVALUATING 阶段锁定抛 ConflictException', async () => {
@@ -2260,10 +2261,10 @@ describe('BidService — score items (评分标准)', () => {
   });
 
   it('P1-17：事务内复查——并发进入 EVALUATING 后改标准 → SCORE_ITEMS_LOCKED', async () => {
-    // 事务外读：OPENING（可编辑）；事务内 FOR UPDATE 重读：EVALUATING（已被并发流转锁定）
+    // 事务外读：SUBMIT（可编辑）；事务内 FOR UPDATE 重读：EVALUATING（已被并发流转锁定）
     prisma.bidProject.findUnique
-      .mockResolvedValueOnce({ stage: 'OPENING', name: 'P', scoreStandardPublishedAt: null })
-      .mockResolvedValueOnce({ stage: 'EVALUATING', name: 'P', scoreStandardPublishedAt: null });
+      .mockResolvedValueOnce({ stage: 'SUBMIT', name: 'P' })
+      .mockResolvedValueOnce({ stage: 'EVALUATING', name: 'P' });
     prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i1', projectId: 'p1', category: 'TECHNICAL', maxScore: 50, name: '技术' });
     await expect(service.updateScoreItem('p1', 'i1', { maxScore: 40 }, { userId: 'u1', role: 'bid_host' }))
       .rejects.toMatchObject({ response: { code: 'SCORE_ITEMS_LOCKED' } });
@@ -3158,7 +3159,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
 
   beforeEach(async () => {
     prisma = {
-      bidProject: { findUnique: jest.fn() },
+      bidProject: { findUnique: jest.fn(), update: jest.fn() },
       bidScoreItem: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidScorePoint: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), createMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
@@ -3789,6 +3790,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
+        BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();
@@ -4471,6 +4473,7 @@ describe('BidService — syncFromAnnouncement 时间合理性校验（P1-15/走�
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
+        BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();
@@ -4519,6 +4522,7 @@ describe('BidService — acceptSupplierDanger（解密窗口到期定性，P1-1�
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
+        BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
     }).compile();

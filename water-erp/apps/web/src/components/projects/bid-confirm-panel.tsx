@@ -487,7 +487,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
               style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)', border: '1px solid color-mix(in oklch, var(--accent) 20%, transparent)' }}>
               <Shield size={16} className="shrink-0 text-[var(--accent)]" />
               <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
-                <strong>已开标</strong>——供应商名单、专家组、采购文件等前置信息均已锁定。开标确认页面仅供查看。
+                <strong>已开标</strong>——供应商名单、专家组、采购文件、评分标准等前置信息均已锁定。开标确认页面仅供查看。
               </div>
             </div>
           )}

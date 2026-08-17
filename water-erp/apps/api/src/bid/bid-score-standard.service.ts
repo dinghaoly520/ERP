@@ -30,7 +30,8 @@ export class BidScoreStandardService {
 
   /* ── 评分标准编制（评标办法）──
    * 评分项是评标段的前置条件：无评分项则专家无法打分、无法确认报告、无法生成结果。
-   * 一旦项目进入评标（专家已开始打分）或归档，评分标准锁定，禁止增删改。 */
+   * 一旦开标（OPENING），评分标准锁定，禁止增删改。发布不再锁定——发布后开标前仍可修改，
+   * 任何修改都会作废已发布状态（scoreStandardPublishedAt 置空），需重新发布。 */
 
   private async logScoreStdOp(
     tx: Prisma.TransactionClient,
@@ -49,11 +50,11 @@ export class BidScoreStandardService {
     });
   }
 
-  /** 评分标准仅在 DOWNLOAD/SUBMIT/OPENING 阶段且未发布时可编辑；已发布或进入评标/归档阶段锁定（409）。 */
-  private assertScoreItemsEditable(stage: BidStage, publishedAt: Date | null) {
-    if (publishedAt || stage === 'EVALUATING' || stage === 'ARCHIVED') {
+  /** 评分标准仅在开标前（DOWNLOAD/SUBMIT）可编辑；开标（OPENING）/评标/归档阶段锁定（409）。 */
+  private assertScoreItemsEditable(stage: BidStage) {
+    if (stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED') {
       throw new ConflictException({
-        error: '评分标准已发布或项目已进入评标/归档阶段,已锁定',
+        error: '项目已开标,评分标准已锁定,不可修改',
         code: 'SCORE_ITEMS_LOCKED',
       });
     }
@@ -65,9 +66,9 @@ export class BidScoreStandardService {
    */
   private async reassertScoreItemsEditableInTx(tx: Prisma.TransactionClient, projectId: string): Promise<void> {
     await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${projectId} FOR UPDATE`;
-    const p = await tx.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, scoreStandardPublishedAt: true } });
+    const p = await tx.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
     if (!p) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertScoreItemsEditable(p.stage as BidStage, p.scoreStandardPublishedAt);
+    this.assertScoreItemsEditable(p.stage as BidStage);
   }
 
   listScoreItems(projectId: string) {
@@ -81,15 +82,17 @@ export class BidScoreStandardService {
   async createScoreItem(projectId: string, dto: CreateScoreItemDto, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, name: true, scoreStandardPublishedAt: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
+    this.assertScoreItemsEditable(project.stage);
     this.scoreStandardValidator.assertPassFailMaxScore(dto.category, dto.maxScore);
 
     const result = `新增评分项「${dto.name}」（满分 ${dto.maxScore}）`;
     const created = await this.prisma.$transaction(async (tx) => {
       await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      // 修改作废已发布状态（开标前可改，需重新发布）
+      await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
       const item = await tx.bidScoreItem.create({
         data: { projectId, category: dto.category, name: dto.name, maxScore: dto.maxScore },
       });
@@ -104,10 +107,10 @@ export class BidScoreStandardService {
   async updateScoreItem(projectId: string, itemId: string, dto: UpdateScoreItemDto, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, name: true, scoreStandardPublishedAt: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
+    this.assertScoreItemsEditable(project.stage);
 
     const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
     if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
@@ -126,6 +129,8 @@ export class BidScoreStandardService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      // 修改作废已发布状态（开标前可改，需重新发布）
+      await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
       const updated = await tx.bidScoreItem.update({
         where: { id: itemId },
         data: {
@@ -147,10 +152,10 @@ export class BidScoreStandardService {
   async deleteScoreItem(projectId: string, itemId: string, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, name: true, scoreStandardPublishedAt: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
+    this.assertScoreItemsEditable(project.stage);
 
     const existing = await this.prisma.bidScoreItem.findFirst({ where: { id: itemId, projectId } });
     if (!existing) throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
@@ -158,6 +163,8 @@ export class BidScoreStandardService {
     const result = `删除评分项「${existing.name}」`;
     await this.prisma.$transaction(async (tx) => {
       await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      // 修改作废已发布状态（开标前可改，需重新发布）
+      await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
       await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', result);
       await tx.bidScoreItem.delete({ where: { id: itemId } });
     });
@@ -171,12 +178,12 @@ export class BidScoreStandardService {
   private async assertScoreItemInProject(projectId: string, itemId: string) {
     const item = await this.prisma.bidScoreItem.findFirst({
       where: { id: itemId, projectId },
-      include: { project: { select: { stage: true, scoreStandardPublishedAt: true } } },
+      include: { project: { select: { stage: true } } },
     });
     if (!item) {
       throw new BadRequestException({ error: '评分项不存在', code: 'NOT_FOUND' });
     }
-    this.assertScoreItemsEditable(item.project.stage as BidStage, item.project.scoreStandardPublishedAt);
+    this.assertScoreItemsEditable(item.project.stage as BidStage);
     return item;
   }
 
@@ -191,6 +198,8 @@ export class BidScoreStandardService {
     const item = await this.assertScoreItemInProject(projectId, itemId);
     return this.prisma.$transaction(async (tx) => {
       await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      // 修改作废已发布状态（开标前可改，需重新发布）
+      await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
       await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), Number(dto.fullScore));
       return tx.bidScorePoint.create({
         data: {
@@ -215,6 +224,8 @@ export class BidScoreStandardService {
     const delta = dto.fullScore !== undefined ? Number(dto.fullScore) - Number(existing.fullScore) : 0;
     return this.prisma.$transaction(async (tx) => {
       await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      // 修改作废已发布状态（开标前可改，需重新发布）
+      await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
       if (delta !== 0) {
         await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
       }
@@ -240,6 +251,8 @@ export class BidScoreStandardService {
     }
     return this.prisma.$transaction(async (tx) => {
       await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      // 修改作废已发布状态（开标前可改，需重新发布）
+      await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
       return tx.bidScorePoint.delete({ where: { id: pointId } });
     });
   }
@@ -250,6 +263,8 @@ export class BidScoreStandardService {
     const delta = dto.points.reduce((s, p) => s + Number(p.fullScore), 0);
     return this.prisma.$transaction(async (tx) => {
       await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+      // 修改作废已发布状态（开标前可改，需重新发布）
+      await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
       await this.scoreStandardValidator.assertPointsSumWithinMax(tx, itemId, Number(item.maxScore), delta);
       return tx.bidScorePoint.createMany({
         data: dto.points.map((p) => ({
@@ -317,10 +332,10 @@ export class BidScoreStandardService {
   async applyScoreItemTemplate(projectId: string, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, name: true, scoreStandardPublishedAt: true, evaluationMethod: true },
+      select: { stage: true, name: true, evaluationMethod: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
+    this.assertScoreItemsEditable(project.stage);
 
     // P2: 按评标办法选择模板(默认综合评估法)
     const evalMethod = (project.evaluationMethod as any) || 'comprehensive';
@@ -339,6 +354,8 @@ export class BidScoreStandardService {
       const result = `应用标准模板，新增 ${toCreate.length} 项`;
       await this.prisma.$transaction(async (tx) => {
         await this.reassertScoreItemsEditableInTx(tx, projectId); // P1-17：事务内复查
+        // 修改作废已发布状态（开标前可改，需重新发布）
+        await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
         await tx.bidScoreItem.createMany({
           data: toCreate.map(t => ({ projectId, category: t.category, name: t.name, maxScore: t.maxScore })),
         });
@@ -349,13 +366,14 @@ export class BidScoreStandardService {
     return this.listScoreItems(projectId);
   }
 
-  /** 发布评分标准:校验完整性 → 置 publishedAt → 此后写操作锁定。 */
+  /** 发布评分标准:校验完整性 → 置 publishedAt（定稿标记；开标前仍可修改，修改即作废发布）。 */
   async publishScoreStandard(projectId: string, actor: { userId: string; role: string; username: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       select: { stage: true, scoreStandardPublishedAt: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    this.assertScoreItemsEditable(project.stage);
     if (project.scoreStandardPublishedAt) {
       throw new ConflictException({ error: '评分标准已发布,不可重复发布', code: 'SCORE_STANDARD_ALREADY_PUBLISHED' });
     }
@@ -420,10 +438,10 @@ export class BidScoreStandardService {
   async applyScoreTemplateById(projectId: string, templateId: string, actor: { userId: string; role: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, scoreStandardPublishedAt: true, name: true },
+      select: { stage: true, name: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
-    this.assertScoreItemsEditable(project.stage, project.scoreStandardPublishedAt);
+    this.assertScoreItemsEditable(project.stage);
 
     const tpl = await this.prisma.scoreTemplate.findUnique({ where: { id: templateId } });
     if (!tpl) throw new BadRequestException({ error: '模板不存在', code: 'NOT_FOUND' });
@@ -467,6 +485,8 @@ export class BidScoreStandardService {
       }
 
       if (toCreate.length > 0) {
+        // 修改作废已发布状态（开标前可改，需重新发布）
+        await tx.bidProject.update({ where: { id: projectId }, data: { scoreStandardPublishedAt: null } });
         await this.logScoreStdOp(tx, projectId, project.name, actor, '编制评分标准', `应用模板「${tpl.name}」新增 ${toCreate.length} 项`);
       }
       return toCreate.length;
