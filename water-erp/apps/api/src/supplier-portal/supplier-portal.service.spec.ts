@@ -91,6 +91,8 @@ describe('SupplierPortalService', () => {
       notification: { count: jest.fn() },
       user: { findUnique: jest.fn() },
       announcement: { findFirst: jest.fn() },
+      // PMI 桥接（resolveDisplayCode/listBidProjects 经 projectManagementItemId/projectCode 关联）
+      projectManagementItem: { findUnique: jest.fn(), findMany: jest.fn() },
       bidDocument: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     };
     // G3 兜底默认放行（投递时校验已发布招标公告）；个别用例可覆盖为 null 验证拦截
@@ -765,21 +767,32 @@ describe('SupplierPortalService', () => {
         return [];
       });
       prisma.announcement.findMany = jest.fn().mockResolvedValue([{ relatedProjectCode: 'BID-ANN' }]);
+      // 公告业务编号 → PMI 桥接（resolveDisplayCode/listBidProjects 均经此关联回 BidProject）
+      prisma.projectManagementItem.findMany.mockImplementation(async ({ where }: any) => {
+        if (where?.projectCode?.in) return [{ id: 'pmi-ann' }];
+        return [];
+      });
       const finalQueries: any[] = [];
       prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
         finalQueries.push(where);
-        if (where?.projectCode?.in) return [{ id: 'bp-ann' }];          // 公告码→项目解析
-        if (where?.OR) return [{ id: 'bp-inv', projectCode: 'X', name: 'N', stage: 'SUBMIT', deadline: future, openTime: future, createdAt: new Date() }];
+        if (where?.id?.in) return [{ id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'X' }]; // 受邀项目查询
+        if (where?.OR) return [{ id: 'bp-ann' }];          // 公告桥接查询（byCode）/最终列表查询
         return [];                                                       // allProjectIds 计数查询
       });
       prisma.bidProject.count.mockResolvedValue(1);
 
       await service.listBidProjects(1, 20, {}, 'supplier-1');
 
-      const listWhere = finalQueries.find(w => w?.OR);
+      // 受邀项目查询：先按 id 取受邀项目（区分直接采购须公告发布）
+      const invitedQuery = finalQueries.find(w => w?.id?.in?.includes('bp-inv'));
+      expect(invitedQuery).toBeDefined();
+      // 公告桥接：先按业务编号查 PMI，再 OR(内部编号, projectManagementItemId) 查 BidProject
+      const bridgeQuery = finalQueries.find(w => w?.OR?.some((b: any) => b?.projectManagementItemId?.in?.includes('pmi-ann')));
+      expect(bridgeQuery).toBeDefined();
+      // 最终可见性 OR 分支：公开（bp-doc+bp-ann）与受邀（bp-inv）均限定 DOWNLOAD/SUBMIT
+      const listWhere = finalQueries.find(w => w?.OR?.some((b: any) => b?.stage));
       expect(listWhere).toBeDefined();
       const orBranches = listWhere!.OR as any[];
-      // 公开分支：公告解析出的 bp-ann 与 BidDocument 的 bp-doc 并入，且带 deadline+stage 限定
       const openBranch = orBranches.find(b => b.id?.in?.includes('bp-ann'));
       expect(openBranch).toBeDefined();
       expect(openBranch!.id.in).toEqual(expect.arrayContaining(['bp-doc', 'bp-ann']));
