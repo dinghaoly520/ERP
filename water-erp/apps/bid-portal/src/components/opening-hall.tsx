@@ -285,7 +285,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           amount: draft.amount ?? '',
           period: draft.period ?? '',
           qualityTarget: draft.qualityTarget ?? '',
-          bondStatus: draft.bondStatus ?? '',
+          bondStatus: draft.bondStatus ?? (draft.bondNotApplicable ? '不适用' : ''),
         });
         setBidBondAssetId(draft.bidBondAssetId ?? null);
       }

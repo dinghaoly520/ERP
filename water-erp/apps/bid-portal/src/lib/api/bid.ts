@@ -100,6 +100,8 @@ export type OpeningDraftResult = {
   qualityTarget: string | null;
   bondStatus: string | null;
   bidBondAssetId: string | null;
+  /** 项目不要求保证金（bondRequired=false）→ 前端保证金默认选「不适用」 */
+  bondNotApplicable: boolean;
 };
 
 export const getOpeningDraft = (projectId: string, supplierId: string) =>
