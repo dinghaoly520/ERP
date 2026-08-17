@@ -713,7 +713,10 @@ export class ExpertAdminService {
 
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      include: { suppliers: { include: { supplier: { select: { name: true } } } } },
+      select: {
+        id: true, name: true, stage: true, projectManagementItemId: true,
+        suppliers: { include: { supplier: { select: { name: true } } } },
+      },
     });
     if (!project) throw new NotFoundException('项目不存在');
     if (!dto.experts?.length && !dto.candidates?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
@@ -822,7 +825,31 @@ export class ExpertAdminService {
       }
     }
 
+    // N16 直建衔接：公告直建 PMI 阶段 1-5 已补记 COMPLETED，第 6 步「专家抽取」在此补记——
+    // 否则 PMI 阶段链断（6 NOT_STARTED 挡在 7/8 前），第 8 步定标（中标通知书上传）永不可达
+    await this.backfillPmiExpertSelection(project.projectManagementItemId);
+
     return { success: true, count: (dto.experts?.length ?? 0) + (dto.candidates?.length ?? 0), expertIds: (dto.experts ?? []).map(e => e.userId) };
+  }
+
+  /** 专家抽取完成 → 补记关联 PMI 的 EXPERT_SELECTION 阶段 COMPLETED（幂等） */
+  private async backfillPmiExpertSelection(pmiId: string | null | undefined): Promise<void> {
+    if (!pmiId) return;
+    try {
+      const stage = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: pmiId, stageKey: 'EXPERT_SELECTION' },
+      });
+      if (stage && stage.status === 'NOT_STARTED') {
+        await this.prisma.projectManagementStage.update({
+          where: { id: stage.id },
+          data: { status: 'COMPLETED', completedAt: new Date() },
+        });
+        new Logger(ExpertAdminService.name).log(`专家抽取完成，补记 PMI 阶段 EXPERT_SELECTION COMPLETED（${pmiId}）`);
+      }
+    } catch (e) {
+      // 补记失败不阻塞抽取主流程
+      new Logger(ExpertAdminService.name).warn(`补记 PMI 专家抽取阶段失败: ${(e as Error).message}`);
+    }
   }
 
   /** AI 选定评审组长：综合职称、专业、单位等，LLM 给出推荐 */

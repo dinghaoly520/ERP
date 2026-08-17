@@ -143,7 +143,9 @@ export default function NoticeDetailPage() {
 /* ════════ renderMeta  — 结构化元数据芯片（从 IIFE 提取为独立函数）════════ */
 function renderMeta(ann: AnnouncementListItem) {
   const meta = (ann.metadata || {}) as Record<string, any>;
-  const allFields = TYPE_META[ann.type].filter(f => meta[f.key]);
+  // amount 无顶层值时从 winner.price 兜底（WIN_NOTICE 中标公示草稿）
+  const hasVal = (f: { key: string }) => !!meta[f.key] || (f.key === 'amount' && meta.winner?.price != null);
+  const allFields = TYPE_META[ann.type].filter(hasVal);
   if (allFields.length === 0) return null;
   const shortFields = allFields.filter(f => !f.area);
   const areaFields = allFields.filter(f => f.area);
@@ -153,7 +155,15 @@ function renderMeta(ann: AnnouncementListItem) {
         {shortFields.length > 0 && (
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {shortFields.map(f => {
-              const raw = meta[f.key];
+              // 对象/数组展平：WIN_NOTICE 的 metadata.winner 是对象（供应商名+报价等），
+              // 直接渲染对象会抛 "Objects are not valid as a React child" 崩溃页面。
+              let raw = meta[f.key];
+              if (f.key === 'amount' && !raw && meta.winner?.price != null) raw = meta.winner.price;
+              if (raw && typeof raw === 'object') {
+                raw = Array.isArray(raw)
+                  ? raw.map((x: any) => x?.supplierName ?? x?.name ?? '').filter(Boolean).join('、')
+                  : (raw.supplierName ?? raw.name ?? JSON.stringify(raw));
+              }
               let display = raw;
               if (f.date && raw) {
                 const parsed = new Date(raw);
@@ -286,7 +296,11 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   const buildMeta = (t: AnnouncementType) => {
     const out: Record<string, string> = {};
     const m = (ann.metadata || {}) as Record<string, any>;
-    for (const f of TYPE_META[t]) out[f.key] = m[f.key] != null ? String(m[f.key]) : '';
+    for (const f of TYPE_META[t]) {
+      const v = m[f.key];
+      // 对象值（WIN_NOTICE 的 winner）在输入框里只展示供应商名，保存时再还原对象（见 save）
+      out[f.key] = v == null ? '' : (typeof v === 'object' ? (v.supplierName ?? v.name ?? '') : String(v));
+    }
     return out;
   };
   const [metadata, setMetadata] = useState<Record<string, string>>(() => buildMeta(ann.type));
@@ -317,6 +331,15 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     setBusy(true);
     const meta: Record<string, any> = {};
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
+    // WIN_NOTICE：winner 是结构化对象（供应商名+报价+得分）。编辑表单只改供应商名，
+    // 保存时保留原对象（仅覆盖 supplierName），避免 String(object)="[object Object]" 破坏 metadata
+    if (type === 'WIN_NOTICE') {
+      const orig = (ann.metadata || {}) as Record<string, any>;
+      const origWinner = orig.winner;
+      if (origWinner && typeof origWinner === 'object') {
+        meta.winner = { ...origWinner, supplierName: (meta.winner || origWinner.supplierName)?.trim() };
+      }
+    }
     const finalMeta = configToMetadata(publishConfig, meta);
     const payload = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta, ...(type === 'BID_NOTICE' ? { relatedProjectCode: meta.projectCode || null } : {}) };
     try { return await updateAnnouncement(ann.id, payload as any); }

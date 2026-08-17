@@ -424,11 +424,18 @@ export function ProjectDetailPanel({
   const showArchiveStep = archiveStepState !== 'PENDING';
   const isCurrentStage = selectedStage.stageKey === localItem.currentStage && selectedRound === (localItem.currentRound ?? 1);
 
-  // ★ 开标锁定：开标确认阶段已进行（IN_PROGRESS 或 COMPLETED）→ 所有前置内容不可修改
+  // ★ 开标锁定：开标确认阶段已进行（IN_PROGRESS 或 COMPLETED）→ 所有前置内容不可修改。
+  // 口径修正（2026-08-17）：只锁「开标评标」之前的前置阶段——定标（中标通知书）/合同等
+  // 后置阶段不受锁，否则定标入口被误锁、线下定标→扫描上传回填流程永不可达。
   const bidEvalStage = localItem.stages.find(s => s.stageKey === 'BID_EVALUATION');
   const isBidLocked = bidEvalStage?.status === 'IN_PROGRESS' || bidEvalStage?.status === 'COMPLETED';
+  const isLockedByBid = (stageKey: string) => {
+    if (!isBidLocked) return false;
+    const stageOrder = localItem.stages.find(s => s.stageKey === stageKey)?.stageOrder ?? Infinity;
+    return stageOrder < (bidEvalStage?.stageOrder ?? Infinity);
+  };
 
-  const stageLocked = selectedStage.status === 'NOT_STARTED' || (isBidLocked && selectedStage.stageKey !== 'BID_EVALUATION');
+  const stageLocked = selectedStage.status === 'NOT_STARTED' || isLockedByBid(selectedStage.stageKey);
   const hasStageFiles = (selectedStage.attachments?.length ?? 0) > 0;
   const stageProcessing = uploading || analysisLoading;
   const canCompleteStage =
@@ -679,7 +686,7 @@ export function ProjectDetailPanel({
 
 
   const markStageCompleted = async (stage: ProjectManagementStage) => {
-    if (isBidLocked && stage.stageKey !== 'BID_EVALUATION') { toast.warning('开标已确认，前置步骤已锁定'); return; }
+    if (isLockedByBid(stage.stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
     // P1-14（走查④）：开标评标是核心阶段——完成后推进定标不可逆，误点/连点会把整段
     // 开评标流程跳过（走查实测：完成专家抽取后连点第二次直接 COMPLETED 本阶段，与
     // BidProject 状态脱节）。加确认门槛。
@@ -711,7 +718,7 @@ export function ProjectDetailPanel({
   };
 
   const uploadStageFiles = async () => {
-    if (isBidLocked && selectedStage.stageKey !== 'BID_EVALUATION') { toast.warning('开标已确认，文件不可上传'); return; }
+    if (isLockedByBid(selectedStage.stageKey)) { toast.warning('开标已确认，文件不可上传'); return; }
     if (selectedFiles.length === 0) {
       setErrorMessage('请先选择要上传的文件。');
       return;
@@ -1122,9 +1129,9 @@ export function ProjectDetailPanel({
               activeRound={selectedRound}
               onSelect={(key, round) => { setSelectedStageKey(key); setSelectedRound(round); }}
               onStageAction={(stageKey) => {
-                // P0-3：开标锁定只锁前置阶段——BID_EVALUATION 自身的「开标确认」入口必须可进
+                // P0-3：开标锁定只锁前置阶段——BID_EVALUATION 自身与后置（定标）入口必须可进
                 //（阶段推进后 status=IN_PROGRESS 即 isBidLocked=true，旧守卫把面板唯一入口拦死）
-                if (isBidLocked && stageKey !== 'BID_EVALUATION') { toast.warning('开标已确认，前置步骤已锁定'); return; }
+                if (isLockedByBid(stageKey)) { toast.warning('开标已确认，前置步骤已锁定'); return; }
                 if (stageKey === 'TENDER_DOCUMENT') {
                   setTenderWriteStageAction(stageKey);
                 } else if (stageKey === 'EXPERT_SELECTION') {

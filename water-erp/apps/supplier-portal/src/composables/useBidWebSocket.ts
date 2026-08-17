@@ -12,6 +12,7 @@ import {
   type HallExchangeControlPayload,
   type OpeningDisputeResolvedPayload,
   type OpeningRecordUpdatedPayload,
+  type RoundStatusChangePayload,
 } from '@water-erp/shared'
 
 export interface BidWsHandlers {
@@ -23,6 +24,7 @@ export interface BidWsHandlers {
   onHallExchangeControl?: (d: HallExchangeControlPayload) => void
   onOpeningDisputeResolved?: (d: OpeningDisputeResolvedPayload) => void
   onOpeningRecordUpdated?: (d: OpeningRecordUpdatedPayload) => void
+  onRoundStatusChange?: (d: RoundStatusChangePayload) => void
 }
 
 function wsUrl(): string {
@@ -118,6 +120,7 @@ export function useBidWebSocket(
     on(BID_EVENT.HALL_EXCHANGE_CONTROL, 'onHallExchangeControl')
     on(BID_EVENT.OPENING_DISPUTE_RESOLVED, 'onOpeningDisputeResolved')
     on(BID_EVENT.OPENING_RECORD_UPDATED, 'onOpeningRecordUpdated')
+    on(BID_EVENT.ROUND_STATUS_CHANGE, 'onRoundStatusChange')
   }
 
   function reconnectNow() {

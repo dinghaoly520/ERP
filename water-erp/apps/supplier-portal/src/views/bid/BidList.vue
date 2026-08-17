@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBidStore } from '@/stores/bid'
 import { bidApi } from '@/api/bid'
@@ -38,6 +38,20 @@ watch(search, () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => 
 function onPageChange(p: number) { page.value = p; load() }
 
 onMounted(load)
+
+// 实时兜底：列表页无项目级 WS 房间，回到页面（焦点/可见）时自动重载——
+// 新公告开放投递（submission:opened）与阶段流转（在线开标/专家评标等）即时反映
+function onPageVisible() {
+  if (document.visibilityState === 'visible' && !loading.value) load()
+}
+onMounted(() => {
+  window.addEventListener('focus', onPageVisible)
+  document.addEventListener('visibilitychange', onPageVisible)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', onPageVisible)
+  document.removeEventListener('visibilitychange', onPageVisible)
+})
 
 function isSubmitStage(stage: string) { return stage === 'SUBMIT' }
 function isDeadlineClose(deadline: string): boolean { if (!deadline) return false; const diff = (new Date(deadline).getTime() - Date.now()) / 86400000; return diff > 0 && diff <= 3 }

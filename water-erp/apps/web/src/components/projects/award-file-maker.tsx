@@ -62,6 +62,7 @@ export function AwardFileMaker({ isOpen, onClose, project, onPublished }: Props)
         isOpen
         tenderType={tenderType}
         tenderDraft={tenderDraft}
+        project={project}
         onClose={() => setPicked(null)}
       />
     );

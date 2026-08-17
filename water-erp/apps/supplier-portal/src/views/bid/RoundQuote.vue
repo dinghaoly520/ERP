@@ -5,11 +5,17 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Coin, Lock } from '@element-plus/icons-vue'
 import SpPageHero from '@/components/SpPageHero.vue'
 import { bidApi } from '@/api/bid'
+import { useBidWebSocket } from '@/composables/useBidWebSocket'
 import dayjs from 'dayjs'
 
 const route = useRoute()
 const router = useRouter()
 const projectId = route.params.id as string
+
+// 轮次状态实时：开轮/封轮/发布结果（round:status:change）→ 重载轮次与报价
+useBidWebSocket(projectId, {
+  onRoundStatusChange: () => { fetchData().catch(() => {}) },
+})
 
 interface Round {
   id: string; roundNo: number; roundType: string; status: string; deadline: string | null
