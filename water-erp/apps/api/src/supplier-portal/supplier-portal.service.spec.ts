@@ -298,6 +298,25 @@ describe('SupplierPortalService', () => {
         .rejects.toMatchObject({ response: { code: 'PROJECT_NOT_SUBMITTING' } });
     });
 
+    it('提交时落库质量承诺（qualityCommitment）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', projectCode: 'BID-X', stage: 'DOWNLOAD',
+        deadline: new Date(Date.now() + 3600_000),
+      });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
+      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub-2', status: 'submitted' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-2' });
+
+      await service.submitBid('supplier-1', 'project-1', { bidPrice: '100', qualityCommitment: '满足招标文件要求，一次验收合格' } as any);
+
+      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ qualityCommitment: '满足招标文件要求，一次验收合格' }) }),
+      );
+    });
+
   });
 
   describe('submitBid file asset ownership', () => {

@@ -2722,7 +2722,9 @@ export class BidService {
   }
 
   /**
-   * 唱标预填草稿：聚合项目级质量目标 + 投标提交的报价/工期 + 已有开标记录的保证金状态。
+   * 唱标预填草稿：聚合项目级质量目标 + 投标提交的报价/工期/质量承诺 + 已有开标记录的保证金状态。
+   * 质量承诺口径（2026-08-17）：优先供应商投递的质量承诺（qualityCommitment），未填写回退项目级
+   * qualityRequirement——唱标不再凭空增项。
    * 仅 OPENING 阶段且该供应商解密成功才返回真实数据（canView=true），
    * 保证金凭证（bidBondAssetId）同样仅此时可见，供主持人核对。
    */
@@ -2743,7 +2745,7 @@ export class BidService {
     const submission = bidSupplier.supplierId
       ? await this.prisma.supplierBidSubmission.findUnique({
           where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
-          select: { bidPrice: true, deliveryPeriod: true, bidBondAssetId: true },
+          select: { bidPrice: true, deliveryPeriod: true, bidBondAssetId: true, qualityCommitment: true },
         })
       : null;
 
@@ -2758,7 +2760,7 @@ export class BidService {
       // 旧明文数据经 openField legacy 兼容原样返回。
       amount: submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null,
       period: submission?.deliveryPeriod ?? null,
-      qualityTarget: project.qualityRequirement,
+      qualityTarget: submission?.qualityCommitment || project.qualityRequirement,
       bondStatus: existingRecord?.bondStatus ?? null,
       bidBondAssetId: submission?.bidBondAssetId ?? null,
     };

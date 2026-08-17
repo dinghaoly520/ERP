@@ -1356,6 +1356,7 @@ model SupplierBidSubmission {
   projectId            String
   bidPrice             String?
   deliveryPeriod       String?
+  qualityCommitment    String?   // 供应商投递的质量承诺（2026-08-17）：唱标「质量目标」改自此取，缺失回退项目 qualityRequirement
   technicalFile        String?
   businessFile         String?
   coverLetter          String?

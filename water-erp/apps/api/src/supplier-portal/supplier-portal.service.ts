@@ -22,6 +22,7 @@ import * as crypto from 'crypto';
 type BidSubmissionData = {
   bidPrice?: string;
   deliveryPeriod?: string;
+  qualityCommitment?: string;
   technicalFile?: string;
   businessFile?: string;
   coverLetter?: string;
@@ -51,6 +52,7 @@ function pickBidSubmissionFields(data: BidSubmissionData) {
     // deliveryPeriod 不加密，但下游暴露点统一按 decryptStatus==='SUCCESS' 门控。
     bidPrice: data.bidPrice ? sealField(data.bidPrice, process.env.KMS_SECRET!) : null,
     deliveryPeriod: data.deliveryPeriod,
+    qualityCommitment: data.qualityCommitment,
     technicalFile: data.technicalFile,
     businessFile: data.businessFile,
     coverLetter: data.coverLetter,

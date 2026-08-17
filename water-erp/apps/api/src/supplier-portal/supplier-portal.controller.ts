@@ -197,7 +197,7 @@ export class SupplierPortalController {
     @Request() req: any,
     @Param('projectId') projectId: string,
     @Body() body: {
-      bidPrice?: string; deliveryPeriod?: string;
+      bidPrice?: string; deliveryPeriod?: string; qualityCommitment?: string;
       technicalFile?: string; businessFile?: string; coverLetter?: string;
       technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
       bidBondAssetId?: string;
@@ -217,7 +217,7 @@ export class SupplierPortalController {
     @Request() req: any,
     @Param('projectId') projectId: string,
     @Body() body: {
-      bidPrice?: string; deliveryPeriod?: string;
+      bidPrice?: string; deliveryPeriod?: string; qualityCommitment?: string;
       technicalFile?: string; businessFile?: string; coverLetter?: string;
       technicalFileAssetId?: string; businessFileAssetId?: string; coverLetterAssetId?: string;
       bidBondAssetId?: string;
