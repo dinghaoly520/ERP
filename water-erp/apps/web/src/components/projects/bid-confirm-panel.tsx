@@ -258,7 +258,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     refreshTimer.current = setTimeout(() => refreshDetail(), 600);
   }, [refreshDetail]);
   /* ── Phase 2：实时事件 → 阶段流转整体重载，过程事件增量刷新详情 ── */
-  useBidWebSocket(isOpen ? bidProject?.id : undefined, {
+  const { connection: wsConnection } = useBidWebSocket(isOpen ? bidProject?.id : undefined, {
     onStageChange: () => { if (isOpen) void load(); },
     onEvaluationStarted: () => { if (isOpen) void load(); },
     onDecryptStatus: scheduleRefresh,
@@ -279,12 +279,14 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     onReconnected: () => { if (bidProject?.id) void load(); },
   });
 
-  // G1: 30s 轮询兜底(防止 WS 静默丢事件导致数据不同步)
+  // G1: 30s 轮询兜底——仅 WS 断开/重连中才轮询（生产降载：WS 正常时零轮询；
+  // 断线窗口由轮询续命，重连成功后 onReconnected 全量补偿并停轮询）
   useEffect(() => {
     if (!isOpen || !bidProject?.id) return;
+    if (wsConnection === 'connected') return;
     const timer = setInterval(() => { refreshDetail(); }, 30_000);
     return () => clearInterval(timer);
-  }, [isOpen, bidProject?.id, refreshDetail]);
+  }, [isOpen, bidProject?.id, wsConnection, refreshDetail]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开加载 / 关闭重置，符合模态惯例 */
   useEffect(() => {
