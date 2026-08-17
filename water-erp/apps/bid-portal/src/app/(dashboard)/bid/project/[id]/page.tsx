@@ -87,7 +87,8 @@ function WorkspaceInner() {
   // ═══ 当前 tab ═══
   const stage = project?.stage ?? 'DOWNLOAD';
   const requested = searchParams.get('tab') as TabDef['key'] | null;
-  const hasRoundMode = !!project?.roundMode;
+  // 报价轮次仅谈判采购（roundMode=negotiation）显示；sealed_auction 为单轮唱标模式（唱标价即最终价），无多轮报价流程
+  const hasRoundMode = project?.roundMode === 'negotiation';
   const current: TabDef['key'] =
     requested && TABS.some(t => t.key === requested && isTabAllowed(t, stage, hasRoundMode))
       ? requested

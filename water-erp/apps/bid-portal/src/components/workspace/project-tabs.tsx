@@ -8,7 +8,7 @@ export interface TabDef {
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   minStage: string[];
   stageHint: string;
-  /** 仅在 roundMode 非空时显示（谈判/竞价采购） */
+  /** 仅谈判采购显示（roundMode=negotiation；sealed_auction 竞价采购为单轮唱标，无报价轮次流程） */
   requiresRoundMode?: boolean;
 }
 
