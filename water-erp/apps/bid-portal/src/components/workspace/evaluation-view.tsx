@@ -698,7 +698,12 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                     </span>
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
                       {s.supplierName}
-                      {recommended && <Star size={11} className="ml-1 inline fill-[oklch(0.65_0.15_70)] text-[oklch(0.65_0.15_70)]" />}
+                      {recommended && (
+                        <span className="ml-1.5 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--warning) 16%, transparent)', color: 'oklch(0.45 0.12 70)' }}>
+                          <Star size={10} className="inline fill-[oklch(0.65_0.15_70)] text-[oklch(0.65_0.15_70)]" />
+                          中标候选人
+                        </span>
+                      )}
                       {disqualified && <span className="ml-2 rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ background: 'color-mix(in oklch, var(--danger) 12%, transparent)', color: 'var(--danger)' }}>废标</span>}
                     </span>
                     {official?.bidPrice && (

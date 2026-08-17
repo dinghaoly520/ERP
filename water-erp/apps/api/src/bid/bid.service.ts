@@ -1379,7 +1379,20 @@ export class BidService {
       await tx.projectManagementItem.update({ where: { id: link.projectManagementItemId }, data: { currentStage: 'BID_EVALUATION' } });
     } else if (status === 'COMPLETED' && bidEvalIdx >= 0 && currentIdx === bidEvalIdx) {
       const next = item.stages[bidEvalIdx + 1];
-      if (next) await tx.projectManagementItem.update({ where: { id: link.projectManagementItemId }, data: { currentStage: next.stageKey } });
+      if (next) {
+        await tx.projectManagementItem.update({ where: { id: link.projectManagementItemId }, data: { currentStage: next.stageKey } });
+        // 推进指针的同时把下一阶段置 IN_PROGRESS——前端只认 IN_PROGRESS 为可操作状态，
+        // 否则（定标）阶段卡在 NOT_STARTED 被锁死，中标通知书/中标公告入口永不可达
+        await tx.projectManagementStage.updateMany({
+          where: {
+            projectManagementItemId: link.projectManagementItemId,
+            stageKey: next.stageKey,
+            round: link.round,
+            status: 'NOT_STARTED',
+          },
+          data: { status: 'IN_PROGRESS' },
+        });
+      }
     }
   }
 
@@ -4305,7 +4318,7 @@ export class BidService {
     await this.prisma.announcement.create({
       data: {
         title: `中标公示：${project.name}`,
-        content: `项目编号 ${project.projectCode}（${project.name}）已完成评标并归档。中标人：${winner?.supplierName ?? '—'}。${winnerPrice ? `中标金额：¥${winnerPrice}元。` : ''}`,
+        content: `项目编号 ${project.projectCode}（${project.name}）已完成评标并归档。中标候选人：${winner?.supplierName ?? '—'}。${winnerPrice ? `中标金额：¥${winnerPrice}元。` : ''}`,
         type: 'WIN_NOTICE',
         status: 'DRAFT',
         relatedProjectCode: project.projectCode,

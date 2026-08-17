@@ -20,7 +20,7 @@ import {
   exportNotificationLedger,
   type NotificationLetterDraft,
 } from "@/lib/api/announcement";
-import { fetchProjectAttributions, type ProjectAttribution } from "@/lib/api/project-management";
+import { fetchProjectAttributions, updateProjectExtractedInfo, type ProjectAttribution } from "@/lib/api/project-management";
 import { aiIdentifyField } from "@/lib/api/project-management";
 import type { FieldCandidate } from "@/lib/types/project-management";
 import { ContactPickerDialog } from "./contact-picker-dialog";
@@ -112,11 +112,14 @@ export function NotificationLetterDialog({
   isOpen,
   tenderType,
   tenderDraft,
+  project,
   onClose,
 }: {
   isOpen: boolean;
   tenderType: ReadyTenderDocumentType;
   tenderDraft: ReadyTenderDraft;
+  /** 定标回填：导出中标通知书成功后，把中标单位写回项目基本信息（线下定标→扫描上传→系统回填） */
+  project?: { id: string } | null;
   onClose: () => void;
 }) {
   const [step, setStep] = useState<Step>("upload");
@@ -259,6 +262,12 @@ export function NotificationLetterDialog({
         try {
           await exportNotificationLedger(draft);
         } catch { /* ledger write is non-critical */ }
+        // 3. 定标回填：线下定标完成（扫描上传+确认导出）→ 中标单位写回项目基本信息
+        if (project?.id && draft.winnerName?.trim()) {
+          try {
+            await updateProjectExtractedInfo(project.id, { awardedSupplier: draft.winnerName.trim() });
+          } catch { /* 回填非关键，不阻塞导出 */ }
+        }
         setSuccessMessage("导出成功！已同步写入台账。");
         setTimeout(() => setSuccessMessage(null), 2000);
       }
