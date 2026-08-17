@@ -4,6 +4,8 @@ export const BOND_STATUS = {
   GUARANTEE: '保函有效',
   UNPAID: '未缴纳',
   ABNORMAL: '异常',
+  /** 项目不要求保证金（bondRequired=false）时的默认档——「不适用」非不合格，仅表示免缴。 */
+  NA: '不适用',
 } as const;
 
 export type BondStatusValue = (typeof BOND_STATUS)[keyof typeof BOND_STATUS];
@@ -14,8 +16,10 @@ export const BOND_STATUS_OPTIONS: BondStatusValue[] = [
   BOND_STATUS.GUARANTEE,
   BOND_STATUS.UNPAID,
   BOND_STATUS.ABNORMAL,
+  BOND_STATUS.NA,
 ];
 
+// 注意：「不适用」不入 QUALIFIED；isBondQualified 闸门仅在 bondRequired 时求值（bid.service），语义安全。
 const QUALIFIED_STATUSES: ReadonlySet<string> = new Set([BOND_STATUS.PAID, BOND_STATUS.GUARANTEE]);
 
 /** 保证金是否达标（已缴纳或保函有效）。空值/未核对/异常 → false。 */

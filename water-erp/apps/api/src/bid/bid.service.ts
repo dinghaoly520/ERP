@@ -2731,9 +2731,9 @@ export class BidService {
   async getOpeningRecordDraft(projectId: string, bidSupplierId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true, qualityRequirement: true },
+      select: { stage: true, qualityRequirement: true, bondRequired: true },
     });
-    const empty = { canView: false, amount: null, period: null, qualityTarget: null, bondStatus: null, bidBondAssetId: null };
+    const empty = { canView: false, amount: null, period: null, qualityTarget: null, bondStatus: null, bidBondAssetId: null, bondNotApplicable: false };
     if (!project || project.stage !== 'OPENING') return { ...empty, qualityTarget: project?.qualityRequirement ?? null };
 
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
@@ -2763,6 +2763,7 @@ export class BidService {
       qualityTarget: submission?.qualityCommitment || project.qualityRequirement,
       bondStatus: existingRecord?.bondStatus ?? null,
       bidBondAssetId: submission?.bidBondAssetId ?? null,
+      bondNotApplicable: !project.bondRequired,
     };
   }
 

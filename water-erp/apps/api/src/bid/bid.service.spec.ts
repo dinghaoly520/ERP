@@ -3123,6 +3123,7 @@ describe('BidService — getOpeningRecordDraft', () => {
       qualityTarget: '合格',
       bondStatus: '已缴纳',
       bidBondAssetId: 'fa-1',
+      bondNotApplicable: false,
     });
   });
 
@@ -3176,6 +3177,17 @@ describe('BidService — getOpeningRecordDraft', () => {
 
     const draft = await service.getOpeningRecordDraft('p1', 's1');
     expect(draft.amount).toBe('770000');
+  });
+
+  it('项目不要求保证金 → bondNotApplicable=true（前端默认选「不适用」）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: false });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: '980000', deliveryPeriod: '180天', bidBondAssetId: null });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.bondNotApplicable).toBe(true);
+    expect(draft.bondStatus).toBeNull();
   });
 });
 
