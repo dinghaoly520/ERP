@@ -409,11 +409,13 @@ export class BidService {
       }
     }
 
-    // L6 字段去敏：bid portal 视角移除管理内部字段
+    // N4a：法定最少投标家数随详情下发（直接采购=1，其余=3）——前端流标建议按采购方式取数，不再硬编码 3
+    const enriched = { ...project, minBidders: this.getMinBidders(project.procurementMethod) };
+    // L6 字段去敏：bid portal 视角移除管理内部字段（minBidders 不在去敏清单）
     if (portal === 'bid') {
-      return sanitizeForBidHost(project);
+      return sanitizeForBidHost(enriched);
     }
-    return project;
+    return enriched;
   }
 
   /** 项目工作台：聚合项目 + 供应商(含投标提交) + 专家组 + 统计，供采购管理端判断开标准备 */
@@ -733,8 +735,12 @@ export class BidService {
       const fresh = await tx.bidOpeningSession.findUnique({ where: { projectId: id } });
       if (fresh?.status === '开标完成') return fresh; // 并发幂等：后提交方走既有产物
       const now = new Date();
-      const asset = await tx.fileAsset.create({
-        data: {
+      // 终审 Important #2：upsert 而非裸 create——MinIO 上传在事务前且 payload 含 generatedAt，
+      // 亚秒级并发下第二笔先覆盖 MinIO 再早退，若 DB 仍 create 会撞 key @unique（P2002）；
+      // upsert 的 update 段同步刷新 size/sha256，DB 指纹不与 MinIO 内容分叉（N3/P1-17 同款）
+      const asset = await tx.fileAsset.upsert({
+        where: { key: objectKey },
+        create: {
           key: objectKey,
           originalName: `开标文件包-${project.projectCode}.json`,
           mimeType: 'application/json',
@@ -743,6 +749,7 @@ export class BidService {
           category: 'bid_opening_handover',
           uploaderId: actorId ?? null,
         },
+        update: { size: buffer.length, sha256, uploaderId: actorId ?? null },
       });
       const updated = await tx.bidOpeningSession.update({
         where: { projectId: id },
@@ -965,6 +972,12 @@ export class BidService {
 
     assertBidStageTransition(project.stage, 'ABORTED');
 
+    // N4c：已生成官方评标结果仍可流标（定标前发现重大问题的合法出口），但必须书面理由并高风险留痕
+    const resultCount = await this.prisma.bidEvaluationResult.count({ where: { projectId: id } });
+    if (resultCount > 0 && !reason?.trim()) {
+      throw new BadRequestException({ error: '本项目已生成官方评标结果，流标须填写书面理由（结果将作废并留痕）', code: 'ABORT_REASON_REQUIRED' });
+    }
+
     // #16 流标业务留痕：riskNote 记录采购方式 + 投标供应商数 + 时间 + 操作人
     // （请求级留痕含操作人 userId 由全局 OperationLogInterceptor 自动记录）
     const supplierCount = project._count.suppliers;
@@ -981,7 +994,7 @@ export class BidService {
       });
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name,
-          action: '流标', result: riskNote, riskFlag: '高风险' },
+          action: '流标', result: `${riskNote}${resultCount > 0 ? '；注意：已存在官方评标结果，随流标作废' : ''}`, riskFlag: '高风险' },
       });
       return result;
     });
@@ -996,10 +1009,10 @@ export class BidService {
       });
     } catch { /* 通知失败不阻塞流标 */ }
 
-    // P3-5: 通知已分配的评审专家
+    // P3-5: 通知已分配的评审专家（N9：仅已确认正选——候补/已婉拒/未确认不再收流标通知）
     try {
       const experts = await this.prisma.bidExpert.findMany({
-        where: { projectId: id },
+        where: { projectId: id, expertRole: '正选', invitationStatus: 'confirmed' },
         select: { userId: true, expertName: true },
       });
       for (const e of experts) {
@@ -1036,6 +1049,9 @@ export class BidService {
       throw new BadRequestException({ error: '仅流标项目可重启', code: 'PROJECT_NOT_ABORTED' });
     }
 
+    // N5：原时间已随流标过期——重启项目给「截标 +3 天、开标 +2h」兜底窗口，并在留痕中提示重新设定
+    const fallbackDeadline = new Date(Date.now() + 3 * 24 * 3600 * 1000);
+    const fallbackOpenTime = new Date(fallbackDeadline.getTime() + 2 * 3600 * 1000);
     const newCode = `BID-${Date.now()}`;
     const now = new Date();
     const newProject = await this.prisma.bidProject.create({
@@ -1043,9 +1059,9 @@ export class BidService {
         name: original.name,
         projectCode: newCode,
         procurementMethod: original.procurementMethod,
-        openTime: original.openTime,
-        deadline: original.deadline,
-        downloadDeadline: original.downloadDeadline,
+        openTime: fallbackOpenTime,
+        deadline: fallbackDeadline,
+        downloadDeadline: null,
         budget: original.budget,
         scope: original.scope,
         qualification: original.qualification,
@@ -1056,7 +1072,7 @@ export class BidService {
         round: (original.round ?? 1) + 1,
         projectManagementItemId: original.projectManagementItemId,
         stage: 'DOWNLOAD',
-        riskNote: `（从流标项目 ${original.name} 重启，原项目编号 ${original.projectCode ?? id}，操作时间 ${now.toISOString()}${actorId ? `，操作人 ${actorId}` : ''}）`,
+        riskNote: `（从流标项目 ${original.name} 重启，原项目编号 ${original.projectCode ?? id}，操作时间 ${now.toISOString()}${actorId ? `，操作人 ${actorId}` : ''}；重启默认时间 截标 ${fallbackDeadline.toISOString()} / 开标 ${fallbackOpenTime.toISOString()}（请在项目编辑中重新设定））`,
       },
     });
 
@@ -1147,10 +1163,11 @@ export class BidService {
     // E4: 开标准备 checklist(仅阶段推进时检查,同阶段调用不检查)
     if (isTransitioning) {
       const expertCount = await this.prisma.bidExpert.count({ where: { projectId: id } });
-      const supplierCount = await this.prisma.bidSupplier.count({ where: { projectId: id } });
+      // N4d：家数口径 = 已提交——候选池行数（受邀未投递）不再计入，与 startEvaluation 有效投标口径对齐
+      const supplierCount = await this.prisma.bidSupplier.count({ where: { projectId: id, submitStatus: '已提交' } });
       const blocking: string[] = [];
       if (expertCount === 0) blocking.push('尚有专家未分配');
-      if (supplierCount < this.getMinBidders(project.procurementMethod)) blocking.push(`有效投标供应商仅 ${supplierCount} 家(法定最少 ${this.getMinBidders(project.procurementMethod)} 家，${project.procurementMethod ?? '未知方式'})`);
+      if (supplierCount < this.getMinBidders(project.procurementMethod)) blocking.push(`有效投标（已提交）仅 ${supplierCount} 家(法定最少 ${this.getMinBidders(project.procurementMethod)} 家，${project.procurementMethod ?? '未知方式'})`);
       if (blocking.length > 0) {
         if (dto?.force) {
           await this.prisma.bidSupervisionLog.create({
@@ -1564,9 +1581,10 @@ export class BidService {
     }
 
     // 通知所有分配专家评标已启动（fire-and-forget，不阻塞）
+    // N9：仅通知已确认正选——候补/已婉拒/未确认专家不在评审之列，不应收到启动通知
     try {
       const experts = await this.prisma.bidExpert.findMany({
-        where: { projectId: id },
+        where: { projectId: id, expertRole: '正选', invitationStatus: 'confirmed' },
         select: { userId: true, expertName: true },
       });
       for (const expert of experts) {
@@ -1596,17 +1614,37 @@ export class BidService {
       throw new BadRequestException({ error: '项目不在评标阶段，无法重新分析', code: 'PROJECT_NOT_EVALUATING' });
     }
 
-    const task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
-    if (!task) throw new BadRequestException({ error: '未找到 AI 分析任务', code: 'TASK_NOT_FOUND' });
+    let task = await this.prisma.aiBidAnalysisTask.findUnique({ where: { projectId } });
+    if (!task) {
+      // N8：存量项目（先于该特性创建）无任务——与 startEvaluation 同构补建，rerun 即恢复入口。
+      // 终审 must-fix：upsert（与 startEvaluation 完全同款）而非裸 create——并发双 rerun 双双
+      // findUnique 落空时，后到方撞 projectId @unique 走 update 空分支复用对手已建 task，不 P2002 裸 500
+      task = await this.prisma.aiBidAnalysisTask.upsert({
+        where: { projectId },
+        create: { projectId, status: 'PENDING' },
+        update: {},
+      });
+      const evaluable = await this.prisma.bidSupplier.findMany({
+        where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
+        select: { id: true },
+      });
+      if (evaluable.length > 0) {
+        await this.prisma.aiBidderResult.createMany({
+          data: evaluable.map((s) => ({ taskId: task!.id, bidSupplierId: s.id, status: 'PENDING' })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    const taskId = task.id; // 补建后为非空；const 以便下方事务闭包内保持非空收窄
 
     // 清除旧结果：bidderResult + report + concordance（cascade 会处理部分）
     await this.prisma.$transaction(async (tx) => {
-      await tx.aiBidReport.deleteMany({ where: { taskId: task.id } });
-      await tx.aiConcordanceResult.deleteMany({ where: { taskId: task.id } });
-      await tx.aiBidderResult.deleteMany({ where: { taskId: task.id } });
+      await tx.aiBidReport.deleteMany({ where: { taskId } });
+      await tx.aiConcordanceResult.deleteMany({ where: { taskId } });
+      await tx.aiBidderResult.deleteMany({ where: { taskId } });
       // 重置 task 为 PENDING
       await tx.aiBidAnalysisTask.update({
-        where: { id: task.id },
+        where: { id: taskId },
         data: { status: 'PENDING', completedAt: null },
       });
       // 重新创建 evaluable bidderResult
@@ -1617,7 +1655,7 @@ export class BidService {
       if (evaluableSuppliers.length > 0) {
         await tx.aiBidderResult.createMany({
           data: evaluableSuppliers.map((s) => ({
-            taskId: task.id,
+            taskId,
             bidSupplierId: s.id,
             status: 'PENDING',
           })),
@@ -1631,20 +1669,20 @@ export class BidService {
       try {
         await this.tenderQueue.add(
           'process',
-          { taskId: task.id },
+          { taskId },
           {
-            jobId: `tender-rerun-${task.id}-${Date.now()}`,
+            jobId: `tender-rerun-${taskId}-${Date.now()}`,
             attempts: 3,
             backoff: { type: 'exponential', delay: 5000 },
             removeOnComplete: { age: 7 * 24 * 3600 },
             removeOnFail: { age: 30 * 24 * 3600 },
           },
         );
-        this.logger.log(`AI analysis rerun enqueued: task=${task.id}, project=${projectId}`);
+        this.logger.log(`AI analysis rerun enqueued: task=${taskId}, project=${projectId}`);
       } catch (err) {
-        this.logger.error(`Failed to enqueue rerun for task ${task.id}: ${(err as Error).message}`);
+        this.logger.error(`Failed to enqueue rerun for task ${taskId}: ${(err as Error).message}`);
         await this.prisma.aiBidAnalysisTask.update({
-          where: { id: task.id },
+          where: { id: taskId },
           data: { status: 'FAILED' },
         }).catch(() => {});
         throw new BadRequestException({ error: '入队失败，任务已标记为 FAILED', code: 'ENQUEUE_FAILED' });
@@ -1655,6 +1693,8 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '系统', target: project.name, action: '重新启动AI辅助分析', result: '旧结果已清除，重新入队', riskFlag: '无' },
     }).catch(() => {});
+
+    return { taskId };
   }
 
   /**
@@ -1786,8 +1826,10 @@ export class BidService {
       throw new BadRequestException({ error: '项目不在开标阶段', code: 'PROJECT_NOT_OPENING' });
     }
 
+    // N15：只取 PENDING——已定性 DANGER（人工判定为异常）不重跑，避免一键解密把它们必然计 failed；
+    // 恢复路径不变：补传通道 reuploadBidFile 会把 DANGER 重置为 PENDING 后再解密
     const pendingSuppliers = await this.prisma.bidSupplier.findMany({
-      where: { projectId, decryptStatus: { in: ['PENDING', 'DANGER'] }, submitStatus: { not: '已撤回' } },
+      where: { projectId, decryptStatus: 'PENDING', submitStatus: { not: '已撤回' } },
       select: { id: true, supplierName: true },
     });
 
@@ -1803,7 +1845,7 @@ export class BidService {
 
     this.gateway?.notifySupervisionLog(projectId, {
       role: '系统', action: '一键解密', target: project.name,
-      result: `${results.filter(r => r.success).length}/${results.length} 成功`, riskFlag: '无',
+      result: `${results.filter(r => r.success).length}/${results.length} 成功（已定性异常者请走补传→重解密通道）`, riskFlag: '无',
     });
 
     return { total: results.length, success: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, details: results };
@@ -1845,22 +1887,38 @@ export class BidService {
       throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
     }
 
-    // Phase 1: 原子抢占 RUNNING（PENDING/RUNNING → RUNNING；并发第二笔 count=0）
+    // Phase 1: 原子抢占（PENDING→RUNNING；并发第二笔 count=0）。
+    // N1 修复：旧 where 含 RUNNING → RUNNING→RUNNING 的 no-op 更新同样 count=1，互斥失效、双击双跑。
     const claim = await this.prisma.bidSupplier.updateMany({
-      where: { id: supplierId, decryptStatus: { in: ['PENDING', 'RUNNING'] } },
+      where: { id: supplierId, decryptStatus: 'PENDING' },
       data: { decryptStatus: 'RUNNING' },
     });
     if (claim.count === 0) {
-      const fresh = await this.prisma.bidSupplier.findUnique({ where: { id: supplierId }, select: { decryptStatus: true } });
+      const fresh = await this.prisma.bidSupplier.findUnique({
+        where: { id: supplierId },
+        select: { decryptStatus: true, updatedAt: true },
+      });
       if (fresh?.decryptStatus === 'SUCCESS') {
         throw new BadRequestException({ error: '标书已解密成功，无需重复解密', code: 'ALREADY_DECRYPTED' });
       }
-      throw new ConflictException({
-        error: fresh?.decryptStatus === 'DANGER'
-          ? '该供应商标书已定性为解密异常，无需重复操作'
-          : '该供应商标书正在解密中，请勿重复提交',
-        code: 'DECRYPT_ALREADY_IN_FLIGHT',
-      });
+      if (fresh?.decryptStatus === 'RUNNING') {
+        // 崩溃接管：RUNNING 停滞超 60s（进程崩溃/外部 IO 卡死遗留）方可重占。
+        // 条件更新带 updatedAt 上限：接管成功的 @updatedAt 刷新使并发第二笔接管 count=0。
+        const takeover = await this.prisma.bidSupplier.updateMany({
+          where: { id: supplierId, decryptStatus: 'RUNNING', updatedAt: { lt: new Date(Date.now() - 60_000) } },
+          data: { decryptStatus: 'RUNNING' },
+        });
+        if (takeover.count === 0) {
+          throw new ConflictException({ error: '该供应商标书正在解密中，请勿重复提交', code: 'DECRYPT_ALREADY_IN_FLIGHT' });
+        }
+      } else {
+        throw new ConflictException({
+          error: fresh?.decryptStatus === 'DANGER'
+            ? '该供应商标书已定性为解密异常，无需重复操作'
+            : '该供应商标书正在解密中，请勿重复提交',
+          code: 'DECRYPT_ALREADY_IN_FLIGHT',
+        });
+      }
     }
 
     // ── ② 事务外解密（MinIO 读流 + AES + SHA-256，不占 DB 连接）──
@@ -1948,7 +2006,7 @@ export class BidService {
       } else {
         await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'SUCCESS' } });
         // 创建开标记录（仅当开标记录字段全部提供时）——等待供应商确认，不自动 CONFIRMED。
-        // P1-3：先查后写（upsert 语义），消除并发双击重复建记录。
+        // P1-3/N1b：upsert（projectId+bidSupplierId 复合唯一兜底），消除并发双击重复建记录。
         if (dto?.amount && dto?.period && dto?.qualityTarget && dto?.bondStatus) {
           // P1-4：解密即唱标路径同样校验与密封报价的一致性（409 交由前端确认后带 confirmSealedPrice 重试）
           const decryptPriceNote = await this.assertPriceMatchesSealed(projectId, supplierId, dto.amount, dto.confirmSealedPrice);
@@ -1957,7 +2015,6 @@ export class BidService {
               data: { projectId, time: new Date(), role: '开标主持人', target: bidSupplier.supplierName, action: '录入唱标信息', result: `报价 ${dto.amount}${decryptPriceNote}`, riskFlag: '中' },
             });
           }
-          const existingRecord = await tx.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: supplierId }, select: { id: true } });
           const recordData = {
             supplierName: bidSupplier.supplierName,
             amount: dto.amount,
@@ -1967,11 +2024,11 @@ export class BidService {
             decryptResult: '解密成功',
             confirmStatus: '待供应商确认',
           };
-          if (existingRecord) {
-            await tx.bidOpeningRecord.update({ where: { id: existingRecord.id }, data: recordData });
-          } else {
-            await tx.bidOpeningRecord.create({ data: { projectId, ...recordData, bidSupplierId: supplierId } });
-          }
+          await tx.bidOpeningRecord.upsert({
+            where: { projectId_bidSupplierId: { projectId, bidSupplierId: supplierId } },
+            create: { projectId, ...recordData, bidSupplierId: supplierId },
+            update: recordData,
+          });
         }
         const legacyNote = hasSealedKey ? '' : '（legacy 记录：未加密封存，仅完成完整性校验）';
         await tx.bidSupervisionLog.create({
@@ -2758,11 +2815,13 @@ export class BidService {
           code: 'RECORD_LOCKED',
         });
       }
-      const rec = existing
-        ? await tx.bidOpeningRecord.update({ where: { id: existing.id }, data: payload })
-        : await tx.bidOpeningRecord.create({
-            data: { projectId, supplierName: bidSupplier.supplierName, bidSupplierId: bidSupplier.id, ...payload },
-          });
+      // N1b：upsert（projectId+bidSupplierId 复合唯一兜底）——上面 findFirst 仅服务状态门，
+      // 写入不再 check-then-act，并发双击不会双建记录。
+      const rec = await tx.bidOpeningRecord.upsert({
+        where: { projectId_bidSupplierId: { projectId, bidSupplierId: bidSupplier.id } },
+        create: { projectId, supplierName: bidSupplier.supplierName, bidSupplierId: bidSupplier.id, ...payload },
+        update: payload,
+      });
 
       await tx.bidSupervisionLog.create({
         data: {
@@ -3420,8 +3479,14 @@ export class BidService {
       const objectKey = `bid-evaluation-handover/${projectId}.json`;
       await this.storage.upload(objectKey, buffer, 'application/json');
       const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
-      await this.prisma.fileAsset.create({
-        data: {
+      // N3：结果重生成 = 同 key 覆盖 MinIO；create 会撞 key @unique（P2002）且被下方 catch 吞掉，
+      // 造成 DB 仍留旧指纹、与 MinIO 新内容分叉。改 upsert：同 key 更新行（P1-17 同款）。
+      const existingSnapshot = await this.prisma.fileAsset.findUnique({
+        where: { key: objectKey }, select: { id: true },
+      });
+      await this.prisma.fileAsset.upsert({
+        where: { key: objectKey },
+        create: {
           key: objectKey,
           originalName: `评标包-${project.projectCode}.json`,
           mimeType: 'application/json',
@@ -3430,10 +3495,15 @@ export class BidService {
           category: 'bid_evaluation_handover',
           uploaderId: actorId ?? null,
         },
+        update: { size: buffer.length, sha256, uploaderId: actorId ?? null },
       });
       await this.prisma.bidSupervisionLog.create({
-        data: { projectId, time: new Date(), role: '系统', target: project.name,
-          action: '评标完整性快照', result: `指纹 ${sha256.slice(0, 16)}…`, riskFlag: '无' },
+        data: {
+          projectId, time: new Date(), role: '系统', target: project.name,
+          action: '评标完整性快照',
+          result: `${existingSnapshot ? '已更新（结果重生成，覆盖旧指纹）' : '指纹'} ${sha256.slice(0, 16)}…`,
+          riskFlag: '无',
+        },
       }).catch(() => {});
     } catch (e) {
       this.logger.error('评标快照生成失败（不阻塞结果生成）', e instanceof Error ? e.message : String(e));
@@ -4645,29 +4715,21 @@ export class BidService {
     if (quotes.length === 0) return;
 
     await this.prisma.$transaction(async (tx) => {
-      const existingRecs = await tx.bidOpeningRecord.findMany({
-        where: { projectId, bidSupplierId: { in: quotes.map(q => q.bidSupplierId) } },
-        select: { id: true, bidSupplierId: true },
-      });
-      const recMap = new Map(existingRecs.map(r => [r.bidSupplierId!, r.id]));
-
       for (const q of quotes) {
-        const existId = recMap.get(q.bidSupplierId);
-        if (existId) {
-          await tx.bidOpeningRecord.update({ where: { id: existId }, data: { amount: String(q.quotePrice) } });
-        } else {
-          // C1 fix: 缺 record 时创建
-          const sup = await tx.bidSupplier.findUnique({ where: { id: q.bidSupplierId }, select: { supplierName: true } });
-          await tx.bidOpeningRecord.create({
-            data: {
-              projectId, bidSupplierId: q.bidSupplierId,
-              supplierName: sup?.supplierName ?? '—',
-              amount: String(q.quotePrice),
-              period: '', qualityTarget: '', bondStatus: '',
-              confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
-            },
-          });
-        }
+        // N1b 收尾：check-then-act 在唯一索引 (projectId, bidSupplierId) 下并发补建会裸抛 P2002，
+        // 与 decryptSupplier 同款 upsert（:1985）——update 只改价格，create 为缺 record 时补建（C1 fix）
+        const sup = await tx.bidSupplier.findUnique({ where: { id: q.bidSupplierId }, select: { supplierName: true } });
+        await tx.bidOpeningRecord.upsert({
+          where: { projectId_bidSupplierId: { projectId, bidSupplierId: q.bidSupplierId } },
+          create: {
+            projectId, bidSupplierId: q.bidSupplierId,
+            supplierName: sup?.supplierName ?? '—',
+            amount: String(q.quotePrice),
+            period: '', qualityTarget: '', bondStatus: '',
+            confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
+          },
+          update: { amount: String(q.quotePrice) },
+        });
       }
 
       await tx.bidSupervisionLog.create({

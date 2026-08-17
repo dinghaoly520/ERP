@@ -492,6 +492,7 @@ model BidOpeningRecord {
 
   @@index([bidSupplierId])
   @@index([projectId])
+  @@unique([projectId, bidSupplierId])
 }
 
 model BidExpert {

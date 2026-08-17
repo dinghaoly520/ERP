@@ -10,7 +10,7 @@ import { LlmService } from '../local-ai/llm.service';
 import { OcrService } from '../local-ai/ocr.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { processFile } from '../ai-bid-analysis/utils/file-processor';
-import { ExpertExtractionAiService } from './expert-extraction-ai.service';
+import { ExpertExtractionAiService, rsvpTtlHours } from './expert-extraction-ai.service';
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 import type { LlmSpecialtyQuota, ExpertExtractionLlmResult, ExtractMode } from './expert-extraction-ai.service';
 import type { CreateExpertDto } from './dto/create-expert.dto';
@@ -40,8 +40,9 @@ function computeOverallGrade(
 
 @Injectable()
 export class ExpertAdminService {
-  private readonly rsvpTtlMs =
-    parseFloat(process.env.EXPERT_RSVP_TTL_HOURS ?? '2') * 60 * 60 * 1000;
+  // N6 收尾：TTL 真单源——毫秒值复用 rsvpTtlHours()（含 "abc"/"0" 等非法值回退 2），
+  // 实际过期时间与所有文案（controller/extraction-ai/本文件）永远一致
+  private readonly rsvpTtlMs = rsvpTtlHours() * 60 * 60 * 1000;
 
   constructor(
     private prisma: PrismaService,
@@ -908,16 +909,20 @@ export class ExpertAdminService {
 
   /** 查询项目专家邀请状态（正选+候补） */
   async getProjectInvitations(projectId: string) {
-    // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（15分钟过期自动弃权）
+    // 先清理超时未回复的 pending 邀请——与 RSVP verify 行为一致（TTL 过期自动弃权并递补）
     const expiredPending = await this.prisma.bidExpert.findMany({
       where: { projectId, invitationStatus: 'pending', rsvpExpiresAt: { lt: new Date() } },
-      select: { id: true },
+      select: { id: true, expertRole: true },
     });
     if (expiredPending.length > 0) {
       await this.prisma.bidExpert.updateMany({
         where: { id: { in: expiredPending.map(e => e.id) } },
         data: { invitationStatus: 'declined', rsvpRespondedAt: new Date() },
       });
+      // 仅正选过期才递补（候补过期不占正选席位）；失败静默，不阻塞列表返回
+      if (expiredPending.some(e => e.expertRole === '正选')) {
+        await this.autoPromoteCandidate(projectId).catch(() => null); // 与 RSVP 链接婉拒路径同款递补
+      }
     }
 
     const records = await this.prisma.bidExpert.findMany({
@@ -1061,8 +1066,13 @@ export class ExpertAdminService {
       throw new ConflictException({ error: '您已确认参加，如需变更请联系采购方', code: 'ALREADY_CONFIRMED' });
     }
     await this.prisma.bidExpert.update({ where: { id: record.id }, data: { invitationStatus: 'declined' } });
+    // 婉拒 → 自动递补候补（与 RSVP 链接路径一致）；仅正选婉拒才递补——候补婉拒不产生正选空缺，
+    // 无条件递补会把另一候补超编转正并徒耗候补席位（D7 审查）；递补失败静默，不影响婉拒结果
+    const promoted = record.expertRole === '正选'
+      ? await this.autoPromoteCandidate(projectId).catch(() => null)
+      : null;
 
-    return { success: true, status: 'declined' };
+    return { success: true, status: 'declined', promoted };
   }
   async generateNotificationAi(params: {
     projectName: string; expertName: string; isLead: boolean;
@@ -1228,7 +1238,7 @@ export class ExpertAdminService {
         });
         let rsvpLink = `${expertPortalUrl}/invitation/${projectId}`;
         if (be?.rsvpToken) {
-          // 刷新过期时间（从发送时刻重新计时15分钟）
+          // 刷新过期时间（从发送时刻重新计时 RSVP TTL——EXPERT_RSVP_TTL_HOURS 小时，默认 2）
           await this.prisma.bidExpert.update({
             where: { id: be.id },
             data: { rsvpExpiresAt: expiresAt },
@@ -1238,7 +1248,7 @@ export class ExpertAdminService {
         // 替换模板中的 {RSVP_LINK} 占位符；无占位符时追加链接
         const contentWithLink = body.includes('{RSVP_LINK}')
           ? body.replace(/\{RSVP_LINK\}/g, rsvpLink)
-          : `${body}\n确认链接（15分钟内有效）：${rsvpLink}`;
+          : `${body}\n确认链接（${rsvpTtlHours()}小时内有效）：${rsvpLink}`;
         return this.notification.sendToUser(expert.id, channels, {
           type: 'EXPERT_ASSIGNED',
           title: `评审任务通知 - ${project.name}`,

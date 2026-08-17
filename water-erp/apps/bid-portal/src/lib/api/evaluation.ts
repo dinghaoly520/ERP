@@ -80,6 +80,7 @@ export interface BidProjectDetail {
   name: string;
   stage: BidStage;
   procurementMethod: string;
+  minBidders?: number; // N4：法定最少投标家数（直接采购=1，其余=3）——后端 getProject 下发
   openTime: string;
   deadline: string;
   riskNote?: string | null;

@@ -160,6 +160,26 @@ describe('recomputeExpertProgress', () => {
     expect(r.totalScore).toBe(15); // (10+20) / 2 活跃供应商 = 15
   });
 
+  it('N8b：手填价格分记录不计入进度分子（分母已排 PRICE，分子同步排除）', async () => {
+    const tx: any = {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue([
+        { id: 'i1', category: 'TECHNICAL' }, { id: 'i2', category: 'PRICE' },
+      ]) }, // 分母 = 1 项技术 × 1 供应商
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 's1' }]) },
+      bidScoreRecord: {
+        count: jest.fn(async () => 2), // 1 条技术 + 1 条手填价格（固定 mock 返回值对数字断言无区分度）
+        findMany: jest.fn().mockResolvedValue([{ score: 40 }, { score: 27 }]),
+      },
+    };
+    const { progress } = await recomputeExpertProgress(tx, 'e1', 'p1');
+    // 直接验证查询条件：分子 count 的 scoreItem where 必须排除 PRICE——
+    // 否则手填价格分记录会在分母（已排 PRICE）之外虚增分子，进度虚高甚至提前 100%
+    const whereArg = (tx.bidScoreRecord.count as jest.Mock).mock.calls[0][0].where;
+    expect(whereArg.scoreItem).toMatchObject({ projectId: 'p1', category: { not: 'PRICE' } });
+    expect(whereArg.supplierId).toEqual({ in: ['s1'] });
+    expect(progress).toBe(100); // 新口径下真实查询只数非 PRICE 记录：1 项技术 / 1 分母 = 100%
+  });
+
   it('P1-9：progress 封顶 100（防御性）', async () => {
     const tx: any = {
       bidScoreItem: { findMany: jest.fn().mockResolvedValue([{ id: 'si1' }]) },

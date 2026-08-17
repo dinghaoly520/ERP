@@ -762,7 +762,7 @@ export default function EvaluationView({ projectId, project, onChanged }: Props)
                     <li>仅纳入解密成功、已确认且未撤回的供应商</li>
                     <li>通过性审查（资格/响应性）不通过票<span className="font-semibold text-[var(--foreground)]">严格过半即废标</span>，废标置后</li>
                     <li>专家组 ≥5 人时去掉 1 个最高分与 1 个最低分后求均分</li>
-                    <li>第 1 名推荐为中标候选人，并自动生成中标公示草稿</li>
+                    <li>第 1 名推荐为中标候选人；完整归档后自动生成中标公示草稿（在 :3005 信息发布中心发布）</li>
                   </ul>
                   <p className="font-semibold text-[var(--foreground)]">结果生成后可再次生成覆盖（专家报告确认状态不变）。</p>
                 </div>

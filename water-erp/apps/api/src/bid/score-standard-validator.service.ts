@@ -48,6 +48,15 @@ export class ScoreStandardValidator {
       where: { projectId },
       include: { _count: { select: { points: true } } },
     });
+    // N10：打分类项满分须 >0——0 分「空项」曾随标准发布并永久锁定（英雄项目「法」）
+    for (const item of items) {
+      if (!PASS_FAIL_CATEGORIES.has(item.category) && Number(item.maxScore) <= 0) {
+        throw new BadRequestException({
+          error: `评分项「${item.name}」为打分类但满分为 0，请删除或设置满分`,
+          code: 'SCORE_ITEM_ZERO_MAX',
+        });
+      }
+    }
     const sumMax = items
       .filter((i) => SCORING_CATEGORIES.has(i.category))
       .reduce((s, i) => s + Number(i.maxScore), 0);

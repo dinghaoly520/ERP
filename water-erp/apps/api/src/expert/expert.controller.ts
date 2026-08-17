@@ -39,7 +39,12 @@ import { Public } from '../common/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
+import { rsvpTtlHours } from './expert-extraction-ai.service';
 
+/**
+ * N6：RSVP 过期文案与实际 TTL 同源（EXPERT_RSVP_TTL_HOURS，默认 2 小时）。
+ * rsvpTtlHours 定义在 expert-extraction-ai.service（无环依赖方向），此处复用之。
+ */
 @ApiTags('专家评审')
 @Controller('expert')
 export class ExpertController {
@@ -100,7 +105,7 @@ export class ExpertController {
     return this.expertAdminService.declineInvitation(projectId, userId);
   }
 
-  /* ── 免登录 RSVP（token 链接，15分钟有效期）── */
+  /* ── 免登录 RSVP（token 链接，TTL=EXPERT_RSVP_TTL_HOURS 小时，默认 2）── */
   @Public()
   @Get('rsvp/verify')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -119,10 +124,13 @@ export class ExpertController {
       if (pm?.projectCode) projectCode = pm.projectCode;
     }
     const expired = be.rsvpExpiresAt ? new Date(be.rsvpExpiresAt).getTime() < Date.now() : false;
-    // 超时且未回复 → 自动弃权 + 递补候补
+    // 超时且未回复 → 自动弃权；正选席位空缺时自动递补候补（与 respond 路径同款正选守卫；失败静默不影响 verify 返回）
     if (expired && be.invitationStatus === 'pending') {
       await this.prisma.bidExpert.update({ where: { id: be.id }, data: { invitationStatus: 'declined', rsvpRespondedAt: new Date() } });
       be.invitationStatus = 'declined';
+      if (be.expertRole === '正选') {
+        await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null);
+      }
     }
     return {
       expertName: be.expertName,
@@ -157,7 +165,7 @@ export class ExpertController {
     const be = await this.prisma.bidExpert.findUnique({ where: { rsvpToken: t } });
     if (!be) throw new BadRequestException({ error: '邀请链接无效', code: 'RSVP_NOT_FOUND' });
     if (be.rsvpExpiresAt && new Date(be.rsvpExpiresAt).getTime() < Date.now()) {
-      throw new BadRequestException({ error: '邀请链接已过期（15分钟），请联系采购方', code: 'RSVP_EXPIRED' });
+      throw new BadRequestException({ error: `邀请链接已过期（${rsvpTtlHours()}小时），请联系采购方`, code: 'RSVP_EXPIRED' });
     }
     if (be.invitationStatus !== 'pending') {
       throw new BadRequestException({ error: '您已回复过此邀请', code: 'ALREADY_RESPONDED' });
@@ -166,11 +174,13 @@ export class ExpertController {
       where: { id: be.id },
       data: { invitationStatus: body.status, rsvpRespondedAt: new Date() },
     });
-    // 婉拒 → 自动递补候补
+    // 婉拒 → 自动递补候补；仅正选婉拒才递补——候补婉拒不产生正选空缺，无条件递补会超编转正另一候补（D7 审查）
     const rsvpNo = be.id.slice(-8).toUpperCase();
     const respondedAt = new Date().toISOString();
     if (body.status === 'declined') {
-      const promoted = await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null);
+      const promoted = be.expertRole === '正选'
+        ? await this.expertAdminService.autoPromoteCandidate(be.projectId).catch(() => null)
+        : null;
       return { success: true, status: body.status, rsvpNo, respondedAt, promoted };
     }
     return { success: true, status: body.status, rsvpNo, respondedAt };

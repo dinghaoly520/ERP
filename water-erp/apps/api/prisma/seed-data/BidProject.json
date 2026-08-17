@@ -75,5 +75,32 @@
     "isExtractionOnly": false,
     "createdAt": "2026-07-26T08:26:30.436Z",
     "updatedAt": "2026-07-26T08:26:30.436Z"
+  },
+  {
+    "id": "cms5viy4m016tuuf7tyw4k2vm",
+    "projectCode": "BID-1785136000001",
+    "name": "农村供水管网改造材料",
+    "procurementMethod": "竞价采购",
+    "openTime": "2026-07-09T00:00:00.000Z",
+    "deadline": "2026-07-08T12:00:00.000Z",
+    "downloadDeadline": null,
+    "stage": "SUBMIT",
+    "scoreStandardPublishedAt": null,
+    "riskNote": null,
+    "budget": 950000.0,
+    "scope": null,
+    "qualification": null,
+    "contact": null,
+    "qualityRequirement": null,
+    "bondRequired": false,
+    "bondAmount": null,
+    "encryptionKeyId": null,
+    "projectManagementItemId": "cmrbvege0000435e17fd95cf3",
+    "round": 1,
+    "isExtractionOnly": false,
+    "createdAt": "2026-07-26T08:00:00.000Z",
+    "updatedAt": "2026-08-14T00:00:00.000Z",
+    "leaderCoSigned": false,
+    "assignedHostUserId": "cmrai35fr0002koddvbs7wm1b"
   }
 ]

@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "id": "sbs_seed_1",
+    "supplierId": "cmqbysdkb001lkoh1lif07y1g",
+    "projectId": "cms1hda40006duu2o4fx28ubd",
+    "status": "submitted",
+    "submittedAt": "2026-08-12T02:00:00.000Z",
+    "bidPrice": "4800000",
+    "deliveryPeriod": "按采购文件工期要求"
+  },
+  {
+    "id": "sbs_seed_2",
+    "supplierId": "cmqc8r5ts000jkoekgsp1rxqx",
+    "projectId": "cms1hda40006duu2o4fx28ubd",
+    "status": "submitted",
+    "submittedAt": "2026-08-12T02:00:00.000Z",
+    "bidPrice": "4950000",
+    "deliveryPeriod": "按采购文件工期要求"
+  }
+]

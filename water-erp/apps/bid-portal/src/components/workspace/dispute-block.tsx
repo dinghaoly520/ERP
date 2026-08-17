@@ -7,9 +7,9 @@
  * 显隐：仅 EVALUATING / ARCHIVED 渲染；ARCHIVED 只读。
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, Ban, CheckCircle2, Flag, ShieldCheck, XCircle } from 'lucide-react';
-import { abortBidProject, resolveExpertDispute } from '@/lib/api/evaluation';
+import { abortBidProject, listEvaluationResults, resolveExpertDispute } from '@/lib/api/evaluation';
 import type { BidProjectDetail } from '@/lib/types';
 
 type Props = {
@@ -43,6 +43,16 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
   const [invalidateById, setInvalidateById] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
 
+  // N4b：官方评标结果是否已生成——已生成则收起「建议流标」（此时流标须异议裁决+书面理由，N4c）。
+  // 注：hooks 必须位于 if (!detail) 早退之前（detail null→loaded 会改变 hook 数量，违反 React hooks 规则）。
+  const [resultsGenerated, setResultsGenerated] = useState(false);
+  useEffect(() => {
+    if (!bidProjectId || detail?.stage === 'ARCHIVED') return;
+    listEvaluationResults(bidProjectId)
+      .then((r) => setResultsGenerated(r.length > 0))
+      .catch(() => setResultsGenerated(false));
+  }, [bidProjectId, detail]); // detail 入依赖：onChanged 刷新后重取
+
   if (!detail) return null;
   const { stage, expertDisputes } = detail;
   // 异议在评审阶段产生；OPENING 及之前不渲染，ARCHIVED 只读回看
@@ -55,7 +65,11 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
   const validSuppliers = (detail.suppliers ?? []).filter(
     (s) => s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回' && s.bidValidity !== 'invalid',
   );
-  const suggestAbort = !archived && validSuppliers.length < 3;
+  // N4a：法定家数按采购方式取（直接采购=1，其余=3；后端下发缺失时兜底 3）。
+  // N4b：已生成官方评标结果 ⇒ 不再显示建议流标与执行按钮。
+  const minBidders = detail.minBidders ?? 3;
+  const suggestAbort = !archived && validSuppliers.length < minBidders && !resultsGenerated;
+  const hasOpenDispute = pendingCount > 0;
 
   const showToast = (text: string, tone: 'ok' | 'err' = 'ok') => {
     setFeedback({ text, tone });
@@ -81,10 +95,19 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
   }
 
   async function handleAbort() {
-    if (!window.confirm(`当前有效供应商仅 ${validSuppliers.length} 家（< 3），确认执行流标？此操作不可逆。`)) return;
+    const warn = resultsGenerated
+      ? `当前有效供应商仅 ${validSuppliers.length} 家，且项目已生成官方评标结果——流标将作废该结果并高风险留痕。确认执行？此操作不可逆。`
+      : `当前有效供应商仅 ${validSuppliers.length} 家（法定最少 ${minBidders} 家），确认执行流标？此操作不可逆。`;
+    if (!window.confirm(warn)) return;
     setBusyId('__abort__');
     try {
-      await abortBidProject(bidProjectId, '依专家异议裁决，有效供应商不足');
+      // N4c：结果已生成时后端强制书面理由（ABORT_REASON_REQUIRED），此处同步带上
+      await abortBidProject(
+        bidProjectId,
+        resultsGenerated
+          ? `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），经异议裁决流标；已知结果作废`
+          : '依专家异议裁决，有效供应商不足',
+      );
       showToast('已流标');
       onChanged();
     } catch (e) {
@@ -129,24 +152,34 @@ export function DisputeBlock({ bidProjectId, detail, onChanged }: Props) {
         </div>
       )}
 
-      {/* 流标建议：有效供应商不足 3 家时提示 */}
-      {suggestAbort && (
+      {/* 流标建议 / 异议待裁决提醒（N4）：横幅由 suggestAbort || hasOpenDispute 控制；
+          已生成官方评标结果 ⇒ suggestAbort=false，建议流标文案与执行按钮整块收起，
+          仅存在 open 态异议工单时保留待裁决提醒。 */}
+      {(suggestAbort || hasOpenDispute) && (
         <div
           className="mb-3 flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-2.5 text-xs font-semibold"
           style={{ background: 'color-mix(in oklch, var(--danger) 10%, transparent)', color: 'var(--danger)' }}
         >
-          <span className="flex items-center gap-2">
-            <Flag size={13} /> 有效供应商仅 {validSuppliers.length} 家（&lt; 3），不满足评标条件，建议流标
-          </span>
-          <button
-            type="button"
-            onClick={handleAbort}
-            disabled={busyId === '__abort__'}
-            className="neu-btn-soft !h-[28px] !text-xs shrink-0"
-            style={{ color: 'var(--danger)' }}
-          >
-            {busyId === '__abort__' ? '流标中…' : '执行流标'}
-          </button>
+          {suggestAbort ? (
+            <>
+              <span className="flex items-center gap-2">
+                <Flag size={13} /> 有效供应商仅 {validSuppliers.length} 家（&lt; {minBidders}），不满足评标条件，建议流标
+              </span>
+              <button
+                type="button"
+                onClick={handleAbort}
+                disabled={busyId === '__abort__'}
+                className="neu-btn-soft !h-[28px] !text-xs shrink-0"
+                style={{ color: 'var(--danger)' }}
+              >
+                {busyId === '__abort__' ? '流标中…' : '执行流标'}
+              </button>
+            </>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Flag size={13} /> 存在 {pendingCount} 条异议待裁决
+            </span>
+          )}
         </div>
       )}
 

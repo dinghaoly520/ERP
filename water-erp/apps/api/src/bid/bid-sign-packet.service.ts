@@ -250,14 +250,24 @@ export class BidSignPacketService {
     const objectKey = `bid-sign-packet/${projectId}/${suffix}.${ext}`;
     const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
     await this.storage.upload(objectKey, file.buffer, file.mimetype);
-    const asset = await this.prisma.fileAsset.create({
-      data: {
+    // N2：重传时 MinIO 对象同 key 覆盖，FileAsset 若仍 create 会撞 key @unique（P2002 → 500）。
+    // upsert：同 key 更新行（size/sha256/mimeType/originalName/uploaderId），与 MinIO 覆盖语义一致（P1-17 同款）。
+    const asset = await this.prisma.fileAsset.upsert({
+      where: { key: objectKey },
+      create: {
         key: objectKey,
         originalName: file.originalname || `scan.${ext}`,
         mimeType: file.mimetype,
         size: file.buffer.length,
         sha256,
         category,
+        uploaderId: actorId,
+      },
+      update: {
+        originalName: file.originalname || `scan.${ext}`,
+        mimeType: file.mimetype,
+        size: file.buffer.length,
+        sha256,
         uploaderId: actorId,
       },
     });
@@ -308,11 +318,15 @@ export class BidSignPacketService {
     await this.storage.upload(objectKey, buffer, 'application/json');
 
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
-    const asset = await this.prisma.fileAsset.create({
-      data: {
+    // N14：幂等守卫已挡重复生成，此处 upsert 为防御性同 key 覆盖——若行已存在则更新指纹，
+    // 保证 DB 记录与 MinIO 内容恒一致（与 N2/N3 同款，P1-17 同构）。
+    const asset = await this.prisma.fileAsset.upsert({
+      where: { key: objectKey },
+      create: {
         key: objectKey, originalName: `评标回流包-${projectId}.json`, mimeType: 'application/json',
         size: buffer.length, sha256, category: 'bid_evaluation_sign_handover', uploaderId: actorId,
       },
+      update: { size: buffer.length, sha256, uploaderId: actorId ?? null },
     });
     await this.prisma.bidSignPacket.update({
       where: { projectId },

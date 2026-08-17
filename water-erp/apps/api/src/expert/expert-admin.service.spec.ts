@@ -13,6 +13,7 @@ describe('ExpertAdminService', () => {
   let service: ExpertAdminService;
   let prisma: any;
   let extractionAi: any;
+  let notification: any;
 
   beforeEach(async () => {
     prisma = {
@@ -71,7 +72,7 @@ describe('ExpertAdminService', () => {
         ExpertAdminService,
         { provide: PrismaService, useValue: prisma },
         { provide: ExpertExtractionAiService, useValue: extractionAi },
-        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn() } },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn().mockResolvedValue({}) } },
         { provide: EmbeddingService, useValue: { embed: jest.fn().mockResolvedValue([]) } },
         { provide: LlmService, useValue: { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) } },
         { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
@@ -80,6 +81,7 @@ describe('ExpertAdminService', () => {
     }).compile();
 
     service = module.get<ExpertAdminService>(ExpertAdminService);
+    notification = module.get(NotificationService);
   });
 
   describe('listExperts', () => {
@@ -497,6 +499,127 @@ describe('ExpertAdminService', () => {
       expect(result).toEqual({ success: true });
       expect(prisma.bidExpert.update).toHaveBeenCalled();
       expect(prisma.bidProject.update).not.toHaveBeenCalled(); // 未末签，无需清理
+    });
+  });
+
+  describe('sendExtractionNotify — N6 补漏：追加链接文案与实际 TTL 一致', () => {
+    afterEach(() => {
+      delete process.env.EXPERT_RSVP_TTL_HOURS;
+    });
+
+    const setupNotify = () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ name: '测试项目', projectCode: 'BID-1' });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', displayName: '专家A', expertProfile: { phone: '13800000000' } },
+      ]);
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', rsvpToken: 'tok-1' });
+    };
+
+    it('无 {RSVP_LINK} 占位符时追加「确认链接（2小时内有效）」（默认 TTL，不再写死 15分钟）', async () => {
+      delete process.env.EXPERT_RSVP_TTL_HOURS;
+      setupNotify();
+
+      await service.sendExtractionNotify('p1', ['u1'], ['in_app'], '');
+
+      expect(notification.sendToUser).toHaveBeenCalledTimes(1);
+      const content = notification.sendToUser.mock.calls[0][2].content;
+      expect(content).toContain('确认链接（2小时内有效）');
+      expect(content).not.toContain('15分钟');
+    });
+
+    it('EXPERT_RSVP_TTL_HOURS=6 时追加文案同步为「6小时内有效」', async () => {
+      process.env.EXPERT_RSVP_TTL_HOURS = '6';
+      setupNotify();
+
+      await service.sendExtractionNotify('p1', ['u1'], ['in_app'], '');
+
+      const content = notification.sendToUser.mock.calls[0][2].content;
+      expect(content).toContain('确认链接（6小时内有效）');
+    });
+  });
+
+  describe('N6 收尾：rsvpTtlMs 真单源（非法 env 回退 2 小时）', () => {
+    // rsvpTtlMs 是类字段，实例化时取 env——须在编译模块前置 env（外层 beforeEach 已编译默认实例）
+    const buildSvc = async () => {
+      const mod = await Test.createTestingModule({
+        providers: [
+          ExpertAdminService,
+          { provide: PrismaService, useValue: prisma },
+          { provide: ExpertExtractionAiService, useValue: extractionAi },
+          { provide: NotificationService, useValue: notification },
+          { provide: EmbeddingService, useValue: { embed: jest.fn().mockResolvedValue([]) } },
+          { provide: LlmService, useValue: { chat: jest.fn(), chatJson: jest.fn(), getModel: jest.fn().mockReturnValue(null) } },
+          { provide: OcrService, useValue: { isAvailable: jest.fn().mockResolvedValue(false), ocrImage: jest.fn() } },
+          { provide: ExpertCrossConflictService, useValue: { checkCrossConflicts: jest.fn().mockResolvedValue([]) } },
+        ],
+      }).compile();
+      return mod.get(ExpertAdminService);
+    };
+
+    afterEach(() => {
+      delete process.env.EXPERT_RSVP_TTL_HOURS;
+    });
+
+    it.each(['abc', '0'])('EXPERT_RSVP_TTL_HOURS=%s → rsvpTtlMs 回退 2 小时（7200000ms）', async (v) => {
+      process.env.EXPERT_RSVP_TTL_HOURS = v;
+      const svc = await buildSvc();
+      expect(svc['rsvpTtlMs']).toBe(2 * 60 * 60 * 1000);
+    });
+
+    it('EXPERT_RSVP_TTL_HOURS=6 → rsvpTtlMs=6 小时（与文案同源）', async () => {
+      process.env.EXPERT_RSVP_TTL_HOURS = '6';
+      const svc = await buildSvc();
+      expect(svc['rsvpTtlMs']).toBe(6 * 60 * 60 * 1000);
+    });
+  });
+
+  describe('N7 婉拒/过期递补统一', () => {
+    it('admin declineInvitation 触发 autoPromoteCandidate 并回传 promoted', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
+      prisma.bidExpert.update.mockResolvedValue({});
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9', expertName: '候补A', major: '技术' });
+      const res = await service.declineInvitation('p1', 'u1');
+      expect((service as any).autoPromoteCandidate).toHaveBeenCalledWith('p1');
+      expect(res.promoted).toMatchObject({ expertName: '候补A' });
+    });
+
+    it('D7：候补 declineInvitation 不递补——无正选空缺，promoted=null（防超编转正+徒耗候补席）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-2', invitationStatus: 'pending', expertRole: '候补' });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue({ userId: 'u9', expertName: '候补A' });
+      const res = await service.declineInvitation('p1', 'u1');
+      expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
+      expect(res).toEqual({ success: true, status: 'declined', promoted: null });
+    });
+
+    it('declineInvitation 递补失败时静默——婉拒仍成功，promoted=null（与 RSVP 链接路径同款 catch）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be-1', invitationStatus: 'pending', expertRole: '正选' });
+      (service as any).autoPromoteCandidate = jest.fn().mockRejectedValue(new Error('DB 抖动'));
+      const res = await service.declineInvitation('p1', 'u1');
+      expect(res).toEqual({ success: true, status: 'declined', promoted: null });
+    });
+
+    it('getProjectInvitations 过期清扫含正选时触发一次递补', async () => {
+      prisma.bidExpert.findMany
+        .mockResolvedValueOnce([{ id: 'be-1', expertRole: '正选' }])   // 过期查询
+        .mockResolvedValue([]);                                        // 列表查询
+      prisma.bidExpert.updateMany.mockResolvedValue({ count: 1 });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue(null);
+      await service.getProjectInvitations('p1');
+      expect((service as any).autoPromoteCandidate).toHaveBeenCalledWith('p1');
+      expect((service as any).autoPromoteCandidate).toHaveBeenCalledTimes(1);
+    });
+
+    it('过期行全是候补时不递补（避免误替换仍待命的正选）', async () => {
+      prisma.bidExpert.findMany
+        .mockResolvedValueOnce([{ id: 'be-1', expertRole: '候补' }])   // 过期查询
+        .mockResolvedValue([]);                                        // 列表查询
+      prisma.bidExpert.updateMany.mockResolvedValue({ count: 1 });
+      (service as any).autoPromoteCandidate = jest.fn().mockResolvedValue(null);
+      await service.getProjectInvitations('p1');
+      expect((service as any).autoPromoteCandidate).not.toHaveBeenCalled();
     });
   });
 });

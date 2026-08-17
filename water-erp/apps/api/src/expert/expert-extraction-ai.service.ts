@@ -2,6 +2,19 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ExpertLevel } from '@prisma/client';
 import { LlmService } from '../local-ai/llm.service';
 
+/**
+ * N6：RSVP 过期/确认时限文案与实际 TTL 同源——TTL 由 expert-admin.service 写入邀请
+ * （EXPERT_RSVP_TTL_HOURS，默认 2 小时），文案须读同一变量，不得写死时长。
+ * 定义在本文件（而非 expert.controller）并导出供 controller 错误文案复用：
+ * controller ← admin.service ← 本文件，若反向放 controller 会成环，
+ * 在 app.module 真实加载顺序（SupplierModule 先于 ExpertModule）下致
+ * ExpertController design:paramtypes undefined → 启动崩溃（实测验证）。
+ */
+export const rsvpTtlHours = (): number => {
+  const h = parseFloat(process.env.EXPERT_RSVP_TTL_HOURS ?? '2');
+  return Number.isFinite(h) && h > 0 ? h : 2;
+};
+
 /* =================================================================
    专家智能抽取 — LLM 分析引擎（统一走 LlmService 网关）
    AI 负责"理解项目 + 评估专家匹配度 + 推荐专家组构成"，
@@ -221,7 +234,7 @@ export class ExpertExtractionAiService {
     // 正选 vs 候补：完全不同的定位与措辞
     const roleLine = isAlt
       ? '您被选为本项目候补评审专家。若正选专家因故无法参加，将按序递补您参加评审。请确认是否愿意待命。'
-      : '您被选为本项目正选评审专家。请务必于收到通知后15分钟内确认是否参加，逾期将自动视为放弃。';
+      : `您被选为本项目正选评审专家。请务必于收到通知后${rsvpTtlHours()}小时内确认是否参加，逾期将自动视为放弃。`;
     const prompt = `撰写评审专家邀请短信通知（纯文本，150-200字，信息完整）。
 
 必须包含的信息：
@@ -230,7 +243,7 @@ export class ExpertExtractionAiService {
 - 开标时间：${params.openTime || '另行通知'}
 - 评审地点：{LOCATION}（{LOCATION} 是占位符，原样输出，禁止翻译、改写或替换为英文）
 - 角色与要求：${roleLine}
-- 确认方式：正文末尾紧跟" 确认链接（15分钟内有效）：{RSVP_LINK}"（不换行，直接接在正文后面；{RSVP_LINK} 是占位符，原样输出）
+- 确认方式：正文末尾紧跟" 确认链接（${rsvpTtlHours()}小时内有效）：{RSVP_LINK}"（不换行，直接接在正文后面；{RSVP_LINK} 是占位符，原样输出）
 - 落款格式（另起两行，居左，不加前导空格）：
   换行后空一行，写：四川水发集团
   再换行写：${today}

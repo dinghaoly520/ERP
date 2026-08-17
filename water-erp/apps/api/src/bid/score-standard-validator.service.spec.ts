@@ -117,5 +117,37 @@ describe('ScoreStandardValidator', () => {
         response: { code: 'POINTS_SUM_EXCEEDS_MAX' },
       });
     });
+
+    it('N10：打分类评分项满分为 0 → SCORE_ITEM_ZERO_MAX（「法」式空项拦截，先于 Σ=100 检查）', async () => {
+      // 英雄项目复现：Σ=20≠100，但空项拦截必须先于 Σ 检查报出更准确的错误
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'i1', name: '商务评分', category: 'BUSINESS', maxScore: 20, _count: { points: 2 } },
+        { id: 'i2', name: '法', category: 'TECHNICAL', maxScore: 0, _count: { points: 0 } },
+      ]);
+      await expect(validator.assertScoreStandardComplete('p1')).rejects.toMatchObject({
+        response: { code: 'SCORE_ITEM_ZERO_MAX' },
+      });
+    });
+    it('N10：打分类评分项满分为负数 → 同样 SCORE_ITEM_ZERO_MAX（<=0 浮点判定）', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'i1', name: '商务', category: 'BUSINESS', maxScore: 20, _count: { points: 2 } },
+        { id: 'i2', name: '技术', category: 'TECHNICAL', maxScore: 50, _count: { points: 2 } },
+        { id: 'i3', name: '价格', category: 'PRICE', maxScore: 30, _count: { points: 1 } },
+        { id: 'i4', name: '怪项', category: 'TECHNICAL', maxScore: -5, _count: { points: 1 } },
+      ]);
+      await expect(validator.assertScoreStandardComplete('p1')).rejects.toMatchObject({
+        response: { code: 'SCORE_ITEM_ZERO_MAX' },
+      });
+    });
+    it('N10：通过性项（QUALIFICATION/RESPONSIVE）满分 0 合法，不拦截', async () => {
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'q1', category: 'QUALIFICATION', maxScore: 0, name: '资格', _count: { points: 0 } },
+        { id: 'r1', category: 'RESPONSIVE', maxScore: 0, name: '响应', _count: { points: 0 } },
+        { id: 'b1', category: 'BUSINESS', maxScore: 20, name: '商务', _count: { points: 2 } },
+        { id: 't1', category: 'TECHNICAL', maxScore: 50, name: '技术', _count: { points: 5 } },
+        { id: 'p1', category: 'PRICE', maxScore: 30, name: '价格', _count: { points: 1 } },
+      ]);
+      await expect(validator.assertScoreStandardComplete('p1')).resolves.toBeUndefined();
+    });
   });
 });

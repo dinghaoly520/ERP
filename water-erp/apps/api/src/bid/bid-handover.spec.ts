@@ -21,7 +21,7 @@ function makePrismaMock() {
     bidOpeningSession: { findUnique: jest.fn(), update: jest.fn() },
     // completeOpening 事务内 TOCTOU 复查：tx.bidSupplier.findMany（空列表 = 无未终局供应商）
     bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
-    fileAsset: { create: jest.fn() },
+    fileAsset: { create: jest.fn(), upsert: jest.fn() },
     bidSupervisionLog: { create: jest.fn() },
     auditLog: { create: jest.fn() },
   };
@@ -95,7 +95,7 @@ describe('completeOpening / assertOpeningDone', () => {
     prisma.bidProject.findUnique.mockResolvedValue(OPENING_PROJECT);
     prisma.bidOpeningSession.findUnique.mockResolvedValue(SESSION);
     prisma.__tx.bidOpeningSession.findUnique.mockResolvedValue(SESSION);
-    prisma.__tx.fileAsset.create.mockResolvedValue({ id: 'asset_1', key: 'bid-opening-handover/p1.json' });
+    prisma.__tx.fileAsset.upsert.mockResolvedValue({ id: 'asset_1', key: 'bid-opening-handover/p1.json' });
     prisma.__tx.bidOpeningSession.update.mockResolvedValue({ ...SESSION, status: '开标完成', handoverAt: new Date(), handoverAssetId: 'asset_1' });
     prisma.__tx.bidProject.findUnique.mockResolvedValue(OPENING_PROJECT); // lockAndReassertStage 复查
     const r = await svc.completeOpening('p1', 'user1');
@@ -104,8 +104,20 @@ describe('completeOpening / assertOpeningDone', () => {
     expect(prisma.__tx.bidOpeningSession.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: '开标完成' }),
     }));
-    expect(prisma.__tx.fileAsset.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ category: 'bid_opening_handover', key: 'bid-opening-handover/p1.json' }),
+    // 终审 must-fix #2：移交包 fileAsset 须 upsert——MinIO 上传在事务前且 payload 含 generatedAt，
+    // 亚秒级并发下第二笔先覆盖 MinIO 再裸 create 撞 key @unique（P2002 → 500）；upsert 的 update 段
+    // 同步刷新 size/sha256，DB 指纹不与 MinIO 内容分叉（N3/P1-17 同款）
+    expect(prisma.__tx.fileAsset.create).not.toHaveBeenCalled();
+    expect(prisma.__tx.fileAsset.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { key: 'bid-opening-handover/p1.json' },
+      create: expect.objectContaining({
+        key: 'bid-opening-handover/p1.json',
+        originalName: '开标文件包-C1.json',
+        mimeType: 'application/json',
+        category: 'bid_opening_handover',
+        uploaderId: 'user1',
+      }),
+      update: expect.objectContaining({ sha256: expect.any(String), size: expect.any(Number), uploaderId: 'user1' }),
     }));
   });
 
@@ -131,5 +143,6 @@ describe('completeOpening / assertOpeningDone', () => {
     const r = await svc.completeOpening('p1');
     expect(r.handoverAssetId).toBe('asset_race');
     expect(prisma.__tx.fileAsset.create).not.toHaveBeenCalled();
+    expect(prisma.__tx.fileAsset.upsert).not.toHaveBeenCalled(); // 早退路径零写入
   });
 });

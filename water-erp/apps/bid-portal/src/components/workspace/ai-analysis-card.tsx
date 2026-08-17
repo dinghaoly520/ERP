@@ -5,7 +5,8 @@
  * 3s 轮询 GET /bid/projects/:id/ai-analysis-progress（worker 独立进程无 WS，只能轮询）；
  * task 终态且无异常后停止轮询。异常时显示补救按钮：
  *   - 重试失败项：POST retry-ai-bidders（不传 ids = 全部 FAILED+卡住家）
- *   - 重新分析：POST rerun-ai-analysis（清空全部结果重跑，二次确认）
+ *   - 重新分析：POST rerun-ai-analysis（清空全部结果重跑，二次确认；N8 存量无任务时自动补建——
+ *     卡片在 task 不存在分支直接给一键补建入口，无需二次确认，因无旧结果可清）
  * 分工 v3 下评标管理 tab 为 :3007 现场全操作端（启动评标·专家进度·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决·澄清答疑），本卡片是其中 AI 通道：
  * 写操作（重试/重新分析）非阶段流转；阶段流转按 v3——启动评标在本 tab（:3007），完整归档在 :3005（spec: 2026-08-13-expert-paper-signing-design §2）。
  */
@@ -107,7 +108,8 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
     setBusy('rerun');
     try {
       await rerunAiAnalysis(projectId);
-      toast.success('已清空旧结果并重新入队全量分析');
+      // N8：存量补建路径无旧结果可清，文案对两条路径保持中性
+      toast.success('已重新入队全量 AI 分析');
       await load();
     } catch (e: any) {
       toast.error(e?.message || '重新分析失败');
@@ -118,13 +120,22 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
 
   /* ── 未启动（无 task）── */
   if (progress && !progress.exists) {
+    // N8：存量项目（先于 AI 分析特性创建）无任务——不再永久「等待分析任务创建」，
+    // 后端 rerunAiAnalysis 已支持自动补建 task 并入队，此处给出可见可点的恢复入口
     return (
       <div className="neu-card-static flex items-center gap-3 p-4">
         <Bot size={16} strokeWidth={1.5} className="shrink-0 text-[color:var(--muted-foreground)]" />
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">AI辅助评标</span>
-        <span className="text-[12px] text-[color:var(--muted-foreground)]">
-          {stage === 'EVALUATING' ? '评标已启动，等待分析任务创建…' : '启动评标后自动开始 AI 辅助分析'}
+        <span className="min-w-0 flex-1 text-[12px] text-[color:var(--muted-foreground)]">
+          {stage === 'EVALUATING' ? '未创建 AI 分析任务（存量项目）——点击重新分析可补建并启动' : '启动评标后自动开始 AI 辅助分析'}
         </span>
+        {stage === 'EVALUATING' && (
+          <button onClick={doRerun} disabled={busy !== null}
+            className="neu-btn-xs inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[oklch(0.56 0.153 251)] disabled:opacity-50">
+            {busy === 'rerun' ? <Loader size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+            重新分析
+          </button>
+        )}
       </div>
     );
   }
