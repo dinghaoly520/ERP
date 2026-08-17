@@ -149,7 +149,19 @@ onMounted(bootstrap)
         <el-descriptions :column="1" size="small" border>
           <el-descriptions-item label="本司解密状态">{{ decryptStatus || record?.decryptResult || '—' }}</el-descriptions-item>
           <el-descriptions-item label="唱标金额">{{ record?.amount || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="工期">{{ record?.period || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="投递报价">
+            <span :class="{ 'mismatch': record?.submitted?.priceMismatch }">{{ record?.submitted?.bidPrice || '—' }}</span>
+            <el-tag v-if="record?.submitted?.priceMismatch" size="small" type="warning" effect="plain">与唱标不一致</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="工期（唱标）">{{ record?.period || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="工期（投递）">
+            <span :class="{ 'mismatch': record?.submitted?.periodMismatch }">{{ record?.submitted?.deliveryPeriod || '—' }}</span>
+            <el-tag v-if="record?.submitted?.periodMismatch" size="small" type="warning" effect="plain">与唱标不一致</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="质量承诺（唱标）">{{ record?.qualityTarget || '—' }}</el-descriptions-item>
+          <el-descriptions-item v-if="record?.submitted?.qualityCommitment" label="质量承诺（投递）">
+            <span :class="{ 'mismatch': record.qualityTarget !== record.submitted.qualityCommitment }">{{ record.submitted.qualityCommitment }}</span>
+          </el-descriptions-item>
           <el-descriptions-item label="开标记录状态">{{ record?.confirmStatus || '—' }}</el-descriptions-item>
           <el-descriptions-item v-if="record?.handleResult" label="异议处理结果">{{ record.handleResult }}</el-descriptions-item>
         </el-descriptions>
@@ -189,5 +201,6 @@ onMounted(bootstrap)
 .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
 .stage-hint { margin-top: 8px; color: #909399; font-size: 12px; }
 .empty { padding: 40px; text-align: center; color: #999; }
+.mismatch { color: #e6a23c; font-weight: 600; }
 @media (max-width: 960px) { .hall { grid-template-columns: 1fr; } }
 </style>
