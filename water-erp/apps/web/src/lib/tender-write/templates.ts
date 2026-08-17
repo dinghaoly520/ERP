@@ -250,6 +250,7 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
         key: "projectDuration",
         label: "项目完成期限",
         placeholder: "无",
+        aiPrompt: "生成项目完成期限。规则：直接输出完成期限的内容本身（如“自合同签订之日起 60 日内完成”），严禁在开头重复“项目完成期限：”作为前缀，也不要输出任何其他说明文字。",
         composite: {
           typeKey: "projectDurationType",
           typeLabel: "期限类型",

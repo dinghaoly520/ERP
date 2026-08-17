@@ -641,10 +641,10 @@ export function SupplierSelectionPage({
     if (!project) return;
     if (shortlist.size > 0) return; // 会话已恢复，不覆盖
 
-    // 用供应商名称到库中解析真实 id（精确优先，其次模糊）
+    // 用供应商名称到库中解析真实 id（用 search 精确检索，避免 pageSize 截断漏配）
     const resolveSupplier = async (name: string): Promise<{ id: string; name: string } | null> => {
       try {
-        const r = await getSupplierList({ status: 'APPROVED', pageSize: 200 });
+        const r = await getSupplierList({ status: 'APPROVED', search: name, pageSize: 20 });
         const exact = r.items.find(s => s.name === name);
         const fuzzy = r.items.find(s => s.name.includes(name) || name.includes(s.name));
         const found = exact || fuzzy;
@@ -1115,24 +1115,46 @@ export function SupplierSelectionPage({
         } catch {}
       }
       const ids = [...shortlist.keys()];
+      // ★ 兜底：将虚构 direct- ID 解析为供应商库中的真实 ID（历史会话可能缓存了旧虚构 ID）
+      const idMap = new Map<string, string>();
+      for (const sid of ids) {
+        if (sid.startsWith('direct-')) {
+          const name = shortlist.get(sid)?.item.name || '';
+          if (name) {
+            try {
+              const r = await getSupplierList({ status: 'APPROVED', search: name, pageSize: 20 });
+              const exact = r.items.find(s => s.name === name);
+              const fuzzy = r.items.find(s => s.name.includes(name) || name.includes(s.name));
+              const found = exact || fuzzy;
+              if (found) idMap.set(sid, found.id);
+            } catch {}
+          }
+        }
+      }
       // 站内/短信共用正文 body；电话渠道单独发简短话术 phoneScript
       const nonPhoneChannels = notifyChannels.filter(c => c !== 'phone');
       const phoneChannels = notifyChannels.filter(c => c === 'phone');
-      let totalSent = 0;
-      let totalNotFound = 0;
+      // 用 Set 去重统计：同一供应商走多个渠道只计 1 家
+      const sentSupplierIds = new Set<string>();
+      const notFoundSupplierIds = new Set<string>();
       for (const sid of ids) {
+        const realId = idMap.get(sid) || sid; // 用真实 ID 发送
         const msg = getSupplierMessage(sid);
         if (!msg.title.trim() || !msg.body.trim()) continue;
         const link = notifyRsvpTokens[sid] || undefined; // 站内信点击直达该供应商专属回执页
         if (nonPhoneChannels.length) {
-          const r = await notifySuppliers({ supplierIds: [sid], channels: nonPhoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.body, link });
-          totalSent += r.sent || 1; totalNotFound += r.notFound || 0;
+          const r = await notifySuppliers({ supplierIds: [realId], channels: nonPhoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.body, link });
+          if (r.sent > 0) sentSupplierIds.add(realId);
+          if (r.notFound > 0) notFoundSupplierIds.add(realId);
         }
         if (phoneChannels.length) {
-          const r = await notifySuppliers({ supplierIds: [sid], channels: phoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.phoneScript || msg.body });
-          totalSent += r.sent || 1; totalNotFound += r.notFound || 0;
+          const r = await notifySuppliers({ supplierIds: [realId], channels: phoneChannels, type: 'SELECTION_NOTIFY', title: msg.title, content: msg.phoneScript || msg.body });
+          if (r.sent > 0) sentSupplierIds.add(realId);
+          if (r.notFound > 0) notFoundSupplierIds.add(realId);
         }
       }
+      const totalSent = sentSupplierIds.size;
+      const totalNotFound = notFoundSupplierIds.size;
       setNotified(true);
       setNotifyNotFound(totalNotFound);
       setCompleted(false);

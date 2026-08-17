@@ -63,6 +63,12 @@ onMounted(() => {
 const { menuItems } = useSupplierMenu()
 
 const activeMenu = computed(() => route.path)
+// 菜单高亮：详情/子页（/bids/:id、/announcements/:id 等）按顶级路径前缀匹配，
+// 否则进入详情页时侧栏指示会随精确匹配失效而消失。
+function isMenuActive(path: string): boolean {
+  if (route.path === path) return true
+  return route.path.startsWith(path + '/')
+}
 const userInitial = computed(() => (supplierStore.status?.name?.charAt(0) || authStore.displayName?.charAt(0) || 'S'))
 
 // 顶部栏/标题栏统一显示公司全称（非个人姓名）
@@ -235,10 +241,10 @@ notifStore.fetchUnreadCount()
             <button
               v-else
               class="sp-nav-item"
-              :class="{ active: activeMenu === item.path }"
+              :class="{ active: isMenuActive(item.path) }"
               @click="handleMenuSelect(item.path!)"
             >
-              <span v-if="activeMenu === item.path" class="sp-nav-active-bar" />
+              <span v-if="isMenuActive(item.path)" class="sp-nav-active-bar" />
               <el-icon class="sp-nav-icon"><component :is="item.icon" /></el-icon>
               <span v-show="!isCollapse" class="sp-nav-text">
                 <span class="sp-nav-title">{{ item.title }}</span>
@@ -280,8 +286,8 @@ notifStore.fetchUnreadCount()
       <nav class="sp-nav">
         <template v-for="(item, idx) in menuItems" :key="'m' + idx">
           <div v-if="item.divider" class="sp-nav-section"><span>{{ item.label }}</span></div>
-          <button v-else class="sp-nav-item" :class="{ active: activeMenu === item.path }" @click="handleMenuSelect(item.path!)">
-            <span v-if="activeMenu === item.path" class="sp-nav-active-bar" />
+          <button v-else class="sp-nav-item" :class="{ active: isMenuActive(item.path) }" @click="handleMenuSelect(item.path!)">
+            <span v-if="isMenuActive(item.path)" class="sp-nav-active-bar" />
             <el-icon class="sp-nav-icon"><component :is="item.icon" /></el-icon>
             <span class="sp-nav-text">
               <span class="sp-nav-title">{{ item.title }}</span>

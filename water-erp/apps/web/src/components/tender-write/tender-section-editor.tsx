@@ -22,6 +22,7 @@ import {
   generateFieldContent,
 } from '@/lib/api/tender-sample';
 import { findContactByName } from '@/lib/api/contacts';
+import { SupplierNameInput } from './supplier-name-input';
 
 // Year-Month selector for coverDate field with custom dropdown panels
 function CoverDateSelector({
@@ -1101,6 +1102,26 @@ export function TenderSectionEditor({
                       </div>
                     )}
                   </div>
+                ) : field.key === 'supplierName' ? (
+                  <SupplierNameInput
+                    value={value}
+                    onChange={(v) => {
+                      onChange(field.key, v);
+                      markFieldEdited(field.key);
+                    }}
+                    onFocus={() => {
+                      onFieldFocus?.(field.key);
+                      setActiveFieldKey(field.key);
+                    }}
+                    onBlur={() => {
+                      if (value.trim()) {
+                        saveManualSample(field.key, value);
+                      }
+                      setActiveFieldKey((current) => (current === field.key ? null : current));
+                    }}
+                    placeholder={field.placeholder}
+                    className={commonClassName}
+                  />
                 ) : (
                   <input
                     ref={(el) => {
