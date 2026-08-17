@@ -196,7 +196,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   }, [project]);
 
   const session = project?.openingSession;
-  const remaining = session ? Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - now - serverTimeOffset) / 1000)) : 0;
+  // 暂停期间倒计时冻结在暂停时刻的剩余值（后端在「恢复开标」时才把暂停时长补偿进 decryptWindowEnd）——
+  // 与横幅「窗口计时已冻结」语义一致；恢复后剩余从冻结值继续走
+  const remaining = session
+    ? session.pausedAt
+      ? Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - new Date(session.pausedAt).getTime() - serverTimeOffset) / 1000))
+      : Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - now - serverTimeOffset) / 1000))
+    : 0;
   const timeWarning = remaining <= 0 ? 'none' : remaining <= 60 ? '1min' : remaining <= 300 ? '5min' : 'none';
 
   // ═══ API ══
@@ -453,7 +459,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   type="button"
                   className="neu-btn-soft text-xs"
                   onClick={async () => {
-                    const newEnd = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+                    // 在当前窗口截止时间上顺延 15 分钟（勿写成 now+15min——那会把剩余时间重置为 15 分钟）
+                    const newEnd = new Date(new Date(session.decryptWindowEnd).getTime() + 15 * 60 * 1000).toISOString();
                     try {
                       await startOpening(projectId, {
                         host: session.host,
