@@ -610,6 +610,46 @@ describe('SupplierPortalService', () => {
     });
   });
 
+  describe('getMyOpeningRecord（投递原值回显）', () => {
+    it('返回唱标记录 + 本人投递原值（报价解封 + mismatch 标志）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r-1', amount: '980000', period: '120 日历天', qualityTarget: '合格', confirmStatus: '待供应商确认',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        bidPrice: sealField('950000', process.env.KMS_SECRET!), deliveryPeriod: '120 日历天', qualityCommitment: '合格',
+      });
+
+      const result = await service.getMyOpeningRecord('supplier-1', 'project-1');
+
+      expect(result).toMatchObject({ id: 'r-1', amount: '980000', confirmStatus: '待供应商确认' });
+      expect(result!.submitted).toMatchObject({
+        bidPrice: '950000', deliveryPeriod: '120 日历天', qualityCommitment: '合格',
+        priceMismatch: true, periodMismatch: false,
+      });
+    });
+
+    it('未唱标时仍返回本人投递原值（不暴露他人数据）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        bidPrice: null, deliveryPeriod: '90 日历天', qualityCommitment: null,
+      });
+
+      const result = await service.getMyOpeningRecord('supplier-1', 'project-1');
+
+      expect(result).toBeTruthy();
+      expect(result!.submitted).toMatchObject({
+        bidPrice: null, deliveryPeriod: '90 日历天', priceMismatch: false, periodMismatch: false,
+      });
+    });
+
+    it('非本项目投标人 → null（与现状一致）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      await expect(service.getMyOpeningRecord('supplier-1', 'project-1')).resolves.toBeNull();
+    });
+  });
+
   describe('saveBidDraft', () => {
     it('rejects draft save for non-APPROVED suppliers', async () => {
       prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-2', name: '待审供应商', status: 'PENDING' });

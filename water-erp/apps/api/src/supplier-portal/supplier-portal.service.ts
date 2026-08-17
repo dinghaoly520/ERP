@@ -15,6 +15,7 @@ import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan } from '../bid/opening-compare.util';
 import { LlmService } from '../local-ai/llm.service';
 import * as crypto from 'crypto';
 
@@ -1177,12 +1178,36 @@ export class SupplierPortalService {
 
   // ─── 开标确认（供应商侧）───
 
+  /**
+   * 供应商本司开标记录 + 本人投递原值对比（唱标内容与投递一致性核对）。
+   * submitted.bidPrice 为解封后的投递报价（仅本人可见）；mismatch 标志口径与主持端
+   * 唱标录入校验同源（opening-compare.util.ts 单一来源）。
+   * 未唱标时仅返回 submitted（本司投递原值，不暴露任何他人数据）。
+   */
   async getMyOpeningRecord(supplierId: string, projectId: string) {
     const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { supplierId, projectId } });
     if (!bidSupplier) return null;
-    return this.prisma.bidOpeningRecord.findFirst({
-      where: { projectId, bidSupplierId: bidSupplier.id },
-    });
+    const [record, submission] = await Promise.all([
+      this.prisma.bidOpeningRecord.findFirst({ where: { projectId, bidSupplierId: bidSupplier.id } }),
+      this.prisma.supplierBidSubmission.findUnique({
+        where: { supplierId_projectId: { supplierId, projectId } },
+        select: { bidPrice: true, deliveryPeriod: true, qualityCommitment: true },
+      }),
+    ]);
+    const submittedBidPrice = submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null;
+    return {
+      ...(record ?? {}),
+      submitted: submission
+        ? {
+            bidPrice: submittedBidPrice,
+            deliveryPeriod: submission.deliveryPeriod ?? null,
+            qualityCommitment: submission.qualityCommitment ?? null,
+            priceMismatch: record?.amount != null
+              && isPriceMismatch(resolveExpectedInYuan(submittedBidPrice, record.amount), record.amount),
+            periodMismatch: isPeriodMismatch(submission.deliveryPeriod, record?.period),
+          }
+        : null,
+    };
   }
 
   async confirmOpening(supplierId: string, projectId: string) {
