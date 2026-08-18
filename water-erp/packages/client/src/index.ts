@@ -96,7 +96,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     if (!res.ok) {
       throw await toApiError(res);
     }
-    return res.json();
+    // 优雅处理空响应（204 No Content 或空 body）——避免 "Unexpected end of JSON input"
+    const text = await res.text();
+    if (!text) return undefined as T;
+    return JSON.parse(text) as T;
   }
 
   /** JSON 或 FormData 自动分流（FormData 时交给浏览器设置 multipart boundary） */

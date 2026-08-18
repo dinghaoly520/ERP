@@ -22,7 +22,7 @@ const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> =
   BID_NOTICE: 'blue', WIN_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray',
 };
 const typeLabel: Record<AnnouncementType, string> = {
-  BID_NOTICE: '采购公示', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知',
+  BID_NOTICE: '采购公告', WIN_NOTICE: '中标公告', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 const statusTone: Record<AnnouncementStatus, 'green' | 'gray'> = {
   DRAFT: 'gray', PUBLISHED: 'green', ARCHIVED: 'gray',
@@ -36,6 +36,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
     { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
+    { key: 'downloadDeadline', label: '采购文件下载时间' },
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
   ],
   WIN_NOTICE: [
@@ -261,7 +262,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
         )}
         {bidDoc && (
           <div className="neu-table-card p-4">
-            <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">招标文件</span>
+            <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">采购文件</span>
             <div className="mt-3 rounded-[10px] bg-[var(--surface)] p-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.5),1px_1px_3px_oklch(0.55_0.03_258/0.06),-1px_-1px_2px_oklch(1_0_0/0.6)]">
               <p className="text-sm font-bold text-[var(--foreground)] break-words leading-snug">🔒 {bidDoc.title}</p>
               <p className="mt-1 text-[11px] text-[var(--muted-foreground)] break-words leading-snug">{bidDoc.fileName} · {(bidDoc.fileSize / 1024).toFixed(0)} KB · {bidDoc.downloadCount} 次下载</p>
@@ -350,7 +351,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
   const saveDraft = async () => { const s = await save('DRAFT'); if (s) { toast.success('草稿已保存'); onSaved(s); } };
   const publish = async () => {
     if (publishConfig.scheduleMode === 'scheduled' && !publishConfig.scheduledPublishDate) { toast.error('请设置定时发布时间'); return; }
-    if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !confirm('该采购公示尚未上传采购文件，确认直接发布？')) return;
+    if (type === 'BID_NOTICE' && !bidDoc && publishConfig.scheduleMode === 'immediate' && !confirm('该采购公告尚未上传采购文件，确认直接发布？')) return;
     const s = await save('PUBLISHED');
     if (s) {
       toast.success(publishConfig.scheduleMode === 'scheduled' ? `已设定定时发布（${publishConfig.scheduledPublishDate.replace('T', ' ')}）` : '已发布');
@@ -513,7 +514,7 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
   useEffect(() => { if (scope === "INVITED") getSupplierList({ status: "APPROVED", search: supplierSearch || undefined, pageSize: 50 }).then(r => setSuppliers(r.items)).catch(() => {}); }, [scope, supplierSearch]);
 
   const doUpload = async () => {
-    if (!file) { toast.error("请选择招标文件"); return; }
+    if (!file) { toast.error("请选择采购文件"); return; }
     setBusy(true);
     try {
       await uploadBidDocument(annId, file, { title: docTitle || file.name, accessScope: scope, requirePayment, price: requirePayment ? (price || 0) : undefined, allowedSupplierIds: scope === "INVITED" ? selected : undefined });
@@ -533,7 +534,7 @@ function BidDocEditSection({ annId, bidDoc, onChanged }: { annId: string; bidDoc
 
   return (
     <div className="neu-table-card p-4 text-sm">
-      <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">招标文件</span>
+      <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">采购文件</span>
       <span className="ml-2 text-[10px] text-[var(--muted-foreground)]">AES-256 加密</span>
 
       {bidDoc ? (

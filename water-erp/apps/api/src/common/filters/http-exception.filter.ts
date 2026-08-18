@@ -7,9 +7,38 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
+import { Prisma } from '@prisma/client';
 import { OperationLogService } from '../../operation-log/operation-log.service';
 import { buildLogEntry } from '../../operation-log/log-entry.util';
 import { DEFAULT_EXCLUDE_PATHS, parseExcludePaths, shouldExclude, type ExcludePattern } from '../../operation-log/operation-log.filter';
+
+/**
+ * 把 Prisma 已知错误码转成用户可读的中文提示，避免把原始技术报错（乱码般的英文堆栈）直接抛给前端。
+ * 返回 null 表示该错误码无对应文案，走默认"服务器内部错误"。
+ */
+function prismaErrorToMessage(e: Prisma.PrismaClientKnownRequestError): { status: number; code: string; message: string } | null {
+  const meta = (e.meta ?? {}) as Record<string, unknown>;
+  switch (e.code) {
+    case 'P2025':
+      return { status: 404, code: 'RECORD_NOT_FOUND', message: '操作的记录不存在或已被删除，请刷新后重试。' };
+    case 'P2002': {
+      const target = Array.isArray(meta.target) ? (meta.target as string[]).join('、') : String(meta.target ?? '');
+      return { status: 409, code: 'DUPLICATE_RECORD', message: `数据重复，${target ? `「${target}」` : '该记录'}已存在，请勿重复提交。` };
+    }
+    case 'P2003':
+      return { status: 409, code: 'FK_CONSTRAINT', message: '操作失败：存在关联数据依赖，请先处理相关记录。' };
+    case 'P2024':
+      return { status: 504, code: 'DB_TIMEOUT', message: '数据库响应超时，请稍后重试。' };
+    case 'P2028':
+      return { status: 500, code: 'TX_ERROR', message: '事务执行失败，请稍后重试。' };
+    case 'P1001':
+    case 'P1002':
+    case 'P1003':
+      return { status: 503, code: 'DB_UNAVAILABLE', message: '数据库连接失败，请稍后重试或联系管理员。' };
+    default:
+      return null;
+  }
+}
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -84,6 +113,30 @@ export class HttpExceptionFilter implements ExceptionFilter {
           }
         }
       }
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      // Prisma 已知错误（如 P2025 记录不存在）→ 转为清晰中文提示，不暴露原始技术报错
+      const mapped = prismaErrorToMessage(exception);
+      if (mapped) {
+        status = mapped.status;
+        code = mapped.code;
+        message = mapped.message;
+      } else {
+        message = '数据操作失败，请稍后重试。';
+        code = exception.code;
+      }
+      this.logger.error(`${request.method} ${request.url} Prisma[${exception.code}] ${exception.message}`, exception.stack);
+    } else if (exception instanceof Prisma.PrismaClientValidationError) {
+      message = '数据参数校验失败，请检查输入后重试。';
+      code = 'PRISMA_VALIDATION';
+      this.logger.error(`${request.method} ${request.url} PrismaValidation ${exception.message}`, exception.stack);
+    } else if (
+      exception instanceof Prisma.PrismaClientInitializationError ||
+      exception instanceof Prisma.PrismaClientRustPanicError
+    ) {
+      status = HttpStatus.SERVICE_UNAVAILABLE;
+      message = '数据库服务异常，请稍后重试或联系管理员。';
+      code = 'DB_ERROR';
+      this.logger.error(`${request.method} ${request.url} PrismaInit ${exception.message}`, exception.stack);
     } else if (exception instanceof Error) {
       message = exception.message;
       this.logger.error(`${request.method} ${request.url} ${status}`, exception.stack);

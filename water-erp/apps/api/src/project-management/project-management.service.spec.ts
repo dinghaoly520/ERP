@@ -1245,7 +1245,7 @@ describe('ProjectManagementService', () => {
     it('未填开标时间/立项时间时：deadline 不得落在过去（兜底顺延）', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
-      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn() };
+      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
       mockItem(prisma, { bidOpeningTime: null, initiationDate: null });
       prisma.announcement.findFirst.mockResolvedValue(null);
       prisma.bidProject.findFirst.mockResolvedValue(null);
@@ -1260,7 +1260,7 @@ describe('ProjectManagementService', () => {
     it('开标时间早于 12h 前（陈旧值）时：deadline 同样顺延到未来', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
-      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn() };
+      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
       mockItem(prisma, { bidOpeningTime: new Date(Date.now() - 48 * 3600 * 1000).toISOString(), initiationDate: null });
       prisma.announcement.findFirst.mockResolvedValue(null);
       prisma.bidProject.findFirst.mockResolvedValue(null);
@@ -1274,7 +1274,7 @@ describe('ProjectManagementService', () => {
     it('P0-2 收尾：创建后回填 ACCEPTED 回执供应商进候选池（rsvp 早于懒创建的时序洞）', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
-      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn().mockImplementation(({ data }: any) => ({ ...data })) };
+      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn().mockImplementation(({ data }: any) => ({ ...data })), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
       prisma.invitationRsvp = { findMany: jest.fn().mockResolvedValue([{ supplierId: 's1', supplierName: '甲公司' }]) };
       prisma.bidSupplier = { upsert: jest.fn().mockResolvedValue({}) };
       mockItem(prisma, { bidOpeningTime: null, initiationDate: null });
@@ -1290,7 +1290,7 @@ describe('ProjectManagementService', () => {
     it('未来开标时间（>12h）时：保持「开标前 12h 截标」业务规则不变', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
-      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn() };
+      prisma.bidProject = { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
       const future = new Date(Date.now() + 72 * 3600 * 1000);
       mockItem(prisma, { bidOpeningTime: future.toISOString(), initiationDate: null });
       prisma.announcement.findFirst.mockResolvedValue(null);

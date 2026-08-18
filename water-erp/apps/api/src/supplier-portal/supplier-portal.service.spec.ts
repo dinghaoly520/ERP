@@ -92,7 +92,7 @@ describe('SupplierPortalService', () => {
       user: { findUnique: jest.fn() },
       announcement: { findFirst: jest.fn() },
       // PMI 桥接（resolveDisplayCode/listBidProjects 经 projectManagementItemId/projectCode 关联）
-      projectManagementItem: { findUnique: jest.fn(), findMany: jest.fn() },
+      projectManagementItem: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
       bidDocument: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     };
     // G3 兜底默认放行（投递时校验已发布招标公告）；个别用例可覆盖为 null 验证拦截
@@ -834,8 +834,12 @@ describe('SupplierPortalService', () => {
       const finalQueries: any[] = [];
       prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
         finalQueries.push(where);
-        if (where?.id?.in) return [{ id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'X' }]; // 受邀项目查询
-        if (where?.OR) return [{ id: 'bp-ann' }];          // 公告桥接查询（byCode）/最终列表查询
+        // 受邀项目明细查询（top-level id.in）→ 返回非直接采购项目，放行受邀分支
+        if (where?.id?.in) return [{ id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'BID-INV' }];
+        // 公告编号→项目桥接（OR[0].projectCode.in）→ 解析出 bp-ann
+        if (where?.OR?.[0]?.projectCode?.in) return [{ id: 'bp-ann' }];
+        // 主列表查询（OR 分支为 id.in）
+        if (where?.OR) return [{ id: 'bp-inv', projectCode: 'X', name: 'N', stage: 'SUBMIT', deadline: future, openTime: future, createdAt: new Date() }];
         return [];                                                       // allProjectIds 计数查询
       });
       prisma.bidProject.count.mockResolvedValue(1);

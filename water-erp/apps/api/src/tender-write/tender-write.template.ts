@@ -1988,14 +1988,16 @@ export function buildSingleSourceAnnouncementPlan(
   return [
     { targetText: '项目名称', ...buildReplacement('项目名称', answers.projectName) },
     { targetText: '项目概况和采购内容', ...buildReplacement('项目概况和采购内容', answers.projectOverview), isHierarchicalText: true },
-    { targetText: '预算金额（大写）', ...buildReplacement('预算金额（大写）', answers.maxPriceChinese) },
-    { targetText: '预算金额（小写）', ...buildReplacement('预算金额（小写）', answers.maxPriceNumeric) },
+    // 模板占位符为 {{最高限价1}}（大写）/ {{最高限价2}}（小写）
+    { targetText: '最高限价1', ...buildReplacement('预算金额（大写）', answers.maxPriceChinese) },
+    { targetText: '最高限价2', ...buildReplacement('预算金额（小写）', answers.maxPriceNumeric) },
     { targetText: '论证意见', ...buildReplacement('论证意见', answers.argumentOpinion), isHierarchicalText: true },
     { targetText: '供应商名称', ...buildReplacement('供应商名称', answers.supplierName) },
     { targetText: '供应商地址', ...buildReplacement('供应商地址', answers.supplierAddress) },
-    { targetText: '公示期限（起）', ...buildReplacement('公示期限（起）', formatAnnouncementDateToChinese(answers.announcementStart || '')) },
-    { targetText: '公示期限（止）', ...buildReplacement('公示期限（止）', formatAnnouncementDateToChinese(answers.announcementEnd || '')) },
-    { targetText: '公示天数', ...buildReplacement('公示天数', answers.announcementDays) },
+    // 模板占位符为 {{公示期限1}}（起）/ {{公示期限2}}（止）/ {{公示期限3}}（天数）
+    { targetText: '公示期限1', ...buildReplacement('公示期限（起）', formatAnnouncementDateToChinese(answers.announcementStart || '')) },
+    { targetText: '公示期限2', ...buildReplacement('公示期限（止）', formatAnnouncementDateToChinese(answers.announcementEnd || '')) },
+    { targetText: '公示期限3', ...buildReplacement('公示天数', answers.announcementDays) },
     { targetText: '采购时间', ...buildReplacement('采购时间', formatAnnouncementDateToChinese(answers.procurementTime || '')) },
     { targetText: '落款日期', ...buildReplacement('落款日期', formatAnnouncementDateToChinese(answers.signatureDate || '')) },
   ];

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
@@ -21,7 +21,7 @@ export class AnnouncementService {
 
   /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名） */
   private static readonly TYPE_LABELS: Record<string, string> = {
-    BID_NOTICE: '招标公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知',
+    BID_NOTICE: '采购公告', WIN_NOTICE: '中标公告', POLICY: '政策法规', PLATFORM: '平台通知',
   };
 
   async create(dto: CreateAnnouncementDto, authorId?: string) {
@@ -234,6 +234,25 @@ export class AnnouncementService {
 
     // ── 联动：BID_NOTICE 首次发布 → 创建 BidProject ──
     if (isBidNoticePublish) {
+      // P1b（与 create 路径一致）：「引用采购文件」发布时自动生成加密 BidDocument。
+      // 定时发布（草稿→发布）走本 update 路径，此前缺失导致招标文件断链。attachFromObject 幂等（已存在则跳过）。
+      const meta = (result.metadata as Record<string, any>) || {};
+      const sourceKey: string | undefined = meta.selectedTenderObjectKey;
+      if (sourceKey && this.bidDocumentService) {
+        try {
+          await this.bidDocumentService.attachFromObject(id, {
+            objectKey: sourceKey,
+            fileName: meta.selectedTenderFileName,
+            mimeType: meta.selectedTenderMimeType,
+            title: meta.selectedTenderFileName,
+            uploaderId: result.authorId ?? null,
+          });
+        } catch (e) {
+          this.logger.warn(
+            `公告 ${id} 引用采购文件生成招标文件失败 (update): ${(e as Error).message}`,
+          );
+        }
+      }
       await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId });
     }
     // 发布即通知（所有类型）：按可见范围向供应商发站内信
@@ -274,7 +293,7 @@ export class AnnouncementService {
       userIds = users.map(u => u.id);
     }
 
-    const typeLabel: Record<string, string> = { BID_NOTICE: '采购公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知' };
+    const typeLabel: Record<string, string> = { BID_NOTICE: '采购公告', WIN_NOTICE: '中标公告', POLICY: '政策法规', PLATFORM: '平台通知' };
     const label = typeLabel[meta.__type] || '公告';
     let sent = 0;
     for (const userId of userIds) {
@@ -366,8 +385,12 @@ export class AnnouncementService {
       select: { type: true, relatedProjectCode: true, status: true },
     });
 
+    // 公告不存在（可能已被删除/重复删除）→ 抛清晰 404，避免事务内 delete 报晦涩的 P2025
+    if (!announcement) {
+      throw new NotFoundException({ error: '公告不存在或已被删除', code: 'NOT_FOUND' });
+    }
+
     const relatedProjectCode =
-      announcement &&
       announcement.type === 'BID_NOTICE' &&
       announcement.status === 'PUBLISHED'
         ? announcement.relatedProjectCode
@@ -473,6 +496,9 @@ export class AnnouncementService {
         `公告删除，解除项目 ${relatedProjectCode} 关联`,
       );
     }
+
+    // 返回 JSON 响应体，避免前端解析空响应报 "Unexpected end of JSON input"
+    return { deleted: true };
   }
 
   async getStats() {

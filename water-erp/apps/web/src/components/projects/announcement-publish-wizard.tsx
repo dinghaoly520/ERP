@@ -7,10 +7,8 @@ import {
 } from 'lucide-react';
 import {
   createAnnouncement,
-  listAttachments,
   addAttachment,
   uploadFile,
-  attachFromObject,
   parseAnnouncementFields,
   buildAnnouncement,
 } from '@/lib/api/announcement';
@@ -68,6 +66,7 @@ const inputCls =
 function buildCanonicalMeta(
   project: ProjectManagementItem | null,
   draft: AnnouncementDraft | null,
+  isSingleSource = false,
 ): Record<string, unknown> {
   const d = (draft ?? {}) as Record<string, string>;
   const out: Record<string, unknown> = {};
@@ -83,9 +82,44 @@ function buildCanonicalMeta(
   put('method', project?.procurementMethod);
   put('budget', d.maxPriceNumeric || (project?.budgetAmount != null ? String(project.budgetAmount) : undefined));
   put('scope', d.projectOverview);
-  put('qualification', d.qualificationRequirements || project?.supplierRequirements);
-  put('deadline', d.announcementEnd);
-  put('openTime', d.bidOpeningTime || d.procurementTime);
+  // 直接采购（单一来源）无投标竞争，不发布「投标人资格要求」——供应商信息已在公告正文「拟定供应商信息」体现，
+  // 把供应商名称写成资格要求不合理。
+  if (!isSingleSource) {
+    put('qualification', d.qualificationRequirements || project?.supplierRequirements);
+  }
+
+  if (isSingleSource) {
+    // ── 直接采购时间逻辑 ──
+    // 开标时间 = 采购时间；投标截止 = 采购时间前 24 小时；采购文件下载时间 = 公示时间（公示期限起止）
+    // 采购时间：优先 draft 字段，兜底项目 bidOpeningTime（中文格式需转 datetime-local）
+    let procurementTime = d.procurementTime || d.bidOpeningTime || '';
+    if (!procurementTime && project?.bidOpeningTime) {
+      procurementTime = toDatetimeLocalValue(project.bidOpeningTime);
+    }
+    put('openTime', procurementTime);
+    put('deadline', subtractHours(procurementTime, 24));
+    // 采购文件下载时间 = 公示时间（起止区间）：优先 draft 公示起止，兜底项目 documentAcquireTime
+    if (d.announcementStart && d.announcementEnd) {
+      put('downloadDeadline', `${toChineseDateTime(d.announcementStart)} 至 ${toChineseDateTime(d.announcementEnd)}`);
+    } else if (project?.documentAcquireTime) {
+      const at = project.documentAcquireTime;
+      const sepMatch = at.match(/至|-|~/);
+      const sepIdx = sepMatch ? at.indexOf(sepMatch[0]) : -1;
+      if (sepIdx > 0) {
+        const startRaw = at.slice(0, sepIdx).trim();
+        const endRaw = at.slice(sepIdx + 1).trim();
+        put('downloadDeadline', `${toChineseDateTime(toDatetimeLocalValue(startRaw))} 至 ${toChineseDateTime(toDatetimeLocalValue(endRaw))}`);
+      } else {
+        put('downloadDeadline', toChineseDateTime(toDatetimeLocalValue(at)));
+      }
+    } else if (d.announcementEnd || d.announcementStart) {
+      put('downloadDeadline', toChineseDateTime(d.announcementEnd || d.announcementStart));
+    }
+  } else {
+    // ── 其他采购方式：投标截止 = 公示期限止；开标时间 = 开标时间或采购时间 ──
+    put('deadline', d.announcementEnd);
+    put('openTime', d.bidOpeningTime || d.procurementTime);
+  }
   put('contact', contact);
   return out;
 }
@@ -99,6 +133,28 @@ function deadlineAfterDays(n: number): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}T23:59`;
+}
+
+/** datetime-local 字符串（YYYY-MM-DDTHH:MM）减去指定小时，返回同格式；解析失败返回空串 */
+function subtractHours(datetimeLocal: string, hours: number): string {
+  const d = new Date(datetimeLocal);
+  if (Number.isNaN(d.getTime())) return '';
+  d.setHours(d.getHours() - hours);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day}T${h}:${min}`;
+}
+
+/** datetime-local 字符串（YYYY-MM-DDTHH:MM 或 YYYY-MM-DD）格式化为中文「YYYY年M月D日 HH:MM」；解析失败原样返回 */
+function toChineseDateTime(datetimeLocal: string): string {
+  if (!datetimeLocal) return '';
+  const m = datetimeLocal.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return datetimeLocal;
+  const date = `${Number(m[1])}年${Number(m[2])}月${Number(m[3])}日`;
+  return m[4] ? `${date} ${m[4]}:${m[5]}` : date;
 }
 
 /** 从 datetime-local 字符串格式化为中文显示（YYYY-MM-DDTHH:MM → "YYYY年M月D日 HH:MM"） */
@@ -153,12 +209,12 @@ function toDatetimeLocalValue(text: string): string {
 /** sessionStorage key per project */
 function wizardStorageKey(projectId: string): string { return `ann-wizard-${projectId}`; }
 function loadWizardState(projectId: string): Record<string, any> | null {
-  try { const r = sessionStorage.getItem(wizardStorageKey(projectId)); return r ? JSON.parse(r) : null; } catch { return null; }
+  try { const r = localStorage.getItem(wizardStorageKey(projectId)); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 function saveWizardState(projectId: string, state: Record<string, any>) {
-  try { const prev = loadWizardState(projectId) || {}; sessionStorage.setItem(wizardStorageKey(projectId), JSON.stringify({ ...prev, ...state, _ts: Date.now() })); } catch {}
+  try { const prev = loadWizardState(projectId) || {}; localStorage.setItem(wizardStorageKey(projectId), JSON.stringify({ ...prev, ...state, _ts: Date.now() })); } catch {}
 }
-function clearWizardState(projectId: string) { try { sessionStorage.removeItem(wizardStorageKey(projectId)); } catch {} }
+function clearWizardState(projectId: string) { try { localStorage.removeItem(wizardStorageKey(projectId)); } catch {} }
 
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document' }: Props) {
   // Wizard state
@@ -366,6 +422,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
 
     setDraft(filledDraft);
+    // ★ 预填后立即持久化草稿，确保发布后再次进入能恢复（而非重新 AI 预填）
+    saveWizardState(project.id, { step: 1, category: procCat, draft: filledDraft as Record<string, string> });
 
     // ★ 默认引用采购文件（多份时默认选第一份）
     setTenderOn(tenderFiles.length > 0);
@@ -557,30 +615,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     }
   };
 
-  const ensureTenderAttached = async (id: string) => {
-    if (!tenderOn || tenderFiles.length === 0) return;
-    const existing = await listAttachments(id);
-    const have = new Set(existing.map((a) => a.fileAsset.originalName));
-    // 多份采购文件时只引用用户选中的那份；单份直接引用
-    const filesToAttach = tenderFiles.length > 1
-      ? tenderFiles.filter((f) => f.objectKey === selectedTenderObjectKey)
-      : tenderFiles;
-    for (const f of filesToAttach) {
-      if (have.has(f.fileName)) continue;
-      try {
-        await attachFromObject(id, {
-          objectKey: f.objectKey,
-          fileName: f.fileName,
-          mimeType: f.mimeType,
-          size: f.fileSize,
-          title: f.fileName,
-        });
-      } catch (e) {
-        toast.error(`采购文件引用失败：${f.fileName} ${(e as Error).message}`);
-      }
-    }
-  };
-
   const handlePublish = async () => {
     if (!draft || !category || !tenderType) {
       toast.error('请先完成公告制作');
@@ -625,12 +659,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         : `<p>${esc(title)}</p>`;
 
       // 3. 创建公告（正文为全文；canonical 精炼字段供「信息发布」详情页与后端消费）
-      const meta: Record<string, unknown> = { ...finalDraft, visibility, category, ...buildCanonicalMeta(project, finalDraft) };
+      const meta: Record<string, unknown> = { ...finalDraft, visibility, category, ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE') };
       if (visibility === 'RESTRICTED') meta.restrictedSupplierIds = restrictedSupplierIds;
       if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
       else if (publishTiming === 'announcement_start') meta.scheduledPublishDate = (finalDraft as Record<string, string>).announcementStart;
       meta.notifyOnPublish = notifyOnPublish;
-      if (selectedTenderObjectKey) {
+      if (tenderOn && selectedTenderObjectKey) {
         meta.selectedTenderObjectKey = selectedTenderObjectKey;
         const tenderFile = tenderFiles.find((f) => f.objectKey === selectedTenderObjectKey) ?? tenderFiles[0];
         // P1b：后端据此自动生成加密 BidDocument（附文件名/MIME，docx 会转 PDF）
@@ -640,9 +674,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         }
       }
       // 投递截止（bid deadline）—— 优先标书投递截止，兜底公告截止
-      meta.deadline = bidSubmissionDeadline.trim() || announcementEndDate;
-      // 下载截止（downloadDeadline）—— 公告截止时间
-      if (announcementEndDate) meta.downloadDeadline = announcementEndDate;
+      // 直接采购：deadline/downloadDeadline 已在 buildCanonicalMeta 中按「采购时间前24h / 公示区间」算好，勿覆盖
+      if (tenderType !== 'SINGLE_SOURCE') {
+        meta.deadline = bidSubmissionDeadline.trim() || announcementEndDate;
+        if (announcementEndDate) meta.downloadDeadline = announcementEndDate;
+      }
       // 下载方式 —— 引用采购文件时生效
       if (tenderOn) {
         meta.downloadMode = downloadMode;
@@ -674,9 +710,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         toast.error(`公告文件上传到阶段失败：${(e as Error).message}`);
       }
 
-      // 5. 其他附件 + 引用采购文件
+      // 5. 其他附件（采购文件引用已由后端 P1b 根据 selectedTenderObjectKey 自动生成加密采购文件，不重复放附件）
       await uploadPendingFiles(id);
-      await ensureTenderAttached(id);
 
       toast.success(publishTiming === 'now' ? '已发布' : publishTiming === 'announcement_start' ? '已设定按公示期限起始时间发布' : '已保存为定时发布');
       // 流标公告发布后：自动触发再次采购（按采购方式新增新一轮「立项后→开标评标」阶段）

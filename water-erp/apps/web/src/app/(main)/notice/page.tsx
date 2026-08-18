@@ -17,8 +17,8 @@ import {
 
 /* ── 类型/状态映射 ── */
 const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
-  BID_NOTICE: { label: '采购公示', tone: 'blue' },
-  WIN_NOTICE: { label: '中标公示', tone: 'green' },
+  BID_NOTICE: { label: '采购公告', tone: 'blue' },
+  WIN_NOTICE: { label: '中标公告', tone: 'green' },
   POLICY: { label: '政策法规', tone: 'orange' },
   PLATFORM: { label: '平台通知', tone: 'gray' },
 };
@@ -137,7 +137,7 @@ export default function NoticePage() {
             </div>
             <div>
               <div className="page-hero__title">信息发布中心</div>
-              <div className="page-hero__sub">采购公示、中标公示、政策法规、平台通知的起草与发布管理</div>
+              <div className="page-hero__sub">采购公告、中标公告、政策法规、平台通知的起草与发布管理</div>
             </div>
           </div>
 
@@ -221,7 +221,7 @@ export default function NoticePage() {
                 <th>标题</th>
                 <SortTh label="类型" sortKey="type" current={sortKey} dir={sortDir} onToggle={toggleSort} />
                 <SortTh label="状态" sortKey="status" current={sortKey} dir={sortDir} onToggle={toggleSort} />
-                <th>附件 / 招标文件</th>
+                <th>附件 / 采购文件</th>
                 <SortTh label="浏览" sortKey="viewCount" current={sortKey} dir={sortDir} onToggle={toggleSort} align="right" />
                 <th style={{ textAlign: 'center' }}>操作</th>
               </tr>
@@ -258,7 +258,7 @@ export default function NoticePage() {
                           <span className="text-sm font-bold text-[var(--foreground)]">{a.title}</span>
                           {a.isTop && <StatusBadge tone="red" className="!text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
                           {noBidDoc && (
-                            <span className="rounded-md bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]">未上传招标文件</span>
+                            <span className="rounded-md bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]">未上传采购文件</span>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
@@ -280,7 +280,7 @@ export default function NoticePage() {
                           )}
                           {a.bidDocument && (
                             <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)]/60 px-2 py-1 text-[11px] font-semibold text-[var(--accent-strong)] shadow-[inset_0_1px_0_oklch(1_0_0/0.6)]">
-                              <Lock size={11} /> 招标文件{a.bidDocument.requirePayment ? ' (¥)' : ''}
+                              <Lock size={11} /> 采购文件{a.bidDocument.requirePayment ? ' (¥)' : ''}
                             </span>
                           )}
                         </>)}
@@ -460,7 +460,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                         <FileText size={20} className="text-[var(--muted-foreground)]/50" />
                         <p className="text-sm font-semibold text-[var(--foreground)]">暂无供应商参与</p>
                         <p className="max-w-[280px] text-xs leading-relaxed text-[var(--muted-foreground)]">
-                          发布招标文件后，下载并提交标书的供应商将在此展示
+                          发布采购文件后，下载并提交标书的供应商将在此展示
                         </p>
                       </div>
                     </td>

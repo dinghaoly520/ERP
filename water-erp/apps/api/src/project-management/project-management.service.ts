@@ -8,6 +8,7 @@ import { Response } from 'express';
 import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
+import { generateProjectCode } from '../common/project-code.util';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
@@ -361,7 +362,7 @@ export class ProjectManagementService {
     const created = await this.prisma.bidProject.create({
       data: {
         name: item.title,
-        projectCode: `BID-${Date.now()}`,
+        projectCode: await generateProjectCode(this.prisma, item.procurementMethod || '公开招标'),
         procurementMethod: item.procurementMethod || '公开招标',
         openTime,
         deadline,

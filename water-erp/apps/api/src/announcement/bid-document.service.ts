@@ -1,4 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { encryptBuffer, decryptBuffer, streamToBuffer } from './bid-document.crypto';
@@ -107,16 +109,27 @@ export class BidDocumentService {
       return this.getForManagement(announcementId);
     }
 
-    // ① 从 MinIO 读取源对象（PMI 阶段上传的采购文件）
-    const source = await minioClient.getObject(MINIO_BUCKET, input.objectKey);
-    const sourceBuffer = await streamToBuffer(source);
+    // ① 读取源对象：优先 MinIO；objectKey 不存在时兜底本地 uploads/ 目录
+    //    （PMI 阶段附件经 persistUploadedFile 存本地磁盘，objectKey 是相对路径约定，不在 MinIO）
+    let sourceBuffer: Buffer;
+    try {
+      const source = await minioClient.getObject(MINIO_BUCKET, input.objectKey);
+      sourceBuffer = await streamToBuffer(source);
+    } catch {
+      try {
+        sourceBuffer = await readFile(resolve(process.cwd(), 'uploads', input.objectKey));
+      } catch {
+        throw new BadRequestException({ error: '采购文件对象不存在（MinIO 与本地均未找到）', code: 'SOURCE_NOT_FOUND' });
+      }
+    }
     if (sourceBuffer.length === 0) {
       throw new BadRequestException({ error: '采购文件对象为空', code: 'EMPTY_SOURCE' });
     }
 
     // ② 文件名/类型兜底 + docx/doc 转 PDF（与 upload 一致）
-    const rawName = input.fileName || input.objectKey.split('/').pop() || '招标文件';
-    const originalName = sanitizeFileName(rawName);
+    // 注意：本路径不经 multer（latin1 乱码只出现在 multipart 上传），input.fileName 来自公告
+    // metadata，已是正确 UTF-8——不能再过 sanitizeFileName，否则中文反被转乱码。
+    const originalName = input.fileName || sanitizeFileName(input.objectKey.split('/').pop() || '招标文件');
     let buffer = sourceBuffer;
     let mimeType = input.mimeType || 'application/octet-stream';
     let displayName = originalName;

@@ -9,7 +9,8 @@ describe('ProcurementService.createBid (G8)', () => {
   beforeEach(async () => {
     prisma = {
       procurementProject: { findUnique: jest.fn(), update: jest.fn() },
-      bidProject: { create: jest.fn() },
+      bidProject: { create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) },
+      projectManagementItem: { count: jest.fn().mockResolvedValue(0) },
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [ProcurementService, { provide: PrismaService, useValue: prisma }],

@@ -10,8 +10,57 @@ import dayjs from 'dayjs'
 
 const route = useRoute(); const router = useRouter(); const store = useAnnouncementStore()
 const loading = ref(true); const error = ref(false); const id = computed(() => route.params.id as string)
-const typeLabel: Record<string,string> = {BID_NOTICE:'采购公告',WIN_NOTICE:'中标公示',POLICY:'政策法规',PLATFORM:'平台通知'}
+const typeLabel: Record<string,string> = {BID_NOTICE:'采购公告',WIN_NOTICE:'中标公告',POLICY:'政策法规',PLATFORM:'平台通知'}
 const typeTagType: Record<string,string> = {BID_NOTICE:'primary',WIN_NOTICE:'success',POLICY:'warning',PLATFORM:'info'}
+
+// ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）──
+interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
+const ANNO_TYPE_META: Record<string, MetaField[]> = {
+  BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
+    { key: 'downloadDeadline', label: '采购文件下载时间' },
+    { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
+    { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
+  ],
+  WIN_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '中标供应商' }, { key: 'amount', label: '中标金额' },
+    { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' }, { key: 'experts', label: '评审专家' },
+    { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
+  ],
+  POLICY: [
+    { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
+    { key: 'scope', label: '适用范围', area: true },
+  ],
+  PLATFORM: [
+    { key: 'impactScope', label: '影响范围' }, { key: 'changes', label: '功能变化', area: true }, { key: 'schedule', label: '时间安排' },
+    { key: 'guide', label: '操作指引', area: true }, { key: 'support', label: '支持渠道' },
+  ],
+}
+function fmtMeta(field: MetaField, raw: any): string {
+  if (raw == null || raw === '') return ''
+  if (field.date) {
+    const d = new Date(raw)
+    if (isNaN(d.getTime())) return '待定'
+    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  }
+  if ((field.key === 'budget' || field.key === 'amount') && raw) {
+    const n = Number(raw)
+    if (!isNaN(n) && n >= 10000) return (n / 10000).toFixed(0) + ' 万元'
+  }
+  return String(raw)
+}
+function metaLabelColor(f: MetaField): string {
+  if (f.key === 'projectCode' || f.key === 'docNo') return 'var(--brand)'
+  if (f.key === 'budget' || f.key === 'amount') return 'var(--success)'
+  if (f.date) return 'var(--warning)'
+  return 'var(--muted-foreground)'
+}
+const metaFields = computed(() => {
+  const a = store.currentAnnouncement as any
+  const meta = (a?.metadata || {}) as Record<string, any>
+  const fields = (ANNO_TYPE_META[a?.type] || []).filter(f => meta[f.key])
+  return { short: fields.filter(f => !f.area), area: fields.filter(f => f.area), meta }
+})
 
 const bidDoc = ref<any>(null); const bidDocLoading = ref(false); const paying = ref(false); const downloading = ref(false); const payDialog = ref(false); const paymentRef = ref('')
 const isBidNotice = computed(() => store.currentAnnouncement?.type==='BID_NOTICE')
@@ -46,6 +95,21 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
       </div>
       <h1 class="detail-title">{{ store.currentAnnouncement.title }}</h1>
       <el-divider />
+
+      <!-- 结构化元数据（项目编号/招标方式/预算金额/时间等）—— 与采购管理工作台一致 -->
+      <div v-if="metaFields.short.length || metaFields.area.length" class="meta-block">
+        <div v-if="metaFields.short.length" class="meta-chips">
+          <span v-for="f in metaFields.short" :key="f.key" class="meta-chip">
+            <span class="meta-chip-label" :style="{ color: metaLabelColor(f) }">{{ f.label }}</span>
+            <span class="meta-chip-value">{{ fmtMeta(f, metaFields.meta[f.key]) }}</span>
+          </span>
+        </div>
+        <div v-for="f in metaFields.area" :key="f.key" class="meta-area">
+          <span class="meta-area-label">{{ f.label }}</span>
+          <p class="meta-area-text">{{ metaFields.meta[f.key] }}</p>
+        </div>
+      </div>
+
       <div class="detail-content" v-html="store.currentAnnouncement.content"></div>
 
       <el-divider v-if="store.currentAnnouncement.relatedProjectCode" />
@@ -86,6 +150,15 @@ async function retryLoad() { error.value = false; loading.value = true; try { aw
 .detail-meta { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--muted-foreground); }
 .top-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; color: var(--danger); background: color-mix(in oklab, var(--danger) 10%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
 .detail-title { font-size: 24px; font-weight: 800; color: var(--foreground); line-height: 1.4; }
+/* 结构化元数据 chips —— 与采购管理工作台一致 */
+.meta-block { margin-bottom: 8px; }
+.meta-chips { display: flex; flex-wrap: wrap; gap: 12px 18px; }
+.meta-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 8px; background: oklch(1 0 0 / 0.55); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08); }
+.meta-chip-label { font-size: 11px; font-weight: 700; letter-spacing: 0.02em; }
+.meta-chip-value { font-size: 13px; font-weight: 600; color: var(--foreground); }
+.meta-area { margin-top: 12px; padding: 12px 16px; border-radius: 10px; background: color-mix(in oklab, var(--brand) 6%, transparent); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5); }
+.meta-area-label { font-size: 11px; font-weight: 700; color: var(--brand); }
+.meta-area-text { margin: 6px 0 0; font-size: 14px; line-height: 1.7; color: var(--foreground); white-space: pre-wrap; }
 .detail-content { font-size: 15px; line-height: 1.8; color: var(--foreground); }
 .detail-content :deep(p) { margin-bottom: 12px; }
 .detail-content :deep(h2),.detail-content :deep(h3) { margin: 24px 0 12px; color: var(--foreground); }

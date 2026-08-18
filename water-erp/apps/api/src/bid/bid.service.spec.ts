@@ -470,9 +470,14 @@ describe('BidService — stage transitions', () => {
 
   describe('reopenFromAborted — N5 重启时间兜底', () => {
     beforeEach(() => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ABORTED', name: 'P', projectCode: 'BID-1',
-        procurementMethod: '谈判采购', openTime: new Date('2026-08-01'), deadline: new Date('2026-08-01'),
-        downloadDeadline: new Date('2026-07-30'), round: 1 });
+      // findUnique 双用途：按 id 查返回原项目；按 projectCode 查（generateProjectCode 查重）返回 null
+      prisma.bidProject.findUnique.mockImplementation(({ where }: any) =>
+        where?.projectCode ? Promise.resolve(null) : Promise.resolve({
+          stage: 'ABORTED', name: 'P', projectCode: 'BID-1',
+          procurementMethod: '谈判采购', openTime: new Date('2026-08-01'), deadline: new Date('2026-08-01'),
+          downloadDeadline: new Date('2026-07-30'), round: 1,
+        }));
+      prisma.bidProject.count.mockResolvedValue(0);
       prisma.bidProject.update.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
       prisma.auditLog.create.mockResolvedValue({});
@@ -3052,7 +3057,10 @@ describe('BidService — createProject 字段写入', () => {
     prisma = {
       bidProject: {
         create: jest.fn().mockResolvedValue({ id: 'p1', name: 'X', projectCode: 'BID-1' }),
+        count: jest.fn().mockResolvedValue(0),
+        findUnique: jest.fn().mockResolvedValue(null),
       },
+      projectManagementItem: { count: jest.fn().mockResolvedValue(0) },
       notificationService: { sendToRole: jest.fn().mockResolvedValue(undefined) },
     };
     const module: TestingModule = await Test.createTestingModule({

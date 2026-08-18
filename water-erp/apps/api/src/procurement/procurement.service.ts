@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProcurementDto, UpdateProcurementDto } from './dto/create-procurement.dto';
+import { generateProjectCode } from '../common/project-code.util';
 
 type ProcurementStatus = 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'BIDDING' | 'CONTRACTED' | 'CLOSED';
 
@@ -57,10 +58,11 @@ export class ProcurementService {
   }
 
   async create(dto: CreateProcurementDto, creatorId?: string) {
+    const projectCode = await generateProjectCode(this.prisma, dto.procurementMethod, 'procurementProject');
     return this.prisma.procurementProject.create({
       data: {
         title: dto.title,
-        projectCode: `PROC-${Date.now()}`,
+        projectCode,
         procurementType: dto.procurementType,
         procurementMethod: dto.procurementMethod,
         budget: dto.budget,
@@ -148,7 +150,7 @@ export class ProcurementService {
     const bidProject = await this.prisma.bidProject.create({
       data: {
         name: project.title,
-        projectCode: `BID-${Date.now()}`,
+        projectCode: await generateProjectCode(this.prisma, project.procurementMethod),
         procurementMethod: project.procurementMethod,
         roundMode: project.procurementMethod === '谈判采购' ? 'negotiation'
                   : project.procurementMethod === '竞价采购' ? 'sealed_auction'

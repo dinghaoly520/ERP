@@ -1205,7 +1205,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
       {!status.hasPublicity ? (
         <div className="exp-alert exp-alert--info flex items-center gap-2 !p-3">
           <Clock size={14} strokeWidth={1.5} className="shrink-0" />
-          <span className="text-xs">尚未发布中标公示</span>
+          <span className="text-xs">尚未发布中标公告</span>
           {winner?.bidPrice && (
             <span className="ml-2 text-xs font-mono tabular-nums text-[var(--muted-foreground)]">
               中标金额：¥{Number(winner.bidPrice).toLocaleString('zh-CN')}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { fetchPublicAnnouncement, ANNOUNCEMENTS, type AnnouncementItem } from '@/lib/announcements';
+import { fetchPublicAnnouncement, ANNOUNCEMENTS, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
 
@@ -81,10 +81,47 @@ export default function AnnouncementDetailPage() {
           <h1 className="text-2xl font-black text-[#18243a] mb-4 leading-snug" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>{item.title}</h1>
 
           {/* 元信息 */}
-          <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-6 pb-6 border-b border-[#e5ecf4]">
+          <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-4">
             <span>发布时间：{item.date}</span>
-            {item.code && <span>编号：{item.code}</span>}
           </div>
+
+          {/* 结构化元数据（项目编号/招标方式/预算金额/时间等）—— 与采购管理工作台一致 */}
+          {(() => {
+            const meta = item.metadata || {};
+            const fields = (ANNOUNCEMENT_TYPE_META[item.type] || []).filter(f => meta[f.key]);
+            if (fields.length === 0) return null;
+            const shortFields = fields.filter(f => !f.area);
+            const areaFields = fields.filter(f => f.area);
+            return (
+              <div className="mb-6 pb-6 border-b border-[#e5ecf4]">
+                {shortFields.length > 0 && (
+                  <div className="flex flex-wrap gap-x-5 gap-y-2.5">
+                    {shortFields.map(f => {
+                      const isCode = f.key === 'projectCode' || f.key === 'docNo';
+                      const isMoney = f.key === 'budget' || f.key === 'amount';
+                      const isDate = f.date;
+                      const labelColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : isDate ? '#f5a623' : '#8a96aa';
+                      const valueColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : '#26364e';
+                      return (
+                        <span key={f.key} className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5"
+                          style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 2px oklch(0.55 0.03 258 / 0.08)' }}>
+                          <span className="text-[11px] font-bold tracking-wide" style={{ color: labelColor }}>{f.label}</span>
+                          <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{formatMetaValue(f, meta[f.key])}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {areaFields.map(f => (
+                  <div key={f.key} className="mt-3 rounded-lg px-4 py-3"
+                    style={{ background: 'oklch(0.5 0.16 258 / 0.06)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                    <span className="text-[11px] font-bold tracking-wide" style={{ color: '#064ea2' }}>{f.label}</span>
+                    <p className="mt-1.5 text-[14px] leading-relaxed whitespace-pre-wrap" style={{ color: '#26364e' }}>{meta[f.key]}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* AI 摘要 */}
           {item.aiSummary && (

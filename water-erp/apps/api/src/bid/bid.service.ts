@@ -27,6 +27,7 @@ import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-cryp
 import { openField } from '../common/crypto/field-crypto';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan } from './opening-compare.util';
 import { parseFlexibleDate } from '../common/parse-date.util';
+import { generateProjectCode } from '../common/project-code.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
@@ -214,6 +215,21 @@ export class BidService {
       const sourceCode = p.projectManagementItemId ? codeMap.get(p.projectManagementItemId) : undefined;
       return sourceCode ? { ...p, projectCode: sourceCode } : p;
     });
+  }
+
+  /** 公告 relatedProjectCode 的候选编号集合：业务编号（PMI.projectCode，公告实际存储值）∪ 内部编号（历史数据兜底）。
+   *  公告查找必须同时尝试两者——公告存业务编号（ZJ-xxx），BidProject.projectCode 是内部 BID-时间戳，
+   *  仅用内部编号查找会恒空（openSubmission 闸门误拒 / 中标公示重复生成 / 供应商端"暂无公告正文"）。 */
+  private async resolveAnnouncementCodes(project: { projectManagementItemId?: string | null; projectCode: string }): Promise<string[]> {
+    const codes = new Set<string>([project.projectCode]);
+    if (project.projectManagementItemId) {
+      const pm = await this.prisma.projectManagementItem.findUnique({
+        where: { id: project.projectManagementItemId },
+        select: { projectCode: true },
+      });
+      if (pm?.projectCode) codes.add(pm.projectCode);
+    }
+    return [...codes];
   }
 
   /**
@@ -549,10 +565,11 @@ export class BidService {
   }
 
   async createProject(dto: CreateBidProjectDto) {
+    const projectCode = await generateProjectCode(this.prisma, dto.procurementMethod);
     const project = await this.prisma.bidProject.create({
       data: {
         name: dto.name,
-        projectCode: `BID-${Date.now()}`,
+        projectCode,
         procurementMethod: dto.procurementMethod,
         evaluationMethod: getEvaluationDefault(dto.procurementMethod).evaluationMethod,
         roundMode: dto.procurementMethod === '谈判采购' ? 'negotiation'
@@ -593,13 +610,13 @@ export class BidService {
     announcement: { id: string; title: string; publishDate: Date | null },
     metadata: Record<string, any>,
   ) {
-    const projectCode = `BID-${Date.now()}`;
+    const procurementMethod = metadata.method || '公开招标';
+    const projectCode = await generateProjectCode(this.prisma, procurementMethod);
     const openTime = parseFlexibleDate(metadata.openTime) ?? (announcement.publishDate || new Date());
     const deadline = parseFlexibleDate(metadata.deadline) ?? new Date(openTime.getTime() + 7 * 86400000);
     // 采购文件下载截止时间（= 公告截止时间），超时不可下载
     const downloadDeadline = parseFlexibleDate(metadata.downloadDeadline);
 
-    const procurementMethod = metadata.method || '公开招标';
     const project = await this.prisma.bidProject.create({
       data: {
         name: announcement.title,
@@ -963,14 +980,15 @@ export class BidService {
   async openSubmission(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, projectCode: true },
+      select: { stage: true, name: true, projectCode: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'SUBMIT');
 
-    // G3: 开放投递前必须已发布招标公示（供应商经 relatedProjectCode 获取招标文件）
+    // G3: 开放投递前必须已发布招标公示（供应商经 relatedProjectCode 获取招标文件）。
+    // 公告存业务编号（ZJ-xxx）、项目内部是 BID-时间戳——两个编号都试，否则闸门恒误拒。
     const notice = await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: project.projectCode, type: 'BID_NOTICE', status: 'PUBLISHED' },
+      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'BID_NOTICE', status: 'PUBLISHED' },
       select: { id: true },
     });
     if (!notice) {
@@ -1097,7 +1115,7 @@ export class BidService {
     // N5：原时间已随流标过期——重启项目给「截标 +3 天、开标 +2h」兜底窗口，并在留痕中提示重新设定
     const fallbackDeadline = new Date(Date.now() + 3 * 24 * 3600 * 1000);
     const fallbackOpenTime = new Date(fallbackDeadline.getTime() + 2 * 3600 * 1000);
-    const newCode = `BID-${Date.now()}`;
+    const newCode = await generateProjectCode(this.prisma, original.procurementMethod);
     const now = new Date();
     const newProject = await this.prisma.bidProject.create({
       data: {
@@ -4340,8 +4358,9 @@ export class BidService {
       return;
     }
 
+    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试，避免去重失效导致重复生成中标公示
     const existing = await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
+      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'WIN_NOTICE' },
       select: { id: true },
     });
     if (existing) return;
@@ -4373,11 +4392,12 @@ export class BidService {
   async getWinnerNotice(projectId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { projectCode: true },
+      select: { projectCode: true, projectManagementItemId: true },
     });
     if (!project) return null;
+    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试
     return this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
+      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'WIN_NOTICE' },
     });
   }
 
@@ -4385,12 +4405,13 @@ export class BidService {
   async getPublicityStatus(projectId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { projectCode: true },
+      select: { projectCode: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
+    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试
     const notice = await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: project.projectCode, type: 'WIN_NOTICE' },
+      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'WIN_NOTICE' },
       select: { status: true, publishDate: true, publicityEnd: true },
     });
 

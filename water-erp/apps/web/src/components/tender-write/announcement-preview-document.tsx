@@ -568,7 +568,7 @@ function WinningBidAnnouncementPreview({
           {PV(draft.projectName, "{{项目名称}}", "projectName")}采购
         </div>
         <div className="mt-2 text-lg font-semibold tracking-[0.06em] text-[rgba(80,102,146,0.92)]">
-          中标公示
+          中标公告
         </div>
       </div>
 

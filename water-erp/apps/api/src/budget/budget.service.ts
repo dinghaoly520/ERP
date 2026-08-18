@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import type { BudgetItemInput } from './dto';
 import { Workbook } from 'exceljs';
+import { generateProjectCode } from '../common/project-code.util';
 
 @Injectable()
 export class BudgetService {
@@ -189,7 +190,7 @@ export class BudgetService {
     const project = await this.prisma.procurementProject.create({
       data: {
         title: list!.name,
-        projectCode: `PROC-${Date.now()}`,
+        projectCode: await generateProjectCode(this.prisma, '公开招标', 'procurementProject'),
         procurementType: '货物',
         procurementMethod: '公开招标',
         budget: total,

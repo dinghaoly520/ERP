@@ -17,6 +17,46 @@ export interface AnnouncementItem {
   deadline: string;
   content: string;
   aiSummary?: string;
+  metadata?: Record<string, any>;
+}
+
+/* ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）── */
+export interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
+export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
+  BID_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
+    { key: 'downloadDeadline', label: '采购文件下载时间' },
+    { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
+    { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
+  ],
+  WIN_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '中标供应商' }, { key: 'amount', label: '中标金额' },
+    { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' }, { key: 'experts', label: '评审专家' },
+    { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
+  ],
+  POLICY: [
+    { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
+    { key: 'scope', label: '适用范围', area: true },
+  ],
+  PLATFORM: [
+    { key: 'impactScope', label: '影响范围' }, { key: 'changes', label: '功能变化', area: true }, { key: 'schedule', label: '时间安排' },
+    { key: 'guide', label: '操作指引', area: true }, { key: 'support', label: '支持渠道' },
+  ],
+};
+
+/* ── 元数据值格式化（与 :3005 一致：日期解析、预算万元化）── */
+export function formatMetaValue(field: MetaField, raw: any): string {
+  if (raw == null || raw === '') return '';
+  if (field.date) {
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return '待定';
+    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+  if ((field.key === 'budget' || field.key === 'amount') && raw) {
+    const n = Number(raw);
+    if (!isNaN(n) && n >= 10000) return (n / 10000).toFixed(0) + ' 万元';
+  }
+  return String(raw);
 }
 
 export const ANNOUNCEMENT_TABS = [
@@ -56,6 +96,7 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     deadline: '',
     content: a.content || '',
     aiSummary: a.aiSummary || undefined,
+    metadata: a.metadata || {},
   };
 }
 
