@@ -28,6 +28,27 @@ export function resolveExpectedInYuan(
   return expected;
 }
 
+/**
+ * 投递报价显示归一为元（与唱标总表「报价（元）」单位统一，供供应商端回显）。
+ * 与 resolveExpectedInYuan 不同：不做 ±0.5% 容差匹配——显示归一在实质不一致时同样需要
+ * 判断单位（投递表单口径：<10000 为万元、≥10000 为元；P1-13）。
+ * 有唱标锚点（元）且锚点 ≫ 投递价（>100×）→ 投递价为万元，×10000；
+ * 否则原值即元。无锚点/不可解析 → null（调用方回落投递表单口径标注单位）。
+ */
+export function resolveDisplayInYuan(
+  expectedStr?: string | number | null,
+  enteredStr?: string | number | null,
+): number | null {
+  const rawExpected = expectedStr == null ? '' : String(expectedStr);
+  const rawEntered = enteredStr == null ? '' : String(enteredStr);
+  if (!rawExpected || !rawEntered) return null;
+  const expected = Number(rawExpected.replace(/,/g, ''));
+  const entered = Number(rawEntered.replace(/,/g, ''));
+  if (!Number.isFinite(expected) || !Number.isFinite(entered)) return null;
+  if (expected < 10000 && entered > expected * 100) return expected * 10000;
+  return expected;
+}
+
 /** 唱标录入价与投递密封价（已解封、可能万元/元）是否实质不一致（±0.5% 容差）。 */
 export function isPriceMismatch(expectedInYuan: number | null, enteredStr?: string | number | null): boolean {
   const entered = Number(String(enteredStr ?? '').replace(/,/g, ''));

@@ -15,7 +15,7 @@ import { SignatureService } from '../common/crypto/signature.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
 import { BidGateway } from '../bid/bid.gateway';
-import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan } from '../bid/opening-compare.util';
+import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan, resolveDisplayInYuan } from '../bid/opening-compare.util';
 import { LlmService } from '../local-ai/llm.service';
 import * as crypto from 'crypto';
 
@@ -1210,15 +1210,19 @@ export class SupplierPortalService {
       }),
     ]);
     const submittedBidPrice = submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null;
+    // 投递报价显示归一为元（与唱标总表「报价（元）」单位统一；P1-13 投递表单万元/元口径）。
+    // 未唱标无锚点 → null，前端回落显示原值 + 投递表单单位。
+    const submittedBidPriceInYuan = resolveDisplayInYuan(submittedBidPrice, record?.amount ?? undefined);
     return {
       ...(record ?? {}),
       submitted: submission
         ? {
             bidPrice: submittedBidPrice,
+            bidPriceInYuan: submittedBidPriceInYuan,
             deliveryPeriod: submission.deliveryPeriod ?? null,
             qualityCommitment: submission.qualityCommitment ?? null,
             priceMismatch: record?.amount != null
-              && isPriceMismatch(resolveExpectedInYuan(submittedBidPrice, record.amount), record.amount),
+              && isPriceMismatch(submittedBidPriceInYuan, record.amount),
             periodMismatch: isPeriodMismatch(submission.deliveryPeriod, record?.period),
           }
         : null,

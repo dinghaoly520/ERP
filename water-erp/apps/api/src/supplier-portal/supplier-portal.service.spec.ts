@@ -627,6 +627,22 @@ describe('SupplierPortalService', () => {
         bidPrice: '950000', deliveryPeriod: '120 日历天', qualityCommitment: '合格',
         priceMismatch: true, periodMismatch: false,
       });
+      // 双方均为元时归一值即原值（供前端显示「N 元」，与唱标总表单位统一）
+      expect(result!.submitted!.bidPriceInYuan).toBe(950000);
+    });
+
+    it('投递价为万元时归一为元（151.2 万 → 1512000，与唱标总表单位统一）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidOpeningRecord.findFirst.mockResolvedValue({
+        id: 'r-1', amount: '1488000', period: '120 日历天', qualityTarget: '合格', confirmStatus: '待供应商确认',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        bidPrice: sealField('151.2', process.env.KMS_SECRET!), deliveryPeriod: '120 日历天', qualityCommitment: '合格',
+      });
+
+      const result = await service.getMyOpeningRecord('supplier-1', 'project-1');
+
+      expect(result!.submitted).toMatchObject({ bidPrice: '151.2', bidPriceInYuan: 1512000, priceMismatch: true });
     });
 
     it('未唱标时仍返回本人投递原值（不暴露他人数据）', async () => {
@@ -642,6 +658,8 @@ describe('SupplierPortalService', () => {
       expect(result!.submitted).toMatchObject({
         bidPrice: null, deliveryPeriod: '90 日历天', priceMismatch: false, periodMismatch: false,
       });
+      // 未唱标无锚点：归一值为 null（前端回落原值 + 投递表单单位）
+      expect(result!.submitted!.bidPriceInYuan).toBeNull();
     });
 
     it('非本项目投标人 → null（与现状一致）', async () => {
