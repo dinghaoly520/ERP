@@ -50,6 +50,19 @@ export class AuthController {
     return result;
   }
 
+  @Get('companies')
+  @Public()
+  @ApiOperation({ summary: '已知公司列表（注册下拉建议，从用户表动态聚合）' })
+  async companies() {
+    const rows = await this.prisma.user.findMany({
+      where: { company: { not: null } },
+      select: { company: true },
+      distinct: ['company'],
+    });
+    // 非空 + 排序；新公司注册成功后自动进入此列表
+    return [...new Set(rows.map(r => r.company).filter((c): c is string => !!c))].sort();
+  }
+
   @Post('users/:id/approve')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: '审核通过注册用户' })

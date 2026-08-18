@@ -19,7 +19,7 @@ export default function ProgressPage() {
         if (cancelled) return;
 
         if (!canAccessDatabase(currentUser.role)) {
-          router.replace("/procurements");
+          router.replace("/work-arrangements");
           return;
         }
 

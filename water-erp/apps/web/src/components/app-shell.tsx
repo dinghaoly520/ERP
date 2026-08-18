@@ -66,8 +66,10 @@ const navGroups: NavGroup[] = [
     items: [
       { key: "dashboard", label: "数据库", href: "/dashboard", icon: LayoutDashboard, meta: "运营总览" },
       { key: "procurements", label: "采购台账", href: "/procurements", icon: FolderKanban, meta: "事项追踪" },
-      { key: "progress", label: "采购进度", href: "/progress", icon: TrendingUp, meta: "项目进度统计", roles: ["admin", "leader"] },
+      { key: "progress", label: "采购进度", href: "/progress", icon: TrendingUp, meta: "项目进度统计" },
     ],
+    // 驾驶舱整组仅管理权限（leader/admin）可见；办公权限（staff）隐藏
+    roles: ["admin", "leader"],
   },
   {
     key: "procurement",

@@ -1,9 +1,9 @@
 "use client";
 
 import { CheckCircle2, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/workbench";
-import { sendRegistrationCode, registerUser } from "@/lib/api/auth";
+import { sendRegistrationCode, registerUser, fetchRegistrationCompanies } from "@/lib/api/auth";
 
 type RegisterDialogProps = {
   isOpen: boolean;
@@ -47,6 +47,15 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
   const [codeCooldown, setCodeCooldown] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [companies, setCompanies] = useState<string[]>([]);
+
+  // 打开弹窗时拉取已知公司列表（下拉建议；后端会归一化手输变体）
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchRegistrationCompanies()
+      .then(setCompanies)
+      .catch(() => setCompanies([]));
+  }, [isOpen]);
 
   const set = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -305,11 +314,18 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
                 </span>
                 <input
                   type="text"
+                  list="register-company-list"
                   value={form.company}
                   onChange={(e) => set("company", e.target.value)}
-                  placeholder="请输入公司名称"
+                  placeholder="选择或输入公司名称"
                   className={inputCls}
+                  autoComplete="organization"
                 />
+                <datalist id="register-company-list">
+                  {companies.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">

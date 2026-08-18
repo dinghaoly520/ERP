@@ -48,6 +48,7 @@ import {
   deleteProcurementPermanently,
 } from "@/lib/api/procurements";
 import { fetchCurrentUser } from "@/lib/api/auth";
+import { canAccessCockpit } from "@/lib/login/login-routing";
 import { ArchiveDetailModal } from "@/components/procurements/archive-detail-modal";
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { Modal } from "@/components/workbench";
@@ -1018,20 +1019,27 @@ export default function ProcurementsPage() {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [selectedArchiveRoundId, setSelectedArchiveRoundId] = useState<string | null>(null);
 
-  // Admin check
+  // Admin check + 驾驶舱权限守卫（办公权限 staff 重定向到工作台）
   const [isAdmin, setIsAdmin] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
         const user = await fetchCurrentUser();
+        if (!canAccessCockpit(user.role)) {
+          router.replace('/work-arrangements');
+          return;
+        }
         setIsAdmin(user.role === 'admin');
       } catch {
         setIsAdmin(false);
+      } finally {
+        setAuthChecked(true);
       }
     };
 
     void loadCurrentUser();
-  }, []);
+  }, [router]);
 
   // Move to recycle bin state
   const [movingToRecycleBinId, setMovingToRecycleBinId] = useState<string | null>(null);
@@ -1304,6 +1312,18 @@ export default function ProcurementsPage() {
   };
 
   const getAnalysisItems = () => matchedItems.filter(i => selectedAnalysisIds.has(i.id));
+
+  // 权限验证中：不渲染内容（staff 会被重定向）
+  if (!authChecked) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(96,139,239,0.3)] border-t-[rgba(96,139,239,1)]" />
+          <span className="text-sm text-[color:var(--muted-foreground)]">验证访问权限...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full">

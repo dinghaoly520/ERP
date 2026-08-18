@@ -359,6 +359,11 @@ export async function sendRegistrationCode(phone: string): Promise<{ maskedPhone
   });
 }
 
+/** 已知公司列表（注册下拉建议）*/
+export async function fetchRegistrationCompanies(): Promise<string[]> {
+  return requestJson<string[]>(`${API_BASE}/auth/companies`, { cache: "no-store" });
+}
+
 export async function registerUser(payload: RegisterPayload): Promise<{ pending: true }> {
   return requestJson<{ pending: true }>(`${API_BASE}/auth/register`, {
     method: "POST",
