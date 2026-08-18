@@ -19,8 +19,8 @@ export class ConcordanceVerifierService {
   verify(systemData: SystemData, docKeyInfo: BidderKeyInfo): ConcordanceResult {
     const checks: FieldCheck[] = [
       this.checkPrice(
-        this.normalizePrice(systemData.openingAmount) ??
-          this.normalizePrice(systemData.submissionPrice),
+        this.normalizePriceYuan(systemData.openingAmount) ??
+          this.normalizePriceYuan(systemData.submissionPrice),
         this.normalizePrice(docKeyInfo.quotePriceYuan) ?? docKeyInfo.quotePrice,
       ),
       this.checkPeriod(
@@ -54,6 +54,24 @@ export class ConcordanceVerifierService {
     else if (value.includes('万元')) {
       /* 已是万元 */
     } else if (value.includes('元')) n /= 10000; // 元 → 万元
+    return n;
+  }
+
+  /**
+   * 系统侧报价归一化：BidOpeningRecord.amount / 表单 bidPrice 以元存储且常无单位后缀
+   * （如 "1512000"），统一为万元。带后缀按后缀处理（亿→×10000、万元→原值），无后缀一律按元。
+   */
+  private normalizePriceYuan(value: unknown): number | null {
+    if (typeof value === 'number') return value / 10000;
+    if (typeof value !== 'string') return null;
+    const cleaned = value.replace(/[,，\s]/g, '');
+    const m = cleaned.match(/-?\d+(?:\.\d+)?/);
+    if (!m) return null;
+    let n = parseFloat(m[0]);
+    if (value.includes('亿')) n *= 10000;
+    else if (value.includes('万元')) {
+      /* 已是万元 */
+    } else n /= 10000; // 元（含无单位后缀）→ 万元
     return n;
   }
 
@@ -206,12 +224,22 @@ export class ConcordanceVerifierService {
     const phoneMatch = docPhone && sysPhones.includes(docPhone);
     const emailMatch = docEmail && sysEmails.includes(docEmail);
 
+    // 展示值须为字符串（专家端直接 String() 渲染，对象会显示成 "[object Object]"）；电话保留原始格式
+    const rawSysPhones = sysContacts
+      .map((c) => c.phone?.trim())
+      .filter((p): p is string => !!p);
+    const rawSysEmails = sysContacts
+      .map((c) => c.email?.trim())
+      .filter((e): e is string => !!e);
+    const sysDisplay = `电话：${rawSysPhones.join('、') || '—'}；邮箱：${rawSysEmails.join('、') || '—'}`;
+    const docDisplay = `电话：${docContact.phone || '—'}；邮箱：${docContact.email || '—'}`;
+
     if (!docPhone) {
       return this.field(
         'contact',
         '联系方式',
-        { sysPhones, sysEmails },
-        docContact,
+        sysDisplay,
+        docDisplay,
         'insufficient_data',
         'low',
         '标书未提供联系方式',
@@ -221,8 +249,8 @@ export class ConcordanceVerifierService {
       return this.field(
         'contact',
         '联系方式',
-        { sysPhones, sysEmails },
-        docContact,
+        sysDisplay,
+        docDisplay,
         'consistent',
         'low',
       );
@@ -230,8 +258,8 @@ export class ConcordanceVerifierService {
     return this.field(
       'contact',
       '联系方式',
-      { sysPhones, sysEmails },
-      docContact,
+      sysDisplay,
+      docDisplay,
       'minor_diff',
       'medium',
       `电话${phoneMatch ? '匹配' : '不匹配'}；邮箱${emailMatch ? '匹配' : docEmail ? '不匹配' : '系统无记录'}`,

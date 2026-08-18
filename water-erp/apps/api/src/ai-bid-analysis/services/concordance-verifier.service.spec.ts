@@ -68,6 +68,28 @@ describe('ConcordanceVerifierService', () => {
     expect(price.status).toBe('consistent');
   });
 
+  // 回归：真实唱标记录为无单位后缀的元字符串（如 "1512000"），曾误当作万元与标书万元值直接比对 → 99.99% 假冲突
+  it('报价归一化（无单位后缀=元）：1512000 vs 153.95万元 → 轻微差异', () => {
+    const result = service.verify(
+      mockSystem({ openingAmount: '1512000' }),
+      mockKeyInfo({ quotePriceYuan: '153.95万元', quotePrice: 153.95 }),
+    );
+    const price = result.checks.find((c) => c.field === 'price')!;
+    expect(price.status).toBe('minor_diff');
+    expect(price.systemValue).toBeCloseTo(151.2, 2);
+    expect(price.docValue).toBeCloseTo(153.95, 2);
+    expect(price.note).toMatch(/差异 1\.8\d%/);
+  });
+
+  it('报价归一化（无单位后缀数字）：1512000 元 vs 151.2 万元 → 一致', () => {
+    const result = service.verify(
+      mockSystem({ openingAmount: 1512000 as unknown as string }),
+      mockKeyInfo({ quotePriceYuan: '151.2万元', quotePrice: 151.2 }),
+    );
+    const price = result.checks.find((c) => c.field === 'price')!;
+    expect(price.status).toBe('consistent');
+  });
+
   it('报价冲突：2350万 vs 2000', () => {
     const result = service.verify(
       mockSystem({ openingAmount: '2350万元' }),
@@ -177,6 +199,21 @@ describe('ConcordanceVerifierService', () => {
     );
     const contact = result.checks.find((c) => c.field === 'contact')!;
     expect(contact.status).toBe('minor_diff');
+  });
+
+  // 回归：systemValue/docValue 曾存对象 → 前端 String() 渲染成 "[object Object]"
+  it('联系方式 systemValue/docValue 为可显示字符串（非对象）', () => {
+    const result = service.verify(
+      mockSystem({ contacts: [{ phone: '028-11111111', email: 'sys@x.com' }] }),
+      mockKeyInfo({ contactInfo: { phone: '028-99999999', email: 'doc@y.com', address: '' } }),
+    );
+    const contact = result.checks.find((c) => c.field === 'contact')!;
+    expect(String(contact.systemValue)).not.toBe('[object Object]');
+    expect(String(contact.docValue)).not.toBe('[object Object]');
+    expect(String(contact.systemValue)).toContain('028-11111111');
+    expect(String(contact.systemValue)).toContain('sys@x.com');
+    expect(String(contact.docValue)).toContain('028-99999999');
+    expect(String(contact.docValue)).toContain('doc@y.com');
   });
 
   // ── summarize ──
