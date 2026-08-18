@@ -462,7 +462,7 @@ export default function ExpertEvaluatePage() {
     saveDraftNow(next);
   }, [activeSupplier, scores]);
 
-  // 得分点选中（联动备忘抽屉）
+  // 得分点选中（联动备忘抽屉）：选中即打开抽屉，与条款核对面板/平板端行为一致
   const handlePointClickDesk = useCallback(
     (pointId: string, pointName: string) => {
       setActivePointId(pointId);
@@ -471,6 +471,7 @@ export default function ExpertEvaluatePage() {
         const item = project.scoreItems.find(si => (si.points ?? []).some(p => p.id === pointId));
         setActiveScoreItemId(item?.id ?? null);
       }
+      setMemoOpen(true);
     },
     [project],
   );
@@ -1441,10 +1442,7 @@ export default function ExpertEvaluatePage() {
                 onPointNote={handlePointNote}
                 pointMemoCounts={pointMemoCounts}
                 selectedPointId={activePointId}
-                onPointClick={(pid, pname) => {
-                  handlePointClickDesk(pid, pname);
-                  setMemoOpen(true);
-                }}
+                onPointClick={handlePointClickDesk}
               />
             </div>
           )}
