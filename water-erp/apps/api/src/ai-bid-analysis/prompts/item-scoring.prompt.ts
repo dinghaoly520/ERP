@@ -38,6 +38,7 @@ export const ITEM_SCORING_PROMPT = `你是资深评标专家。请按评分标�
 
 ## ★号实质性条款核查
 若评分项或招标要求含★号（实质性要求）条款，须在 starredResponse 汇总响应情况：未响应或不满足的★号条款必须列入 unmet，全部满足时 allMet=true。
+**unmet 每条必须是该★号条款的原文，从「招标要求」对应条款的 content 字段逐字复制；严禁填写条款编号（no）、ID 或任何哈希值。**
 
 ## 输出格式（严格 JSON，不要 markdown 代码块）
 {
@@ -55,7 +56,7 @@ export const ITEM_SCORING_PROMPT = `你是资深评标专家。请按评分标�
   ],
   "starredResponse": {
     "allMet": true或false,
-    "unmet": ["未响应的★号实质性条款（无则空数组）"]
+    "unmet": ["未响应的★号条款原文（逐字复制 content，无则空数组）"]
   },
   "overallComment": "100-200字的整体评价：综合各评分项给出中性、可核验的总结，避免使用优秀、突出、领先、成熟等带感情色彩的评价词"
 }`;

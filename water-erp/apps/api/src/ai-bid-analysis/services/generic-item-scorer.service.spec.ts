@@ -214,6 +214,70 @@ describe('GenericItemScorerService — per-item 评分测试 (C13)', () => {
       expect(result.totalScore).toBe(30);
     });
 
+    // ── 哈希链收口（2026-08-18）：LLM 曾把 requirements JSON 中的 id（sha256 哈希）填进 unmet，
+    //    导致专家端「存在未响应的 ★实质性条款：35fc814dfd、…」裸显哈希。──
+    const makeRequirements = (): TenderRequirements =>
+      ({
+        projectName: '测试项目',
+        projectType: '竞价采购',
+        qualificationRequirements: [
+          { id: '35fc814dfd', category: '资格要求', content: '采取率要求：用双层半合管取心，覆盖层≥85%', isRequired: true, evidenceType: '证明文件' },
+        ],
+        technicalRequirements: [
+          { id: 'f41599f605', category: '技术要求', content: '完成压（注）水试验：每 5m 进行一段压水', isStarred: true, weight: 1 },
+        ],
+        commercialRequirements: [],
+        priceEvaluationMethod: 'lowest_price',
+        scoringRules: {
+          technicalMax: 40, commercialMax: 10, priceMax: 50,
+          technicalWeights: {}, commercialWeights: {}, priceMethod: 'lowest', notes: '',
+        },
+      });
+
+    it('starredResponse.unmet 中的哈希 id 被映射回条款原文', async () => {
+      mockLlm.chatJson.mockResolvedValue({
+        items: [{ scoreItemId: 'si-1', score: 16, reason: 'x', confidence: 0.9 }],
+        starredResponse: { allMet: false, unmet: ['35fc814dfd', 'f41599f605'] },
+        overallComment: '',
+      });
+
+      const items = [makeScoreItem({ id: 'si-1', maxScore: 20 })];
+      const result = await service.score(items, {}, makeRequirements(), 'task-1', 'bs-1', []);
+
+      expect(result.starredResponse?.unmet).toEqual([
+        '采取率要求：用双层半合管取心，覆盖层≥85%',
+        '完成压（注）水试验：每 5m 进行一段压水',
+      ]);
+    });
+
+    it('unmet 中未命中的纯哈希形状条目被丢弃，正常文本保留', async () => {
+      mockLlm.chatJson.mockResolvedValue({
+        items: [{ scoreItemId: 'si-1', score: 16, reason: 'x', confidence: 0.9 }],
+        starredResponse: { allMet: false, unmet: ['deadbeef00', '★号条款：索道架设与运行维护'] },
+        overallComment: '',
+      });
+
+      const items = [makeScoreItem({ id: 'si-1', maxScore: 20 })];
+      const result = await service.score(items, {}, makeRequirements(), 'task-1', 'bs-1', []);
+
+      expect(result.starredResponse?.unmet).toEqual(['★号条款：索道架设与运行维护']);
+    });
+
+    it('传给 LLM 的招标要求 JSON 不含哈希 id', async () => {
+      mockLlm.chatJson.mockResolvedValue({
+        items: [{ scoreItemId: 'si-1', score: 16, reason: 'x', confidence: 0.9 }],
+        overallComment: '',
+      });
+
+      const items = [makeScoreItem({ id: 'si-1', maxScore: 20 })];
+      await service.score(items, {}, makeRequirements(), 'task-1', 'bs-1', []);
+
+      const prompt = mockLlm.chatJson.mock.calls[0][1] as string;
+      expect(prompt).not.toContain('35fc814dfd');
+      expect(prompt).not.toContain('f41599f605');
+      expect(prompt).toContain('采取率要求：用双层半合管取心，覆盖层≥85%');
+    });
+
     // ── 方案1：深度评分内核透传（strengths / weaknesses / starredResponse）──
     it('透传每项 strengths/weaknesses 与顶层 starredResponse（复用 procurement 深度评分内核）', async () => {
       mockLlm.chatJson.mockResolvedValue({

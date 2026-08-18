@@ -82,14 +82,21 @@ export class GenericItemScorerService {
           ),
         )
           .replace('{{BIDDER_INFO}}', JSON.stringify(extractedInfo ?? {}))
-          .replace('{{REQUIREMENTS}}', JSON.stringify(requirements ?? {})),
+          .replace('{{REQUIREMENTS}}', JSON.stringify(this.requirementsForLlm(requirements))),
         0,
         undefined,
         deterministicSeed(`${taskId}:${bidSupplierId}:score`),
       );
 
       overallComment = llmResult.overallComment ?? '';
-      starredResponse = llmResult.starredResponse;
+      // ★ 哈希链收口（2026-08-18）：unmet 不允许出现条款哈希 id——命中 id→原文映射，
+      //   未命中的纯哈希形状值丢弃（LLM 幻觉/编造的编号），其余文本保留
+      starredResponse = llmResult.starredResponse
+        ? {
+            allMet: llmResult.starredResponse.allMet,
+            unmet: this.resolveUnmet(llmResult.starredResponse.unmet, requirements),
+          }
+        : undefined;
 
       // 合并 LLM 结果回 BidScoreItem 元信息（name/category/maxScore）
       llmResults = llmItems.map((si) => {
@@ -181,7 +188,7 @@ export class GenericItemScorerService {
         ),
       )
         .replace('{{BIDDER_INFO}}', JSON.stringify(extractedInfo ?? {}))
-        .replace('{{REQUIREMENTS}}', JSON.stringify(requirements ?? {}));
+        .replace('{{REQUIREMENTS}}', JSON.stringify(this.requirementsForLlm(requirements)));
 
     const rescores: Array<Array<{ scoreItemId: string; score: number; confidence?: number }>> = [];
     for (let i = 1; i <= 2; i++) {
@@ -308,6 +315,71 @@ export class GenericItemScorerService {
       );
       return base;
     }
+  }
+
+  /**
+   * 招标要求注入 prompt 的形态：剥离条款哈希 id（stableReqId 的 sha256 切片），
+   * 改用全局 1-based 序号 no（资格→技术→商务连续编号），防止 LLM 把哈希原样回填进
+   * starredResponse.unmet 造成专家端裸显哈希链（2026-08-18 实测）。
+   */
+  private requirementsForLlm(
+    requirements: TenderRequirements | null,
+  ): Record<string, unknown> | null {
+    if (!requirements) return null;
+    let offset = 0;
+    const strip = <T extends { id: string }>(arr: T[]): Array<Omit<T, 'id'> & { no: number }> =>
+      arr.map(({ id: _id, ...rest }) => ({ no: ++offset, ...rest }));
+    return {
+      ...requirements,
+      qualificationRequirements: strip(requirements.qualificationRequirements),
+      technicalRequirements: strip(requirements.technicalRequirements),
+      commercialRequirements: strip(requirements.commercialRequirements),
+    };
+  }
+
+  /**
+   * starredResponse.unmet 收口（第二层防线，prompt 已收口后 LLM 仍可能回填编号）：
+   * - 命中条款 id（哈希）→ 回填条款原文 content
+   * - 纯哈希形状（8-16 位 hex）未命中 → 丢弃（LLM 幻觉/编造的编号）
+   * - 纯序号 #N / N → 回填 requirementsForLlm 对应编号的条款原文
+   * - 其余文本原样保留；去重
+   */
+  private resolveUnmet(
+    unmet: string[] | undefined,
+    requirements: TenderRequirements | null,
+  ): string[] {
+    if (!unmet?.length) return [];
+    const byId = new Map<string, string>();
+    for (const r of requirements?.qualificationRequirements ?? []) byId.set(r.id, r.content);
+    for (const r of requirements?.technicalRequirements ?? []) byId.set(r.id, r.content);
+    for (const r of requirements?.commercialRequirements ?? []) byId.set(r.id, r.content);
+    const seq = [
+      ...(requirements?.qualificationRequirements ?? []).map((r) => r.content),
+      ...(requirements?.technicalRequirements ?? []).map((r) => r.content),
+      ...(requirements?.commercialRequirements ?? []).map((r) => r.content),
+    ];
+
+    const resolved: string[] = [];
+    for (const raw of unmet) {
+      const u = String(raw).trim();
+      if (!u) continue;
+      const byIdHit = byId.get(u);
+      if (byIdHit) {
+        resolved.push(byIdHit);
+        continue;
+      }
+      if (/^[0-9a-f]{8,16}$/i.test(u)) continue; // 未命中的纯哈希 → 丢弃
+      const m = u.match(/^#?(\d{1,3})$/);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n >= 1 && n <= seq.length) {
+          resolved.push(seq[n - 1]);
+          continue;
+        }
+      }
+      resolved.push(u);
+    }
+    return [...new Set(resolved)];
   }
 
   /** 合并 per-item 结果 + 按 category 聚合（供雷达图）+ 总分 */
