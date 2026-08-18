@@ -34,6 +34,7 @@ model User {
   passwordHash   String?
   role           String      @default("internal_user")
   isActive       Boolean     @default(true)
+  requestedRole  String?     @map("requested_role") // 注册申请权限：management | office（审批时映射为正式角色）
   departmentId   String?
   department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   createdAt      DateTime    @default(now())

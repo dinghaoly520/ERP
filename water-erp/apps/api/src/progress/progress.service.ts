@@ -49,6 +49,121 @@ export interface ProgressStats {
   lastMonthAdded: number;
 }
 
+// ── LLM 输出乱码清理 ──
+// DeepSeek 偶发将个别汉字（如「购」）输出为 U+FFFD 替换字符，前端渲染即出现「�」乱码。
+// 以下工具先剔除 U+FFFD 与孤立代理项，再按真实项目名回填被写坏的片段。
+
+/** 剔除 U+FFFD 替换字符与孤立 UTF-16 代理项 */
+function stripMoji(text: string): string {
+  if (!text) return text;
+  return text.replace(/�/g, '').replace(/[\uDC00-\uDFFF]/g, '');
+}
+
+/** 匹配空白与常见中英文标点（用于归一化比对，容忍标题中的「 — 」与正文「—」差异） */
+const PUNCT_SPACE_RE = /[\s—–\-·、，。()（）【】《》"「」]/;
+
+/** 归一化：剔除空白/标点，仅保留实质字符 */
+function normalizeForMatch(s: string): string {
+  return s.replace(/[\s—–\-·、，。()（）【】《》"「」]/g, '');
+}
+
+/** 最长公共子序列长度 */
+function lcsLength(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0 || n === 0) return 0;
+  let prev = new Array<number>(n + 1).fill(0);
+  for (let i = 1; i <= m; i++) {
+    const cur = new Array<number>(n + 1).fill(0);
+    const ca = a[i - 1];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = ca === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/**
+ * 在 message 中定位与 title 最接近的「脏」片段（个别字符缺失），返回原始字符区间 [start, end)。
+ * 用 LCS 判相似度（≥ 标题长度 - 2），回溯对齐确定精确边界，避免误替换前后文。
+ */
+function locateTitleSpan(message: string, title: string): [number, number] | null {
+  const normTitle = normalizeForMatch(title);
+  if (normTitle.length < 4) return null;
+
+  const rawIdx: number[] = [];
+  let normMsg = '';
+  for (let i = 0; i < message.length; i++) {
+    if (!PUNCT_SPACE_RE.test(message[i])) {
+      normMsg += message[i];
+      rawIdx.push(i);
+    }
+  }
+
+  const M = normTitle.length;
+  const N = normMsg.length;
+  if (M < 4 || N < M - 2) return null;
+
+  const win = M + 3;
+  for (let s = 0; s + M - 2 <= N; s++) {
+    const e = Math.min(s + win, N);
+    const subLen = e - s;
+    // DP：normMsg[s..e) 与 normTitle 的 LCS
+    const dp: number[][] = Array.from({ length: subLen + 1 }, () => new Array<number>(M + 1).fill(0));
+    for (let i = 1; i <= subLen; i++) {
+      const ca = normMsg[s + i - 1];
+      for (let j = 1; j <= M; j++) {
+        dp[i][j] = ca === normTitle[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+    if (dp[subLen][M] < M - 2) continue;
+
+    // 回溯对齐，取匹配字符的起止位置（在 normMsg 内）
+    let i = subLen;
+    let j = M;
+    let first = -1;
+    let last = -1;
+    while (i > 0 && j > 0) {
+      if (normMsg[s + i - 1] === normTitle[j - 1]) {
+        if (last === -1) last = s + i - 1;
+        first = s + i - 1;
+        i--;
+        j--;
+      } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+        i--;
+      } else {
+        j--;
+      }
+    }
+    if (first < 0 || last < 0) continue;
+    return [rawIdx[first], rawIdx[last] + 1];
+  }
+  return null;
+}
+
+/** 用真实项目名回填 LLM 文案中被写坏的标题片段（按长度降序，先修长标题避免部分匹配） */
+function repairGarbledTitles(message: string, titles: string[]): string {
+  let result = message;
+  const unique = [...new Set(titles)]
+    .filter((t) => t && normalizeForMatch(t).length >= 4)
+    .sort((a, b) => normalizeForMatch(b).length - normalizeForMatch(a).length);
+
+  for (const title of unique) {
+    if (result.includes(title)) continue;
+    const span = locateTitleSpan(result, title);
+    if (span) {
+      result = result.slice(0, span[0]) + title + result.slice(span[1]);
+    }
+  }
+  return result;
+}
+
+/** 组合清理：剔除乱码 + 回填项目名 */
+function sanitizeLlmText(text: string, titles: string[]): string {
+  return repairGarbledTitles(stripMoji(text), titles);
+}
+
 @Injectable()
 export class ProgressService {
   private readonly logger = new Logger(ProgressService.name);
@@ -387,13 +502,16 @@ export class ProgressService {
         return ids;
       };
 
+      // 真实项目名清单，用于回填 LLM 偶发的 U+FFFD 乱码（如「直接采�公告」→「直接采购公告」）
+      const realTitles = [...titleToIdMap.keys()];
+
       return {
-        overview: parsed.overview ?? '',
+        overview: sanitizeLlmText(parsed.overview ?? '', realTitles),
         insights: Array.isArray(parsed.insights)
           ? parsed.insights.map((item: any, idx: number) => ({
               id: `ai-insight-${idx}`,
               type: item.type ?? 'observation',
-              message: item.message ?? '',
+              message: sanitizeLlmText(item.message ?? '', realTitles),
               urgency: (['low', 'medium', 'high'].includes(item.urgency ?? '') ? item.urgency : 'low') as 'low' | 'medium' | 'high',
               relatedProjectIds: resolveProjectIds(item.projectTitles ?? []),
               relatedStageKey: item.stageFilter ?? null,

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, Matches, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEmail, IsIn, Matches, MinLength } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -37,7 +37,6 @@ export class RegisterDto {
   @IsNotEmpty()
   verificationCode: string; // 手机验证码
 
-  @IsString()
-  @IsNotEmpty()
-  requestedRole: string; // 申请权限：management | office
+  @IsIn(['management', 'office'])
+  requestedRole: 'management' | 'office'; // 申请权限：management=管理权限 | office=办公权限
 }

@@ -38,35 +38,38 @@ export class AuthService {
       throw new ConflictException({ error: '账号已存在', code: 'USERNAME_EXISTS' });
     }
 
+    // 公司名归一化：公司是数据分类依据，手输变体（漏「有限」、空格等）统一到已有规范写法
+    const knownCompanies = await this.prisma.user.findMany({
+      where: { company: { not: null } },
+      select: { company: true },
+      distinct: ['company'],
+    }).then(rows => rows.map(r => r.company).filter((c): c is string => !!c));
+    const company = this.normalizeCompany(dto.company, knownCompanies);
+
     // 验证手机验证码
     await this.verificationService.verifyRegistrationCode(dto.phone, dto.verificationCode);
 
-    // 按部门名查找 Department（找不到则留空，管理员后续指派）
-    let departmentId: string | undefined;
-    const dept = await this.prisma.department.findFirst({
-      where: { name: { contains: dto.department.trim(), mode: 'insensitive' } },
-    });
-    if (dept) departmentId = dept.id;
-
-    // 注册用户默认未激活（isActive=false），需管理员审核通过后才能登录
+    // 注册用户默认未激活（isActive=false），需管理员审核通过后才能登录。
+    // 组织归属只记公司（company 文本），不做 Department 关联——现有部门均属
+    // 四川水发勘测设计研究有限公司，后续会有其他公司注册，公司才是区分维度。
     await this.prisma.user.create({
       data: {
         username: dto.username,
         displayName: dto.displayName,
         email: dto.email,
         phone: dto.phone,
-        company: dto.company,
+        company,
         officeLocation: dto.officeLocation,
         passwordHash: hashSync(dto.password, 10),
         role: 'internal_user',
         isActive: false,
-        departmentId,
+        requestedRole: dto.requestedRole,
       },
     });
 
     // 通知管理员有新注册待审核
     const roleLabel = dto.requestedRole === 'management' ? '管理权限' : '办公权限';
-    await this.notifyAdminsPendingRegistration(dto.displayName, dto.company, dto.department, roleLabel);
+    await this.notifyAdminsPendingRegistration(dto.displayName, company, dto.department, roleLabel);
 
     return { pending: true as const };
   }
@@ -126,6 +129,17 @@ export class AuthService {
     });
   }
 
+  /** 公司名归一化：精确匹配（忽略大小写/空白）→ 去后缀模糊匹配（有限/股份/集团）→ 原样保留 */
+  private normalizeCompany(input: string, known: string[]): string {
+    const trimmed = input.trim().replace(/\s+/g, '');
+    const exact = known.find(c => c.toLowerCase() === trimmed.toLowerCase());
+    if (exact) return exact;
+    const stripSuffix = (s: string) => s.replace(/(股份有限公司|有限公司|有限责任公司|集团)$/, '');
+    const target = stripSuffix(trimmed);
+    const fuzzy = known.find(c => stripSuffix(c) === target);
+    return fuzzy ?? trimmed;
+  }
+
   /** 通知管理员（leader/admin）有新注册待审核 */
   private async notifyAdminsPendingRegistration(name: string, company: string, department: string, roleLabel: string) {
     try {
@@ -147,13 +161,32 @@ export class AuthService {
     } catch { /* 通知失败不阻塞注册 */ }
   }
 
-  /** 管理员审核：通过注册 */
+  /** 管理员审核：通过注册 —— 按申请权限映射正式角色（leader/staff），公司为唯一组织归属 */
   async approveUser(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException({ error: '用户不存在', code: 'NOT_FOUND' });
     if (user.isActive) throw new BadRequestException({ error: '用户已激活', code: 'ALREADY_ACTIVE' });
-    await this.prisma.user.update({ where: { id: userId }, data: { isActive: true } });
-    return { ok: true };
+
+    // 权限→角色：管理权限→leader，办公权限→staff（:3005 PORTAL_ROLE_PRIORITY.web 的两个角色）
+    const finalRole = user.requestedRole === 'management' ? 'leader' : 'staff';
+
+    // 写库：激活 + 定角色。[username, role] 复合唯一，撞名抛 P2002 → 409
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id: userId },
+        data: { isActive: true, role: finalRole },
+        select: { id: true, username: true, role: true, company: true },
+      });
+      return { ok: true, user: updated };
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        throw new ConflictException({
+          error: `用户名「${user.username}」已有同角色账号，无法变更为 ${finalRole}`,
+          code: 'USERNAME_ROLE_CONFLICT',
+        });
+      }
+      throw e;
+    }
   }
 
   /** 管理员审核：拒绝注册（删除用户） */
