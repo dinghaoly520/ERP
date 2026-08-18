@@ -29,6 +29,17 @@ const loadErrorMsg = ref('')
 const profileError = ref(false)
 const bootstrapping = ref(false)
 
+/** 投递报价显示文本：有唱标锚点时归一为元（与唱标总表「报价（元）」单位统一）；
+ *  未唱标回落投递表单口径（<10000 万元、≥10000 元，见 BidSubmit.vue formatBidPrice） */
+const submittedPriceText = computed(() => {
+  const s = record.value?.submitted
+  if (!s?.bidPrice) return '—'
+  if (s.bidPriceInYuan != null) return `${s.bidPriceInYuan} 元`
+  const n = Number(s.bidPrice)
+  if (!Number.isFinite(n)) return '—'
+  return n >= 10000 ? `${s.bidPrice} 元` : `${s.bidPrice} 万元`
+})
+
 async function refresh() {
   // supplier-portal 的 axios 拦截器已解包 response.data（src/api/index.ts），返回值即响应体
   try {
@@ -157,9 +168,9 @@ onMounted(bootstrap)
 
         <el-descriptions :column="1" size="small" border>
           <el-descriptions-item label="本司解密状态">{{ decryptStatus || record?.decryptResult || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="唱标金额">{{ record?.amount || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="唱标金额">{{ record?.amount != null ? `${record.amount} 元` : '—' }}</el-descriptions-item>
           <el-descriptions-item label="投递报价">
-            <span :class="{ 'mismatch': record?.submitted?.priceMismatch }">{{ record?.submitted?.bidPrice || '—' }}</span>
+            <span :class="{ 'mismatch': record?.submitted?.priceMismatch }">{{ submittedPriceText }}</span>
             <el-tag v-if="record?.submitted?.priceMismatch" size="small" type="warning" effect="plain">与唱标不一致</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="工期（唱标）">{{ record?.period || '—' }}</el-descriptions-item>
@@ -197,7 +208,7 @@ onMounted(bootstrap)
           </div>
         </template>
         <el-table :data="records" size="small" empty-text="暂无唱标记录（开标后实时展示）">
-          <el-table-column label="供应商" min-width="150" show-overflow-tooltip>
+          <el-table-column label="供应商" min-width="180" class-name="col-supplier">
             <template #default="{ row }">
               <span>{{ row.supplierName }}</span>
               <el-tag v-if="row.bidSupplierId === record?.bidSupplierId" size="small" type="info" class="self-tag">本司</el-tag>
@@ -227,27 +238,32 @@ onMounted(bootstrap)
 </template>
 
 <style scoped>
+.left { display: flex; flex-direction: column; }
 .hall { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.2fr); gap: 16px; }
 .hall-error { grid-column: 1 / -1; }
-.head { display: flex; flex-direction: column; gap: 8px; }
-.name { font-weight: 700; line-height: 1.4; }
-.meta { display: flex; align-items: center; gap: 10px; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.name { font-weight: 700; line-height: 1.4; flex: 1; min-width: 0; }
+.meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 /* 在场徽标：绿色浅底 hairline 药丸（徽标不用新拟态阴影，见 .impeccable.md 反模式），左对齐 */
 .presence { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: #f0f9eb; border: 1px solid #e1f3d8; color: #529b2e; font-size: 12px; font-weight: 600; }
 .presence .num { color: #529b2e; font-weight: 800; font-variant-numeric: tabular-nums; }
 .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
-.records-card { margin-top: 16px; }
+.records-card { margin-top: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.records-card :deep(.el-card__header) { flex-shrink: 0; }
+.records-card :deep(.el-card__body) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.records-card :deep(.el-table) { flex: 1; }
 .records-head { display: flex; align-items: center; justify-content: space-between; }
 .records-title { font-weight: 600; }
 .records-count { color: #909399; font-size: 12px; font-variant-numeric: tabular-nums; }
 .self-tag { margin-left: 6px; }
+/* 供应商名称列允许换行（el-table 单元格默认 nowrap 截断，改用整列换行而非 tooltip） */
+.records-card :deep(.col-supplier .cell) { white-space: normal; word-break: break-all; line-height: 1.5; }
 .stage-hint { margin-top: 8px; color: #909399; font-size: 12px; }
 .empty { padding: 40px; text-align: center; color: #999; }
 .mismatch { color: #e6a23c; font-weight: 600; }
 @media (max-width: 960px) { .hall { grid-template-columns: 1fr; } }
-/* 桌面端：网格撑满内容区高度，右列聊天面板随之拉伸至页面底部；左列信息卡保持自然高度 */
+/* 桌面端：网格撑满内容区高度，左右两列同高——右列聊天面板与左列唱标总表卡均延伸至页面底部（底边对齐） */
 @media (min-width: 961px) {
   .hall { height: 100%; }
-  .left { align-self: start; }
 }
 </style>
