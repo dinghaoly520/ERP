@@ -27,7 +27,7 @@ describe('bid-bond-status', () => {
     expect(isBondQualified('随便填的')).toBe(false);
   });
 
-  it('BOND_STATUS_OPTIONS 含 4 个固定值', () => {
-    expect(BOND_STATUS_OPTIONS).toEqual(['已缴纳', '保函有效', '未缴纳', '异常']);
+  it('BOND_STATUS_OPTIONS 含 5 个固定值（含不适用档）', () => {
+    expect(BOND_STATUS_OPTIONS).toEqual(['已缴纳', '保函有效', '未缴纳', '异常', '不适用']);
   });
 });

@@ -1306,13 +1306,16 @@ describe('ProjectManagementService', () => {
     it('竞价采购：编号前缀 JJ + 阶段集含 PUBLIC_ANNOUNCEMENT + 前置阶段 COMPLETED + currentStage=BID_EVALUATION', async () => {
       const { service, prisma } = makeService();
       (prisma as any).user = { findUnique: jest.fn().mockResolvedValue({ displayName: '陈晓峰', department: { name: '信息技术部' } }) };
-      prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-16', projectCode: 'JJ-2026081701' });
+      // 编号含当天日期（服务按日流水生成），断言与 mock 均动态计算，避免跨天跑挂
+      const d = new Date();
+      const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-16', projectCode: `JJ-${ymd}01` });
 
       const res = await service.createItemFromAnnouncement(prisma as any, {
         title: '公告直建测试项目', procurementMethod: '竞价采购', budget: 900000, authorId: 'u-1',
       });
 
-      expect(res).toEqual({ id: 'pm-16', projectCode: 'JJ-2026081701' });
+      expect(res).toEqual({ id: 'pm-16', projectCode: `JJ-${ymd}01` });
       const createArg = prisma.projectManagementItem.create.mock.calls[0][0].data;
       expect(createArg.title).toBe('公告直建测试项目');
       expect(createArg.procurementMethod).toBe('竞价采购');
