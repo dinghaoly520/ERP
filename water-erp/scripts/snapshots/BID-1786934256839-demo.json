@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-18T04:50:12.857Z",
+  "capturedAt": "2026-08-18T04:56:43.761Z",
   "projectCode": "BID-1786934256839",
   "data": {
     "BidProject": [
@@ -430,54 +430,6 @@
       }
     ],
     "BidExpert": [
-      {
-        "id": "cmswnz7q5015yuunx36qeb2if",
-        "projectId": "cmswmioxz0052uunxu1879izv",
-        "expertName": "李自繁",
-        "major": "综合-施工",
-        "signedIn": true,
-        "avoidanceConfirmed": true,
-        "progress": 0,
-        "totalScore": "0",
-        "createdAt": "2026-08-17T03:18:27.293Z",
-        "updatedAt": "2026-08-18T03:08:37.802Z",
-        "userId": "c2bf9d5c0c8adb9048dc275",
-        "reportConfirmed": false,
-        "reportConfirmedAt": null,
-        "conflictedSupplierIds": [],
-        "phoneVerified": true,
-        "aiConsentAt": "2026-08-17T03:59:53.305Z",
-        "aiConsentConfirmed": true,
-        "isLead": true,
-        "invitationStatus": "confirmed",
-        "expertRole": "正选",
-        "confidentialityAgreed": true,
-        "confidentialityAgreedAt": "2026-08-17T03:59:33.631Z",
-        "disciplineAgreed": true,
-        "disciplineAgreedAt": "2026-08-17T03:59:39.493Z",
-        "scoreDraft": {
-          "desktop": {
-            "scores": {},
-            "savedAt": 1787022517793
-          }
-        },
-        "rsvpToken": "HZTcCrIgDv5i",
-        "rsvpExpiresAt": "2026-08-17T05:18:35.769Z",
-        "rsvpRespondedAt": null,
-        "isPurchaserRepresentative": false,
-        "dissentingOpinion": null,
-        "dissentingReason": null,
-        "signInIp": "::ffff:127.0.0.1",
-        "signInMeta": {
-          "ip": "::ffff:127.0.0.1",
-          "timestamp": "2026-08-17T03:59:25.660Z",
-          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
-        },
-        "signStatus": "PENDING",
-        "signStatusAt": null,
-        "signScanFileId": null,
-        "signRegisteredBy": "cmrai35fr0002koddvbs7wm1b"
-      },
       {
         "id": "cmswnz7q4015wuunxrvfk7nt2",
         "projectId": "cmswmioxz0052uunxu1879izv",
@@ -1312,6 +1264,121 @@
         "signInMeta": {
           "ip": "::ffff:127.0.0.1",
           "timestamp": "2026-08-17T08:55:51.793Z",
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
+        },
+        "signStatus": "PENDING",
+        "signStatusAt": null,
+        "signScanFileId": null,
+        "signRegisteredBy": "cmrai35fr0002koddvbs7wm1b"
+      },
+      {
+        "id": "cmswnz7q5015yuunx36qeb2if",
+        "projectId": "cmswmioxz0052uunxu1879izv",
+        "expertName": "李自繁",
+        "major": "综合-施工",
+        "signedIn": true,
+        "avoidanceConfirmed": true,
+        "progress": 100,
+        "totalScore": "79.3",
+        "createdAt": "2026-08-17T03:18:27.293Z",
+        "updatedAt": "2026-08-18T04:56:18.707Z",
+        "userId": "c2bf9d5c0c8adb9048dc275",
+        "reportConfirmed": false,
+        "reportConfirmedAt": null,
+        "conflictedSupplierIds": [],
+        "phoneVerified": true,
+        "aiConsentAt": "2026-08-17T03:59:53.305Z",
+        "aiConsentConfirmed": true,
+        "isLead": true,
+        "invitationStatus": "confirmed",
+        "expertRole": "正选",
+        "confidentialityAgreed": true,
+        "confidentialityAgreedAt": "2026-08-17T03:59:33.631Z",
+        "disciplineAgreed": true,
+        "disciplineAgreedAt": "2026-08-17T03:59:39.493Z",
+        "scoreDraft": {
+          "desktop": {
+            "scores": {
+              "cmswng8q100yguunxh26yxkc5:cmswokvfz01bvuunxxo0gjocp": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswng8q100yguunxh26yxkc5:cmswokvfz01bwuunxt9kuo7km": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswng8q100yguunxh26yxkc5:cmswokvfz01bxuunxpbi2mvp7": {
+                "score": 50,
+                "reason": "报价按公式计分。"
+              },
+              "cmswng8q100yguunxh26yxkc5:cmswom0o901cjuunxshpk22j5": {
+                "score": 22,
+                "reason": "施工组织设计总体可行，个别保障措施针对性不足。"
+              },
+              "cmswng8q100yguunxh26yxkc5:cmswomo4h01d4uunxads1mutg": {
+                "score": 5,
+                "reason": "业绩数量与规模基本满足要求，信誉较好。"
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswokvfz01bvuunxxo0gjocp": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswokvfz01bwuunxt9kuo7km": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswokvfz01bxuunxpbi2mvp7": {
+                "score": 50,
+                "reason": "报价按公式计分。"
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswom0o901cjuunxshpk22j5": {
+                "score": 28,
+                "reason": "施工组织设计较完整，斜孔与水平孔专项措施明确。"
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswomo4h01d4uunxads1mutg": {
+                "score": 8,
+                "reason": "同类业绩较丰富，含深孔定向孔复杂工况，信誉良好。"
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswokvfz01bvuunxxo0gjocp": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswokvfz01bwuunxt9kuo7km": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswokvfz01bxuunxpbi2mvp7": {
+                "score": 50,
+                "reason": "报价按公式计分。"
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswom0o901cjuunxshpk22j5": {
+                "score": 20,
+                "reason": "施工组织设计一般，关键工序保障措施偏弱。"
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswomo4h01d4uunxads1mutg": {
+                "score": 5,
+                "reason": "业绩类似性一般，酌情给分。"
+              }
+            },
+            "savedAt": 1787028978692
+          }
+        },
+        "rsvpToken": "HZTcCrIgDv5i",
+        "rsvpExpiresAt": "2026-08-17T05:18:35.769Z",
+        "rsvpRespondedAt": null,
+        "isPurchaserRepresentative": false,
+        "dissentingOpinion": null,
+        "dissentingReason": null,
+        "signInIp": "::ffff:127.0.0.1",
+        "signInMeta": {
+          "ip": "::ffff:127.0.0.1",
+          "timestamp": "2026-08-17T03:59:25.660Z",
           "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
         },
         "signStatus": "PENDING",
@@ -2309,6 +2376,171 @@
         "supplierId": "cmswng8q100yguunxh26yxkc5",
         "passed": null,
         "updatedAt": "2026-08-18T01:22:31.768Z"
+      },
+      {
+        "id": "cmsy6wi550001uuwhtqtao372",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bvuunxxo0gjocp",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.706Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.706Z"
+      },
+      {
+        "id": "cmsy6wi570003uuwho6qnchhd",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bwuunxt9kuo7km",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.707Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.707Z"
+      },
+      {
+        "id": "cmsy6wi580005uuwhs7eqb08p",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bxuunxpbi2mvp7",
+        "score": "50",
+        "reason": "报价按公式计分。",
+        "createdAt": "2026-08-18T04:55:59.709Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.709Z"
+      },
+      {
+        "id": "cmsy6wi5a0007uuwhhntqfr8u",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswom0o901cjuunxshpk22j5",
+        "score": "22",
+        "reason": "施工组织设计总体可行，个别保障措施针对性不足。",
+        "createdAt": "2026-08-18T04:55:59.710Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.710Z"
+      },
+      {
+        "id": "cmsy6wi5b0009uuwhnsnyzhsd",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswomo4h01d4uunxads1mutg",
+        "score": "5",
+        "reason": "业绩数量与规模基本满足要求，信誉较好。",
+        "createdAt": "2026-08-18T04:55:59.711Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.711Z"
+      },
+      {
+        "id": "cmsy6wi5c000buuwha17pn9pk",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bvuunxxo0gjocp",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.712Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.712Z"
+      },
+      {
+        "id": "cmsy6wi5d000duuwhy2uo37wi",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bwuunxt9kuo7km",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.713Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.713Z"
+      },
+      {
+        "id": "cmsy6wi5e000fuuwhm79l0r50",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bxuunxpbi2mvp7",
+        "score": "50",
+        "reason": "报价按公式计分。",
+        "createdAt": "2026-08-18T04:55:59.714Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.714Z"
+      },
+      {
+        "id": "cmsy6wi5f000huuwhx6crqmih",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswom0o901cjuunxshpk22j5",
+        "score": "28",
+        "reason": "施工组织设计较完整，斜孔与水平孔专项措施明确。",
+        "createdAt": "2026-08-18T04:55:59.716Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.716Z"
+      },
+      {
+        "id": "cmsy6wi5g000juuwh38etw9u0",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswomo4h01d4uunxads1mutg",
+        "score": "8",
+        "reason": "同类业绩较丰富，含深孔定向孔复杂工况，信誉良好。",
+        "createdAt": "2026-08-18T04:55:59.717Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.717Z"
+      },
+      {
+        "id": "cmsy6wi5h000luuwho6r5h6e9",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bvuunxxo0gjocp",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.718Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.718Z"
+      },
+      {
+        "id": "cmsy6wi5k000nuuwhrakrejy5",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bwuunxt9kuo7km",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.721Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.721Z"
+      },
+      {
+        "id": "cmsy6wi5m000puuwhuq5fvfdm",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bxuunxpbi2mvp7",
+        "score": "50",
+        "reason": "报价按公式计分。",
+        "createdAt": "2026-08-18T04:55:59.723Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.723Z"
+      },
+      {
+        "id": "cmsy6wi5n000ruuwhrkm5m5eu",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswom0o901cjuunxshpk22j5",
+        "score": "20",
+        "reason": "施工组织设计一般，关键工序保障措施偏弱。",
+        "createdAt": "2026-08-18T04:55:59.724Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.724Z"
+      },
+      {
+        "id": "cmsy6wi5p000tuuwhvhf0exa7",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswomo4h01d4uunxads1mutg",
+        "score": "5",
+        "reason": "业绩类似性一般，酌情给分。",
+        "createdAt": "2026-08-18T04:55:59.725Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.725Z"
       }
     ],
     "BidScoreItem": [
