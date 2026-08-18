@@ -246,6 +246,12 @@ export class SupplierPortalController {
     return this.portalService.getMyOpeningRecord(supplierId, projectId);
   }
 
+  @Get('bid-submissions/:projectId/opening-records')
+  async listOpeningRecords(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.listOpeningRecords(supplierId, projectId);
+  }
+
   @Post('bid-submissions/:projectId/opening-confirm')
   async confirmOpening(@Request() req: any, @Param('projectId') projectId: string) {
     const supplierId = await this.getSupplierId(req.user.sub);

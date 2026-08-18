@@ -1225,6 +1225,48 @@ export class SupplierPortalService {
     };
   }
 
+  /**
+   * 唱标记录列表（大厅公开视图，供应商侧）：
+   * 自 OPENING 阶段起向本项目全体投标人公开各家唱标信息
+   * （《电子招标投标办法》第30条：解密完成后向所有投标人公布名称/价格等唱标内容）。
+   * 脱敏：异议原因/处理结果/操作人留痕（objectionReason/handleResult/handledBy/handledAt）
+   * 属主持端裁决过程信息，不下发；confirmStatus 为大厅公开状态，保留。
+   * 成员门控与 WS join:project 对齐（bid.gateway.ts）——非本项目投标人不得查看。
+   */
+  async listOpeningRecords(supplierId: string, projectId: string) {
+    const member = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId },
+      select: { id: true },
+    });
+    if (!member) {
+      throw new ForbiddenException({ error: '仅本项目投标人可查看开标记录', code: 'NOT_PROJECT_MEMBER' });
+    }
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (!['OPENING', 'EVALUATING', 'ARCHIVED'].includes(project.stage)) {
+      throw new BadRequestException({ error: '开标尚未开始，唱标记录暂不可见', code: 'OPENING_NOT_STARTED' });
+    }
+    return this.prisma.bidOpeningRecord.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        bidSupplierId: true,
+        supplierName: true,
+        amount: true,
+        period: true,
+        qualityTarget: true,
+        bondStatus: true,
+        decryptResult: true,
+        confirmStatus: true,
+        confirmedAt: true,
+      },
+    });
+  }
+
   async confirmOpening(supplierId: string, projectId: string) {
     // P0: 阶段门控 — 仅在开标阶段可确认唱标
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });

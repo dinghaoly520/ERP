@@ -867,4 +867,66 @@ describe('SupplierPortalService', () => {
       expect(invitedBranch!.stage).toEqual({ in: ['DOWNLOAD', 'SUBMIT'] });
     });
   });
+
+  describe('listOpeningRecords（大厅公开视图）', () => {
+    const mockRecords = [
+      { id: 'r-1', bidSupplierId: 'bs-1', supplierName: '四川川水建设工程有限公司', amount: '4200000', period: '120 日历天', qualityTarget: '合格', bondStatus: '已缴纳', decryptResult: '解密成功', confirmStatus: '待供应商确认', confirmedAt: null, objectionReason: null, handleResult: null, handledBy: null, createdAt: new Date('2026-08-17T09:00:00Z') },
+      { id: 'r-2', bidSupplierId: 'bs-2', supplierName: '成都华建地质工程科技有限公司', amount: '3980000', period: '110 日历天', qualityTarget: '优良', bondStatus: '保函有效', decryptResult: '解密成功', confirmStatus: '供应商已确认', confirmedAt: new Date('2026-08-17T09:05:00Z'), objectionReason: '异议已处理', handleResult: '维持原记录', handledBy: 'user-host', createdAt: new Date('2026-08-17T09:02:00Z') },
+    ];
+
+    it('OPENING 阶段返回全部记录（createdAt 升序）且剥离异议过程字段', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+      prisma.bidOpeningRecord.findMany.mockResolvedValue(mockRecords);
+
+      const result = await service.listOpeningRecords('supplier-1', 'project-1');
+
+      expect(prisma.bidOpeningRecord.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { projectId: 'project-1' }, orderBy: { createdAt: 'asc' } }),
+      );
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({ supplierName: '四川川水建设工程有限公司', amount: '4200000' });
+      expect(result[1].confirmStatus).toBe('供应商已确认');
+      // 脱敏口径：select 白名单不含异议裁决过程字段——jest mock 不过滤字段（返回原对象），
+      // 故以 select 断言契约（Prisma 运行时按 select 下发，不含即不返回）。
+      const select = prisma.bidOpeningRecord.findMany.mock.calls[0][0].select;
+      for (const f of ['objectionReason', 'handleResult', 'handledBy', 'handledAt']) {
+        expect(select[f]).toBeUndefined();
+      }
+      expect(select.confirmStatus).toBe(true);
+    });
+
+    it('EVALUATING/ARCHIVED 阶段同样可见（唱标信息开标后属公开信息）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
+      prisma.bidOpeningRecord.findMany.mockResolvedValue(mockRecords);
+
+      await expect(service.listOpeningRecords('supplier-1', 'project-1')).resolves.toHaveLength(2);
+    });
+
+    it('开标前（SUBMIT）→ 400 OPENING_NOT_STARTED', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
+
+      await expect(service.listOpeningRecords('supplier-1', 'project-1'))
+        .rejects.toMatchObject({ response: { code: 'OPENING_NOT_STARTED' } });
+      expect(prisma.bidOpeningRecord.findMany).not.toHaveBeenCalled();
+    });
+
+    it('非本项目投标人 → 403 NOT_PROJECT_MEMBER', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      await expect(service.listOpeningRecords('supplier-1', 'project-1'))
+        .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_MEMBER' } });
+      expect(prisma.bidOpeningRecord.findMany).not.toHaveBeenCalled();
+    });
+
+    it('项目不存在 → 400 NOT_FOUND', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1' });
+      prisma.bidProject.findUnique.mockResolvedValue(null);
+
+      await expect(service.listOpeningRecords('supplier-1', 'project-1'))
+        .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+    });
+  });
 });
