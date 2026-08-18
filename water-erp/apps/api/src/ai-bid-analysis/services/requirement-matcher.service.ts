@@ -20,19 +20,30 @@ export class RequirementMatcherService {
     const threshold = Number(process.env.AI_EXCERPT_VERIFY_THRESHOLD ?? DEFAULT_VERIFY_THRESHOLD);
 
     // prompt 只给 seq+content+isStarred（不暴露 hash id；LLM 回填小整数 seq 比 hash 可靠）
-    const prompt = REQUIREMENT_MATCHING_PROMPT
-      .replace('{{REQUIREMENTS}}', JSON.stringify(flat.map((f) => ({ seq: f.seq, content: f.tenderContent, isStarred: f.isStarred }))))
-      .replace('{{PAGES}}', JSON.stringify(pages));
-
-    const result = await this.llmService.chatJson<{ responses: Array<{ seq: number; status: any; excerpt: string; file: string | null; page: number | null; confidence: number }> }>(
-      '你是招投标响应核查专家。',
-      prompt, 0, undefined,
-      taskId ? deterministicSeed(taskId + ':req-match') : undefined,
-    );
+    // 2026-08-18 分块：33 条条款的单次输出 JSON 曾超 LLM 输出上限被截断（finish_reason=length），
+    // 导致 requirementResponses 整表为 0。每批最多 AI_REQ_MATCH_BATCH（默认 11）条，批次间合并。
+    const batchSize = Math.max(1, Number(process.env.AI_REQ_MATCH_BATCH ?? '11') || 11);
+    const allResponses: Array<{ seq: number; status: any; excerpt: string; file: string | null; page: number | null; confidence: number }> = [];
+    for (let i = 0; i < flat.length; i += batchSize) {
+      const prompt = REQUIREMENT_MATCHING_PROMPT
+        .replace('{{REQUIREMENTS}}', JSON.stringify(flat.slice(i, i + batchSize).map((f) => ({ seq: f.seq, content: f.tenderContent, isStarred: f.isStarred }))))
+        .replace('{{PAGES}}', JSON.stringify(pages));
+      try {
+        const result = await this.llmService.chatJson<{ responses: Array<{ seq: number; status: any; excerpt: string; file: string | null; page: number | null; confidence: number }> }>(
+          '你是招投标响应核查专家。',
+          prompt, 0, undefined,
+          taskId ? deterministicSeed(taskId + ':req-match:' + i) : undefined,
+        );
+        allResponses.push(...(result.responses ?? []));
+      } catch (e) {
+        // 单批失败不拖垮整体：其余批次结果保留（部分响应好过整表为 0）
+        this.logger.warn(`matcher: batch @seq ${i + 1} 失败，跳过: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
 
     const bySeq = new Map(flat.map((f) => [f.seq, f]));
     const seenIds = new Set<string>(); // Fix 5: requirementId 去重
-    return (result.responses ?? [])
+    return allResponses
       .map((r): RequirementResponse | null => {
         // Fix 4: 强制 seq 为整数；LLM 偶发返回字符串 seq（如 "3"），Map key 是 number 会导致静默丢失
         const seqNum = Number(r.seq);
