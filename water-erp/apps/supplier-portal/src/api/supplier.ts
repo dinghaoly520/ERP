@@ -74,6 +74,10 @@ export const supplierApi = {
   getOpeningRecord(projectId: string) {
     return api.get(`/supplier-portal/bid-submissions/${projectId}/opening-record`)
   },
+  // 唱标记录列表（大厅公开视图：自 OPENING 起向全体投标人公开各家唱标信息）
+  getOpeningRecords(projectId: string) {
+    return api.get(`/supplier-portal/bid-submissions/${projectId}/opening-records`)
+  },
   confirmOpening(projectId: string) {
     return api.post(`/supplier-portal/bid-submissions/${projectId}/opening-confirm`)
   },

@@ -16,6 +16,7 @@ const projectId = route.params.projectId as string
 
 const project = ref<any>(null)
 const record = ref<any>(null)
+const records = ref<any[]>([])
 const checkedInAt = ref<string | null>(null)
 const onlineCount = ref(0)
 const decryptStatus = ref<string>('')
@@ -31,12 +32,15 @@ const bootstrapping = ref(false)
 async function refresh() {
   // supplier-portal 的 axios 拦截器已解包 response.data（src/api/index.ts），返回值即响应体
   try {
-    const [p, r] = await Promise.all([
+    const [p, r, list] = await Promise.all([
       bidApi.getProject(projectId),
       supplierApi.getOpeningRecord(projectId).catch(() => null),
+      // 开标前端点返回 400 OPENING_NOT_STARTED——捕获后置空列表，页面不报错
+      supplierApi.getOpeningRecords(projectId).catch(() => null),
     ])
     project.value = p
     record.value = r
+    records.value = list ?? []
     loadError.value = false
   } catch (e: any) {
     // 失败保留上次成功数据，仅置标志；首屏（project 为空）时由错误态 + 重试展示
@@ -182,6 +186,30 @@ onMounted(bootstrap)
         </div>
         <div v-if="!isOpening && stage" class="stage-hint">大厅互动仅在开标阶段开放。</div>
       </el-card>
+
+      <!-- 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），
+           WS opening:record:updated → refresh() 实时更新；本司行按 bidSupplierId 高亮 -->
+      <el-card shadow="never" class="records-card">
+        <template #header>
+          <div class="records-head">
+            <span class="records-title">唱标记录（全部投标人）</span>
+            <span class="records-count">{{ records.length }} 条</span>
+          </div>
+        </template>
+        <el-table :data="records" size="small" empty-text="暂无唱标记录（开标后实时展示）">
+          <el-table-column label="供应商" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ row.supplierName }}</span>
+              <el-tag v-if="row.bidSupplierId === record?.bidSupplierId" size="small" type="info" class="self-tag">本司</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="amount" label="报价（元）" min-width="110" />
+          <el-table-column prop="period" label="工期" min-width="100" />
+          <el-table-column prop="qualityTarget" label="质量目标" min-width="110" />
+          <el-table-column prop="bondStatus" label="保证金" min-width="90" />
+          <el-table-column prop="confirmStatus" label="状态" min-width="110" />
+        </el-table>
+      </el-card>
     </div>
 
     <div class="right">
@@ -208,6 +236,11 @@ onMounted(bootstrap)
 .presence { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: #f0f9eb; border: 1px solid #e1f3d8; color: #529b2e; font-size: 12px; font-weight: 600; }
 .presence .num { color: #529b2e; font-weight: 800; font-variant-numeric: tabular-nums; }
 .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
+.records-card { margin-top: 16px; }
+.records-head { display: flex; align-items: center; justify-content: space-between; }
+.records-title { font-weight: 600; }
+.records-count { color: #909399; font-size: 12px; font-variant-numeric: tabular-nums; }
+.self-tag { margin-left: 6px; }
 .stage-hint { margin-top: 8px; color: #909399; font-size: 12px; }
 .empty { padding: 40px; text-align: center; color: #999; }
 .mismatch { color: #e6a23c; font-weight: 600; }
