@@ -2697,6 +2697,54 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
   });
 });
 
+describe('BidService — enterOpeningRecord 唱标事件本司收口', () => {
+  let service: BidService;
+  let prisma: any;
+  const gatewayMock = { notifyOpeningRecordUpdated: jest.fn(), notifySupervisionLog: jest.fn() };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
+      supplierBidSubmission: { findUnique: jest.fn() },
+      bidOpeningRecord: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), upsert: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn() } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
+        { provide: BidGateway, useValue: gatewayMock },
+        BidService,
+        BidScoreStandardService,
+        { provide: StorageService, useValue: { upload: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(BidService);
+  });
+
+  it('通知只带 Supplier.id（非 BidSupplier.id）——socket 表以 Supplier 主键为 key', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 's1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+    prisma.bidOpeningRecord.upsert.mockResolvedValue({ id: 'r1', confirmStatus: '待供应商确认' });
+
+    await service.enterOpeningRecord('p1', { bidSupplierId: 'bs1', amount: '980000', period: '180天', qualityTarget: '合格', bondStatus: '已缴纳' } as any);
+
+    expect(gatewayMock.notifyOpeningRecordUpdated).toHaveBeenCalledWith('p1', expect.objectContaining({
+      supplierId: 's1',      // 旧实现误传 BidSupplier.id 'bs1'，两套 id 体系永不命中
+      supplierName: '甲公司',
+      recordId: 'r1',
+      amount: 980000,
+    }));
+  });
+});
+
 /* ── 催办（nudge）：站内信 + Email 多通道，按门控过滤参与者 ── */
 
 describe('BidService — nudge (催办)', () => {

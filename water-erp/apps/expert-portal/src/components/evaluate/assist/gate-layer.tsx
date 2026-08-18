@@ -78,7 +78,7 @@ export function GateLayer({ assistData }: { assistData: AssistData }) {
             {shownUnmetQual.map((r,i) => (
               <li key={i} className="flex items-start gap-1 text-[11px] text-[var(--danger)]">
                 <XCircle size={11} className="mt-0.5 shrink-0" />
-                <span className="truncate" title={r.excerpt}>{r.excerpt || r.requirementId}{r.location ? `（第${r.location.page}页）` : ''}</span>
+                <span className="truncate" title={r.excerpt}>{r.excerpt || '（条款原文未提取，请核对招标文件）'}{r.location ? `（第${r.location.page}页）` : ''}</span>
               </li>
             ))}
           </ul>

@@ -7,6 +7,7 @@ import { bidApi } from '@/api/bid'
 import { openingHallApi } from '@/api/openingHall'
 import { useBidWebSocket } from '@/composables/useBidWebSocket'
 import { useAuthStore } from '@/stores/auth'
+import { User } from '@element-plus/icons-vue'
 import ChatPanel from '@/components/bid/ChatPanel.vue'
 
 const route = useRoute()
@@ -139,10 +140,14 @@ onMounted(bootstrap)
       <el-card shadow="never">
         <template #header>
           <div class="head">
-            <span>{{ project?.name || '加载中…' }}</span>
-            <el-tag v-if="isOpening" type="success">开标进行中</el-tag>
-            <el-tag v-else-if="stage">阶段：{{ stage }}</el-tag>
-            <span class="online">在线 {{ onlineCount }} 家</span>
+            <span class="name">{{ project?.name || '加载中…' }}</span>
+            <div class="meta">
+              <!-- 在线数：图标 + 等宽数字，左对齐（开标阶段状态由签到按钮/阶段提示条/聊天禁言条表达，不再单设徽标） -->
+              <span class="presence">
+                <el-icon :size="14"><User /></el-icon>
+                在线 <b class="num">{{ onlineCount }}</b> 家
+              </span>
+            </div>
           </div>
         </template>
 
@@ -196,11 +201,20 @@ onMounted(bootstrap)
 <style scoped>
 .hall { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.2fr); gap: 16px; }
 .hall-error { grid-column: 1 / -1; }
-.head { display: flex; align-items: center; gap: 12px; }
-.online { margin-left: auto; color: #909399; font-size: 12px; }
+.head { display: flex; flex-direction: column; gap: 8px; }
+.name { font-weight: 700; line-height: 1.4; }
+.meta { display: flex; align-items: center; gap: 10px; }
+/* 在场徽标：绿色浅底 hairline 药丸（徽标不用新拟态阴影，见 .impeccable.md 反模式），左对齐 */
+.presence { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: #f0f9eb; border: 1px solid #e1f3d8; color: #529b2e; font-size: 12px; font-weight: 600; }
+.presence .num { color: #529b2e; font-weight: 800; font-variant-numeric: tabular-nums; }
 .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
 .stage-hint { margin-top: 8px; color: #909399; font-size: 12px; }
 .empty { padding: 40px; text-align: center; color: #999; }
 .mismatch { color: #e6a23c; font-weight: 600; }
 @media (max-width: 960px) { .hall { grid-template-columns: 1fr; } }
+/* 桌面端：网格撑满内容区高度，右列聊天面板随之拉伸至页面底部；左列信息卡保持自然高度 */
+@media (min-width: 961px) {
+  .hall { height: 100%; }
+  .left { align-self: start; }
+}
 </style>

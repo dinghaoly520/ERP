@@ -277,7 +277,9 @@ export function ReportStep({ report, busy, onConfirmReport, isLead, leaderCoSign
                     <div className="space-y-1.5">
                       {supplierDisputes.map((d, j) => (
                         <div key={j} className="text-xs">
-                          <span className="font-semibold text-[var(--foreground)]">{d.requirementId}</span>
+                          <span className="font-semibold text-[var(--foreground)]" title={d.tenderContent}>
+                            {d.tenderContent || '（条款原文未提取，请核对招标文件）'}
+                          </span>
                           {d.note && <span className="ml-1.5 text-[var(--warning)]">{d.note}</span>}
                         </div>
                       ))}

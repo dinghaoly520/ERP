@@ -65,7 +65,7 @@ function ClauseEvidence({ resp }: { resp: AssistData['requirementResponses'] }) 
       <div className="mb-1 text-[10px] font-semibold text-[var(--muted-foreground)]">条款响应佐证</div>
       {shown.map((r, i) => (
         <div key={i} className="truncate text-[11px] text-[var(--foreground)]" title={r.excerpt}>
-          · {r.excerpt || r.requirementId}
+          · {r.excerpt || '（条款原文未提取，请核对招标文件）'}
           {r.location ? `（第${r.location.page}页）` : ''}
         </div>
       ))}

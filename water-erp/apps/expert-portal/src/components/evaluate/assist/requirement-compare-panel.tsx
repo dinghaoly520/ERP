@@ -477,7 +477,7 @@ export function RequirementComparePanel({
                             <span className="exp-pill !gap-1" style={{ '--c': sc.c } as React.CSSProperties}>
                               <sc.icon size={11} /> {sc.label}
                             </span>
-                            {selectedResp.excerpt && (
+                            {selectedResp.excerpt ? (
                               <div className="mt-2">
                                 <p className="text-[11px] italic leading-relaxed text-[var(--muted-foreground)]">
                                   “{selectedResp.excerpt}”
@@ -491,6 +491,8 @@ export function RequirementComparePanel({
                                   <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)] not-italic">· 页码已自动修正</p>
                                 )}
                               </div>
+                            ) : (
+                              <p className="mt-2 text-[10px] text-[var(--muted-foreground)]">（条款原文未提取，请核对招标文件）</p>
                             )}
                             {!selectedResp.location && (
                               <p className="mt-2 text-[10px] text-[var(--muted-foreground)]">（未定位到投标原文页码）</p>

@@ -315,10 +315,14 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_COMPLETED, payload);
   }
 
-  /** 唱标记录已录入/更新 → 供应商端实时刷新开标记录（此前无此事件，唱标后供应商页不更新） */
+  /** 唱标记录已录入/更新 → 仅通知被唱标供应商自己的连接刷新开标记录。
+   *  唱标金额不得广播给其他投标人（REST/UI 已本司隔离，广播层同源收口）——
+   *  旧实现 project 房全体广播会把 {supplierName, amount} 送到每个供应商的 socket。 */
   notifyOpeningRecordUpdated(projectId: string, data: { supplierId: string; supplierName: string; recordId: string; amount: number }) {
     const payload: OpeningRecordUpdatedPayload = { projectId, ...data, timestamp: Date.now() };
-    this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_RECORD_UPDATED, payload);
+    for (const sid of this.supplierSocketsIn(data.supplierId, projectId)) {
+      this.server.to(sid).emit(BID_EVENT.OPENING_RECORD_UPDATED, payload);
+    }
   }
 
   notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string }) {

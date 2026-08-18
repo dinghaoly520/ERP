@@ -2888,7 +2888,7 @@ export class BidService {
 
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
       where: { id: dto.bidSupplierId, projectId },
-      select: { id: true, supplierName: true, decryptStatus: true, confirmStatus: true },
+      select: { id: true, supplierId: true, supplierName: true, decryptStatus: true, confirmStatus: true },
     });
     if (!bidSupplier) throw new BadRequestException({ error: '投标记录不存在', code: 'BID_SUPPLIER_NOT_FOUND' });
     if (bidSupplier.decryptStatus !== 'SUCCESS') {
@@ -2947,9 +2947,11 @@ export class BidService {
     });
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}${periodNote ?? ''}`, riskFlag: priceNote || periodNote ? '中' : '无' });
-    // 唱标记录已录入/更新 → 供应商端实时刷新（此前无此事件，供应商页唱标后不更新，只能手动刷新）
+    // 唱标记录已录入/更新 → 仅被唱标供应商实时刷新。
+    // supplierId 必须传 Supplier.id（gateway supplierSocketsIn 以 Supplier 表主键为 key，
+    // 旧实现误传 BidSupplier.id，两套 id 体系永不命中）
     this.gateway?.notifyOpeningRecordUpdated(projectId, {
-      supplierId: bidSupplier.id,
+      supplierId: bidSupplier.supplierId as string,
       supplierName: bidSupplier.supplierName,
       recordId: record.id,
       amount: Number(dto.amount),

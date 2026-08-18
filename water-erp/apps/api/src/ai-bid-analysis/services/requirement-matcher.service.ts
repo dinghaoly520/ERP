@@ -52,13 +52,19 @@ export class RequirementMatcherService {
           { threshold },
         );
         const location = fileId && typeof r.page === 'number' ? { fileId, page: r.page } : null;
+        // 专家端展示兜底：LLM 未给摘录时回退条款原文前 80 字——避免前端裸显 requirementId 哈希
+        const rawExcerpt = (r.excerpt ?? '').trim();
+        const excerptFallback = rawExcerpt
+          || (meta.tenderContent?.trim()
+            ? meta.tenderContent.trim().slice(0, 80) + (meta.tenderContent.trim().length > 80 ? '…' : '')
+            : '');
         return {
           requirementId: meta.requirementId,
           category: meta.category,
           tenderContent: meta.tenderContent,
           isStarred: meta.isStarred,
           status: r.status,
-          excerpt: r.excerpt ?? '',
+          excerpt: excerptFallback,
           location: verify.correctedPage && fileId ? { fileId, page: verify.correctedPage } : location,
           confidence: verify.verified ? (r.confidence ?? 0) : (r.confidence ?? 0) * 0.5,
           verified: verify.verified,

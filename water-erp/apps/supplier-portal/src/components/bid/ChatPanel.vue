@@ -184,13 +184,16 @@ onMounted(() => { void hydrate() })
 
 <style scoped>
 .chat-panel { display: flex; flex-direction: column; height: 100%; }
+/* el-card 内部纵向铺满：body 吃掉剩余高度 → 消息列表在卡片内滚动、输入行钉在底部 */
+.chat-panel :deep(.el-card__header) { flex-shrink: 0; }
+.chat-panel :deep(.el-card__body) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .tabs { display: flex; gap: 12px; align-items: center; }
 .conn { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #909399; }
 .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .conn-connected { color: #67c23a; }
 .conn-reconnecting { color: #e6a23c; }
 .conn-disconnected { color: #f56c6c; }
-.msg-list { flex: 1; overflow-y: auto; min-height: 320px; max-height: 480px; padding: 10px 4px; }
+.msg-list { flex: 1; overflow-y: auto; min-height: 320px; padding: 10px 4px; }
 .empty { color: #999; text-align: center; padding: 40px 0; }
 .sys-tip { margin: 10px auto; padding: 3px 12px; width: fit-content; max-width: 85%; border-radius: 999px; background: #f0f2f5; color: #909399; font-size: 12px; text-align: center; }
 .chat-row { display: flex; gap: 8px; margin: 12px 0; align-items: flex-start; }
@@ -203,6 +206,10 @@ onMounted(() => { void hydrate() })
 .is-mine .meta { text-align: right; }
 .bubble { padding: 8px 12px; border-radius: 12px; border-top-left-radius: 3px; background: #f5f7fa; border: 1px solid #e8ebf0; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
 .is-mine .bubble { background: #064ea2; border-color: #064ea2; color: #fff; border-radius: 12px; border-top-right-radius: 3px; }
-.muted-hint { color: #e6a23c; font-size: 12px; padding: 4px 0; }
-.input-row { display: flex; gap: 8px; margin-top: 8px; }
+.muted-hint { color: #e6a23c; font-size: 12px; padding: 4px 0; flex-shrink: 0; }
+.input-row { display: flex; gap: 8px; margin-top: 8px; flex-shrink: 0; }
+/* 移动端单列布局不拉伸：恢复 480px 上限，消息列表内部滚动 */
+@media (max-width: 960px) {
+  .msg-list { max-height: 480px; }
+}
 </style>
