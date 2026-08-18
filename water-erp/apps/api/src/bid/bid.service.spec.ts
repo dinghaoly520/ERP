@@ -2697,7 +2697,7 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
   });
 });
 
-describe('BidService — enterOpeningRecord 唱标事件本司收口', () => {
+describe('BidService — enterOpeningRecord 唱标事件公开广播（合规口径）', () => {
   let service: BidService;
   let prisma: any;
   const gatewayMock = { notifyOpeningRecordUpdated: jest.fn(), notifySupervisionLog: jest.fn() };
@@ -2728,7 +2728,7 @@ describe('BidService — enterOpeningRecord 唱标事件本司收口', () => {
     service = module.get(BidService);
   });
 
-  it('通知只带 Supplier.id（非 BidSupplier.id）——socket 表以 Supplier 主键为 key', async () => {
+  it('通知 payload 带 Supplier.id（非 BidSupplier.id）——与其他供应商侧事件 id 语义一致', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 's1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
     prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);

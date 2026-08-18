@@ -315,14 +315,13 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_COMPLETED, payload);
   }
 
-  /** 唱标记录已录入/更新 → 仅通知被唱标供应商自己的连接刷新开标记录。
-   *  唱标金额不得广播给其他投标人（REST/UI 已本司隔离，广播层同源收口）——
-   *  旧实现 project 房全体广播会把 {supplierName, amount} 送到每个供应商的 socket。 */
+  /** 唱标记录已录入/更新 → project 房广播，触发全体投标人刷新「唱标记录（全部投标人）」公开表。
+   *  唱标信息自 OPENING 阶段起属公开信息（《电子招标投标办法》第30条 /《招标投标法》第36条），
+   *  广播 payload 仅金额里程碑 + 名称，不含密封报价原文（评分/报价保密铁律）。
+   *  计划约束：2026-08-17-supplier-opening-records-hall（WS/后端广播零改动，勿收口为定向推送）。 */
   notifyOpeningRecordUpdated(projectId: string, data: { supplierId: string; supplierName: string; recordId: string; amount: number }) {
     const payload: OpeningRecordUpdatedPayload = { projectId, ...data, timestamp: Date.now() };
-    for (const sid of this.supplierSocketsIn(data.supplierId, projectId)) {
-      this.server.to(sid).emit(BID_EVENT.OPENING_RECORD_UPDATED, payload);
-    }
+    this.server.to(`project:${projectId}`).emit(BID_EVENT.OPENING_RECORD_UPDATED, payload);
   }
 
   notifyClarificationCreated(projectId: string, data: { id: string; issuer: string; issuerRole: string; supplierName: string; questionPreview: string }) {

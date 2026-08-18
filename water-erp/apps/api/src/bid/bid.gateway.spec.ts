@@ -212,7 +212,7 @@ describe('BidGateway leave:project 清连接表 + 定向推送项目过滤（R8�
   });
 });
 
-describe('BidGateway 唱标事件本司收口（opening:record:updated 不广播他人）', () => {
+describe('BidGateway 唱标事件公开广播（opening:record:updated 合规口径）', () => {
   function makeGateway() {
     return new BidGateway({} as any, {} as any);
   }
@@ -222,7 +222,7 @@ describe('BidGateway 唱标事件本司收口（opening:record:updated 不广播
     return emitted;
   }
 
-  it('仅送达被唱标供应商自己的 socket——其他供应商与 project 房零接收', () => {
+  it('project 房广播——全体投标人公开表实时刷新触发器（电子招标投标办法第30条口径）', () => {
     const gw = makeGateway();
     const emitted = captureServer(gw);
     (gw as any).supplierSockets.set('sup-1', new Set(['sock-sup1']));
@@ -233,17 +233,18 @@ describe('BidGateway 唱标事件本司收口（opening:record:updated 不广播
     gw.notifyOpeningRecordUpdated('p1', { supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1', amount: 980000 });
 
     const targets = emitted.filter(e => e.event === BID_EVENT.OPENING_RECORD_UPDATED).map(e => e.room);
-    expect(targets).toContain('sock-sup1');
-    expect(targets).not.toContain('sock-sup2');   // 其他供应商不得收到唱标金额
-    expect(targets).not.toContain('project:p1');  // 旧实现 project 房全体广播——禁止
+    expect(targets).toEqual(['project:p1']); // 房间级广播——房内全体投标人均可接收（成员门控在 join:project）
     expect(emitted[0].payload).toMatchObject({ projectId: 'p1', supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1', amount: 980000 });
+    expect(emitted[0].payload).not.toHaveProperty('sealedPrice'); // 密封报价原文永不入广播
   });
 
-  it('本司无在线 socket → 零投递且不抛异常', () => {
+  it('payload 不含异议过程与密封字段（公开口径仍脱敏）', () => {
     const gw = makeGateway();
     const emitted = captureServer(gw);
-    expect(() => gw.notifyOpeningRecordUpdated('p1', { supplierId: 'sup-x', supplierName: '甲公司', recordId: 'r1', amount: 980000 })).not.toThrow();
-    expect(emitted).toEqual([]);
+    gw.notifyOpeningRecordUpdated('p1', { supplierId: 'sup-1', supplierName: '甲公司', recordId: 'r1', amount: 980000 });
+    const payload = emitted[0].payload;
+    expect(payload).not.toHaveProperty('objectionReason');
+    expect(payload).not.toHaveProperty('handleResult');
   });
 });
 

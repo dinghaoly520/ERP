@@ -2947,9 +2947,9 @@ export class BidService {
     });
 
     this.gateway?.notifySupervisionLog(projectId, { role: '开标主持人', action: '录入唱标信息', target: bidSupplier.supplierName, result: `报价 ${dto.amount} / 工期 ${dto.period}${priceNote ?? ''}${periodNote ?? ''}`, riskFlag: priceNote || periodNote ? '中' : '无' });
-    // 唱标记录已录入/更新 → 仅被唱标供应商实时刷新。
-    // supplierId 必须传 Supplier.id（gateway supplierSocketsIn 以 Supplier 表主键为 key，
-    // 旧实现误传 BidSupplier.id，两套 id 体系永不命中）
+    // 唱标记录已录入/更新 → project 房广播（合规口径：唱标自开标起向全体投标人公开，
+    // 广播触发各家供应商「唱标记录（全部投标人）」公开表刷新——见 2026-08-17 计划，勿收口）。
+    // supplierId 传 Supplier.id（payload 语义与其他供应商侧事件一致；旧实现误传 BidSupplier.id）
     this.gateway?.notifyOpeningRecordUpdated(projectId, {
       supplierId: bidSupplier.supplierId as string,
       supplierName: bidSupplier.supplierName,
