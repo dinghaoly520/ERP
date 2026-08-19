@@ -995,6 +995,7 @@ model Supplier {
   creditCode         String?        @unique
   enterpriseType     String
   legalPerson        String
+  legalPersonIdCard  String?  // 法定代表人身份证号（注册必填，存量数据可空）
   registeredAddress  String
   businessScope      String
   status             SupplierStatus @default(PENDING)
@@ -1064,6 +1065,7 @@ model SupplierContact {
   supplierId String
   name       String
   phone      String
+  idCard     String?  // 联系人身份证号（注册必填，存量数据可空）
   email      String?
   position   String?
   isPrimary  Boolean  @default(false)

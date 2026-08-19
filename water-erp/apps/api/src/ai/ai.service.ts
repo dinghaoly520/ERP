@@ -2034,8 +2034,31 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       throw new ServiceUnavailableException('工作画像生成返回空内容，请稍后重试');
     }
 
+    // ── 乱码兜底：DeepSeek 偶发将个别汉字输出为 U+FFFD（�），先二次 LLM 还原，失败则剔除乱码字符 ──
+    let narrative = result.narrative;
+    const needsRepair = (s: string) => s.includes('�') || /\?{3,}/.test(s);
+    if (needsRepair(narrative)) {
+      this.logger.warn('[analyzeWorkPortrait] 检测到工作画像含乱码字符（U+FFFD/???），尝试二次还原');
+      try {
+        const repaired = await this.llm.chat(
+          [
+            '以下是一段工作画像叙事文本，其中个别汉字被 Unicode 替换字符（显示为 �）损坏。',
+            '请根据上下文语义，将每个 � 还原为正确的中文汉字，输出完整修复后的文本。',
+            '要求：严禁保留任何 �；严禁改动非乱码部分的任何文字；只输出修复后的正文，不加解释。',
+          ].join('\n'),
+          narrative,
+          0.1,
+        );
+        if (repaired && !needsRepair(repaired)) narrative = repaired.trim();
+      } catch (repairErr) {
+        this.logger.warn(`[analyzeWorkPortrait] 乱码还原失败: ${(repairErr as Error)?.message}`);
+      }
+      // 最终兜底：仍含乱码则剔除，绝不让 � 落到前端
+      narrative = narrative.replace(/�/g, '').replace(/[\uDC00-\uDFFF]/g, '');
+    }
+
     return {
-      narrative: result.narrative.replace(/\n{2,}/g, '\n').trim(),
+      narrative: narrative.replace(/\n{2,}/g, '\n').trim(),
       metrics: {
         totalApprovals: approvalActs.length,
         avgResponseHours: avgHours,

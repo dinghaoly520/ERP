@@ -112,6 +112,7 @@ export class SupplierService {
           creditCode: dto.creditCode,
           enterpriseType: dto.enterpriseType,
           legalPerson: dto.legalPerson,
+          legalPersonIdCard: dto.legalPersonIdCard || null,
           registeredAddress: dto.registeredAddress,
           businessScope: dto.businessScope,
           tags: dto.tags,
@@ -119,6 +120,7 @@ export class SupplierService {
             create: dto.contacts.map(c => ({
               name: c.name,
               phone: c.phone,
+              idCard: c.idCard,
               email: c.email,
               isPrimary: c.isPrimary,
               position: c.position,
@@ -2133,6 +2135,7 @@ export class SupplierService {
           creditCode,
           enterpriseType: (row[headers.indexOf('企业类型')] || '').trim() || '其他',
           legalPerson: (row[headers.indexOf('法定代表人')] || '').trim() || '未知',
+          legalPersonIdCard: (row[headers.indexOf('法定代表人身份证号')] || '').trim() || '',
           registeredAddress: (row[headers.indexOf('注册地址')] || '').trim() || '未知',
           businessScope: (row[headers.indexOf('经营范围')] || '').trim() || '未知',
           displayName,

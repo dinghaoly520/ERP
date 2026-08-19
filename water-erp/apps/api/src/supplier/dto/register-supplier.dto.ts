@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CreateContactDto } from './create-contact.dto';
+import { RegisterContactDto } from './register-contact.dto';
 import { CreateQualificationDto } from './create-qualification.dto';
 
 export class RegisterSupplierDto {
@@ -15,6 +15,9 @@ export class RegisterSupplierDto {
 
   @IsString() @IsNotEmpty() @MaxLength(50)
   legalPerson: string;
+
+  @IsString() @IsNotEmpty() @Matches(/^\d{17}[\dXx]$/, { message: '法定代表人身份证号须为 18 位' })
+  legalPersonIdCard: string;
 
   @IsString() @IsNotEmpty()
   registeredAddress: string;
@@ -34,8 +37,8 @@ export class RegisterSupplierDto {
   @IsEmail() @IsOptional()
   email?: string;
 
-  @IsArray() @ValidateNested({ each: true }) @Type(() => CreateContactDto)
-  contacts: CreateContactDto[];
+  @IsArray() @ValidateNested({ each: true }) @Type(() => RegisterContactDto)
+  contacts: RegisterContactDto[];
 
   @IsArray() @ValidateNested({ each: true }) @Type(() => CreateQualificationDto)
   qualifications: CreateQualificationDto[];

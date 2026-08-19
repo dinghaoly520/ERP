@@ -28,6 +28,7 @@ const companyForm = reactive({
   creditCode: '',
   enterpriseType: '',
   legalPerson: '',
+  legalPersonIdCard: '',
   registeredAddress: '',
   businessScope: '',
 })
@@ -36,7 +37,7 @@ const companyForm = reactive({
 // 业务标签（第2步：企业的第 2 部分，2-8 个独立标签）
 const tags = ref<string[]>(['', ''])
 const contacts = ref<any[]>([
-  { name: '', phone: '', email: '', position: '', isPrimary: true },
+  { name: '', phone: '', idCard: '', email: '', position: '', isPrimary: true },
 ])
 
 const qualifications = ref<any[]>([
@@ -89,6 +90,10 @@ const companyRules = {
   ],
   enterpriseType: [{ required: true, message: '请选择企业类型', trigger: 'change' }],
   legalPerson: [{ required: true, message: '请输入法定代表人', trigger: 'blur' }],
+  legalPersonIdCard: [
+    { required: true, message: '请输入法定代表人身份证号', trigger: 'blur' },
+    { pattern: /^\d{17}[\dXx]$/, message: '请输入18位身份证号', trigger: 'blur' },
+  ],
   registeredAddress: [{ required: true, message: '请输入注册地址', trigger: 'blur' }],
   businessScope: [{ required: true, message: '请输入经营范围', trigger: 'blur' }],
 }
@@ -107,7 +112,7 @@ function addTag() { if (tags.value.length < 8) tags.value.push('') }
 function removeTag(index: number) { if (tags.value.length > 2) tags.value.splice(index, 1) }
 
 function addContact() {
-  contacts.value.push({ name: '', phone: '', email: '', position: '', isPrimary: false })
+  contacts.value.push({ name: '', phone: '', idCard: '', email: '', position: '', isPrimary: false })
 }
 
 function removeContact(index: number) {
@@ -156,9 +161,9 @@ async function nextStep() {
     if (filledTags.length < 2) { ElMessage.warning('请至少填写 2 个业务标签'); return }
   }
   if (currentStep.value === 2) {
-    // P0：第 3 步（联系人/资质）此前零校验，可一路空白进入提交——补：至少 1 个含手机号的联系人 + 至少 1 份含 fileUrl 的资质。
-    const validContact = contacts.value.some(c => c.name?.trim() && /^1\d{10}$/.test(c.phone?.trim() || ''))
-    if (!validContact) { ElMessage.warning('请至少完整填写 1 个联系人（姓名 + 11 位手机号）'); return }
+    // P0：第 3 步（联系人/资质）此前零校验，可一路空白进入提交——补：至少 1 个含手机号+身份证号的联系人 + 至少 1 份含 fileUrl 的资质。
+    const validContact = contacts.value.some(c => c.name?.trim() && /^1\d{10}$/.test(c.phone?.trim() || '') && /^\d{17}[\dXx]$/.test(c.idCard?.trim() || ''))
+    if (!validContact) { ElMessage.warning('请至少完整填写 1 个联系人（姓名 + 11 位手机号 + 18 位身份证号）'); return }
     const validQual = qualifications.value.some(q => q.type && q.name && q.fileUrl)
     if (!validQual) { ElMessage.warning('请至少上传 1 份资质材料（如营业执照）'); return }
   }
@@ -181,11 +186,13 @@ async function submitRegister() {
       creditCode: companyForm.creditCode,
       enterpriseType: companyForm.enterpriseType,
       legalPerson: companyForm.legalPerson,
+      legalPersonIdCard: companyForm.legalPersonIdCard,
       registeredAddress: companyForm.registeredAddress,
       businessScope: companyForm.businessScope,
       contacts: contacts.value.map(c => ({
         name: c.name,
         phone: c.phone,
+        idCard: c.idCard,
         email: c.email || undefined,
         position: c.position || undefined,
         isPrimary: c.isPrimary,
@@ -347,6 +354,9 @@ async function submitRegister() {
                 <el-form-item label="法定代表人" prop="legalPerson">
                   <el-input v-model="companyForm.legalPerson" placeholder="请输入法定代表人姓名" />
                 </el-form-item>
+                <el-form-item label="法定代表人身份证号" prop="legalPersonIdCard">
+                  <el-input v-model="companyForm.legalPersonIdCard" placeholder="请输入18位身份证号" maxlength="18" />
+                </el-form-item>
               </div>
               <el-form-item label="注册地址" prop="registeredAddress" class="reg-form-wide">
                 <el-input v-model="companyForm.registeredAddress" placeholder="请输入企业注册地址" />
@@ -399,6 +409,7 @@ async function submitRegister() {
                 <div class="reg-row-fields">
                   <el-input v-model="c.name" placeholder="姓名" size="large" class="reg-row-input" />
                   <el-input v-model="c.phone" placeholder="手机号" size="large" class="reg-row-input" />
+                  <el-input v-model="c.idCard" placeholder="身份证号" maxlength="18" size="large" class="reg-row-input" />
                   <el-input v-model="c.position" placeholder="职位/职务" size="large" class="reg-row-input" />
                   <el-input v-model="c.email" placeholder="邮箱（选填）" size="large" class="reg-row-input" />
                   <label class="reg-row-switch">
@@ -503,6 +514,10 @@ async function submitRegister() {
                   <dt>法定代表人</dt>
                   <dd>{{ companyForm.legalPerson || '—' }}</dd>
                 </div>
+                <div class="reg-summary-item">
+                  <dt>法定代表人身份证号</dt>
+                  <dd class="reg-mono">{{ companyForm.legalPersonIdCard || '—' }}</dd>
+                </div>
                 <div class="reg-summary-item reg-summary-item--wide">
                   <dt>注册地址</dt>
                   <dd>{{ companyForm.registeredAddress || '—' }}</dd>
@@ -526,7 +541,7 @@ async function submitRegister() {
               <dl class="reg-summary">
                 <div v-for="(c, i) in contacts" :key="i" class="reg-summary-item reg-summary-item--wide">
                   <dt>联系人 {{ i + 1 }}{{ c.isPrimary ? ' · 主要' : '' }}</dt>
-                  <dd>{{ c.name || '—' }}{{ c.position ? `　${c.position}` : '' }}{{ c.phone ? `　${c.phone}` : '' }}{{ c.email ? `　${c.email}` : '' }}</dd>
+                  <dd>{{ c.name || '—' }}{{ c.position ? `　${c.position}` : '' }}{{ c.phone ? `　${c.phone}` : '' }}{{ c.idCard ? `　身份证 ${c.idCard}` : '' }}{{ c.email ? `　${c.email}` : '' }}</dd>
                 </div>
               </dl>
             </section>
