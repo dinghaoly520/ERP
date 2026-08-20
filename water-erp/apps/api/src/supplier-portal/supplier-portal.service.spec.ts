@@ -1554,4 +1554,156 @@ describe('SupplierPortalService', () => {
       expect(call.data.envelopeVersion).toBeUndefined();
     });
   });
+
+  describe('reupload-dual（新轨补传·供应商端双层重封）', () => {
+    const adminKp = ukeySm2.generateKeyPairHex();
+    const supplierKp = ukeySm2.generateKeyPairHex();
+    const REUP_CERT_SN = 'MOCK-CERT-REUP-0001';
+    const FIELDS: SealedFields = { price: '980000.00', deliveryPeriod: '540', qualityCommitment: '合格' };
+    const PLAINTEXT = '技术标投标文件（reupload-dual 测试）——密文异常后由供应商端双层重封';
+    let PLAIN_SHA = '';
+    // file 字段收的是新 C_outer 密文（客户端重新双层加密产物，非明文）
+    const C_OUTER = Buffer.from('couter-new-ciphertext-sealed-by-supplier-ukey');
+    const dualAssetRow = () => ({
+      id: 'fa-reup-1', key: 'uploads/2026-08-20/dual/couter-original.bin', originalName: 'technical.pdf',
+      mimeType: 'application/pdf', size: 2048, sha256: PLAIN_SHA, category: 'bid_document',
+      uploaderId: 'user-1', clientEncrypted: true, encrypted: true,
+      sealedPath: 'uploads/2026-08-20/dual/couter-original.bin',
+    });
+
+    /** 构造合法重签信封（技术标单角色 + sealedFields/fieldsCommit 齐备，canonicalEnvelopeHash 覆盖全字段）。 */
+    async function buildReuploadEnvelope(filesOverride?: { technical?: EnvelopeFileEntry }) {
+      const dekS = { keyHex: randomHex(16), ivHex: randomHex(16) };
+      const dekA = { keyHex: randomHex(16), ivHex: randomHex(16) };
+      const files: DualEnvelope['files'] = {
+        technical: filesOverride?.technical ?? {
+          sha256: PLAIN_SHA,
+          kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekS), 'utf8').toString('hex')),
+          kadmin: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson(dekA), 'utf8').toString('hex')),
+        },
+      };
+      const dekF = { keyHex: randomHex(16), ivHex: randomHex(16) };
+      const nonce = 'n-reup-dual-0001';
+      const envelope: DualEnvelope = {
+        version: 'dual-v2', certSn: REUP_CERT_SN, adminCertId: 'cert-admin-1', files,
+        sealedFields: {
+          cipher: sm4Encrypt(dekF.keyHex, dekF.ivHex, Buffer.from(canonicalJson({ fields: FIELDS, nonce }), 'utf8').toString('hex')),
+          kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekF), 'utf8').toString('hex')),
+          fieldsSha256: await sha256Hex(canonicalJson(FIELDS)),
+        },
+        fieldsCommit: await computeFieldsCommit(FIELDS, nonce),
+      };
+      const signature = signEnvelopeMsg(await canonicalEnvelopeHash(envelope), supplierKp.privateKey);
+      return { envelope, signature };
+    }
+
+    beforeAll(async () => {
+      PLAIN_SHA = await sha256Hex(Buffer.from(PLAINTEXT, 'utf8'));
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'OPENING', bondRequired: false });
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', userId: 'user-1' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-reup-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
+        envelopeVersion: 'dual-v2', technicalFileAssetId: 'fa-reup-1',
+        businessFileAssetId: null, coverLetterAssetId: null,
+      });
+      prisma.fileAsset.findUnique.mockResolvedValue(dualAssetRow());
+      prisma.fileAsset.update.mockResolvedValue(dualAssetRow());
+      prisma.adminEncryptionCert.findFirst.mockResolvedValue({ id: 'cert-admin-1', publicKey: adminKp.publicKey, active: true });
+      prisma.supplierCert.findFirst.mockResolvedValue({
+        id: 'sc-1', supplierId: 'supplier-1', certSn: REUP_CERT_SN,
+        publicKey: supplierKp.publicKey, bindingStatus: 'ACTIVE',
+      });
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs-reup-1', projectId: 'project-1', supplierId: 'supplier-1',
+        supplierName: '测试供应商', decryptStatus: 'DANGER', decryptError: '解密异常',
+      });
+      prisma.bidSupplier.update.mockResolvedValue({ id: 'bs-reup-1' });
+      prisma.supplierBidSubmission.update.mockResolvedValue({ id: 'sub-reup-1' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+    });
+
+    it('SHA-256 闸门：新信封明文哈希 ≠ 原始 FileAsset.sha256 → 400 FILE_HASH_MISMATCH + 监督日志「新轨补传拦截」，零恢复写入', async () => {
+      const { envelope, signature } = await buildReuploadEnvelope({ technical: { sha256: 'ff'.repeat(32), kself: 'aa', kadmin: 'bb' } });
+
+      await expect(service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(envelope), signature, ciphertext: C_OUTER,
+      })).rejects.toMatchObject({ response: { code: 'FILE_HASH_MISMATCH' } });
+
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ projectId: 'project-1', action: '新轨补传拦截', riskFlag: '高风险' }),
+      }));
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.update).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    it('成功恢复：新 C_outer 落 MinIO dual-reupload/… + FileAsset.sealedPath 指新密文（sha256 锚点不动）+ submission 换 envelope/signature/fileHash + bidSupplier 重置 PENDING + 监督日志', async () => {
+      const { envelope, signature } = await buildReuploadEnvelope();
+
+      const result = await service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(envelope), signature, ciphertext: C_OUTER,
+      });
+
+      expect(result).toEqual({ recovered: true, message: '已恢复，请等待开标解密' });
+      // 新 C_outer 密文落 MinIO（不覆盖原密文，独立 dual-reupload 前缀）
+      expect(minioClient.putObject).toHaveBeenCalledTimes(1);
+      const [bucket, objectName, body] = (minioClient.putObject as jest.Mock).mock.calls[0];
+      expect(bucket).toBe('test-bucket');
+      expect(objectName).toMatch(/^dual-reupload\/project-1\/supplier-1\/technical-\d+\.enc$/);
+      expect(body).toEqual(C_OUTER);
+      // FileAsset：sealedPath 指新密文；sha256 明文锚点与 clientEncrypted 不动（密文仍是客户端双层产物）
+      expect(prisma.fileAsset.update).toHaveBeenCalledWith({
+        where: { id: 'fa-reup-1' },
+        data: { sealedPath: objectName, encrypted: true },
+      });
+      // submission：envelope/signature/fileHash=canonicalEnvelopeHash(新信封)/signedAt
+      expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith({
+        where: { supplierId_projectId: { supplierId: 'supplier-1', projectId: 'project-1' } },
+        data: expect.objectContaining({
+          envelope: expect.objectContaining({ version: 'dual-v2', certSn: REUP_CERT_SN, adminCertId: 'cert-admin-1' }),
+          signature,
+          fileHash: await canonicalEnvelopeHash(envelope),
+          signedAt: expect.any(Date),
+        }),
+      });
+      // bidSupplier：解密态重置 PENDING、decryptError 清空（等待 Task 12/13 管线重解）
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith({
+        where: { id: 'bs-reup-1' },
+        data: { decryptStatus: 'PENDING', decryptError: null },
+      });
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ projectId: 'project-1', action: '新轨补传（供应商端双层重封）', riskFlag: '高风险' }),
+      }));
+    });
+
+    it('验签失败（签名私钥与证书公钥不匹配）→ 400 SM2_SIGNATURE_INVALID，零写入', async () => {
+      const { envelope } = await buildReuploadEnvelope();
+      const badSignature = signEnvelopeMsg(await canonicalEnvelopeHash(envelope), ukeySm2.generateKeyPairHex().privateKey);
+
+      await expect(service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(envelope), signature: badSignature, ciphertext: C_OUTER,
+      })).rejects.toMatchObject({ response: { code: 'SM2_SIGNATURE_INVALID' } });
+
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    it('非 OPENING 阶段（EVALUATING）→ 403 STAGE_NOT_OPENING，零查询零写入', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'project-1', stage: 'EVALUATING' });
+      const { envelope, signature } = await buildReuploadEnvelope();
+
+      await expect(service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(envelope), signature, ciphertext: C_OUTER,
+      })).rejects.toMatchObject({ response: { code: 'STAGE_NOT_OPENING' } });
+
+      expect(prisma.supplierBidSubmission.findUnique).not.toHaveBeenCalled();
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+    });
+  });
 });

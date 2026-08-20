@@ -2272,6 +2272,13 @@ export class BidService {
       : null;
     if (!submission) throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
 
+    // ── 新轨分派（Task 10）：dual-v2 的 C_outer 是客户端双层加密产物（SM4(DEK_S) → SM4(DEK_A)），
+    // 服务端无任何一把 DEK 明文，KMS 重封管线不可用——一律转供应商端补传
+    // （POST /api/supplier-portal/bid-submissions/:projectId/reupload-dual，供应商重新双层加密 + 重签信封）。
+    if (submission.envelopeVersion === 'dual-v2') {
+      throw new BadRequestException({ error: '新轨项目请走供应商端补传', code: 'USE_SUPPLIER_REUPLOAD' });
+    }
+
     const assetId = submission[fields.assetIdKey] as string | null;
     if (!assetId) throw new BadRequestException({ error: `缺少${role} 文件引用`, code: 'NO_FILE_REF' });
 

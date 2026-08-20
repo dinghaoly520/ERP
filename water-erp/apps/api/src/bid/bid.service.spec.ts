@@ -532,6 +532,24 @@ describe('BidService — stage transitions', () => {
     });
   });
 
+  describe('reuploadBidFile — 新轨分派（dual-v2 一律走供应商端补传）', () => {
+    it('submission.envelopeVersion=dual-v2 → 400 USE_SUPPLIER_REUPLOAD（阶段门后、SHA 校验前拒收，零恢复动作）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierId: 's1', supplierName: 'S' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-1', status: 'submitted', envelopeVersion: 'dual-v2', technicalFileAssetId: 'fa1',
+      });
+
+      await expect(service.reuploadBidFile('p1', 'bs-1', 'technical', { buffer: Buffer.from('new-couter') } as any, 'u1'))
+        .rejects.toMatchObject({ response: { code: 'USE_SUPPLIER_REUPLOAD' } });
+
+      // 拒收发生在 FileAsset 取回（SHA 闸门前置查询）之前——不触任何恢复写入
+      expect(prisma.fileAsset.findUnique).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('decryptSupplier', () => {
     beforeEach(() => {
       prisma.$transaction = jest.fn(async (callback: any) => callback(prisma));

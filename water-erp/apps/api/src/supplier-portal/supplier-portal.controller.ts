@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
@@ -257,6 +258,30 @@ export class SupplierPortalController {
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.submitBid(supplierId, projectId, body);
+  }
+
+  // ─── 新轨补传（双信封 v2：解密异常恢复由供应商端双层重封，Task 10）───
+  // file 字段收的是新 C_outer 密文（客户端重新双层加密产物，非明文）；envelope 为整体新信封 JSON string。
+  @Post('bid-submissions/:projectId/reupload-dual')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
+  async reuploadDual(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { role: string; envelope: string; signature?: string; ciphertextSha256?: string },
+  ) {
+    if (!file) throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
+    if (!body?.role || !body?.envelope) {
+      throw new BadRequestException({ error: '缺少 role 或 envelope 参数', code: 'MISSING_PARAMS' });
+    }
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.reuploadDualEnvelope(supplierId, projectId, {
+      role: body.role,
+      envelopeJson: body.envelope,
+      signature: body.signature,
+      ciphertext: file.buffer,
+      ciphertextSha256: body.ciphertextSha256,
+    });
   }
 
   @Post('bid-submissions/:submissionId/withdraw')
