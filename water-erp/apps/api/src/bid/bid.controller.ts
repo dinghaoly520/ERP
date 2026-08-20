@@ -395,7 +395,7 @@ export class BidController {
 
   @Post('projects/:id/suppliers/:supplierId/reseal')
   @Roles('admin', 'bid_host')
-  @ApiOperation({ summary: '管理员一键重新封标（从系统内原始明文恢复，无需上传文件）' })
+  @ApiOperation({ summary: '管理员一键重新封标（E2EE 密钥重包裹；服务端明文恢复通道已下线，非 E2EE 请走标书补传）' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   resealBidFiles(
     @Param('id') id: string,

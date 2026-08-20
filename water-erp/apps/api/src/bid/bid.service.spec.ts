@@ -21,6 +21,7 @@ import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { streamToBuffer } from './bid-submission.crypto';
 import { randomHex, sha256Hex, sm4Encrypt, wrapDekJson, sm2EncryptHex } from '@water-erp/ukey';
 import type { DualEnvelope } from '@water-erp/ukey';
+import { wrapKey } from '../common/crypto/envelope-crypto';
 
 const sm2 = require('sm-crypto').sm2;
 
@@ -552,6 +553,27 @@ describe('BidService — stage transitions', () => {
       expect(res.failed).toBe(0);
       expect(res.details[0].success).toBe(true);
     });
+
+    it('Task 16：dual-v2 家 skip 不入解密循环（明细标 error，零抢占）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidSupplier.findMany.mockResolvedValue([
+        { id: 'bs-1', supplierName: 'A', supplierId: 's1' },
+      ]);
+      prisma.supplierBidSubmission.findMany = jest.fn().mockResolvedValue([
+        { supplierId: 's1', envelopeVersion: 'dual-v2' },
+      ]);
+
+      const res = await service.decryptAllSuppliers('p1', 'u1');
+
+      expect(res.total).toBe(1);
+      expect(res.failed).toBe(1);
+      expect(res.details[0]).toMatchObject({
+        supplierId: 'bs-1', supplierName: 'A', success: false, error: '新轨项目请走供应商解密',
+      });
+      // 未进入解密循环：不查单家、不抢占（无 RUNNING 楔）
+      expect(prisma.bidSupplier.findFirst).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('reuploadBidFile — 新轨分派（dual-v2 一律走供应商端补传）', () => {
@@ -569,6 +591,51 @@ describe('BidService — stage transitions', () => {
       expect(prisma.fileAsset.findUnique).not.toHaveBeenCalled();
       expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
       expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resealBidFiles — Task 16 旧轨收窄（删除服务端明文恢复，保留 E2EE 重包裹）', () => {
+    it('dual-v2 → 400 USE_SUPPLIER_REUPLOAD（门控于恢复动作前，零副作用）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierId: 's1', supplierName: 'S' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ id: 'sub-1', envelopeVersion: 'dual-v2', technicalFileAssetId: 'fa1' });
+
+      await expect(service.resealBidFiles('p1', 'bs-1', 'u1')).rejects.toMatchObject({
+        response: { code: 'USE_SUPPLIER_REUPLOAD' },
+      });
+
+      expect(prisma.fileAsset.findUnique).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    });
+
+    it('E2EE（clientEncrypted）仍走密钥重包裹分支——不读 MinIO 明文、不重加密、不动 fileAsset', async () => {
+      (minioClient.getObject as jest.Mock).mockClear();
+      (minioClient.putObject as jest.Mock).mockClear();
+      const wrapped = wrapKey('e2ee-dek-material', BID_SPEC_KMS);
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierId: 's1', supplierName: 'S' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'fa1', businessFileAssetId: null, coverLetterAssetId: null,
+        technicalSealedKey: wrapped, businessSealedKey: null, coverLetterSealedKey: null,
+      });
+      prisma.supplierBidSubmission.update = jest.fn().mockResolvedValue({});
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa1', key: 'uploads/e2ee.enc', sha256: 'abc', clientEncrypted: true });
+      prisma.bidSupplier.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+      const autoDecrypt = jest.spyOn(service, 'decryptSupplier').mockResolvedValue({ id: 'bs-1', decryptStatus: 'SUCCESS' } as any);
+
+      const res = await service.resealBidFiles('p1', 'bs-1', 'u1');
+
+      expect(res.recovered).toContain('技术标');
+      expect(res.failed).toEqual([]);
+      expect(res.decrypted).toBe(true);
+      // 仅更新 sealedKey（重包裹），密文不动：不读 MinIO、不写新密文、不触碰 fileAsset
+      expect(prisma.supplierBidSubmission.update).toHaveBeenCalled();
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+      expect(autoDecrypt).toHaveBeenCalled();
     });
   });
 
@@ -799,6 +866,18 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ decryptStatus: 'DANGER' }) }),
       );
+    });
+
+    it('Task 16：dual-v2 → 400 USE_SUPPLIER_DECRYPT（门控在阶段门后、抢占之前，不留 RUNNING 楔）', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({ envelopeVersion: 'dual-v2' });
+
+      await expect(service.decryptSupplier('p1', 'bs-1')).rejects.toMatchObject({
+        response: { code: 'USE_SUPPLIER_DECRYPT' },
+      });
+      // 抢占未发生（PENDING 未被改写为 RUNNING），否则需 60s 接管才可重试
+      expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
     });
 
     // ── P1-4 同构：解密即唱标路径同样校验工期一致性（第二入口）──
@@ -5153,7 +5232,11 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
       expect(r.attribution).toBe('PLATFORM');
       expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
         where: { id: 'bs1' },
-        data: { dangerAttribution: 'PLATFORM' },
+        data: {
+          dangerAttribution: 'PLATFORM',
+          // Task 15 顺带 Minor：改判时同步改写 decryptError，消除与归因字段矛盾的「投标人过错」残留文案
+          decryptError: '归因改判（PLATFORM）：平台密钥分发故障复查',
+        },
       }));
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({

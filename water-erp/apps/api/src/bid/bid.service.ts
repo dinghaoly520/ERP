@@ -2244,11 +2244,29 @@ export class BidService {
     // 恢复路径不变：补传通道 reuploadBidFile 会把 DANGER 重置为 PENDING 后再解密
     const pendingSuppliers = await this.prisma.bidSupplier.findMany({
       where: { projectId, decryptStatus: 'PENDING', submitStatus: { not: '已撤回' } },
-      select: { id: true, supplierName: true },
+      select: { id: true, supplierName: true, supplierId: true },
     });
+
+    // Task 16 旧轨收窄：待解名单预查 submissions，dual-v2 家 skip 不入解密循环
+    // （新轨解密走 supplier-portal；旧轨端点对 dual-v2 会 400，预过滤避免把 400 计成 failed 噪音）
+    const supplierIds = pendingSuppliers.map(s => s.supplierId).filter((v): v is string => !!v);
+    const dualV2SupplierIds = new Set<string>();
+    if (supplierIds.length > 0) {
+      const subs = await this.prisma.supplierBidSubmission.findMany({
+        where: { projectId, supplierId: { in: supplierIds } },
+        select: { supplierId: true, envelopeVersion: true },
+      });
+      for (const sub of subs) {
+        if (sub.envelopeVersion === 'dual-v2') dualV2SupplierIds.add(sub.supplierId);
+      }
+    }
 
     const results: Array<{ supplierId: string; supplierName: string; success: boolean; error?: string }> = [];
     for (const s of pendingSuppliers) {
+      if (s.supplierId && dualV2SupplierIds.has(s.supplierId)) {
+        results.push({ supplierId: s.id, supplierName: s.supplierName, success: false, error: '新轨项目请走供应商解密' });
+        continue;
+      }
       try {
         await this.decryptSupplier(projectId, s.id, undefined, actorId);
         results.push({ supplierId: s.id, supplierName: s.supplierName, success: true });
@@ -2299,6 +2317,18 @@ export class BidService {
     }
     if (now > session.decryptWindowEnd) {
       throw new BadRequestException({ error: '解密窗口已关闭', code: 'DECRYPT_WINDOW_CLOSED' });
+    }
+
+    // ── Task 16 旧轨收窄：dual-v2 家走供应商解密（supplier-portal 新轨），旧轨端点 400 ──
+    // 只读门控必须置于 phase-① 原子抢占之前：抢占成功后再 400 会留 RUNNING 楔（60s 接管才可重试）。
+    if (bidSupplier.supplierId) {
+      const envelopeSubmission = await this.prisma.supplierBidSubmission.findUnique({
+        where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
+        select: { envelopeVersion: true },
+      });
+      if (envelopeSubmission?.envelopeVersion === 'dual-v2') {
+        throw new BadRequestException({ error: '新轨项目请走供应商解密', code: 'USE_SUPPLIER_DECRYPT' });
+      }
     }
 
     // ── P1-4：解密即唱标路径——mismatch 断言前置于 phase-① 抢占（2026-08-17 fix round 2）──
@@ -2625,9 +2655,12 @@ export class BidService {
       PLATFORM: '归因判定：PLATFORM——因平台原因未完成解密，视为撤回投标文件',
     } as const;
     await this.prisma.$transaction(async (tx) => {
-      // 已 DANGER（双闸失败家/改判家）仅落归因；PENDING 家同时落终局态
+      // 已 DANGER（双闸失败家/改判家）仅落归因；PENDING 家同时落终局态。
+      // Task 15 顺带 Minor：改判（BIDDER→PLATFORM）时同步改写 decryptError，消除与归因字段矛盾的「投标人过错」残留文案
       const data: Prisma.BidSupplierUpdateInput = bidSupplier.decryptStatus === 'DANGER'
-        ? { dangerAttribution: attribution }
+        ? (isRejudge
+            ? { dangerAttribution: attribution, decryptError: `归因改判（PLATFORM）：${reason}` }
+            : { dangerAttribution: attribution })
         : { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: `归因裁决（${attribution}）：${reason}`, dangerAttribution: attribution };
       await tx.bidSupplier.update({ where: { id: supplierId }, data });
       await tx.bidSupervisionLog.create({
@@ -2861,11 +2894,11 @@ export class BidService {
   }
 
   /**
-   * 管理员一键重新封标（兜底机制·主路径）。
-   * 从系统内存储的原始明文（FileAsset.key，供应商上传时存入、未删除）恢复：
-   * 读取明文 → SHA-256 校验 → 重新加密（当前 KMS_SECRET）→ 覆盖 sealedPath/sealedKey → 重置 DANGER → 自动重解密。
-   * 遍历 technical/business/coverLetter 三个角色，有文件引用的都尝试恢复。
-   * 仅 OPENING 阶段允许。
+   * 管理员一键重新封标（兜底机制）。
+   * E2EE（clientEncrypted）文件：用当前 KMS_SECRET 重新包裹 DEK（支持 KMS 轮转），密文不动；
+   * 服务端明文恢复通道已删除（Task 16 旧轨收窄）——非 E2EE 文件请走标书补传（reuploadBidFile，SHA-256 闸门）；
+   * dual-v2（新轨双层加密）项目一律转供应商端补传（服务器无任何 DEK 明文，KMS 重封不可用）。
+   * 遍历 technical/business/coverLetter 三个角色。仅 OPENING 阶段允许。
    */
   async resealBidFiles(projectId: string, supplierId: string, actorId: string) {
     // ── 阶段门 ──
@@ -2885,6 +2918,11 @@ export class BidService {
         })
       : null;
     if (!submission) throw new BadRequestException({ error: '供应商未提交投标文件', code: 'NO_SUBMISSION' });
+
+    // ── Task 16 旧轨收窄：dual-v2 一律转供应商端补传（同 reuploadBidFile 分派口径）──
+    if (submission.envelopeVersion === 'dual-v2') {
+      throw new BadRequestException({ error: '新轨项目请走供应商端补传', code: 'USE_SUPPLIER_REUPLOAD' });
+    }
 
     const ROLE_MAP = {
       technical:   { assetIdKey: 'technicalFileAssetId',  sealedKeyKey: 'technicalSealedKey',  label: '技术标' },
@@ -2940,55 +2978,10 @@ export class BidService {
         continue;
       }
 
-      // 从 FileAsset.key 读取原始明文（供应商上传时存入，submitBid 不删除）
-      let plaintext: Buffer;
-      try {
-        plaintext = await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, originalAsset.key));
-      } catch (err) {
-        this.logger.error(`reseal getObject failed: ${originalAsset.key}`, err);
-        failed.push({ role, label: fields.label, code: 'ORIGINAL_FILE_MISSING', error: '原始文件已丢失（MinIO 对象不存在）' });
-        continue;
-      }
-
-      // SHA-256 校验原始明文完整性
-      const plaintextSha = crypto.createHash('sha256').update(plaintext).digest('hex');
-      if (plaintextSha !== originalAsset.sha256) {
-        this.logger.warn(`reseal plaintext SHA-256 mismatch: asset=${assetId} stored=${originalAsset.sha256} actual=${plaintextSha}`);
-        failed.push({ role, label: fields.label, code: 'ORIGINAL_FILE_CORRUPT', error: '原始文件已损坏（SHA-256 不匹配）' });
-        continue;
-      }
-
-      // 重新加密（用当前 KMS_SECRET）
-      const { ciphertext, decryptKey } = encryptBuffer(plaintext);
-      const wrappedKey = wrapKey(decryptKey, process.env.KMS_SECRET!);
-      const sealedPath = `reseal/${projectId}/${supplierId}/${role}-${Date.now()}.enc`;
-      await minioClient.putObject(MINIO_BUCKET, sealedPath, ciphertext, ciphertext.length, {
-        'Content-Type': 'application/octet-stream',
-      });
-
-      // 事务：覆盖文件引用 + 重置 DANGER + 审计
-      const sealedKeyUpdate: Record<string, string> = {};
-      sealedKeyUpdate[fields.sealedKeyKey] = wrappedKey;
-
-      await this.prisma.$transaction(async (tx) => {
-        await tx.fileAsset.update({ where: { id: assetId }, data: { sealedPath, encrypted: true } });
-        await tx.supplierBidSubmission.update({
-          where: { supplierId_projectId: { supplierId: bidSupplier.supplierId!, projectId } },
-          data: sealedKeyUpdate as any,
-        });
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'PENDING', decryptError: null } });
-        await tx.bidSupervisionLog.create({
-          data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
-            action: '重新封标', result: `${fields.label} 已从原始明文恢复`, riskFlag: '高风险' },
-        });
-        if (actorId) {
-          await tx.auditLog.create({
-            data: { userId: actorId, action: 'BID_FILE_RESEAL', resourceType: `${bidSupplier.supplierName}:${supplierId}`,
-              details: { projectId, role, sha256: originalAsset.sha256 } },
-          });
-        }
-      });
-      recovered.push(fields.label);
+      // Task 16 旧轨收窄：服务端明文恢复通道已删除——FileAsset.key 明文不得再被服务端读回。
+      // 非 E2EE（服务端加密）文件无法就地重封，一律转标书补传（reuploadBidFile，SHA-256 闸门）。
+      failed.push({ role, label: fields.label, code: 'RESEAL_PLAINTEXT_RECOVERY_REMOVED', error: '服务端明文恢复通道已下线，请使用标书补传恢复' });
+      continue;
     }
 
     if (recovered.length > 0) {
