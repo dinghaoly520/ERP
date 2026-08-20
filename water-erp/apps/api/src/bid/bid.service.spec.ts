@@ -5056,6 +5056,39 @@ describe('BidService — decryptOuter 主持端解外层 (dual-v2 · Task 12)', 
     });
   });
 
+  it('陈旧楔接管（60s）：outerDecryptedAt 残留 + innerAssets null + updatedAt 停摆 → 条件重占成功并完成解密', async () => {
+    const staleAt = new Date(Date.now() - 120_000);
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+      id: 'sub-1', supplierId: 's1', projectId: 'p1',
+      envelopeVersion: 'dual-v2', envelope,
+      outerDecryptedAt: staleAt, innerAssets: null,
+      technicalFileAssetId: 'fa-t', businessFileAssetId: 'fa-b',
+      coverLetterAssetId: null, bidBondAssetId: null,
+      updatedAt: new Date(Date.now() - 120_000),
+    });
+    prisma.supplierBidSubmission.updateMany
+      .mockResolvedValueOnce({ count: 0 }) // ① 抢占：outerDecryptedAt 已有（楔残留）
+      .mockResolvedValueOnce({ count: 1 }); // 接管重占成功
+
+    const result: any = await service.decryptOuter('p1', 'bs-1', 'u1');
+
+    expect(result).toMatchObject({ supplierId: 'bs-1', success: true, roles: ['technical', 'business'] });
+    const updateManyCalls = prisma.supplierBidSubmission.updateMany.mock.calls;
+    expect(updateManyCalls).toHaveLength(2);
+    expect(updateManyCalls[0][0]).toMatchObject({ data: { outerDecryptedAt: expect.any(Date) } }); // ① 抢占失败
+    expect(updateManyCalls[1][0]).toMatchObject({
+      where: expect.objectContaining({
+        outerDecryptedAt: staleAt, // 只重占这份陈旧标记
+        updatedAt: { lt: expect.any(Date) },
+      }),
+      data: { outerDecryptedAt: expect.any(Date) }, // 重占写新 claimAt
+    });
+    expect(minioClient.putObject).toHaveBeenCalledTimes(2); // 接管后正常完成两角色解密
+    expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { innerAssets: { technical: 'asset-t', business: 'asset-b' } },
+    }));
+  });
+
   it('旧轨项目（envelopeVersion 非 dual-v2）→ 400 NOT_DUAL_TRACK', async () => {
     prisma.supplierBidSubmission.findUnique.mockResolvedValue({ envelopeVersion: null, outerDecryptedAt: null });
 

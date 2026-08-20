@@ -1998,8 +1998,10 @@ export class BidService {
     if (submission.envelopeVersion !== 'dual-v2') {
       throw new BadRequestException({ error: '该供应商走旧轨（单层）加密，无外层可解', code: 'NOT_DUAL_TRACK' });
     }
-    if (submission.outerDecryptedAt) {
-      return { supplierId: bidSupplierId, supplierName, skipped: true }; // 幂等：不重复解、不重复写
+    if (submission.outerDecryptedAt && submission.innerAssets !== null) {
+      // 已完整解过（innerAssets 已落库）：快路径跳过。outerDecryptedAt 有值但 innerAssets 为
+      // null 不在此跳过——那是并发进行中或崩溃残留的楔，交给下方 ① 抢占 + 60s 陈旧接管判定
+      return { supplierId: bidSupplierId, supplierName, skipped: true };
     }
     const envelope = (submission.envelope ?? null) as DualEnvelope | null;
     const roles = (Object.entries(envelope?.files ?? {}) as Array<[EnvelopeRole, EnvelopeFileEntry]>)
@@ -2023,7 +2025,33 @@ export class BidService {
       data: { outerDecryptedAt: claimAt },
     });
     if (claim.count === 0) {
-      return { supplierId: bidSupplierId, supplierName, skipped: true }; // 并发对手已抢先（或已解过）
+      // ── 陈旧楔接管（同 decryptSupplier 60s 接管口径）：抢占被并发对手拿走，但对手可能在
+      //    ② 解密期间崩溃（kill/OOM）——catch 未执行 → outerDecryptedAt 残留、innerAssets 永久
+      //    null。此后快路径与抢占都跳过、批量预筛静默剔除，恢复只剩供应商补传或改库。
+      //    此处读 submission 判定：innerAssets 为 null 且 updatedAt 停摆超 60s → 条件重占
+      //    （带旧 outerDecryptedAt + updatedAt 上限；接管成功的 @updatedAt 刷新使并发第二笔接管 count=0）──
+      const fresh = await this.prisma.supplierBidSubmission.findUnique({
+        where: { supplierId_projectId: { supplierId: submissionSupplierId, projectId } },
+        select: { innerAssets: true, outerDecryptedAt: true, updatedAt: true },
+      });
+      if (!fresh || fresh.innerAssets !== null || fresh.outerDecryptedAt === null) {
+        return { supplierId: bidSupplierId, supplierName, skipped: true }; // 对手进行中（<60s）或已完整落库
+      }
+      if (fresh.updatedAt >= new Date(Date.now() - 60_000)) {
+        return { supplierId: bidSupplierId, supplierName, skipped: true }; // 抢占新鲜：对手仍在解密
+      }
+      const takeover = await this.prisma.supplierBidSubmission.updateMany({
+        where: {
+          supplierId: submissionSupplierId, projectId,
+          outerDecryptedAt: fresh.outerDecryptedAt, // 只重占这份陈旧标记，防覆盖补传并发重置
+          updatedAt: { lt: new Date(Date.now() - 60_000) },
+        },
+        data: { outerDecryptedAt: claimAt },
+      });
+      if (takeover.count === 0) {
+        return { supplierId: bidSupplierId, supplierName, skipped: true }; // 并发另一笔先重占
+      }
+      // 重占成功 → 继续 ② 解密流程
     }
 
     try {
