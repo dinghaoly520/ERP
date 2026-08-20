@@ -621,6 +621,7 @@ describe('BidService — stage transitions', () => {
       });
       prisma.supplierBidSubmission.update = jest.fn().mockResolvedValue({});
       prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa1', key: 'uploads/e2ee.enc', sha256: 'abc', clientEncrypted: true });
+      prisma.fileAsset.update = jest.fn();
       prisma.bidSupplier.update.mockResolvedValue({});
       prisma.bidSupervisionLog.create.mockResolvedValue({});
       prisma.auditLog.create.mockResolvedValue({});
@@ -635,7 +636,40 @@ describe('BidService — stage transitions', () => {
       expect(prisma.supplierBidSubmission.update).toHaveBeenCalled();
       expect(minioClient.getObject).not.toHaveBeenCalled();
       expect(minioClient.putObject).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.update).not.toHaveBeenCalled();
       expect(autoDecrypt).toHaveBeenCalled();
+    });
+
+    it('Task 16 fix：全角色 RESEAL_PLAINTEXT_RECOVERY_REMOVED → 分流不写 bidValidity、无「投标无效」叙事（非 E2EE 无 key 也可达此分支）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs-1', projectId: 'p1', supplierId: 's1', supplierName: 'S' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        technicalFileAssetId: 'fa1', businessFileAssetId: 'fa2', coverLetterAssetId: null,
+        technicalSealedKey: null, businessSealedKey: null, coverLetterSealedKey: null,
+      });
+      // 非 E2EE 资产（无 clientEncrypted），且不带 key —— key 校验已收窄进 E2EE 分支
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa1', sha256: 'abc' });
+      prisma.bidSupplier.update.mockResolvedValue({});
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      prisma.auditLog.create.mockResolvedValue({});
+
+      const res = await service.resealBidFiles('p1', 'bs-1', 'u1');
+
+      expect(res.recovered).toEqual([]);
+      expect(res.failed.map(f => f.code)).toEqual(['RESEAL_PLAINTEXT_RECOVERY_REMOVED', 'RESEAL_PLAINTEXT_RECOVERY_REMOVED']);
+      // 分流：只写 decryptError + 低风险日志引导补传；bidValidity（load-bearing 排除标记）不被写
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ decryptError: expect.stringContaining('服务端明文恢复通道已下线') }),
+      }));
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ bidValidity: expect.anything() }),
+      }));
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ result: expect.stringContaining('明文恢复通道已退役，请走补传'), riskFlag: '低风险' }),
+      }));
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: '投标无效' }),
+      }));
     });
   });
 

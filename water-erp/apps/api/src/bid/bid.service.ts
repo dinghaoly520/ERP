@@ -2938,13 +2938,18 @@ export class BidService {
       if (!assetId) continue; // 该角色无文件引用，跳过
 
       const originalAsset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
-      if (!originalAsset || !originalAsset.sha256 || !originalAsset.key) {
+      if (!originalAsset || !originalAsset.sha256) {
         failed.push({ role, label: fields.label, code: 'FILE_RECORD_MISSING', error: '原始文件记录缺失' });
         continue;
       }
 
       if (originalAsset.clientEncrypted) {
         // ── E2EE 分支：密文在 asset.key，无需重加密。仅重新包裹 DEK（支持 KMS 轮转）──
+        // key 要求只对 E2EE 有意义（密文路径）；非 E2EE 直接转标书补传，不读 key
+        if (!originalAsset.key) {
+          failed.push({ role, label: fields.label, code: 'FILE_RECORD_MISSING', error: '原始文件记录缺失' });
+          continue;
+        }
         const oldSealedKey = submission?.[fields.sealedKeyKey as keyof typeof submission] as string | undefined;
         if (!oldSealedKey || !isWrappedKey(oldSealedKey)) {
           failed.push({ role, label: fields.label, code: 'MISSING_E2EE_KEY', error: 'E2EE 文件缺少有效 sealedKey' });
@@ -2994,8 +2999,25 @@ export class BidService {
     // 文件校验失败（损坏/篡改/丢失）：安全事件，通知监督端并审计
     if (failed.length > 0) {
       const failDetail = failed.map(f => `${f.label}: ${f.error}`).join('；');
-      // 全部失败时标记投标无效 + 更新 decryptError：前端据此隐藏「重试」按钮，改为显示"文件损坏"
-      if (recovered.length === 0) {
+      const allRemovedChannel = failed.every(f => f.code === 'RESEAL_PLAINTEXT_RECOVERY_REMOVED');
+      if (allRemovedChannel) {
+        // Task 16 fix：明文恢复通道退役 ≠ 文件损坏——不写 bidValidity='invalid'（load-bearing
+        // 排除标记，标书补传 reuploadBidFile 不会清除它），不写「投标无效」叙事、不发
+        // file_corruption 异常；仅落 decryptError + 低风险监督日志，引导走标书补传。
+        const redirectMsg = `明文恢复通道已退役，请走补传：${failDetail}`;
+        await this.prisma.bidSupplier.update({
+          where: { id: supplierId },
+          data: { decryptError: `重新封标失败：${failDetail}` },
+        });
+        await this.prisma.bidSupervisionLog.create({
+          data: { projectId, time: new Date(), role: '主持人', target: bidSupplier.supplierName,
+            action: '重新封标', result: redirectMsg, riskFlag: '低风险' },
+        });
+        this.gateway?.notifySupervisionLog(projectId, {
+          role: '主持人', action: '重新封标', target: bidSupplier.supplierName,
+          result: redirectMsg, riskFlag: '低风险',
+        });
+      } else if (recovered.length === 0) {
         const invalidReason = `投标文件损坏无法恢复：${failDetail}。该供应商投标视为无效，将自动排除出评标`;
         await this.prisma.bidSupplier.update({
           where: { id: supplierId },
