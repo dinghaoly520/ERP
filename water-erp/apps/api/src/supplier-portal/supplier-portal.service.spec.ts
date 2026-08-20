@@ -45,6 +45,7 @@ afterAll(() => { if (ORIG_KMS !== undefined) process.env.KMS_SECRET = ORIG_KMS; 
 describe('SupplierPortalService', () => {
   let service: SupplierPortalService;
   let prisma: any;
+  let signature: { verify: jest.Mock; isValidPublicKey: jest.Mock };
 
   const mockSupplier = {
     id: 'supplier-1',
@@ -99,12 +100,15 @@ describe('SupplierPortalService', () => {
     // G3 兜底默认放行（投递时校验已发布招标公告）；个别用例可覆盖为 null 验证拦截
     prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
 
+    // SignatureService mock（bindCert 公钥格式校验走 isValidPublicKey；默认 true，个别用例覆写 false）
+    signature = { verify: jest.fn().mockReturnValue(true), isValidPublicKey: jest.fn().mockReturnValue(true) };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SupplierPortalService,
         { provide: PrismaService, useValue: prisma },
         { provide: BidDocumentService, useValue: { getForSupplier: jest.fn() } },
-        { provide: SignatureService, useValue: { verify: jest.fn().mockReturnValue(true), isValidPublicKey: jest.fn().mockReturnValue(true) } },
+        { provide: SignatureService, useValue: signature },
         { provide: BidBackupService, useValue: { stageBackup: jest.fn().mockResolvedValue(null), persistBackup: jest.fn(), isEnabled: jest.fn().mockReturnValue(true) } },
         // SupplierPortalService 构造器 @Inject('REDIS_CLIENT')（口径同 verification.service.spec.ts）
         { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
@@ -1002,11 +1006,14 @@ describe('SupplierPortalService', () => {
       expect(prisma.supplier.update).not.toHaveBeenCalled();
     });
 
-    it('公钥格式非法（05 开头）→ 400 INVALID_PUBLIC_KEY', async () => {
+    it('公钥格式非法（05 开头）→ 400 INVALID_PUBLIC_KEY（复用 SignatureService.isValidPublicKey）', async () => {
       prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      signature.isValidPublicKey.mockReturnValueOnce(false);
 
       await expect(service.bindCert('supplier-1', { ...BIND_INPUT, publicKey: `05${'ab'.repeat(64)}` }))
         .rejects.toMatchObject({ response: { code: 'INVALID_PUBLIC_KEY' } });
+      // 格式判定委托给注入的 SignatureService（与验签同一口径，无正则复制）
+      expect(signature.isValidPublicKey).toHaveBeenCalledWith(`05${'ab'.repeat(64)}`);
       expect(prisma.supplierCert.create).not.toHaveBeenCalled();
     });
 
@@ -1018,6 +1025,27 @@ describe('SupplierPortalService', () => {
         .rejects.toMatchObject({ response: { code: 'CERT_SN_EXISTS' } });
       expect(prisma.supplierCert.create).not.toHaveBeenCalled();
       expect(prisma.supplier.update).not.toHaveBeenCalled();
+    });
+
+    it('certSn 被其他供应商 REVOKED 持有 → 409 CERT_SN_EXISTS（certSn 全局唯一，不转移所有权）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      prisma.supplierCert.findUnique.mockResolvedValue({ id: 'cert-other', supplierId: 'supplier-OTHER', certSn: 'SN-001', bindingStatus: 'REVOKED' });
+
+      await expect(service.bindCert('supplier-1', BIND_INPUT))
+        .rejects.toMatchObject({ response: { code: 'CERT_SN_EXISTS' } });
+      expect(prisma.supplierCert.create).not.toHaveBeenCalled();
+    });
+
+    it('并发竞态：findUnique 检查双双通过后 create 撞 certSn 唯一约束（P2002）→ 409 CERT_SN_EXISTS 而非裸 500', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      // 竞态窗口：检查时另一并发请求尚未落库 → findUnique(null)，create 时才撞唯一约束
+      prisma.supplierCert.findUnique.mockResolvedValue(null);
+      const p2002: any = new Error('Unique constraint failed on the fields: (`certSn`)');
+      p2002.code = 'P2002';
+      prisma.supplierCert.create.mockRejectedValue(p2002);
+
+      await expect(service.bindCert('supplier-1', BIND_INPUT))
+        .rejects.toMatchObject({ response: { code: 'CERT_SN_EXISTS' } });
     });
 
     it('同名撤销证重绑：本供应商 REVOKED 证原行复用（update 置回 ACTIVE），不新建', async () => {

@@ -182,8 +182,8 @@ export class SupplierPortalService {
     if (!certSn || !certDn || !publicKey) {
       throw new BadRequestException({ error: '请填写完整证书信息', code: 'MISSING_FIELDS' });
     }
-    // 本地正则（signature.service.isValidPublicKey 同规则，彼处为类方法不可直接复用）
-    if (!/^04[0-9a-fA-F]{128}$/.test(publicKey)) {
+    // 公钥格式校验：复用注入的 SignatureService.isValidPublicKey（与验签同一口径，杜绝正则复制漂移）
+    if (!this.signatureService.isValidPublicKey(publicKey)) {
       throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: 'INVALID_PUBLIC_KEY' });
     }
     const supplier = await this.prisma.supplier.findUnique({
@@ -203,26 +203,35 @@ export class SupplierPortalService {
     }
 
     const now = new Date();
-    const cert = await this.prisma.$transaction(async (tx) => {
-      // 一证一 ACTIVE：旧 ACTIVE 证书先 REVOKED（同一供应商）
-      await tx.supplierCert.updateMany({
-        where: { supplierId, bindingStatus: 'ACTIVE' },
-        data: { bindingStatus: 'REVOKED', revokedAt: now },
+    try {
+      const cert = await this.prisma.$transaction(async (tx) => {
+        // 一证一 ACTIVE：旧 ACTIVE 证书先 REVOKED（同一供应商）
+        await tx.supplierCert.updateMany({
+          where: { supplierId, bindingStatus: 'ACTIVE' },
+          data: { bindingStatus: 'REVOKED', revokedAt: now },
+        });
+        // certSn 列全局唯一：本供应商已撤销的同号证书复用原行置回 ACTIVE，否则新建
+        const row = existing
+          ? await tx.supplierCert.update({
+              where: { id: existing.id },
+              data: { certDn, publicKey, alg: alg ?? 'SM2', bindingStatus: 'ACTIVE', boundAt: now, revokedAt: null },
+            })
+          : await tx.supplierCert.create({
+              data: { supplierId, certSn, certDn, publicKey, alg: alg ?? 'SM2' },
+            });
+        // 绑定即激活验签公钥（存量列）
+        await tx.supplier.update({ where: { id: supplierId }, data: { sm2PublicKey: publicKey } });
+        return row;
       });
-      // certSn 列全局唯一：本供应商已撤销的同号证书复用原行置回 ACTIVE，否则新建
-      const row = existing
-        ? await tx.supplierCert.update({
-            where: { id: existing.id },
-            data: { certDn, publicKey, alg: alg ?? 'SM2', bindingStatus: 'ACTIVE', boundAt: now, revokedAt: null },
-          })
-        : await tx.supplierCert.create({
-            data: { supplierId, certSn, certDn, publicKey, alg: alg ?? 'SM2' },
-          });
-      // 绑定即激活验签公钥（存量列）
-      await tx.supplier.update({ where: { id: supplierId }, data: { sm2PublicKey: publicKey } });
-      return row;
-    });
-    return { cert };
+      return { cert };
+    } catch (err: any) {
+      // 并发竞态（镜像 submitBid 的 try-create-catch 模式）：两请求双双越过 findUnique
+      // 前置检查后，在 certSn @unique 上撞 P2002 → 转 409 锁定语义，杜绝裸 500
+      if (err?.code === 'P2002') {
+        throw new ConflictException({ error: '该证书序列号已被绑定', code: 'CERT_SN_EXISTS' });
+      }
+      throw err;
+    }
   }
 
   /**
