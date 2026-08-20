@@ -24,3 +24,6 @@ next-env.d.ts
 packages/*/src/**/*.js
 packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts
+
+# 管理方加密证书私钥 keystore（双信封 v2，Task 5）——绝不入库
+water-erp/apps/api/.data/
