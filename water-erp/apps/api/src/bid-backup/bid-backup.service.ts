@@ -104,11 +104,19 @@ export class BidBackupService {
     };
   }
 
-  /** 在 submitBid 事务内调用：把已 staged 的备份固化为 BidFileBackup 行（@@unique 幂等 upsert） */
+  /** 在 submitBid 事务内调用：把已 staged 的备份固化为 BidFileBackup 行（@@unique 幂等 upsert）。
+   *  cryptoVersion 可选覆盖——双信封 v2 投递传 'dual-envelope-v2'（wrappedDek=双 DEK JSON），缺省 envelope-v1。 */
   async persistBackup(
     tx: Prisma.TransactionClient,
     staged: StagedBackup,
-    meta: { projectId: string; supplierId: string; receiptNo: string | null; submittedAt: Date; backupSource: string },
+    meta: {
+      projectId: string;
+      supplierId: string;
+      receiptNo: string | null;
+      submittedAt: Date;
+      backupSource: string;
+      cryptoVersion?: string;
+    },
   ): Promise<void> {
     const data = {
       fileAssetId: staged.fileAssetId,
@@ -121,7 +129,7 @@ export class BidBackupService {
       receiptNo: meta.receiptNo,
       submittedAt: meta.submittedAt,
       backupSource: meta.backupSource,
-      cryptoVersion: CRYPTO_VERSION,
+      cryptoVersion: meta.cryptoVersion ?? CRYPTO_VERSION,
     };
     await tx.bidFileBackup.upsert({
       where: {

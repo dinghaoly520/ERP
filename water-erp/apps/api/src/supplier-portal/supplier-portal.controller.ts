@@ -6,6 +6,7 @@ import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
+import type { DualEnvelope } from '@water-erp/ukey';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { CreateCatalogApplicationDto, UpdateCatalogApplicationDto } from './dto/catalog-application.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -249,6 +250,9 @@ export class SupplierPortalController {
       splitFiles?: { tech?: any; biz?: any; other?: any };
       // E2EE: 客户端加密密钥（assetId → "keyHex:ivHex:authTagHex"）
       clientDeks?: Record<string, string>;
+      // 双信封 v2（dual-v2 新轨）：客户端密封信封 + 对 canonicalEnvelopeHash(envelope) 的供应商证书签名
+      envelope?: DualEnvelope;
+      signature?: string;
     },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);

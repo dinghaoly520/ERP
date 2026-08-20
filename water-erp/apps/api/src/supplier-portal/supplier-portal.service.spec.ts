@@ -3,8 +3,21 @@ import { SupplierPortalService } from './supplier-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { SignatureService } from '../common/crypto/signature.service';
+import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
 import { LlmService } from '../local-ai/llm.service';
+import {
+  canonicalEnvelopeHash,
+  canonicalJson,
+  computeFieldsCommit,
+  randomHex,
+  sha256Hex,
+  signEnvelopeMsg,
+  sm2EncryptHex,
+  sm4Encrypt,
+  wrapDekJson,
+} from '@water-erp/ukey';
+import type { DualEnvelope, EnvelopeFileEntry, SealedFields } from '@water-erp/ukey';
 
 jest.mock('../announcement/bid-document.crypto', () => ({
   encryptBuffer: jest.fn().mockReturnValue({
@@ -34,6 +47,9 @@ import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { minioClient } from '../upload/minio.client';
 import { openField, sealField } from '../common/crypto/field-crypto';
 
+// 双信封 v2 fixture：真实 SM2 密钥对（非被测代码自证循环），口径同 dual-envelope.service.spec.ts
+const ukeySm2 = require('sm-crypto').sm2;
+
 // 提交路径 pickBidSubmissionFields 会调 sealField(plain, process.env.KMS_SECRET!)。
 // KMS_SECRET 在 jest 同进程可能被其他 spec(expert.service.spec 的招标文件解密测试)污染，
 // 此处显式自洽设置，确保密封路径稳定可复现。
@@ -46,6 +62,7 @@ describe('SupplierPortalService', () => {
   let service: SupplierPortalService;
   let prisma: any;
   let signature: { verify: jest.Mock; isValidPublicKey: jest.Mock };
+  let bidBackup: { stageBackup: jest.Mock; persistBackup: jest.Mock; isEnabled: jest.Mock };
 
   const mockSupplier = {
     id: 'supplier-1',
@@ -69,7 +86,7 @@ describe('SupplierPortalService', () => {
     prisma = {
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
       supplier: { findUnique: jest.fn(), update: jest.fn() },
-      supplierCert: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+      supplierCert: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
       adminEncryptionCert: { findFirst: jest.fn() },
       bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
       supplierEvaluation: { count: jest.fn() },
@@ -103,6 +120,8 @@ describe('SupplierPortalService', () => {
 
     // SignatureService mock（bindCert 公钥格式校验走 isValidPublicKey；默认 true，个别用例覆写 false）
     signature = { verify: jest.fn().mockReturnValue(true), isValidPublicKey: jest.fn().mockReturnValue(true) };
+    // BidBackup mock 提升为共享变量——dual-v2 用例需断言 stageBackup/persistBackup 入参
+    bidBackup = { stageBackup: jest.fn().mockResolvedValue(null), persistBackup: jest.fn(), isEnabled: jest.fn().mockReturnValue(true) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -110,7 +129,9 @@ describe('SupplierPortalService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: BidDocumentService, useValue: { getForSupplier: jest.fn() } },
         { provide: SignatureService, useValue: signature },
-        { provide: BidBackupService, useValue: { stageBackup: jest.fn().mockResolvedValue(null), persistBackup: jest.fn(), isEnabled: jest.fn().mockReturnValue(true) } },
+        // 真 DualEnvelopeService（内部依赖上面 mock 的 SignatureService）——验签走真实 ukey SM2 链路
+        { provide: DualEnvelopeService, useClass: DualEnvelopeService },
+        { provide: BidBackupService, useValue: bidBackup },
         // SupplierPortalService 构造器 @Inject('REDIS_CLIENT')（口径同 verification.service.spec.ts）
         { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
         // 构造器第 6 参（BidGateway 为 @Optional，无需提供；本 spec 不触达 LLM）
@@ -1133,6 +1154,262 @@ describe('SupplierPortalService', () => {
 
       await expect(service.getActiveAdminCert())
         .rejects.toMatchObject({ response: { code: 'ADMIN_CERT_MISSING' } });
+    });
+  });
+
+  // ═══ 双信封 v2 新轨（Task 9）：envelope.version='dual-v2' 且 BID_DUAL_ENVELOPE !== 'false' ═══
+  // fixture 全部用 @water-erp/ukey 生产函数构造（真实 SM2/SM4 密封件 + 真签名），非自证循环。
+  describe('submitBid 双信封 v2（dual-v2 新轨）', () => {
+    const adminKp = ukeySm2.generateKeyPairHex();
+    const supplierKp = ukeySm2.generateKeyPairHex();
+    const wrongKp = ukeySm2.generateKeyPairHex();
+    const DUAL_CERT_SN = 'MOCK-CERT-DUAL-0001';
+    const DUAL_ASSET_KEY = 'uploads/2026-08-20/dual/couter-tech.bin';
+    const DUAL_PLAINTEXT = Buffer.from('技术标投标文件（dual-v2 测试）—智慧水发·蜀水云采', 'utf8');
+    const FIELDS: SealedFields = { price: '980000.00', deliveryPeriod: '540', qualityCommitment: '合格' };
+    const NONCE = 'n-dual-test-0001';
+    const ORIG_FLAG = process.env.BID_DUAL_ENVELOPE;
+
+    let DUAL_TECH_SHA = '';
+    const dualAsset = () => ({
+      id: 'fa-dual-1', key: DUAL_ASSET_KEY, originalName: 'tech.pdf', mimeType: 'application/pdf',
+      size: 2048, sha256: DUAL_TECH_SHA, category: 'bid_document', uploaderId: 'user-1',
+      clientEncrypted: true, encrypted: false, sealedPath: null,
+    });
+
+    /** 生产侧语义构造合法信封（同 dual-envelope.service.spec 的 buildDualLayerSample/buildEnvelope）：
+     *  C_outer 由客户端加密上传（asset.key 即密文），envelope 携带两把密封件 + 供应商层字段密封件。 */
+    async function buildDualSubmission(overrides?: {
+      envelope?: Partial<DualEnvelope>;
+      files?: Partial<Record<keyof DualEnvelope['files'], EnvelopeFileEntry>>;
+    }): Promise<{ envelope: DualEnvelope; signature: string }> {
+      const dekS = { keyHex: randomHex(16), ivHex: randomHex(16) };
+      const dekA = { keyHex: randomHex(16), ivHex: randomHex(16) };
+      const dekF = { keyHex: randomHex(16), ivHex: randomHex(16) };
+      const envelope: DualEnvelope = {
+        version: 'dual-v2',
+        certSn: DUAL_CERT_SN,
+        adminCertId: 'cert-admin-1',
+        files: {
+          technical: {
+            sha256: DUAL_TECH_SHA,
+            kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekS), 'utf8').toString('hex')),
+            kadmin: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson(dekA), 'utf8').toString('hex')),
+          },
+        },
+        sealedFields: {
+          cipher: sm4Encrypt(dekF.keyHex, dekF.ivHex, Buffer.from(canonicalJson({ fields: FIELDS, nonce: NONCE }), 'utf8').toString('hex')),
+          kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekF), 'utf8').toString('hex')),
+          fieldsSha256: await sha256Hex(canonicalJson(FIELDS)),
+        },
+        fieldsCommit: await computeFieldsCommit(FIELDS, NONCE),
+        ...overrides?.envelope,
+        ...(overrides?.files ? { files: overrides.files as DualEnvelope['files'] } : {}),
+      };
+      const signature = signEnvelopeMsg(await canonicalEnvelopeHash(envelope), supplierKp.privateKey);
+      return { envelope, signature };
+    }
+
+    beforeAll(async () => {
+      DUAL_TECH_SHA = await sha256Hex(DUAL_PLAINTEXT);
+    });
+    afterAll(() => {
+      if (ORIG_FLAG === undefined) delete process.env.BID_DUAL_ENVELOPE;
+      else process.env.BID_DUAL_ENVELOPE = ORIG_FLAG;
+    });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(null);
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', userId: 'user-1' });
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', projectCode: 'BID-X', stage: 'SUBMIT',
+        deadline: new Date(Date.now() + 3600_000), bondRequired: false,
+      });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'notice-1' });
+      prisma.fileAsset.findMany.mockResolvedValue([dualAsset()]);
+      prisma.fileAsset.findUnique.mockResolvedValue(dualAsset());
+      prisma.fileAsset.update.mockResolvedValue(dualAsset());
+      prisma.adminEncryptionCert.findFirst.mockResolvedValue({ id: 'cert-admin-1', publicKey: adminKp.publicKey, active: true });
+      prisma.supplierCert.findFirst.mockResolvedValue({
+        id: 'sc-1', supplierId: 'supplier-1', certSn: DUAL_CERT_SN,
+        publicKey: supplierKp.publicKey, bindingStatus: 'ACTIVE',
+      });
+      prisma.supplierBidSubmission.create.mockResolvedValue({ id: 'sub-dual-1', status: 'submitted' });
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+      prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-dual-1' });
+    });
+
+    it('① 合法新轨提交：envelope 落库 / bidPrice null / fileHash=canonicalHash / backup v2 / 双层信封已验签', async () => {
+      // stageBackup 返回 StagedBackup，使 persistBackup（cryptoVersion 断言点）被走到
+      bidBackup.stageBackup.mockImplementation(async (input: any) => ({
+        fileAssetId: input.fileAssetId, fileRole: input.fileRole,
+        backupKey: `sealed-backup/project-1/supplier-1/${input.fileRole}/couter.bin`,
+        sealedPath: input.sealedPath, wrappedDek: input.wrappedDek,
+        ciphertextSha256: 'ab'.repeat(32), plaintextSha256: input.plaintextSha256, size: input.ciphertext.length,
+      }));
+      const { envelope, signature } = await buildDualSubmission();
+
+      const result = await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '980000', envelope, signature,
+      } as any);
+
+      expect(result.status).toBe('submitted');
+      // 落库：envelope/envelopeVersion/fileHash/signature/signedAt + bidPrice 列 null（报价只在 sealedFields）
+      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
+      expect(call.data.envelope).toMatchObject({ version: 'dual-v2', certSn: DUAL_CERT_SN, adminCertId: 'cert-admin-1' });
+      expect(call.data.envelopeVersion).toBe('dual-v2');
+      expect(call.data.bidPrice).toBeNull();
+      expect(call.data.fileHash).toBe(await canonicalEnvelopeHash(envelope));
+      expect(call.data.signature).toBe(signature);
+      expect(call.data.signedAt).toEqual(expect.any(Date));
+      // sealedKey 列 = 双 DEK JSON（kself+kadmin+adminCertId 合账，单独一把不可读明文）
+      const entry = envelope.files.technical!;
+      expect(JSON.parse(call.data.technicalSealedKey)).toEqual({
+        kself: entry.kself, kadmin: entry.kadmin, adminCertId: 'cert-admin-1',
+      });
+      // C_outer 已在 MinIO（asset.key），fileAsset 封存标记指向原路径，不再二次加密
+      expect(encryptBuffer).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.update).toHaveBeenCalledWith({
+        where: { id: 'fa-dual-1' },
+        data: { encrypted: true, sealedPath: DUAL_ASSET_KEY },
+      });
+      // backup v2：sealedPath=asset.key、wrappedDek=JSON{kself,kadmin,adminCertId}、cryptoVersion=dual-envelope-v2
+      expect(bidBackup.stageBackup).toHaveBeenCalledTimes(1);
+      const sb = bidBackup.stageBackup.mock.calls[0][0];
+      expect(sb.sealedPath).toBe(DUAL_ASSET_KEY);
+      expect(sb.plaintextSha256).toBe(DUAL_TECH_SHA);
+      expect(JSON.parse(sb.wrappedDek)).toEqual({ kself: entry.kself, kadmin: entry.kadmin, adminCertId: 'cert-admin-1' });
+      expect(bidBackup.persistBackup).toHaveBeenCalledWith(
+        expect.anything(), expect.anything(),
+        expect.objectContaining({ cryptoVersion: 'dual-envelope-v2', backupSource: 'submission' }),
+      );
+      // BidSupplier 状态文案
+      expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ encryptStatus: '双层信封已验签' }) }),
+      );
+    });
+
+    it('② asset 非 clientEncrypted → 400 BID_FILE_NOT_ENCRYPTED（拒收未按双层信封加密的文件）', async () => {
+      prisma.fileAsset.findMany.mockResolvedValue([{ ...dualAsset(), clientEncrypted: false }]);
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...dualAsset(), clientEncrypted: false });
+      const { envelope, signature } = await buildDualSubmission();
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({ response: { code: 'BID_FILE_NOT_ENCRYPTED' } });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+    });
+
+    it('③ envelope.adminCertId 与 active 管理方证书不符 → 400 ADMIN_CERT_CHANGED', async () => {
+      const { envelope, signature } = await buildDualSubmission({ envelope: { adminCertId: 'cert-admin-OLD' } });
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({ response: { code: 'ADMIN_CERT_CHANGED' } });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+    });
+
+    it('③b 无 active 管理方证书 → 400 ADMIN_CERT_CHANGED', async () => {
+      prisma.adminEncryptionCert.findFirst.mockResolvedValue(null);
+      const { envelope, signature } = await buildDualSubmission();
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({ response: { code: 'ADMIN_CERT_CHANGED' } });
+    });
+
+    it('③c 信封条目 sha256 与 asset 明文哈希不符 → 400 ENVELOPE_INCOMPLETE（防调包/漏封）', async () => {
+      const tampered: EnvelopeFileEntry = { sha256: 'ff'.repeat(32), kself: 'aa', kadmin: 'bb' };
+      const { envelope, signature } = await buildDualSubmission({ files: { technical: tampered } });
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({ response: { code: 'ENVELOPE_INCOMPLETE' } });
+    });
+
+    it('③d 已投递角色在信封中缺条目 → 400 ENVELOPE_INCOMPLETE', async () => {
+      const { envelope, signature } = await buildDualSubmission({ files: {} });
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({ response: { code: 'ENVELOPE_INCOMPLETE' } });
+    });
+
+    it('④ 验签失败（SupplierCert 公钥与签名密钥不匹配）→ 400 SM2_SIGNATURE_INVALID', async () => {
+      prisma.supplierCert.findFirst.mockResolvedValue({
+        id: 'sc-1', supplierId: 'supplier-1', certSn: DUAL_CERT_SN,
+        publicKey: wrongKp.publicKey, bindingStatus: 'ACTIVE',
+      });
+      const { envelope, signature } = await buildDualSubmission();
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({ response: { code: 'SM2_SIGNATURE_INVALID' } });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+    });
+
+    it('④b 收紧口径：certSn 未命中本供应商 ACTIVE SupplierCert → 400，不回退 supplier.sm2PublicKey 列', async () => {
+      // 供应商行带着「能验过的」sm2PublicKey——若实现回退该列，验签将通过；此处必须仍拒收。
+      prisma.supplier.findUnique.mockResolvedValue({
+        id: 'supplier-1', name: '测试供应商', status: 'APPROVED', userId: 'user-1',
+        sm2PublicKey: supplierKp.publicKey,
+      });
+      prisma.supplierCert.findFirst.mockResolvedValue(null);
+      const { envelope, signature } = await buildDualSubmission();
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any)).rejects.toMatchObject({
+        response: { code: 'SM2_SIGNATURE_INVALID', error: expect.stringContaining('未找到有效绑定证书') },
+      });
+      // 查询口径钉死：certSn + supplierId + bindingStatus ACTIVE 三条件
+      expect(prisma.supplierCert.findFirst).toHaveBeenCalledWith({
+        where: { supplierId: 'supplier-1', certSn: DUAL_CERT_SN, bindingStatus: 'ACTIVE' },
+      });
+    });
+
+    it('⑤ 旧轨回归（flag 默认开、不传 envelope）：clientDeks E2EE 分支照旧', async () => {
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '100',
+        clientDeks: { 'fa-dual-1': 'aabbccdd:11223344:55667788' },
+      } as any);
+
+      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
+      expect(call.data.envelope).toBeUndefined();
+      expect(call.data.envelopeVersion).toBeUndefined();
+      expect(call.data.technicalSealedKey).toBe('wrapped:aabbccdd:11223344:55667788'); // KMS wrapKey 旧口径
+      expect(call.data.bidPrice).toMatch(/^v1:/); // 旧轨照旧密封报价
+      expect(call.data.signedAt).toBeUndefined();
+      expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ encryptStatus: '密文已校验' }) }),
+      );
+      // 新轨触点全未进
+      expect(prisma.supplierCert.findFirst).not.toHaveBeenCalled();
+      expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('⑥ flag 关（BID_DUAL_ENVELOPE=false）且 envelope 传入 → 仍走旧轨（服务端加密分支）', async () => {
+      process.env.BID_DUAL_ENVELOPE = 'false';
+      const plainAsset = { ...dualAsset(), clientEncrypted: false };
+      prisma.fileAsset.findMany.mockResolvedValue([plainAsset]);
+      prisma.fileAsset.findUnique.mockResolvedValue(plainAsset);
+      const { envelope, signature } = await buildDualSubmission();
+
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any);
+
+      expect(encryptBuffer).toHaveBeenCalled(); // 旧轨服务端加密照旧
+      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
+      expect(call.data.signedAt).toBeUndefined();
+      expect(call.data.technicalSealedKey).toBe('wrapped:key:iv:auth'); // encryptBuffer mock 的 decryptKey 经 wrapKey
+      expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ encryptStatus: '密文已校验' }) }),
+      );
+      // 新轨验签/证书触点全未进（flag 双向可退）
+      expect(prisma.supplierCert.findFirst).not.toHaveBeenCalled();
+      expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
     });
   });
 });

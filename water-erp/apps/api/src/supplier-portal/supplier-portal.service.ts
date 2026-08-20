@@ -12,6 +12,9 @@ import { encryptBuffer, streamToBuffer } from '../announcement/bid-document.cryp
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { SignatureService } from '../common/crypto/signature.service';
+import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
+import { canonicalEnvelopeHash } from '@water-erp/ukey';
+import type { DualEnvelope, EnvelopeRole } from '@water-erp/ukey';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
 import { BidGateway } from '../bid/bid.gateway';
@@ -39,6 +42,8 @@ type BidSubmissionData = {
   splitFiles?: { tech?: any; biz?: any; other?: any };
   // E2EE: 客户端加密密钥（assetId → "keyHex:ivHex:authTagHex"）
   clientDeks?: Record<string, string>;
+  // 双信封 v2（dual-v2 新轨）：客户端密封信封（version/certSn/adminCertId/files/sealedFields/fieldsCommit）
+  envelope?: DualEnvelope;
 };
 
 /**
@@ -63,8 +68,23 @@ function pickBidSubmissionFields(data: BidSubmissionData) {
     bidBondAssetId: data.bidBondAssetId,
     fileHash: data.fileHash,
     signature: data.signature,
+    // 双信封 v2（Task 9）：信封原样落库（Json 列）；旧轨恒 undefined → 列不动。
+    // DualEnvelope 接口无隐式索引签名，入 Prisma Json 列需经 unknown 收口。
+    envelope: (data.envelope ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
+    envelopeVersion: data.envelope?.version ?? undefined,
   };
 }
+
+/**
+ * dual-v2 逐角色参检表（Task 9 新轨）：三份标书文件 + 投标保证金（bond 仅项目 bondRequired 时参检）。
+ * 角色未投递（无 assetId）→ 无锚点可校，跳过；信封独有角色不在服务端校验范围（单向 declared→envelope）。
+ */
+const DUAL_ROLE_FIELDS: ReadonlyArray<readonly [EnvelopeRole, keyof BidSubmissionData]> = [
+  ['technical', 'technicalFileAssetId'],
+  ['business', 'businessFileAssetId'],
+  ['coverLetter', 'coverLetterAssetId'],
+  ['bond', 'bidBondAssetId'],
+];
 
 /**
  * P0-1：把前端「完整标书 / 拆分文件」模型归一到后端三角色（technical/business/coverLetter）契约。
@@ -113,6 +133,7 @@ export class SupplierPortalService {
     private bidDocumentService: BidDocumentService,
     private signatureService: SignatureService,
     private bidBackup: BidBackupService,
+    private readonly dualEnvelope: DualEnvelopeService,
     @Inject('REDIS_CLIENT') private redis: Redis,
     private llm: LlmService,
     @Optional() private readonly gateway?: BidGateway,
@@ -868,7 +889,7 @@ export class SupplierPortalService {
       this.prisma.supplier.findUnique({ where: { id: supplierId } }),
       this.prisma.bidProject.findUnique({
         where: { id: projectId },
-        select: { id: true, projectCode: true, stage: true, deadline: true, projectManagementItemId: true },
+        select: { id: true, projectCode: true, stage: true, deadline: true, projectManagementItemId: true, bondRequired: true },
       }),
     ]);
 
@@ -957,7 +978,7 @@ export class SupplierPortalService {
     // P0-1：前端「完整标书/拆分文件」字段归一到三角色契约，否则 pickBidSubmissionFields 丢弃 → 标书丢失 → 流标。
     normalizeBidFileAssets(data);
 
-    const { supplier } = await this.assertCanSubmitBid(supplierId, projectId);
+    const { supplier, project } = await this.assertCanSubmitBid(supplierId, projectId);
     await this.assertBidFileAssetsOwnedByUser(supplier.userId, [
       data.technicalFileAssetId,
       data.businessFileAssetId,
@@ -965,11 +986,17 @@ export class SupplierPortalService {
       data.bidBondAssetId,
     ]);
 
+    // ── 双信封 v2 新轨开关（Task 9）：默认开；BID_DUAL_ENVELOPE=false 全局退回旧轨（灰度/应急双向可退）──
+    const dualOn = process.env.BID_DUAL_ENVELOPE !== 'false';
+    const envelope = data.envelope;
+    const dual = dualOn && envelope?.version === 'dual-v2';
+
     // ── Layer C: SM2 digital signature verification (anti-repudiation) ──
     // TODO (Phase 6): 当前前端 BidSubmit.vue 未实现 SM2 客户端签名，
     // 因此 signature/fileHash 始终为空，此验证跳过。
     // 需在客户端实现：计算标书文件 SHA-256 → 用供应商 SM2 私钥签名 → 随提交发送。
-    if (data.signature && data.fileHash) {
+    // dual-v2 新轨的验签在下方新轨分支内按「ACTIVE SupplierCert 收紧口径」执行，不走本段。
+    if (!dual && data.signature && data.fileHash) {
       const pubKey = supplier.sm2PublicKey;
       if (!pubKey) {
         throw new BadRequestException({ error: '供应商未配置 SM2 公钥，无法验签', code: 'SM2_PUBLIC_KEY_MISSING' });
@@ -990,7 +1017,84 @@ export class SupplierPortalService {
     if (data.businessFileAssetId) assetRoles[data.businessFileAssetId] = 'business';
     if (data.coverLetterAssetId) assetRoles[data.coverLetterAssetId] = 'coverLetter';
     const stagedBackups: StagedBackup[] = []; // 提交时即备份（未解密态），best-effort
+    let canonicalHash: string | undefined; // dual-v2：envelope 规范哈希（fileHash 落库锚点）
 
+    if (dual) {
+      // ── dual-v2 新轨（Task 9）：C_outer 已由客户端双层加密上传（asset.key 即密文），服务端只验不加密 ──
+      // 拒收顺序：管理方证书 → 逐角色密封件 → 证书验签（收紧口径）；任一失败 400 拒收、零落库零备份。
+      const env = envelope as DualEnvelope;
+      // ① 管理方加密证书在位且与信封一致：投递后证书轮换会使外层（kadmin）无人可解，须拒收重加密上传。
+      const activeCert = await this.prisma.adminEncryptionCert.findFirst({ where: { active: true } });
+      if (!activeCert || env.adminCertId !== activeCert.id) {
+        throw new BadRequestException({ error: '管理方加密证书已变更，请重新加密上传', code: 'ADMIN_CERT_CHANGED' });
+      }
+      // ② 逐角色拒收：每个已投递角色（bond 仅 bondRequired 时参检）的 asset 必须 clientEncrypted，
+      //    且信封条目 sha256 == asset.sha256（明文哈希一致——防调包/漏封）。
+      //    declared 由服务端从投递声明枚举全部期望角色（assertEnvelopeIntact 单向：declared→envelope）。
+      const declared: Array<{ role: EnvelopeRole; sha256: string }> = [];
+      for (const [role, idKey] of DUAL_ROLE_FIELDS) {
+        const assetId = data[idKey] as string | undefined;
+        if (!assetId) continue; // 该角色未投递 → 无锚点可校
+        if (role === 'bond' && !project.bondRequired) continue;
+        const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+        if (!asset?.clientEncrypted) {
+          throw new BadRequestException({
+            error: `投标文件未按双层信封加密（${role}），请重新加密上传`,
+            code: 'BID_FILE_NOT_ENCRYPTED',
+          });
+        }
+        declared.push({ role, sha256: asset.sha256 });
+      }
+      this.dualEnvelope.assertEnvelopeIntact(env, declared);
+      // ③ 验签（收紧口径）：envelope.certSn 必须命中本供应商 ACTIVE SupplierCert；
+      //    不回退 supplier.sm2PublicKey 列——revokeCert 不清该列，回退会让已撤销证书的旧公钥继续有效。
+      const cert = await this.prisma.supplierCert.findFirst({
+        where: { supplierId, certSn: env.certSn, bindingStatus: 'ACTIVE' },
+      });
+      const verified = cert
+        ? await this.dualEnvelope.verifySignature(env, data.signature ?? '', cert.publicKey)
+        : false;
+      if (!cert || !verified) {
+        throw new BadRequestException({ error: '未找到有效绑定证书或签名验证失败', code: 'SM2_SIGNATURE_INVALID' });
+      }
+      canonicalHash = await canonicalEnvelopeHash(env);
+      // ④ 新轨报价只存在于 sealedFields（供应商层密文，平台开标解密前不可读）——不写 KMS 密封 bidPrice 列。
+      data.bidPrice = undefined;
+      // ⑤ 备份 v2（无二次加密）：sealedPath=asset.key（C_outer 即上传路径），
+      //    wrappedDek=JSON{kself,kadmin,adminCertId}——kself 供供应商解密回执、kadmin 供主持端解外层，
+      //    两把密钥合账方可完整解密，单独一把对任何一方均不可读明文。
+      try {
+        for (const assetId of assetIds) {
+          const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+          if (!asset) continue;
+          const entry = env.files[assetRoles[assetId]]!;
+          const wrappedDek = JSON.stringify({ kself: entry.kself, kadmin: entry.kadmin, adminCertId: activeCert.id });
+          sealedKeys[assetId] = wrappedDek;
+          sealedPaths[assetId] = asset.key; // C_outer 即上传路径（与 E2EE 分支同口径）
+          const staged = await this.bidBackup.stageBackup({
+            projectId, supplierId,
+            fileRole: assetRoles[assetId],
+            fileAssetId: assetId,
+            sealedPath: asset.key,
+            ciphertext: await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.key)),
+            wrappedDek,
+            plaintextSha256: asset.sha256 ?? null,
+          });
+          if (staged) {
+            stagedBackups.push(staged);
+            newlySealedPaths.push(staged.backupKey);
+          }
+        }
+      } catch (err) {
+        // Clean up any newly written backup objects on failure（不动 asset.key 原密文）
+        for (const path of newlySealedPaths) {
+          try { await minioClient.removeObject(MINIO_BUCKET, path); } catch (_) { /* best-effort cleanup */ }
+        }
+        throw err;
+      }
+    } else {
+      // ── 旧轨（flag 关或未传 dual-v2 envelope）：E2EE/服务端加密循环，行为与代码保持原样
+      //    （块体未随嵌套重排缩进，使 git diff 对旧轨零改动可直接目视核验）──
     try {
       for (const assetId of assetIds) {
         const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
@@ -1067,8 +1171,15 @@ export class SupplierPortalService {
       }
       throw err;
     }
+    }
 
     const now = new Date();
+    // dual-v2：BidSupplier 加密状态文案分轨（新轨=信封已验签，旧轨=KMS 密封已校验）
+    const bidSupplierEncryptStatus = dual ? '双层信封已验签' : '密文已校验';
+    // dual-v2 落库附加：fileHash 锚点=envelope 规范哈希（旧轨=客户端文件哈希）、signedAt 以服务端时间为准。
+    const dualPersist = dual
+      ? { envelopeVersion: 'dual-v2', fileHash: canonicalHash, signature: data.signature ?? null, signedAt: now }
+      : {};
 
     // 提交记录 + fileAsset 封存标记原子化：此前分散写，中途失败会留「sealed 文件已写但 submission 未建」的不一致态。
     // 并发重复提交命中 supplierId_projectId 唯一约束（P2002）→ 转 409 并清理本次新写的 sealed 文件，杜绝孤儿对象与裸 500。
@@ -1089,6 +1200,7 @@ export class SupplierPortalService {
             where: { id: existing.id },
             data: {
               ...pickBidSubmissionFields(data),
+              ...dualPersist,
               status: 'submitted',
               submittedAt: now,
               serverSubmittedAt: now,
@@ -1103,6 +1215,7 @@ export class SupplierPortalService {
               supplierId,
               projectId,
               ...pickBidSubmissionFields(data),
+              ...dualPersist,
               status: 'submitted',
               submittedAt: now,
               serverSubmittedAt: now,
@@ -1121,7 +1234,7 @@ export class SupplierPortalService {
         if (existingBidSupplier) {
           await tx.bidSupplier.update({
             where: { id: existingBidSupplier.id },
-            data: { supplierId, submitStatus: '已提交', encryptStatus: '密文已校验' },
+            data: { supplierId, submitStatus: '已提交', encryptStatus: bidSupplierEncryptStatus },
           });
         } else {
           receiptNo = `TB-${now.toISOString().slice(0, 10).replace(/-/g, '')}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`;
@@ -1132,15 +1245,19 @@ export class SupplierPortalService {
               supplierName: supplier.name,
               downloadStatus: '已下载',
               submitStatus: '已提交',
-              encryptStatus: '密文已校验',
+              encryptStatus: bidSupplierEncryptStatus,
               receiptNo,
             },
           });
         }
 
         // ── 固化未解密备份：把封标时 staged 的密文备份写入 BidFileBackup（事务内，幂等 upsert）──
+        // dual-v2：wrappedDek=双 DEK JSON，cryptoVersion 标 'dual-envelope-v2'（解密/核验方据此分轨）。
         for (const staged of stagedBackups) {
-          await this.bidBackup.persistBackup(tx, staged, { projectId, supplierId, receiptNo, submittedAt: now, backupSource: 'submission' });
+          await this.bidBackup.persistBackup(tx, staged, {
+            projectId, supplierId, receiptNo, submittedAt: now, backupSource: 'submission',
+            ...(dual ? { cryptoVersion: 'dual-envelope-v2' } : {}),
+          });
         }
 
         return submission;
