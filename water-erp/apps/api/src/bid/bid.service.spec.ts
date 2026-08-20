@@ -3483,6 +3483,20 @@ describe('BidService — getOpeningRecordDraft', () => {
     const draft = await service.getOpeningRecordDraft('p1', 's1');
     expect(draft.bidBondAssetId).toBe('fa-dec-bond');
   });
+
+  it('dual-v2：amount 改指 decryptedPrice（新轨 bidPrice 列恒 null——读旧列草稿价≠最终价，主持人按面板录入必撞 409 PRICE_MISMATCH）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+      bidPrice: null, decryptedPrice: '1234567.89', deliveryPeriod: '180天', bidBondAssetId: 'fa-1',
+      envelopeVersion: 'dual-v2',
+      decryptedAssets: { technical: 'fa-dec-t', business: 'fa-dec-b', coverLetter: 'fa-dec-c', bond: 'fa-dec-bond' },
+    });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue({ bondStatus: '已缴纳' });
+
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.amount).toBe('1234567.89');
+  });
 });
 
 describe('BidService — generateEvaluationResults 保证金软标记', () => {

@@ -23,7 +23,7 @@
  *   如确需执行，须显式设置 ALLOW_PROD_SEED=1。
  */
 import { PrismaClient } from '@prisma/client';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { execSync } from 'node:child_process';
@@ -555,6 +555,30 @@ async function main() {
     }
   } catch (e) {
     console.warn(`    ⚠ AI 摘要回填失败: ${(e as Error).message}（不阻塞 seed）`);
+  }
+
+  // ═══ admin 加密证书 bootstrap（口径同步：src/common/crypto/admin-keystore.service.ts）═══
+  // 全新库 seed 后无 active 证书；运行中 API 不重启则供应商取 admin-cert 409
+  // （ensureBootstrap 仅在 API 启动时执行）。seed 内不引 Nest service——内联同一口径：
+  // SM2 生成 → create(active:true, certDn 与 ADMIN_CERT_DN 一致) → 私钥写 keystore/<id>（0600）。
+  // 已有 active 则跳过（幂等）。keystore 默认目录 <api>/.data/admin-keystore（本文件位于
+  // <api>/prisma，'../' 与 service 的 '../../../' 解析同归 <api> 包根；dir 权限/写盘参数同 service）。
+  console.log('▶ admin 加密证书 bootstrap');
+  const adminCertCount = await prisma.adminEncryptionCert.count({ where: { active: true } });
+  if (adminCertCount === 0) {
+    const { sm2 } = require('sm-crypto');
+    const kp = sm2.generateKeyPairHex();
+    const cert = await prisma.adminEncryptionCert.create({
+      data: { publicKey: kp.publicKey, certDn: 'CN=蜀水云采-管理方加密证书', active: true },
+    });
+    const keystoreDir = process.env.ADMIN_KEYSTORE_DIR ?? join(__dirname, '../.data/admin-keystore');
+    mkdirSync(keystoreDir, { recursive: true, mode: 0o700 });
+    const certFile = join(keystoreDir, cert.id);
+    writeFileSync(certFile, kp.privateKey, { mode: 0o600 });
+    chmodSync(certFile, 0o600);
+    console.log(`    生成 active 证书 ${cert.id}，私钥 → ${certFile}`);
+  } else {
+    console.log(`    已有 ${adminCertCount} 张 active 证书，跳过（幂等）`);
   }
 
   const counts = {

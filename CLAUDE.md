@@ -154,6 +154,7 @@ pnpm infra:logs      # View logs
 # Build shared packages (required before first app start)
 pnpm --filter @water-erp/shared build
 pnpm --filter @water-erp/config build
+pnpm --filter @water-erp/ukey build
 
 # Database
 pnpm db:generate     # Generate Prisma client

@@ -3346,7 +3346,7 @@ export class BidService {
     const submission = bidSupplier.supplierId
       ? await this.prisma.supplierBidSubmission.findUnique({
           where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
-          select: { bidPrice: true, deliveryPeriod: true, bidBondAssetId: true, qualityCommitment: true, envelopeVersion: true, decryptedAssets: true },
+          select: { bidPrice: true, decryptedPrice: true, deliveryPeriod: true, bidBondAssetId: true, qualityCommitment: true, envelopeVersion: true, decryptedAssets: true },
         })
       : null;
 
@@ -3364,7 +3364,13 @@ export class BidService {
       canView: true,
       // bidPrice 入库已密封；此处 canView=true 已保证 decryptStatus==='SUCCESS'，安全拆封。
       // 旧明文数据经 openField legacy 兼容原样返回。
-      amount: submission?.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null,
+      // dual-v2（P1-4 同口径）：报价改指 decryptedPrice（解密上传经 fieldsCommit 承诺验证落库；
+      // 新轨投递 bidPrice 列恒 null，读旧列会显示 null 价 → 主持人按面板录入必撞 409 PRICE_MISMATCH）。
+      amount: submission
+        ? (submission.envelopeVersion === 'dual-v2'
+            ? (submission.decryptedPrice ?? null)
+            : (submission.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null))
+        : null,
       period: submission?.deliveryPeriod ?? null,
       qualityTarget: submission?.qualityCommitment || project.qualityRequirement,
       bondStatus: existingRecord?.bondStatus ?? null,

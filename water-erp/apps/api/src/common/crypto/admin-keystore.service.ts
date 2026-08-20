@@ -51,10 +51,17 @@ export class AdminKeyService {
       });
     });
     const dir = keystoreDir();
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const file = path.join(dir, cert.id);
-    fs.writeFileSync(file, kp.privateKey, { mode: 0o600 });
-    fs.chmodSync(file, 0o600); // 既有文件重写时也强制收口（umask 之外再兜一层）
+    try {
+      fs.writeFileSync(file, kp.privateKey, { mode: 0o600 });
+      fs.chmodSync(file, 0o600); // 既有文件重写时也强制收口（umask 之外再兜一层）
+    } catch (e) {
+      // 写盘失败（ENOSPC/EACCES）→ 回滚该行 active:false，避免库内 active 证书只有公钥无私钥
+      // 且 ensureBootstrap 不自愈（active 存在即跳过）。原样 rethrow 让调用方感知生成失败。
+      await this.prisma.adminEncryptionCert.updateMany({ where: { id: cert.id }, data: { active: false } });
+      throw e;
+    }
     return cert;
   }
 

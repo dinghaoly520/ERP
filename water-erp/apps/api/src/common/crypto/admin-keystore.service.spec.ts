@@ -58,6 +58,20 @@ describe('AdminKeyService', () => {
     );
   });
 
+  it('generate：writeFileSync 抛错（ENOSPC）→ 新行 active:false 回滚 + generate rejects（防公钥入库无私钥且 ensureBootstrap 不自愈）', async () => {
+    const spy = jest.spyOn(fs, 'writeFileSync').mockImplementationOnce(() => {
+      throw new Error('ENOSPC: no space left on device');
+    });
+
+    await expect(svc.generate()).rejects.toThrow('ENOSPC');
+    // 事务内的旧 active→false 之外，还应有一次针对新行 id 的 active:false 回滚
+    expect(prisma.adminEncryptionCert.updateMany).toHaveBeenCalledWith({
+      where: { id: 'cert-1' },
+      data: { active: false },
+    });
+    spy.mockRestore();
+  });
+
   it('ensureBootstrap：无 active 自动生成；已有则不生成', async () => {
     prisma.adminEncryptionCert.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'x' });
     await svc.ensureBootstrap();

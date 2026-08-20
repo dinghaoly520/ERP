@@ -136,7 +136,7 @@ export function canonicalEnvelopeHash(envelope: DualEnvelope): string; // SHA256
 export function computeFieldsCommit(fields: SealedFields, nonce: string): string;
 ```
 
-- **MockUKeyAdapter**（开发/演示/单测）：密钥对生成于浏览器，私钥经用户口令派生密钥（PBKDF2 + AES-GCM）加密存 localStorage；**导出/导入 U盾文件**（JSON：证书私钥密文 + 各项目 DEK_S + nonce）模拟实体介质可携带——换机器、在场换设备重解都依赖此文件；nonce 与 DEK_S 同存于导出文件，丢失则该标书无法自证字段（UI 提醒妥善保存）。
+- **MockUKeyAdapter**（开发/演示/单测）：密钥对生成于浏览器，私钥经用户口令派生密钥（PBKDF2 + AES-GCM）加密存 localStorage；**导出/导入 U盾文件**（仅证书私钥——F+nonce 在 sealedFields 内，见 §12.3）模拟实体介质可携带——换机器、在场换设备重解都依赖此文件。
 - **VendorUKeyAdapter 骨架**：接口同上，实现走 CA 厂商本地中间件（localhost 端口 HTTP 协议）；拿到厂商 SDK 文档后填 adapter 即可，业务代码零改动。
 - **SM2 签名参数统一封装**：der/userId/hash 等参数在共享包内一处显式定义，前后端同参调用（不依赖 sm-crypto 默认值），并附 golden vector 测试（§10）。
 - 加密操作（SM2_Enc 用公钥）不需介质，由前端直接 sm-crypto 执行——只有 **sign 与 decrypt 走适配层**。
