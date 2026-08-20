@@ -1409,29 +1409,20 @@ describe('SupplierPortalService', () => {
       expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
     });
 
-    it('⑥ flag 关（BID_DUAL_ENVELOPE=false）且 envelope 传入 → 仍走旧轨 + envelope 剥离不落库（防伪造信封）', async () => {
+    it('⑥ flag 关（BID_DUAL_ENVELOPE=false）且 dual-v2 envelope 传入 → 400 DUAL_DISABLED（应急开关不吞新轨标书，fix round 1 ②）', async () => {
       process.env.BID_DUAL_ENVELOPE = 'false';
-      const plainAsset = { ...dualAsset(), clientEncrypted: false };
-      prisma.fileAsset.findMany.mockResolvedValue([plainAsset]);
-      prisma.fileAsset.findUnique.mockResolvedValue(plainAsset);
       const { envelope, signature } = await buildDualSubmission();
 
-      await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-dual-1', envelope, signature,
-      } as any);
+      await expect(
+        service.submitBid('supplier-1', 'project-1', {
+          technicalFileAssetId: 'fa-dual-1', envelope, signature,
+        } as any),
+      ).rejects.toMatchObject({ response: { code: 'DUAL_DISABLED' } });
 
-      expect(encryptBuffer).toHaveBeenCalled(); // 旧轨服务端加密照旧
-      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
-      expect(call.data.signedAt).toBeUndefined();
-      expect(call.data.technicalSealedKey).toBe('wrapped:key:iv:auth'); // encryptBuffer mock 的 decryptKey 经 wrapKey
-      // flag-off 窗口零验签零哈希锚定 → envelope/envelopeVersion 不得落库
-      //（管理方公钥公开、格式可伪造良好；若存为 dual-v2，flag 回开后下游按版本分派会误信）
-      expect(call.data.envelope).toBeUndefined();
-      expect(call.data.envelopeVersion).toBeUndefined();
-      expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ encryptStatus: '密文已校验' }) }),
-      );
-      // 新轨验签/证书触点全未进（flag 双向可退）
+      // 显式拒收：零落库零备份零验签触点（不落入旧轨的隐晦 MISSING_CLIENT_DEK）
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+      expect(bidBackup.stageBackup).not.toHaveBeenCalled();
       expect(prisma.supplierCert.findFirst).not.toHaveBeenCalled();
       expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
     });

@@ -1003,6 +1003,14 @@ export class SupplierPortalService {
     const dualOn = process.env.BID_DUAL_ENVELOPE !== 'false';
     const envelope = data.envelope;
     const dual = dualOn && envelope?.version === 'dual-v2';
+    // flag 关但客户端按新轨投递（文件已是双层密文 + dual-v2 信封）：旧轨会因缺 clientDeks 以
+    // 隐晦 MISSING_CLIENT_DEK 拒收，应急开关形同虚设——显式拒收并指引按旧流程投递（fix round 1 ②）。
+    if (!dualOn && envelope?.version === 'dual-v2') {
+      throw new BadRequestException({
+        error: '平台暂未启用双层信封，请按旧流程投递或联系管理员',
+        code: 'DUAL_DISABLED',
+      });
+    }
     // 旧轨/flag 关/版本不符：剥离 envelope，永不落库——管理方公钥公开、信封格式可伪造良好，
     // 未经验签的信封若以 envelopeVersion='dual-v2' 存库，flag 回开后下游（T10+）按版本分派会误信。
     if (!dual) data.envelope = undefined;

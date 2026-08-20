@@ -57,8 +57,9 @@ const clientDeks = ref<Record<string, ClientDek>>({})
 const encrypting = ref<Record<string, boolean>>({})
 
 // ═══ 双信封 v2（dual-v2 新轨）状态 ═══
-// 双层加密密封条目缓存：assetId → { role, entry{sha256,kself,kadmin} }（全部公开信息，无私钥）
-const dualEntries = ref<Record<string, { role: EnvelopeRole; entry: EnvelopeFileEntry }>>({})
+// 双层加密密封条目缓存：assetId → { role, entry{sha256,kself,kadmin}, certPublicKey }（全部公开信息，无私钥）
+// certPublicKey 记录上传时所用证书公钥——提交前与签名证书比对，拦截换证窗口期 kself/签名错位（fix round 1 ③）
+const dualEntries = ref<Record<string, { role: EnvelopeRole; entry: EnvelopeFileEntry; certPublicKey: string }>>({})
 const DUAL_STORAGE_KEY = computed(() => `supplier_dual:bidsubmit:${projectId.value}`)
 // 管理方加密证书（getAdminCert，惰性缓存）
 const adminCert = ref<AdminCertRef | null>(null)
@@ -167,7 +168,7 @@ async function uploadEncryptedFile(
         { certSn: boundCertSn(), publicKey: supplierStore.profile.sm2PublicKey },
         admin, onProgress,
       )
-      dualEntries.value[res.assetId] = { role: res.role, entry: res.entry }
+      dualEntries.value[res.assetId] = { role: res.role, entry: res.entry, certPublicKey: supplierStore.profile.sm2PublicKey }
       return res.upload
     }
     // ═══ 旧轨（未绑定 U盾证书）：E2EE 加密，行为不变 ═══
@@ -253,7 +254,7 @@ async function handleBondUpload(options: any) {
         { certSn: boundCertSn(), publicKey: supplierStore.profile.sm2PublicKey },
         admin, (pct) => { bondUploadProgress.value = pct },
       )
-      dualEntries.value[res.assetId] = { role: res.role, entry: res.entry }
+      dualEntries.value[res.assetId] = { role: res.role, entry: res.entry, certPublicKey: supplierStore.profile.sm2PublicKey }
       form.value.bidBondAssetId = res.assetId
       bondFileMeta.value = res.upload
       options.onSuccess(res.upload)
@@ -373,9 +374,15 @@ function collectDeclaredEntries(): Partial<Record<EnvelopeRole, EnvelopeFileEntr
 async function buildDualEnvelope() {
   const uk = ukeyAdapter.value
   if (!uk || !ukeyCertSn.value) throw new Error('U盾未开锁，请先插入 U盾并输入口令')
-  const missing = collectDeclaredAssetIds().filter((id) => !dualEntries.value[id])
-  if (missing.length > 0) {
-    throw new Error('部分投标文件缺少信封密封件（可能在其他浏览器上传或草稿跨设备恢复），请重新上传后再提交')
+  // fix round 1 ③：换证窗口期拦截——条目缺失或上传时所用证书公钥 ≠ 当前签名证书公钥，
+  // 说明存在用旧证书加密的条目（kself 用旧公钥，服务端只验 sha256/签名会放行，T13 解密才爆），
+  // 一律要求重新加密上传，不提交。
+  const changed = collectDeclaredAssetIds().filter((id) => {
+    const rec = dualEntries.value[id]
+    return !rec || rec.certPublicKey !== ukeyCertPublicKey.value
+  })
+  if (changed.length > 0) {
+    throw new Error('U盾证书已更换或文件密封件缺失（可能在其他浏览器上传），请重新加密上传投标文件后再提交')
   }
   const admin = await getAdminCertCached()
   return buildEnvelope({
@@ -503,7 +510,8 @@ async function doSubmit() {
       }
     }
     if (dualReady.value) {
-      // 新轨：报价等唱标字段密封进 envelope，不再上传 clientDeks
+      // 新轨：报价只经 sealedFields 密封上送——顶层 payload 剔除明文 bidPrice（fix round 1 ①）
+      delete payload.bidPrice
       const { envelope, signature } = await buildDualEnvelope()
       payload.envelope = envelope
       payload.signature = signature
@@ -513,10 +521,22 @@ async function doSubmit() {
     }
     await supplierApi.submitBid(projectId.value, payload)
     draft.clearDraft(); clearDeks()
-    ElMessage.success('标书提交成功！请妥善保管 U盾介质导出文件，开标解密与唱标核对需要。')
+    // fix round 1 ⑥：U盾保管提示仅在双层加密轨展示
+    ElMessage.success(dualReady.value
+      ? '标书提交成功！请妥善保管 U盾介质导出文件，开标解密与唱标核对需要。'
+      : '标书提交成功！')
     router.push('/my-bids')
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.error || err?.message || '提交失败')
+    const code = err?.response?.data?.code
+    if (dualReady.value && code === 'ADMIN_CERT_CHANGED') {
+      // fix round 1 ⑤：管理方证书轮换——页面级缓存失效并重拉；
+      // 已上传条目的 kadmin 仍加密于旧管理方公钥，必须整体重传（不能自动重试同批次）
+      adminCert.value = null
+      try { await getAdminCertCached() } catch {}
+      ElMessage.error('管理方加密证书已轮换，请重新加密上传全部投标文件后再提交')
+    } else {
+      ElMessage.error(err?.response?.data?.error || err?.message || '提交失败')
+    }
   } finally { submitting.value = false }
 }
 </script>
@@ -693,7 +713,7 @@ async function doSubmit() {
     </el-dialog>
 
     <!-- ═══ U盾口令（新轨提交签名）═══ -->
-    <el-dialog v-model="ukeyDialogVisible" title="U盾签名" width="440px" :close-on-click-modal="false" destroy-on-close>
+    <el-dialog v-model="ukeyDialogVisible" title="U盾签名" width="440px" :close-on-click-modal="false" destroy-on-close @closed="ukeyPassword = ''">
       <p class="ukey-desc">双层信封投递需用已绑定的 U盾证书对信封签名。请输入 U盾口令完成介质开锁。</p>
       <el-input v-model="ukeyPassword" type="password" show-password placeholder="U盾口令" size="large" @keyup.enter="handleUkeyOpen" />
       <p class="ukey-hint">证书未绑定或介质遗失？前往 <router-link to="/profile/ukey">U盾管理</router-link> 绑定或导入备份介质。</p>

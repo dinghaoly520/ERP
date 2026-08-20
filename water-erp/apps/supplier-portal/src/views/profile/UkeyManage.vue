@@ -208,7 +208,7 @@ async function handleImportFile(ev: Event) {
     ukeyCerts.value = await uk.listCertificates()
     ElMessage.success(`介质导入成功（${ukeyCerts.value.length} 张证书）`)
   } catch (e: any) { ElMessage.error(e?.message || '导入失败：口令不符或文件损坏') }
-  finally { importing.value = false; input.value = '' }
+  finally { importing.value = false; input.value = ''; importPassword.value = '' } // fix round 1 ⑦：口令用完即清
 }
 
 function certServerRow(certSn: string): ServerCertRow | undefined {
@@ -270,10 +270,12 @@ function certServerRow(certSn: string): ServerCertRow | undefined {
                 <div class="cert-actions">
                   <el-tag v-if="certServerRow(cert.certSn)?.bindingStatus === 'ACTIVE'" type="success" effect="plain">已绑定</el-tag>
                   <el-tag v-else-if="certServerRow(cert.certSn)?.bindingStatus === 'REVOKED'" type="info" effect="plain">已解绑</el-tag>
+                  <!-- fix round 1 ④：不因已有 ACTIVE 证书禁用——绑定新证即换证（服务端自动撤销旧证），
+                       handleBind 的 prevActive 警示分支由此可达 -->
                   <el-button
                     v-if="certServerRow(cert.certSn)?.bindingStatus !== 'ACTIVE'"
-                    type="primary" size="small" :loading="binding" :disabled="!!activeServerCert"
-                    :title="activeServerCert ? '已有生效证书，绑定新证将自动换证' : ''"
+                    type="primary" size="small" :loading="binding"
+                    :title="activeServerCert ? '绑定后原生效证书自动撤销，留意换证警示' : ''"
                     @click="handleBind(cert)"
                   >{{ activeServerCert ? '换证绑定' : '绑定' }}</el-button>
                 </div>
@@ -316,7 +318,8 @@ function certServerRow(certSn: string): ServerCertRow | undefined {
       </div>
 
       <!-- ═══ 导出口令对话框 ═══ -->
-      <el-dialog v-model="exportVisible" title="导出介质文件" width="420px" destroy-on-close>
+      <!-- fix round 1 ⑦：关闭后清空口令 ref，口令不残留 -->
+      <el-dialog v-model="exportVisible" title="导出介质文件" width="420px" destroy-on-close @closed="exportPassword = ''; exportPassword2 = ''">
         <p class="export-desc">导出文件包含全部证书（私钥经口令加密）。可跨浏览器/跨设备导入，请妥善保管。</p>
         <el-form label-width="90px">
           <el-form-item label="新口令">
