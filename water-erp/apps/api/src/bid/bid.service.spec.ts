@@ -1690,6 +1690,37 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidProject.update).not.toHaveBeenCalled();
     });
 
+    it('ensureArchiveItems：项目含 dual-v2 提交 → 标准清单追加「解密后投标文件」，重复 ensure 幂等不重复建', async () => {
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([{ id: 'sub-1' }]);
+      prisma.bidArchiveItem.findMany.mockResolvedValue([]);
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+
+      await (service as any).ensureArchiveItems('p1');
+
+      expect(prisma.bidArchiveItem.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ projectId: 'p1', name: '解密后投标文件', ownerRole: '供应商' }),
+      }));
+      const firstRunCount = prisma.bidArchiveItem.create.mock.calls.length;
+
+      // 幂等：第二次 ensure 时该项已存在 → 不再为该名称 create（DB @@unique([projectId,name]) 双保险）
+      prisma.bidArchiveItem.findMany.mockResolvedValue([{ name: '解密后投标文件' }]);
+      await (service as any).ensureArchiveItems('p1');
+      const secondRun = prisma.bidArchiveItem.create.mock.calls.slice(firstRunCount);
+      expect(secondRun.map((c: any) => c[0].data.name)).not.toContain('解密后投标文件');
+    });
+
+    it('ensureArchiveItems：无 dual-v2 提交 → 清单不含「解密后投标文件」（旧项目归档清单不变）', async () => {
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+      prisma.bidArchiveItem.findMany.mockResolvedValue([]);
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+
+      await (service as any).ensureArchiveItems('p1');
+
+      const created = prisma.bidArchiveItem.create.mock.calls.map((c: any) => c[0].data.name);
+      expect(created).not.toContain('解密后投标文件');
+      expect(created).toHaveLength(8); // 标准 8 项（5 通用 + 3 评标）
+    });
+
     it('scope 分支：full 触发 EVALUATION_RESULTS_REQUIRED；opening 跳过该守卫（开标归档路径）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目' });
       prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs1', supplierName: '甲' }]);
@@ -5013,6 +5044,7 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
       bidRound: { findMany: jest.fn().mockResolvedValue([]) },
+      fileAsset: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
@@ -5167,6 +5199,53 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
       select: expect.objectContaining({ dangerAttribution: true }),
     }));
     expect(pkg.suppliers[0].dangerAttribution).toBe('BIDDER');
+  });
+
+  it('开标文件包：dual-v2 解密家带出 decryptedFileSha256（角色→明文资产 sha256），未解密/旧轨家为 null', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ roundMode: null });
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      {
+        supplierId: 's-乙', supplierName: '乙公司', receiptNo: 'r2', encryptStatus: '已加密', decryptStatus: 'SUCCESS',
+        confirmStatus: 'CONFIRMED', submitStatus: '已提交', dangerAttribution: null,
+      },
+      {
+        supplierId: 's-丙', supplierName: '丙公司', receiptNo: 'r3', encryptStatus: '已加密', decryptStatus: 'PENDING',
+        confirmStatus: 'PENDING', submitStatus: '已提交', dangerAttribution: null,
+      },
+      {
+        supplierId: 's-丁', supplierName: '丁公司', receiptNo: 'r4', encryptStatus: '已加密', decryptStatus: 'SUCCESS',
+        confirmStatus: 'CONFIRMED', submitStatus: '已提交', dangerAttribution: null,
+      },
+    ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([
+      {
+        supplierId: 's-乙', envelopeVersion: 'dual-v2',
+        decryptedAssets: { technical: 'fa-t', business: 'fa-b', coverLetter: 'fa-c', bond: 'fa-bond' },
+      },
+      { supplierId: 's-丙', envelopeVersion: 'dual-v2', decryptedAssets: null }, // 未解密家
+      { supplierId: 's-丁', envelopeVersion: null, decryptedAssets: null }, // 旧轨家
+    ]);
+    prisma.fileAsset.findMany.mockResolvedValue([
+      { id: 'fa-t', sha256: 'sha-t' },
+      { id: 'fa-b', sha256: 'sha-b' },
+      { id: 'fa-c', sha256: 'sha-c' },
+      { id: 'fa-bond', sha256: 'sha-bond' },
+    ]);
+
+    const pkg: any = await (service as any).buildHandoverPackage(
+      { id: 'p1', projectCode: 'BID-1', name: 'P', procurementMethod: '公开招标', openTime: new Date('2026-08-20T10:00:00Z'), deadline: new Date('2026-08-20T12:00:00Z'), stage: 'OPENING' },
+      { host: 'H', supervisor: null, decryptWindowStart: new Date('2026-08-20T10:00:00Z'), decryptWindowEnd: new Date('2026-08-20T12:00:00Z'), status: '进行中' },
+    );
+
+    expect(prisma.fileAsset.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: { in: expect.arrayContaining(['fa-t', 'fa-b', 'fa-c', 'fa-bond']) } },
+      select: { id: true, sha256: true },
+    }));
+    expect(pkg.suppliers[0].decryptedFileSha256).toEqual({
+      technical: 'sha-t', business: 'sha-b', coverLetter: 'sha-c', bond: 'sha-bond',
+    });
+    expect(pkg.suppliers[1].decryptedFileSha256).toBeNull(); // 未解密家
+    expect(pkg.suppliers[2].decryptedFileSha256).toBeNull(); // 旧轨家
   });
 
   describe('adjudicateDecryptFault 裁决端点', () => {

@@ -411,6 +411,30 @@ export class UploadService implements OnModuleInit {
       throw new ForbiddenException({ error: '无权删除该文件', code: 'FILE_FORBIDDEN' });
     }
 
+    // §5.5b（Task 18）解密链路资产删除保护——置于四列引用保护之前：
+    // ① 新轨 C_inner / 明文资产不在 submission 四列中，通用规则漏不掉也得拦——按类目整体禁删；
+    // ② dual-v2 C_outer 恰在四列内，必须先按 dual-v2 口径给 FILE_PROTECTED（否则被通用规则吞成 FILE_REFERENCED）。
+    if (asset.category === 'bid_inner_ciphertext' || asset.category === 'bid_decrypted') {
+      throw new ConflictException({ error: '该文件属开标解密链路资产，禁止删除', code: 'FILE_PROTECTED' });
+    }
+    if (asset.category === 'bid_document') {
+      const dualOuter = await this.prisma.supplierBidSubmission.findFirst({
+        where: {
+          envelopeVersion: 'dual-v2',
+          OR: [
+            { technicalFileAssetId: asset.id },
+            { businessFileAssetId: asset.id },
+            { coverLetterAssetId: asset.id },
+            { bidBondAssetId: asset.id },
+          ],
+        },
+        select: { id: true },
+      });
+      if (dualOuter) {
+        throw new ConflictException({ error: '该文件属开标解密链路资产，禁止删除', code: 'FILE_PROTECTED' });
+      }
+    }
+
     // H7: 已被投标文件引用的资产不可删除——防供应商截标后删件伪装技术故障 / 触发解密误判（H1 组合）
     const submission = await this.prisma.supplierBidSubmission.findFirst({
       where: {

@@ -140,7 +140,9 @@ describe('UploadService — download permission', () => {
   describe('H7 — delete 引用检查', () => {
     it('文件已被 SupplierBidSubmission 引用时拒绝删除', async () => {
       prisma.fileAsset.findUnique.mockResolvedValue(asset);
-      prisma.supplierBidSubmission.findFirst.mockResolvedValue({ id: 'sub1' }); // 被引用
+      // where-aware：dual-v2 C_outer 查询无命中 → 走旧轨四列引用保护
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) =>
+        where?.envelopeVersion === 'dual-v2' ? null : { id: 'sub1' });
       jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
 
       await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
@@ -159,6 +161,45 @@ describe('UploadService — download permission', () => {
         .resolves.toMatchObject({ deleted: true });
       expect(minioClient.removeObject).toHaveBeenCalled();
       expect(prisma.fileAsset.delete).toHaveBeenCalledWith({ where: { key: 'uploads/x.pdf' } });
+    });
+  });
+
+  describe('§5.5b — 解密链路资产删除保护（Task 18）', () => {
+    beforeEach(() => {
+      jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
+    });
+
+    it('bid_decrypted 明文资产（admin 亦）→ 409 FILE_PROTECTED，不落 MinIO 删除', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        ...asset, id: 'fa-dec', category: 'bid_decrypted', uploaderId: 'u-supplier',
+      });
+
+      await expect(service.delete('uploads/dec.pdf', { sub: 'u-admin', role: 'admin' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.delete).not.toHaveBeenCalled();
+    });
+
+    it('被 dual-v2 submission 四列引用的 bid_document（C_outer）→ 409 FILE_PROTECTED', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        ...asset, id: 'fa-outer', category: 'bid_document', uploaderId: 'u-supplier',
+      });
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) =>
+        where?.envelopeVersion === 'dual-v2' ? { id: 'sub-1' } : null);
+
+      await expect(service.delete('uploads/outer.enc', { sub: 'u-admin', role: 'admin' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+    });
+
+    it('旧轨四列引用仍 409 FILE_REFERENCED（dual-v2 判定先行不吞旧轨保护）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(asset);
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) =>
+        where?.envelopeVersion === 'dual-v2' ? null : { id: 'sub-legacy' });
+
+      await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_REFERENCED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
     });
   });
 

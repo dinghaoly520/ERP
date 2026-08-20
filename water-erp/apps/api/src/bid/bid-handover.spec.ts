@@ -33,6 +33,8 @@ function makePrismaMock() {
     bidOpeningSession: { findUnique: jest.fn() },
     bidSupplier: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn() },
     bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+    // §5.5b（Task 18）：buildHandoverPackage 解密明文指纹段查 submission（默认空 → 旧项目零变化）
+    supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
     bidSupervisionLog: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn(async (cb: any) => cb(tx)),
     __tx: tx,

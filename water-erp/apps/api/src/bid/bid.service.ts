@@ -912,12 +912,17 @@ export class BidService {
       select: { roundMode: true },
     });
 
-    const [suppliers, records, logs, bidRounds] = await Promise.all([
+    const [suppliers, submissions, records, logs, bidRounds] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: project.id },
         // §5.5：dangerAttribution 归因写入开标文件包（法定留痕）
-        select: { supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true, dangerAttribution: true },
+        select: { supplierId: true, supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true, dangerAttribution: true },
         orderBy: { createdAt: 'asc' },
+      }),
+      // §5.5b（Task 18）：dual-v2 解密明文资产指纹入包（decryptedAssets → FileAsset.sha256）
+      this.prisma.supplierBidSubmission.findMany({
+        where: { projectId: project.id },
+        select: { supplierId: true, envelopeVersion: true, decryptedAssets: true },
       }),
       this.prisma.bidOpeningRecord.findMany({
         where: { projectId: project.id },
@@ -936,6 +941,38 @@ export class BidService {
       }) : Promise.resolve([]),
     ]);
     const active = suppliers.filter(s => s.submitStatus !== '已撤回');
+
+    // §5.5b（Task 18）：dual-v2 解密明文资产指纹——submission.decryptedAssets 为 {role: assetId}，
+    // 取各 FileAsset.sha256 输出角色→sha256 映射；未解密/旧轨家为 null。
+    const submissionBySupplierId = new Map(submissions.map((s: any) => [s.supplierId, s]));
+    const decryptedAssetIds = Array.from(new Set(
+      submissions
+        .filter((s: any) => s.envelopeVersion === 'dual-v2' && s.decryptedAssets && typeof s.decryptedAssets === 'object')
+        .flatMap((s: any) =>
+          Object.values(s.decryptedAssets as Record<string, unknown>).filter((v): v is string => typeof v === 'string'),
+        ),
+    ));
+    const shaByAssetId = decryptedAssetIds.length > 0
+      ? new Map((await this.prisma.fileAsset.findMany({
+          where: { id: { in: decryptedAssetIds } },
+          select: { id: true, sha256: true },
+        })).map((a: { id: string; sha256: string }) => [a.id, a.sha256]))
+      : new Map<string, string>();
+    const suppliersWithFingerprints = suppliers.map((s: any) => {
+      const submission = submissionBySupplierId.get(s.supplierId);
+      const decryptedAssets = (submission && submission.envelopeVersion === 'dual-v2'
+        && submission.decryptedAssets && typeof submission.decryptedAssets === 'object')
+        ? submission.decryptedAssets as Record<string, unknown>
+        : null;
+      const byRole: Record<string, string | null> = {};
+      if (decryptedAssets) {
+        for (const [role, assetId] of Object.entries(decryptedAssets)) {
+          byRole[role] = typeof assetId === 'string' ? (shaByAssetId.get(assetId) ?? null) : null;
+        }
+      }
+      return { ...s, decryptedFileSha256: decryptedAssets ? byRole : null };
+    });
+
     const summary = {
       supplierTotal: suppliers.length,
       active: active.length,
@@ -961,7 +998,7 @@ export class BidService {
         decryptWindowStart: session.decryptWindowStart.toISOString(),
         decryptWindowEnd: session.decryptWindowEnd.toISOString(),
       },
-      suppliers,
+      suppliers: suppliersWithFingerprints,
       openingRecords: records,
       supervisionLogs: logs,
       bidRounds: bidRounds.length > 0 ? bidRounds.map(r => ({
@@ -4571,11 +4608,18 @@ export class BidService {
    */
   private async ensureArchiveItems(projectId: string, tx?: any, opts?: { skipEvaluation?: boolean }) {
     const db = tx ?? this.prisma;
+    // §5.5b（Task 18）：项目含 dual-v2 提交时，标准清单追加「解密后投标文件」（解密明文须随案归档）
+    const dualV2Submissions = await db.supplierBidSubmission.findMany({
+      where: { projectId, envelopeVersion: 'dual-v2' },
+      select: { id: true },
+      take: 1,
+    });
     const standards = [
       { name: '招标项目基础信息', ownerRole: '系统' },
       { name: '投标供应商名单', ownerRole: '开标主持人' },
       { name: '开标记录表', ownerRole: '开标主持人' },
       { name: '供应商确认/异议记录', ownerRole: '供应商' },
+      ...(dualV2Submissions.length > 0 ? [{ name: '解密后投标文件', ownerRole: '供应商' }] : []),
       // 开标归档（scope=opening）不生成评分/评标两项材料
       ...(opts?.skipEvaluation ? [] : [
         { name: '专家评分明细', ownerRole: '评审专家' },
