@@ -35,6 +35,7 @@ Run workspace commands from `water-erp/`.
 | `packages/config` | Port definitions (`ports.ts`) and role→portal routing (`urls.ts`) — `@water-erp/config` |
 | `packages/shared` | Domain types, status labels/maps, stage colors, brand constants — `@water-erp/shared` |
 | `packages/ui` | Shared React workbench components (`MetricCard`, `PageHero`, `SectionCard`, `StatusBadge`, `DataToolbar`) + `cn` helper — `@water-erp/ui` |
+| `packages/ukey` | 供应商 CA U盾适配层（SM2/SM4/SM3 封装、`MockUKeyAdapter`、`DualEnvelope`/`SealedFields` 类型与 `canonicalEnvelopeHash`）——双信封投标加密与开标解密前后端共用，浏览器与 Node 同源可跑 — `@water-erp/ukey` |
 
 Infrastructure in `water-erp/docker-compose.yml`: PostgreSQL 16 (`localhost:5432`), Redis 7 (`localhost:6380→6379`), MinIO (`localhost:9000`, console `localhost:9001`).
 
@@ -175,7 +176,7 @@ pnpm dev:assistant   # :3008 水叮当助手
 pnpm dev:bigscreen   # :3010 大屏（已在 pnpm dev 内，也可单独启动）
 
 # AI 投标分析 worker（独立进程 — 必需，否则 per-item 分析任务不出队执行）
-pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/src/ai-bid-analysis-worker.js
+pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bid-analysis-worker.js（dist 镜像 src，无 dist/src 层）
 
 # OCR 微服务（Python，:8100）
 pnpm dev:ocr
@@ -350,6 +351,8 @@ TRUST_PROXY=1                      # 生产反代后信任一跳；默认 'loopb
 REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker 都读它（缺省回退 localhost:6380）
 OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local-ai/OcrService 消费
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
+BID_DUAL_ENVELOPE=true            # 双信封新轨总开关（=false 全局退回旧轨 KMS 信封投递；默认开，灰度/应急双向可退）
+ADMIN_KEYSTORE_DIR=...            # 管理方加密证书私钥落盘目录（默认 apps/api/.data/admin-keystore；轮转后旧 adminCertId 私钥仍按 id 定位）
 
 # ── AI / LLM ──
 DEEPSEEK_API_URL=https://api.deepseek.com   # 多数模块直接 process.env 读取，未走 LlmService（见模块表后注释）
@@ -380,7 +383,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 ### File Uploads (MinIO)
 
-`POST /api/upload?category=...` (50 MB cap), `GET /api/upload/files/:id`, `DELETE /api/upload/:key`. Files stored in MinIO, metadata in `FileAsset` model.
+`POST /api/upload?category=...` (50 MB cap), `GET /api/upload/files/:id`, `DELETE /api/upload/:key`. Files stored in MinIO, metadata in `FileAsset` model. 双信封新轨类目（2026-08）：`bid_inner_ciphertext`（解外层产物 C_inner，归属链=`SupplierBidSubmission.innerAssets`）与 `bid_decrypted`（供应商解密上传明文，归属链=`decryptedAssets`）——下载授权按 submission 四列+两 Json 列反查（C_outer 本人下载拒收、C_inner 成员放行、bid_decrypted 指派给 SUCCESS 家/staff/专家）；`bid_inner_ciphertext`/`bid_decrypted`/`bid_document` 三类目删除硬保护（永久不可删）。
 
 ### Frontend Conventions
 
