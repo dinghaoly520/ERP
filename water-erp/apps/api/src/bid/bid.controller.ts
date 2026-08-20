@@ -366,7 +366,8 @@ export class BidController {
 
   @Post('projects/:id/opening/decrypt-adjudge')
   @Roles('admin', 'bid_host')
-  @ApiOperation({ summary: '解密失败归因裁决（§5.5）：UNKNOWN 家落 BIDDER/PLATFORM 终局（须填原因，告知权利）；RESET_PENDING 重置解密机会' })
+  @ApiOperation({ summary: '解密失败归因裁决（§5.5）：UNKNOWN 家落 BIDDER/PLATFORM 终局（须填原因，告知权利）；BIDDER→PLATFORM 改判；RESET_PENDING 重置解密机会' })
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   adjudicateDecryptFault(
     @Param('id') id: string,
     @Body() dto: AdjudicateDecryptFaultDto,

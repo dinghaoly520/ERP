@@ -896,7 +896,8 @@ export class BidService {
     const [suppliers, records, logs, bidRounds] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: project.id },
-        select: { supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true },
+        // §5.5：dangerAttribution 归因写入开标文件包（法定留痕）
+        select: { supplierName: true, receiptNo: true, encryptStatus: true, decryptStatus: true, confirmStatus: true, submitStatus: true, dangerAttribution: true },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.bidOpeningRecord.findMany({
@@ -1504,10 +1505,19 @@ export class BidService {
 
       if (!sub.outerDecryptedAt || !sub.packageFetchedAt) {
         // 矩阵行 1/2：管理方未解外层 / 供应商未取包——无法区分原因，只置 UNKNOWN（非终局态）
-        await this.prisma.bidSupplier.updateMany({
+        const marked = await this.prisma.bidSupplier.updateMany({
           where: { id: s.id, decryptStatus: 'PENDING', dangerAttribution: null },
           data: { dangerAttribution: 'UNKNOWN' },
         });
+        if (marked.count > 0) {
+          // count 门保持幂等：重复触发不重复写监督日志
+          await this.prisma.bidSupervisionLog.create({
+            data: {
+              projectId, time: new Date(), role: '系统', target: s.supplierName,
+              action: '解密失败归因', result: '解密窗口关闭未完成解密，归因 UNKNOWN 待主持人裁决', riskFlag: '高风险',
+            },
+          }).catch(() => {});
+        }
         continue;
       }
 
@@ -2597,7 +2607,12 @@ export class BidService {
     }
 
     // BIDDER / PLATFORM 终局裁决
-    if (bidSupplier.dangerAttribution !== 'UNKNOWN') {
+    // 纠错通道：已归因 BIDDER 的 DANGER 家允许改判 PLATFORM（撤销判定更正为撤回）；
+    // BIDDER→RESET_PENDING 仍拒绝（见上 RESET_PENDING 分支，视为撤销不可逆）。
+    const isRejudge = bidSupplier.dangerAttribution === 'BIDDER'
+      && bidSupplier.decryptStatus === 'DANGER'
+      && attribution === 'PLATFORM';
+    if (bidSupplier.dangerAttribution !== 'UNKNOWN' && !isRejudge) {
       throw new BadRequestException({
         error: bidSupplier.dangerAttribution
           ? `该供应商已归因（${bidSupplier.dangerAttribution}），无需重复裁决`
@@ -2610,7 +2625,7 @@ export class BidService {
       PLATFORM: '归因判定：PLATFORM——因平台原因未完成解密，视为撤回投标文件',
     } as const;
     await this.prisma.$transaction(async (tx) => {
-      // 已 DANGER（双闸失败家）仅落归因；PENDING 家同时落终局态
+      // 已 DANGER（双闸失败家/改判家）仅落归因；PENDING 家同时落终局态
       const data: Prisma.BidSupplierUpdateInput = bidSupplier.decryptStatus === 'DANGER'
         ? { dangerAttribution: attribution }
         : { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: `归因裁决（${attribution}）：${reason}`, dangerAttribution: attribution };
@@ -2618,12 +2633,19 @@ export class BidService {
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '开标主持人', target: supplierName,
-          action: '解密失败归因裁决', result: `${RESULT_TEXT[attribution]}（原因：${reason}）`, riskFlag: '高风险',
+          action: '解密失败归因裁决',
+          result: isRejudge
+            ? `归因改判：BIDDER→PLATFORM——因平台原因未完成解密，视为撤回投标文件（原因：${reason}）`
+            : `${RESULT_TEXT[attribution]}（原因：${reason}）`,
+          riskFlag: '高风险',
         },
       });
       if (actorId) {
         await tx.auditLog.create({
-          data: { userId: actorId, action: 'BID_DECRYPT_ADJUDGE', resourceType: `${supplierName}:${supplierId}`, details: { projectId, attribution, reason } },
+          data: {
+            userId: actorId, action: 'BID_DECRYPT_ADJUDGE', resourceType: `${supplierName}:${supplierId}`,
+            details: isRejudge ? { projectId, attribution, reason, rejudgedFrom: 'BIDDER' } : { projectId, attribution, reason },
+          },
         });
       }
     });

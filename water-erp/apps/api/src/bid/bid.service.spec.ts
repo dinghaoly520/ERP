@@ -4895,7 +4895,9 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
       },
       supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
       supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'user-s1' }) },
-      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
+      bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+      bidRound: { findMany: jest.fn().mockResolvedValue([]) },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
@@ -4937,7 +4939,10 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
     const datas = prisma.bidSupplier.updateMany.mock.calls.map((c: any[]) => c[0].data);
     expect(datas.some((d: any) => d.decryptStatus === 'DANGER')).toBe(false);
     expect(sendToUser).not.toHaveBeenCalled();
-    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    // 顺带①：自动 UNKNOWN 标记写监督日志（法定留痕，result 写明待主持人裁决）
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: '解密失败归因', target: '甲公司', result: expect.stringContaining('待主持人裁决') }),
+    }));
   });
 
   it('矩阵行 2：外层已解但包未取 → 只置 UNKNOWN', async () => {
@@ -4955,6 +4960,9 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
       data: { dangerAttribution: 'UNKNOWN' },
     }));
     expect(sendToUser).not.toHaveBeenCalled();
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ result: expect.stringContaining('待主持人裁决') }),
+    }));
   });
 
   it('矩阵行 3：外层已解且已取包未完成解密 → BIDDER 终局 + 权利告知通知（守卫放行）', async () => {
@@ -5027,6 +5035,23 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
 
     expect(sendToUser).toHaveBeenCalledTimes(1);
     expect(prisma.bidSupervisionLog.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('开标文件包：suppliers select 带 dangerAttribution 且包内带出归因值（§5.5 法定留痕）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ roundMode: null });
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { supplierName: '甲公司', receiptNo: 'r1', encryptStatus: '已加密', decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', submitStatus: '已提交', dangerAttribution: 'BIDDER' },
+    ]);
+
+    const pkg: any = await (service as any).buildHandoverPackage(
+      { id: 'p1', projectCode: 'BID-1', name: 'P', procurementMethod: '公开招标', openTime: new Date('2026-08-20T10:00:00Z'), deadline: new Date('2026-08-20T12:00:00Z'), stage: 'OPENING' },
+      { host: 'H', supervisor: null, decryptWindowStart: new Date('2026-08-20T10:00:00Z'), decryptWindowEnd: new Date('2026-08-20T12:00:00Z'), status: '进行中' },
+    );
+
+    expect(prisma.bidSupplier.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({ dangerAttribution: true }),
+    }));
+    expect(pkg.suppliers[0].dangerAttribution).toBe('BIDDER');
   });
 
   describe('adjudicateDecryptFault 裁决端点', () => {
@@ -5118,13 +5143,73 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
       expect(sendToUser).not.toHaveBeenCalled();
     });
 
-    it('已归因 BIDDER 家重复裁决 → 400 NOT_UNKNOWN', async () => {
+    it('BIDDER→PLATFORM 改判（纠错通道）：已归因 BIDDER 的 DANGER 家改判为撤回 + 改判日志 + 赔偿请求权通知', async () => {
       prisma.bidSupplier.findFirst.mockResolvedValue({
         id: 'bs1', supplierId: 's1', supplierName: '甲公司',
         decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', dangerAttribution: 'BIDDER',
       });
 
-      await expect(service.adjudicateDecryptFault('p1', 'bs1', 'PLATFORM', '改判', 'op1'))
+      const r = await service.adjudicateDecryptFault('p1', 'bs1', 'PLATFORM', '平台密钥分发故障复查', 'op1');
+      expect(r.attribution).toBe('PLATFORM');
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'bs1' },
+        data: { dangerAttribution: 'PLATFORM' },
+      }));
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          action: '解密失败归因裁决',
+          result: expect.stringContaining('改判'),
+        }),
+      }));
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'BID_DECRYPT_ADJUDGE',
+          details: expect.objectContaining({ rejudgedFrom: 'BIDDER' }),
+        }),
+      }));
+      expect(sendToUser).toHaveBeenCalledWith('user-s1', ['in_app'], expect.objectContaining({
+        content: expect.stringContaining('因平台原因未完成解密，视为撤回投标文件，你有权要求责任方赔偿直接损失'),
+      }));
+    });
+
+    it('BIDDER→RESET_PENDING 拒绝 → 400 NOT_RESETTABLE（视为撤销不可逆）', async () => {
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: WINDOW_OPEN });
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs1', supplierId: 's1', supplierName: '甲公司',
+        decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', dangerAttribution: 'BIDDER',
+      });
+
+      await expect(service.adjudicateDecryptFault('p1', 'bs1', 'RESET_PENDING', '重试', 'op1'))
+        .rejects.toMatchObject({ response: { code: 'NOT_RESETTABLE' } });
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+      expect(sendToUser).not.toHaveBeenCalled();
+    });
+
+    it('RESET_PENDING：PENDING+UNKNOWN 家窗口开时重置成功 + 站内信', async () => {
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ decryptWindowEnd: WINDOW_OPEN });
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs1', supplierId: 's1', supplierName: '戊公司',
+        decryptStatus: 'PENDING', confirmStatus: 'PENDING', dangerAttribution: 'UNKNOWN',
+      });
+
+      const r = await service.adjudicateDecryptFault('p1', 'bs1', 'RESET_PENDING', '延长窗口后允许重试', 'op1');
+      expect(prisma.bidSupplier.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'bs1' },
+        data: { decryptStatus: 'PENDING', decryptError: null, dangerAttribution: null },
+      }));
+      expect(sendToUser).toHaveBeenCalledWith('user-s1', ['in_app'], expect.objectContaining({
+        content: expect.stringContaining('开标主持人已重置您的解密机会，请重新解密'),
+      }));
+      expect(r.attribution).toBe('RESET_PENDING');
+    });
+
+    it('已归因 BIDDER 家同向重复裁决 → 400 NOT_UNKNOWN', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs1', supplierId: 's1', supplierName: '甲公司',
+        decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', dangerAttribution: 'BIDDER',
+      });
+
+      await expect(service.adjudicateDecryptFault('p1', 'bs1', 'BIDDER', '重复裁决', 'op1'))
         .rejects.toMatchObject({ response: { code: 'NOT_UNKNOWN' } });
       expect(sendToUser).not.toHaveBeenCalled();
     });
