@@ -1534,6 +1534,10 @@ export class SupplierPortalService {
           signature: input.signature ?? null,
           fileHash: await canonicalEnvelopeHash(envelope),
           signedAt: now,
+          // T12 契约（原注释钉死）：补传换新 C_outer 后必须重置解外层标记——
+          // 否则 decrypt-outer 的幂等跳过会因旧标记残留而永久跳过新 C_outer，旧 C_inner 归属链永不刷新。
+          outerDecryptedAt: null,
+          innerAssets: Prisma.DbNull,
         },
       });
       await tx.bidSupplier.update({

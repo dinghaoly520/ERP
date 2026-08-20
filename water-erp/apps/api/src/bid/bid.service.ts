@@ -2015,83 +2015,105 @@ export class BidService {
       throw new BadRequestException({ error: '管理方加密证书私钥不可用（keystore 缺失或未 bootstrap）', code: 'ADMIN_KEY_UNAVAILABLE' });
     }
 
-    // ── 逐角色：MinIO 读 C_outer → decryptOuterFile → C_inner 写 MinIO（事务外外部 I/O，逐家逐文件串行）──
-    const written: Array<{ role: EnvelopeRole; objectKey: string; cInner: Buffer }> = [];
-    for (const [role] of roles) {
-      const assetId = submission[DUAL_ROLE_ASSET_KEYS[role]] as string | null;
-      if (!assetId) {
-        throw new BadRequestException({
-          error: `信封声明了 ${role} 密封件但提交记录无对应资产引用`, code: 'FILE_RECORD_MISSING',
-        });
-      }
-      const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
-      if (!asset) throw new BadRequestException({ error: `投标文件记录缺失: ${assetId}`, code: 'FILE_RECORD_MISSING' });
-      const readKey = asset.sealedPath || asset.key; // 新轨补传后 sealedPath 指新 C_outer（T10 钉死口径）
-      const stream = await minioClient.getObject(MINIO_BUCKET, readKey);
-      const cOuter = await streamToBuffer(stream);
-      const cInner = await this.dualEnvelope.decryptOuterFile(envelope, role, cOuter, adminPrivateKey);
-      const objectKey = `bid-inner/${projectId}/${bidSupplierId}/${role}.inner`;
-      try {
-        await minioClient.putObject(MINIO_BUCKET, objectKey, cInner, cInner.length, {
-          'Content-Type': 'application/octet-stream',
-        });
-      } catch (err) {
-        this.logger.error(`decrypt-outer MinIO putObject failed: ${objectKey}`, (err as Error).stack);
-        throw new BadRequestException({ error: '文件存储失败，请重试', code: 'STORAGE_FAILED' });
-      }
-      written.push({ role, objectKey, cInner });
+    // ── ① 原子抢占（同 decryptSupplier phase-① 口径）：并发双击/批量重入只有一笔 count=1，
+    //    第二笔返回 skipped——不重复 putObject、不重复建 FileAsset/监督日志 ──
+    const claimAt = new Date();
+    const claim = await this.prisma.supplierBidSubmission.updateMany({
+      where: { supplierId: submissionSupplierId, projectId, outerDecryptedAt: null },
+      data: { outerDecryptedAt: claimAt },
+    });
+    if (claim.count === 0) {
+      return { supplierId: bidSupplierId, supplierName, skipped: true }; // 并发对手已抢先（或已解过）
     }
 
-    // ── 短事务终局：C_inner 资产落库（归属链）+ submission 标记 + 监督日志 + 审计 ──
-    const innerAssets: Record<string, string> = {};
-    const doneAt = new Date();
-    await this.prisma.$transaction(async (tx) => {
-      for (const w of written) {
-        const asset = await tx.fileAsset.create({
+    try {
+      // ── ② 逐角色：MinIO 读 C_outer → decryptOuterFile → C_inner 写 MinIO（事务外外部 I/O，逐家逐文件串行）──
+      const written: Array<{ role: EnvelopeRole; objectKey: string; cInner: Buffer }> = [];
+      for (const [role] of roles) {
+        const assetId = submission[DUAL_ROLE_ASSET_KEYS[role]] as string | null;
+        if (!assetId) {
+          throw new BadRequestException({
+            error: `信封声明了 ${role} 密封件但提交记录无对应资产引用`, code: 'FILE_RECORD_MISSING',
+          });
+        }
+        const asset = await this.prisma.fileAsset.findUnique({ where: { id: assetId } });
+        if (!asset) throw new BadRequestException({ error: `投标文件记录缺失: ${assetId}`, code: 'FILE_RECORD_MISSING' });
+        const readKey = asset.sealedPath || asset.key; // 新轨补传后 sealedPath 指新 C_outer（T10 钉死口径）
+        const stream = await minioClient.getObject(MINIO_BUCKET, readKey);
+        const cOuter = await streamToBuffer(stream);
+        const cInner = await this.dualEnvelope.decryptOuterFile(envelope, role, cOuter, adminPrivateKey);
+        const objectKey = `bid-inner/${projectId}/${bidSupplierId}/${role}.inner`;
+        try {
+          await minioClient.putObject(MINIO_BUCKET, objectKey, cInner, cInner.length, {
+            'Content-Type': 'application/octet-stream',
+          });
+        } catch (err) {
+          this.logger.error(`decrypt-outer MinIO putObject failed: ${objectKey}`, (err as Error).stack);
+          throw new BadRequestException({ error: '文件存储失败，请重试', code: 'STORAGE_FAILED' });
+        }
+        written.push({ role, objectKey, cInner });
+      }
+
+      // ── ③ 短事务终局：C_inner 资产落库（归属链）+ 监督日志 + 审计
+      //    （outerDecryptedAt 已由 ① 抢占写入，此处只补 innerAssets）──
+      const innerAssets: Record<string, string> = {};
+      const doneAt = new Date();
+      await this.prisma.$transaction(async (tx) => {
+        for (const w of written) {
+          const asset = await tx.fileAsset.create({
+            data: {
+              key: w.objectKey,
+              originalName: `${w.role}.inner`,
+              mimeType: 'application/octet-stream',
+              size: w.cInner.length,
+              sha256: await sha256Hex(w.cInner),
+              category: 'bid_inner_ciphertext',
+              clientEncrypted: false, // 服务端写入的中间密文（非客户端直传产物）——Task 12 契约
+              encrypted: true,
+              uploaderId: actorId ?? null,
+            },
+          });
+          innerAssets[w.role] = asset.id;
+        }
+        await tx.supplierBidSubmission.update({
+          where: { supplierId_projectId: { supplierId: submissionSupplierId, projectId } },
+          data: { innerAssets: innerAssets as unknown as Prisma.InputJsonValue },
+        });
+        await tx.bidSupervisionLog.create({
           data: {
-            key: w.objectKey,
-            originalName: `${w.role}.inner`,
-            mimeType: 'application/octet-stream',
-            size: w.cInner.length,
-            sha256: await sha256Hex(w.cInner),
-            category: 'bid_inner_ciphertext',
-            clientEncrypted: false, // 服务端写入的中间密文（非客户端直传产物）——Task 12 契约
-            encrypted: true,
-            uploaderId: actorId ?? null,
+            projectId, time: doneAt, role: '开标主持人', target: supplierName, action: '管理方解外层',
+            result: `${written.length} 个角色密封件解外层完成（C_inner 已归属，开标前仍不可读）`, riskFlag: '无',
           },
         });
-        innerAssets[w.role] = asset.id;
-      }
-      await tx.supplierBidSubmission.update({
-        where: { supplierId_projectId: { supplierId: submissionSupplierId, projectId } },
-        data: { innerAssets: innerAssets as unknown as Prisma.InputJsonValue, outerDecryptedAt: doneAt },
+        if (actorId) {
+          await tx.auditLog.create({
+            data: {
+              userId: actorId, action: 'BID_DECRYPT_OUTER', resourceType: `BidSupplier:${bidSupplierId}`,
+              details: { projectId, roles: written.map(w => w.role), innerAssets },
+            },
+          });
+        }
       });
-      await tx.bidSupervisionLog.create({
-        data: {
-          projectId, time: doneAt, role: '开标主持人', target: supplierName, action: '管理方解外层',
-          result: `${written.length} 个角色密封件解外层完成（C_inner 已归属，开标前仍不可读）`, riskFlag: '无',
-        },
+
+      // 事务提交后广播（失败不回滚假通知，同 decryptSupplier 模式）
+      this.gateway?.notifySupervisionLog(projectId, {
+        role: '开标主持人', action: '管理方解外层', target: supplierName,
+        result: `${written.length} 个角色密封件解外层完成（C_inner 已归属，开标前仍不可读）`, riskFlag: '无',
       });
-      if (actorId) {
-        await tx.auditLog.create({
-          data: {
-            userId: actorId, action: 'BID_DECRYPT_OUTER', resourceType: `BidSupplier:${bidSupplierId}`,
-            details: { projectId, roles: written.map(w => w.role), innerAssets },
-          },
-        });
-      }
-    });
 
-    // 事务提交后广播（失败不回滚假通知，同 decryptSupplier 模式）
-    this.gateway?.notifySupervisionLog(projectId, {
-      role: '开标主持人', action: '管理方解外层', target: supplierName,
-      result: `${written.length} 个角色密封件解外层完成（C_inner 已归属，开标前仍不可读）`, riskFlag: '无',
-    });
-
-    return {
-      supplierId: bidSupplierId, supplierName, success: true,
-      roles: written.map(w => w.role), innerAssets,
-    };
+      return {
+        supplierId: bidSupplierId, supplierName, success: true,
+        roles: written.map(w => w.role), innerAssets,
+      };
+    } catch (e) {
+      // 失败回滚抢占（条件更新 outerDecryptedAt=claimAt 防覆盖并发补传的重置）：
+      // 复原 null 后可直接重试，无需供应商走补传通道
+      await this.prisma.supplierBidSubmission.updateMany({
+        where: { supplierId: submissionSupplierId, projectId, outerDecryptedAt: claimAt },
+        data: { outerDecryptedAt: null },
+      }).catch(() => {});
+      throw e;
+    }
   }
 
   /**

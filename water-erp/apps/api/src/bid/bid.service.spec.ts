@@ -4899,6 +4899,7 @@ describe('BidService — decryptOuter 主持端解外层 (dual-v2 · Task 12)', 
           coverLetterAssetId: null, bidBondAssetId: null,
         }),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }), // ① 原子抢占默认抢到
       },
       fileAsset: {
         // technical：T10 补传后 sealedPath 指新 C_outer（读密文口径 sealedPath || key）
@@ -4991,12 +4992,14 @@ describe('BidService — decryptOuter 主持端解外层 (dual-v2 · Task 12)', 
       }),
     });
 
+    // ① 原子抢占：outerDecryptedAt 由抢占写入；终局 update 只补 innerAssets
+    expect(prisma.supplierBidSubmission.updateMany).toHaveBeenCalledWith({
+      where: { supplierId: 's1', projectId: 'p1', outerDecryptedAt: null },
+      data: { outerDecryptedAt: expect.any(Date) },
+    });
     expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith({
       where: { supplierId_projectId: { supplierId: 's1', projectId: 'p1' } },
-      data: expect.objectContaining({
-        innerAssets: { technical: 'asset-t', business: 'asset-b' },
-        outerDecryptedAt: expect.any(Date),
-      }),
+      data: { innerAssets: { technical: 'asset-t', business: 'asset-b' } },
     });
     expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: '管理方解外层', result: expect.stringContaining('2') }),
@@ -5022,6 +5025,35 @@ describe('BidService — decryptOuter 主持端解外层 (dual-v2 · Task 12)', 
     expect(minioClient.putObject).not.toHaveBeenCalled();
     expect(prisma.fileAsset.create).not.toHaveBeenCalled();
     expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+    expect(prisma.supplierBidSubmission.updateMany).not.toHaveBeenCalled(); // 快路径跳过，无抢占
+  });
+
+  it('并发双击：原子抢占第二笔 count=0 → skipped、不重复写 MinIO/FileAsset/日志', async () => {
+    prisma.supplierBidSubmission.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    const result: any = await service.decryptOuter('p1', 'bs-1', 'u1');
+
+    expect(result).toMatchObject({ supplierId: 'bs-1', skipped: true });
+    expect(minioClient.getObject).not.toHaveBeenCalled();
+    expect(minioClient.putObject).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+  });
+
+  it('解外层失败 → 回滚抢占（outerDecryptedAt 复原 null，可直接重试无需供应商补传）', async () => {
+    adminKeyMock.readPrivateKey.mockResolvedValue(sm2.generateKeyPairHex().privateKey); // 错私钥
+
+    await expect(service.decryptOuter('p1', 'bs-1', 'u1')).rejects.toMatchObject({
+      response: { code: 'OUTER_DECRYPT_FAILED' },
+    });
+    const calls = prisma.supplierBidSubmission.updateMany.mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0]).toMatchObject({ data: { outerDecryptedAt: expect.any(Date) } }); // ① 抢占
+    expect(calls[1][0]).toMatchObject({
+      where: expect.objectContaining({ outerDecryptedAt: expect.any(Date) }), // 条件更新：只回滚自己这笔
+      data: { outerDecryptedAt: null }, // 失败回滚
+    });
   });
 
   it('旧轨项目（envelopeVersion 非 dual-v2）→ 400 NOT_DUAL_TRACK', async () => {

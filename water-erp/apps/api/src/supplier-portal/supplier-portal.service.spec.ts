@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SupplierPortalService } from './supplier-portal.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { SignatureService } from '../common/crypto/signature.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
@@ -1686,6 +1687,32 @@ describe('SupplierPortalService', () => {
       expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
         data: expect.objectContaining({ projectId: 'project-1', action: '新轨补传（供应商端双层重封）', riskFlag: '高风险' }),
       }));
+    });
+
+    it('解外层标记重置（T12 契约）：outerDecryptedAt/innerAssets 已有时补传 → submission.update 携带重置两字段', async () => {
+      // 已解过外层（outerDecryptedAt+innerAssets 落库）后供应商补传新 C_outer——
+      // 必须重置，否则 decrypt-outer 幂等跳过会因旧标记残留而永久跳过新密文
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-reup-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
+        envelopeVersion: 'dual-v2', envelope: ORIGINAL,
+        outerDecryptedAt: new Date('2026-08-20T10:00:00Z'),
+        innerAssets: { technical: 'fa-inner-1' },
+        technicalFileAssetId: 'fa-reup-1', businessFileAssetId: null, coverLetterAssetId: null,
+      });
+      const { envelope, signature } = await buildReuploadEnvelope();
+
+      await service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(envelope), signature, ciphertext: C_OUTER,
+      });
+
+      expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith({
+        where: { supplierId_projectId: { supplierId: 'supplier-1', projectId: 'project-1' } },
+        data: expect.objectContaining({
+          envelope: expect.objectContaining({ version: 'dual-v2' }),
+          outerDecryptedAt: null,
+          innerAssets: Prisma.DbNull,
+        }),
+      });
     });
 
     it('验签失败（签名私钥与证书公钥不匹配）→ 400 SM2_SIGNATURE_INVALID，零写入', async () => {
