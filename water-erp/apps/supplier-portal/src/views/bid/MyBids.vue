@@ -197,6 +197,11 @@ async function handleWithdraw(id: string) {
                 <span class="mb-card-meta-label">报价</span>
                 {{ formatBidPrice(row.bidPrice) }}
               </span>
+              <!-- dual-v2：报价已密封进双层信封，服务端不回传明文（开标唱标时揭示） -->
+              <span v-else-if="row.envelopeVersion === 'dual-v2'" class="mb-card-meta-item sealed">
+                <span class="mb-card-meta-label">报价</span>
+                已密封 · 开标时揭示
+              </span>
               <span v-if="row.deliveryPeriod" class="mb-card-meta-item">
                 <span class="mb-card-meta-label">工期</span>
                 {{ row.deliveryPeriod }}
@@ -427,6 +432,12 @@ async function handleWithdraw(id: string) {
   font-weight: 500;
   color: var(--muted-foreground);
   margin-right: 4px;
+}
+.mb-card-meta-item.sealed {
+  color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 8%, transparent);
+  padding: 1px 8px;
+  border-radius: 6px;
 }
 
 /* ── Stage progress track (per-card) ── */
