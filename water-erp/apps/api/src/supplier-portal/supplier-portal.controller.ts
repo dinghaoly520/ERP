@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, UploadedFiles, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
@@ -8,7 +8,7 @@ import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
-import type { DualEnvelope } from '@water-erp/ukey';
+import type { DualEnvelope, EnvelopeRole } from '@water-erp/ukey';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { CreateCatalogApplicationDto, UpdateCatalogApplicationDto } from './dto/catalog-application.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -296,6 +296,49 @@ export class SupplierPortalController {
   async withdrawSubmission(@Request() req: any, @Param('submissionId') submissionId: string) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.withdrawSubmission(supplierId, submissionId);
+  }
+
+  // ─── 双信封 v2 开标解密（Task 13：供应商解内层）───
+
+  /** 取开标解密包：C_inner 下载凭证 + K_self + sealedFields + 窗口状态（记 packageFetchedAt 归因锚点） */
+  @Get('bid-submissions/:projectId/opening-package')
+  async getOpeningPackage(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getOpeningPackage(supplierId, projectId);
+  }
+
+  /** 解密上传：各角色解密明文（file_* 四文件 optional）+ F+nonce 承诺（fieldsJson/nonce）——服务端双闸校验 */
+  @Post('bid-submissions/:projectId/decrypt-upload')
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'file_technical', maxCount: 1 },
+    { name: 'file_business', maxCount: 1 },
+    { name: 'file_coverLetter', maxCount: 1 },
+    { name: 'file_bond', maxCount: 1 },
+  ], { limits: { fileSize: 50 * 1024 * 1024 } }))
+  async decryptUpload(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+    @UploadedFiles() uploaded: {
+      file_technical?: Express.Multer.File[];
+      file_business?: Express.Multer.File[];
+      file_coverLetter?: Express.Multer.File[];
+      file_bond?: Express.Multer.File[];
+    },
+    @Body() body: { fieldsJson?: string; nonce?: string },
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    const FIELD_ROLE_MAP: ReadonlyArray<readonly [string, EnvelopeRole]> = [
+      ['file_technical', 'technical'],
+      ['file_business', 'business'],
+      ['file_coverLetter', 'coverLetter'],
+      ['file_bond', 'bond'],
+    ];
+    const files: Partial<Record<EnvelopeRole, Buffer>> = {};
+    for (const [field, role] of FIELD_ROLE_MAP) {
+      const f = (uploaded as any)?.[field]?.[0] as Express.Multer.File | undefined;
+      if (f) files[role] = f.buffer;
+    }
+    return this.portalService.decryptUpload(supplierId, projectId, files, body?.fieldsJson ?? '', body?.nonce ?? '');
   }
 
   // ─── 开标确认（供应商侧）───

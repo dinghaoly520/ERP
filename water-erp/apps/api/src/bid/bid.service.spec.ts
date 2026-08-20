@@ -2647,6 +2647,33 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
     expect(res).toBeDefined();
   });
 
+  it('P1-4（新轨 dual-v2）：密封价源=decryptedPrice（fieldsCommit 承诺验证后的报价）→ 不一致 409 PRICE_MISMATCH', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+    // 新轨投递 bidPrice 列恒 null——期望值必须读 decryptedPrice，读 bidPrice 会跳过校验成漏洞
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: null, envelopeVersion: 'dual-v2', decryptedPrice: '950000' });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+    await expect(service.enterOpeningRecord('p1', { ...dto } as any)).rejects.toMatchObject({
+      response: { code: 'PRICE_MISMATCH', expected: 950000, entered: 980000 },
+    });
+    expect(prisma.bidOpeningRecord.upsert).not.toHaveBeenCalled();
+  });
+
+  it('P1-4（新轨 dual-v2）：decryptedPrice 缺失（供应商未完成解密上传）→ 跳过校验（与密封价缺失同语义）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });
+    prisma.bidSupplier.findUnique.mockResolvedValue({ supplierId: 's1' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({ bidPrice: null, envelopeVersion: 'dual-v2', decryptedPrice: null });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+    prisma.bidOpeningRecord.upsert.mockResolvedValue({ id: 'r5' });
+
+    const res = await service.enterOpeningRecord('p1', { ...dto } as any);
+    expect(res).toBeDefined();
+    expect(prisma.bidOpeningRecord.upsert).toHaveBeenCalled();
+  });
+
   it('P1-4：旧明文报价（无 v1: 前缀）不一致 → 同样 409（数据可比即校验）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: '项目A' });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲公司', decryptStatus: 'SUCCESS' });

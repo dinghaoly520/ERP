@@ -3094,9 +3094,17 @@ export class BidService {
     if (!bs?.supplierId) return null;
     const sub = await this.prisma.supplierBidSubmission.findUnique({
       where: { supplierId_projectId: { supplierId: bs.supplierId, projectId } },
-      select: { bidPrice: true },
+      select: { bidPrice: true, envelopeVersion: true, decryptedPrice: true },
     });
-    const sealed = sub?.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null;
+    // P1-4（dual-v2 新轨，Task 13）：期望值取 decryptedPrice——供应商解密上传时经 fieldsCommit
+    // 承诺验证落库的报价（新轨投递 bidPrice 列恒 null，读旧列会跳过校验成漏洞）；
+    // 旧轨读 openField(sealed bidPrice)。decryptedPrice 缺失（供应商未完成解密上传）→
+    // 不校验（与密封价缺失同语义，唱标节奏与「未解密不可唱标」一致）。
+    const sealed = sub
+      ? (sub.envelopeVersion === 'dual-v2'
+          ? (sub.decryptedPrice ?? null)
+          : (sub.bidPrice ? openField(sub.bidPrice, process.env.KMS_SECRET!) : null))
+      : null;
     if (sealed == null) return null;
     // P1-13 归一 + 容差比对统一走 opening-compare.util（供应商端回显同源）
     const expectedInYuan = resolveExpectedInYuan(sealed, amount);
