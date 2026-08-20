@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
@@ -263,6 +264,7 @@ export class SupplierPortalController {
   // ─── 新轨补传（双信封 v2：解密异常恢复由供应商端双层重封，Task 10）───
   // file 字段收的是新 C_outer 密文（客户端重新双层加密产物，非明文）；envelope 为整体新信封 JSON string。
   @Post('bid-submissions/:projectId/reupload-dual')
+  @Throttle({ default: { ttl: 60000, limit: 5 } }) // 旧轨 reupload 5/min 同款，防刷拦截路径灌监督日志
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
   async reuploadDual(
     @Request() req: any,

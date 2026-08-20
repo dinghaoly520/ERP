@@ -1560,28 +1560,42 @@ describe('SupplierPortalService', () => {
     const supplierKp = ukeySm2.generateKeyPairHex();
     const REUP_CERT_SN = 'MOCK-CERT-REUP-0001';
     const FIELDS: SealedFields = { price: '980000.00', deliveryPeriod: '540', qualityCommitment: '合格' };
-    const PLAINTEXT = '技术标投标文件（reupload-dual 测试）——密文异常后由供应商端双层重封';
-    let PLAIN_SHA = '';
+    const ROLE_TEXT = {
+      technical: '技术标投标文件（reupload-dual 测试）——密文异常后由供应商端双层重封',
+      business: '商务标投标文件（reupload-dual 测试）',
+    };
+    const ROLE_SHA: Record<'technical' | 'business', string> = { technical: '', business: '' };
+    let ORIGINAL: DualEnvelope; // 投递时信封锚点：fieldsCommit/fieldsSha256 与 builder 确定性一致
     // file 字段收的是新 C_outer 密文（客户端重新双层加密产物，非明文）
     const C_OUTER = Buffer.from('couter-new-ciphertext-sealed-by-supplier-ukey');
-    const dualAssetRow = () => ({
-      id: 'fa-reup-1', key: 'uploads/2026-08-20/dual/couter-original.bin', originalName: 'technical.pdf',
-      mimeType: 'application/pdf', size: 2048, sha256: PLAIN_SHA, category: 'bid_document',
+    const dualAssetRow = (id = 'fa-reup-1', role: 'technical' | 'business' = 'technical') => ({
+      id, key: `uploads/2026-08-20/dual/couter-${role}.bin`, originalName: `${role}.pdf`,
+      mimeType: 'application/pdf', size: 2048, sha256: ROLE_SHA[role], category: 'bid_document',
       uploaderId: 'user-1', clientEncrypted: true, encrypted: true,
-      sealedPath: 'uploads/2026-08-20/dual/couter-original.bin',
+      sealedPath: `uploads/2026-08-20/dual/couter-${role}.bin`,
     });
 
-    /** 构造合法重签信封（技术标单角色 + sealedFields/fieldsCommit 齐备，canonicalEnvelopeHash 覆盖全字段）。 */
-    async function buildReuploadEnvelope(filesOverride?: { technical?: EnvelopeFileEntry }) {
-      const dekS = { keyHex: randomHex(16), ivHex: randomHex(16) };
-      const dekA = { keyHex: randomHex(16), ivHex: randomHex(16) };
-      const files: DualEnvelope['files'] = {
-        technical: filesOverride?.technical ?? {
-          sha256: PLAIN_SHA,
-          kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekS), 'utf8').toString('hex')),
-          kadmin: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson(dekA), 'utf8').toString('hex')),
-        },
-      };
+    /**
+     * 构造合法重签信封。fieldsCommit/fieldsSha256 可显式覆盖（改价攻击：签名按篡改后信封计算=有效签名，
+     * 用以证明「仅靠验签拦不住、须对投递锚点逐字比对」）；technical:null 丢弃技术标条目；
+     * withBusiness 追加合法商务标条目（多角色保全用例）。
+     */
+    async function buildReuploadEnvelope(opts?: {
+      technical?: EnvelopeFileEntry | null;
+      withBusiness?: boolean;
+      business?: EnvelopeFileEntry | null;
+      fieldsCommit?: string;
+      fieldsSha256?: string;
+    }) {
+      const mkEntry = (sha: string) => ({
+        sha256: sha,
+        kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson({ keyHex: randomHex(16), ivHex: randomHex(16) }), 'utf8').toString('hex')),
+        kadmin: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson({ keyHex: randomHex(16), ivHex: randomHex(16) }), 'utf8').toString('hex')),
+      });
+      const files: DualEnvelope['files'] = {};
+      if (opts?.technical !== null) files.technical = opts?.technical ?? mkEntry(ROLE_SHA.technical);
+      if (opts?.business) files.business = opts.business;
+      else if (opts?.business !== null && opts?.withBusiness) files.business = mkEntry(ROLE_SHA.business);
       const dekF = { keyHex: randomHex(16), ivHex: randomHex(16) };
       const nonce = 'n-reup-dual-0001';
       const envelope: DualEnvelope = {
@@ -1589,16 +1603,18 @@ describe('SupplierPortalService', () => {
         sealedFields: {
           cipher: sm4Encrypt(dekF.keyHex, dekF.ivHex, Buffer.from(canonicalJson({ fields: FIELDS, nonce }), 'utf8').toString('hex')),
           kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekF), 'utf8').toString('hex')),
-          fieldsSha256: await sha256Hex(canonicalJson(FIELDS)),
+          fieldsSha256: opts?.fieldsSha256 ?? await sha256Hex(canonicalJson(FIELDS)),
         },
-        fieldsCommit: await computeFieldsCommit(FIELDS, nonce),
+        fieldsCommit: opts?.fieldsCommit ?? await computeFieldsCommit(FIELDS, nonce),
       };
       const signature = signEnvelopeMsg(await canonicalEnvelopeHash(envelope), supplierKp.privateKey);
       return { envelope, signature };
     }
 
     beforeAll(async () => {
-      PLAIN_SHA = await sha256Hex(Buffer.from(PLAINTEXT, 'utf8'));
+      ROLE_SHA.technical = await sha256Hex(Buffer.from(ROLE_TEXT.technical, 'utf8'));
+      ROLE_SHA.business = await sha256Hex(Buffer.from(ROLE_TEXT.business, 'utf8'));
+      ORIGINAL = (await buildReuploadEnvelope()).envelope;
     });
 
     beforeEach(() => {
@@ -1607,8 +1623,8 @@ describe('SupplierPortalService', () => {
       prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '测试供应商', status: 'APPROVED', userId: 'user-1' });
       prisma.supplierBidSubmission.findUnique.mockResolvedValue({
         id: 'sub-reup-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
-        envelopeVersion: 'dual-v2', technicalFileAssetId: 'fa-reup-1',
-        businessFileAssetId: null, coverLetterAssetId: null,
+        envelopeVersion: 'dual-v2', envelope: ORIGINAL,
+        technicalFileAssetId: 'fa-reup-1', businessFileAssetId: null, coverLetterAssetId: null,
       });
       prisma.fileAsset.findUnique.mockResolvedValue(dualAssetRow());
       prisma.fileAsset.update.mockResolvedValue(dualAssetRow());
@@ -1705,5 +1721,69 @@ describe('SupplierPortalService', () => {
       expect(prisma.supplierBidSubmission.findUnique).not.toHaveBeenCalled();
       expect(minioClient.putObject).not.toHaveBeenCalled();
     });
+
+    it('Critical（spec v6 §5.6）：新信封 fieldsCommit/fieldsSha256 与投递锚点不一致（即使重签有效）→ 400 FIELDS_COMMIT_CHANGED + 监督日志含「疑似借补传改价」，零写入', async () => {
+      // 改价攻击：供应商换 FIELDS 重算 fieldsCommit 并用自己证书重签——签名链完全合法，只有锚点比对能拦。
+      const commitAttack = await buildReuploadEnvelope({ fieldsCommit: 'ab'.repeat(32) });
+      await expect(service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(commitAttack.envelope), signature: commitAttack.signature, ciphertext: C_OUTER,
+      })).rejects.toMatchObject({ response: { code: 'FIELDS_COMMIT_CHANGED' } });
+      expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          projectId: 'project-1', action: '新轨补传拦截',
+          result: expect.stringContaining('疑似借补传改价'), riskFlag: '高风险',
+        }),
+      }));
+
+      // fieldsSha256 变体（fieldsCommit 不动）：同一收口
+      const shaAttack = await buildReuploadEnvelope({ fieldsSha256: 'cd'.repeat(32) });
+      await expect(service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(shaAttack.envelope), signature: shaAttack.signature, ciphertext: C_OUTER,
+      })).rejects.toMatchObject({ response: { code: 'FIELDS_COMMIT_CHANGED' } });
+
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+    });
+
+    it('多角色保全：补 technical 时 business 条目整体保留（防客户端 JSON 整体替换丢角色）；business 条目缺失 → 400 ENVELOPE_INCOMPLETE', async () => {
+      // submission 挂双角色资产；FileAsset 按 id 分派
+      prisma.fileAsset.findUnique.mockImplementation(async ({ where }: any) =>
+        where.id === 'fa-reup-1' ? dualAssetRow() : where.id === 'fa-reup-2' ? dualAssetRow('fa-reup-2', 'business') : null);
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        id: 'sub-reup-1', supplierId: 'supplier-1', projectId: 'project-1', status: 'submitted',
+        envelopeVersion: 'dual-v2', envelope: ORIGINAL,
+        technicalFileAssetId: 'fa-reup-1', businessFileAssetId: 'fa-reup-2', coverLetterAssetId: null,
+      });
+
+      const { envelope, signature } = await buildReuploadEnvelope({ withBusiness: true });
+      await service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(envelope), signature, ciphertext: C_OUTER,
+      });
+      // 落库信封两个角色条目都完整保留（与提交信封逐字一致）
+      const data = prisma.supplierBidSubmission.update.mock.calls[0][0].data;
+      expect(data.envelope.files.technical).toEqual(envelope.files.technical);
+      expect(data.envelope.files.business).toEqual(envelope.files.business);
+
+      // 新信封丢掉 business 条目（整体替换场景）→ 拒收，防静默丢失商务标密封件
+      const dropped = await buildReuploadEnvelope();
+      await expect(service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(dropped.envelope), signature: dropped.signature, ciphertext: C_OUTER,
+      })).rejects.toMatchObject({ response: { code: 'ENVELOPE_INCOMPLETE' } });
+    });
+
+    it('signature 缺失 → 入口显式 400 SM2_SIGNATURE_INVALID（error 文案「缺少签名或签名验证失败」），不走空串冒充验签失败', async () => {
+      const { envelope } = await buildReuploadEnvelope();
+
+      await expect(service.reuploadDualEnvelope('supplier-1', 'project-1', {
+        role: 'technical', envelopeJson: JSON.stringify(envelope), ciphertext: C_OUTER,
+      })).rejects.toMatchObject({
+        response: { code: 'SM2_SIGNATURE_INVALID', error: '缺少签名或签名验证失败' },
+      });
+
+      expect(prisma.supplierCert.findFirst).not.toHaveBeenCalled();
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+    });
   });
+
 });

@@ -1327,7 +1327,8 @@ export class SupplierPortalService {
    * SHA-256 闸门（镜像旧轨拦截块语义）：新信封 files[role].sha256（新明文哈希声明）必须 == 原始 FileAsset.sha256
    * （明文锚点）——密文可重封、明文不可替换；不符 → 400 FILE_HASH_MISMATCH + 监督日志「新轨补传拦截」+ WS 异常事件。
    * 验签链（收紧口径，同 submitBid）：active 管理方证书匹配 adminCertId → certSn 命中本供应商 ACTIVE SupplierCert →
-   * canonicalEnvelopeHash SM2 验签 → assertEnvelopeIntact 单角色 declared。
+   * canonicalEnvelopeHash SM2 验签 → fieldsCommit/fieldsSha256 与投递锚点逐字相等（Critical：开标期不得借补传改价）
+   * → assertEnvelopeIntact 全量 declared（多角色保全：他角色密封件不得在整体替换中丢失）。
    * 恢复：新 C_outer 落 MinIO（dual-reupload/ 前缀，不覆盖原密文）→ FileAsset.sealedPath 指新密文
    * （sha256 明文锚点不动、clientEncrypted 保持）→ submission 更新 envelope/signature/fileHash（canonicalEnvelopeHash）/
    * signedAt → bidSupplier 重置 decryptStatus PENDING / decryptError null → 监督日志「新轨补传（供应商端双层重封）」。
@@ -1355,7 +1356,7 @@ export class SupplierPortalService {
 
     // ── 阶段门：仅 OPENING（评标开始后锁死，同旧轨）──
     const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId }, select: { stage: true },
+      where: { id: projectId }, select: { stage: true, bondRequired: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     if (project.stage !== 'OPENING') {
@@ -1389,6 +1390,8 @@ export class SupplierPortalService {
       const parsed = JSON.parse(input.envelopeJson);
       if (!parsed || typeof parsed !== 'object' || parsed.version !== 'dual-v2'
         || typeof parsed.certSn !== 'string' || typeof parsed.adminCertId !== 'string'
+        || typeof parsed.fieldsCommit !== 'string'
+        || !parsed.sealedFields || typeof parsed.sealedFields !== 'object'
         || !parsed.files || typeof parsed.files !== 'object') {
         throw new Error('bad envelope shape');
       }
@@ -1400,23 +1403,32 @@ export class SupplierPortalService {
     // ── SHA-256 安全闸门：新信封声明的新明文哈希必须与原始标书明文一致（密文可重封、明文不可替换）──
     const entry = envelope.files[input.role as EnvelopeRole];
     if (!entry || entry.sha256 !== originalAsset.sha256) {
+      const detail = !entry
+        ? `新信封缺少 ${input.role} 密封件条目`
+        : `${input.role} 文件明文 SHA-256 与原始标书不一致`;
       this.logger.warn(`reupload-dual SHA-256 mismatch: supplier=${bidSupplier.supplierName} role=${input.role} original=${originalAsset.sha256} declared=${entry?.sha256 ?? '(missing)'}`);
       // 安全事件审计：疑似标书替换尝试，通知监督端（镜像旧轨 reupload 拦截块语义）
       this.prisma.bidSupervisionLog.create({
         data: { projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
-          action: '新轨补传拦截', result: `${input.role} 文件明文 SHA-256 与原始标书不一致，拒绝恢复（疑似替换尝试）`, riskFlag: '高风险' },
+          action: '新轨补传拦截', result: `${detail}，拒绝恢复（疑似替换尝试）`, riskFlag: '高风险' },
       }).catch(() => {});
       this.gateway?.notifyAnomaly(projectId, {
         type: 'tamper_attempt', supplierId: bidSupplier.id, supplierName: bidSupplier.supplierName,
-        detail: `${input.role} 新轨补传被拦截：新信封明文哈希与原始标书不一致（SHA-256 不匹配）`, severity: 'danger',
+        detail: `${input.role} 新轨补传被拦截：${detail}`, severity: 'danger',
       });
       throw new BadRequestException({
-        error: '新信封明文哈希与原始标书不一致（SHA-256 不匹配），疑似非原始文件，拒绝恢复',
+        error: !entry
+          ? `${detail}，拒绝恢复`
+          : '新信封明文哈希与原始标书不一致（SHA-256 不匹配），疑似非原始文件，拒绝恢复',
         code: 'FILE_HASH_MISMATCH',
       });
     }
 
-    // ── 验签链（收紧口径，同 submitBid）：管理方证书 → ACTIVE SupplierCert → SM2 验签 → 单角色密封件复核 ──
+    // ── 验签链（收紧口径，同 submitBid）：管理方证书 → ACTIVE SupplierCert → SM2 验签 ──
+    // signature 缺失在入口显式拒收，不以空串冒充「验签失败」。
+    if (!input.signature) {
+      throw new BadRequestException({ error: '缺少签名或签名验证失败', code: 'SM2_SIGNATURE_INVALID' });
+    }
     const activeCert = await this.prisma.adminEncryptionCert.findFirst({ where: { active: true } });
     if (!activeCert || envelope.adminCertId !== activeCert.id) {
       throw new BadRequestException({ error: '管理方加密证书已变更，请重新加密上传', code: 'ADMIN_CERT_CHANGED' });
@@ -1425,12 +1437,51 @@ export class SupplierPortalService {
       where: { supplierId, certSn: envelope.certSn, bindingStatus: 'ACTIVE' },
     });
     const verified = cert
-      ? await this.dualEnvelope.verifySignature(envelope, input.signature ?? '', cert.publicKey)
+      ? await this.dualEnvelope.verifySignature(envelope, input.signature, cert.publicKey)
       : false;
     if (!cert || !verified) {
       throw new BadRequestException({ error: '未找到有效绑定证书或签名验证失败', code: 'SM2_SIGNATURE_INVALID' });
     }
-    this.dualEnvelope.assertEnvelopeIntact(envelope, [{ role: input.role as EnvelopeRole, sha256: originalAsset.sha256 }]);
+
+    // ── Critical（spec v6 §5.6）：唱标字段密封件不得变更——补传仅恢复文件，不得重签价格信封。
+    //    开标期供应商可先听他人唱标，再借「补传」重算 fieldsCommit/fieldsSha256 并用自己证书重签
+    //    （签名链完全合法，SHA 闸门只锁 files[role] 拦不住）——新信封 fieldsCommit 与
+    //    sealedFields.fieldsSha256 必须与投递时 submission.envelope 原值逐字相等，不等即拒收。
+    const originalEnvelope = (submission.envelope ?? null) as DualEnvelope | null;
+    if (!originalEnvelope?.fieldsCommit || !originalEnvelope.sealedFields?.fieldsSha256
+      || envelope.fieldsCommit !== originalEnvelope.fieldsCommit
+      || envelope.sealedFields.fieldsSha256 !== originalEnvelope.sealedFields.fieldsSha256) {
+      this.prisma.bidSupervisionLog.create({
+        data: { projectId, time: new Date(), role: '供应商', target: bidSupplier.supplierName,
+          action: '新轨补传拦截', result: `${input.role} 唱标字段密封件（fieldsCommit/fieldsSha256）与投递时不一致，拒绝恢复（疑似借补传改价）`, riskFlag: '高风险' },
+      }).catch(() => {});
+      throw new BadRequestException({ error: '唱标字段密封件不得变更（补传仅恢复文件）', code: 'FIELDS_COMMIT_CHANGED' });
+    }
+
+    // ── 多角色保全：单角色补传不得整体替换信封——submission 每个非空 assetId 的角色
+    //    （technical/business/coverLetter + bondRequired 时的 bond），新信封对应条目必须在位且
+    //    sha256 等于该 FileAsset 明文锚点（assertEnvelopeIntact 全量 declared，防客户端 JSON
+    //    整体替换时静默丢失他角色密封件）──
+    const ROLE_ASSET_KEYS = {
+      technical: 'technicalFileAssetId', business: 'businessFileAssetId',
+      coverLetter: 'coverLetterAssetId', bond: 'bidBondAssetId',
+    } as const;
+    const declared: Array<{ role: EnvelopeRole; sha256: string }> = [];
+    for (const [role, key] of Object.entries(ROLE_ASSET_KEYS) as Array<[EnvelopeRole, (typeof ROLE_ASSET_KEYS)[EnvelopeRole]]>) {
+      if (role === 'bond' && !project.bondRequired) continue;
+      const rid = submission[key] as string | null;
+      if (!rid) continue;
+      if (rid === assetId) {
+        declared.push({ role, sha256: originalAsset.sha256 }); // 补传角色：锚点已取，免重复查询
+        continue;
+      }
+      const asset = await this.prisma.fileAsset.findUnique({ where: { id: rid } });
+      if (!asset?.sha256) {
+        throw new BadRequestException({ error: '原始文件记录缺失，无法校验', code: 'FILE_RECORD_MISSING' });
+      }
+      declared.push({ role, sha256: asset.sha256 });
+    }
+    this.dualEnvelope.assertEnvelopeIntact(envelope, declared);
 
     // ── 传输完整性（可选）：客户端自报密文哈希与上传密文比对 ──
     const ciphertextSha = crypto.createHash('sha256').update(input.ciphertext).digest('hex');
@@ -1467,6 +1518,8 @@ export class SupplierPortalService {
         },
       });
       await tx.bidSupplier.update({
+        // T12 契约钉死：若 decrypt-outer（Task 12）新增 outerDecryptedAt/packageFetchedAt 等标记列，
+        // 本端点必须同步重置——否则其幂等跳过逻辑会因旧标记残留而跳过补传后的新 C_outer，旧 C_inner 永不刷新。
         where: { id: bidSupplier.id },
         data: { decryptStatus: 'PENDING', decryptError: null },
       });
