@@ -47,6 +47,23 @@ export class SupplierPortalController {
     return this.portalService.getDashboardStats(req.user.sub);
   }
 
+  // ─── CA 证书绑定（双信封 v2：DN↔企业名校验）───
+
+  @Post('profile/cert')
+  async bindCert(
+    @Request() req: any,
+    @Body() body: { certSn: string; certDn: string; publicKey: string; alg?: string },
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.bindCert(supplierId, body);
+  }
+
+  @Delete('profile/cert/:id')
+  async revokeCert(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.revokeCert(supplierId, id);
+  }
+
   // ─── Contacts ───
 
   @Get('contacts')

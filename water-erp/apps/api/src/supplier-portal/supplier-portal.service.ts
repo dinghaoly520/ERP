@@ -90,6 +90,22 @@ function normalizeBidFileAssets(data: BidSubmissionData) {
   data.coverLetterAssetId = coverLetterAssetId;
 }
 
+/**
+ * 企业名/CN 归一化（与 expert-conflict 同口径）：去空白与全/半角括号、间隔符·，去公司形态后缀。
+ * 用于 CA 证书 DN 的 CN 段与注册企业名的包含比对（「四川水发建设（集团）有限责任公司」≡「四川水发建设」）。
+ */
+function normalizeCn(s: string): string {
+  return (s || '')
+    .replace(/[\s（）()·]/g, '')
+    .replace(/(有限责任公司|股份有限公司|有限公司|集团)/g, '');
+}
+
+/** 提取证书 DN 的 CN 段（到下一个逗号前，属性名大小写不敏感）；无 CN 段返回 null。 */
+function extractDnCn(dn: string): string | null {
+  const m = /(?:^|,)\s*cn\s*=\s*([^,]*)/i.exec(dn || '');
+  return m ? m[1].trim() : null;
+}
+
 @Injectable()
 export class SupplierPortalService {
   constructor(
@@ -151,6 +167,89 @@ export class SupplierPortalService {
     });
     if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'NOT_FOUND' });
     return supplier;
+  }
+
+  // ─── CA 证书绑定（双信封 v2：DN↔企业名校验 + 回填 sm2PublicKey）───
+
+  /**
+   * 绑定供应商 CA 证书（U盾枚举后由前端 POST 证书信息）。
+   * 校验链：公钥格式（04+128hex）→ DN 的 CN 归一化后须包含注册企业名归一化串 → certSn 全局占用。
+   * 成功事务：本供应商旧 ACTIVE 证书转 REVOKED（一证一 ACTIVE，换证/挂失语义）→ 建/复用证书行 →
+   * 回填 Supplier.sm2PublicKey（存量列，激活 SM2 验签）。
+   */
+  async bindCert(supplierId: string, input: { certSn: string; certDn: string; publicKey: string; alg?: string }) {
+    const { certSn, certDn, publicKey, alg } = input;
+    if (!certSn || !certDn || !publicKey) {
+      throw new BadRequestException({ error: '请填写完整证书信息', code: 'MISSING_FIELDS' });
+    }
+    // 本地正则（signature.service.isValidPublicKey 同规则，彼处为类方法不可直接复用）
+    if (!/^04[0-9a-fA-F]{128}$/.test(publicKey)) {
+      throw new BadRequestException({ error: 'SM2 公钥格式无效（须为 04 开头的 130 位十六进制）', code: 'INVALID_PUBLIC_KEY' });
+    }
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'NOT_FOUND' });
+
+    const cn = extractDnCn(certDn);
+    if (!cn || !normalizeCn(cn).includes(normalizeCn(supplier.name))) {
+      throw new BadRequestException({ error: '证书主体(CN)与注册企业名称不一致', code: 'DN_MISMATCH' });
+    }
+
+    const existing = await this.prisma.supplierCert.findUnique({ where: { certSn } });
+    if (existing && (existing.bindingStatus === 'ACTIVE' || existing.supplierId !== supplierId)) {
+      throw new ConflictException({ error: '该证书序列号已被绑定', code: 'CERT_SN_EXISTS' });
+    }
+
+    const now = new Date();
+    const cert = await this.prisma.$transaction(async (tx) => {
+      // 一证一 ACTIVE：旧 ACTIVE 证书先 REVOKED（同一供应商）
+      await tx.supplierCert.updateMany({
+        where: { supplierId, bindingStatus: 'ACTIVE' },
+        data: { bindingStatus: 'REVOKED', revokedAt: now },
+      });
+      // certSn 列全局唯一：本供应商已撤销的同号证书复用原行置回 ACTIVE，否则新建
+      const row = existing
+        ? await tx.supplierCert.update({
+            where: { id: existing.id },
+            data: { certDn, publicKey, alg: alg ?? 'SM2', bindingStatus: 'ACTIVE', boundAt: now, revokedAt: null },
+          })
+        : await tx.supplierCert.create({
+            data: { supplierId, certSn, certDn, publicKey, alg: alg ?? 'SM2' },
+          });
+      // 绑定即激活验签公钥（存量列）
+      await tx.supplier.update({ where: { id: supplierId }, data: { sm2PublicKey: publicKey } });
+      return row;
+    });
+    return { cert };
+  }
+
+  /**
+   * 解绑/换证：证书置 REVOKED + revokedAt。
+   * 响应附 pendingSubmissions = 依赖该 certSn 的未开标提交数（envelope 存 certSn 快照，
+   * 旧标书仍需旧证书解密——UI 据此警示「须保留旧 U盾证书」）。
+   */
+  async revokeCert(supplierId: string, certId: string) {
+    const cert = await this.prisma.supplierCert.findUnique({ where: { id: certId } });
+    if (!cert) throw new BadRequestException({ error: '证书不存在', code: 'NOT_FOUND' });
+    if (cert.supplierId !== supplierId) {
+      throw new ForbiddenException({ error: '无权操作此证书', code: 'FORBIDDEN' });
+    }
+    // 幂等：已 REVOKED 直接返回统计，不重复写 revokedAt
+    const updated = cert.bindingStatus === 'REVOKED'
+      ? cert
+      : await this.prisma.supplierCert.update({
+          where: { id: certId },
+          data: { bindingStatus: 'REVOKED', revokedAt: new Date() },
+        });
+    const pendingSubmissions = await this.prisma.supplierBidSubmission.count({
+      where: {
+        // Prisma Json path 过滤（envelope->>'certSn'）——certSn 全局唯一，无需再限 supplierId
+        envelope: { path: ['certSn'], equals: cert.certSn },
+      },
+    });
+    return { ...updated, pendingSubmissions };
   }
 
   // ─── Contacts ───

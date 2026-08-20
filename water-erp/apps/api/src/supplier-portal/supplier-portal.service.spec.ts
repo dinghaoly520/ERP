@@ -67,7 +67,8 @@ describe('SupplierPortalService', () => {
   beforeEach(async () => {
     prisma = {
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
-      supplier: { findUnique: jest.fn() },
+      supplier: { findUnique: jest.fn(), update: jest.fn() },
+      supplierCert: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
       bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
       supplierEvaluation: { count: jest.fn() },
       supplierBidSubmission: {
@@ -945,6 +946,136 @@ describe('SupplierPortalService', () => {
 
       await expect(service.listOpeningRecords('supplier-1', 'project-1'))
         .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+    });
+  });
+
+  describe('bindCert / revokeCert（CA 证书绑定，双信封 v2）', () => {
+    // SM2 公钥：04 + 128 hex（130 位）
+    const VALID_PUBKEY = `04${'ab'.repeat(64)}`;
+    const BIND_INPUT = {
+      certSn: 'SN-001',
+      certDn: 'CN=四川水发建设有限公司,O=测试CA中心',
+      publicKey: VALID_PUBKEY,
+    };
+
+    it('绑定成功：DN 与企业名一致 → 创建 ACTIVE 证书 + 回填 sm2PublicKey + 旧 ACTIVE 证书转 REVOKED（一证一 ACTIVE）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      prisma.supplierCert.findUnique.mockResolvedValue(null);
+      prisma.supplierCert.updateMany.mockResolvedValue({ count: 1 });
+      prisma.supplierCert.create.mockResolvedValue({ id: 'cert-1', supplierId: 'supplier-1', certSn: 'SN-001', bindingStatus: 'ACTIVE' });
+      prisma.supplier.update.mockResolvedValue({});
+
+      const result = await service.bindCert('supplier-1', BIND_INPUT);
+
+      // 创建新证（bindingStatus 默认 ACTIVE）
+      expect(prisma.supplierCert.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            supplierId: 'supplier-1',
+            certSn: 'SN-001',
+            certDn: 'CN=四川水发建设有限公司,O=测试CA中心',
+            publicKey: VALID_PUBKEY,
+            alg: 'SM2',
+          }),
+        }),
+      );
+      // 同供应商旧 ACTIVE 证书先 REVOKED（换证/挂失语义：一证一 ACTIVE）
+      expect(prisma.supplierCert.updateMany).toHaveBeenCalledWith({
+        where: { supplierId: 'supplier-1', bindingStatus: 'ACTIVE' },
+        data: expect.objectContaining({ bindingStatus: 'REVOKED', revokedAt: expect.any(Date) }),
+      });
+      // 存量列回填：激活 SM2 验签
+      expect(prisma.supplier.update).toHaveBeenCalledWith({
+        where: { id: 'supplier-1' },
+        data: { sm2PublicKey: VALID_PUBKEY },
+      });
+      expect(result.cert).toMatchObject({ id: 'cert-1', bindingStatus: 'ACTIVE' });
+    });
+
+    it('DN 不匹配：CN 为别家公司 → 400 DN_MISMATCH，不落库', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      prisma.supplierCert.findUnique.mockResolvedValue(null);
+
+      await expect(service.bindCert('supplier-1', { ...BIND_INPUT, certDn: 'CN=别家公司,O=测试' }))
+        .rejects.toMatchObject({ response: { code: 'DN_MISMATCH' } });
+      expect(prisma.supplierCert.create).not.toHaveBeenCalled();
+      expect(prisma.supplier.update).not.toHaveBeenCalled();
+    });
+
+    it('公钥格式非法（05 开头）→ 400 INVALID_PUBLIC_KEY', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+
+      await expect(service.bindCert('supplier-1', { ...BIND_INPUT, publicKey: `05${'ab'.repeat(64)}` }))
+        .rejects.toMatchObject({ response: { code: 'INVALID_PUBLIC_KEY' } });
+      expect(prisma.supplierCert.create).not.toHaveBeenCalled();
+    });
+
+    it('certSn 已被 ACTIVE 绑定（任何供应商）→ 409 CERT_SN_EXISTS', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      prisma.supplierCert.findUnique.mockResolvedValue({ id: 'cert-other', supplierId: 'supplier-OTHER', certSn: 'SN-001', bindingStatus: 'ACTIVE' });
+
+      await expect(service.bindCert('supplier-1', BIND_INPUT))
+        .rejects.toMatchObject({ response: { code: 'CERT_SN_EXISTS' } });
+      expect(prisma.supplierCert.create).not.toHaveBeenCalled();
+      expect(prisma.supplier.update).not.toHaveBeenCalled();
+    });
+
+    it('同名撤销证重绑：本供应商 REVOKED 证原行复用（update 置回 ACTIVE），不新建', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', name: '四川水发建设有限公司' });
+      prisma.supplierCert.findUnique.mockResolvedValue({ id: 'cert-old', supplierId: 'supplier-1', certSn: 'SN-001', bindingStatus: 'REVOKED' });
+      prisma.supplierCert.updateMany.mockResolvedValue({ count: 0 });
+      prisma.supplierCert.update.mockResolvedValue({ id: 'cert-old', supplierId: 'supplier-1', certSn: 'SN-001', bindingStatus: 'ACTIVE' });
+      prisma.supplier.update.mockResolvedValue({});
+
+      const result = await service.bindCert('supplier-1', { ...BIND_INPUT, certDn: 'CN=四川水发建设有限公司,O=测试' });
+
+      expect(prisma.supplierCert.create).not.toHaveBeenCalled();
+      expect(prisma.supplierCert.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cert-old' },
+          data: expect.objectContaining({ bindingStatus: 'ACTIVE', revokedAt: null, publicKey: VALID_PUBKEY }),
+        }),
+      );
+      expect(prisma.supplier.update).toHaveBeenCalledWith({
+        where: { id: 'supplier-1' },
+        data: { sm2PublicKey: VALID_PUBKEY },
+      });
+      expect(result.cert).toMatchObject({ id: 'cert-old', bindingStatus: 'ACTIVE' });
+    });
+
+    it('撤销：置 REVOKED+revokedAt，并按 envelope.certSn 统计未开标依赖提交数', async () => {
+      prisma.supplierCert.findUnique.mockResolvedValue({
+        id: 'cert-1', supplierId: 'supplier-1', certSn: 'SN-001', bindingStatus: 'ACTIVE',
+      });
+      prisma.supplierCert.update.mockResolvedValue({
+        id: 'cert-1', supplierId: 'supplier-1', certSn: 'SN-001', bindingStatus: 'REVOKED', revokedAt: new Date(),
+      });
+      prisma.supplierBidSubmission.count.mockResolvedValue(2);
+
+      const result = await service.revokeCert('supplier-1', 'cert-1');
+
+      expect(prisma.supplierCert.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cert-1' },
+          data: expect.objectContaining({ bindingStatus: 'REVOKED', revokedAt: expect.any(Date) }),
+        }),
+      );
+      // Prisma Json path 过滤：envelope->>'certSn' = certSn
+      expect(prisma.supplierBidSubmission.count).toHaveBeenCalledWith({
+        where: { envelope: { path: ['certSn'], equals: 'SN-001' } },
+      });
+      expect(result.pendingSubmissions).toBe(2);
+      expect(result).toMatchObject({ id: 'cert-1', bindingStatus: 'REVOKED' });
+    });
+
+    it('撤销他人证书 → 403 FORBIDDEN', async () => {
+      prisma.supplierCert.findUnique.mockResolvedValue({
+        id: 'cert-other', supplierId: 'supplier-OTHER', certSn: 'SN-X', bindingStatus: 'ACTIVE',
+      });
+
+      await expect(service.revokeCert('supplier-1', 'cert-other'))
+        .rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+      expect(prisma.supplierCert.update).not.toHaveBeenCalled();
     });
   });
 });
