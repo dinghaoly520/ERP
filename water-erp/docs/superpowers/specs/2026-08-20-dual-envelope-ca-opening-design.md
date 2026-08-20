@@ -237,7 +237,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 ### 5.6 reseal / 补传
 
 - **删除 reseal 明文分支**（bid.service.ts:2452-2500 段）；E2EE 重包裹分支仅对旧轨保留；
-- 新轨 reseal → 400 引导走补传；补传 reupload 改造：供应商端重新双层加密上传（sha256 逐字节闸门不变，服务器只存 C_outer，fieldsCommit 随新 envelope 重新签名）。
+- 新轨 reseal → 400 引导走补传；补传 reupload 改造：供应商端重新双层加密上传（sha256 逐字节闸门不变，服务器只存 C_outer）。**（v6 修订）补传不得变更唱标字段密封件**：新 envelope 的 `sealedFields.fieldsCommit` 与 `fieldsSha256` 必须逐字等于 submission 原值，不等 → 400 `FIELDS_COMMIT_CHANGED` + 监督日志（防开标期借补传重签报价信封——办法第27条精神，截止后实质内容不得变更；早版「fieldsCommit 随新 envelope 重新签名」为漏洞表述，作废）。
 
 ### 5.7 解密后投标文件归档（P2-17）
 
