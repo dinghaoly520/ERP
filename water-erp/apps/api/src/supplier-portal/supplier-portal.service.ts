@@ -261,6 +261,19 @@ export class SupplierPortalService {
     return { ...updated, pendingSubmissions };
   }
 
+  /**
+   * 管理方加密证书公钥公开查询（双信封 v2 投递端取用：供应商端用 active 公钥
+   * 对 DEK 的 kadmin 分量做 SM2 外层加密，adminCertId 随 envelope 落库供轮转比对）。
+   * bootstrap（AdminKeyService.ensureBootstrap）后 active 恒存在——409 仅兜底。
+   */
+  async getActiveAdminCert() {
+    const cert = await this.prisma.adminEncryptionCert.findFirst({ where: { active: true } });
+    if (!cert) {
+      throw new ConflictException({ error: '管理方加密证书未初始化', code: 'ADMIN_CERT_MISSING' });
+    }
+    return { adminCertId: cert.id, publicKey: cert.publicKey, certDn: cert.certDn };
+  }
+
   // ─── Contacts ───
 
   async listContacts(supplierId: string) {

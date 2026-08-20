@@ -70,6 +70,7 @@ describe('SupplierPortalService', () => {
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
       supplier: { findUnique: jest.fn(), update: jest.fn() },
       supplierCert: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+      adminEncryptionCert: { findFirst: jest.fn() },
       bidProject: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn() },
       supplierEvaluation: { count: jest.fn() },
       supplierBidSubmission: {
@@ -1104,6 +1105,34 @@ describe('SupplierPortalService', () => {
       await expect(service.revokeCert('supplier-1', 'cert-other'))
         .rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
       expect(prisma.supplierCert.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getActiveAdminCert（管理方公钥公开端点，双信封 v2 投递端取用）', () => {
+    it('存在 active 证书 → 返回 adminCertId/publicKey/certDn 三字段（adminCertId = 证书行 id）', async () => {
+      prisma.adminEncryptionCert.findFirst.mockResolvedValue({
+        id: 'admin-cert-1',
+        publicKey: `04${'cd'.repeat(64)}`,
+        certDn: 'CN=蜀水云采平台管理方,O=四川水发集团',
+        active: true,
+        createdAt: new Date('2026-08-20T00:00:00Z'),
+      });
+
+      const result = await service.getActiveAdminCert();
+
+      expect(prisma.adminEncryptionCert.findFirst).toHaveBeenCalledWith({ where: { active: true } });
+      expect(result).toEqual({
+        adminCertId: 'admin-cert-1',
+        publicKey: `04${'cd'.repeat(64)}`,
+        certDn: 'CN=蜀水云采平台管理方,O=四川水发集团',
+      });
+    });
+
+    it('无 active 证书 → 409 ADMIN_CERT_MISSING（bootstrap 后不应发生，兜底）', async () => {
+      prisma.adminEncryptionCert.findFirst.mockResolvedValue(null);
+
+      await expect(service.getActiveAdminCert())
+        .rejects.toMatchObject({ response: { code: 'ADMIN_CERT_MISSING' } });
     });
   });
 });

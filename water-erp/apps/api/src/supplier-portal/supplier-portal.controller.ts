@@ -49,6 +49,12 @@ export class SupplierPortalController {
 
   // ─── CA 证书绑定（双信封 v2：DN↔企业名校验）───
 
+  // 管理方加密证书公钥公开端点（投递端取用；类级 @Roles('supplier') 已覆盖）
+  @Get('admin-cert')
+  async getAdminCert() {
+    return this.portalService.getActiveAdminCert();
+  }
+
   @Post('profile/cert')
   async bindCert(
     @Request() req: any,
