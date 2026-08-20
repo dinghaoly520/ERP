@@ -1,10 +1,11 @@
 # 双层数字信封 + 供应商 CA 开标解密 · 设计 Spec
 
-> 日期：2026-08-20（同日评审修订 v2）
+> 日期：2026-08-20（同日评审修订 v2 → 代码对账修订 v3）
 > 状态：待审阅
 > 依据：电子招投标合规审查报告（2026-08-19）P0-1/P1-1/P1-2/P1-13/P2-17；《电子招标投标办法》第26/27/30/31/32条
 > 用户决策（2026-08-20 确认）：①供应商 CA 采用**外部 CA/U 盾介质**形态；②加密次序 = **供应商内层 → 管理方外层**（开标解密镜像次序）；③存量项目**双轨并存**；④解密交互采用「供应商端解密上传」方案；⑤管理方私钥形态 = **B：服务器托管+仅主持人**。
 > v2 评审修订（2026-08-20）：**删除 khost 授权代解密**（其存在使「平台开标前零解密能力」失效——不在场投标人依法视为撤销，在场故障者持 U盾自行重解，代解密无必要）；**报价等唱标字段改用 nonce 承诺绑定**（防开标时篡改）；**撤销归因增加前置条件**（防管理方失误误判供应商）；C_inner 下载权限、管理方密钥轮转布局、bootstrap、多轮报价口径、签名规范化等 11 项修订。
+> v3 代码对账修订（2026-08-20，逐点核对现有代码后）：**下载链路三处冲突修复**（通用 download 的 AES-GCM 流式解密分支对新轨密文必挂——upload.service.ts:172-204：C_outer 本人下载 400/乱码、专家 SUCCESS 后下载需改指明文资产、C_inner 须以 clientEncrypted=false 存储）；**唱标记录预填**（旧轨开标记录由 decryptSupplier 事务内自动 upsert——bid.service.ts:2097-2119，新轨由 decrypt-upload 承担，否则唱标表空）；**归因矩阵触发点**（现有代码无「窗口关闭扫描」，assertOpeningDone 只查不转——惰性执行+UNKNOWN 阻塞完成开标）；WS 事件复用 notifyDecryptStatus、decrypt-upload 原子抢占、bond 解密链路、bid-crypto 并行模块、encryptStatus 文案、本人报价回显、mock 签名法律效力声明。
 
 ---
 
@@ -138,6 +139,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 ### 4.1 客户端（BidSubmit.vue）
 
 - 上传即双层：M → C_inner → C_outer → `POST /api/upload?category=bid_document&clientEncrypted=true&plaintextSha256=...`（复用现有端点，`key` 即 C_outer）；保证金凭证同款（uploadEncryptedFile 替代现明文 uploadFile）；
+- **加密模块并行不改造**：现有 `@/utils/bid-crypto`（WebCrypto AES-GCM，DEK=key:iv:tag 三段 hex）保留供旧轨密文读取；新增 `dual-envelope` 模块（sm-crypto SM4/SM2 + nonce），`computePlaintextHash` 从 bid-crypto 复用；localStorage clientDeks 条目结构随新轨扩展（DEK_S+nonce 并存）；
 - 浏览器端保留 DEK_S 与 nonce（现有 clientDeks localStorage 机制扩展；**权威源 = 服务端 envelope + U盾重解**，localStorage 仅加速）；
 - 提交 payload：`envelope`（见 §2.2 结构）+ `signature`（对 canonicalEnvelopeHash 签名）+ `sealedFields` 对应的 nonce 仅存本地不上传；**无任何代解密授权字段**；
 - 草稿：与提交同构（envelope 随草稿保存；重新提交生成新 envelope+新签名+新 nonce）。
@@ -154,7 +156,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 
 - **未加密拒收**：technical/business/coverLetter（及 bondRequired 项目的 bond）任一 asset `clientEncrypted !== true` 或 envelope 缺对应 `{kself,kadmin}` → 400 `BID_FILE_NOT_ENCRYPTED`（提示重新加密上传）；
 - **删除服务端代加密分支**（现 supplier-portal.service.ts:911-925 整段）与明文 DEK 接收路径（clientDeks 明文不再接收，改 envelope 密文字段）；
-- 落库：envelope JSON + canonicalHash + signature → `SupplierBidSubmission`；`envelopeVersion='dual-v2'`；旧轨字段（sealedKey 等）不再写入；
+- 落库：envelope JSON + canonicalHash + signature → `SupplierBidSubmission`；`envelopeVersion='dual-v2'`；旧轨字段（sealedKey 等）不再写入；`BidSupplier.encryptStatus` 写「**双层信封已验签**」（该列进开标文件包与 CSV 导出，bid.service.ts:5026/:5155）；
 - **KMS_SECRET 对投标文件退役**（新轨不再 wrapKey；envelope-crypto 保留供旧轨与 DB 字段密封使用）；
 - BidFileBackup：新轨备份 = C_outer 快照 + envelope（`cryptoVersion='dual-envelope-v2'`）；备份链为「争议三方核验」保留——核验时需双方到场解封（符合双重加密语义）。
 
@@ -175,27 +177,41 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 
 - `POST /api/bid/projects/:id/opening/decrypt-outer`（@Roles admin,bid_host；逐家或批量）：**服务端**按 envelope 快照的 certId 取 keystore 对应私钥 → SM2 解 K_admin → SM4 解 C_outer → C_inner 存 FileAsset(category=bid_inner_ciphertext) → 记 `outerDecryptedAt` + 监督日志「管理方解外层」+ auditLog（actorId）；门控与现 decryptSupplier 同款（OPENING 阶段 + 会话存在 + 解密窗口开启未暂停）；
 - 现「单条/批量解密」端点**仅旧轨项目可用**（envelopeVersion=null 分派）；新轨项目调用返回 400 `USE_SUPPLIER_DECRYPT`；
-- **C_inner 下载权限**（现有 download 鉴权补一条规则）：category=bid_inner_ciphertext 按项目成员放行（请求者 BidSupplier.supplierId 匹配该项目）——现规则「uploader 本人/admin/bid_host/SUCCESS 后 staff·专家」不含等待解密中的供应商本人，不加此规则 opening-package 拿不到文件。
+- **C_inner 存储与下载规则**：C_inner 落库时 `clientEncrypted=false`（它不是「客户端加密」语义——若标 true 会误入 download 的 AES-GCM 流式解密分支，upload.service.ts:172-204，对 SM4 密文必然输出乱码/报 MISSING_SEALED_KEY）；`canAccessFile` 新增规则：category=bid_inner_ciphertext 按项目成员放行（请求者 BidSupplier.supplierId 匹配该项目）——现规则「uploader 本人/admin/bid_host/SUCCESS 后 staff·专家」不含等待解密中的供应商本人。
 
 ### 5.3 供应商端：解内层（新增）
 
 - `GET /api/supplier-portal/bid-submissions/:projectId/opening-package`（成员门控+窗口内+outer 已解）：返回 C_inner 下载凭证 + K_self + 窗口状态；**记录 `packageFetchedAt`**（归因依据，§5.5）；
-- `POST /api/supplier-portal/bid-submissions/:projectId/decrypt-upload`（成员门控+窗口内）：上传解密明文 + `F + nonce` → 服务端双闸校验：
-  1. `SHA256(M) == FileAsset.sha256`（明文存证锚点，防文件替换——复用补传同款闸门语义）；
+- `POST /api/supplier-portal/bid-submissions/:projectId/decrypt-upload`（成员门控+窗口内）：上传**全部角色解密明文**（technical/business/coverLetter/bond）+ `F + nonce` → 服务端双闸校验：
+  1. 每文件 `SHA256(M) == FileAsset.sha256`（明文存证锚点，防文件替换——复用补传同款闸门语义；**bond 同样入闸**）；
   2. `SHA256(canonicalJson(F)+':'+nonce) == envelope.fieldsCommit`（防唱标字段篡改）；
-  双闸过 → 存 FileAsset(category=bid_decrypted) → `decryptStatus=SUCCESS`、`decryptedPrice=F.price` 落库 → 监督日志 + WS 广播 `opening:decrypted`；任一闸失败 → DANGER + 归因 UNKNOWN（§5.5）；
+  双闸过 → 存 FileAsset(category=bid_decrypted) → `decryptStatus=SUCCESS`、`decryptedPrice=F.price` 落库 → **自动预填开标记录**（见下）→ 监督日志 + WS 复用 `notifyDecryptStatus` 既有通道（事件常量表 packages/shared/src/bid-events.ts 已有解密状态事件，**不新增臆造事件名**；如需细分「供应商自解」标记，在 bid-events.ts 加常量并同步三份 use-bid-websocket 前端钩子）；任一闸失败 → DANGER + 归因 UNKNOWN（§5.5）；
+- **并发/幂等（复用旧轨三段式）**：decrypt-upload 采用与 decryptSupplier 同款「①原子抢占（PENDING→RUNNING 条件更新，bid.service.ts:1981-2011）+ 60s 崩溃接管 → ②事务外文件校验 → ③短事务终局写入」——供应商端弱网重传/双击是常态，无抢占会双跑双写；
+- **唱标记录预填（衔接旧轨语义）**：双闸通过后，事务内自动 upsert `BidOpeningRecord`（amount=F.price、period=F.deliveryPeriod、qualityTarget=F.qualityCommitment、confirmStatus=「待供应商确认」、bondStatus 留空由主持人判定）——旧轨该记录由 decryptSupplier 在解密事务内创建（bid.service.ts:2097-2119「解密即唱标」），新轨由 decrypt-upload 承担同一职责，主持端唱标表/供应商确认流/开标文件包无感衔接；
 - 供应商门户 OpeningHall.vue 新增「解密我的投标」卡片（U盾选择器 + 解密进度 + 字段揭示 + 失败原因展示）。
 
 ### 5.4 唱标衔接
 
-- 唱标录入流程与一致性校验不动；
-- 新轨报价校验源：`assertPriceMatchesSealed` 在新轨读 `decryptedPrice`（已经 fieldsCommit 验证）；旧轨读 openField(sealed bidPrice)；唱标录入前供应商未完成解密 → 报价校验跳过并提示（与现行「未解密不可唱标」节奏一致）；
+- 主持端唱标录入流程与一致性校验不动（唱标记录已由 §5.3 预填，主持端为核对/修正角色）；
+- 新轨报价校验源：`assertPriceMatchesSealed` 在新轨读 `decryptedPrice`（已经 fieldsCommit 验证）；旧轨读 openField(sealed bidPrice)（supplier-portal.service.ts:1212 同源）；唱标录入前供应商未完成解密 → 报价校验跳过并提示（与现行「未解密不可唱标」节奏一致）；
 - 唱标记录表、开标文件包 JSON 结构不变。
+
+### 5.4a 下载链路切换（新轨）
+
+现有通用 download 对 `clientEncrypted` 资产做 AES-GCM 流式解密（upload.service.ts:172-204），对新轨密文全部失效，按 envelopeVersion 分派：
+
+| 场景 | 旧轨 | 新轨 |
+|---|---|---|
+| 供应商本人下载投标文件 | E2EE 分支 AES-GCM 解密回明文 | **拒绝**（400 `SEALED_NO_DOWNLOAD`——C_outer 对本人无用途且必挂分支；本人要的 C_inner 走 opening-package，明文解密上传后本地已有） |
+| admin/bid_host/leader/staff 下载（SUCCESS 门控后） | 解密分支输出明文 | **改指 `bid_decrypted` 明文资产**——expert.service getDecryptedDocuments 与 web/bid-portal 文件链接的 URL 解析按 envelopeVersion 分派，新轨下发 decrypted assetId |
+| 专家下载投标文件 | 同上（SUCCESS 门控） | 同上（改指 bid_decrypted，SUCCESS 门控复用） |
+| C_inner 下载 | — | §5.2 成员规则；clientEncrypted=false 走原样字节输出分支 |
 
 ### 5.5 解密失败归因（P1-2，含前置条件）
 
 - `BidSupplier.dangerAttribution: String?`（`BIDDER` | `PLATFORM` | `UNKNOWN`）；
-- **窗口关闭扫描（新轨，逐供应商判定矩阵）**：
+- **触发点（代码对账澄清）**：现有代码**不存在**「窗口关闭扫描」——`assertOpeningDone`（bid.service.ts:1424-1440）只检查不转换，现状靠主持人人工定性 DANGER（decryptAllSuppliers N15 注释）。新轨归因改为**惰性执行**：`assertOpeningDone` 入口处对「解密窗口已关 + 新轨 + decryptStatus=PENDING」的供应商逐家跑下表矩阵（幂等：已有归因不重算），随后照常做终局态检查——**UNKNOWN 非终局态，继续阻塞 completeOpening/startEvaluation 直至主持人裁决**（与守卫 409 附名单的既有语义咬合）；主持端开标大厅提供「待裁决」清单入口；
+- **判定矩阵（新轨，逐供应商）**：
 
 | outerDecryptedAt | packageFetchedAt | 解密上传 | 自动归因 | 法定后果 |
 |---|---|---|---|---|
@@ -249,10 +265,12 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 
 ### 变更/退役
 - `submitBid`：未加密拒收 + 删除服务端代加密分支 + envelope 验签；
-- `decrypt` / `decrypt-all`（bid.controller）：仅旧轨；
+- `decrypt` / `decrypt-all`（bid.controller）：仅旧轨（envelopeVersion 分派；新轨 400 `USE_SUPPLIER_DECRYPT`）；
 - `resealBidFiles`：删除明文分支；新轨 400；
 - `reuploadBidFile`：新轨要求双层信封；
-- `download`（upload.service）：+`bid_inner_ciphertext` 项目成员放行规则；解密后明文经 bid_decrypted 类目走现有权限链（SUCCESS 门控复用）。
+- `download`（upload.service）：+`bid_inner_ciphertext` 项目成员放行规则；+新轨 `bid_document`（C_outer）对 supplier 角色拒绝（§5.4a）；
+- **下载 URL 解析分派**（expert.service getDecryptedDocuments、web/bid-portal 文件链接）：按 envelopeVersion——新轨 SUCCESS 后下发 `bid_decrypted` assetId，旧轨不变（§5.4a）；
+- `assertOpeningDone`（bid.service）：入口增加新轨归因惰性执行（§5.5）。
 
 ## 8. 存量兼容与迁移
 
@@ -265,7 +283,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 
 | 门户 | 改动 |
 |---|---|
-| supplier-portal | +sm-crypto 依赖；+`@water-erp/ukey` 适配层接入；profile 证书绑定页（枚举/绑定/换证含旧证书依赖警示/U盾导出导入）；BidSubmit.vue 双层加密+envelope 签名（nonce 本地保存提示）；OpeningHall.vue「解密我的投标」卡片；保证金凭证加密上传 |
+| supplier-portal | +sm-crypto 依赖；+`@water-erp/ukey` 适配层接入；profile 证书绑定页（枚举/绑定/换证含旧证书依赖警示/U盾导出导入）；BidSubmit.vue 双层加密+envelope 签名（nonce 本地保存提示）；OpeningHall.vue「解密我的投标」卡片；保证金凭证加密上传；**本人报价回显改口径**（新轨服务端无明文 bidPrice——getMySubmissions 旧轨 openField 回显对新轨返回空，列表价格改显示「已密封·开标时揭示」或本地缓存值） |
 | bid-portal | 无 U盾适配层（管理方解密在服务端）；管理方证书生成按钮（admin 可见）；开标大厅「解外层」步骤与进度（触发服务端解密）；reseal 按钮退役（旧轨保留）；UNKNOWN 归因裁决 UI（含平台故障标记） |
 | web (:3005) | 无改动（开标确认面板不涉解密执行） |
 | expert-portal | 无改动（解密后文件下载走现有权限链） |
@@ -273,7 +291,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 ## 10. 测试策略
 
 - **共享包单测**（@water-erp/ukey）：canonicalEnvelopeHash 确定性（键序/嵌套/缺失角色）、computeFieldsCommit、**golden vector**（固定输入→固定哈希+签名验证对，前后端一致性锚点）、MockUKeyAdapter sign/decrypt/证书枚举 roundtrip、口令加密存储、导出导入往返（含 DEK_S+nonce）；
-- **API 单测**：submitBid 未加密拒收（BID_FILE_NOT_ENCRYPTED）、envelope 缺失字段校验、验签失败 400、fieldsCommit 双闸（正/篡改 F/篡改 nonce/重放 nonce）、decrypt-outer 窗口门控、admin-cert/generate keystore 落盘/幂等/轮转后旧 certId 仍可解、decrypt-upload sha256 不匹配拒绝、**归因判定矩阵**（§5.5 四行全覆盖）、cert 绑定 DN 校验、C_inner 成员下载/非成员 403、旧轨 decrypt 回归不破；
+- **API 单测**：submitBid 未加密拒收（BID_FILE_NOT_ENCRYPTED）、envelope 缺失字段校验、验签失败 400、fieldsCommit 双闸（正/篡改 F/篡改 nonce/重放 nonce）、decrypt-outer 窗口门控、admin-cert/generate keystore 落盘/幂等/轮转后旧 certId 仍可解、decrypt-upload sha256 不匹配拒绝、**decrypt-upload 并发抢占**（双跑只成一笔/60s 接管）、**开标记录预填**（解密成功后 BidOpeningRecord 自动 upsert 且字段=F）、**归因判定矩阵**（§5.5 四行全覆盖 + 惰性触发在 assertOpeningDone 内幂等）、**下载分派**（新轨 supplier 取 C_outer 400 / staff·专家 SUCCESS 后拿 bid_decrypted / C_inner 成员放行非成员 403）、cert 绑定 DN 校验、旧轨 decrypt 回归不破；
 - **供应商前端**：`npx vue-tsc --noEmit`（不可用则 build）；**bid-portal**：`npx tsc --noEmit`；
 - **端到端冒烟**（手工脚本）：mock U盾 → 绑定证书 → 投递（双层+承诺）→ 开标 → 管理方解外层 → 供应商解内层（含 F+nonce 揭示）→ 唱标比对 → 归档含解密后投标文件；另验「解外层未跑时窗口关闭→UNKNOWN 裁决」路径。
 
@@ -283,7 +301,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 |---|---|---|
 | Phase 1 基座 | @water-erp/ukey 包（接口+Mock+骨架+规范化纯函数+golden vector）、SupplierCert/AdminEncryptionCert 迁移、证书绑定/登记端点、keystore+bootstrap、管理方公钥公开端点 | 单测 + tsc |
 | Phase 2 投递 | BidSubmit 双层加密+envelope 签名+fieldsCommit、submitBid 重构（拒收+验签+envelope）、BidFileBackup v2、补传改造 | API 单测 + vue-tsc |
-| Phase 3 开标 | decrypt-outer/opening-package/decrypt-upload/mark-platform-fault、归因矩阵、唱标衔接、reseal 退役、解密后归档物、C_inner 下载规则 | API 单测 + tsc + 冒烟 |
+| Phase 3 开标 | decrypt-outer/opening-package/decrypt-upload（含并发抢占+唱标记录预填）/mark-platform-fault、归因矩阵（assertOpeningDone 惰性触发）、唱标衔接、**下载链路分派切换（§5.4a 四场景）**、reseal 退役、解密后归档物、C_inner 下载规则 | API 单测 + tsc + 冒烟 |
 | Phase 4 清理 | clean-legacy-plaintext.ts（dry-run→执行）、旧轨回归、演示验证 | 全量单测 + 手动验证 |
 
 ## 12. 风险与开放问题
@@ -292,6 +310,6 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 2. **canonicalization 前后端漂移**：以共享包单一实现 + golden vector 测试锁死；spec 层面禁止两端各自拼 JSON。
 3. **nonce/DEK_S 丢失**：mock U盾导出文件是唯一恢复源（含 DEK_S+nonce），丢失则该标书无法自证字段/自解——与实体 U盾丢失同语义（挂失换证也无法恢复已提交标书内容），UI 需醒目提醒导出备份。
 4. **管理方私钥的服务器保护**（形态 B）：keystore 目录 env 配置、权限 700/600、gitignore；文件系统失陷=外层私钥失陷——但外层解封后仍被供应商内层保护，内容不泄露；风险转化为「开标程序控制权」层面，由角色+窗口+双日志（OperationLog/监督日志）约束。生产迁移加密机/HSM 时仅替换「私钥读写」模块。
-5. **Mock 与真 U盾的协议差异**：VendorUKeyAdapter 具体协议依赖厂商 SDK，属隔离面，不阻塞 Phase 1-4；DER/PEM 编码转换在 VendorUKeyAdapter 内消化，Mock 全 hex。
+5. **Mock 与真 U盾的协议差异 + 法律效力边界**：VendorUKeyAdapter 具体协议依赖厂商 SDK，属隔离面，不阻塞 Phase 1-4；DER/PEM 编码转换在 VendorUKeyAdapter 内消化，Mock 全 hex。**诚实声明：MockUKeyAdapter 为自签名密钥对（非 CA 机构颁发证书），其签名/解密仅具备开发与演示功能，不构成《电子签名法》第13条意义上可对外主张的「可靠电子签名」——生产合规必须切换 VendorUKeyAdapter + 真实 CA 证书；演示材料中涉及「U盾签名」表述须标注 mock 出处。**
 6. **多轮报价扩展**（§4.4）：本轮不实现，BidQuote 处留 TODO 引用——多轮项目投递密封字段走本 spec，逐轮报价维持现状至轮次功能迭代。
 7. **旧轨解密异常演示脚本**：demo-decrypt-project.js 与新轨关系待 Phase 3 验证后确认是否适配。
