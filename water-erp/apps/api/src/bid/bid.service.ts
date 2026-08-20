@@ -3051,7 +3051,7 @@ export class BidService {
     const submission = bidSupplier.supplierId
       ? await this.prisma.supplierBidSubmission.findUnique({
           where: { supplierId_projectId: { supplierId: bidSupplier.supplierId, projectId } },
-          select: { bidPrice: true, deliveryPeriod: true, bidBondAssetId: true, qualityCommitment: true },
+          select: { bidPrice: true, deliveryPeriod: true, bidBondAssetId: true, qualityCommitment: true, envelopeVersion: true, decryptedAssets: true },
         })
       : null;
 
@@ -3059,6 +3059,11 @@ export class BidService {
       where: { projectId, bidSupplierId },
       select: { bondStatus: true },
     });
+
+    // §5.4a：dual-v2 保证金凭证下发 decryptedAssets['bond'] 明文资产（C_outer 密文已被下载端拒收）
+    const bondAssetId = submission?.envelopeVersion === 'dual-v2' && submission.decryptedAssets
+      ? ((submission.decryptedAssets as Record<string, unknown>)['bond'] as string | undefined) ?? null
+      : (submission?.bidBondAssetId ?? null);
 
     return {
       canView: true,
@@ -3068,7 +3073,7 @@ export class BidService {
       period: submission?.deliveryPeriod ?? null,
       qualityTarget: submission?.qualityCommitment || project.qualityRequirement,
       bondStatus: existingRecord?.bondStatus ?? null,
-      bidBondAssetId: submission?.bidBondAssetId ?? null,
+      bidBondAssetId: bondAssetId,
       bondNotApplicable: !project.bondRequired,
     };
   }

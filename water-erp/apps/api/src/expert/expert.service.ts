@@ -564,11 +564,25 @@ export class ExpertService {
         })
       : null;
 
-    const assetRefs: Array<[string, string | undefined | null]> = [
-      ['技术方案', submission?.technicalFileAssetId],
-      ['商务文件', submission?.businessFileAssetId],
-      ['投标函', submission?.coverLetterAssetId],
-    ];
+    // §5.4a 新轨分派：dual-v2 且已写 decryptedAssets 时，文件列表取明文归属链
+    // （旧轨不变——下载 URL 必须指向 bid_decrypted 明文资产，而非 C_outer）。
+    // decryptedAssets 缺失（供应商未完成解密上传）→ 回退旧轨三列形状，status 加密中。
+    const dualRoleLabels: Record<string, string> = {
+      technical: '技术方案', business: '商务文件', coverLetter: '投标函',
+    };
+    const decryptedRefs: Array<[string, string]> = [];
+    if (submission?.envelopeVersion === 'dual-v2' && submission.decryptedAssets) {
+      for (const [role, id] of Object.entries(submission.decryptedAssets as Record<string, unknown>)) {
+        if (dualRoleLabels[role] && id) decryptedRefs.push([dualRoleLabels[role], String(id)]);
+      }
+    }
+    const assetRefs: Array<[string, string | undefined | null]> = decryptedRefs.length > 0
+      ? decryptedRefs
+      : [
+          ['技术方案', submission?.technicalFileAssetId],
+          ['商务文件', submission?.businessFileAssetId],
+          ['投标函', submission?.coverLetterAssetId],
+        ];
     const assetIds = assetRefs.map(([, id]) => id).filter((id): id is string => !!id);
     const assets = assetIds.length
       ? await this.prisma.fileAsset.findMany({ where: { id: { in: assetIds } } })
@@ -763,17 +777,35 @@ export class ExpertService {
 
     // fileId → which 映射（防越权：fileId 必须是三选一且归属本 supplier）
     let which: BidderFileType | null = null;
+    let dualPlain = false; // §5.4a 新轨：fileId 是 decryptedAssets 明文资产 → 跳过旧轨 AES/KMS 通道
     if (submission.technicalFileAssetId === fileId) which = 'technical';
     else if (submission.businessFileAssetId === fileId) which = 'business';
     else if (submission.coverLetterAssetId === fileId) which = 'coverLetter';
+    else if (submission.envelopeVersion === 'dual-v2' && submission.decryptedAssets) {
+      for (const [role, id] of Object.entries(submission.decryptedAssets as Record<string, unknown>)) {
+        if (id === fileId && (role === 'technical' || role === 'business' || role === 'coverLetter')) {
+          which = role;
+          dualPlain = true;
+          break;
+        }
+      }
+    }
     if (!which) {
       throw new NotFoundException({ error: '文件不属于该供应商', code: 'NOT_FOUND' });
     }
 
-    const result = await this.plaintextFetcher.fetchBidderPlaintext(supplierId, which);
-    if (!result) throw new NotFoundException({ error: '投标文件不存在', code: 'NOT_FOUND' });
-
     const asset = await this.prisma.fileAsset.findUnique({ where: { id: fileId } });
+    let result: { buffer: Buffer; fileId: string };
+    if (dualPlain) {
+      // §5.4a 新轨：明文资产已在 MinIO（bid-decrypted 前缀）——原样读出，不解密、不做 KMS 处理
+      if (!asset) throw new NotFoundException({ error: '投标文件不存在', code: 'NOT_FOUND' });
+      result = { buffer: await streamToBuffer(await minioClient.getObject(MINIO_BUCKET, asset.key)), fileId };
+    } else {
+      const fetched = await this.plaintextFetcher.fetchBidderPlaintext(supplierId, which);
+      if (!fetched) throw new NotFoundException({ error: '投标文件不存在', code: 'NOT_FOUND' });
+      result = fetched;
+    }
+
     const fileName = asset?.originalName ?? `${which}.pdf`;
 
     await this.prisma.bidSupervisionLog.create({
