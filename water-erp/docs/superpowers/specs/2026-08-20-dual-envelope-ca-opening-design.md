@@ -1,6 +1,6 @@
 # 双层数字信封 + 供应商 CA 开标解密 · 设计 Spec
 
-> 日期：2026-08-20（同日评审修订 v2 → 代码对账修订 v3 → 落地性对账修订 v4）
+> 日期：2026-08-20（v2 安全评审 → v3 代码对账 → v4 落地性对账 → v5 计划推演补 sealedFields）
 > 状态：待审阅
 > 依据：电子招投标合规审查报告（2026-08-19）P0-1/P1-1/P1-2/P1-13/P2-17；《电子招标投标办法》第26/27/30/31/32条
 > 用户决策（2026-08-20 确认）：①供应商 CA 采用**外部 CA/U 盾介质**形态；②加密次序 = **供应商内层 → 管理方外层**（开标解密镜像次序）；③存量项目**双轨并存**；④解密交互采用「供应商端解密上传」方案；⑤管理方私钥形态 = **B：服务器托管+仅主持人**。
@@ -40,7 +40,13 @@
   ② 管理方层（浏览器，用管理方加密证书公钥——公开，无需介质）：
      DEK_A = 随机16B；C_outer = SM4(DEK_A, C_inner)
      K_admin = SM2_Enc(管理方加密证书公钥, DEK_A)
-  ③ envelope = { version:'dual-v2', certSn, adminCertId, files:{角色:{sha256,kself,kadmin}}, fieldsCommit }
+  ③ envelope = { version:'dual-v2', certSn, adminCertId,
+                  files:{角色:{sha256,kself,kadmin}},
+                  sealedFields:{ cipher:SM4(DEK_F, canonicalJson(F+nonce)), kself:SM2_Enc(供应商公钥, DEK_F) },
+                  fieldsCommit }
+     // sealedFields（v5）：F+nonce 的供应商层密封件——nonce 为随机值不可凭记忆重输、
+     // fieldsCommit 仅哈希不可逆，无此密封件则供应商换设备/清浏览器后解密上传死锁。
+     // 仅 kself 包裹（无管理方外层）：恢复只需供应商 U盾；完整性由 fieldsCommit+签名保障。
      Sig = UKey_SM2_Sign( SHA256(canonicalJson(envelope)) )    // 对整个 envelope 签名（§4.2）
 上传/提交 → 平台只存：C_outer + K_self + K_admin + Sig + envelope + 各文件 SHA256(M)
 ```
@@ -58,8 +64,8 @@
      ⇑ 此步 = 开标程序正式启动；管理方掌握开标启动控制权（己方权益）
      ⇑ 平台解外层后只拿到 C_inner（供应商密文）——无供应商 U盾仍解不开内容
 ② 供应商解内层（供应商开标大厅，U盾在供应商浏览器，解密窗口内）：
-     GET opening-package（记 packageFetchedAt）→ 下载 C_inner + K_self
-     → U盾 SM2 解 DEK_S → SM4 解 → 明文
+     GET opening-package（记 packageFetchedAt）→ 下载 C_inner + K_self + sealedFields.kself
+     → U盾 SM2 解 DEK_S → SM4 解 → 明文；U盾 解 sealedFields.kself → DEK_F → SM4 解 → F+nonce（v5：不依赖本地存储/记忆）
      本地校验 SHA256(M) == 存证值 → 连同 F + nonce 一并上传
      服务端双闸：SHA256(M)==存证 && SHA256(canonicalJson(F)+':'+nonce)==fieldsCommit
      → 存 FileAsset(category=bid_decrypted) → decryptStatus=SUCCESS
@@ -141,7 +147,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 
 - 上传即双层：M → C_inner → C_outer → `POST /api/upload?category=bid_document&clientEncrypted=true&plaintextSha256=...`（复用现有端点，`key` 即 C_outer）；保证金凭证同款（uploadEncryptedFile 替代现明文 uploadFile）；
 - **加密模块并行不改造**：现有 `@/utils/bid-crypto`（WebCrypto AES-GCM，DEK=key:iv:tag 三段 hex）保留供旧轨密文读取；新增 `dual-envelope` 模块（sm-crypto SM4/SM2 + nonce），`computePlaintextHash` 从 bid-crypto 复用；localStorage clientDeks 条目结构随新轨扩展（DEK_S+nonce 并存）；
-- 浏览器端保留 DEK_S 与 nonce（现有 clientDeks localStorage 机制扩展；**权威源 = 服务端 envelope + U盾重解**，localStorage 仅加速）；
+- 浏览器端 localStorage（clientDeks 机制扩展）仅为**草稿编辑加速缓存**——开标恢复不依赖它（F+nonce 经 sealedFields 用 U盾可解，v5）；
 - 提交 payload：`envelope`（见 §2.2 结构）+ `signature`（对 canonicalEnvelopeHash 签名）+ `sealedFields` 对应的 nonce 仅存本地不上传；**无任何代解密授权字段**；
 - 草稿：与提交同构（envelope 随草稿保存；重新提交生成新 envelope+新签名+新 nonce）。
 
@@ -312,7 +318,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 
 1. **纯 JS SM4 性能（浏览器+服务端双侧）**：sm-crypto 无硬件加速，浏览器侧 50MB 双层加密预计秒级~十秒级（上传 UX 需进度反馈，预留 WebWorker 优化位）；**服务端 sm-crypto 无流式 API**——decrypt-outer 全量缓冲解密，批量逐家串行防内存堆积（10 家×50MB 峰值受控）。
 2. **canonicalization 前后端漂移**：以共享包单一实现 + golden vector 测试锁死；spec 层面禁止两端各自拼 JSON。
-3. **nonce/DEK_S 丢失**：mock U盾导出文件是唯一恢复源（含 DEK_S+nonce），丢失则该标书无法自证字段/自解——与实体 U盾丢失同语义（挂失换证也无法恢复已提交标书内容），UI 需醒目提醒导出备份。
+3. **U盾丢失**（v5 后收窄）：mock U盾导出文件仅含证书私钥（F+nonce 在 sealedFields 内、开标时用证书解封）——U盾丢失=无法解内层/揭示字段，与实体 U盾丢失同语义（挂失换证也无法恢复已提交标书），UI 醒目提醒导出备份；本地 localStorage 清空**不再**造成任何死锁。
 4. **管理方私钥的服务器保护**（形态 B）：keystore 目录 env 配置、权限 700/600、gitignore；文件系统失陷=外层私钥失陷——但外层解封后仍被供应商内层保护，内容不泄露；风险转化为「开标程序控制权」层面，由角色+窗口+双日志（OperationLog/监督日志）约束。生产迁移加密机/HSM 时仅替换「私钥读写」模块。
 5. **Mock 与真 U盾的协议差异 + 法律效力边界**：VendorUKeyAdapter 具体协议依赖厂商 SDK，属隔离面，不阻塞 Phase 1-4；DER/PEM 编码转换在 VendorUKeyAdapter 内消化，Mock 全 hex。**诚实声明：MockUKeyAdapter 为自签名密钥对（非 CA 机构颁发证书），其签名/解密仅具备开发与演示功能，不构成《电子签名法》第13条意义上可对外主张的「可靠电子签名」——生产合规必须切换 VendorUKeyAdapter + 真实 CA 证书；演示材料中涉及「U盾签名」表述须标注 mock 出处。**
 6. **多轮报价扩展**（§4.4）：本轮不实现，BidQuote 处留 TODO 引用——多轮项目投递密封字段走本 spec，逐轮报价维持现状至轮次功能迭代。
