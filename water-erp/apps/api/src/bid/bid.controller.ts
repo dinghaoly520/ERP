@@ -20,6 +20,7 @@ import { AssignHostDto } from './dto/assign-host.dto';
 import { ArchiveAllDto } from './dto/archive-all.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
 import { DecryptOuterDto } from './dto/decrypt-outer.dto';
+import { AdjudicateDecryptFaultDto } from './dto/adjudicate-decrypt-fault.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateScorePointDto } from './dto/create-score-point.dto';
@@ -361,6 +362,17 @@ export class BidController {
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   decryptOuter(@Param('id') id: string, @Body() dto?: DecryptOuterDto, @CurrentUser('sub') userId?: string) {
     return this.bidService.decryptOuter(id, dto?.supplierId, userId);
+  }
+
+  @Post('projects/:id/opening/decrypt-adjudge')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '解密失败归因裁决（§5.5）：UNKNOWN 家落 BIDDER/PLATFORM 终局（须填原因，告知权利）；RESET_PENDING 重置解密机会' })
+  adjudicateDecryptFault(
+    @Param('id') id: string,
+    @Body() dto: AdjudicateDecryptFaultDto,
+    @CurrentUser('sub') userId?: string,
+  ) {
+    return this.bidService.adjudicateDecryptFault(id, dto.supplierId, dto.attribution, dto.reason, userId);
   }
 
   @Post('projects/:id/suppliers/:supplierId/files/:role/reupload')

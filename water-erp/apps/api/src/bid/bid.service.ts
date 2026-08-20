@@ -1444,8 +1444,11 @@ export class BidService {
    * （SUCCESS+CONFIRMED/EXCEPTION 或 DANGER）。startEvaluation 与
    * completeOpening（开标移交）共用，保证两处永远同口径。
    * 不满足 → 409 OPENING_NOT_DONE（附未到终局态供应商名单）。
+   * 入口首行惰性执行 §5.5 新轨解密失败归因矩阵（幂等）：
+   * 归因 BIDDER 的家转终局态后自然放行；UNKNOWN 家仍 PENDING 继续阻塞。
    */
   private async assertOpeningDone(id: string): Promise<void> {
+    await this.attributePendingDualSuppliers(id);
     const activeSuppliers = await this.prisma.bidSupplier.findMany({
       where: { projectId: id, submitStatus: { not: '已撤回' } },
       select: { supplierName: true, decryptStatus: true, confirmStatus: true },
@@ -1460,6 +1463,69 @@ export class BidService {
         error: `开标尚未完成，以下供应商未到终局态（解密/确认/异议未结）：${notReady.map(s => s.supplierName).join('、')}`,
         code: 'OPENING_NOT_DONE',
       });
+    }
+  }
+
+  /**
+   * §5.5 解密失败归因（惰性执行，幂等）：解密窗口已过后，对「新轨 dual-v2 + 解密 PENDING + 未撤回」
+   * 供应商逐家跑判定矩阵。窗口未过不动（供应商仍可自行解密）。
+   *   行 1（outer 未解）/ 行 2（包未取）→ 只置 dangerAttribution='UNKNOWN'，不置终局态（守卫继续阻塞）；
+   *   行 3（两者齐但未完成解密上传）→ DANGER+EXCEPTION+归因 BIDDER+解密失败通知（视为撤销）；
+   *   行 4（双闸失败）由 decrypt-upload 落库时即时归因（T13），不在此重判。
+   * 幂等：已有 dangerAttribution（含 UNKNOWN）的家不重算；BIDDER 终局经 updateMany 原子抢占防并发双写。
+   */
+  private async attributePendingDualSuppliers(projectId: string): Promise<void> {
+    const session = await this.prisma.bidOpeningSession.findUnique({
+      where: { projectId },
+      select: { decryptWindowEnd: true },
+    });
+    if (!session?.decryptWindowEnd) return;                            // 无窗口概念 → 旧流程，不动
+    if (session.decryptWindowEnd.getTime() >= Date.now()) return;      // 窗口未过 → 供应商仍可自行解密
+
+    const pending = await this.prisma.bidSupplier.findMany({
+      where: { projectId, decryptStatus: 'PENDING', submitStatus: { not: '已撤回' }, dangerAttribution: null },
+      select: { id: true, supplierId: true, supplierName: true },
+    });
+    if (pending.length === 0) return;
+
+    const supplierIds = pending.map(s => s.supplierId).filter((v): v is string => !!v);
+    const submissions = supplierIds.length > 0
+      ? await this.prisma.supplierBidSubmission.findMany({
+          where: { projectId, supplierId: { in: supplierIds } },
+          select: { supplierId: true, envelopeVersion: true, outerDecryptedAt: true, packageFetchedAt: true },
+        })
+      : [];
+    const subBySupplier = new Map(submissions.map(s => [s.supplierId, s]));
+
+    for (const s of pending) {
+      if (!s.supplierId) continue; // 未关联账户 → 无信封提交记录（守卫继续阻塞，主持人人工处置）
+      const sub = subBySupplier.get(s.supplierId);
+      if (!sub || sub.envelopeVersion !== 'dual-v2') continue; // 旧轨沿用现行语义，不自动归因
+
+      if (!sub.outerDecryptedAt || !sub.packageFetchedAt) {
+        // 矩阵行 1/2：管理方未解外层 / 供应商未取包——无法区分原因，只置 UNKNOWN（非终局态）
+        await this.prisma.bidSupplier.updateMany({
+          where: { id: s.id, decryptStatus: 'PENDING', dangerAttribution: null },
+          data: { dangerAttribution: 'UNKNOWN' },
+        });
+        continue;
+      }
+
+      // 矩阵行 3：供应商已持有 C_inner+K_self（外层已解 + 已取包），窗口内未完成解密上传 → BIDDER
+      const reason = '投标人未在解密窗口内完成解密';
+      const claimed = await this.prisma.bidSupplier.updateMany({
+        where: { id: s.id, decryptStatus: 'PENDING' },
+        data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: reason, dangerAttribution: 'BIDDER' },
+      });
+      if (claimed.count === 0) continue; // 并发/重复触发已被对手处置 → 幂等跳过
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '系统', target: s.supplierName,
+          action: '解密失败归因', result: `归因判定：BIDDER——${reason}，视为撤销投标文件，保证金依招标文件规定处理`, riskFlag: '高风险',
+        },
+      }).catch(() => {});
+      this.gateway?.notifyDecryptStatus(projectId, s.id, s.supplierName, 'DANGER');
+      this.notifySupplierDecryptAttribution(s.supplierId, s.supplierName, projectId, 'BIDDER');
     }
   }
 
@@ -2428,6 +2494,142 @@ export class BidService {
     } catch {
       /* 通知失败不阻塞解密流程 */
     }
+  }
+
+  /**
+   * §5.5 归因/重置通知（fire-and-forget，复用既有站内信通道）：文案按归因分流并告知权利。
+   * BIDDER → 视为撤销，保证金依招标文件规定处理；PLATFORM → 视为撤回 + 赔偿请求权（办法第31条）；
+   * RESET_PENDING → 重置解密机会提示（T13 硬前置：DANGER 后重试路径）。
+   */
+  private async notifySupplierDecryptAttribution(
+    supplierId: string,
+    supplierName: string,
+    projectId: string,
+    kind: 'BIDDER' | 'PLATFORM' | 'RESET_PENDING',
+  ) {
+    const MESSAGES = {
+      BIDDER: { title: '投标文件解密未完成通知', content: '因投标人原因未完成解密，视为撤销投标文件，保证金依招标文件规定处理。' },
+      PLATFORM: { title: '投标文件解密未完成通知', content: '因平台原因未完成解密，视为撤回投标文件，你有权要求责任方赔偿直接损失。' },
+      RESET_PENDING: { title: '解密机会已重置', content: '开标主持人已重置您的解密机会，请重新解密。' },
+    } as const;
+    try {
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { id: supplierId },
+        select: { userId: true },
+      });
+      if (supplier?.userId) {
+        await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
+          type: 'BID_DECRYPT_ADJUDGED',
+          title: `${MESSAGES[kind].title}：${supplierName}`,
+          content: MESSAGES[kind].content,
+          link: `/supplier/bid/${projectId}`,
+        });
+      }
+    } catch {
+      /* 通知失败不阻塞裁决 */
+    }
+  }
+
+  /**
+   * 解密失败归因裁决（§5.5 主持人处置，POST projects/:id/opening/decrypt-adjudge）：
+   * - BIDDER / PLATFORM：UNKNOWN 家落终局 DANGER+EXCEPTION（已 DANGER 家仅落归因），
+   *   通知文案按归因分流并告知权利（BIDDER 撤销款 / PLATFORM 赔偿请求权，办法第31条）；
+   * - RESET_PENDING（T13 硬前置）：DANGER/UNKNOWN 家重置解密机会（窗口须开，否则 409 需先延长窗口），
+   *   并站内信通知供应商重新解密。
+   * reason 必填：写监督日志 + auditLog。
+   */
+  async adjudicateDecryptFault(
+    projectId: string,
+    supplierId: string,
+    attribution: 'BIDDER' | 'PLATFORM' | 'RESET_PENDING',
+    reason: string,
+    actorId?: string,
+  ) {
+    if (!reason?.trim()) {
+      throw new BadRequestException({ error: '裁决原因必填（写入监督日志与审计）', code: 'REASON_REQUIRED' });
+    }
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId }, select: { stage: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'OPENING') {
+      throw new BadRequestException({ error: '仅开标阶段可裁决解密失败归因', code: 'PROJECT_NOT_OPENING' });
+    }
+    // 惰性归因先跑一次（幂等）：主持端直接从待裁决清单进入时，UNKNOWN 标记可能尚未落库
+    await this.attributePendingDualSuppliers(projectId);
+
+    const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { projectId, id: supplierId } });
+    if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
+    const { supplierName } = bidSupplier;
+    const session = await this.prisma.bidOpeningSession.findUnique({
+      where: { projectId }, select: { decryptWindowEnd: true },
+    });
+    const windowOpen = !!session?.decryptWindowEnd && session.decryptWindowEnd.getTime() > Date.now();
+
+    if (attribution === 'RESET_PENDING') {
+      if (!windowOpen) {
+        throw new ConflictException({ error: '解密窗口已关闭，请先延长解密窗口再重置解密机会', code: 'DECRYPT_WINDOW_CLOSED' });
+      }
+      const isDanger = bidSupplier.decryptStatus === 'DANGER' && bidSupplier.dangerAttribution !== 'BIDDER';
+      const isUnknownPending = bidSupplier.decryptStatus === 'PENDING' && bidSupplier.dangerAttribution === 'UNKNOWN';
+      if (!isDanger && !isUnknownPending) {
+        throw new BadRequestException({ error: '仅解密异常（DANGER）或待裁决（UNKNOWN）供应商可重置解密机会', code: 'NOT_RESETTABLE' });
+      }
+      await this.prisma.$transaction(async (tx) => {
+        await tx.bidSupplier.update({
+          where: { id: supplierId },
+          data: { decryptStatus: 'PENDING', decryptError: null, dangerAttribution: null },
+        });
+        await tx.bidSupervisionLog.create({
+          data: {
+            projectId, time: new Date(), role: '开标主持人', target: supplierName,
+            action: '重置解密机会', result: `重置为 PENDING（解密窗口内可重试）：${reason}`, riskFlag: '中',
+          },
+        });
+        if (actorId) {
+          await tx.auditLog.create({
+            data: { userId: actorId, action: 'BID_DECRYPT_ADJUDGE', resourceType: `${supplierName}:${supplierId}`, details: { projectId, attribution, reason } },
+          });
+        }
+      });
+      if (bidSupplier.supplierId) this.notifySupplierDecryptAttribution(bidSupplier.supplierId, supplierName, projectId, 'RESET_PENDING');
+      return { adjudged: true, supplierId, supplierName, attribution };
+    }
+
+    // BIDDER / PLATFORM 终局裁决
+    if (bidSupplier.dangerAttribution !== 'UNKNOWN') {
+      throw new BadRequestException({
+        error: bidSupplier.dangerAttribution
+          ? `该供应商已归因（${bidSupplier.dangerAttribution}），无需重复裁决`
+          : '该供应商无待裁决归因（仅 UNKNOWN 家可裁决）',
+        code: 'NOT_UNKNOWN',
+      });
+    }
+    const RESULT_TEXT = {
+      BIDDER: '归因判定：BIDDER——因投标人原因未完成解密，视为撤销投标文件',
+      PLATFORM: '归因判定：PLATFORM——因平台原因未完成解密，视为撤回投标文件',
+    } as const;
+    await this.prisma.$transaction(async (tx) => {
+      // 已 DANGER（双闸失败家）仅落归因；PENDING 家同时落终局态
+      const data: Prisma.BidSupplierUpdateInput = bidSupplier.decryptStatus === 'DANGER'
+        ? { dangerAttribution: attribution }
+        : { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: `归因裁决（${attribution}）：${reason}`, dangerAttribution: attribution };
+      await tx.bidSupplier.update({ where: { id: supplierId }, data });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '开标主持人', target: supplierName,
+          action: '解密失败归因裁决', result: `${RESULT_TEXT[attribution]}（原因：${reason}）`, riskFlag: '高风险',
+        },
+      });
+      if (actorId) {
+        await tx.auditLog.create({
+          data: { userId: actorId, action: 'BID_DECRYPT_ADJUDGE', resourceType: `${supplierName}:${supplierId}`, details: { projectId, attribution, reason } },
+        });
+      }
+    });
+    this.gateway?.notifyDecryptStatus(projectId, supplierId, supplierName, 'DANGER');
+    if (bidSupplier.supplierId) this.notifySupplierDecryptAttribution(bidSupplier.supplierId, supplierName, projectId, attribution);
+    return { adjudged: true, supplierId, supplierName, attribution };
   }
 
   /**

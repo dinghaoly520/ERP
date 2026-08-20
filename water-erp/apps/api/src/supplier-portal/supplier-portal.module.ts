@@ -8,9 +8,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AnnouncementModule } from '../announcement/announcement.module';
 import { BidBackupModule } from '../bid-backup/bid-backup.module';
 import { BidModule } from '../bid/bid.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule],
+  imports: [AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule, NotificationModule],
   controllers: [SupplierPortalController],
   providers: [SupplierPortalService, SignatureService, DualEnvelopeService],
   exports: [SupplierPortalService, DualEnvelopeService],

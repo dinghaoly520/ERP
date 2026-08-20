@@ -18,6 +18,7 @@ import type { DualEnvelope, EnvelopeRole, SealedFields } from '@water-erp/ukey';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { BidBackupService, BackupFileRole, StagedBackup } from '../bid-backup/bid-backup.service';
 import { BidGateway } from '../bid/bid.gateway';
+import { NotificationService } from '../notification/notification.service';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan, resolveDisplayInYuan } from '../bid/opening-compare.util';
 import { LlmService } from '../local-ai/llm.service';
 import * as crypto from 'crypto';
@@ -139,6 +140,7 @@ export class SupplierPortalService {
     private readonly dualEnvelope: DualEnvelopeService,
     @Inject('REDIS_CLIENT') private redis: Redis,
     private llm: LlmService,
+    private notificationService: NotificationService,
     @Optional() private readonly gateway?: BidGateway,
   ) {}
 
@@ -1907,6 +1909,8 @@ export class SupplierPortalService {
         type: 'decrypt_failure', supplierId: bidSupplier.id, supplierName: bidSupplier.supplierName,
         detail: gateError!, severity: 'danger',
       });
+      // T15/T13 硬前置：失败站内信通知供应商本人（重试/联系主持人路径，fire-and-forget）
+      this.notifySupplierDecryptFailure(bidSupplier.supplierId, bidSupplier.supplierName, projectId, gateError!);
     } else {
       this.gateway?.notifyDecryptStatus(projectId, bidSupplier.id, bidSupplier.supplierName, 'SUCCESS');
       this.gateway?.notifySupervisionLog(projectId, {
@@ -1915,6 +1919,35 @@ export class SupplierPortalService {
       });
     }
     return finalState;
+  }
+
+  /**
+   * 解密失败站内信（T15 硬前置，fire-and-forget，不阻塞解密主流程）：
+   * decrypt-upload 落 DANGER 后通知供应商本人——重试/联系主持人路径（与 bid.service 同款口径）。
+   */
+  private async notifySupplierDecryptFailure(
+    supplierId: string | null,
+    supplierName: string,
+    projectId: string,
+    reason: string,
+  ) {
+    if (!supplierId) return;
+    try {
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { id: supplierId },
+        select: { userId: true },
+      });
+      if (supplier?.userId) {
+        await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
+          type: 'BID_DECRYPT_FAILED',
+          title: `投标文件解密异常：${supplierName}`,
+          content: `您在项目中的投标文件解密失败：${reason}。请联系开标主持人处理或等待重新解密。`,
+          link: `/supplier/bid/${projectId}`,
+        });
+      }
+    } catch {
+      /* 通知失败不阻塞解密流程 */
+    }
   }
 
   async getMySubmissions(supplierId: string) {

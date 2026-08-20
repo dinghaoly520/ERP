@@ -8,6 +8,7 @@ import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { BidBackupService } from '../bid-backup/bid-backup.service';
 import { BidGateway } from '../bid/bid.gateway';
 import { LlmService } from '../local-ai/llm.service';
+import { NotificationService } from '../notification/notification.service';
 import {
   canonicalEnvelopeHash,
   canonicalJson,
@@ -134,6 +135,7 @@ describe('SupplierPortalService', () => {
         // 真 DualEnvelopeService（内部依赖上面 mock 的 SignatureService）——验签走真实 ukey SM2 链路
         { provide: DualEnvelopeService, useClass: DualEnvelopeService },
         { provide: BidBackupService, useValue: bidBackup },
+        { provide: NotificationService, useValue: { sendToUser: jest.fn().mockResolvedValue({}), sendToRole: jest.fn() } },
         // SupplierPortalService 构造器 @Inject('REDIS_CLIENT')（口径同 verification.service.spec.ts）
         { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
         // 构造器第 6 参（BidGateway 为 @Optional，无需提供；本 spec 不触达 LLM）
@@ -1816,6 +1818,7 @@ describe('SupplierPortalService', () => {
     let envelope: DualEnvelope; // files[role].sha256 = 明文存证锚点；fieldsCommit = 真实承诺
 
     let gateway: { notifyDecryptStatus: jest.Mock; notifySupervisionLog: jest.Mock; notifyAnomaly: jest.Mock };
+    let notification: { sendToUser: jest.Mock };
     let bsState: Record<string, any>;
 
     /** 默认 submission：外层已解（outerDecryptedAt+innerAssets）、双角色资产、envelope 落库 */
@@ -1846,6 +1849,7 @@ describe('SupplierPortalService', () => {
       jest.clearAllMocks();
       // BidGateway 需显式提供（外层 module 未注入——WS 断言是本 describe 的核心）
       gateway = { notifyDecryptStatus: jest.fn(), notifySupervisionLog: jest.fn(), notifyAnomaly: jest.fn() };
+      notification = { sendToUser: jest.fn().mockResolvedValue({}) };
       const module = await Test.createTestingModule({
         providers: [
           SupplierPortalService,
@@ -1854,6 +1858,7 @@ describe('SupplierPortalService', () => {
           { provide: SignatureService, useValue: signature },
           { provide: DualEnvelopeService, useClass: DualEnvelopeService },
           { provide: BidBackupService, useValue: bidBackup },
+          { provide: NotificationService, useValue: notification },
           { provide: 'REDIS_CLIENT', useValue: {} },
           { provide: LlmService, useValue: {} },
           { provide: BidGateway, useValue: gateway },
@@ -2024,6 +2029,19 @@ describe('SupplierPortalService', () => {
       expect(prisma.fileAsset.create).not.toHaveBeenCalled();
       expect(prisma.bidOpeningRecord.upsert).not.toHaveBeenCalled();
       expect(gateway.notifyDecryptStatus).toHaveBeenCalledWith('project-1', 'bs-1', '四川水发建设有限公司', 'DANGER');
+    });
+
+    it('decrypt-upload：DANGER 后供应商本人收到失败站内信（T15 硬前置——重试/联系主持人路径）', async () => {
+      const tampered = Buffer.from('被调包的技术标明文', 'utf8');
+      await service.decryptUpload('supplier-1', 'project-1',
+        { technical: tampered, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(notification.sendToUser).toHaveBeenCalledWith('user-1', ['in_app'], expect.objectContaining({
+        type: 'BID_DECRYPT_FAILED',
+        title: expect.stringContaining('四川水发建设有限公司'),
+        content: expect.stringContaining('解密失败'),
+        link: '/supplier/bid/project-1',
+      }));
     });
 
     it('decrypt-upload：并发抢占 count=0 且 RUNNING 新鲜（<60s 接管）→ 409 DECRYPT_ALREADY_IN_FLIGHT', async () => {
