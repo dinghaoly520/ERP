@@ -1952,8 +1952,18 @@ export class BidService {
     if (supplierId) return this.decryptOuterOne(projectId, supplierId, actorId);
 
     // ── 批量：预筛后逐家串行；单家失败不阻塞其余家 ──
+    // 楔感知：outerDecryptedAt 为 null 的正常家，或陈旧楔家（innerAssets 为 null 且 updatedAt
+    // 停摆 >60s——抢占后崩溃残留）也进入候选，由 decryptOuterOne 的 60s 接管判定处置；
+    // 进行中（<60s）家 updatedAt 新鲜，不落入 OR 第二支，不会被干扰
     const targets = await this.prisma.supplierBidSubmission.findMany({
-      where: { projectId, envelopeVersion: 'dual-v2', outerDecryptedAt: null },
+      where: {
+        projectId,
+        envelopeVersion: 'dual-v2',
+        OR: [
+          { outerDecryptedAt: null },
+          { innerAssets: { equals: Prisma.DbNull }, updatedAt: { lt: new Date(Date.now() - 60_000) } },
+        ],
+      },
       select: { supplierId: true },
     });
     const details: DecryptOuterDetail[] = [];

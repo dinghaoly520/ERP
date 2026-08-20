@@ -13,6 +13,7 @@ import { assertBidStageTransition } from './bid-state';
 import { sealField, openField } from '../common/crypto/field-crypto';
 import { getQueueToken } from '@nestjs/bullmq';
 import { QUEUE_NAMES } from '../ai-bid-analysis/queues/queue.module';
+import { Prisma } from '@prisma/client';
 import { AdminKeyService } from '../common/crypto/admin-keystore.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 import { SignatureService } from '../common/crypto/signature.service';
@@ -5054,6 +5055,42 @@ describe('BidService — decryptOuter 主持端解外层 (dual-v2 · Task 12)', 
       where: expect.objectContaining({ outerDecryptedAt: expect.any(Date) }), // 条件更新：只回滚自己这笔
       data: { outerDecryptedAt: null }, // 失败回滚
     });
+  });
+
+  it('批量预筛楔感知：陈旧楔家进入候选 → 经接管解密成功、明细含该家（success）', async () => {
+    const staleAt = new Date(Date.now() - 120_000);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1' }]); // 预筛命中楔家
+    prisma.bidSupplier.findFirst.mockImplementation(async () => ({ id: 'bs-1', supplierId: 's1', supplierName: 'S1' }));
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+      id: 'sub-1', supplierId: 's1', projectId: 'p1',
+      envelopeVersion: 'dual-v2', envelope,
+      outerDecryptedAt: staleAt, innerAssets: null,
+      technicalFileAssetId: 'fa-t', businessFileAssetId: 'fa-b',
+      coverLetterAssetId: null, bidBondAssetId: null,
+      updatedAt: new Date(Date.now() - 120_000),
+    });
+    prisma.supplierBidSubmission.updateMany
+      .mockResolvedValueOnce({ count: 0 }) // ① 抢占：楔残留
+      .mockResolvedValueOnce({ count: 1 }); // 接管重占成功
+
+    const result: any = await service.decryptOuter('p1', undefined, 'u1');
+
+    // 预筛 where 钉死楔感知 OR（outerDecryptedAt null 或 陈旧楔：innerAssets null + updatedAt 停摆 >60s）
+    expect(prisma.supplierBidSubmission.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        envelopeVersion: 'dual-v2',
+        OR: expect.arrayContaining([
+          expect.objectContaining({ outerDecryptedAt: null }),
+          expect.objectContaining({ innerAssets: { equals: Prisma.DbNull }, updatedAt: { lt: expect.any(Date) } }),
+        ]),
+      }),
+    }));
+    expect(result).toMatchObject({ total: 1, success: 1, skipped: 0, failed: 0 });
+    expect(result.details[0]).toMatchObject({
+      supplierId: 'bs-1', success: true, roles: ['technical', 'business'],
+      innerAssets: { technical: 'asset-t', business: 'asset-b' },
+    });
+    expect(minioClient.putObject).toHaveBeenCalledTimes(2); // 接管后正常完成两角色解密
   });
 
   it('陈旧楔接管（60s）：outerDecryptedAt 残留 + innerAssets null + updatedAt 停摆 → 条件重占成功并完成解密', async () => {
