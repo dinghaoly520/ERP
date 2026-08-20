@@ -9,8 +9,9 @@
      签名与既有 SignatureService 同参（{ hash: true }，内部 SM3 杂凑）。
 
    sm-crypto 0.4 为无类型 CJS 包，且本包 tsconfig 作用域内无 @types/node，
-   故对 require 做局部声明；编译产物为普通 CJS require 调用，
-   Node / jest / Vite 依赖预打包均可解析。
+   故对 require 做局部声明；编译产物为普通 CJS require 调用，Node / jest 直接可解析；
+   Vite 应用须把本包登记进 optimizeDeps.include 才会经 esbuild 预打包转 ESM
+   （否则 dev 模式浏览器侧 require is not defined；见 apps/supplier-portal/vite.config.ts）。
    ================================================================= */
 
 declare const require: (id: string) => { sm2: any; sm4: any };
