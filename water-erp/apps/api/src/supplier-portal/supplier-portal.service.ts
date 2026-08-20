@@ -1650,10 +1650,12 @@ export class SupplierPortalService {
   /**
    * 供应商解内层上传（dual-v2）：上传各角色解密明文 + F+nonce 承诺揭示。
    * 三段式同 bid.service.decryptSupplier：
-   *   ① 原子抢占 PENDING→RUNNING（并发双击只成一笔；60s 崩溃接管）
-   *   ② 事务外双闸校验（顺序短路：先逐文件 sha256 明文存证闸，后 fieldsCommit 承诺闸）
-   *   ③ 短事务终局：明文资产（bid_decrypted）+ decryptedAssets/decryptedPrice + 开标记录预填 + 监督日志
-   * 双闸任一失败 → DANGER+EXCEPTION+dangerAttribution=UNKNOWN（§5.5：密文损坏/错钥/篡改不可自动区分）。
+   *   ① 请求形状门（claim 前 400：MISSING_FILES/INVALID_FIELDS/MISSING_NONCE——不占 RUNNING、无楔子）
+   *   ② 原子抢占 PENDING→RUNNING（并发双击只成一笔；60s 崩溃接管）
+   *   ③ 事务外内容级双闸（顺序短路：先逐文件 sha256 明文存证闸（含信封签名值交叉比对），后 fieldsCommit）
+   *   ④ 短事务终局：明文资产（bid_decrypted）+ decryptedAssets/decryptedPrice + 开标记录预填 + 监督日志
+   * 内容级闸失败 → DANGER+EXCEPTION+归因 UNKNOWN（密文损坏/错钥/篡改不可自动区分）；
+   * 平台侧异常（文件引用缺失/记录缺失/存储失败）→ 归因 PLATFORM（§5.5）。
    * 上传明文只落 bid_decrypted 对象，绝不覆写 C_outer/C_inner。
    */
   async decryptUpload(
@@ -1709,6 +1711,31 @@ export class SupplierPortalService {
     const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { userId: true } });
     if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
 
+    // ── 请求形状门（claim 前 400，不占 RUNNING、无楔子——审查 fix round 1）──
+    const innerEntries = (Object.entries(submission.innerAssets as Record<string, unknown>))
+      .filter(([, assetId]) => !!assetId) as Array<[EnvelopeRole, string]>;
+    if (innerEntries.length === 0) {
+      // outerDecryptedAt 已置但归属链为空——平台侧异常，包未就绪（同 getOpeningPackage 口径）
+      throw new BadRequestException({ error: '外层尚未解密，解密包未就绪', code: 'OUTER_NOT_DECRYPTED' });
+    }
+    const missingRoles = innerEntries
+      .filter(([role]) => !files[role] || files[role]!.length === 0)
+      .map(([role]) => role);
+    if (missingRoles.length > 0) {
+      throw new BadRequestException({ error: `缺少角色解密明文：${missingRoles.join('、')}`, code: 'MISSING_FILES' });
+    }
+    if (!nonce) {
+      throw new BadRequestException({ error: '缺少 nonce（唱标字段承诺随机数）', code: 'MISSING_NONCE' });
+    }
+    let fields: SealedFields;
+    try {
+      const parsed = JSON.parse(fieldsJson);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('bad fields');
+      fields = parsed as SealedFields;
+    } catch {
+      throw new BadRequestException({ error: '唱标字段承诺格式无效（fieldsJson 缺失或解析失败）', code: 'INVALID_FIELDS' });
+    }
+
     // 原子抢占（PENDING→RUNNING；并发第二笔 count=0）
     const claim = await this.prisma.bidSupplier.updateMany({
       where: { id: bidSupplier.id, decryptStatus: 'PENDING' },
@@ -1741,55 +1768,42 @@ export class SupplierPortalService {
       }
     }
 
-    // ── ② 事务外双闸校验（顺序短路：先逐文件 sha256 明文存证闸，后 fieldsCommit 承诺闸）──
+    // ── ② 事务外内容级双闸校验（claim 后；顺序短路：先逐文件明文存证闸（含信封交叉比对），后 fieldsCommit）──
     //    文件闸锚点 = 投递时原 FileAsset.sha256（明文存证哈希，== envelope.files[role].sha256，签名覆盖；
     //    补传同款闸门语义）。C_inner 资产（innerAssets）的 sha256 是密文哈希，不能做明文锚点。
+    //    归因（§5.5，审查 fix round 1）：内容级失败（哈希/承诺不匹配——密文损坏/错钥/篡改不可区分）
+    //    → UNKNOWN；平台侧异常（文件引用缺失/记录缺失/存储失败）→ PLATFORM。
     let gateError: string | null = null;
+    let gateAttribution: 'UNKNOWN' | 'PLATFORM' = 'UNKNOWN';
     const uploaded: Array<{ role: EnvelopeRole; buf: Buffer }> = [];
-    const innerEntries = (Object.entries(submission.innerAssets as Record<string, unknown>))
-      .filter(([, assetId]) => !!assetId) as Array<[EnvelopeRole, string]>;
-    if (innerEntries.length === 0) {
-      gateError = '内层解密包缺失（管理方未解外层或归属链异常）';
-    } else {
-      for (const [role] of innerEntries) {
-        const buf = files[role];
-        if (!buf || buf.length === 0) {
-          gateError = `缺少 ${role} 角色解密明文`;
-          break;
-        }
-        const refAssetId = (submission as any)[DUAL_ROLE_ASSET_KEY[role]] as string | null;
-        if (!refAssetId) {
-          gateError = `缺少 ${role} 原始文件引用，无法校验明文`;
-          break;
-        }
-        const anchor = await this.prisma.fileAsset.findUnique({ where: { id: refAssetId } });
-        if (!anchor?.sha256) {
-          gateError = '原始文件记录缺失，无法校验明文';
-          break;
-        }
-        if ((await sha256Hex(buf)) !== anchor.sha256) {
-          gateError = '标书文件完整性校验失败：SHA-256 不匹配（疑似篡改或损坏）';
-          break;
-        }
-        uploaded.push({ role, buf });
+    for (const [role] of innerEntries) {
+      const buf = files[role]!;
+      const refAssetId = (submission as any)[DUAL_ROLE_ASSET_KEY[role]] as string | null;
+      if (!refAssetId) {
+        gateError = `缺少 ${role} 原始文件引用，无法校验明文`;
+        gateAttribution = 'PLATFORM';
+        break;
       }
+      const anchor = await this.prisma.fileAsset.findUnique({ where: { id: refAssetId } });
+      if (!anchor?.sha256) {
+        gateError = '原始文件记录缺失，无法校验明文';
+        gateAttribution = 'PLATFORM';
+        break;
+      }
+      // 纵深交叉比对（审查 fix round 1）：锚点须与签名覆盖的 envelope.files[role].sha256 一致——防锚点被替换
+      const entry = envelope.files[role];
+      if (!entry || entry.sha256 !== anchor.sha256) {
+        gateError = '标书文件锚点与信封签名值交叉比对不符（疑似锚点被替换）';
+        break; // UNKNOWN
+      }
+      if ((await sha256Hex(buf)) !== anchor.sha256) {
+        gateError = '标书文件完整性校验失败：SHA-256 不匹配（疑似篡改或损坏）';
+        break; // UNKNOWN
+      }
+      uploaded.push({ role, buf });
     }
-    let fields: SealedFields | null = null;
-    if (!gateError) {
-      if (!fieldsJson || !nonce) {
-        gateError = '缺少唱标字段承诺（fieldsJson 或 nonce）';
-      } else {
-        try {
-          const parsed = JSON.parse(fieldsJson);
-          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('bad fields');
-          fields = parsed as SealedFields;
-        } catch {
-          gateError = '唱标字段承诺格式无效（fieldsJson 解析失败）';
-        }
-        if (!gateError && fields && !(await this.dualEnvelope.verifyFieldsCommit(fields, nonce, envelope.fieldsCommit))) {
-          gateError = '唱标字段承诺校验失败（fieldsCommit 不匹配，疑似篡改报价字段或重放 nonce）';
-        }
-      }
+    if (!gateError && !(await this.dualEnvelope.verifyFieldsCommit(fields, nonce, envelope.fieldsCommit))) {
+      gateError = '唱标字段承诺校验失败（fieldsCommit 不匹配，疑似篡改报价字段或重放 nonce）';
     }
 
     // 闸过才写 MinIO——明文只落 bid_decrypted 前缀，绝不覆写 C_outer/C_inner
@@ -1803,6 +1817,7 @@ export class SupplierPortalService {
         } catch (err) {
           this.logger.error(`decrypt-upload MinIO putObject failed: ${objectKeyOf(role)}`, (err as Error).stack);
           gateError = '文件存储失败，请重试';
+          gateAttribution = 'PLATFORM';
           break;
         }
       }
@@ -1817,7 +1832,7 @@ export class SupplierPortalService {
           where: { id: bidSupplier.id },
           data: {
             decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION',
-            decryptError: gateError!, dangerAttribution: 'UNKNOWN',
+            decryptError: gateError!, dangerAttribution: gateAttribution,
           },
         });
         await tx.bidSupervisionLog.create({
@@ -1848,16 +1863,16 @@ export class SupplierPortalService {
           where: { supplierId_projectId: { supplierId, projectId } },
           data: {
             decryptedAssets: decryptedAssets as unknown as Prisma.InputJsonValue,
-            decryptedPrice: fields!.price, // 已经 fieldsCommit 承诺验证（防开标时改价）
+            decryptedPrice: fields.price, // 已经 fieldsCommit 承诺验证（防开标时改价）
           },
         });
         // 唱标预填（旧轨 decryptSupplier 同款 recordData 形状——唱标表/供应商确认流无感衔接；
         // bondStatus 留空由主持人判定）
         const recordData = {
           supplierName: bidSupplier.supplierName,
-          amount: fields!.price,
-          period: fields!.deliveryPeriod,
-          qualityTarget: fields!.qualityCommitment,
+          amount: fields.price,
+          period: fields.deliveryPeriod,
+          qualityTarget: fields.qualityCommitment,
           bondStatus: '',
           decryptResult: '解密成功',
           confirmStatus: '待供应商确认',

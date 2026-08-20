@@ -309,6 +309,7 @@ export class SupplierPortalController {
 
   /** 解密上传：各角色解密明文（file_* 四文件 optional）+ F+nonce 承诺（fieldsJson/nonce）——服务端双闸校验 */
   @Post('bid-submissions/:projectId/decrypt-upload')
+  @Throttle({ default: { ttl: 60000, limit: 5 } }) // reupload-dual 同款防刷（审查 fix round 1）
   @UseInterceptors(FileFieldsInterceptor([
     { name: 'file_technical', maxCount: 1 },
     { name: 'file_business', maxCount: 1 },

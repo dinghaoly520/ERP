@@ -2031,10 +2031,83 @@ describe('SupplierPortalService', () => {
       prisma.bidSupplier.findUnique.mockResolvedValue({ id: 'bs-1', decryptStatus: 'RUNNING', updatedAt: new Date() });
 
       await expect(service.decryptUpload('supplier-1', 'project-1',
-        { technical: plainT }, JSON.stringify(FIELDS), NONCE)).rejects.toMatchObject({
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE)).rejects.toMatchObject({
         response: { code: 'DECRYPT_ALREADY_IN_FLIGHT' },
       });
       expect(minioClient.putObject).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+    });
+
+    it('decrypt-upload：缺任一角色明文 → claim 前 400 MISSING_FILES（不占 RUNNING，bidSupplier 零状态变更）', async () => {
+      await expect(service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT }, JSON.stringify(FIELDS), NONCE)).rejects.toMatchObject({
+        response: { code: 'MISSING_FILES' },
+      });
+      expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
+      expect(prisma.bidSupplier.update).not.toHaveBeenCalled();
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+    });
+
+    it('decrypt-upload：fieldsJson 解析失败 → claim 前 400 INVALID_FIELDS（不占 RUNNING）', async () => {
+      await expect(service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, 'not-json{{{', NONCE)).rejects.toMatchObject({
+        response: { code: 'INVALID_FIELDS' },
+      });
+      expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+    });
+
+    it('decrypt-upload：nonce 缺失 → claim 前 400 MISSING_NONCE（不占 RUNNING）', async () => {
+      await expect(service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), '')).rejects.toMatchObject({
+        response: { code: 'MISSING_NONCE' },
+      });
+      expect(prisma.bidSupplier.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('decrypt-upload：明文锚点与信封签名值交叉比对不符（锚点被替换）→ DANGER + 归因 UNKNOWN', async () => {
+      prisma.fileAsset.findUnique.mockImplementation(async ({ where }: any) =>
+        where.id === 'fa-t'
+          ? { id: 'fa-t', sha256: 'deadbeef'.repeat(8) } // 与 envelope.files.technical.sha256（签名覆盖值）不符
+          : { id: where.id, sha256: where.id === 'fa-b' ? plainBSha : `sha-${where.id}` });
+
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('DANGER');
+      const dangerUpdate = prisma.bidSupplier.update.mock.calls.find((c: any) => c[0]?.data?.decryptStatus === 'DANGER');
+      expect(dangerUpdate[0].data).toMatchObject({
+        dangerAttribution: 'UNKNOWN',
+        decryptError: expect.stringContaining('交叉比对'),
+      });
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+    });
+
+    it('decrypt-upload：原始文件引用缺失（平台侧）→ DANGER + 归因 PLATFORM', async () => {
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue(defaultSubmission({ technicalFileAssetId: null }));
+
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('DANGER');
+      const dangerUpdate = prisma.bidSupplier.update.mock.calls.find((c: any) => c[0]?.data?.decryptStatus === 'DANGER');
+      expect(dangerUpdate[0].data).toMatchObject({ dangerAttribution: 'PLATFORM' });
+      expect(minioClient.putObject).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+    });
+
+    it('decrypt-upload：MinIO 存储失败（平台侧）→ DANGER + 归因 PLATFORM', async () => {
+      (minioClient.putObject as jest.Mock).mockRejectedValueOnce(new Error('disk full'));
+
+      const res: any = await service.decryptUpload('supplier-1', 'project-1',
+        { technical: plainT, business: plainB }, JSON.stringify(FIELDS), NONCE);
+
+      expect(res.decryptStatus).toBe('DANGER');
+      const dangerUpdate = prisma.bidSupplier.update.mock.calls.find((c: any) => c[0]?.data?.decryptStatus === 'DANGER');
+      expect(dangerUpdate[0].data).toMatchObject({
+        dangerAttribution: 'PLATFORM',
+        decryptError: expect.stringContaining('存储失败'),
+      });
       expect(prisma.fileAsset.create).not.toHaveBeenCalled();
     });
   });
