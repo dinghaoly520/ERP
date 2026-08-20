@@ -258,6 +258,17 @@ export class SupplierPortalService {
   }
 
   /**
+   * 本供应商已绑定证书列表（U盾管理页：换证/解绑 UI 需要行 id 与绑定状态，
+   * 跨浏览器/跨机器导入介质后据此恢复绑定态展示）。
+   */
+  async listMyCerts(supplierId: string) {
+    return this.prisma.supplierCert.findMany({
+      where: { supplierId },
+      orderBy: [{ bindingStatus: 'asc' }, { boundAt: 'desc' }],
+    });
+  }
+
+  /**
    * 解绑/换证：证书置 REVOKED + revokedAt。
    * 响应附 pendingSubmissions = 依赖该 certSn 的未开标提交数（envelope 存 certSn 快照，
    * 旧标书仍需旧证书解密——UI 据此警示「须保留旧 U盾证书」）。

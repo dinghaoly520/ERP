@@ -58,6 +58,12 @@ export class SupplierPortalController {
     return this.portalService.getActiveAdminCert();
   }
 
+  @Get('profile/cert')
+  async listMyCerts(@Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.listMyCerts(supplierId);
+  }
+
   @Post('profile/cert')
   async bindCert(
     @Request() req: any,
