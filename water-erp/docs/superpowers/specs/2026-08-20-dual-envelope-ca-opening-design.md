@@ -3,7 +3,7 @@
 > 日期：2026-08-20
 > 状态：待审阅
 > 依据：电子招投标合规审查报告（2026-08-19）P0-1/P1-1/P1-2/P1-13/P2-17；《电子招标投标办法》第26/27/30/31/32条
-> 用户决策（2026-08-20 确认）：①供应商 CA 采用**外部 CA/U 盾介质**形态；②加密次序 = **供应商内层 → 管理方外层**（开标解密镜像次序）；③存量项目**双轨并存**；④解密交互采用「供应商端解密上传」方案。
+> 用户决策（2026-08-20 确认）：①供应商 CA 采用**外部 CA/U 盾介质**形态；②加密次序 = **供应商内层 → 管理方外层**（开标解密镜像次序）；③存量项目**双轨并存**；④解密交互采用「供应商端解密上传」方案；⑤管理方私钥形态 = **B：服务器托管+仅主持人**（平台生成密钥对、私钥文件受保护路径、bid_host+窗口门控触发解外层）。
 
 ---
 
@@ -44,10 +44,13 @@
 ### 2.3 开标时（解密：先管理方外层，后供应商内层）
 
 ```
-① 管理方解外层（开标大厅主持人，U盾在主持人浏览器）：
-     下载 C_outer + K_admin → U盾 SM2 解 DEK_A → SM4 解 → C_inner
-     上传 C_inner → 平台存 FileAsset(category=bid_inner_ciphertext) → 记录 outerDecryptedAt
+① 管理方解外层（主持人发起，服务器执行——形态B：管理方私钥服务器托管）：
+     主持人触发（bid_host，解密窗口内）→ 服务器读取受保护路径的管理方私钥
+     → SM2 解 K_admin 得 DEK_A → SM4 解 C_outer → C_inner
+     → 存 FileAsset(category=bid_inner_ciphertext) → 记录 outerDecryptedAt + 监督日志
      ⇑ 此步 = 开标程序正式启动；管理方掌握开标启动控制权（己方权益）
+     ⇑ 平台解外层后只拿到 C_inner（供应商密文）——无供应商 U盾仍解不开内容，
+       故「平台开标前不能解密投标文件」对形态 B 同样成立
 ② 供应商解内层（供应商开标大厅，U盾在供应商浏览器，解密窗口内）：
      下载 C_inner + K_self → U盾 SM2 解 DEK_S → SM4 解 → 明文
      本地校验 SHA256(M) == 平台存证值 → 上传明文
@@ -81,7 +84,7 @@ model SupplierCert {
 - **实名核验联动**：DN↔企业名一致性校验作为实名核验的一部分（P1-13 部分修复）。
 - 换证/挂失：REVOKED + 新证；已提交标书绑定提交时证书快照（envelope JSON 存 certSn+publicKey）。
 
-### 3.2 管理方加密证书（AdminEncryptionCert，新表）
+### 3.2 管理方加密证书（AdminEncryptionCert，新表；**形态 B：私钥服务器托管**）
 
 ```prisma
 model AdminEncryptionCert {
@@ -93,13 +96,14 @@ model AdminEncryptionCert {
 }
 ```
 
-- 私钥在**管理方 U盾**（主持人在 bid-portal 生成/导入，见适配层）；公钥登记走 `POST /api/bid/admin-cert`（@Roles admin）。
-- 公钥公开端点 `GET /api/supplier-portal/admin-cert`（supplier 角色）供投递端取用——公钥无敏感性。
-- 管理方换证：登记新证置 active，旧证保留至存量项目开标完成（envelope 存 certSn 快照）。
+- **密钥对由平台生成**：`POST /api/bid/admin-cert/generate`（@Roles admin）服务端用 sm-crypto 生成 SM2 密钥对，**私钥写入受保护路径**（env `ADMIN_UKEY_PRIVATE_KEY_PATH`，默认 `apps/api/.data/admin-encryption-key.json`，gitignored，权限 600），公钥登记置 active（旧证置 inactive 保留至存量项目开标完成——envelope 存 certSn 快照）；
+- 生产对应：私钥托管加密机/HSM（密钥不落应用文件系统），生成/读取适配为 HSM 客户端——spec 中 mock 与生产的边界即「私钥读写」一个模块；
+- 公钥公开端点 `GET /api/supplier-portal/admin-cert`（supplier 角色）供投递端取用——公钥无敏感性；
+- 服务器持外层私钥的**安全论证**：管理方解外层后仅得 C_inner（供应商密文），内容保密屏障在供应商内层——平台开标前无法读取任何投标内容；管理方权益=开标程序控制+全程留痕（解密触发受 bid_host 角色+解密窗口状态+OperationLog/监督日志三重约束）。
 
-### 3.3 证书中间件适配层（新共享包 `@water-erp/ukey`）
+### 3.3 证书中间件适配层（新共享包 `@water-erp/ukey`，**仅供应商侧**）
 
-浏览器端适配层，供应商门户（Vue）与开评标端（React）共用：
+浏览器端适配层，当前仅供应商门户（Vue）消费；管理方解密在服务端执行（§3.2），不需要浏览器介质：
 
 ```ts
 export interface UKeyAdapter {
@@ -110,10 +114,10 @@ export interface UKeyAdapter {
 }
 ```
 
-- **MockUKeyAdapter**（开发/演示/单测）：密钥对生成于浏览器，私钥经用户口令派生密钥（PBKDF2 + AES-GCM/SM4）加密存 localStorage；支持导出/导入 U盾文件（模拟实体介质可携带——换机器需导出导入）。DN 按绑定供应商名生成。
+- **MockUKeyAdapter**（开发/演示/单测）：密钥对生成于浏览器，私钥经用户口令派生密钥（PBKDF2 + AES-GCM）加密存 localStorage；支持导出/导入 U盾文件（模拟实体介质可携带——换机器需导出导入）。DN 按绑定供应商名生成。
 - **VendorUKeyAdapter 骨架**：接口同上，实现走 CA 厂商本地中间件（localhost 端口 HTTP 协议）；拿到厂商 SDK 文档后填 adapter 即可，业务代码零改动。
 - 加密操作（SM2_Enc 用公钥）不需介质，由前端直接 sm-crypto 执行——只有 **sign 与 decrypt 走适配层**。
-- supplier-portal 新增依赖 `sm-crypto`；bid-portal 同理（均已有浏览器打包链路）。
+- 依赖：supplier-portal 新增 `sm-crypto`；API 侧已有 sm-crypto（管理方 SM2 解密复用）。
 
 ## 4. 投递信封改造
 
@@ -151,11 +155,11 @@ export interface UKeyAdapter {
 - 主持人组建会话、解密窗口起止、暂停/恢复、补偿延长——全部保留（管理方控制开标节奏不变）；
 - 新增约束：**窗口未开启前不得解外层**（decrypt-outer 校验窗口状态，同现 decryptSupplier 门控）。
 
-### 5.2 主持端：解外层（新增）
+### 5.2 主持端：解外层（新增，服务端执行）
 
-- `POST /api/bid/projects/:id/opening/decrypt-outer`（@Roles admin,bid_host；逐家或批量）：主持人浏览器用管理方 U盾解 K_admin → SM4 解 C_outer → 上传 C_inner → 平台存 FileAsset(category=bid_inner_ciphertext) + 记 `outerDecryptedAt` + 监督日志「管理方解外层」；
+- `POST /api/bid/projects/:id/opening/decrypt-outer`（@Roles admin,bid_host；逐家或批量）：**服务端**读取受保护路径管理方私钥 → SM2 解 K_admin → SM4 解 C_outer → C_inner 存 FileAsset(category=bid_inner_ciphertext) → 记 `outerDecryptedAt` + 监督日志「管理方解外层」+ auditLog（actorId）；门控与现 decryptSupplier 同款（OPENING 阶段 + 会话存在 + 解密窗口开启未暂停）；
 - 现「单条/批量解密」端点**仅旧轨项目可用**（envelopeVersion=null 分派）；新轨项目调用返回 400 `USE_SUPPLIER_DECRYPT`；
-- **授权代解密补救**（办法第30条「按招标文件规定方式」的合规出口）：投标人投递时勾选 `hostDecryptAuthorized` 的项目，主持端 `POST .../opening/decrypt-proxy` 可用管理方 U盾解 `khost` → DEK_S → 解 C_inner → 代传明文；授权记录（envelope.hostAuth + 监督日志）随开标文件包存档。
+- **授权代解密补救**（办法第30条「按招标文件规定方式」的合规出口）：投标人投递时勾选 `hostDecryptAuthorized` 的项目，主持端 `POST .../opening/decrypt-proxy` 由服务端用管理方私钥解 `khost` → DEK_S → SM4 解 C_inner → 代存明文（同 decrypt-upload 的 sha256 闸门）；授权记录（envelope.hostAuth + 监督日志）随开标文件包存档。
 
 ### 5.3 供应商端：解内层（新增）
 
@@ -212,7 +216,8 @@ export interface UKeyAdapter {
 | `POST /api/bid/projects/:id/opening/decrypt-outer` | admin,bid_host | 管理方解外层 |
 | `POST /api/bid/projects/:id/opening/decrypt-proxy` | admin,bid_host | 授权代解密（须 hostDecryptAuthorized） |
 | `POST /api/bid/projects/:id/opening/mark-platform-fault` | admin,bid_host | 平台故障归因标记 |
-| `POST /api/bid/admin-cert` | admin | 登记管理方加密证书 |
+| `POST /api/bid/admin-cert/generate` | admin | 服务端生成管理方 SM2 密钥对（私钥写受保护路径，公钥登记置 active） |
+| `GET /api/bid/admin-cert` | admin | 查看当前管理方加密证书（公钥/certDn/active） |
 
 ### 变更/退役
 - `submitBid`：未加密拒收 + 删除服务端代加密分支 + 验签激活；
@@ -233,14 +238,14 @@ export interface UKeyAdapter {
 | 门户 | 改动 |
 |---|---|
 | supplier-portal | +sm-crypto 依赖；+`@water-erp/ukey` 适配层接入；profile 证书绑定页（枚举/绑定/换证/U盾导出导入）；BidSubmit.vue 双层加密+签名+授权勾选；OpeningHall.vue「解密我的投标」卡片；保证金凭证加密上传 |
-| bid-portal | +`@water-erp/ukey` 适配层；主持人 U盾 管理（生成/导入，登记 AdminEncryptionCert）；开标大厅「解外层」步骤与进度；代解密按钮（授权项目）；reseal 按钮退役（旧轨保留）；平台故障归因标记 UI |
+| bid-portal | 无 U盾适配层（管理方解密在服务端）；管理方证书生成按钮（admin 可见，调用 admin-cert/generate）；开标大厅「解外层」步骤与进度（触发服务端解密）；代解密按钮（授权项目）；reseal 按钮退役（旧轨保留）；平台故障归因标记 UI |
 | web (:3005) | 无改动（开标确认面板不涉解密执行） |
 | expert-portal | 无改动（解密后文件下载走现有权限链） |
 
 ## 10. 测试策略
 
 - **适配层单测**（新包 @water-erp/ukey）：MockUKeyAdapter sign/decrypt/证书枚举 roundtrip、口令加密存储、导出导入往返；
-- **API 单测**：submitBid 未加密拒收（BID_FILE_NOT_ENCRYPTED）、envelope 缺失字段校验、验签失败 400、decrypt-outer 窗口门控、decrypt-upload sha256 不匹配拒绝、dangerAttribution 归因、decrypt-proxy 授权前置、cert 绑定 DN 校验、旧轨 decrypt 回归不破；
+- **API 单测**：submitBid 未加密拒收（BID_FILE_NOT_ENCRYPTED）、envelope 缺失字段校验、验签失败 400、decrypt-outer 窗口门控（服务端解密路径）、admin-cert/generate 私钥落盘与幂等、decrypt-upload sha256 不匹配拒绝、dangerAttribution 归因、decrypt-proxy 授权前置、cert 绑定 DN 校验、旧轨 decrypt 回归不破；
 - **供应商前端**：`npx vue-tsc --noEmit`（不可用则 build）；**bid-portal**：`npx tsc --noEmit`；
 - **端到端冒烟**（手工脚本）：mock U盾 → 绑定证书 → 投递（双层）→ 开标 → 管理方解外层 → 供应商解内层 → 唱标比对 → 归档含解密后投标文件。
 
@@ -256,7 +261,7 @@ export interface UKeyAdapter {
 ## 12. 风险与开放问题
 
 1. **Mock 与真 U盾的协议差异**：VendorUKeyAdapter 的具体交互协议依赖厂商 SDK，属隔离面，不阻塞 Phase 1-4。
-2. **管理方 U盾 在 mock 下的可携带性**：主持人换机器需导出导入 mock U盾文件（与实体介质语义一致）；多人主持需各自登记证书——当前设计支持多 AdminEncryptionCert（active 标记），开标时按 envelope 内 certSn 选择。
+2. **管理方私钥的服务器保护**（形态 B）：私钥文件路径 env 配置、权限 600、gitignore；任何人取得 API 服务器文件系统访问权即可得外层私钥——但外层解封后仍被供应商内层保护，内容不泄露；风险转化为「开标程序控制权」层面，由角色+窗口+双日志（OperationLog/监督日志）约束。生产迁移加密机/HSM 时仅替换「私钥读写」模块。
 3. **报价字段的唱标节奏**：新轨唱标报价校验依赖供应商先行解密上传（decryptedPrice）；供应商解密滞后时唱标录入可先行、报价校验后补——需在 Phase 3 明确 UI 提示口径。
 4. **旧轨解密异常演示脚本**：demo-decrypt-project.js 与新轨关系待 Phase 3 验证后确认是否适配。
 5. **DER/PEM 编码**：供应商端 sm-crypto 与真 CA 证书的编码格式转换在 VendorUKeyAdapter 内消化，Mock 全 hex。
