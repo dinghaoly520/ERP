@@ -19,6 +19,8 @@ import { ScoreStandardValidator } from './score-standard-validator.service';
 import { PriceFormulaService } from './price-formula.service';
 import { BidBackupModule } from '../bid-backup/bid-backup.module';
 import { AdminKeyService } from '../common/crypto/admin-keystore.service';
+import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
+import { SignatureService } from '../common/crypto/signature.service';
 
 @Module({
   imports: [
@@ -33,8 +35,8 @@ import { AdminKeyService } from '../common/crypto/admin-keystore.service';
     BidBackupModule,
   ],
   controllers: [BidController, BidSignPacketController, AdminCertController],
-  providers: [BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService],
-  exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService],
+  providers: [BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService],
+  exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService],
 })
 export class BidModule implements OnModuleInit {
   private readonly logger = new Logger(BidModule.name);
