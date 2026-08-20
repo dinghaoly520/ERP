@@ -68,6 +68,9 @@ importers:
       '@water-erp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@water-erp/ukey':
+        specifier: workspace:*
+        version: link:../../packages/ukey
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -509,6 +512,9 @@ importers:
       '@water-erp/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@water-erp/ukey':
+        specifier: workspace:*
+        version: link:../../packages/ukey
       axios:
         specifier: ^1.16.1
         version: 1.17.0
@@ -524,6 +530,9 @@ importers:
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@6.0.3)(vue@3.5.35(typescript@6.0.3))
+      sm-crypto:
+        specifier: ^0.4.0
+        version: 0.4.0
       socket.io-client:
         specifier: ^4.8.3
         version: 4.8.3
@@ -678,6 +687,12 @@ importers:
         version: 6.0.3
 
   packages/shared: {}
+
+  packages/ukey:
+    dependencies:
+      sm-crypto:
+        specifier: ^0.4.0
+        version: 0.4.0
 
 packages:
 
