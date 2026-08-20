@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useAutoSave } from '@/composables'
 import { uploadFile } from '@/api/upload'
+import RegisterAgreement from '@/components/RegisterAgreement.vue'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -45,6 +46,7 @@ const qualifications = ref<any[]>([
 ])
 
 const showRecovery = ref(false)
+const agreeAgreement = ref(false)
 const draftSource = computed(() => ({
   currentStep: currentStep.value,
   accountForm: { username: accountForm.username, displayName: accountForm.displayName, email: accountForm.email },
@@ -142,7 +144,35 @@ async function handleQualFileChange(index: number, e: Event) {
 }
 
 function removeQualification(index: number) {
+  // 第 0 项为营业执照（必填），不允许删除
+  if (index === 0) return
   if (qualifications.value.length > 1) qualifications.value.splice(index, 1)
+}
+
+// ── 查重：统一社会信用代码硬拦截（重复即无法注册）；法人/联系人身份证号软提示 ──
+const creditCodeDuplicate = ref(false)
+const legalIdCardDuplicate = ref(false)
+
+async function checkCreditCodeDuplicate() {
+  creditCodeDuplicate.value = false
+  const code = companyForm.creditCode.trim()
+  if (!/^[0-9A-Z]{18}$/.test(code)) return
+  try {
+    const res = await authApi.checkDuplicate({ creditCode: code })
+    creditCodeDuplicate.value = res.creditCode
+    if (res.creditCode) ElMessage.warning('该统一社会信用代码已被注册，请核对后重试')
+  } catch { /* 查重失败不阻塞流程 */ }
+}
+
+async function checkLegalIdCardDuplicate() {
+  legalIdCardDuplicate.value = false
+  const idCard = companyForm.legalPersonIdCard.trim()
+  if (!/^\d{17}[\dXx]$/.test(idCard)) return
+  try {
+    const res = await authApi.checkDuplicate({ legalPersonIdCard: idCard })
+    legalIdCardDuplicate.value = res.legalPersonIdCard
+    if (res.legalPersonIdCard) ElMessage.warning('该法定代表人身份证号已用于其他供应商注册，请核对')
+  } catch { /* 查重失败不阻塞流程 */ }
 }
 
 async function nextStep() {
@@ -155,17 +185,19 @@ async function nextStep() {
     }
   }
   if (currentStep.value === 1) {
+    if (creditCodeDuplicate.value) { ElMessage.error('统一社会信用代码重复，无法进入下一步'); return }
+    if (legalIdCardDuplicate.value) { ElMessage.warning('法定代表人身份证号已存在，请核对'); return }
     const valid = await companyFormRef.value?.validate().catch(() => false)
     if (!valid) return
     const filledTags = tags.value.filter(t => t.trim())
     if (filledTags.length < 2) { ElMessage.warning('请至少填写 2 个业务标签'); return }
   }
   if (currentStep.value === 2) {
-    // P0：第 3 步（联系人/资质）此前零校验，可一路空白进入提交——补：至少 1 个含手机号+身份证号的联系人 + 至少 1 份含 fileUrl 的资质。
+    // P0：第 3 步（联系人/资质）此前零校验，可一路空白进入提交——补：至少 1 个含手机号+身份证号的联系人 + 营业执照必填 + 其余资质可选。
     const validContact = contacts.value.some(c => c.name?.trim() && /^1\d{10}$/.test(c.phone?.trim() || '') && /^\d{17}[\dXx]$/.test(c.idCard?.trim() || ''))
     if (!validContact) { ElMessage.warning('请至少完整填写 1 个联系人（姓名 + 11 位手机号 + 18 位身份证号）'); return }
-    const validQual = qualifications.value.some(q => q.type && q.name && q.fileUrl)
-    if (!validQual) { ElMessage.warning('请至少上传 1 份资质材料（如营业执照）'); return }
+    const hasLicense = qualifications.value.some(q => q.type === '营业执照' && q.name?.trim() && q.fileUrl)
+    if (!hasLicense) { ElMessage.warning('营业执照为必填资质，请填写名称并上传文件'); return }
   }
   currentStep.value++
 }
@@ -175,6 +207,19 @@ function prevStep() {
 }
 
 async function submitRegister() {
+  if (!agreeAgreement.value) { ElMessage.warning('请先阅读并同意《供应商注册入驻协议》'); return }
+  // 提交前最终查重：公司名硬拦截；法人/联系人身份证号软提示
+  const contactIdCards = contacts.value.map(c => c.idCard?.trim()).filter(Boolean) as string[]
+  try {
+    const dup = await authApi.checkDuplicate({
+      creditCode: companyForm.creditCode.trim(),
+      legalPersonIdCard: companyForm.legalPersonIdCard.trim(),
+      contactIdCard: contactIdCards[0],
+    })
+    if (dup.creditCode) { ElMessage.error('统一社会信用代码重复，无法注册，请核对后重试'); return }
+    if (dup.legalPersonIdCard) { ElMessage.warning('法定代表人身份证号已存在，请核对'); return }
+    if (dup.contactIdCard) { ElMessage.warning('联系人身份证号已存在，请核对'); return }
+  } catch { /* 查重失败不阻塞注册 */ }
   loading.value = true
   try {
     const data = {
@@ -344,7 +389,7 @@ async function submitRegister() {
                   <el-input v-model="companyForm.name" placeholder="营业执照上的企业全称" />
                 </el-form-item>
                 <el-form-item label="统一社会信用代码" prop="creditCode">
-                  <el-input v-model="companyForm.creditCode" placeholder="18位代码" maxlength="18" />
+                  <el-input v-model="companyForm.creditCode" placeholder="18位代码" maxlength="18" @blur="checkCreditCodeDuplicate" />
                 </el-form-item>
                 <el-form-item label="企业类型" prop="enterpriseType">
                   <el-select v-model="companyForm.enterpriseType" placeholder="请选择企业类型" style="width: 100%">
@@ -355,7 +400,7 @@ async function submitRegister() {
                   <el-input v-model="companyForm.legalPerson" placeholder="请输入法定代表人姓名" />
                 </el-form-item>
                 <el-form-item label="法定代表人身份证号" prop="legalPersonIdCard">
-                  <el-input v-model="companyForm.legalPersonIdCard" placeholder="请输入18位身份证号" maxlength="18" />
+                  <el-input v-model="companyForm.legalPersonIdCard" placeholder="请输入18位身份证号" maxlength="18" @blur="checkLegalIdCardDuplicate" />
                 </el-form-item>
               </div>
               <el-form-item label="注册地址" prop="registeredAddress" class="reg-form-wide">
@@ -440,7 +485,7 @@ async function submitRegister() {
               <div v-for="(q, i) in qualifications" :key="i" class="reg-row">
                 <span class="reg-row-idx">{{ i + 1 }}</span>
                 <div class="reg-row-fields reg-row-fields--qual">
-                  <el-select v-model="q.type" placeholder="资质类型" size="large" class="reg-row-sel">
+                  <el-select v-model="q.type" placeholder="资质类型" size="large" class="reg-row-sel" :disabled="i === 0">
                     <el-option label="营业执照" value="营业执照" />
                     <el-option label="资质证书" value="资质证书" />
                     <el-option label="安全生产许可证" value="安全生产许可证" />
@@ -448,7 +493,7 @@ async function submitRegister() {
                     <el-option label="环境管理体系认证" value="环境管理体系认证" />
                     <el-option label="其他" value="其他" />
                   </el-select>
-                  <el-input v-model="q.name" placeholder="资质名称" size="large" class="reg-row-input" />
+                  <el-input v-model="q.name" :placeholder="i === 0 ? '营业执照名称（必填）' : '资质名称'" size="large" class="reg-row-input" />
                   <el-date-picker v-model="q.validFrom" type="date" placeholder="有效期起" size="large" value-format="YYYY-MM-DD" class="reg-row-date" />
                   <el-date-picker v-model="q.validTo" type="date" placeholder="有效期止" size="large" value-format="YYYY-MM-DD" class="reg-row-date" />
                   <input
@@ -465,7 +510,7 @@ async function submitRegister() {
                 </div>
                 <button
                   class="reg-row-remove"
-                  :disabled="qualifications.length <= 1"
+                  :disabled="i === 0 || qualifications.length <= 1"
                   @click="removeQualification(i)"
                   aria-label="删除资质"
                 >
@@ -568,6 +613,8 @@ async function submitRegister() {
               </svg>
               <span>提交注册后，系统将自动进入审核流程。审核通过后您将获得完整的使用权限。</span>
             </div>
+
+            <RegisterAgreement v-model="agreeAgreement" />
           </div>
         </div>
 

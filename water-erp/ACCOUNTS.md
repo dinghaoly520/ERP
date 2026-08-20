@@ -29,7 +29,6 @@
 
 | 用户名 | 密码 | 角色(role) | 姓名 |
 |--------|------|------------|------|
-| `陈源远` | `陈源远@2026` | `procurement_staff` · 采购管理员 | 陈源远 |
 | `Swhi-CGZX-01` | `Swhi-CGZX-01@2026` | `leader` · 采购中心领导 | 陈源远 |
 | `Swhi-CGZX-05` | `Swhi-CGZX-05@2026` | `staff` · 采购中心员工 | 彭强 |
 | `Swhi-CGZX-admin` | `Swhi-CGZX-admin@2026` | `admin` · 采购中心管理员 | 采购中心管理员 |

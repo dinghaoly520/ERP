@@ -82,15 +82,22 @@ export function buildImportAutofillUserPrompt(
 // ---------------------------------------------------------------------------
 
 export function parseAiImportResponse(
-  rawJson: string,
+  rawJson: unknown,
   allowedKeys: Set<string>,
   fieldDefs: FieldDef[],
 ): ImportAutofillFieldResult[] {
+  // chatJson 返回的已是解析后的对象；此处兼容两种情况：对象直接使用，字符串则 JSON.parse。
   let parsed: { fields: unknown[] };
-  try {
-    parsed = JSON.parse(rawJson);
-  } catch {
-    throw new Error('AI 返回的 JSON 格式无效。');
+  if (typeof rawJson === 'string') {
+    try {
+      parsed = JSON.parse(rawJson);
+    } catch {
+      throw new Error('AI 返回的 JSON 格式无效。');
+    }
+  } else if (typeof rawJson === 'object' && rawJson !== null) {
+    parsed = rawJson as { fields: unknown[] };
+  } else {
+    throw new Error('AI 返回结构无效。');
   }
 
   if (!Array.isArray(parsed.fields)) {
@@ -131,13 +138,26 @@ export function parseAiImportResponse(
       sectionKey: fieldDef.sectionKey,
       sectionTitle: fieldDef.sectionTitle,
       status,
-      value: typeof m.value === 'string' ? m.value : '',
+      value:
+        typeof m.value === 'string' ? sanitizeReplacementChar(m.value) : '',
       confidence: typeof m.confidence === 'number' ? m.confidence : 0,
       source: status !== 'not_found' ? source : undefined,
     });
   }
 
   return results;
+}
+
+/**
+ * 清洗 U+FFFD（�）替换符：LLM 响应在网络传输中偶发 UTF-8 多字节字符损坏，
+ * 出现在识别结果里就是乱码。剔除后不影响其余文本。
+ */
+function sanitizeReplacementChar(text: string): string {
+  if (!text.includes('�')) return text;
+  return text
+    .replace(/�+/g, '')
+    .replace(/ {2,}/g, ' ')
+    .trim();
 }
 
 function validateStatus(

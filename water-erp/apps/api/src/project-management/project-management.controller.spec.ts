@@ -21,7 +21,7 @@ describe('ProjectManagementController', () => {
       deletePermanently: jest.fn(),
       completeProject: jest.fn(),
       analyzeProject: jest.fn(),
-    } as never);
+    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never);
 
     const file = {
       originalname: '采购立项申请表.pdf',
@@ -69,7 +69,7 @@ describe('ProjectManagementController', () => {
       deletePermanently,
       completeProject: jest.fn(),
       analyzeProject: jest.fn(),
-    } as never);
+    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never);
 
     await expect(controller.moveToRecycleBin('pm-01', undefined)).resolves.toMatchObject({
       status: 'RECYCLED',
@@ -109,7 +109,7 @@ describe('ProjectManagementController', () => {
       deletePermanently: jest.fn(),
       completeProject: jest.fn(),
       analyzeProject,
-    } as never);
+    } as never, { stampFor: jest.fn().mockResolvedValue({}), resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}) } as never);
 
     await expect(
       controller.analyzeProject('pm-01', 'EXPERT_SELECTION'),

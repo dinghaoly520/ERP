@@ -116,6 +116,10 @@ describe('ImportsService', () => {
         upsert: jest
           .fn()
           .mockResolvedValue({ id: 'supplier-1', name: '供应商' }),
+        // normalizedName 非唯一后改先查再建（findExistingSupplier），mock 直接命中
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'supplier-1', name: '供应商' }),
       },
       // importWorkbook 用 tagged template 取供应商编号序列
       $queryRaw: jest.fn().mockResolvedValue([{ supplier_no: 'SUP-000001' }]),

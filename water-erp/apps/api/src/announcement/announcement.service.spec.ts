@@ -180,6 +180,7 @@ describe('AnnouncementService — syncBidProject 公告直建补 PMI (N16-A)', (
 
     expect(createItemFromAnnouncement).toHaveBeenCalledTimes(1);
     expect(createItemFromAnnouncement).toHaveBeenCalledWith(
+      { companyId: undefined, companyName: undefined }, // 公司归属跟随公告（2026-08-20）
       prisma,
       expect.objectContaining({ title: '公告直建项目X', procurementMethod: '竞价采购', budget: 900000, authorId: 'author-1' }),
     );

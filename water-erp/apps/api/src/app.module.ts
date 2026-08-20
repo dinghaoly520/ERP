@@ -6,6 +6,7 @@ import { RedisModule } from './redis/redis.module';
 import { VerificationModule } from './verification/verification.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { CompanyScopeModule } from './company/company-scope';
 import { BidModule } from './bid/bid.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { NotificationModule } from './notification/notification.module';
@@ -61,6 +62,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
     PrismaModule,
+    CompanyScopeModule,
     RedisModule,
     VerificationModule,
     AuthModule,

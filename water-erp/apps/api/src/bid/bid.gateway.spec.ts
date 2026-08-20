@@ -263,6 +263,10 @@ describe('tokenFromHandshake 门户判定（多 cookie 共存）', () => {
     expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, { origin: 'http://localhost:3004' }))).toBe('sup-jwt');
   });
 
+  it('Origin 端口 3020（supplier-portal-next 迁移版）时优先 token_supplier', () => {
+    expect(tokenFromHandshake(mk(`${WEB}; ${SUP}`, { origin: 'http://localhost:3020' }))).toBe('sup-jwt');
+  });
+
   it('Origin 端口 3006（专家门户）时优先 token_expert', () => {
     expect(tokenFromHandshake(mk(`${WEB}; ${EXP}`, { origin: 'http://localhost:3006' }))).toBe('exp-jwt');
   });

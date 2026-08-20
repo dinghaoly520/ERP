@@ -5,6 +5,9 @@ export class RegisterContactDto {
   @IsString() @IsNotEmpty() @MaxLength(50)
   name: string;
 
+  @IsString() @IsOptional() @MaxLength(10)
+  gender?: string;
+
   @IsString() @IsNotEmpty() @Matches(/^1[3-9]\d{9}$/)
   phone: string;
 

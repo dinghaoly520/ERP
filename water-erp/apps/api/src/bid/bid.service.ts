@@ -169,9 +169,10 @@ export class BidService {
 
   async listProjects(stages?: string[], actor?: { id: string; role: string }, portal?: string) {
     const stageFilter = stages && stages.length > 0 ? { stage: { in: stages as BidStage[] } } : {};
-    // 按端口过滤：bid portal（:3007）只看派给自己的项目；web portal（:3005）看全部
+    // 按端口过滤：bid portal（:3007）只看派给自己的项目；web portal（:3005）按公司隔离（2026-08-20）
     const actorFilter = portal === 'bid' && actor ? { assignedHostUserId: actor.id } : {};
-    const where = { ...stageFilter, ...actorFilter, isExtractionOnly: false };
+    const companyFilter = await this.companyFilterFor(actor, portal);
+    const where = { ...stageFilter, ...actorFilter, ...companyFilter, isExtractionOnly: false };
 
     // 当按阶段筛选时返回精简字段（用于搜索选择器）
     // 无筛选时返回完整字段（用于归档/仪表盘等向后兼容）
@@ -236,11 +237,22 @@ export class BidService {
    * Dashboard 聚合端点：一次返回项目列表 + 就绪状态 + 阶段分布。
    * 避免前端 N+1 次工作区查询，在表格中直接呈现供应商/专家就绪信号。
    */
+
+  /** 公司隔离（2026-08-20）：web 等门户的内部角色（非 admin）仅看本公司项目；
+   *  bid 门户（:3007）沿用"仅看指派"语义，不叠加公司过滤；admin 全量。 */
+  private async companyFilterFor(actor?: { id: string; role: string }, portal?: string): Promise<Record<string, unknown>> {
+    if (portal === 'bid' || !actor || actor.role === 'admin') return {};
+    if (!['leader', 'staff', 'bid_host'].includes(actor.role)) return {};
+    const me = await this.prisma.user.findUnique({ where: { id: actor.id }, select: { companyId: true } });
+    return { companyId: me?.companyId ?? '__no_company__' };
+  }
+
   async getProjectsDashboard(actor?: { id: string; role: string }, portal?: string) {
-    // 按 portal 过滤：bid portal 只看派给自己的；web portal 看全部
+    // 按 portal 过滤：bid portal 只看派给自己的；web portal 按公司隔离（2026-08-20）
     const actorFilter = portal === 'bid' && actor ? { assignedHostUserId: actor.id } : {};
+    const companyFilter = await this.companyFilterFor(actor, portal);
     const projects = await this.prisma.bidProject.findMany({
-      where: { ...actorFilter, isExtractionOnly: false },
+      where: { ...actorFilter, ...companyFilter, isExtractionOnly: false },
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { suppliers: true, experts: true } },
@@ -609,6 +621,7 @@ export class BidService {
   async createFromAnnouncement(
     announcement: { id: string; title: string; publishDate: Date | null },
     metadata: Record<string, any>,
+    companyStamp: { companyId?: string | null; companyName?: string | null } = {},
   ) {
     const procurementMethod = metadata.method || '公开招标';
     const projectCode = await generateProjectCode(this.prisma, procurementMethod);
@@ -635,6 +648,9 @@ export class BidService {
         qualification: metadata.qualification || null,
         contact: metadata.contact || null,
         stage: 'DOWNLOAD',
+        // 公司归属：跟随公告（admin 代发时项目归公告所属公司，而非操作人）
+        companyId: companyStamp.companyId ?? null,
+        companyName: companyStamp.companyName ?? null,
       },
     });
 

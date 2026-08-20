@@ -28,6 +28,8 @@ import { UpdateLinkedRequirementsDto } from './dto/update-linked-requirements.dt
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
+import { UseGuards } from '@nestjs/common';
+import { BidCompanyScopeGuard } from './bid-company-scope.guard';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
 import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
@@ -36,6 +38,7 @@ import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
 @ApiCookieAuth('token')
 @Controller('bid')
 @Roles('admin', 'bid_host', 'leader', 'staff')
+@UseGuards(BidCompanyScopeGuard) // 公司隔离：projects/:id/* 端点跨公司内部角色 403（admin/:3007 被指派人除外）
 export class BidController {
   constructor(
     private readonly bidService: BidService,

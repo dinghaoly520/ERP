@@ -358,6 +358,8 @@ export interface Supplier {
   creditCode: string | null;
   enterpriseType: string;
   legalPerson: string;
+  /** 法定代表人身份证号（注册必填，存量数据可空） */
+  legalPersonIdCard?: string | null;
   registeredAddress: string;
   businessScope: string;
   status: SupplierStatus;
@@ -377,17 +379,52 @@ export interface Supplier {
   _latestEvalLevel?: string | null;
   /** 业务标签（2~8 个，由规则引擎回填 / 人工维护），用于智能选取匹配与可解释性。 */
   tags?: string[];
+  /* ── 注册 2.0 扩展字段（存量数据可空）── */
+  /** 公司 logo */
+  logoUrl?: string | null;
+  /** 机构代码 */
+  organizationCode?: string | null;
+  /** 国别 */
+  country?: string | null;
+  /** 所属行政区域 */
+  region?: string | null;
+  /** 详细地址 */
+  detailedAddress?: string | null;
+  /** 注册资本 */
+  registeredCapital?: string | null;
+  /** 所属行业 */
+  industry?: string | null;
+  /** 法人联系电话 */
+  legalPersonPhone?: string | null;
+  /** 公司邮箱 */
+  companyEmail?: string | null;
+  /** 公司官网地址 */
+  companyWebsite?: string | null;
+  /** 银行账户（注册第 3 部分，可多项） */
+  bankAccounts?: SupplierBankAccount[];
+  /** 主体业绩（注册第 5 部分，可多项） */
+  performances?: SupplierPerformance[];
 }
 
 export interface SupplierContact {
   id: string;
   supplierId: string;
   name: string;
+  /** 性别（男/女，注册 2.0，存量数据可空） */
+  gender?: string | null;
   phone: string;
+  /** 联系人身份证号（注册必填，存量数据可空） */
+  idCard?: string | null;
   email?: string;
   /** 联系人职务（后端 SupplierContact.position，可空） */
   position?: string | null;
   isPrimary: boolean;
+}
+
+/** 文件链接（名称 + url），用于资质附加材料 / 业绩证明材料 */
+export interface FileLink {
+  name: string;
+  url: string;
 }
 
 export interface SupplierQualification {
@@ -396,9 +433,48 @@ export interface SupplierQualification {
   type: string;
   name: string;
   fileUrl: string;
+  /** 附加材料 [{name,url}]（注册 2.0 支持多项上传，存量数据可空） */
+  attachments?: FileLink[] | null;
   validFrom?: string;
   validTo?: string;
   status: string;
+}
+
+/** 供应商银行账户（注册 2.0，可多项） */
+export interface SupplierBankAccount {
+  id: string;
+  supplierId?: string;
+  /** 户名 */
+  accountName: string;
+  /** 开户银行 */
+  bankName: string;
+  /** 开户支行 */
+  bankBranch?: string | null;
+  /** 银行账号 */
+  accountNo: string;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** 供应商主体业绩（注册 2.0，可多项，每项含证明材料） */
+export interface SupplierPerformance {
+  id: string;
+  supplierId?: string;
+  /** 项目名称 */
+  projectName: string;
+  /** 业主/客户名称 */
+  clientName?: string | null;
+  /** 合同金额 */
+  contractAmount?: string | null;
+  /** 签订日期 */
+  signDate?: string | null;
+  /** 业绩描述 */
+  description?: string | null;
+  /** 证明材料 [{name,url}] */
+  proofFiles?: FileLink[] | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface SupplierClassification {

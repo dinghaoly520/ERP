@@ -3614,6 +3614,8 @@ describe('listProjects actor 过滤 (R1 硬分流) — Task 2', () => {
     prisma = {
       bidProject: { findMany: jest.fn().mockResolvedValue([]) },
       projectManagementItem: { findMany: jest.fn().mockResolvedValue([]) },
+      // 公司隔离（2026-08-20）：web 门户内部角色按 companyId 过滤
+      user: { findUnique: jest.fn().mockResolvedValue({ companyId: 'co-x' }) },
     };
     const module = await Test.createTestingModule({
       providers: [
@@ -3638,11 +3640,18 @@ describe('listProjects actor 过滤 (R1 硬分流) — Task 2', () => {
     }));
   });
 
-  it("portal='web' → 不追加 assignedHostUserId 过滤（看到全部）", async () => {
+  it("portal='web' → 内部角色按公司隔离（2026-08-20），不追加 assignedHostUserId", async () => {
     await service.listProjects(undefined, { id: 'leader1', role: 'leader' }, 'web');
     const callArg = prisma.bidProject.findMany.mock.calls[0][0];
     expect(callArg.where).not.toHaveProperty('assignedHostUserId');
+    expect(callArg.where.companyId).toBe('co-x');
     expect(callArg.where.isExtractionOnly).toBe(false);
+  });
+
+  it("portal='web' + admin → 不追加公司过滤（全量）", async () => {
+    await service.listProjects(undefined, { id: 'adm1', role: 'admin' }, 'web');
+    const callArg = prisma.bidProject.findMany.mock.calls[0][0];
+    expect(callArg.where).not.toHaveProperty('companyId');
   });
 
   it('actor 未提供（undefined）→ 不追加过滤（向后兼容）', async () => {

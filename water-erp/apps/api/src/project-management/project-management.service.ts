@@ -13,7 +13,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
 import { htmlToDocxChildren } from './docx/html-to-docx.converter';
-import { getTenderTextCachePath, isLabelLine, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getComplianceCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName } from './docx/file-utils';
+import { getTenderTextCachePath, isLabelLine, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getComplianceCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName, summarizeHtmlDiff } from './docx/file-utils';
 import { parseArchiveTxt } from './docx/archive-txt-parser';
 import { decodeXmlText, extractPlainText, applyTextToParagraphXml } from './docx/paragraph-xml';
 import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractContractAmountFromText, extractAwardedSupplierFromAwardTable, extractAwardedSupplierFromContract, extractContractNumberFromText, extractExpertInfoFromText, extractProjectOverviewFromText } from './docx/field-extractor';
@@ -153,7 +153,11 @@ export class ProjectManagementService {
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
     const where: Record<string, unknown> = {};
 
-    // 所有用户均可见全部项目
+    // 项目可见性（2026-08-20 拍板 1C）：非 admin 仅见本人创建的项目；admin 全量（可结合公司维度统计）
+    // 注意不能写 user?.sub ?? undefined —— Prisma 会忽略 undefined 字段导致退化为全量可见
+    if (user?.role !== 'admin') {
+      where.createdById = user?.sub ?? '__no_user__';
+    }
 
     if (query.keyword) {
       where.OR = [
@@ -226,6 +230,7 @@ export class ProjectManagementService {
    * currentStage 落 BID_EVALUATION（此后 syncPmStage 恢复正常联动）。
    */
   async createItemFromAnnouncement(
+    companyStamp: { companyId?: string | null; companyName?: string | null } = {},
     tx: Prisma.TransactionClient,
     dto: { title: string; procurementMethod: string; budget: number | null; authorId: string | null },
   ): Promise<{ id: string; projectCode: string }> {
@@ -276,6 +281,8 @@ export class ProjectManagementService {
         currentStage: 'BID_EVALUATION',
         status: PROJECT_MANAGEMENT_STATUS.ACTIVE,
         createdById: dto.authorId,
+        companyId: companyStamp.companyId ?? null,
+        companyName: companyStamp.companyName ?? null,
         hasProcurementDemand: false,
       },
     });
@@ -653,7 +660,10 @@ export class ProjectManagementService {
     }
   }
 
-  async createFromInitiation(dto: CreateProjectFromInitiationDto) {
+  async createFromInitiation(
+    dto: CreateProjectFromInitiationDto,
+    companyStamp: { companyId?: string; companyName?: string } = {},
+  ) {
     await this.prisma.department.upsert({
       where: { name: dto.requesterDepartment },
       update: {},
@@ -736,6 +746,8 @@ export class ProjectManagementService {
           currentStage: firstActiveStage,
           status: PROJECT_MANAGEMENT_STATUS.ACTIVE,
           createdById: dto.createdById,
+          companyId: companyStamp.companyId ?? null,
+          companyName: companyStamp.companyName ?? null,
           hasProcurementDemand: dto.hasProcurementDemand,
           demandRequesterName: dto.demandFields?.requesterName ?? null,
           demandDepartment: dto.demandFields?.requesterDepartment ?? null,
@@ -3690,7 +3702,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
           summary?: string;
         };
         if (cached.fingerprint === fingerprint && cached.results && cached.summary) {
-          return { results: cached.results, summary: cached.summary };
+          // 兜底：历史缓存可能含 U+FFFD 乱码（修复前写入），返回前剔除，绝不让 � 落到前端
+          const strip = (s: string) => s.replace(/�/g, '').replace(/[\uDC00-\uDFFF]/g, '');
+          const results = Array.isArray(cached.results)
+            ? cached.results.map((r: any) => ({
+                ...r,
+                evidence: strip(String(r?.evidence ?? '')),
+                suggestion: strip(String(r?.suggestion ?? '')),
+              }))
+            : cached.results;
+          return { results, summary: strip(cached.summary) };
         }
       } catch {
         // 缓存不存在或无效，继续调用 AI
@@ -5951,9 +5972,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (e instanceof ConcurrentEditError) throw new ConflictException(e.message);
         throw e;
       }
-      // 归档旧版本（回滚保险）
+      // 生成变更摘要（旧 HTML vs 新 HTML 的差异行概要，供前端"修改历史"弹窗展示）
+      const changeSummary = await summarizeHtmlDiff(oldBuffer, dto.html);
+      // 归档旧版本（回滚保险）+ 记录变更摘要
       await this.archiveAttachmentVersion(
-        oldAttachment.id, oldAttachment.objectKey, oldBuffer.length, oldHash, uploadedById,
+        oldAttachment.id, oldAttachment.objectKey, oldBuffer.length, oldHash, uploadedById, changeSummary,
       );
     } else {
       // legacy 回退：整体重建
@@ -5991,13 +6014,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return { success: true, attachmentId: oldAttachment.id };
   }
 
-  /** 归档当前 DOCX 到 tender-doc-versions/ 并写一条 AttachmentVersion 记录。 */
+  /** 归档当前 DOCX 到 tender-doc-versions/ 并写一条 AttachmentVersion 记录（含变更摘要）。 */
   private async archiveAttachmentVersion(
     attachmentId: string,
     objectKey: string,
     fileSize: number,
     originalHash: string,
     userId?: string,
+    changeSummary?: string,
   ) {
     const src = resolve(process.cwd(), 'uploads', objectKey);
     const data = await readFile(src);
@@ -6006,7 +6030,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
     await mkdir(dirname(dest), { recursive: true });
     await writeFile(dest, data);
     await this.prisma.attachmentVersion.create({
-      data: { attachmentId, objectKey: versionKey, fileSize, originalHash, createdById: userId },
+      data: {
+        attachmentId, objectKey: versionKey, fileSize, originalHash,
+        createdById: userId,
+        ...(changeSummary ? { changeSummary } : {}),
+      },
     });
   }
 
@@ -6021,6 +6049,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
         originalHash: true,
         createdAt: true,
         createdById: true,
+        changeSummary: true,
+        createdBy: { select: { username: true, displayName: true } },
       },
     });
   }

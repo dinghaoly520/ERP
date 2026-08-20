@@ -72,14 +72,7 @@ export class SupplierService {
       throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
     }
 
-    // 检查企业名称是否重复（标准化）
-    const normalizedName = dto.name.trim().toLowerCase();
-    const existingName = await this.prisma.supplier.findUnique({
-      where: { normalizedName },
-    });
-    if (existingName) {
-      throw new BadRequestException({ error: '企业名称已存在', code: 'DUPLICATE_NAME' });
-    }
+    // 公司名允许重复，不再按名称查重；唯一标识由统一社会信用代码（creditCode）承担（上方已查重）
 
     // 检查用户名是否重复
     const existingUser = await this.prisma.user.findFirst({
@@ -87,6 +80,29 @@ export class SupplierService {
     });
     if (existingUser) {
       throw new BadRequestException({ error: '用户名已存在', code: 'DUPLICATE_USERNAME' });
+    }
+
+    // 法定代表人身份证号查重（软约束：同一法人身份证号不允许重复注册）
+    if (dto.legalPersonIdCard) {
+      const existingLegal = await this.prisma.supplier.findFirst({
+        where: { legalPersonIdCard: dto.legalPersonIdCard },
+        select: { id: true },
+      });
+      if (existingLegal) {
+        throw new BadRequestException({ error: '该法定代表人身份证号已用于其他供应商注册', code: 'DUPLICATE_LEGAL_ID_CARD' });
+      }
+    }
+
+    // 联系人身份证号查重（软约束：同一联系人身份证号不允许重复注册）
+    const contactIdCards = dto.contacts.map(c => c.idCard?.trim()).filter((x): x is string => !!x);
+    if (contactIdCards.length > 0) {
+      const existingContact = await this.prisma.supplierContact.findFirst({
+        where: { idCard: { in: contactIdCards } },
+        select: { id: true },
+      });
+      if (existingContact) {
+        throw new BadRequestException({ error: '该联系人身份证号已用于其他供应商注册', code: 'DUPLICATE_CONTACT_ID_CARD' });
+      }
     }
 
     // 创建用户和供应商 — 事务保证原子性
@@ -108,17 +124,28 @@ export class SupplierService {
           userId: user.id,
           supplierNo,
           name: dto.name,
-          normalizedName,
+          normalizedName: dto.name.trim().toLowerCase(),
           creditCode: dto.creditCode,
           enterpriseType: dto.enterpriseType,
           legalPerson: dto.legalPerson,
           legalPersonIdCard: dto.legalPersonIdCard || null,
+          legalPersonPhone: dto.legalPersonPhone || null,
           registeredAddress: dto.registeredAddress,
+          detailedAddress: dto.detailedAddress || null,
           businessScope: dto.businessScope,
+          logoUrl: dto.logoUrl || null,
+          organizationCode: dto.organizationCode || null,
+          country: dto.country || null,
+          region: dto.region || null,
+          registeredCapital: dto.registeredCapital || null,
+          industry: dto.industry || null,
+          companyEmail: dto.companyEmail || null,
+          companyWebsite: dto.companyWebsite || null,
           tags: dto.tags,
           contacts: {
             create: dto.contacts.map(c => ({
               name: c.name,
+              gender: c.gender || null,
               phone: c.phone,
               idCard: c.idCard,
               email: c.email,
@@ -131,14 +158,36 @@ export class SupplierService {
               type: q.type,
               name: q.name,
               fileUrl: q.fileUrl,
+              attachments: (q as any).attachments ?? undefined,
               validFrom: q.validFrom ? new Date(q.validFrom) : undefined,
               validTo: q.validTo ? new Date(q.validTo) : undefined,
             })),
           },
+          bankAccounts: dto.bankAccounts?.length ? {
+            create: dto.bankAccounts.map(b => ({
+              accountName: b.accountName,
+              bankName: b.bankName,
+              bankBranch: b.bankBranch || null,
+              accountNo: b.accountNo,
+              isDefault: b.isDefault ?? false,
+            })),
+          } : undefined,
+          performances: dto.performances?.length ? {
+            create: dto.performances.map(p => ({
+              projectName: p.projectName,
+              clientName: p.clientName || null,
+              contractAmount: p.contractAmount || null,
+              signDate: p.signDate ? new Date(p.signDate) : undefined,
+              description: p.description || null,
+              proofFiles: p.proofFiles ?? [],
+            })),
+          } : undefined,
         },
         include: {
           contacts: true,
           qualifications: true,
+          bankAccounts: true,
+          performances: true,
         },
       });
 
@@ -275,10 +324,8 @@ export class SupplierService {
     }
 
     const normalizedName = dto.name.trim().toLowerCase();
-    // 企业名称即登录用户名：同名企业 = 同 username，与 normalizedName 唯一性一致
+    // 企业名称即登录用户名（同名企业允许重复，但用户名仍须唯一，由下方 existingUser 查重拦截）
     const username = dto.name.trim();
-    const existingName = await this.prisma.supplier.findUnique({ where: { normalizedName } });
-    if (existingName) throw new BadRequestException({ error: '企业名称已存在', code: 'DUPLICATE_NAME' });
     const existingCredit = await this.prisma.supplier.findUnique({ where: { creditCode: dto.creditCode.trim() } });
     if (existingCredit) throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
     const existingUser = await this.prisma.user.findFirst({ where: { username, role: 'supplier' } });
@@ -548,6 +595,8 @@ export class SupplierService {
         classification: true,
         contacts: true,
         qualifications: true,
+        bankAccounts: { orderBy: { createdAt: 'asc' } },
+        performances: { orderBy: { createdAt: 'desc' } },
         evaluations: { orderBy: { createdAt: 'desc' }, take: 10 },
         changeRecords: { orderBy: { createdAt: 'desc' }, take: 10 },
       },
@@ -581,10 +630,113 @@ export class SupplierService {
     return { found: true as const, name: supplier.name, status: supplier.status, reason };
   }
 
+  /** 查询供应商审核历史（不可变留痕，按时间倒序）。 */
+  async getApprovalHistory(supplierId: string) {
+    const records = await this.prisma.supplierApprovalRecord.findMany({
+      where: { supplierId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, action: true, reason: true, snapshot: true, createdAt: true,
+        reviewer: { select: { id: true, displayName: true, username: true } },
+      },
+    });
+    return records;
+  }
+
+  /** 注册前查重：统一社会信用代码（组织机构代码，硬拦截）、法定代表人身份证号、联系人身份证号（软提示）。
+   *  公开端点，只回传「是否重复」布尔值，不回传命中的供应商名称/编号等敏感信息。 */
+  async checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string }) {
+    const result: { creditCode: boolean; legalPersonIdCard: boolean; contactIdCard: boolean } = {
+      creditCode: false,
+      legalPersonIdCard: false,
+      contactIdCard: false,
+    };
+
+    const creditCode = (fields.creditCode ?? '').trim().toUpperCase();
+    if (creditCode) {
+      const hit = await this.prisma.supplier.findFirst({
+        where: { creditCode },
+        select: { id: true },
+      });
+      result.creditCode = !!hit;
+    }
+
+    const legalPersonIdCard = (fields.legalPersonIdCard ?? '').trim();
+    if (legalPersonIdCard) {
+      const hit = await this.prisma.supplier.findFirst({
+        where: { legalPersonIdCard },
+        select: { id: true },
+      });
+      result.legalPersonIdCard = !!hit;
+    }
+
+    const contactIdCard = (fields.contactIdCard ?? '').trim();
+    if (contactIdCard) {
+      const hit = await this.prisma.supplierContact.findFirst({
+        where: { idCard: contactIdCard },
+        select: { id: true },
+      });
+      result.contactIdCard = !!hit;
+    }
+
+    return result;
+  }
+
   private async audit(userId: string, action: string, resourceId: string, details?: any) {
     // 审计写入失败不应阻断业务流程，但必须可观测——静默吞错会让 DB 故障期的合规审计悄悄丢失。
     await this.prisma.auditLog.create({ data: { userId, action, resourceType: 'supplier', resourceId, details: details ?? {} } })
       .catch((err: any) => console.error(`[audit] 写入失败 action=${action} resource=${resourceId}`, err?.message ?? err));
+  }
+
+  /** 构建审核历史快照：审核时点申请全部信息（不可变留痕的数据源） */
+  private async buildApprovalSnapshot(supplierId: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      include: {
+        contacts: { orderBy: { isPrimary: 'desc' } },
+        qualifications: true,
+        bankAccounts: true,
+        performances: true,
+        user: { select: { username: true, displayName: true, email: true } },
+      },
+    });
+    if (!supplier) return null;
+    return {
+      name: supplier.name,
+      creditCode: supplier.creditCode,
+      supplierNo: supplier.supplierNo,
+      enterpriseType: supplier.enterpriseType,
+      legalPerson: supplier.legalPerson,
+      legalPersonIdCard: supplier.legalPersonIdCard,
+      legalPersonPhone: supplier.legalPersonPhone,
+      registeredAddress: supplier.registeredAddress,
+      detailedAddress: supplier.detailedAddress,
+      businessScope: supplier.businessScope,
+      logoUrl: supplier.logoUrl,
+      organizationCode: supplier.organizationCode,
+      country: supplier.country,
+      region: supplier.region,
+      registeredCapital: supplier.registeredCapital,
+      industry: supplier.industry,
+      companyEmail: supplier.companyEmail,
+      companyWebsite: supplier.companyWebsite,
+      tags: supplier.tags,
+      isTemporary: supplier.isTemporary,
+      account: { username: supplier.user?.username, displayName: supplier.user?.displayName, email: supplier.user?.email },
+      contacts: supplier.contacts.map(c => ({ name: c.name, gender: c.gender, phone: c.phone, idCard: c.idCard, email: c.email, position: c.position, isPrimary: c.isPrimary })),
+      qualifications: supplier.qualifications.map(q => ({ type: q.type, name: q.name, fileUrl: q.fileUrl, attachments: q.attachments, validFrom: q.validFrom, validTo: q.validTo })),
+      bankAccounts: supplier.bankAccounts.map(b => ({ id: b.id, accountName: b.accountName, bankName: b.bankName, bankBranch: b.bankBranch, accountNo: b.accountNo, isDefault: b.isDefault })),
+      performances: supplier.performances.map(p => ({ id: p.id, projectName: p.projectName, clientName: p.clientName, contractAmount: p.contractAmount, signDate: p.signDate, description: p.description, proofFiles: p.proofFiles })),
+    };
+  }
+
+  /** 写入不可变审核历史（approve/reject/return 调用）。失败不阻断审核流程但记录告警。 */
+  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED', reviewerUserId: string | undefined, reason?: string) {
+    const snapshot = await this.buildApprovalSnapshot(supplierId);
+    if (!snapshot) return;
+    await this.prisma.supplierApprovalRecord.create({
+      data: { supplierId, action, reviewerUserId: reviewerUserId ?? null, reason: reason ?? null, snapshot },
+    }).catch((err: any) => console.error(`[approval-record] 写入失败 supplier=${supplierId} action=${action}`, err?.message ?? err));
   }
 
   async approve(id: string, userId?: string) {
@@ -621,6 +773,7 @@ export class SupplierService {
     });
 
     if (userId) await this.audit(userId, 'SUPPLIER_APPROVED', id, { name: supplier.name });
+    await this.recordApproval(id, 'APPROVED', userId);
 
     return { success: true };
   }
@@ -656,6 +809,7 @@ export class SupplierService {
     });
 
     if (userId) await this.audit(userId, 'SUPPLIER_REJECTED', id, { name: supplier.name, reason });
+    await this.recordApproval(id, 'REJECTED', userId, reason);
 
     return result;
   }
@@ -692,6 +846,7 @@ export class SupplierService {
     });
 
     if (userId) await this.audit(userId, 'SUPPLIER_RETURNED', id, { name: supplier.name, reason });
+    await this.recordApproval(id, 'RETURNED', userId, reason);
 
     return result;
   }
@@ -898,14 +1053,8 @@ export class SupplierService {
 
       const data: Record<string, any> = { [change.fieldName]: change.newValue };
       if (change.fieldName === 'name') {
+        // 公司名允许重复，不再按 normalizedName 查重；仅同步 normalizedName 与用户名（用户名仍须唯一，见下）
         const normalizedName = String(change.newValue).trim().toLowerCase();
-        const dup = await tx.supplier.findFirst({
-          where: { normalizedName, NOT: { id: change.supplierId } },
-          select: { id: true },
-        });
-        if (dup) {
-          throw new BadRequestException({ error: '变更后的企业名称与已有供应商重复', code: 'DUPLICATE_NAME' });
-        }
         data.normalizedName = normalizedName;
         // S-2：企业名即登录用户名，同步 user.username（防改名后无法登录）
         const newName = String(change.newValue).trim();
@@ -930,6 +1079,58 @@ export class SupplierService {
           if (e instanceof BadRequestException) throw e;
           throw new BadRequestException({ error: '业务标签格式不正确', code: 'INVALID_TAGS' });
         }
+      }
+
+      // ── 聚合字段：JSON 整体替换子表（非 supplier 列，须从 data 中剔除）──
+      if (change.fieldName === 'bankAccounts') {
+        let parsed: any[];
+        try { parsed = JSON.parse(change.newValue || '[]'); if (!Array.isArray(parsed)) throw new Error(); }
+        catch { throw new BadRequestException({ error: '银行账户格式不正确', code: 'INVALID_BANK_ACCOUNTS' }); }
+        await tx.supplierBankAccount.deleteMany({ where: { supplierId: change.supplierId } });
+        for (const b of parsed) {
+          if (!b?.accountName || !b?.bankName || !b?.accountNo) {
+            throw new BadRequestException({ error: '银行账户信息不完整（户名/开户银行/账号必填）', code: 'INVALID_BANK_ACCOUNTS' });
+          }
+          await tx.supplierBankAccount.create({
+            data: {
+              supplierId: change.supplierId,
+              accountName: String(b.accountName),
+              bankName: String(b.bankName),
+              bankBranch: b.bankBranch ? String(b.bankBranch) : null,
+              accountNo: String(b.accountNo),
+              isDefault: !!b.isDefault,
+            },
+          });
+        }
+        delete data[change.fieldName];
+      }
+
+      if (change.fieldName === 'performances') {
+        let parsed: any[];
+        try { parsed = JSON.parse(change.newValue || '[]'); if (!Array.isArray(parsed)) throw new Error(); }
+        catch { throw new BadRequestException({ error: '业绩格式不正确', code: 'INVALID_PERFORMANCES' }); }
+        await tx.supplierPerformance.deleteMany({ where: { supplierId: change.supplierId } });
+        for (const p of parsed) {
+          if (!p?.projectName) {
+            throw new BadRequestException({ error: '业绩项目名称必填', code: 'INVALID_PERFORMANCES' });
+          }
+          const proofFiles = Array.isArray(p.proofFiles) ? p.proofFiles : [];
+          if (proofFiles.length === 0) {
+            throw new BadRequestException({ error: '业绩须包含证明材料', code: 'INVALID_PERFORMANCES' });
+          }
+          await tx.supplierPerformance.create({
+            data: {
+              supplierId: change.supplierId,
+              projectName: String(p.projectName),
+              clientName: p.clientName ? String(p.clientName) : null,
+              contractAmount: p.contractAmount ? String(p.contractAmount) : null,
+              signDate: p.signDate ? new Date(p.signDate) : null,
+              description: p.description ? String(p.description) : null,
+              proofFiles,
+            },
+          });
+        }
+        delete data[change.fieldName];
       }
 
       await tx.supplier.update({ where: { id: change.supplierId }, data });
@@ -1386,8 +1587,12 @@ export class SupplierService {
   /* ── 供应商生命周期时间线 ── */
   /** 管理员直接修改供应商业务标签（不走变更审批流程） */
   async updateTags(supplierId: string, tags: string[], reviewerId: string) {
-    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { id: true, name: true, tags: true } });
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { id: true, name: true, tags: true, status: true } });
     if (!supplier) throw new NotFoundException('供应商不存在');
+    // 待审核 / 退回补正期间资料暂不可修改（业务标签属资料维护，须审核通过后）
+    if (supplier.status === 'PENDING' || supplier.status === 'RETURNED') {
+      throw new BadRequestException({ error: '待审核期间资料暂不可修改，请先完成审核', code: 'SUPPLIER_PENDING_REVIEW' });
+    }
     const cleaned = tags.filter(t => typeof t === 'string' && t.trim()).slice(0, 8);
     if (cleaned.length < 2) throw new BadRequestException({ error: '业务标签至少保留 2 个', code: 'INVALID_TAGS' });
     await this.prisma.supplier.update({ where: { id: supplierId }, data: { tags: cleaned } });

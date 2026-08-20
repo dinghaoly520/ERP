@@ -132,6 +132,8 @@ export class SupplierPortalService {
         classification: true,
         contacts: { orderBy: { isPrimary: 'desc' } },
         qualifications: { orderBy: { createdAt: 'desc' } },
+        bankAccounts: { orderBy: { createdAt: 'asc' } },
+        performances: { orderBy: { createdAt: 'desc' } },
         _count: { select: { evaluations: true, changeRecords: true } },
       },
     });

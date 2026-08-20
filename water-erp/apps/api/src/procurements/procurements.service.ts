@@ -10,7 +10,6 @@ import { ResultStatus, SourceType } from '@prisma/client';
 import { CreateProcurementRoundDto } from './dto/create-procurement-round.dto';
 import { UpdateProcurementRoundDto } from './dto/update-procurement-round.dto';
 import { QueryProcurementsDto } from './dto/query-procurements.dto';
-import { canViewGlobalBusinessData } from '../auth/auth-scope';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { createHash } from 'node:crypto';
 
@@ -45,13 +44,30 @@ export class ProcurementsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  private checkOwnership(round: { createdById: string | null }, user: AuthenticatedUser) {
-    if (!canViewGlobalBusinessData(user.role) && round.createdById !== user.sub) {
-      throw new ForbiddenException('无权操作此采购记录。');
+  /** 按公司名查找供应商，不存在则创建（normalizedName 已非唯一，不能用 upsert where normalizedName） */
+  private async findOrCreateSupplierByName(name: string) {
+    const normalizedName = this.normalizeName(name);
+    const existing = await this.prisma.supplier.findFirst({ where: { normalizedName }, select: { id: true } });
+    if (existing) return existing;
+    return this.prisma.supplier.create({ data: await this.makeSupplier(name) });
+  }
+
+  private checkOwnership(
+    round: { companyId?: string | null },
+    user: AuthenticatedUser,
+    companyFilter: { companyId?: string },
+  ) {
+    // 公司隔离（2026-08-20）：admin 视野（filter 为空对象）放行；其余仅限本公司数据
+    if (companyFilter.companyId && round.companyId !== companyFilter.companyId) {
+      throw new ForbiddenException({ error: '该采购记录不属于本公司，无权访问', code: 'COMPANY_SCOPE_FORBIDDEN' });
     }
   }
 
-  async findAll(query: QueryProcurementsDto, user: AuthenticatedUser) {
+  async findAll(
+    query: QueryProcurementsDto,
+    user: AuthenticatedUser,
+    companyFilter: { companyId?: string } = {},
+  ) {
     const {
       page,
       pageSize,
@@ -92,9 +108,8 @@ export class ProcurementsService {
       where.resultStatus = resultStatus;
     }
 
-    if (!canViewGlobalBusinessData(user.role)) {
-      where.createdById = user.sub;
-    }
+    // 公司隔离（2026-08-20）：按公司划归取代原个人/全局分野——非 admin 只见本公司
+    Object.assign(where, companyFilter);
 
     if (searchKeyword) {
       where.OR = [
@@ -177,7 +192,7 @@ export class ProcurementsService {
     };
   }
 
-  async findOne(id: string, user: AuthenticatedUser) {
+  async findOne(id: string, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
     const round = await this.prisma.procurementRound.findUnique({
       where: { id },
       include: {
@@ -195,12 +210,16 @@ export class ProcurementsService {
       throw new NotFoundException(`Procurement round ${id} not found`);
     }
 
-    this.checkOwnership(round, user);
+    this.checkOwnership(round, user, companyFilter);
 
     return this.formatRound(round);
   }
 
-  async create(dto: CreateProcurementRoundDto, userId?: string) {
+  async create(
+    dto: CreateProcurementRoundDto,
+    userId?: string,
+    companyStamp: { companyId?: string; companyName?: string } = {},
+  ) {
     // Handle department
     let departmentId: string | null = null;
     if (dto.departmentId) {
@@ -235,11 +254,7 @@ export class ProcurementsService {
     if (dto.awardedSupplierId) {
       awardedSupplierId = dto.awardedSupplierId;
     } else if (dto.awardedSupplierName) {
-      const supplier = await this.prisma.supplier.upsert({
-        where: { normalizedName: this.normalizeName(dto.awardedSupplierName) },
-        update: { name: dto.awardedSupplierName },
-        create: await this.makeSupplier(dto.awardedSupplierName),
-      });
+      const supplier = await this.findOrCreateSupplierByName(dto.awardedSupplierName);
       awardedSupplierId = supplier.id;
     }
 
@@ -265,6 +280,9 @@ export class ProcurementsService {
             resultText: dto.resultText,
             sourceType: SourceType.MANUAL,
             createdById: userId,
+            // 公司归属（写时快照）：隔离与统计的依据
+            companyId: companyStamp.companyId ?? null,
+            companyName: companyStamp.companyName ?? null,
           },
         });
         break;
@@ -298,11 +316,7 @@ export class ProcurementsService {
 
     for (const [i, name] of supplierNames.entries()) {
       if (!supplierIds[i]) {
-        const supplier = await this.prisma.supplier.upsert({
-          where: { normalizedName: this.normalizeName(name) },
-          update: { name },
-          create: await this.makeSupplier(name),
-        });
+        const supplier = await this.findOrCreateSupplierByName(name);
         await this.prisma.roundParticipant.create({
           data: {
             procurementRoundId: round.id,
@@ -316,7 +330,7 @@ export class ProcurementsService {
     return this.findOne(round.id, { sub: userId!, username: '', role: 'admin' } as AuthenticatedUser);
   }
 
-  async update(id: string, dto: UpdateProcurementRoundDto, user: AuthenticatedUser) {
+  async update(id: string, dto: UpdateProcurementRoundDto, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
     const existing = await this.prisma.procurementRound.findUnique({
       where: { id },
     });
@@ -325,7 +339,7 @@ export class ProcurementsService {
       throw new NotFoundException(`Procurement round ${id} not found`);
     }
 
-    this.checkOwnership(existing, user);
+    this.checkOwnership(existing, user, companyFilter);
 
     // Handle department update
     let departmentId: string | null = existing.departmentId;
@@ -345,11 +359,7 @@ export class ProcurementsService {
     if (dto.awardedSupplierId) {
       awardedSupplierId = dto.awardedSupplierId;
     } else if (dto.awardedSupplierName) {
-      const supplier = await this.prisma.supplier.upsert({
-        where: { normalizedName: this.normalizeName(dto.awardedSupplierName) },
-        update: { name: dto.awardedSupplierName },
-        create: await this.makeSupplier(dto.awardedSupplierName),
-      });
+      const supplier = await this.findOrCreateSupplierByName(dto.awardedSupplierName);
       awardedSupplierId = supplier.id;
     }
 
@@ -381,7 +391,7 @@ export class ProcurementsService {
     return this.findOne(id, user);
   }
 
-  async moveToRecycleBin(id: string, user: AuthenticatedUser) {
+  async moveToRecycleBin(id: string, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
     const existing = await this.prisma.procurementRound.findUnique({
       where: { id },
     });
@@ -390,7 +400,7 @@ export class ProcurementsService {
       throw new NotFoundException(`Procurement round ${id} not found`);
     }
 
-    this.checkOwnership(existing, user);
+    this.checkOwnership(existing, user, companyFilter);
 
     return this.prisma.procurementRound.update({
       where: { id },
@@ -398,7 +408,7 @@ export class ProcurementsService {
     });
   }
 
-  async restoreFromRecycleBin(id: string, user: AuthenticatedUser) {
+  async restoreFromRecycleBin(id: string, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
     const existing = await this.prisma.procurementRound.findUnique({
       where: { id },
     });
@@ -407,7 +417,7 @@ export class ProcurementsService {
       throw new NotFoundException(`Procurement round ${id} not found`);
     }
 
-    this.checkOwnership(existing, user);
+    this.checkOwnership(existing, user, companyFilter);
 
     return this.prisma.procurementRound.update({
       where: { id },
@@ -415,7 +425,7 @@ export class ProcurementsService {
     });
   }
 
-  async remove(id: string, user: AuthenticatedUser) {
+  async remove(id: string, user: AuthenticatedUser, companyFilter: { companyId?: string } = {}) {
     const existing = await this.prisma.procurementRound.findUnique({
       where: { id },
     });
@@ -424,7 +434,7 @@ export class ProcurementsService {
       throw new NotFoundException(`Procurement round ${id} not found`);
     }
 
-    this.checkOwnership(existing, user);
+    this.checkOwnership(existing, user, companyFilter);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.roundParticipant.deleteMany({
@@ -438,7 +448,12 @@ export class ProcurementsService {
     return { deleted: true, id };
   }
 
-  async getStats(startDate?: string, endDate?: string, user?: AuthenticatedUser) {
+  async getStats(
+    startDate?: string,
+    endDate?: string,
+    user?: AuthenticatedUser,
+    companyFilter: { companyId?: string } = {},
+  ) {
     const where: any = {};
 
     if (startDate || endDate) {
@@ -447,9 +462,8 @@ export class ProcurementsService {
       if (endDate) where.procurementDate.lte = new Date(endDate);
     }
 
-    if (user && !canViewGlobalBusinessData(user.role)) {
-      where.createdById = user.sub;
-    }
+    // 公司隔离（2026-08-20）：统计聚合在隔离后的数据集上计算
+    Object.assign(where, companyFilter);
 
     const [
       totalCount,

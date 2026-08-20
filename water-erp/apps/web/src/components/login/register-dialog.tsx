@@ -4,6 +4,7 @@ import { CheckCircle2, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/workbench";
 import { sendRegistrationCode, registerUser, fetchRegistrationCompanies } from "@/lib/api/auth";
+import { REGISTER_AGREEMENT_TITLE, REGISTER_AGREEMENT } from "./register-agreement";
 
 type RegisterDialogProps = {
   isOpen: boolean;
@@ -48,6 +49,8 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [companies, setCompanies] = useState<string[]>([]);
+  const [agreed, setAgreed] = useState(false);
+  const [showAgreement, setShowAgreement] = useState(false);
 
   // 打开弹窗时拉取已知公司列表（下拉建议；后端会归一化手输变体）
   useEffect(() => {
@@ -128,6 +131,10 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
       setErrorMessage("请选择申请权限");
       return;
     }
+    if (!agreed) {
+      setErrorMessage("请先阅读并同意注册协议");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -188,10 +195,10 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
           <CheckCircle2 size={40} className="text-[var(--success)]" strokeWidth={1.5} />
           <div>
             <div className="text-sm font-semibold text-[var(--foreground)]">
-              注册申请已提交
+              注册申请已提交，等待审核
             </div>
             <p className="text-xs text-[var(--muted-foreground)] mt-2 leading-relaxed max-w-[20rem]">
-              您的账号需要管理员审核通过后才能登录使用。请耐心等待，审核结果将通过系统通知告知。
+              您的账号需管理员审核通过后方可登录使用。审核期间申请资料不可修改，请耐心等待；若被拒绝，可重新提交注册。
             </p>
           </div>
         </div>
@@ -428,12 +435,63 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
               />
             </label>
 
+            <div className="flex items-start gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="register-agree"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
+              />
+              <label htmlFor="register-agree" className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+                我已阅读并同意
+                <button
+                  type="button"
+                  onClick={() => setShowAgreement(true)}
+                  className="mx-1 font-medium text-[var(--accent)] underline underline-offset-2 hover:opacity-80"
+                >
+                  《{REGISTER_AGREEMENT_TITLE}》
+                </button>
+              </label>
+            </div>
+
             {errorMessage && (
               <p className="text-xs text-[var(--danger)] pt-1">{errorMessage}</p>
             )}
           </form>
         </>
       )}
+
+      {/* 协议展示窗口 */}
+      <Modal
+        open={showAgreement}
+        onClose={() => setShowAgreement(false)}
+        title={REGISTER_AGREEMENT_TITLE}
+        size="lg"
+        footer={
+          <button
+            type="button"
+            onClick={() => {
+              setAgreed(true);
+              setShowAgreement(false);
+            }}
+            className="neu-btn-primary"
+          >
+            我已阅读并同意
+          </button>
+        }
+      >
+        <div className="space-y-4 text-sm leading-relaxed text-[var(--foreground)]">
+          {REGISTER_AGREEMENT.map((section, i) => (
+            <div key={i}>
+              <h3 className="mb-1.5 font-semibold text-[var(--foreground)]">{section.heading}</h3>
+              <p className="whitespace-pre-line text-[13px] leading-6 text-[var(--muted-foreground)]">
+                {section.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </Modal>
   );
 }

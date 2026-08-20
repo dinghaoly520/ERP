@@ -162,7 +162,7 @@ export class AiService {
 
     const input = text + projectContext;
     const polished = await this.llm.chat(system, input, 0.3);
-    return { polished: polished.trim() || text };
+    return { polished: await this.sanitizeAiText(polished.trim() || text) };
   }
 
   /**
@@ -227,7 +227,7 @@ export class AiService {
 
     const input = `当前「${fieldLabel}」内容：\n${text}${ctxLine}${docContext}`;
     const polished = await this.llm.chat(system, input, 0.3);
-    return { polished: polished.trim() || text };
+    return { polished: await this.sanitizeAiText(polished.trim() || text) };
   }
 
   /** 生成通知供应商的文案（标题+正文），并可选地为每家候选生成无登录回执链接（RSVP）。
@@ -428,7 +428,8 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
     try {
       const result = await this.llm.chatJson<{ title: string; body: string }>(system, userPrompt, 0.3);
       const notifyTitle = `关于${context.projectName || '采购项目'}采购项目候选供应商邀请的通知`;
-      return { title: notifyTitle, body: ensureRsvpCta(result.body || ''), rsvpTokens, invitationId };
+      const body = await this.sanitizeAiText(result.body || '');
+      return { title: notifyTitle, body: ensureRsvpCta(body), rsvpTokens, invitationId };
     } catch {
       const names = context.supplierNames.slice(0, 3).join('、') + (context.supplierNames.length > 3 ? `等 ${context.supplierNames.length} 家` : '');
       const base2 = `${names} 您好！\n\n您已被初步筛选为「${context.projectName || '相关项目'}」（${context.procurementMethod || '采购'}）的候选供应商。`;
@@ -471,7 +472,7 @@ ${hasRsvp ? `- ★★ 正文必须包含且仅包含一次占位符 {rsvpLink}�
         undefined,
         { maxTokens: 500, timeoutMs: 30_000 },
       );
-      return (summary || '').replace(/```[^]*?```/g, '').trim().slice(0, 500);
+      return await this.sanitizeAiText((summary || '').replace(/```[^]*?```/g, '').trim().slice(0, 500));
     } catch {
       // 降级：直接拼接三方内容
       const fallback = [projectReason, supplierRequirements, projectOverview]
@@ -594,18 +595,18 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
       });
       return {
         date: context.date,
-        headerGreeting: this.trimLeadingPunctuation(result.headerGreeting) || `今天有${totalItems}项任务需要关注，${criticalCount}项比较紧急。别担心，按优先级一步步处理就好。`,
+        headerGreeting: await this.sanitizeAiText(this.trimLeadingPunctuation(result.headerGreeting) || `今天有${totalItems}项任务需要关注，${criticalCount}项比较紧急。别担心，按优先级一步步处理就好。`),
         namePraise: result.namePraise || '',
         dailyGreeting: '',
-        riskSummary: result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控'),
+        riskSummary: await this.sanitizeAiText(result.riskSummary || (todoCount > 5 ? '待办事项较多' : '风险可控')),
         aiSuggestion: '',
-        overview: result.overview || `共${totalItems}项任务 | ${todoCount}待办`,
+        overview: await this.sanitizeAiText(result.overview || `共${totalItems}项任务 | ${todoCount}待办`),
         focusItems: result.focusItems || [],
         timeBlocks: safeTimeBlocks,
         riskAlerts: result.riskAlerts || [],
         completionAdvice: '',
-        projectBrief: result.projectBrief || '',
-        dailyQuote: result.dailyQuote || '',
+        projectBrief: await this.sanitizeAiText(result.projectBrief || ''),
+        dailyQuote: await this.sanitizeAiText(result.dailyQuote || ''),
       };
     } catch {
       return {
@@ -1249,10 +1250,13 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
 
     if (llm && llm.recommendations.length > 0) {
       engine = 'deepseek';
-      summary = llm.summary;
-      recommendations = llm.recommendations
+      summary = await this.sanitizeAiText(llm.summary);
+      const recs = llm.recommendations
         .map((r) => this.toRecommendation(r.id, r.score, r.reason, supplierMap, enrichment))
         .filter((r): r is SupplierRecommendation => r !== null);
+      recommendations = await Promise.all(
+        recs.map(async (r) => ({ ...r, reason: await this.sanitizeAiText(r.reason) })),
+      );
     } else {
       engine = 'rules';
       summary = this.fallbackSummary(pool.length, !!opts.classificationId, maxCount);
@@ -1517,12 +1521,20 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
         })
       ).trim();
       const parsed = JSON.parse(text);
+      const moduleInsights = Array.isArray(parsed.moduleInsights)
+        ? parsed.moduleInsights.filter((m: any) => m.module && m.analysis)
+        : [];
       return {
-        overview: parsed.overview || '运营态势正常',
-        moduleInsights: Array.isArray(parsed.moduleInsights) ? parsed.moduleInsights.filter((m: any) => m.module && m.analysis) : [],
-        crossInsight: parsed.crossInsight || '',
+        overview: await this.sanitizeAiText(parsed.overview || '运营态势正常'),
+        moduleInsights: await Promise.all(
+          moduleInsights.map(async (m: any) => ({ ...m, analysis: await this.sanitizeAiText(m.analysis) })),
+        ),
+        crossInsight: await this.sanitizeAiText(parsed.crossInsight || ''),
         highlights: Array.isArray(parsed.highlights) ? parsed.highlights.filter((h: any) => h.module && h.path) : [],
-        suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.filter((s: any) => s.text && s.path) : [],
+        suggestions: await Promise.all(
+          (Array.isArray(parsed.suggestions) ? parsed.suggestions.filter((s: any) => s.text && s.path) : [])
+            .map(async (s: any) => ({ ...s, text: await this.sanitizeAiText(s.text) })),
+        ),
       };
     } catch (err: any) {
       this.logger.warn(`DeepSeek dashboard-summary error: ${err.message}`);
@@ -2076,6 +2088,43 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     return s.replace(/^[\s。，、；：！？.,;:!?'""''（）()【】《》<>\[\]\-—~·…]+/, '');
   }
 
+  /** 判断 AI 输出是否含乱码（U+FFFD 替换字符或连续问号） */
+  private hasMojibake(s: string | null | undefined): boolean {
+    return !!s && (s.includes('�') || /\?{3,}/.test(s));
+  }
+
+  /** 剔除乱码字符（U+FFFD 与孤立 UTF-16 代理项） */
+  private stripMojibake(s: string | null | undefined): string {
+    if (!s) return s ?? '';
+    return s.replace(/�/g, '').replace(/[\uDC00-\uDFFF]/g, '');
+  }
+
+  /**
+   * 统一清洗 AI 生成的中文文本：DeepSeek 偶发把个别汉字输出为 U+FFFD（�）。
+   * 含乱码时先用二次 LLM 按上下文还原正确汉字，失败则剔除乱码字符，保证 � 绝不落到前端。
+   * 无乱码时原样返回（零额外 LLM 开销）。
+   */
+  private async sanitizeAiText(s: string | null | undefined): Promise<string> {
+    if (!s) return '';
+    if (!this.hasMojibake(s)) return s;
+    this.logger.warn('[sanitizeAiText] 检测到 AI 输出乱码，尝试二次还原');
+    try {
+      const repaired = await this.llm.chat(
+        [
+          '以下文本中个别汉字被 Unicode 替换字符（显示为 �）损坏，这些 � 不是真实内容。',
+          '请根据上下文语义，将每个 � 还原为正确的中文汉字，输出完整修复后的文本。',
+          '要求：严禁保留任何 �；严禁改动非乱码部分的任何文字；只输出修复后的正文，不加任何解释。',
+        ].join('\n'),
+        s,
+        0.1,
+      );
+      if (repaired && !this.hasMojibake(repaired)) return repaired.trim();
+    } catch (e) {
+      this.logger.warn(`[sanitizeAiText] 乱码还原失败: ${(e as Error)?.message}`);
+    }
+    return this.stripMojibake(s);
+  }
+
   /** Normalize a time-slot string into HH:MM format, handling ISO 8601 and HH:MM inputs. */
   private normalizeTimeSlot(raw: string | undefined | null): string {
     if (!raw) return '';
@@ -2434,11 +2483,14 @@ stageMatch 字段需要输出两部分判断结果：
 
     try {
       const raw = await this.llm.chatJson<any>(systemPrompt, userPrompt, 0.35);
+      const cleanArr = async (arr: unknown) => Promise.all(
+        (Array.isArray(arr) ? arr : []).map(async (x: unknown) => this.sanitizeAiText(typeof x === 'string' ? x : '')),
+      );
       return {
-        overview: raw?.overview || '分析完成',
-        highlights: Array.isArray(raw?.highlights) ? raw.highlights : [],
-        concerns: Array.isArray(raw?.concerns) ? raw.concerns : [],
-        suggestions: Array.isArray(raw?.suggestions) ? raw.suggestions : [],
+        overview: await this.sanitizeAiText(raw?.overview || '分析完成'),
+        highlights: await cleanArr(raw?.highlights),
+        concerns: await cleanArr(raw?.concerns),
+        suggestions: await cleanArr(raw?.suggestions),
       };
     } catch {
       return { overview: 'AI 分析暂不可用', highlights: [], concerns: [], suggestions: [] };
@@ -2450,11 +2502,14 @@ stageMatch 字段需要输出两部分判断结果：
     const systemPrompt = '你是采购数据分析师。基于采购台账数据进行分析，返回 JSON: {overview, highlights:[], concerns:[], suggestions:[]}';
     try {
       const raw = await this.llm.chatJson<any>(systemPrompt, JSON.stringify(payload, null, 2), 0.3);
+      const cleanArr = async (arr: unknown) => Promise.all(
+        (Array.isArray(arr) ? arr : []).map(async (x: unknown) => this.sanitizeAiText(typeof x === 'string' ? x : '')),
+      );
       return {
-        overview: raw?.overview || raw?.analysis || '分析完成',
-        highlights: Array.isArray(raw?.highlights) ? raw.highlights : Array.isArray(raw?.insights) ? raw.insights : [],
-        concerns: Array.isArray(raw?.concerns) ? raw.concerns : [],
-        suggestions: Array.isArray(raw?.suggestions) ? raw.suggestions : Array.isArray(raw?.recommendations) ? raw.recommendations : [],
+        overview: await this.sanitizeAiText(raw?.overview || raw?.analysis || '分析完成'),
+        highlights: await cleanArr(Array.isArray(raw?.highlights) ? raw.highlights : Array.isArray(raw?.insights) ? raw.insights : []),
+        concerns: await cleanArr(raw?.concerns),
+        suggestions: await cleanArr(Array.isArray(raw?.suggestions) ? raw.suggestions : Array.isArray(raw?.recommendations) ? raw.recommendations : []),
       };
     } catch {
       return { overview: '台账分析暂不可用', highlights: [], concerns: [], suggestions: [] };
@@ -2483,7 +2538,7 @@ stageMatch 字段需要输出两部分判断结果：
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const result = await this.llm.chatJson<{ content: string }>(systemPrompt, userPrompt);
-        const content = (result.content || '').trim();
+        const content = await this.sanitizeAiText((result.content || '').trim());
         if (content) return { content };
         // chatJson 成功但 content 为空 —— 记录以便区分错误类型
         emptyCount++;
@@ -2495,7 +2550,7 @@ stageMatch 字段需要输出两部分判断结果：
       }
     }
     // 全部重试失败 —— 区分错误类型，便于前端诊断（避免笼统的"AI 生成失败"）
-    if (lastError instanceof Error) throw lastError;
+    if (lastError instanceof Error) throw toFriendlyLlmError(lastError);
     if (emptyCount > 0) {
       throw new Error(
         `AI 连续 ${emptyCount} 次返回空内容，可能为字段"${payload.fieldLabel}"配置不当或模型异常，请调整提示词后重试`,
@@ -2512,7 +2567,8 @@ stageMatch 字段需要输出两部分判断结果：
   }) {
     const systemPrompt = '你是造价分析师。基于历史项目数据为当前项目生成参考预算。返回 JSON: {referenceBudget, reasoning}';
     try {
-      return await this.llm.chatJson<any>(systemPrompt, JSON.stringify(payload, null, 2));
+      const res = await this.llm.chatJson<any>(systemPrompt, JSON.stringify(payload, null, 2));
+      return { ...res, reasoning: await this.sanitizeAiText(res?.reasoning) };
     } catch {
       return { referenceBudget: 0, reasoning: '预算分析暂不可用' };
     }
@@ -2621,7 +2677,7 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
 
     try {
       const result = await this.llm.chat(systemPrompt, userPrompt, 0.3);
-      return result.trim() || `${requesterDepartment}发起「${title}」（${method}），预算${budget}。${context.isCompleted ? '项目已完成归档。' : `${completedStages}/${stageCount}阶段完成。`}`;
+      return await this.sanitizeAiText(result.trim() || `${requesterDepartment}发起「${title}」（${method}），预算${budget}。${context.isCompleted ? '项目已完成归档。' : `${completedStages}/${stageCount}阶段完成。`}`);
     } catch {
       return `${requesterDepartment}发起「${title}」（${method}），预算${budget}。${context.isCompleted ? '项目已完成归档。' : `${completedStages}/${stageCount}阶段完成，当前处于${currentStageLabel}阶段。`}`;
     }
@@ -2676,8 +2732,8 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     const res = await this.llm.chatJson<{ projectReason?: unknown; supplierRequirements?: unknown }>(system, user, 0.2);
     const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
     return {
-      projectReason: clean(res?.projectReason),
-      supplierRequirements: clean(res?.supplierRequirements),
+      projectReason: await this.sanitizeAiText(clean(res?.projectReason)),
+      supplierRequirements: await this.sanitizeAiText(clean(res?.supplierRequirements)),
     };
   }
 
@@ -2799,16 +2855,21 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
       summary: string;
     }>(systemPrompt, userPrompt, 0.1);
 
-    return {
-      results: (result.results || []).map(r => ({
+    // 乱码兜底：evidence/suggestion/summary 均为 AI 自由文本，逐项清洗
+    const cleanedResults = await Promise.all(
+      (result.results || []).map(async (r) => ({
         checkpoint: r.checkpoint || '',
         dimension: r.dimension || '',
         verdict: (['通过', '警告', '违规'].includes(r.verdict) ? r.verdict : '警告') as '通过' | '警告' | '违规',
-        evidence: r.evidence || '',
-        suggestion: r.verdict === '通过' ? '' : (r.suggestion || ''),
+        evidence: await this.sanitizeAiText(r.evidence || ''),
+        suggestion: r.verdict === '通过' ? '' : await this.sanitizeAiText(r.suggestion || ''),
         regulationRef: r.regulationRef || '',
       })),
-      summary: result.summary || '合规审查完成。',
+    );
+
+    return {
+      results: cleanedResults,
+      summary: await this.sanitizeAiText(result.summary || '合规审查完成。'),
     };
   }
 
@@ -2923,4 +2984,29 @@ ${fileAnalysisText || '（暂无文件分析结果）'}
     });
     return { supplierId, supplierName: supplier.name, ...prediction };
   }
+}
+/**
+ * 把 LLM 底层错误翻译成用户可读的中文提示。
+ * LlmHttpError 原始消息形如 `DeepSeek LLM request failed: 402 {"error":{"message":"Insufficient Balance"...}}`，
+ * 直接透传给前端用户无法理解；按已知失败模式映射为具体原因（余额不足/限流/超时/网络）。
+ */
+function toFriendlyLlmError(err: Error): Error {
+  const msg = err.message || '';
+  if (/402/.test(msg) && /insufficient\s*balance/i.test(msg)) {
+    return new Error('AI 服务账户余额不足（DeepSeek 402），请联系管理员充值后重试');
+  }
+  if (/429|rate\s*limit|too many requests/i.test(msg)) {
+    return new Error('AI 服务繁忙（触发限流），请稍后再试');
+  }
+  if (/timed out|timeout/i.test(msg)) {
+    return new Error('AI 响应超时，请稍后重试');
+  }
+  if (/network error|fetch failed|ECONN/i.test(msg)) {
+    return new Error('AI 服务连接失败，请检查网络或稍后重试');
+  }
+  if (/401|invalid.*api.*key|authentication/i.test(msg)) {
+    return new Error('AI 服务认证失败（API Key 无效），请联系管理员检查配置');
+  }
+  // 未知错误：保留原始消息便于诊断，但截断冗长 JSON 体
+  return new Error(`AI 生成失败：${msg.slice(0, 150)}`);
 }

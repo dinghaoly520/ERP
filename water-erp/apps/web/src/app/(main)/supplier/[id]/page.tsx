@@ -9,8 +9,9 @@ import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supp
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
-import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil } from 'lucide-react';
+import { CheckCircle2, XCircle, RotateCcw, FileCheck, Building2, ShieldCheck, Calendar, Award, FileText, User, MapPin, Phone, Mail, Hash, MessageSquare, FolderOpen, Plus, Loader2, Trash2, Briefcase, Pencil, Globe, IdCard, Map, Factory, Landmark, Trophy, Paperclip, HandCoins, Link2, AtSign } from 'lucide-react';
 import { SupplierTimeline } from '@/components/supplier/timeline';
+import { ApprovalHistory } from '@/components/supplier/approval-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
 
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
@@ -374,6 +375,15 @@ export default function SupplierDetailPage() {
          审批进度卡片 — 合并原「审核摘要」+「状态时间线」+ 资质速览
          仅 PENDING / RETURNED 显示
          ═══════════════════════════════════════════════════ */}
+      {supplier.status === 'PENDING' && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-[color-mix(in_oklch,var(--warning)_32%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-3">
+          <RotateCcw size={16} className="mt-0.5 flex-shrink-0 text-[var(--warning)]" />
+          <div>
+            <p className="text-sm font-bold text-[var(--warning)]">等待审核</p>
+            <p className="text-xs text-[var(--muted-foreground)] mt-0.5">该供应商的注册申请正在审核中，资料暂时不可修改。请完成审核（通过 / 退回补正 / 不通过）后再进行资料维护。</p>
+          </div>
+        </div>
+      )}
       {isPending && (
         <div className="neu-card-static !rounded-2xl p-5 mb-5">
           <div className="flex items-center gap-2 mb-4">
@@ -466,16 +476,31 @@ export default function SupplierDetailPage() {
           <div className="space-y-5">
             {/* ══ 企业工商信息 ══ */}
             <section className="neu-card-static !rounded-2xl p-5">
-              <SectionTitle icon={Building2}>企业工商信息</SectionTitle>
+              <div className="flex items-start justify-between gap-4">
+                <SectionTitle icon={Building2}>企业工商信息</SectionTitle>
+                {supplier.logoUrl && (
+                  <img src={supplier.logoUrl} alt={`${supplier.name} logo`} className="h-12 w-12 flex-shrink-0 rounded-lg bg-[var(--muted)]/20 object-cover" />
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
                 <InfoField icon={Building2} label="企业名称" value={supplier.name} />
                 <InfoField icon={Building2} label="企业类型" value={normalizeEnterpriseType(supplier.enterpriseType)} />
                 <InfoField icon={ShieldCheck} label="法定代表人" value={supplier.legalPerson} />
+                <InfoField icon={Hash} label="法定代表人身份证号" value={supplier.legalPersonIdCard} mono />
+                <InfoField icon={Phone} label="法人联系电话" value={supplier.legalPersonPhone} mono />
                 <InfoField icon={Hash} label="统一社会信用代码" value={supplier.creditCode} mono />
+                <InfoField icon={IdCard} label="机构代码" value={supplier.organizationCode} mono />
+                <InfoField icon={HandCoins} label="注册资本" value={supplier.registeredCapital} />
+                <InfoField icon={Globe} label="国别" value={supplier.country} />
+                <InfoField icon={Map} label="行政区域" value={supplier.region} />
+                <InfoField icon={Factory} label="所属行业" value={supplier.industry} />
+                <InfoField icon={AtSign} label="公司邮箱" value={supplier.companyEmail} />
+                <InfoField icon={Link2} label="公司官网" value={supplier.companyWebsite} />
               </div>
               {/* 长文本字段跨整行 */}
               <div className="mt-4 space-y-4 border-t border-[var(--border)] pt-4">
                 <InfoField icon={MapPin} label="注册地址" value={supplier.registeredAddress} full />
+                <InfoField icon={MapPin} label="详细地址" value={supplier.detailedAddress} full />
                 <InfoField icon={Briefcase} label="经营范围" value={supplier.businessScope} full />
               </div>
             </section>
@@ -518,6 +543,85 @@ export default function SupplierDetailPage() {
                 )}
               </section>
             </div>
+
+            {/* ══ 银行账户（注册 2.0）══ */}
+            <section>
+              <SectionTitle icon={Landmark}>银行账户</SectionTitle>
+              {supplier.bankAccounts && supplier.bankAccounts.length > 0 ? (
+                <div className="neu-table-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="workbench-table w-full min-w-[680px]">
+                      <thead>
+                        <tr><th>户名</th><th>开户行</th><th>支行</th><th>账号</th><th>默认</th></tr>
+                      </thead>
+                      <tbody>
+                        {supplier.bankAccounts.map(b => (
+                          <tr key={b.id}>
+                            <td className="font-semibold text-[var(--foreground)]">{b.accountName}</td>
+                            <td className="text-[var(--muted-foreground)]">{b.bankName}</td>
+                            <td className="text-[var(--muted-foreground)]">{b.bankBranch || '—'}</td>
+                            <td className="text-[var(--muted-foreground)] font-mono text-xs">{b.accountNo}</td>
+                            <td>{b.isDefault ? <StatusBadge tone="green">默认账户</StatusBadge> : <span className="text-xs text-[var(--muted-foreground)]">—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="neu-card-static !rounded-2xl py-8 text-center">
+                  <Landmark size={24} className="mx-auto mb-2 text-[var(--muted-foreground)]/30" />
+                  <p className="text-sm text-[var(--muted-foreground)]">暂无银行账户信息</p>
+                </div>
+              )}
+            </section>
+
+            {/* ══ 主体业绩（注册 2.0）══ */}
+            <section>
+              <SectionTitle icon={Trophy}>主体业绩</SectionTitle>
+              {supplier.performances && supplier.performances.length > 0 ? (
+                <div className="neu-table-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="workbench-table w-full min-w-[760px]">
+                      <thead>
+                        <tr><th>项目</th><th>客户</th><th>合同金额</th><th>签订日期</th><th>证明材料</th></tr>
+                      </thead>
+                      <tbody>
+                        {supplier.performances.map(p => (
+                          <tr key={p.id}>
+                            <td className="max-w-[260px]">
+                              <p className="font-semibold text-[var(--foreground)] truncate">{p.projectName}</p>
+                              {p.description && <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate">{p.description}</p>}
+                            </td>
+                            <td className="text-[var(--muted-foreground)]">{p.clientName || '—'}</td>
+                            <td className="font-medium tabular-nums text-[var(--foreground)]">{p.contractAmount || '—'}</td>
+                            <td className="text-[var(--muted-foreground)] tabular-nums">{p.signDate ? new Date(p.signDate).toLocaleDateString('zh-CN') : '—'}</td>
+                            <td>
+                              {Array.isArray(p.proofFiles) && p.proofFiles.length > 0 ? (
+                                <div className="flex flex-col gap-0.5">
+                                  {p.proofFiles.map((f, i) => (
+                                    <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline">
+                                      <Paperclip size={11} className="flex-shrink-0" />
+                                      <span className="truncate max-w-[160px]">{f.name || `证明材料 ${i + 1}`}</span>
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : <span className="text-xs text-[var(--muted-foreground)]">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="neu-card-static !rounded-2xl py-8 text-center">
+                  <Trophy size={24} className="mx-auto mb-2 text-[var(--muted-foreground)]/30" />
+                  <p className="text-sm text-[var(--muted-foreground)]">暂无主体业绩信息</p>
+                </div>
+              )}
+            </section>
 
             {/* ══ 评价概览 ══ */}
             {evaluations.length > 0 && (
@@ -584,6 +688,12 @@ export default function SupplierDetailPage() {
               <SectionTitle icon={RotateCcw}>生命周期</SectionTitle>
               <SupplierTimeline supplierId={id as string} />
             </section>
+
+            {/* ══ 审核历史（不可变留痕）══ */}
+            <section className="neu-card-static !rounded-2xl p-5">
+              <SectionTitle icon={FileCheck}>审核历史</SectionTitle>
+              <ApprovalHistory supplierId={id as string} />
+            </section>
           </div>
         )}
 
@@ -601,13 +711,15 @@ export default function SupplierDetailPage() {
               <div className="overflow-x-auto">
                 <table className="workbench-table">
                   <thead>
-                    <tr><th>姓名</th><th>手机号</th><th>邮箱</th><th>职位</th><th>类型</th></tr>
+                    <tr><th>姓名</th><th>性别</th><th>手机号</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>类型</th></tr>
                   </thead>
                   <tbody>
                     {supplier.contacts.map(c => (
                       <tr key={c.id}>
                         <td className="font-semibold text-[var(--foreground)]">{c.name}</td>
+                        <td className="text-[var(--muted-foreground)]">{c.gender || '—'}</td>
                         <td className="text-[var(--muted-foreground)] font-mono text-xs">{c.phone}</td>
+                        <td className="text-[var(--muted-foreground)] font-mono text-xs">{c.idCard || '—'}</td>
                         <td className="text-[var(--muted-foreground)]">{c.email || '—'}</td>
                         <td className="text-[var(--muted-foreground)]">{c.position || '—'}</td>
                         <td>
@@ -681,6 +793,21 @@ export default function SupplierDetailPage() {
                           </div>
                         ) : (
                           <p className="text-xs text-[var(--success)] font-semibold">长期有效</p>
+                        )}
+                        {/* 注册 2.0：附加材料链接 */}
+                        {q.attachments && q.attachments.length > 0 && (
+                          <div className="mt-3 border-t border-[var(--border)] pt-2.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-1.5">附加材料（{q.attachments.length}）</p>
+                            <div className="flex flex-col gap-1">
+                              {q.attachments.map((att, i) => (
+                                <a key={i} href={att.url} target="_blank" rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline truncate">
+                                  <Paperclip size={12} className="flex-shrink-0" />
+                                  <span className="truncate">{att.name || `附件 ${i + 1}`}</span>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
                     );

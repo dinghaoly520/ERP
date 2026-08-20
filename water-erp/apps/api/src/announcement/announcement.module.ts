@@ -4,6 +4,7 @@ import { AnnouncementService } from './announcement.service';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { BidDocumentService } from './bid-document.service';
 import { AnnouncementAttachmentService } from './announcement-attachment.service';
+import { AnnouncementHistoryService } from './announcement-history.service';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { BidModule } from '../bid/bid.module';
@@ -12,7 +13,7 @@ import { ProjectManagementModule } from '../project-management/project-managemen
 @Module({
   imports: [AuthModule, PrismaModule, BidModule, ProjectManagementModule],
   controllers: [AnnouncementController],
-  providers: [AnnouncementService, AnnouncementAiService, BidDocumentService, AnnouncementAttachmentService],
+  providers: [AnnouncementService, AnnouncementAiService, BidDocumentService, AnnouncementAttachmentService, AnnouncementHistoryService],
   exports: [AnnouncementService, BidDocumentService, AnnouncementAttachmentService],
 })
 export class AnnouncementModule {}

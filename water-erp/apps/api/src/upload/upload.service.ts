@@ -244,6 +244,40 @@ export class UploadService implements OnModuleInit {
       return true;
     }
 
+    // ── 供应商本人档案文件：logo / 资质主文件与附加材料 / 业绩证明材料 ──
+    // 注册资料可能由采购端代传（uploader 非本供应商），供应商查看自己档案挂载的文件应放行；
+    // 仅限本企业记录引用的 asset，不扩大到他企文件。
+    if (user.role === 'supplier') {
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { userId: user.sub },
+        select: { id: true, logoUrl: true },
+      });
+      if (!supplier) return false;
+      const [quals, perfs] = await Promise.all([
+        this.prisma.supplierQualification.findMany({
+          where: { supplierId: supplier.id },
+          select: { fileUrl: true, attachments: true },
+        }),
+        this.prisma.supplierPerformance.findMany({
+          where: { supplierId: supplier.id },
+          select: { proofFiles: true },
+        }),
+      ]);
+      const urls = new Set<string>();
+      if (supplier.logoUrl) urls.add(supplier.logoUrl);
+      for (const q of quals) {
+        urls.add(q.fileUrl);
+        for (const a of (q.attachments as Array<{ url?: string }> | null) ?? []) if (a?.url) urls.add(a.url);
+      }
+      for (const p of perfs) {
+        for (const a of (p.proofFiles as Array<{ url?: string }>) ?? []) if (a?.url) urls.add(a.url);
+      }
+      for (const u of urls) {
+        if (u && (u.endsWith(`/files/${asset.id}`) || u.endsWith(`/${asset.id}`))) return true;
+      }
+      return false;
+    }
+
     if (user.role === 'bid_expert') {
       // 从 asset 反查其所属项目（通过引用该 asset 的 SupplierBidSubmission），
       // 再校验专家是否被分配到【该】项目——避免对多项目专家取到错误项目导致误判。

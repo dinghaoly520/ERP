@@ -3,6 +3,8 @@
  *
  * 只允许以下字段通过变更申请修改。
  * 禁止修改 status / userId / id / creditCode / normalizedName / classificationId 等敏感字段。
+ *
+ * 聚合字段（bankAccounts / performances）的 newValue 为 JSON 字符串，审批时整体替换子表。
  */
 
 export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
@@ -12,6 +14,20 @@ export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
   'registeredAddress',
   'businessScope',
   'tags',
+  // ── 注册 2.0 扩展字段 ──
+  'logoUrl',
+  'organizationCode',
+  'country',
+  'region',
+  'detailedAddress',
+  'registeredCapital',
+  'industry',
+  'legalPersonPhone',
+  'companyEmail',
+  'companyWebsite',
+  // ── 聚合字段（JSON 整体替换）──
+  'bankAccounts',
+  'performances',
 ] as const;
 
 export type SupplierChangeAllowedField =
