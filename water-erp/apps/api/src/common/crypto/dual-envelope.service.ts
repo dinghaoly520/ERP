@@ -63,8 +63,10 @@ export class DualEnvelopeService {
     try {
       const wrapDekHex = sm2DecryptHex(adminPrivateKey, entry.kadmin);
       if (!wrapDekHex) throw new Error('sm2 decrypt failed'); // ''=失败（sm-crypto 从不抛错）
-      const dek = unwrapDekJson(Buffer.from(wrapDekHex, 'hex').toString('utf8')); // 坏 JSON 抛错
-      if (!dek.keyHex || !dek.ivHex) throw new Error('bad dek');
+      // unwrapDekJson 失败两态：语法非法 JSON → JSON.parse 抛错（落入外层 catch）；
+      // 合法 JSON 但缺 k/iv 字段 → 不抛、返回 undefined 字段——由下方守卫拦截，勿删
+      const dek = unwrapDekJson(Buffer.from(wrapDekHex, 'hex').toString('utf8'));
+      if (!dek?.keyHex || !dek?.ivHex) throw new Error('bad dek');
       const cInnerHex = sm4Decrypt(dek.keyHex, dek.ivHex, outerBuf.toString('hex')); // 密文损坏抛错
       if (!cInnerHex) throw new Error('sm4 decrypt empty');
       return Buffer.from(cInnerHex, 'hex');

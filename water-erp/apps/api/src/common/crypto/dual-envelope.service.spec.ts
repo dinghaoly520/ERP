@@ -40,23 +40,25 @@ interface DualLayerSample {
   kadmin: string;
 }
 
-/** 生产侧双层加密：明文 M → C_inner(SM4/DEK_S) → C_outer(SM4/DEK_A)，附带两把密封件。 */
+/** 生产侧双层加密：明文 M → C_inner(SM4/DEK_S) → C_outer(SM4/DEK_A)，附带两把密封件。
+ *  dekA/dekS 可传固定值（确定性损坏用例需要：C_outer 尾块明文依赖 C_inner 尾字节，而 C_inner 随 DEK_S 变）。 */
 function buildDualLayerSample(
   adminKp: Pick<Kp, 'publicKey'>,
   supplierKp: Pick<Kp, 'publicKey'>,
   plaintext: Buffer,
   dekA?: Dek,
+  dekS?: Dek,
 ): DualLayerSample {
   const keyA: Dek = dekA ?? { keyHex: randomHex(16), ivHex: randomHex(16) };
-  const dekS: Dek = { keyHex: randomHex(16), ivHex: randomHex(16) };
-  const cInnerHex = sm4Encrypt(dekS.keyHex, dekS.ivHex, plaintext.toString('hex')); // C_inner = SM4(DEK_S, M)
+  const keyS: Dek = dekS ?? { keyHex: randomHex(16), ivHex: randomHex(16) };
+  const cInnerHex = sm4Encrypt(keyS.keyHex, keyS.ivHex, plaintext.toString('hex')); // C_inner = SM4(DEK_S, M)
   const cOuterHex = sm4Encrypt(keyA.keyHex, keyA.ivHex, cInnerHex); // C_outer = SM4(DEK_A, C_inner)
   return {
     dekA: keyA,
-    dekS,
+    dekS: keyS,
     cInner: Buffer.from(cInnerHex, 'hex'),
     cOuter: Buffer.from(cOuterHex, 'hex'),
-    kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekS), 'utf8').toString('hex')),
+    kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(keyS), 'utf8').toString('hex')),
     kadmin: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson(keyA), 'utf8').toString('hex')),
   };
 }
@@ -90,25 +92,34 @@ async function buildEnvelope(
   };
 }
 
-/** 断言同步抛 BadRequestException 且 getResponse() 形如 { error, code }（Nest 11 对象入参原样透出）。 */
+/** 断言同步抛 BadRequestException 且 getResponse() 形如 { error, code }（Nest 11 对象入参原样透出）。
+ *  threw 标志模式：jest-circus（Jest 30 默认）无全局 fail()，且 try 内自抛会被本 catch 吞掉。 */
 function expectBizError(fn: () => unknown, error: string, code: string): void {
+  let err: unknown = null;
+  let threw = false;
   try {
     fn();
-    fail(`应抛 BadRequestException ${code}`);
   } catch (e) {
-    expect(e).toBeInstanceOf(BadRequestException);
-    expect((e as BadRequestException).getResponse()).toMatchObject({ error, code });
+    threw = true;
+    err = e;
   }
+  expect(threw).toBe(true);
+  expect(err).toBeInstanceOf(BadRequestException);
+  expect((err as BadRequestException).getResponse()).toMatchObject({ error, code });
 }
 
 async function expectBizErrorAsync(fn: () => Promise<unknown>, error: string, code: string): Promise<void> {
+  let err: unknown = null;
+  let threw = false;
   try {
     await fn();
-    fail(`应抛 BadRequestException ${code}`);
   } catch (e) {
-    expect(e).toBeInstanceOf(BadRequestException);
-    expect((e as BadRequestException).getResponse()).toMatchObject({ error, code });
+    threw = true;
+    err = e;
   }
+  expect(threw).toBe(true);
+  expect(err).toBeInstanceOf(BadRequestException);
+  expect((err as BadRequestException).getResponse()).toMatchObject({ error, code });
 }
 
 const OUTER_FAILED = { error: '外层解密失败（管理方私钥不匹配或信封损坏）', code: 'OUTER_DECRYPT_FAILED' };
@@ -179,7 +190,7 @@ describe('DualEnvelopeService', () => {
       );
     });
 
-    it('kadmin 解出的不是合法 DEK JSON → 400 OUTER_DECRYPT_FAILED', async () => {
+    it('kadmin 解出的不是合法 DEK JSON（语法非法 → JSON.parse 抛错）→ 400 OUTER_DECRYPT_FAILED', async () => {
       const bad: DualEnvelope = {
         ...envelope,
         files: {
@@ -196,14 +207,36 @@ describe('DualEnvelopeService', () => {
       );
     });
 
+    it('kadmin 解出合法 JSON 但缺 k/iv 字段（unwrapDekJson 返回 undefined 字段、不抛）→ 守卫拦截 400 OUTER_DECRYPT_FAILED', async () => {
+      const bad: DualEnvelope = {
+        ...envelope,
+        files: {
+          technical: {
+            ...envelope.files.technical!,
+            kadmin: sm2EncryptHex(adminKp.publicKey, Buffer.from('{"k":"0011"}', 'utf8').toString('hex')),
+          },
+        },
+      };
+      await expectBizErrorAsync(
+        () => svc.decryptOuterFile(bad, 'technical', sample.cOuter, adminKp.privateKey),
+        OUTER_FAILED.error,
+        OUTER_FAILED.code,
+      );
+    });
+
     it('C_outer 损坏（sm4Decrypt padding 抛错收口）→ 400 OUTER_DECRYPT_FAILED', async () => {
-      // 固定 DEK/明文使损坏结果确定（随机 DEK 下 padding 偶然合法概率约 1%，会引入偶发绿）
+      // 固定 DEK_A+DEK_S+明文使损坏结果完全确定：C_outer 尾块明文依赖 C_inner 尾字节，而
+      // C_inner 随 DEK_S 变——只固定 DEK_A 时篡改结果仍伪随机（padding 偶然合法 ~1/256 → 偶发红）
       const fixedPlaintext = Buffer.from('feedbeefcafebabe', 'hex');
       const fixedDekA: Dek = {
         keyHex: '0123456789abcdeffedcba9876543210',
         ivHex: '00112233445566778899aabbccddeeff',
       };
-      const fixed = buildDualLayerSample(adminKp, supplierKp, fixedPlaintext, fixedDekA);
+      const fixedDekS: Dek = {
+        keyHex: '00112233445566778899aabbccddeeff',
+        ivHex: 'ffeeddccbbaa99887766554433221100',
+      };
+      const fixed = buildDualLayerSample(adminKp, supplierKp, fixedPlaintext, fixedDekA, fixedDekS);
       const env = await buildEnvelope(fixed, fixedPlaintext, FIELDS, NONCE, supplierKp);
       const tampered = Buffer.from(fixed.cOuter);
       tampered[tampered.length - 1] ^= 0x5a; // 破坏最后一个密文块 → padding 校验失败
