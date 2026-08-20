@@ -419,6 +419,25 @@ export class BidService {
     });
     if (!project) return null;
 
+    // T17（双信封 v2）：项目详情为供应商行派生下发新轨判别字段。envelopeVersion/outerDecryptedAt/
+    // packageFetchedAt 存于 SupplierBidSubmission（BidSupplier 无这些列），dangerAttribution 已随
+    // suppliers 全量下发（BidSupplier 标量列）。仅 status='submitted' 生效（草稿信封不参与开标判定）。
+    const dualSubs = await this.prisma.supplierBidSubmission.findMany({
+      where: { projectId: id },
+      select: { supplierId: true, status: true, envelopeVersion: true, outerDecryptedAt: true, packageFetchedAt: true },
+    });
+    const dualSubMap = new Map(dualSubs.map(s => [s.supplierId, s]));
+    project.suppliers = project.suppliers.map(s => {
+      const sub = s.supplierId ? dualSubMap.get(s.supplierId) : undefined;
+      const submitted = sub?.status === 'submitted';
+      return {
+        ...s,
+        envelopeVersion: submitted ? (sub.envelopeVersion ?? null) : null,
+        outerDecryptedAt: submitted ? (sub.outerDecryptedAt ?? null) : null,
+        packageFetchedAt: submitted ? (sub.packageFetchedAt ?? null) : null,
+      };
+    }) as typeof project.suppliers;
+
     // L6 数据级隔离：bid portal 只能看指派给自己的项目（无论角色）
     if (portal === 'bid' && actor && project.assignedHostUserId !== actor.id) {
       throw new ForbiddenException('无权访问该项目（未指派给您）');

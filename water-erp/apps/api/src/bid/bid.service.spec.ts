@@ -137,7 +137,8 @@ describe('BidService — stage transitions', () => {
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
-      supplierBidSubmission: { findUnique: jest.fn() },
+      // T17：getProject 派生下发 envelopeVersion/outerDecryptedAt/packageFetchedAt 需要 findMany（默认空）
+      supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
       // 签字闸门默认放行（闭环+回流齐）：full 归档用例不逐个 mock；单测闸门本身见 bid-sign-packet.service.spec
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }), delete: jest.fn().mockResolvedValue({}) },
@@ -3203,7 +3204,8 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
       bidOpeningRecord: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn(), findMany: jest.fn(), count: jest.fn() },
       bidArchiveItem: { findMany: jest.fn(), updateMany: jest.fn(), update: jest.fn(), findFirst: jest.fn(), create: jest.fn(), groupBy: jest.fn() },
-      supplierBidSubmission: { findUnique: jest.fn() },
+      // T17：getProject 派生下发 envelopeVersion/outerDecryptedAt/packageFetchedAt 需要 findMany（默认空）
+      supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       bidOpeningSession: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
       // 签字闸门默认放行（闭环+回流齐）：full 归档用例不逐个 mock；单测闸门本身见 bid-sign-packet.service.spec
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ fileAssetId: 'fa-sign', sha256: 'sha-sign', signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: 'fa-handover' }) },

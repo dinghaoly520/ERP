@@ -94,6 +94,14 @@ export interface BidSupplier {
   decryptError?: string | null;
   confirmStatus: string;
   bidValidity?: string; // P2：废标有效性（'valid' | 'invalid'），后端 BidSupplier.bidValidity
+  /** 双信封 v2（T15）：解密失败归因（BIDDER | PLATFORM | UNKNOWN）——后端 BidSupplier.dangerAttribution 列，随项目详情下发 */
+  dangerAttribution?: string | null;
+  /** 双信封 v2（T17）：'dual-v2' = 新轨（供应商自解），null/旧值 = 旧轨（主持端代解密）——后端由 SupplierBidSubmission 派生下发 */
+  envelopeVersion?: string | null;
+  /** 双信封 v2（T17）：管理方已解外层时间（SupplierBidSubmission.outerDecryptedAt 派生下发） */
+  outerDecryptedAt?: string | null;
+  /** 双信封 v2（T17）：供应商首次领取解密包时间（§5.5 归因矩阵行 2/3 判定依据，SupplierBidSubmission.packageFetchedAt 派生下发） */
+  packageFetchedAt?: string | null;
 }
 
 export interface BidExpert {
