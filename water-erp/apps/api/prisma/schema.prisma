@@ -1440,7 +1440,7 @@ model BidFileBackup {
   projectId        String
   supplierId       String
   fileAssetId      String
-  fileRole         String // technical | business | coverLetter
+  fileRole         String // technical | business | coverLetter | bond(dual-v2 新轨)
   backupKey        String   @unique // MinIO: sealed-backup/{pid}/{sid}/{role}/{basename}
   sealedPath       String // 本备份所镜像的 sealed 对象键（核验时直接读取）
   wrappedDek       String // KMS 包裹的 DEK（密文，需 KMS_SECRET 解包）

@@ -1164,39 +1164,51 @@ describe('SupplierPortalService', () => {
     const supplierKp = ukeySm2.generateKeyPairHex();
     const wrongKp = ukeySm2.generateKeyPairHex();
     const DUAL_CERT_SN = 'MOCK-CERT-DUAL-0001';
-    const DUAL_ASSET_KEY = 'uploads/2026-08-20/dual/couter-tech.bin';
-    const DUAL_PLAINTEXT = Buffer.from('技术标投标文件（dual-v2 测试）—智慧水发·蜀水云采', 'utf8');
     const FIELDS: SealedFields = { price: '980000.00', deliveryPeriod: '540', qualityCommitment: '合格' };
     const NONCE = 'n-dual-test-0001';
     const ORIG_FLAG = process.env.BID_DUAL_ENVELOPE;
 
-    let DUAL_TECH_SHA = '';
-    const dualAsset = () => ({
-      id: 'fa-dual-1', key: DUAL_ASSET_KEY, originalName: 'tech.pdf', mimeType: 'application/pdf',
-      size: 2048, sha256: DUAL_TECH_SHA, category: 'bid_document', uploaderId: 'user-1',
-      clientEncrypted: true, encrypted: false, sealedPath: null,
+    // 每角色独立明文/哈希/资产，支撑 bond 与多角色用例
+    const DUAL_ROLE_TEXT: Record<string, string> = {
+      technical: '技术标投标文件（dual-v2 测试）—智慧水发·蜀水云采',
+      business: '商务标投标文件（dual-v2 测试）',
+      coverLetter: '投标函（dual-v2 测试）',
+      bond: '投标保证金缴纳凭证（dual-v2 测试）',
+    };
+    const DUAL_ROLE_SHA: Record<string, string> = {};
+    let DUAL_TECH_SHA = ''; // = DUAL_ROLE_SHA.technical，既有用例沿用
+    const dualAsset = (id = 'fa-dual-1', role = 'technical') => ({
+      id, key: `uploads/2026-08-20/dual/couter-${role}.bin`, originalName: `${role}.pdf`,
+      mimeType: 'application/pdf', size: 2048, sha256: DUAL_ROLE_SHA[role], category: 'bid_document',
+      uploaderId: 'user-1', clientEncrypted: true, encrypted: false, sealedPath: null,
     });
 
     /** 生产侧语义构造合法信封（同 dual-envelope.service.spec 的 buildDualLayerSample/buildEnvelope）：
-     *  C_outer 由客户端加密上传（asset.key 即密文），envelope 携带两把密封件 + 供应商层字段密封件。 */
+     *  C_outer 由客户端加密上传（asset.key 即密文），envelope 携带两把密封件 + 供应商层字段密封件。
+     *  roles 指定参检角色（默认 technical），每角色独立 DEK 与真实 SM2 密封件。 */
     async function buildDualSubmission(overrides?: {
       envelope?: Partial<DualEnvelope>;
+      roles?: Array<'technical' | 'business' | 'coverLetter' | 'bond'>;
       files?: Partial<Record<keyof DualEnvelope['files'], EnvelopeFileEntry>>;
     }): Promise<{ envelope: DualEnvelope; signature: string }> {
-      const dekS = { keyHex: randomHex(16), ivHex: randomHex(16) };
-      const dekA = { keyHex: randomHex(16), ivHex: randomHex(16) };
       const dekF = { keyHex: randomHex(16), ivHex: randomHex(16) };
+      const mkEntry = () => {
+        const dekS = { keyHex: randomHex(16), ivHex: randomHex(16) };
+        const dekA = { keyHex: randomHex(16), ivHex: randomHex(16) };
+        return {
+          kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekS), 'utf8').toString('hex')),
+          kadmin: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson(dekA), 'utf8').toString('hex')),
+        };
+      };
+      const files: DualEnvelope['files'] = {};
+      for (const role of overrides?.roles ?? ['technical']) {
+        files[role] = { sha256: DUAL_ROLE_SHA[role], ...mkEntry() };
+      }
       const envelope: DualEnvelope = {
         version: 'dual-v2',
         certSn: DUAL_CERT_SN,
         adminCertId: 'cert-admin-1',
-        files: {
-          technical: {
-            sha256: DUAL_TECH_SHA,
-            kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekS), 'utf8').toString('hex')),
-            kadmin: sm2EncryptHex(adminKp.publicKey, Buffer.from(wrapDekJson(dekA), 'utf8').toString('hex')),
-          },
-        },
+        files,
         sealedFields: {
           cipher: sm4Encrypt(dekF.keyHex, dekF.ivHex, Buffer.from(canonicalJson({ fields: FIELDS, nonce: NONCE }), 'utf8').toString('hex')),
           kself: sm2EncryptHex(supplierKp.publicKey, Buffer.from(wrapDekJson(dekF), 'utf8').toString('hex')),
@@ -1211,9 +1223,17 @@ describe('SupplierPortalService', () => {
     }
 
     beforeAll(async () => {
-      DUAL_TECH_SHA = await sha256Hex(DUAL_PLAINTEXT);
+      for (const [role, text] of Object.entries(DUAL_ROLE_TEXT)) {
+        DUAL_ROLE_SHA[role] = await sha256Hex(Buffer.from(text, 'utf8'));
+      }
+      DUAL_TECH_SHA = DUAL_ROLE_SHA.technical;
     });
     afterAll(() => {
+      if (ORIG_FLAG === undefined) delete process.env.BID_DUAL_ENVELOPE;
+      else process.env.BID_DUAL_ENVELOPE = ORIG_FLAG;
+    });
+    // ⑥ 会置 BID_DUAL_ENVELOPE='false'——按用例还原，防 flag 泄漏到同 describe 后续用例（⑥b/⑦/⑧/⑨）
+    afterEach(() => {
       if (ORIG_FLAG === undefined) delete process.env.BID_DUAL_ENVELOPE;
       else process.env.BID_DUAL_ENVELOPE = ORIG_FLAG;
     });
@@ -1272,12 +1292,12 @@ describe('SupplierPortalService', () => {
       expect(encryptBuffer).not.toHaveBeenCalled();
       expect(prisma.fileAsset.update).toHaveBeenCalledWith({
         where: { id: 'fa-dual-1' },
-        data: { encrypted: true, sealedPath: DUAL_ASSET_KEY },
+        data: { encrypted: true, sealedPath: dualAsset().key },
       });
       // backup v2：sealedPath=asset.key、wrappedDek=JSON{kself,kadmin,adminCertId}、cryptoVersion=dual-envelope-v2
       expect(bidBackup.stageBackup).toHaveBeenCalledTimes(1);
       const sb = bidBackup.stageBackup.mock.calls[0][0];
-      expect(sb.sealedPath).toBe(DUAL_ASSET_KEY);
+      expect(sb.sealedPath).toBe(dualAsset().key);
       expect(sb.plaintextSha256).toBe(DUAL_TECH_SHA);
       expect(JSON.parse(sb.wrappedDek)).toEqual({ kself: entry.kself, kadmin: entry.kadmin, adminCertId: 'cert-admin-1' });
       expect(bidBackup.persistBackup).toHaveBeenCalledWith(
@@ -1389,7 +1409,7 @@ describe('SupplierPortalService', () => {
       expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
     });
 
-    it('⑥ flag 关（BID_DUAL_ENVELOPE=false）且 envelope 传入 → 仍走旧轨（服务端加密分支）', async () => {
+    it('⑥ flag 关（BID_DUAL_ENVELOPE=false）且 envelope 传入 → 仍走旧轨 + envelope 剥离不落库（防伪造信封）', async () => {
       process.env.BID_DUAL_ENVELOPE = 'false';
       const plainAsset = { ...dualAsset(), clientEncrypted: false };
       prisma.fileAsset.findMany.mockResolvedValue([plainAsset]);
@@ -1404,12 +1424,134 @@ describe('SupplierPortalService', () => {
       const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
       expect(call.data.signedAt).toBeUndefined();
       expect(call.data.technicalSealedKey).toBe('wrapped:key:iv:auth'); // encryptBuffer mock 的 decryptKey 经 wrapKey
+      // flag-off 窗口零验签零哈希锚定 → envelope/envelopeVersion 不得落库
+      //（管理方公钥公开、格式可伪造良好；若存为 dual-v2，flag 回开后下游按版本分派会误信）
+      expect(call.data.envelope).toBeUndefined();
+      expect(call.data.envelopeVersion).toBeUndefined();
       expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ encryptStatus: '密文已校验' }) }),
       );
       // 新轨验签/证书触点全未进（flag 双向可退）
       expect(prisma.supplierCert.findFirst).not.toHaveBeenCalled();
       expect(prisma.adminEncryptionCert.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('⑥b flag 开但 envelope.version 非 dual-v2 → 旧轨 + envelope 同样剥离不落库', async () => {
+      const plainAsset = { ...dualAsset(), clientEncrypted: false };
+      prisma.fileAsset.findMany.mockResolvedValue([plainAsset]);
+      prisma.fileAsset.findUnique.mockResolvedValue(plainAsset);
+      const { envelope, signature } = await buildDualSubmission();
+      const junkVersion = { ...envelope, version: 'junk-v1' } as any;
+
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope: junkVersion, signature,
+      } as any);
+
+      expect(encryptBuffer).toHaveBeenCalled();
+      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
+      expect(call.data.envelope).toBeUndefined();
+      expect(call.data.envelopeVersion).toBeUndefined();
+    });
+
+    it('⑦a bond 双轨：bondRequired=true + bond 密封齐备（clientEncrypted + 信封条目）→ 通过且 bond 角色入备份/封存', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', projectCode: 'BID-X', stage: 'SUBMIT',
+        deadline: new Date(Date.now() + 3600_000), bondRequired: true,
+      });
+      const tech = dualAsset('fa-dual-1', 'technical');
+      const bond = dualAsset('fa-bond-1', 'bond');
+      const assets = [tech, bond];
+      prisma.fileAsset.findMany.mockResolvedValue(assets);
+      prisma.fileAsset.findUnique.mockImplementation(async ({ where }: any) => assets.find(a => a.id === where.id));
+      bidBackup.stageBackup.mockImplementation(async (input: any) => ({
+        fileAssetId: input.fileAssetId, fileRole: input.fileRole,
+        backupKey: `sealed-backup/project-1/supplier-1/${input.fileRole}/couter.bin`,
+        sealedPath: input.sealedPath, wrappedDek: input.wrappedDek,
+        ciphertextSha256: 'ab'.repeat(32), plaintextSha256: input.plaintextSha256, size: input.ciphertext.length,
+      }));
+      const { envelope, signature } = await buildDualSubmission({ roles: ['technical', 'bond'] });
+
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidBondAssetId: 'fa-bond-1', envelope, signature,
+      } as any);
+
+      // bond 凭证与三标书角色同入备份（cryptoVersion=dual-envelope-v2）与 fileAsset 封存标记
+      expect(bidBackup.stageBackup).toHaveBeenCalledTimes(2);
+      expect(bidBackup.stageBackup).toHaveBeenCalledWith(expect.objectContaining({
+        fileRole: 'bond', fileAssetId: 'fa-bond-1', sealedPath: bond.key, plaintextSha256: DUAL_ROLE_SHA.bond,
+      }));
+      expect(bidBackup.persistBackup).toHaveBeenCalledWith(
+        expect.anything(), expect.anything(),
+        expect.objectContaining({ cryptoVersion: 'dual-envelope-v2' }),
+      );
+      expect(prisma.fileAsset.update).toHaveBeenCalledWith({
+        where: { id: 'fa-bond-1' },
+        data: { encrypted: true, sealedPath: bond.key },
+      });
+      expect(prisma.supplierBidSubmission.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('⑦b bond 双轨：bondRequired=true 但 bond 凭证未按双层信封加密 → 400 BID_FILE_NOT_ENCRYPTED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'project-1', projectCode: 'BID-X', stage: 'SUBMIT',
+        deadline: new Date(Date.now() + 3600_000), bondRequired: true,
+      });
+      const tech = dualAsset('fa-dual-1', 'technical');
+      const plainBond = { ...dualAsset('fa-bond-1', 'bond'), clientEncrypted: false };
+      const assets = [tech, plainBond];
+      prisma.fileAsset.findMany.mockResolvedValue(assets);
+      prisma.fileAsset.findUnique.mockImplementation(async ({ where }: any) => assets.find(a => a.id === where.id));
+      const { envelope, signature } = await buildDualSubmission({ roles: ['technical', 'bond'] });
+
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidBondAssetId: 'fa-bond-1', envelope, signature,
+      } as any)).rejects.toMatchObject({
+        response: { code: 'BID_FILE_NOT_ENCRYPTED', error: expect.stringContaining('bond') },
+      });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+    });
+
+    it('⑧ 多角色：technical+business 双密封齐备 → 通过且两角色备份/封存齐全', async () => {
+      const tech = dualAsset('fa-dual-1', 'technical');
+      const biz = dualAsset('fa-biz-1', 'business');
+      const assets = [tech, biz];
+      prisma.fileAsset.findMany.mockResolvedValue(assets);
+      prisma.fileAsset.findUnique.mockImplementation(async ({ where }: any) => assets.find(a => a.id === where.id));
+      bidBackup.stageBackup.mockImplementation(async (input: any) => ({
+        fileAssetId: input.fileAssetId, fileRole: input.fileRole,
+        backupKey: `sealed-backup/project-1/supplier-1/${input.fileRole}/couter.bin`,
+        sealedPath: input.sealedPath, wrappedDek: input.wrappedDek,
+        ciphertextSha256: 'ab'.repeat(32), plaintextSha256: input.plaintextSha256, size: input.ciphertext.length,
+      }));
+      const { envelope, signature } = await buildDualSubmission({ roles: ['technical', 'business'] });
+
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', businessFileAssetId: 'fa-biz-1', envelope, signature,
+      } as any);
+
+      expect(bidBackup.stageBackup).toHaveBeenCalledTimes(2);
+      expect(bidBackup.stageBackup).toHaveBeenCalledWith(expect.objectContaining({
+        fileRole: 'technical', fileAssetId: 'fa-dual-1', sealedPath: tech.key,
+      }));
+      expect(bidBackup.stageBackup).toHaveBeenCalledWith(expect.objectContaining({
+        fileRole: 'business', fileAssetId: 'fa-biz-1', sealedPath: biz.key,
+      }));
+      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
+      expect(JSON.parse(call.data.technicalSealedKey).adminCertId).toBe('cert-admin-1');
+      expect(JSON.parse(call.data.businessSealedKey).adminCertId).toBe('cert-admin-1');
+      expect(call.data.coverLetterSealedKey).toBeNull(); // 未投递角色不落密封件
+    });
+
+    it('⑨ saveBidDraft 携带 envelope → 草稿不落信封（验签是 submit 新轨专属，草稿一律剥离）', async () => {
+      const { envelope, signature } = await buildDualSubmission();
+
+      await service.saveBidDraft('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any);
+
+      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
+      expect(call.data.envelope).toBeUndefined();
+      expect(call.data.envelopeVersion).toBeUndefined();
     });
   });
 });

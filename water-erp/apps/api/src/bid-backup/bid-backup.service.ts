@@ -6,7 +6,8 @@ import { streamToBuffer } from '../announcement/bid-document.crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
-export type BackupFileRole = 'technical' | 'business' | 'coverLetter';
+/** 'bond' 仅 dual-v2 新轨投递会产生（旧轨 bond 为程序性明文文件不备份）；verify/reconcile 仍只巡检三标书角色。 */
+export type BackupFileRole = 'technical' | 'business' | 'coverLetter' | 'bond';
 
 /** 封标时暂存的备份元数据（putObject 成功后，在事务内固化为 BidFileBackup 行） */
 export interface StagedBackup {

@@ -990,6 +990,9 @@ export class SupplierPortalService {
     const dualOn = process.env.BID_DUAL_ENVELOPE !== 'false';
     const envelope = data.envelope;
     const dual = dualOn && envelope?.version === 'dual-v2';
+    // 旧轨/flag 关/版本不符：剥离 envelope，永不落库——管理方公钥公开、信封格式可伪造良好，
+    // 未经验签的信封若以 envelopeVersion='dual-v2' 存库，flag 回开后下游（T10+）按版本分派会误信。
+    if (!dual) data.envelope = undefined;
 
     // ── Layer C: SM2 digital signature verification (anti-repudiation) ──
     // TODO (Phase 6): 当前前端 BidSubmit.vue 未实现 SM2 客户端签名，
@@ -1060,6 +1063,13 @@ export class SupplierPortalService {
       canonicalHash = await canonicalEnvelopeHash(env);
       // ④ 新轨报价只存在于 sealedFields（供应商层密文，平台开标解密前不可读）——不写 KMS 密封 bidPrice 列。
       data.bidPrice = undefined;
+      // ④b bond（bondRequired 时已过 ② 校验）与三标书角色同入备份/封存循环；
+      //     assetIds 仅新轨追加，旧轨路径不变（旧轨 bond 为程序性明文文件，不加密不备份）。
+      const bondAssetId = project.bondRequired ? data.bidBondAssetId : undefined;
+      if (bondAssetId && !assetIds.includes(bondAssetId)) {
+        assetIds.push(bondAssetId);
+        assetRoles[bondAssetId] = 'bond';
+      }
       // ⑤ 备份 v2（无二次加密）：sealedPath=asset.key（C_outer 即上传路径），
       //    wrappedDek=JSON{kself,kadmin,adminCertId}——kself 供供应商解密回执、kadmin 供主持端解外层，
       //    两把密钥合账方可完整解密，单独一把对任何一方均不可读明文。
@@ -1279,6 +1289,8 @@ export class SupplierPortalService {
   async saveBidDraft(supplierId: string, projectId: string, data: BidSubmissionData) {
     const { supplier } = await this.assertCanSaveBidDraft(supplierId, projectId);
     normalizeBidFileAssets(data); // P0-1：归一前端完整/拆分模型
+    // dual-v2：信封验签是 submitBid 新轨专属——草稿不做验签，envelope 一律剥离不落库（防伪造信封暂存）。
+    data.envelope = undefined;
     await this.assertBidFileAssetsOwnedByUser(supplier.userId, [
       data.technicalFileAssetId,
       data.businessFileAssetId,
