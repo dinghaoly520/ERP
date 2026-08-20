@@ -19,6 +19,7 @@ import { StartEvaluationDto } from './dto/start-evaluation.dto';
 import { AssignHostDto } from './dto/assign-host.dto';
 import { ArchiveAllDto } from './dto/archive-all.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
+import { DecryptOuterDto } from './dto/decrypt-outer.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateScorePointDto } from './dto/create-score-point.dto';
@@ -353,6 +354,14 @@ export class BidController {
   @ApiOperation({ summary: '解密供应商投标' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.bidService.decryptSupplier(id, supplierId, dto, userId); }
+
+  @Post('projects/:id/opening/decrypt-outer')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '主持端解外层（dual-v2）：管理方私钥解 K_admin → C_inner 归属链落库；supplierId 缺省=批量' })
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  decryptOuter(@Param('id') id: string, @Body() dto?: DecryptOuterDto, @CurrentUser('sub') userId?: string) {
+    return this.bidService.decryptOuter(id, dto?.supplierId, userId);
+  }
 
   @Post('projects/:id/suppliers/:supplierId/files/:role/reupload')
   @Roles('admin', 'bid_host')
