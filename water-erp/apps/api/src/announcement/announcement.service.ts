@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
@@ -422,6 +422,15 @@ export class AnnouncementService {
       : null;
 
     let sealedPathsToClean: string[] = [];
+
+    // P0-4 闸门：关联项目已进入投标/开标/评标流程（SUBMIT/OPENING/EVALUATING）时禁删公告。
+    // 置于事务前拦截——零副作用：不下发任何级联删除/复位/MinIO 清理，引导先完成流标或归档。
+    if (project) {
+      const blocked = ['SUBMIT', 'OPENING', 'EVALUATING'].includes(project.stage);
+      if (blocked) {
+        throw new ConflictException({ error: '该项目已进入投标/开标/评标流程，公告不可删除——请先完成流标或归档后再删除公告', code: 'BID_IN_PROGRESS' });
+      }
+    }
 
     try {
       await this.prisma.$transaction(async (tx) => {
