@@ -298,4 +298,38 @@ describe('UploadService — download permission', () => {
         .rejects.toThrow(ForbiddenException);
     });
   });
+
+  describe('旧轨服务端密封资产 sealedPath 流式解密（clean-legacy-plaintext 清理后回看）', () => {
+    // 终审 named-risk 修复：cleanup 删除 asset.key 明文后，旧轨密封资产（encrypted && sealedPath）
+    // 的通用下载必须从 sealedPath 读密文并 KMS 解密输出——否则供应商回看/staff/专家下载 404。
+    const DUMMY_RAW_KEY = `${'a'.repeat(64)}:${'b'.repeat(24)}:${'c'.repeat(32)}`; // key:iv:authTag hex
+    const sealedAsset = {
+      ...asset, id: 'fa-sealed', key: 'uploads/legacy.pdf', encrypted: true,
+      clientEncrypted: false, sealedPath: 'sealed/legacy.pdf.enc',
+    };
+
+    it('旧轨密封资产从 sealedPath 读取并解密输出（key 明文对象已清理）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(sealedAsset);
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
+        where?.envelopeVersion === 'dual-v2' ? null
+          : { id: 'sub-1', technicalFileAssetId: 'fa-sealed', technicalSealedKey: DUMMY_RAW_KEY });
+      // 链式 pipe（生产 MinIO 流 pipe 返回自身；mock 需同形）
+      (minioClient.getObject as jest.Mock).mockResolvedValue({ pipe: jest.fn(() => ({ pipe: jest.fn() })) } as any);
+
+      await service.streamFile('fa-sealed', { sub: 'u-supplier', role: 'supplier' }, res);
+
+      expect(minioClient.getObject).toHaveBeenCalledWith(expect.anything(), 'sealed/legacy.pdf.enc');
+      expect(res.setHeader).toHaveBeenCalled();
+    });
+
+    it('旧轨密封资产缺 sealedKey → 400 MISSING_SEALED_KEY', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(sealedAsset);
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
+        where?.envelopeVersion === 'dual-v2' ? null : { id: 'sub-1', technicalFileAssetId: 'fa-sealed', technicalSealedKey: null });
+
+      await expect(service.streamFile('fa-sealed', { sub: 'u-supplier', role: 'supplier' }, res))
+        .rejects.toMatchObject({ response: { code: 'MISSING_SEALED_KEY' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+  });
 });

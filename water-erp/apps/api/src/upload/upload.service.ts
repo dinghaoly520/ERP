@@ -227,6 +227,40 @@ export class UploadService implements OnModuleInit {
       return;
     }
 
+    // 旧轨服务端密封资产（encrypted && sealedPath，clientEncrypted=false）：
+    // clean-legacy-plaintext 清理 asset.key 明文原对象后，通用分支必须从 sealedPath
+    // 读密文并 KMS 解包 sealedKey 流式解密输出（口径镜像 plaintext-fetcher：
+    // sealedPath || key 读点 + isWrappedKey→unwrapKey + AES 解密）。否则供应商回看/
+    // staff/专家下载此类资产会 404。dual-v2 已在前置 SEALED_NO_DOWNLOAD 拒收，不落此分支。
+    if (asset.encrypted && asset.sealedPath) {
+      const submission = await this.prisma.supplierBidSubmission.findFirst({
+        where: {
+          OR: [
+            { technicalFileAssetId: asset.id },
+            { businessFileAssetId: asset.id },
+            { coverLetterAssetId: asset.id },
+          ],
+        },
+      });
+      const sealedKey = submission?.technicalFileAssetId === asset.id ? submission?.technicalSealedKey
+        : submission?.businessFileAssetId === asset.id ? submission?.businessSealedKey
+        : submission?.coverLetterSealedKey;
+      if (!sealedKey) {
+        throw new BadRequestException({ error: '密封文件缺少解密密钥', code: 'MISSING_SEALED_KEY' });
+      }
+      const rawKey = isWrappedKey(sealedKey) ? unwrapKey(sealedKey, process.env.KMS_SECRET!) : sealedKey;
+
+      const sealedStream = await minioClient.getObject(MINIO_BUCKET, asset.sealedPath);
+      const sealedDecryptStream = createDecryptStream(rawKey);
+      res.setHeader('Content-Type', asset.mimeType);
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${encodeURIComponent(asset.originalName)}"`,
+      );
+      sealedStream.pipe(sealedDecryptStream).pipe(res);
+      return;
+    }
+
     res.setHeader('Content-Type', asset.mimeType);
     res.setHeader('Content-Length', String(asset.size));
     res.setHeader(
