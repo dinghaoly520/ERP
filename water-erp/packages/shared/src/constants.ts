@@ -215,3 +215,13 @@ export function maskName(name: string): string {
 /** 通过性审查类别（通过/不通过），区别于数值打分类别。 */
 export const PASS_FAIL_CATEGORIES = new Set(['QUALIFICATION', 'RESPONSIVE']);
 export const isPassFailCategory = (category: string): boolean => PASS_FAIL_CATEGORIES.has(category);
+
+/* ── 截标↔开标 24h 业务规则 ── */
+
+/** 截标↔开标业务规则：投标截止 = 开标前 24 小时（集团采购业务规则·内部惯例）。
+ * 留痕：与《招标投标法》第34条「开标应当在提交投标文件截止时间的同一时间公开进行」
+ * 存在偏离——依据为集团采购业务规则（内部惯例，无成文条款）；对依法必须招标项目
+ * 存在程序瑕疵风险，待制度成文化后更新本引用与 UI 文案。 */
+export const BID_DEADLINE_BEFORE_OPENING_MS = 24 * 3_600_000;
+/** 截标↔开标关系校验的分钟级容差 */
+export const BID_OPENING_GAP_TOLERANCE_MS = 60_000;

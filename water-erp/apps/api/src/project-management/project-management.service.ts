@@ -6,6 +6,7 @@ import { createReadStream } from 'node:fs';
 import JSZip = require('jszip');
 import { Response } from 'express';
 import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { AiService } from '../ai/ai.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { generateProjectCode } from '../common/project-code.util';
@@ -360,8 +361,9 @@ export class ProjectManagementService {
     // P0-5：fallback 不再取 now（旧行为 deadline=now-12h，项目一创建即 DEADLINE_PASSED，供应商无法投递）
     const parsedOpen = parseBidOpeningTime(item.bidOpeningTime);
     const openTime = parsedOpen ?? (item.initiationDate ?? new Date(Date.now() + 72 * 60 * 60 * 1000));
-    // 投递截止 = 开标前 12 小时（业务规则）；P0-5：算出的截止落在过去（陈旧开标时间/兜底值）时顺延至 24h 后
-    let deadline = new Date(openTime.getTime() - 12 * 60 * 60 * 1000);
+    // 投递截止 = 开标前 BID_DEADLINE_BEFORE_OPENING_MS（24h 业务规则，第五写点，口径同 P0-2）；
+    // P0-5 兜底语义保留：算出的截止落在过去（陈旧开标时间/兜底值）时顺延至 24h 后
+    let deadline = new Date(openTime.getTime() - BID_DEADLINE_BEFORE_OPENING_MS);
     if (deadline.getTime() <= Date.now()) {
       deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
     }

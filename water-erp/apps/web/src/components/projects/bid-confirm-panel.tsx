@@ -22,6 +22,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import {
   BID_STAGE_LABELS,
@@ -397,9 +398,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
 
   /* ── 渲染 ── */
   const stats = workspace?.stats;
-  // 投递截止 = 开标前 12 小时（业务规则）
+  // 投递截止 = 开标前 BID_DEADLINE_BEFORE_OPENING_MS（业务规则；与公告发布口径一致，常量见 @water-erp/shared）
   const submitDeadline = bidProject
-    ? new Date(new Date(bidProject.openTime).getTime() - 12 * 60 * 60 * 1000)
+    ? new Date(new Date(bidProject.openTime).getTime() - BID_DEADLINE_BEFORE_OPENING_MS)
     : null;
 
   // 谈判采购没有"公告→供应商自行投递"链路，供应商以"受邀名单 + 回执"为准；
@@ -555,7 +556,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                       <span
                         className="hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
                         style={{ background: 'color-mix(in oklch, var(--accent) 8%, transparent)' }}
-                        title="标书投递时间范围：公告发布 → 开标前 12 小时"
+                        title={`标书投递时间范围：公告发布 → 开标前 ${BID_DEADLINE_BEFORE_OPENING_MS / 3_600_000} 小时`}
                       >
                         <Clock size={11} />
                         <span className="tabular-nums">{bidProject.publishTime ? formatDateTime(bidProject.publishTime) : '待发布'}</span>
@@ -883,6 +884,12 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   min={new Date().toISOString().slice(0, 16)}
                   onChange={(e) => setDelayTime(e.target.value)}
                 />
+                <span
+                  className="rounded-full px-2.5 py-1 text-[11px] text-[var(--warning)]"
+                  style={{ background: 'color-mix(in oklch, var(--warning) 12%, transparent)' }}
+                >
+                  截标已固化，仅推迟开标
+                </span>
                 <div className="ml-auto flex items-center gap-2">
                   <button type="button" onClick={() => setDelayOpen(false)} className="neu-btn-soft !h-[36px]">取消</button>
                   <button type="button" onClick={() => void handleDelaySave()} disabled={busy || !delayTime} className="neu-btn-primary !h-[36px]">确认延时</button>

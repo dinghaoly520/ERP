@@ -5,6 +5,7 @@ import { NotificationService } from '../notification/notification.service';
 import { ExpertAdminService } from '../expert/expert-admin.service';
 import { SupplierService } from '../supplier/supplier.service';
 import { AnnouncementService } from '../announcement/announcement.service';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
   const date = input.validTo.toISOString().slice(0, 10);
@@ -201,17 +202,19 @@ export class SchedulerService {
     return out;
   }
 
-  /** 每小时扫描：投标投递截止（开标前 12h）落在未来 1 小时窗口内的项目，自动催促未投递供应商 */
+  /** 每小时扫描：投标投递截止（开标前 24h）落在未来 1 小时窗口内的项目，自动催促未投递供应商 */
   @Cron('0 0 * * * *')
   async autoNudgePendingBidders() {
     const now = new Date();
     const windowEnd = new Date(now.getTime() + 60 * 60 * 1000);
     const projects = await this.prisma.bidProject.findMany({
       where: { stage: { in: ['DOWNLOAD', 'SUBMIT'] } },
-      select: { id: true, name: true, openTime: true },
+      select: { id: true, name: true, openTime: true, deadline: true },
     });
     for (const p of projects) {
-      const deadline = new Date(p.openTime.getTime() - 12 * 60 * 60 * 1000);
+      // P0-2 第六写点：优先取 DB deadline（frozen 延时下 openTime 已后移，openTime−12h 会在真实截标已过后仍误催）；
+      // 历史行 deadline 缺失时按常量派生 openTime − 24h
+      const deadline = p.deadline ?? new Date(p.openTime.getTime() - BID_DEADLINE_BEFORE_OPENING_MS);
       if (deadline >= now && deadline <= windowEnd) {
         try {
           await this.sendBidDeadlineNudge(p.id, p.name, deadline);
