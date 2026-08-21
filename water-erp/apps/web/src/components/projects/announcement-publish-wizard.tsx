@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import {
   Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, Search,
 } from 'lucide-react';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import {
   createAnnouncement,
   addAttachment,
@@ -58,6 +59,9 @@ type Props = {
 const inputCls =
   'w-full px-3 py-2 border border-[var(--border)] bg-[var(--background)] rounded-lg text-sm placeholder-[var(--muted-foreground)]/60 focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10';
 
+/** 投标截止 = 开标前小时数。口径统一取自共享常量 BID_DEADLINE_BEFORE_OPENING_MS（@water-erp/shared），勿再写魔法值 24 */
+const DEADLINE_HOURS_BEFORE_OPENING = BID_DEADLINE_BEFORE_OPENING_MS / 3_600_000;
+
 /**
  * 把公告 draft + 项目数据映射成「信息发布」渲染器与后端 createFromAnnouncement
  * 共同约定的 canonical 键（projectCode/method/budget/scope/qualification/deadline/openTime/contact）。
@@ -90,14 +94,14 @@ function buildCanonicalMeta(
 
   if (isSingleSource) {
     // ── 直接采购时间逻辑 ──
-    // 开标时间 = 采购时间；投标截止 = 采购时间前 24 小时；采购文件下载时间 = 公示时间（公示期限起止）
+    // 开标时间 = 采购时间；投标截止 = 采购时间前 DEADLINE_HOURS_BEFORE_OPENING 小时（源自共享常量 BID_DEADLINE_BEFORE_OPENING_MS）；采购文件下载时间 = 公示时间（公示期限起止）
     // 采购时间：优先 draft 字段，兜底项目 bidOpeningTime（中文格式需转 datetime-local）
     let procurementTime = d.procurementTime || d.bidOpeningTime || '';
     if (!procurementTime && project?.bidOpeningTime) {
       procurementTime = toDatetimeLocalValue(project.bidOpeningTime);
     }
     put('openTime', procurementTime);
-    put('deadline', subtractHours(procurementTime, 24));
+    put('deadline', subtractHours(procurementTime, DEADLINE_HOURS_BEFORE_OPENING));
     // 采购文件下载时间 = 公示时间（起止区间）：优先 draft 公示起止，兜底项目 documentAcquireTime
     if (d.announcementStart && d.announcementEnd) {
       put('downloadDeadline', `${toChineseDateTime(d.announcementStart)} 至 ${toChineseDateTime(d.announcementEnd)}`);
@@ -167,7 +171,7 @@ function formatDateTimeDisplay(iso: string): string {
   return iso;
 }
 
-/** 计算开标时间前 24 小时的 datetime-local 值 */
+/** 计算开标时间前指定小时数的 datetime-local 值（小时数传 DEADLINE_HOURS_BEFORE_OPENING，源自共享常量 BID_DEADLINE_BEFORE_OPENING_MS） */
 function hoursBeforeOpenTime(openTimeIso: string, hours: number): string {
   if (!openTimeIso) return '';
   const dt = new Date(openTimeIso);
@@ -438,7 +442,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     } else {
       setAnnouncementEndDate(deadlineAfterDays(isQuickDeadlineCategory ? 3 : 5));
     }
-    // 标书投递截止时间 = 开标时间前 24 小时
+    // 标书投递截止时间 = 开标时间前 DEADLINE_HOURS_BEFORE_OPENING 小时（源自共享常量 BID_DEADLINE_BEFORE_OPENING_MS）
     if (!isSingleSource) {
       const openTime = (filledDraft as Record<string, string>).procurementTime?.trim()
         || (filledDraft as Record<string, string>).bidOpeningTime?.trim()
@@ -446,7 +450,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         || '';
       const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
       if (openTimeIso) {
-        setBidSubmissionDeadline(hoursBeforeOpenTime(openTimeIso, 24));
+        setBidSubmissionDeadline(hoursBeforeOpenTime(openTimeIso, DEADLINE_HOURS_BEFORE_OPENING));
       } else {
         setBidSubmissionDeadline(deadlineAfterDays(isQuickDeadlineCategory ? 5 : 10));
       }
