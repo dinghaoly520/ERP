@@ -13,7 +13,9 @@
  *   - 复制自 BID-1786934256839（JJ-2026081702），复用 MinIO 上的加密标书与加密招标文件对象
  *     （KMS 信封密钥与项目无关，副本解密可用）。
  *   - 专家为另外抽取的 5 名（与原项目 5 人不同），全部已确认参加。
- *   - 时间口径：开标时间 = 执行时刻（now），解密窗口 now ~ now+30min。
+ *   - 时间口径：开标时间 = 执行时刻（now），投标截止 = 开标前 24 小时
+ *     （BID_DEADLINE_BEFORE_OPENING_MS 口径，见 packages/shared/src/constants.ts），
+ *     解密窗口 now ~ now+30min。
  */
 const fs = require('fs');
 const path = require('path');
@@ -206,7 +208,7 @@ async function create() {
       name: DEMO_NAME,
       procurementMethod: src.procurementMethod,
       openTime: t,
-      deadline: new Date(t.getTime() - 3600_000),
+      deadline: new Date(t.getTime() - 24 * 3600_000), // 截标=开标前 24h：BID_DEADLINE_BEFORE_OPENING_MS 口径（packages/shared/src/constants.ts）；CJS 脚本不 import shared，写字面量 24h
       stage: 'OPENING',
       riskNote: `${src.riskNote ?? ''}；（解密演示副本）`,
       budget: src.budget,
