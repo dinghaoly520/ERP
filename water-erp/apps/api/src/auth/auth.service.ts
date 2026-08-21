@@ -30,21 +30,53 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    // 查重：register 默认创建 role=internal_user，命中 [username, role] 唯一约束会抛 P2002（原返回 500）→ 归一化为 409
-    const existing = await this.prisma.user.findFirst({
-      where: { username: dto.username, role: 'internal_user' },
+    // ── 查重（三层）──
+    // ① 待审核：手机号或用户名已有未激活的 internal_user 申请 → 拦截，提示等待。
+    //    待审核期间资料不可修改/不可重复提交（申请已存在，拒绝后才可重新注册）。
+    const phonePending = await this.prisma.user.findFirst({
+      where: { phone: dto.phone, role: 'internal_user', isActive: false },
+      select: { id: true },
     });
-    if (existing) {
-      throw new ConflictException({ error: '账号已存在', code: 'USERNAME_EXISTS' });
+    if (phonePending) {
+      throw new ConflictException({ error: '该手机号的注册申请正在审核中，请耐心等待', code: 'REGISTRATION_PENDING' });
+    }
+    const usernamePending = await this.prisma.user.findFirst({
+      where: { username: dto.username, role: 'internal_user', isActive: false },
+      select: { id: true },
+    });
+    if (usernamePending) {
+      throw new ConflictException({ error: '该用户名的注册申请正在审核中，请耐心等待', code: 'REGISTRATION_PENDING' });
     }
 
-    // 公司名归一化：公司是数据分类依据，手输变体（漏「有限」、空格等）统一到已有规范写法
-    const knownCompanies = await this.prisma.user.findMany({
-      where: { company: { not: null } },
-      select: { company: true },
-      distinct: ['company'],
-    }).then(rows => rows.map(r => r.company).filter((c): c is string => !!c));
+    // ② 已激活（成功注册）：用户名/手机号占用 → 冲突
+    const usernameTaken = await this.prisma.user.findFirst({
+      where: { username: dto.username, isActive: true },
+      select: { id: true },
+    });
+    if (usernameTaken) {
+      throw new ConflictException({ error: '该用户名已被使用，请更换', code: 'USERNAME_EXISTS' });
+    }
+    const phoneTaken = await this.prisma.user.findFirst({
+      where: { phone: dto.phone, isActive: true },
+      select: { id: true },
+    });
+    if (phoneTaken) {
+      throw new ConflictException({ error: '该手机号已绑定其他账号', code: 'PHONE_EXISTS' });
+    }
+
+    // ③ 已拒绝（已被删除，两处都查不到）→ 允许再次注册
+
+    // 公司名归一化：公司是数据隔离的归属单位（2026-08-20 起对齐 Company 主数据），
+    // 手输变体（漏「有限」、空格等）统一到已有规范写法；未命中的新公司入 Company 表建档
+    const knownCompanies = await this.prisma.company.findMany({
+      select: { name: true },
+    }).then(rows => rows.map(r => r.name));
     const company = this.normalizeCompany(dto.company, knownCompanies);
+    const companyRecord = await this.prisma.company.upsert({
+      where: { name: company },
+      update: {},
+      create: { name: company },
+    });
 
     // 验证手机验证码
     await this.verificationService.verifyRegistrationCode(dto.phone, dto.verificationCode);
@@ -59,11 +91,13 @@ export class AuthService {
         email: dto.email,
         phone: dto.phone,
         company,
+        companyId: companyRecord.id,
         officeLocation: dto.officeLocation,
         passwordHash: hashSync(dto.password, 10),
         role: 'internal_user',
         isActive: false,
         requestedRole: dto.requestedRole,
+        departmentName: dto.department.trim(),
       },
     });
 
@@ -154,15 +188,15 @@ export class AuthService {
             type: 'USER_REGISTRATION_PENDING',
             title: '新用户注册待审核',
             content: `${name}（${company} · ${department}）申请${roleLabel}，等待审核。`,
-            link: '/settings/users',
+            link: '/admin/registration-review',
           },
         });
       }
     } catch { /* 通知失败不阻塞注册 */ }
   }
 
-  /** 管理员审核：通过注册 —— 按申请权限映射正式角色（leader/staff），公司为唯一组织归属 */
-  async approveUser(userId: string) {
+  /** 管理员审核：通过注册 —— 按申请权限映射正式角色（leader/staff），公司为唯一组织归属，并写入不可变审核记录 */
+  async approveUser(userId: string, reviewer?: { id: string; name?: string }) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException({ error: '用户不存在', code: 'NOT_FOUND' });
     if (user.isActive) throw new BadRequestException({ error: '用户已激活', code: 'ALREADY_ACTIVE' });
@@ -171,13 +205,13 @@ export class AuthService {
     const finalRole = user.requestedRole === 'management' ? 'leader' : 'staff';
 
     // 写库：激活 + 定角色。[username, role] 复合唯一，撞名抛 P2002 → 409
+    let updated;
     try {
-      const updated = await this.prisma.user.update({
+      updated = await this.prisma.user.update({
         where: { id: userId },
         data: { isActive: true, role: finalRole },
         select: { id: true, username: true, role: true, company: true },
       });
-      return { ok: true, user: updated };
     } catch (e: any) {
       if (e?.code === 'P2002') {
         throw new ConflictException({
@@ -187,15 +221,73 @@ export class AuthService {
       }
       throw e;
     }
+
+    await this.writeRegistrationReview(user, 'APPROVED', null, reviewer);
+    return { ok: true, user: updated };
   }
 
-  /** 管理员审核：拒绝注册（删除用户） */
-  async rejectUser(userId: string) {
+  /** 管理员审核：拒绝注册（删除用户），并写入不可变审核记录 */
+  async rejectUser(userId: string, reviewer?: { id: string; name?: string }, note?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException({ error: '用户不存在', code: 'NOT_FOUND' });
     if (user.isActive) throw new BadRequestException({ error: '用户已激活，无法拒绝', code: 'ALREADY_ACTIVE' });
     await this.prisma.user.delete({ where: { id: userId } });
+    await this.writeRegistrationReview(user, 'REJECTED', note ?? null, reviewer);
     return { ok: true };
+  }
+
+  /** 写入注册审核历史（append-only，仅 create，不提供 update/delete） */
+  private async writeRegistrationReview(
+    user: { id: string; username: string; displayName: string; company: string | null; departmentName: string | null; phone: string | null; email: string | null; officeLocation: string | null; requestedRole: string | null },
+    decision: 'APPROVED' | 'REJECTED',
+    note: string | null,
+    reviewer?: { id: string; name?: string },
+  ) {
+    await this.prisma.registrationReview.create({
+      data: {
+        userId: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        company: user.company ?? '',
+        department: user.departmentName,
+        phone: user.phone ?? '',
+        email: user.email,
+        officeLocation: user.officeLocation,
+        requestedRole: user.requestedRole ?? '',
+        decision,
+        decisionNote: note,
+        reviewedById: reviewer?.id,
+        reviewedByName: reviewer?.name,
+        reviewedAt: new Date(),
+      },
+    });
+  }
+
+  /** 待审核注册用户列表（internal_user + 未激活） */
+  async listPendingRegistrations() {
+    return this.prisma.user.findMany({
+      where: { role: 'internal_user', isActive: false },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        company: true,
+        departmentName: true,
+        phone: true,
+        email: true,
+        officeLocation: true,
+        requestedRole: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /** 审核历史（只读） */
+  async listRegistrationReviews() {
+    return this.prisma.registrationReview.findMany({
+      orderBy: { reviewedAt: 'desc' },
+    });
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {

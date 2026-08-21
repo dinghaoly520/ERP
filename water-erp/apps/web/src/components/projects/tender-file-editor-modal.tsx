@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, Clock, FileUp, Loader2, Pencil, RotateCcw, Save, Search, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Clock, FileUp, History, Loader2, Pencil, RotateCcw, Save, Search, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDraftAutosave, loadDraft, clearDraft } from '../../hooks/projects/useDraftAutosave';
 
@@ -77,6 +77,33 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
   const [loading, setLoading]           = useState(false);
   const [saving, setSaving]             = useState(false);
   const [isDirty, setIsDirty]           = useState(false);
+  /* ── 修改历史（只读，记录每次保存并替换）── */
+  const [historyOpen, setHistoryOpen]   = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyItems, setHistoryItems] = useState<Array<{
+    id: string; createdAt: string; fileSize: number;
+    changeSummary: string | null;
+    operatorName: string;
+  }>>([]);
+
+  const openHistory = useCallback(async () => {
+    setHistoryOpen(true); setHistoryLoading(true);
+    try {
+      const r = await fetch(`${API_BASE}/project-management/${projectId}/attachment/${attachmentId}/versions`, { credentials: 'include' });
+      if (!r.ok) throw new Error(`历史加载失败 (${r.status})`);
+      const data = await r.json() as Array<any>;
+      setHistoryItems((data || []).map(v => ({
+        id: v.id,
+        createdAt: v.createdAt,
+        fileSize: v.fileSize,
+        changeSummary: v.changeSummary,
+        operatorName: v.createdBy?.displayName || v.createdBy?.username || '未知用户',
+      })));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '历史加载失败');
+      setHistoryOpen(false);
+    } finally { setHistoryLoading(false); }
+  }, [projectId, attachmentId]);
   /* ── 导入审阅版 ── */
   const [reviewHtml, setReviewHtml]           = useState('');
   const [reviewAnnotationCount, setReviewAnnotationCount] = useState(0);
@@ -897,6 +924,10 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
               </button>
             )}
             {isDirty && <span className="text-[10px] font-semibold" style={{ color: 'var(--danger)' }}>已修改</span>}
+            {/* 修改历史：只读展示每次保存并替换的操作人/时间/变更内容 */}
+            <button type="button" onClick={() => void openHistory()} disabled={loading} className="neu-btn-soft gap-1.5 h-8 text-xs">
+              <History size={13} />修改历史
+            </button>
             <button type="button" onClick={() => void handleSave()} disabled={saving || loading} className="neu-btn-soft gap-1.5 h-8 text-xs">
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}{saving ? '保存中…' : '保存并替换'}
             </button>
@@ -1075,6 +1106,66 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
                   </div>
                 </>)}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════ 修改历史弹窗（只读——不可删改）══════ */}
+        {historyOpen && (
+          <div className="fixed inset-0 z-[700] flex items-center justify-center" onClick={() => setHistoryOpen(false)}>
+            <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} />
+            <div className="relative z-10 mx-5 w-full max-w-[560px] max-h-[76vh] overflow-y-auto rounded-[22px] p-6"
+              style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)' }}
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]"
+                    style={{ background: 'color-mix(in oklch, var(--accent) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}>
+                    <History size={17} className="text-[var(--accent)]" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">修改历史</div>
+                    <div className="text-[11px] text-[color:var(--muted-foreground)]">每次保存并替换的完整记录 · 只读不可删改</div>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setHistoryOpen(false)} className="neu-btn-xs"><X size={16} /></button>
+              </div>
+
+              {historyLoading ? (
+                <div className="flex flex-col items-center gap-3 py-12">
+                  <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
+                  <span className="text-sm text-[color:var(--muted-foreground)]">正在加载修改历史…</span>
+                </div>
+              ) : historyItems.length === 0 ? (
+                <div className="text-sm text-[color:var(--muted-foreground)] text-center py-10">暂无保存记录（首次保存后此处将显示历史）</div>
+              ) : (
+                <div className="space-y-2.5 mb-2">
+                  {historyItems.map((v, i) => (
+                    <div key={v.id} className="rounded-[12px] px-4 py-3"
+                      style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] text-[9px] font-bold text-white tabular-nums"
+                            style={{ background: 'linear-gradient(135deg, oklch(0.52 0.16 258), oklch(0.45 0.14 258))' }}>
+                            {historyItems.length - i}
+                          </span>
+                          <span className="text-[13px] font-bold text-[color:var(--foreground)]">{v.operatorName}</span>
+                        </div>
+                        <span className="text-[11px] text-[color:var(--muted-foreground)] tabular-nums">
+                          {new Date(v.createdAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="mt-2 rounded-[8px] px-3 py-2 text-[12px] leading-relaxed"
+                        style={{ background: 'color-mix(in oklch, var(--accent) 4%, transparent)', color: 'var(--foreground)' }}>
+                        {v.changeSummary || '内容已更新（早期版本未记录摘要）'}
+                      </p>
+                      <div className="mt-1.5 text-[10px] text-[color:var(--muted-foreground)]/60">
+                        版本大小 {(v.fileSize / 1024).toFixed(0)} KB
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

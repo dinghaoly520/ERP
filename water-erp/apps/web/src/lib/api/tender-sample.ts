@@ -115,7 +115,11 @@ export async function generateFieldContent(payload: {
     let detail = '';
     try {
       const body = await response.json();
-      detail = Array.isArray(body?.message) ? body.message[0] : body?.message ?? '';
+      // 后端 HttpExceptionFilter 归一化错误体为 { statusCode, code, error }（无 message 字段）；
+      // message 仅作 ValidationPipe 等少数场景的兼容回退
+      detail = Array.isArray(body?.message)
+        ? body.message[0]
+        : body?.error ?? body?.message ?? '';
     } catch {
       try {
         detail = (await response.text()).trim();

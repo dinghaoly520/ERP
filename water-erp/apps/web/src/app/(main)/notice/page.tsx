@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { useRouter } from 'next/navigation';
 import {
   listAnnouncements, deleteAnnouncement, updateAnnouncement,
@@ -12,8 +13,9 @@ import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
-  Paperclip, Lock, Archive, Trash2, Send, X, RefreshCw,
+  Paperclip, Lock, Archive, Trash2, Send, X, RefreshCw, History as HistoryIcon,
 } from 'lucide-react';
+import { AnnouncementHistoryModal, AllAnnouncementHistoriesModal } from '@/components/notice/announcement-history-modal';
 
 /* ── 类型/状态映射 ── */
 const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
@@ -41,18 +43,22 @@ export default function NoticePage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [partAnn, setPartAnn] = useState<AnnouncementListItem | null>(null);
+  const [historyAnnId, setHistoryAnnId] = useState<string | null>(null);
+  const [showAllHistories, setShowAllHistories] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey | null>('publishDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [companyId, setCompanyId] = useState('all');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await listAnnouncements({ type: filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15 });
+      const res = await listAnnouncements({ type: filterType, status: filterStatus || undefined, search: search || undefined, page, pageSize: 15, companyId });
       setData({ total: res.total, items: res.items });
     } catch { /* empty */ }
     setLoading(false);
-  }, [filterType, filterStatus, search, page]);
+  }, [filterType, filterStatus, search, page, companyId]);
+  useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setSelectedIds(new Set()); }, [filterType, filterStatus, search, page]);
 
@@ -142,8 +148,12 @@ export default function NoticePage() {
           </div>
 
           <div className="page-hero__right">
+            <CompanySelect value={companyId} onChange={setCompanyId} />
             <button onClick={load} disabled={loading} className="neu-btn-xs">
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            </button>
+            <button onClick={() => setShowAllHistories(true)} className="neu-btn-xs">
+              <HistoryIcon size={13} /> 公告历史
             </button>
             <button onClick={() => router.push('/notice/new')} className="neu-btn-soft">
               <PlusCircle size={15} /> 新建信息
@@ -290,6 +300,7 @@ export default function NoticePage() {
                     <td onClick={e => e.stopPropagation()}>
                       <div className="flex flex-wrap justify-center gap-1.5">
                         {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标情况</button>}
+                        <button onClick={() => setHistoryAnnId(a.id)} className="neu-btn-xs"><HistoryIcon size={12} /> 历史</button>
                         <button onClick={() => remove(a)} className="neu-btn-xs is-danger">删除</button>
                       </div>
                     </td>
@@ -310,6 +321,8 @@ export default function NoticePage() {
       </div>
 
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
+      {historyAnnId && <AnnouncementHistoryModal announcementId={historyAnnId} onClose={() => setHistoryAnnId(null)} />}
+      {showAllHistories && <AllAnnouncementHistoriesModal onClose={() => setShowAllHistories(false)} />}
     </div>
   );
 }

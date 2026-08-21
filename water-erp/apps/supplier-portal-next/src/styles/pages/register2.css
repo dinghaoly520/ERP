@@ -1,0 +1,107 @@
+/* ── 注册 2.0：六部分向导补充样式（reg-* 体系延续，globals.css 不动）── */
+
+/* 小节标题（法人信息 / 公司联系方式 / 业务标签） */
+.reg-subsec { margin: 22px 0 12px; display: flex; align-items: center; gap: 8px; }
+.reg-subsec::before { content: ''; width: 3px; height: 14px; border-radius: 2px; background: var(--brand, oklch(0.5 0.16 252)); }
+.reg-subsec h3 { margin: 0; font-size: 14px; font-weight: 800; color: var(--reg-ink, oklch(0.26 0.03 252)); }
+.reg-subsec .reg-hint { font-size: 12px; color: #64748b; font-weight: 500; }
+
+/* 三列栅格 */
+.reg-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 16px; }
+@media (max-width: 860px) { .reg-grid-3 { grid-template-columns: 1fr; } }
+
+/* logo 上传 */
+.reg-logo-drop {
+  display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 14px;
+  border: 1.5px dashed oklch(0.7 0.03 258 / 0.5); background: oklch(0.985 0.006 252);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.06); cursor: pointer; transition: border-color .2s;
+}
+.reg-logo-drop:hover { border-color: var(--brand, oklch(0.5 0.16 252)); }
+.reg-logo-preview {
+  width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: #fff;
+  border: 1px solid oklch(0.85 0.02 258 / 0.5); box-shadow: 2px 2px 6px oklch(0.55 0.03 258 / 0.12);
+}
+.reg-logo-ph {
+  width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  color: oklch(0.6 0.03 258); background: oklch(0.96 0.008 252);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.8);
+}
+.reg-logo-meta { display: flex; flex-direction: column; gap: 3px; }
+.reg-logo-meta strong { font-size: 13px; color: var(--reg-ink, oklch(0.26 0.03 252)); }
+.reg-logo-meta span { font-size: 12px; color: #64748b; }
+
+/* 多附件 chips */
+.reg-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.reg-file-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 260px; padding: 4px 10px;
+  border-radius: 999px; font-size: 12px; font-weight: 600; color: oklch(0.4 0.06 252);
+  background: oklch(0.96 0.012 252); box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 3px oklch(0.55 0.03 258 / 0.1);
+}
+.reg-file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reg-file-x { border: none; background: none; color: oklch(0.55 0.04 258); cursor: pointer; padding: 0; display: inline-flex; }
+.reg-file-x:hover { color: var(--danger, oklch(0.62 0.21 27)); }
+.reg-add-file {
+  display: inline-flex; align-items: center; gap: 4px; border: 1px dashed oklch(0.7 0.03 258 / 0.5);
+  background: none; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+  color: oklch(0.5 0.08 252); cursor: pointer; transition: all .15s;
+}
+.reg-add-file:hover { border-color: var(--brand, oklch(0.5 0.16 252)); color: var(--brand, oklch(0.5 0.16 252)); }
+
+/* 业绩卡片 */
+.reg-perf-card {
+  border-radius: 14px; padding: 16px; margin-bottom: 14px;
+  background: linear-gradient(180deg, oklch(0.99 0.006 252), oklch(0.975 0.01 252));
+  box-shadow: 3px 3px 8px oklch(0.55 0.03 258 / 0.08), -2px -2px 6px oklch(1 0 0 / 0.8), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.reg-perf-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.reg-perf-idx { font-size: 12px; font-weight: 800; color: oklch(0.5 0.1 252); }
+
+/* 总览 */
+.reg-ov-sec { margin-bottom: 18px; }
+.reg-ov-sec h4 { margin: 0 0 8px; font-size: 13px; font-weight: 800; color: oklch(0.45 0.08 252); display: flex; align-items: center; gap: 6px; }
+.reg-ov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+@media (max-width: 720px) { .reg-ov-grid { grid-template-columns: 1fr; } }
+.reg-ov-item dt { font-size: 11px; color: #64748b; }
+.reg-ov-item dd { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--reg-ink, oklch(0.26 0.03 252)); word-break: break-all; }
+.reg-ov-item dd .reg-mono { font-family: ui-monospace, monospace; }
+.reg-ov-line { margin: 0 0 4px; font-size: 13px; color: var(--reg-ink, oklch(0.26 0.03 252)); }
+.reg-ov-logo { display: block; margin-bottom: 10px; }
+
+/* ── 通用补充 ── */
+/* block-head 内辅助说明（subsec 内的 .reg-hint 见上） */
+.reg-block-head .reg-hint { font-size: 12px; color: #64748b; font-weight: 500; flex: 1; min-width: 0; }
+
+/* 行级错误汇总（联系人/银行/资质行内换行展示） */
+.reg-row-errors { flex-basis: 100%; font-size: 12px; color: var(--danger, #dc2626); padding-top: 2px; }
+
+/* 行内输入最小宽：控件多时自动换行成两排，避免挤成窄条 */
+.reg-row-fields .reg-row-input { min-width: 150px; }
+
+/* 资质行两层结构：上层主字段行，下层附加材料（避免 100% 宽附件层压垮主字段列） */
+.reg-row--stack { display: block; }
+.reg-row-line { display: flex; align-items: center; gap: 12px; }
+.reg-attach-wrap { padding-left: 38px; margin-top: 4px; }
+.reg-row--stack > .reg-error-text { display: block; padding-left: 38px; }
+
+/* 资质行 select/date 固定宽（压过 .reg-form .reg-sel/.reg-date 的 width:100%，否则每项独占一行） */
+.reg-row-fields--qual .reg-sel { flex: 0 0 170px; width: 170px; }
+.reg-row-fields--qual .reg-date { flex: 0 0 152px; width: 152px; }
+
+/* 行内控件标红（行式布局不走 .reg-item.has-error，单独补危险色描边） */
+.reg .reg-inp.is-err, .reg .reg-sel.is-err, .reg .reg-date.is-err {
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.85),
+    0 0 0 2px color-mix(in oklab, var(--danger, #dc2626) 40%, transparent);
+}
+/* 资质主文件上传按钮标红包裹层 */
+.reg-file-err .reg-btn--file {
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7),
+    0 0 0 2px color-mix(in oklab, var(--danger, #dc2626) 40%, transparent);
+}
+
+/* 性别窄下拉（特异性需压过 .reg-form .reg-sel 的 width:100%） */
+.reg-form .reg-row-gender, .reg .reg-row-gender { width: 92px; flex: 0 0 92px; }
+
+/* 附件上传中禁用态 */
+.reg-add-file:disabled { opacity: 0.6; cursor: wait; }
+
+@media (max-width: 720px) { .reg-form .reg-row-gender, .reg .reg-row-gender { width: 100%; flex: 1 1 100%; } }

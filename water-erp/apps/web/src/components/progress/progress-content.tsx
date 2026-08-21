@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { type AuthRole } from "@/lib/api/auth";
+import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import {
   fetchProgressStats,
   fetchProgressAiInsights,
@@ -403,6 +404,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
   const [aiInsights, setAiInsights] = useState<ProgressAiInsights | null>(null);
+  const [companyId, setCompanyId] = useState("all");
   const [aiLoading, setAiLoading] = useState(false);
 
   const applyInsightFilter = (insight: ProgressAiInsight) => {
@@ -412,10 +414,10 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
     const el = document.getElementById("project-list"); if (el) window.scrollTo({ top: el.offsetTop - 20, behavior: "smooth" });
   };
 
-  const loadData = async () => {
+  const loadData = async (cid?: string) => {
     setLoading(true); setError(null);
     try {
-      const data = await fetchProgressStats(); setStats(data);
+      const data = await fetchProgressStats(undefined, undefined, cid ?? companyId); setStats(data);
       setLastRefreshedAt(new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()));
     } catch (err) { setError(err instanceof Error ? err.message : "项目进度汇总加载失败"); }
     finally { setLoading(false); }
@@ -435,13 +437,17 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
     }
     setAiLoading(true);
     try {
-      const data = await fetchProgressAiInsights(); setAiInsights(data);
+      const data = await fetchProgressAiInsights(companyId); setAiInsights(data);
       try { localStorage.setItem(AI_CACHE_KEY, JSON.stringify({ fingerprint: fp, data })); } catch { /* ignore */ }
     } catch { setAiInsights(null); }
     finally { setAiLoading(false); }
   }, [stats]);
 
-  useEffect(() => { void loadData(); }, []);
+  useEffect(() => {
+    const initial = readInitialCompanyId();
+    setCompanyId(initial);
+    void loadData(initial);
+  }, []);
   useEffect(() => { if (stats) void loadAiInsights(); }, [stats, loadAiInsights]);
 
   // ─── Derived data ────────────────────────────────────────────────────────
@@ -563,6 +569,10 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
           </div>
 
           <div className="page-hero__right">
+            <CompanySelect
+              value={companyId}
+              onChange={(c) => { setCompanyId(c); void loadData(c); }}
+            />
             <span className="page-hero__stat page-hero__stat--info">
               共 {stats.totalActive} 项
             </span>

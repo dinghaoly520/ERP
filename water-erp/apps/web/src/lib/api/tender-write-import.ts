@@ -8,27 +8,6 @@ function parseErrorMessage(text: string) {
   return trimmed || '分析失败，请稍后重试。';
 }
 
-/**
- * Build the full API URL for import-autofill.
- *
- * Next.js rewrites /api/* to the backend, but multipart/form-data
- * forwarding can be unreliable through the proxy. When accessing
- * via LAN IP, construct a direct URL to the backend instead.
- */
-function getImportAutofillUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (configured?.startsWith('http://') || configured?.startsWith('https://')) {
-    return `${configured}/tender-write/import-autofill`;
-  }
-
-  // Check if accessed via LAN (not localhost)
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    return `${window.location.protocol}//${window.location.hostname}:4000/api/tender-write/import-autofill`;
-  }
-
-  return `${API_BASE}/tender-write/import-autofill`;
-}
-
 export async function importAutofill(
   documentType: ReadyTenderDocumentType,
   files: File[],
@@ -40,9 +19,13 @@ export async function importAutofill(
     formData.append('files', file);
   }
 
-  const response = await fetch(getImportAutofillUrl(), {
+  // 统一走 /api 相对路径，由 src/proxy.ts 转发到后端（proxy 已透传 Cookie + X-Portal）。
+  // 之前的「LAN 直连 :4000」逻辑是错误的——(1) water-erp API 端口是 4001 不是 4000；
+  // (2) 直连会绕过 proxy 丢掉 X-Portal 头导致 401/跨域 Failed to fetch。
+  const response = await fetch(`${API_BASE}/tender-write/import-autofill`, {
     method: 'POST',
     credentials: 'include',
+    headers: { 'X-Portal': 'web' },
     body: formData,
   });
 

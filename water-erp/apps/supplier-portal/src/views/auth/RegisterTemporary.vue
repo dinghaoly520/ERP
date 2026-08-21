@@ -3,6 +3,7 @@ import { reactive, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi } from '@/api/auth'
 import { ElMessage } from 'element-plus'
+import RegisterAgreement from '@/components/RegisterAgreement.vue'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -24,6 +25,19 @@ const validityDays = ref(0)
 const expiresAt = ref('')
 
 const submitting = ref(false)
+const agreeAgreement = ref(false)
+const creditCodeDuplicate = ref(false)
+
+async function checkCreditCodeDuplicate() {
+  creditCodeDuplicate.value = false
+  const code = form.creditCode.trim()
+  if (!/^[0-9A-Z]{18}$/.test(code)) return
+  try {
+    const res = await authApi.checkDuplicate({ creditCode: code })
+    creditCodeDuplicate.value = res.creditCode
+    if (res.creditCode) ElMessage.warning('该统一社会信用代码已被注册，请核对后重试')
+  } catch { /* 查重失败不阻塞流程 */ }
+}
 
 const rules = {
   invitationCode: [{ required: true, message: '请输入邀请码', trigger: 'blur' }],
@@ -82,6 +96,8 @@ async function submit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   if (!inviteVerified.value) { ElMessage.warning('请先校验邀请码'); return }
+  if (!agreeAgreement.value) { ElMessage.warning('请先阅读并同意《供应商注册入驻协议》'); return }
+  if (creditCodeDuplicate.value) { ElMessage.error('统一社会信用代码重复，无法注册，请核对后重试'); return }
   submitting.value = true
   try {
     await authApi.registerTemporary({
@@ -150,7 +166,7 @@ async function submit() {
 
           <el-form-item prop="creditCode" class="lp-field">
             <template #label>统一社会信用代码</template>
-            <el-input v-model="form.creditCode" placeholder="18 位代码（用于查询审核进度）" maxlength="18" prefix-icon="Document" />
+            <el-input v-model="form.creditCode" placeholder="18 位代码（用于查询审核进度）" maxlength="18" prefix-icon="Document" @blur="checkCreditCodeDuplicate" />
           </el-form-item>
 
           <el-form-item prop="displayName" class="lp-field">
@@ -166,6 +182,10 @@ async function submit() {
           <el-form-item prop="password" class="lp-field">
             <template #label>登录密码</template>
             <el-input v-model="form.password" type="password" placeholder="不少于 6 位" prefix-icon="Lock" show-password />
+          </el-form-item>
+
+          <el-form-item>
+            <RegisterAgreement v-model="agreeAgreement" />
           </el-form-item>
 
           <el-form-item>

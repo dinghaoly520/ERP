@@ -70,7 +70,7 @@ Self-service portal for suppliers. Supports registration (with enterprise info +
 
 ### 采购管理工作台 (`web`, :3005)
 
-The admin/internal staff management console for procurement users (login roles `staff`/`leader`; the `procurement_staff` schema role is NOT in `PORTAL_ROLE_PRIORITY.web`). Key modules:
+The admin/internal staff management console for procurement users (login roles `staff`/`leader`; the legacy `procurement_staff` ghost account was removed 2026-08-20). **公司级数据隔离（2026-08-20）**：数据库/台账/进度/公告管理端按登录人公司隔离（真隔离=where 注入+:id 越权 403+统计在隔离集上算）；admin 四页有公司选择器（默认全部、?companyId= 切换、非 admin 传参忽略）；项目管理页为个人隔离（非 admin 仅本人项目，admin 全量）。归属写时快照（companyId+companyName），Company 主数据表（`companies`，注册 normalizeCompany 对齐建档）。供应商库/专家库/目录不隔离；公告 public 接口不受限。关键模块:
 
 - **首页驾驶舱** (`/dashboard`) — operational dashboard with AI panel (水叮当 summary)
 - **信息发布中心** (`/notice`) — manage announcements (CRUD + publish)
@@ -134,7 +134,6 @@ Standalone AI chat assistant powered by DeepSeek LLM. Provides procurement domai
 |------|--------|-------------|
 | `admin` | bid (:3007) | `/bid` |
 | `bid_host` | bid (:3007) | `/bid` |
-| `procurement_staff` | web (:3005) | `/dashboard` |
 | `supplier` | supplier (:3004) | `/dashboard` |
 | `bid_expert` | expert (:3006) | `/` |
 | `mall` | mall (:3003) | `/` |
@@ -231,11 +230,10 @@ Passwords follow `<username>@2026` convention:
 | `Swhi-CGZX-00` | `Swhi-CGZX-00@2026` | leader · 董事长（工作台董事长变体+受限导航，见 `apps/web/src/lib/workbench-profiles.ts`） | 采购管理工作台 (:3005) |
 | `SWDG-01` | `SWDG-01@2026` | staff · 水发集团（落地 /tender-write+受限导航，见 workbench-profiles.ts） | 采购管理工作台 (:3005) |
 | `Swhi-CGZX-admin` | `Swhi-CGZX-admin@2026` | admin · 密码审批等管理功能 | 采购管理工作台 (:3005) |
-| `陈源远` | `陈源远@2026` | procurement_staff · :3005 登录实际解析为 `bid_host`（见下注） | 采购管理工作台 (:3005) |
 | 专家姓名（如 `刘苡池`） | `expert@2026` | bid_expert | 专家门户 (:3006) |
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
-> **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` **不含 `procurement_staff`**，故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
+> **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），两个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` （原 `procurement_staff` 幽灵账户已于 2026-08-20 删除），故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
 详见 `auth.service.ts`。另：专家门户 (:3006) 登录页 dev 模式演示提示账号（周祥志 / Swhi-CGZX-admin，`DEMO_ACCOUNTS`）生产构建自动剥离。
 
 > `admin` role 已有种子账号 `Swhi-CGZX-admin`（密码审批等管理功能；登录口令 `<用户名>@2026`）。开评标管理端 (:3007) 演示请用 `陈源远` (bid_host)。
@@ -289,6 +287,7 @@ The NestJS API (`apps/api`, :4001):
 | Module | Purpose |
 |--------|---------|
 | `Auth` | JWT login/register/logout/me; Passport strategy; RBAC guards (`AuthGuard`, `RolesGuard`) |
+| `Company` | 公司主数据 + `CompanyScopeService` 数据隔离引擎（resolveScope/filter/assertInScope/stampFor；dashboard/procurements/progress/announcements/project-management 接入） |
 | `Bid` | Full bid lifecycle: projects, opening sessions, records, scoring, clarifications, supervision, archive, evaluation results |
 | `Expert` | Expert sign-in, avoidance check, scoring, reports; sub-controllers: `expert.controller.ts` (expert-side), `expert-admin.controller.ts` (admin CRUD/extraction/portrait/retire) |
 | `Supplier` | Supplier CRUD, review, evaluations, classifications, change records |

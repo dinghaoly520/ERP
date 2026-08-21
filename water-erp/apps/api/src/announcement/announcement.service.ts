@@ -24,7 +24,11 @@ export class AnnouncementService {
     BID_NOTICE: '采购公告', WIN_NOTICE: '中标公告', POLICY: '政策法规', PLATFORM: '平台通知',
   };
 
-  async create(dto: CreateAnnouncementDto, authorId?: string) {
+  async create(
+    dto: CreateAnnouncementDto,
+    authorId?: string,
+    companyStamp: { companyId?: string; companyName?: string } = {},
+  ) {
     const aiSummary = dto.aiSummary ?? await this.announcementAi.summarize({
       title: dto.title,
       type: AnnouncementService.TYPE_LABELS[dto.type] ?? dto.type,
@@ -37,6 +41,9 @@ export class AnnouncementService {
       data: {
         title: dto.title,
         content: dto.content,
+        // 公司归属（写时快照）：管理端按公司隔离，公开端不受限
+        companyId: companyStamp.companyId ?? null,
+        companyName: companyStamp.companyName ?? null,
         aiSummary,
         type: dto.type as any,
         summary: dto.summary,
@@ -78,6 +85,7 @@ export class AnnouncementService {
       await this.syncBidProject(result.id, {
         id: result.id, title: result.title, publishDate: result.publishDate,
         metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId,
+        companyId: result.companyId, companyName: result.companyName,
       });
     }
     // 发布即通知（所有类型，不仅 BID_NOTICE）：按可见范围向供应商发站内信
@@ -92,12 +100,16 @@ export class AnnouncementService {
     return result;
   }
 
-  async list(params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number }) {
+  async list(
+    params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number },
+    companyFilter: { companyId?: string } = {},
+  ) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
 
-    const where: any = {};
+    // 公司隔离（2026-08-20）：非 admin 只见本公司公告；admin 可切公司/全部
+    const where: any = { ...companyFilter };
     if (params.type) where.type = params.type;
     if (params.status) where.status = params.status;
     if (params.search) {
@@ -126,6 +138,8 @@ export class AnnouncementService {
 
   /** Public listing — only published items；公开端不含招标文件（首页不泄露）；RESTRICTED 可见范围不流转到首页 */
   async publicList(params: { type?: string; search?: string; page?: number; pageSize?: number }) {
+    // 契约（2026-08-20 拍板）：公开门户（:3002）与供应商门户（:3004）**全量展示所有公司公告**——
+    // 复用 list() 但不传 companyFilter（默认空 = 无公司过滤）。切勿在此注入公司隔离。
     const res = await this.list({ ...params, status: 'PUBLISHED' });
     return { ...res, items: res.items
       .filter((a: any) => a.metadata?.visibility !== 'RESTRICTED')
@@ -253,7 +267,7 @@ export class AnnouncementService {
           );
         }
       }
-      await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId });
+      await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId, companyId: result.companyId, companyName: result.companyName });
     }
     // 发布即通知（所有类型）：按可见范围向供应商发站内信
     if (isPublishTransition) {
@@ -316,7 +330,7 @@ export class AnnouncementService {
   }
 
   /** 联动：BID_NOTICE 发布时自动创建/同步 BidProject，幂等安全 */
-  private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null }) {
+  private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null; companyId?: string | null; companyName?: string | null }) {
     if (!this.bidService) return;
     try {
       const meta = AnnouncementService.validateMetadata(announcement.metadata);
@@ -343,8 +357,10 @@ export class AnnouncementService {
           });
         }
       } else {
+        const annCompany = { companyId: announcement.companyId ?? undefined, companyName: announcement.companyName ?? undefined };
         const project = await this.bidService.createFromAnnouncement(
           { id: announcement.id, title: announcement.title, publishDate: announcement.publishDate }, meta,
+          annCompany,
         );
         await this.prisma.announcement.update({ where: { id: annId }, data: { relatedProjectCode: project.projectCode } });
         const bidDoc = await this.prisma.bidDocument.findUnique({ where: { announcementId: annId } });
@@ -355,7 +371,9 @@ export class AnnouncementService {
         // :3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主，此前此类项目无宿主
         if (this.projectManagementService) {
           const pmi = await this.prisma.$transaction(async (tx) => {
-            const created = await this.projectManagementService!.createItemFromAnnouncement(tx, {
+            const created = await this.projectManagementService!.createItemFromAnnouncement(
+              { companyId: announcement.companyId, companyName: announcement.companyName },
+              tx, {
               title: announcement.title,
               procurementMethod: meta.method || '公开招标',
               budget: meta.budget != null ? Number(meta.budget) : null,
@@ -501,13 +519,15 @@ export class AnnouncementService {
     return { deleted: true };
   }
 
-  async getStats() {
+  async getStats(companyFilter: { companyId?: string } = {}) {
+    // 公司隔离：统计聚合在隔离后的数据集上计算
+    const where = { ...companyFilter };
     const [total, published, bidNotice, winNotice, policy] = await Promise.all([
-      this.prisma.announcement.count(),
-      this.prisma.announcement.count({ where: { status: 'PUBLISHED' } }),
-      this.prisma.announcement.count({ where: { type: 'BID_NOTICE', status: 'PUBLISHED' } }),
-      this.prisma.announcement.count({ where: { type: 'WIN_NOTICE', status: 'PUBLISHED' } }),
-      this.prisma.announcement.count({ where: { type: 'POLICY', status: 'PUBLISHED' } }),
+      this.prisma.announcement.count({ where }),
+      this.prisma.announcement.count({ where: { ...where, status: 'PUBLISHED' } }),
+      this.prisma.announcement.count({ where: { ...where, type: 'BID_NOTICE', status: 'PUBLISHED' } }),
+      this.prisma.announcement.count({ where: { ...where, type: 'WIN_NOTICE', status: 'PUBLISHED' } }),
+      this.prisma.announcement.count({ where: { ...where, type: 'POLICY', status: 'PUBLISHED' } }),
     ]);
     return { total, published, bidNotice, winNotice, policy };
   }

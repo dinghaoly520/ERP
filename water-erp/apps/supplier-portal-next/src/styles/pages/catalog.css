@@ -1,0 +1,533 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   供应商门户 · 采购目录页面组样式
+   集中提取自 Vue supplier-portal/src/views/catalog/ 四个视图的 <style scoped>：
+     1. CatalogList.vue       — 品类导航 / 工具栏 / 筛选条 / 表格 / 骨架屏
+     2. ApplicationDialog.vue — 供货申请弹窗（自定义 neumorphic 面板）
+     3. MyApplications.vue    — 申请卡片列表 / Tabs 计数
+     4. MySupply.vue          — 供货卡片网格 / 搜索条
+   提取规则：
+     - @import 行已删除；:deep() 规则块已删除并改写为原生等价（.app-dlg-select）
+     - el-table / el-tag / el-button / el-input / v-loading 的最终渲染态
+       （Element Plus 默认 + cgzxui .el-* 全局覆盖）改写为原生等价类，
+       一律以本页面组私有类名（cat-* / app-* / supply-*）为前缀，避免全局泄漏
+     - Vue <Transition> 过渡类改写为等时长/等缓动的 CSS keyframes 动画
+   注意：本文件经 import 进入全局作用域，勿使用可能与其他页面组冲突的裸类名。
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════
+   1. CatalogList.vue — 集中采购目录
+   ═══════════════════════════════════════════════════════════ */
+
+/* ═══════════════ Layout ═══════════════ */
+.catalog-layout { display: flex; gap: 16px; align-items: flex-start; margin-top: 16px; }
+
+/* ── Category sidebar — neumorphic raised plate (no glass / no drift) ── */
+.cat-sidebar {
+  width: 220px; flex-shrink: 0; border-radius: 16px; padding: 14px;
+  position: sticky; top: 16px; max-height: calc(100vh - 120px);
+  overflow-y: scroll; scrollbar-gutter: stable;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.cat-sidebar-title { font-size: 12px; font-weight: 800; color: var(--muted-foreground); padding: 4px 8px 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+.cat-node { margin-bottom: 2px; }
+.cat-group {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: 10px;
+  font-size: 14px; font-weight: 700; color: var(--foreground);
+  cursor: pointer; transition: all 0.18s ease;
+}
+.cat-group:hover { background: oklch(1 0 0 / 0.6); color: var(--brand);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 1px 3px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.85); }
+.cat-group.active {
+  color: #fff; background: linear-gradient(90deg, var(--brand), var(--brand-deep));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.25), 2px 2px 6px oklch(0.4 0.1 258 / 0.28);
+}
+.cat-count {
+  font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 10px;
+  color: var(--muted-foreground); background: oklch(0.55 0.03 258 / 0.08);
+  font-variant-numeric: tabular-nums;
+}
+.cat-group.active .cat-count { background: oklch(1 0 0 / 0.22); color: #fff; }
+.cat-sub { padding: 4px 0 6px 8px; }
+.cat-leaf { padding: 7px 14px; font-size: 13px; color: var(--muted-foreground); border-radius: 8px; cursor: pointer; transition: all 0.15s ease; }
+.cat-leaf:hover { background: oklch(1 0 0 / 0.6); color: var(--brand); }
+.cat-leaf.active { color: var(--brand); font-weight: 700; background: color-mix(in oklab, var(--brand) 10%, transparent); }
+/* 原 Vue <Transition name="cat-sub"> — React 侧改写为挂载动画（同 0.18s ease / translateY(-6px)） */
+.cat-sub { animation: catSubIn 0.18s ease; }
+@keyframes catSubIn { from { opacity: 0; transform: translateY(-6px); } }
+
+.cat-main { flex: 1; min-width: 0; }
+
+/* ── Toolbar — layout only (visuals from cgzxui .neu-card) ── */
+.cat-toolbar { flex-direction: row; align-items: center; gap: 10px; padding: 12px 16px; margin-bottom: 12px; }
+.cat-spacer { flex: 1; }
+
+.cat-filter-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 0 4px; min-height: 28px; }
+.cat-filter-label { font-size: 12px; font-weight: 600; color: var(--muted-foreground); flex-shrink: 0; }
+.cat-filter-body { position: relative; display: inline-flex; align-items: center; min-width: 80px; }
+.cat-filter-none { font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
+.cat-result-count { font-size: 13px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+/* 原 Vue <Transition name="filter-fade"> — React 侧改写为挂载动画（同 0.15s ease / translateY(2px)） */
+.cat-filter-tag { animation: catFilterIn 0.15s ease; }
+@keyframes catFilterIn { from { opacity: 0; transform: translateY(2px); } }
+
+/* ── Table shell — cgzxui .neu-table-card handles the plate; keep fixed-column radius clipped ── */
+.cat-table-shell { overflow: hidden; }
+
+/* ── el-table 原生等价（Element Plus 默认值 + cgzxui .el-table 全局覆盖后的最终渲染态）── */
+.cat-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; color: #606266; }
+.cat-table th {
+  padding: 8px 0; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--foreground); background: oklch(1 0 0 / 0.35);
+  border-bottom: 1px solid var(--hairline); white-space: nowrap; text-align: center;
+}
+.cat-table td { padding: 8px 0; border-bottom: 1px solid oklch(0.55 0.03 258 / 0.06); vertical-align: middle; text-align: center; }
+.cat-table tbody tr { background: transparent; transition: background 0.18s ease; }
+.cat-table tbody tr:hover { background: oklch(1 0 0 / 0.4); }
+.cat-table tbody tr:last-child td { border-bottom: none; }
+/* el-table .cell — 水平 padding 12px / 行高 23px；show-overflow-tooltip → 单行省略 */
+.cat-cell { padding: 0 12px; line-height: 23px; min-width: 0; }
+.cat-cell--ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* el-table empty-text 空块 */
+.cat-empty { padding: 42px 16px; text-align: center; font-size: 14px; color: #909399; }
+
+.cell-code { font-family: 'SF Mono','JetBrains Mono',monospace; font-size: 12px; color: var(--brand); font-weight: 700; text-align: center; }
+.cell-name { font-size: 14px; color: var(--foreground); font-weight: 600; margin-top: 2px; text-align: center; }
+
+/* ── Skeletons — borderless surface plates (no glass) ── */
+.skel-wrap { display: flex; flex-direction: column; gap: 14px; }
+.skel-hero { background: var(--surface); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.skel-cat { display: flex; gap: 16px; height: 340px; }
+.skel-sidebar { width: 220px; background: var(--surface); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 4px; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+.skel-main { flex: 1; background: var(--surface); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-group, .cat-leaf { transition: none; }
+  .cat-sub, .cat-filter-tag { animation: none; }
+}
+@media (max-width:900px) { .catalog-layout { flex-direction: column; } .cat-sidebar { width: 100%; position: static; max-height: none; } }
+
+/* ═══════════════════════════════════════════════════════════
+   2. ApplicationDialog.vue — 供货申请弹窗
+   ═══════════════════════════════════════════════════════════ */
+
+/* ═══════════ Overlay — no glass blur, just scrim ═══════════ */
+.app-dlg-overlay {
+  position: fixed; inset: 0; z-index: 2100;
+  display: flex; align-items: center; justify-content: center;
+  background: oklch(0.35 0.06 258 / 0.28);
+}
+
+/* ═══════════ Panel — cgzxui neumorphic plate ═══════════ */
+.app-dlg-panel {
+  position: relative;
+  width: 540px; max-width: calc(100vw - 48px); max-height: calc(100vh - 64px);
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  border: none; border-radius: 20px;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.75), 0 20px 60px oklch(0.3 0.05 258 / 0.18);
+  overflow: hidden;
+}
+
+/* ═══════════ Head ═══════════ */
+.app-dlg-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: oklch(1 0 0 / 0.25);
+}
+.app-dlg-title {
+  margin: 0; font-size: 17px; font-weight: 900; color: var(--foreground); letter-spacing: -0.01em;
+}
+.app-dlg-close {
+  width: 32px; height: 32px; border-radius: 9px; border: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface); color: var(--muted-foreground); cursor: pointer;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+  transition: all 0.18s ease;
+}
+.app-dlg-close:hover { color: var(--danger); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9); }
+.app-dlg-close:active { transform: none;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
+
+/* ═══════════ Body ═══════════ */
+.app-dlg-body {
+  flex: 1; overflow-y: auto;
+  padding: 20px 24px;
+}
+
+/* ── Item badge — concave plate ── */
+.app-dlg-item-badge {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 12px 16px; margin-bottom: 14px;
+  background: var(--surface); border: none; border-radius: 10px;
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.06), inset -1px -1px 3px oklch(1 0 0 / 0.6);
+}
+.app-dlg-item-code { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-weight: 800; color: var(--brand); font-size: 11px; }
+.app-dlg-item-sep  { color: var(--hairline); }
+.app-dlg-item-name { font-weight: 800; color: var(--foreground); }
+.app-dlg-item-spec { color: var(--muted-foreground); font-size: 12px; }
+.app-dlg-item-unit { color: var(--muted-foreground); font-size: 12px; margin-left: auto; }
+
+/* ── Countered warning ── */
+.app-dlg-countered {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 14px; padding: 10px 14px;
+  background: color-mix(in oklab, var(--warning) 8%, transparent);
+  border-radius: 10px;
+  font-size: 13px; color: var(--foreground);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.4), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.04), inset -1px -1px 3px oklch(1 0 0 / 0.5);
+}
+/* 原 `.el-icon`（WarningFilled）→ lucide svg 等价选择器 */
+.app-dlg-countered > svg { color: var(--warning); flex-shrink: 0; }
+.app-dlg-countered strong { color: var(--danger); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* ═══════════ Form ═══════════ */
+.app-dlg-form { display: flex; flex-direction: column; gap: 16px; }
+
+.app-dlg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.app-dlg-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+.app-dlg-label {
+  font-size: 12px; font-weight: 700; color: var(--foreground); letter-spacing: 0.02em;
+}
+.app-dlg-label i { font-style: normal; color: var(--danger); }
+.app-dlg-label-hint { font-weight: 400; color: var(--muted-foreground); }
+
+/* ── Native inputs → concave wells ── */
+.app-dlg-input {
+  width: 100%; height: 40px; padding: 0 12px;
+  font: inherit; font-size: 14px; color: var(--foreground);
+  background: oklch(0.99 0.004 258); border: 1px solid oklch(0.78 0.03 258 / 0.4); border-radius: 10px;
+  outline: none; box-sizing: border-box;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.app-dlg-input::placeholder { color: oklch(0.74 0.02 258); }
+.app-dlg-input:focus {
+  border-color: oklch(0.5 0.16 258 / 0.5);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+}
+.app-dlg-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.app-dlg-input[type="number"]::-webkit-inner-spin-button,
+.app-dlg-input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.app-dlg-unit { max-width: 160px; }
+
+.app-dlg-textarea {
+  height: auto; padding: 10px 12px; resize: vertical; line-height: 1.6;
+}
+.app-dlg-charcount {
+  align-self: flex-end; font-size: 11px; color: var(--muted-foreground); margin-top: -10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Price input — concave wrapper, transparent inner field ── */
+.app-dlg-price-input {
+  display: flex; align-items: center;
+  background: oklch(0.99 0.004 258); border: 1px solid oklch(0.78 0.03 258 / 0.4); border-radius: 10px;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.app-dlg-price-input:focus-within {
+  border-color: oklch(0.5 0.16 258 / 0.5);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+}
+.app-dlg-currency {
+  padding: 0 0 0 12px; font-size: 15px; font-weight: 700; color: var(--muted-foreground);
+}
+.app-dlg-price-input .app-dlg-input {
+  border: none; background: transparent; box-shadow: none;
+}
+.app-dlg-price-input .app-dlg-input:focus { box-shadow: none; }
+
+/* ── 原生 select 等价改写（原三段 `.app-dlg-select-wrap :deep(.el-select/.el-input__wrapper)`
+      深选择器已删除；视觉 = 同款内凹输入井 40px + 右侧 el-select 下拉箭头） ── */
+.app-dlg-select {
+  width: 100%; height: 40px; box-sizing: border-box;
+  padding: 0 30px 0 12px;
+  font: inherit; font-size: 14px; color: var(--foreground);
+  background-color: oklch(0.99 0.004 258);
+  border: 1px solid oklch(0.78 0.03 258 / 0.4); border-radius: 10px;
+  outline: none; cursor: pointer;
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 4px oklch(1 0 0 / 0.7);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a8abb2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+}
+.app-dlg-select:focus {
+  border-color: oklch(0.5 0.16 258 / 0.5);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.08), inset -2px -2px 4px oklch(1 0 0 / 0.5), 0 0 0 3px oklch(0.5 0.16 258 / 0.08);
+}
+.app-dlg-select:disabled {
+  color: oklch(0.6 0.03 258); cursor: not-allowed;
+  background-color: oklch(0.97 0.008 258);
+  box-shadow: inset 2px 2px 4px oklch(0.55 0.03 258 / 0.06), inset -2px -2px 4px oklch(1 0 0 / 0.55);
+}
+
+/* ── Checkboxes ── */
+.app-dlg-checks { display: flex; align-items: center; gap: 16px; height: 40px; }
+.app-dlg-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--foreground); cursor: pointer; }
+.app-dlg-check input[type="checkbox"] { accent-color: var(--brand); width: 16px; height: 16px; cursor: pointer; }
+
+/* ═══════════ Footer ═══════════ */
+.app-dlg-foot {
+  display: flex; justify-content: flex-end;
+  padding: 14px 24px 18px;
+  background: oklch(1 0 0 / 0.3);
+  border-top: 1px solid var(--hairline);
+}
+
+/* ═══════════ Transition — 原 Vue <Transition name="app-dlg"> 过渡类，改写为等价动画 ═══════════ */
+.app-dlg-overlay.app-dlg-enter-active { animation: appDlgFadeIn 0.2s ease; }
+.app-dlg-overlay.app-dlg-enter-active .app-dlg-panel { animation: appDlgPanelIn 0.25s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.app-dlg-overlay.app-dlg-leave-active { animation: appDlgFadeOut 0.15s ease; }
+.app-dlg-overlay.app-dlg-leave-active .app-dlg-panel { animation: appDlgPanelOut 0.15s ease; }
+@keyframes appDlgFadeIn { from { opacity: 0; } }
+@keyframes appDlgFadeOut { to { opacity: 0; } }
+@keyframes appDlgPanelIn { from { transform: scale(0.96) translateY(8px); opacity: 0; } }
+@keyframes appDlgPanelOut { to { transform: scale(0.97); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-dlg-close, .app-dlg-input, .app-dlg-price-input, .app-dlg-select { transition: none !important; }
+  .app-dlg-overlay.app-dlg-enter-active, .app-dlg-overlay.app-dlg-enter-active .app-dlg-panel,
+  .app-dlg-overlay.app-dlg-leave-active, .app-dlg-overlay.app-dlg-leave-active .app-dlg-panel { animation: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   3. MyApplications.vue — 我的供货申请
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Tabs — layout only (visuals from cgzxui .neu-tab-bar / .neu-tab) ── */
+.app-tabs { display: flex; width: fit-content; margin: 16px 0; }
+.app-tab-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 18px; padding: 0 6px;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  border-radius: 9px; font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground); background: oklch(0.55 0.03 258 / 0.1);
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.neu-tab.is-active .app-tab-count { color: var(--brand); background: color-mix(in oklab, var(--brand) 12%, transparent); }
+
+/* ── Application cards — neumorphic plates (no glass / no drift) ── */
+.app-list { display: flex; flex-direction: column; gap: 14px; }
+.app-card {
+  border-radius: 16px; overflow: hidden;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.app-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 7px 7px 16px oklch(0.55 0.03 258 / 0.12), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.app-card-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; box-shadow: inset 0 -1px 0 var(--hairline); }
+.app-type-tag { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 6px; flex-shrink: 0; white-space: nowrap; }
+.app-type-tag.NEW_ITEM     { background: color-mix(in oklab, #7c3aed 12%, transparent); color: #7c3aed; }
+.app-type-tag.JOIN_EXISTING { background: color-mix(in oklab, #0a5eb8 12%, transparent); color: #0a5eb8; }
+.app-type-tag.UPDATE_QUOTE { background: color-mix(in oklab, #d97706 12%, transparent); color: #d97706; }
+.app-title-wrap { flex: 1; min-width: 0; }
+.app-title { font-size: 15px; font-weight: 800; color: var(--foreground); letter-spacing: -0.01em; }
+.app-spec { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-card-body { padding: 16px 20px; }
+.app-info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 20px; }
+.app-info-item { display: flex; flex-direction: column; gap: 2px; }
+.app-info-label { font-size: 11px; color: var(--muted-foreground); font-weight: 600; }
+.app-info-value { font-size: 14px; color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
+.app-info-value.price { color: var(--danger); font-size: 16px; font-weight: 800; }
+.app-info-value.price small { font-size: 11px; color: var(--muted-foreground); font-weight: 400; }
+.app-wait { color: var(--warning); font-weight: 700; }
+.app-counter {
+  display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px 14px;
+  border-radius: 10px; color: var(--foreground);
+  background: color-mix(in oklab, var(--warning) 10%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.app-counter-icon { flex-shrink: 0; margin-top: 1px; color: var(--warning); }
+.app-counter-title { font-size: 14px; }
+.app-counter-title strong { color: var(--danger); font-size: 16px; font-variant-numeric: tabular-nums; }
+.app-counter-note { font-size: 12px; color: var(--muted-foreground); margin-top: 3px; }
+.app-reason {
+  display: flex; align-items: flex-start; gap: 6px; margin-top: 12px; padding: 10px 12px;
+  border-radius: 10px; font-size: 13px; line-height: 1.5; color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 8%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+.app-reason > svg { flex-shrink: 0; margin-top: 2px; }
+.app-note {
+  margin-top: 10px; font-size: 12px; color: var(--muted-foreground);
+  background: oklch(0.99 0.004 258); padding: 8px 12px; border-radius: 8px;
+  box-shadow: inset 3px 3px 7px oklch(0.55 0.03 258 / 0.12), inset -3px -3px 7px oklch(1 0 0 / 0.8);
+}
+.app-note-label { font-weight: 700; color: var(--foreground); margin-right: 6px; }
+.app-card-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px; box-shadow: inset 0 1px 0 var(--hairline); }
+
+/* ── el-button text（「撤回 / 撤回申请」）原生等价 — 透明底 + 悬浮品牌色 ── */
+.app-btn-text {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 32px; padding: 0 15px; font: inherit; font-size: 14px; font-weight: 600;
+  border: none; border-radius: 9px; cursor: pointer; transition: all 0.2s ease;
+  background: transparent; box-shadow: none; color: #606266;
+}
+.app-btn-text:hover { color: var(--brand); background: oklch(0.96 0.008 258); }
+.app-btn-text:active { box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
+
+/* ── Empty ── */
+.app-empty { padding: 72px 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app-card { transition: none; }
+  .app-card:hover { transform: none; }
+  .app-btn-text { transition: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   4. MySupply.vue — 我的供货关系
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Search bar — layout only (visuals from cgzxui .neu-card) ── */
+.supply-filter { flex-direction: row; align-items: center; gap: 12px; padding: 12px 16px; margin: 16px 0; }
+.supply-filter-count { margin-left: auto; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+/* ── Supply cards — neumorphic plates (no glass / no drift) ── */
+.supply-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.supply-card {
+  border-radius: 16px; overflow: hidden;
+  background: linear-gradient(180deg, oklch(0.995 0.008 258), oklch(0.97 0.012 258));
+  box-shadow: 5px 5px 12px oklch(0.55 0.03 258 / 0.09), -4px -4px 10px oklch(1 0 0 / 0.85), inset 0 1px 0 oklch(1 0 0 / 0.7);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.supply-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 7px 7px 16px oklch(0.55 0.03 258 / 0.12), -5px -5px 12px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.7);
+}
+.supply-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 16px 18px; box-shadow: inset 0 -1px 0 var(--hairline); }
+.supply-code { font-family: 'SF Mono', 'JetBrains Mono', monospace; font-size: 11px; color: var(--brand); font-weight: 700; }
+.supply-name { font-size: 15px; font-weight: 800; color: var(--foreground); margin-top: 3px; letter-spacing: -0.01em; }
+.supply-spec { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; }
+.supply-card-body { padding: 16px 18px; }
+.supply-price { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.supply-price-label { font-size: 11px; color: var(--muted-foreground); font-weight: 600; }
+.supply-price-value { font-size: 24px; color: var(--danger); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.supply-price-value small { font-size: 12px; color: var(--muted-foreground); font-weight: 400; }
+.supply-meta { font-size: 12px; color: var(--muted-foreground); }
+.supply-time { font-size: 11px; color: var(--muted-foreground); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.supply-card-foot { padding: 12px 18px; box-shadow: inset 0 1px 0 var(--hairline); }
+
+/* ── Empty / 分页容器（原 el-pagination 外层 inline style 类化）── */
+.supply-empty { padding: 72px 20px; text-align: center; }
+.supply-pager { display: flex; justify-content: center; margin-top: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .supply-card { transition: none; }
+  .supply-card:hover { transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   5. Element Plus 组件原生等价（el-tag / el-button small / el-input
+      搜索框 / v-loading 遮罩）— 最终渲染态 = EP 默认 + cgzxui .el-* 覆盖
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── el-tag：默认 24px / small 20px；light = light-9 底 + light-8 边；plain = 白底 + light-5 边 ── */
+.cat-tag {
+  --cat-tag-accent: #409eff;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 24px; padding: 0 9px; font-size: 12px; line-height: 1; font-weight: 400;
+  border: 1px solid transparent; border-radius: 2px; box-sizing: border-box; white-space: nowrap;
+}
+.cat-tag--small { height: 20px; padding: 0 7px; }
+.cat-tag--primary { --cat-tag-accent: #409eff; background: #ecf5ff; border-color: #d9ecff; color: #409eff; }
+.cat-tag--success { --cat-tag-accent: #67c23a; background: #f0f9eb; border-color: #e1f3d8; color: #67c23a; }
+.cat-tag--warning { --cat-tag-accent: #e6a23c; background: #fdf6ec; border-color: #faecd8; color: #e6a23c; }
+.cat-tag--danger  { --cat-tag-accent: #f56c6c; background: #fef0f0; border-color: #fde2e2; color: #f56c6c; }
+.cat-tag--info    { --cat-tag-accent: #909399; background: #f4f4f5; border-color: #e9e9eb; color: #909399; }
+.cat-tag--plain { background: #fff; }
+.cat-tag--plain.cat-tag--primary { border-color: #a0cfff; }
+.cat-tag--plain.cat-tag--success { border-color: #b3e19d; }
+.cat-tag--plain.cat-tag--warning { border-color: #f3d19e; }
+.cat-tag--plain.cat-tag--danger  { border-color: #fab6b6; }
+.cat-tag--plain.cat-tag--info    { border-color: #d3d4d6; }
+/* el-tag closable 关闭钮 */
+.cat-tag__close {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-left: 6px; width: 14px; height: 14px; padding: 0;
+  border: none; border-radius: 50%; background: transparent; color: inherit; cursor: pointer;
+}
+.cat-tag__close:hover { color: #fff; background-color: var(--cat-tag-accent); }
+
+/* ── el-button size=small（24px，cgzxui 覆盖：无边框 + 9px 圆角 + 方向性阴影）── */
+.cat-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 24px; padding: 0 11px; font: inherit; font-size: 12px; font-weight: 600;
+  border: none; border-radius: 9px; cursor: pointer; transition: all 0.2s ease;
+}
+.cat-btn--primary {
+  color: #fff; background: var(--brand);
+  box-shadow: 2px 2px 5px oklch(0.5 0.08 258 / 0.22), -1px -1px 3px oklch(1 0 0 / 0.4);
+}
+.cat-btn--primary:hover { background: var(--brand-deep); transform: translateY(-1px);
+  box-shadow: 3px 3px 8px oklch(0.45 0.08 258 / 0.26), -2px -2px 5px oklch(1 0 0 / 0.5); }
+.cat-btn--primary:active { transform: none;
+  box-shadow: inset 2px 2px 5px oklch(0.35 0.08 258 / 0.35), inset -2px -2px 5px oklch(1 0 0 / 0.2); }
+.cat-btn--default {
+  color: var(--fg); background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.7), 2px 2px 4px oklch(0.55 0.03 258 / 0.1), -1px -1px 3px oklch(1 0 0 / 0.85);
+}
+.cat-btn--default:hover { color: var(--brand); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 3px 3px 6px oklch(0.55 0.03 258 / 0.14), -2px -2px 5px oklch(1 0 0 / 0.9); }
+.cat-btn--default:active { transform: none;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
+/* el-button small type=primary plain（MySupply「申请改报价」） */
+.cat-btn--plain {
+  color: var(--brand); background: color-mix(in oklch, var(--brand) 12%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5);
+}
+.cat-btn--plain:hover { transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 5px oklch(0.5 0.08 258 / 0.12); }
+.cat-btn--plain:active { transform: none;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.15), inset -2px -2px 5px oklch(1 0 0 / 0.5); }
+
+/* ── el-input 带前缀图标 + clearable（搜索框）── */
+.cat-search { position: relative; width: 280px; flex-shrink: 0; }
+.supply-filter .cat-search { width: 320px; }
+.cat-search .neu-input { height: 32px; padding-left: 34px; padding-right: 30px; }
+.cat-search__icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); display: inline-flex; color: #a8abb2; pointer-events: none; }
+.cat-search__clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; color: #a8abb2; cursor: pointer;
+}
+.cat-search__clear:hover { color: #606266; }
+
+/* ── v-loading 遮罩（el-loading-mask 等价）── */
+.cat-loading-host { position: relative; }
+.cat-loading-mask {
+  position: absolute; inset: 0; z-index: 20; border-radius: inherit;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.85); pointer-events: none;
+}
+.cat-loading-mask svg { color: var(--brand); animation: catSpin 0.9s linear infinite; }
+@keyframes catSpin { to { transform: rotate(360deg); } }
+
+/* ── el-button 默认尺寸（32px）对齐 SpButton(neu-btn-*) — 仅限本页面组容器内 ── */
+.cat-toolbar .neu-input { height: 32px; }
+.cat-toolbar .neu-btn-primary,
+.cat-toolbar .neu-btn-soft { height: 32px; padding: 0 15px; font-size: 14px; }
+.app-card-foot .neu-btn-primary,
+.app-card-foot .neu-btn-soft { height: 32px; padding: 0 15px; font-size: 14px; }
+.cat-page-root .sp-error-block .neu-btn-primary,
+.app-page-root .sp-error-block .neu-btn-primary,
+.supply-page-root .sp-error-block .neu-btn-primary { height: 32px; padding: 0 15px; font-size: 14px; }
+.supply-empty .neu-btn-primary { height: 32px; padding: 0 15px; font-size: 14px; margin-top: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-btn, .cat-tag__close, .cat-search__clear { transition: none; }
+  .cat-loading-mask svg { animation: none; }
+}

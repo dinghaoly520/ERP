@@ -67,13 +67,14 @@ export interface AnnouncementListResponse {
 
 /* ── 公告 CRUD ── */
 
-export function listAnnouncements(params?: { type?: string; status?: string; search?: string; page?: number; pageSize?: number }) {
+export function listAnnouncements(params?: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; companyId?: string }) {
   const q = new URLSearchParams();
   if (params?.type) q.set('type', params.type);
   if (params?.status) q.set('status', params.status);
   if (params?.search) q.set('search', params.search);
   if (params?.page) q.set('page', String(params.page));
   if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+  if (params?.companyId && params.companyId !== 'all') q.set('companyId', params.companyId);
   return api.get<AnnouncementListResponse>(`/announcements?${q.toString()}`);
 }
 
@@ -81,12 +82,45 @@ export function getAnnouncement(id: string) {
   return api.get<AnnouncementListItem>(`/announcements/${id}`);
 }
 
-export function getAnnouncementStats() {
-  return api.get<{ total: number; published: number; bidNotice: number; winNotice: number; policy: number }>('/announcements/stats');
+export function getAnnouncementStats(companyId?: string) {
+  const qs = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  return api.get<{ total: number; published: number; bidNotice: number; winNotice: number; policy: number }>(`/announcements/stats${qs}`);
 }
 
 export function generateSummary(id: string) {
   return api.post<{ aiSummary: string }>(`/announcements/${id}/generate-summary`, {});
+}
+
+/* ── 公告操作历史（append-only，只读）── */
+
+export type AnnouncementHistoryAction = 'CREATE' | 'PUBLISH' | 'UPDATE' | 'UNPUBLISH' | 'ARCHIVE' | 'DELETE';
+
+export interface AnnouncementHistoryItem {
+  id: string;
+  announcementId: string;
+  action: AnnouncementHistoryAction;
+  title: string;
+  type: AnnouncementType | null;
+  status: AnnouncementStatus | null;
+  contentHash: string | null;
+  contentLength: number | null;
+  changedFields: string[];
+  operatorId: string | null;
+  operatorName: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export function fetchAnnouncementHistory(id: string) {
+  return api.get<AnnouncementHistoryItem[]>(`/announcements/${id}/history`);
+}
+
+export function fetchAllAnnouncementHistories(params?: { page?: number; pageSize?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page) q.set('page', String(params.page));
+  if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+  return api.get<{ items: AnnouncementHistoryItem[]; total: number; page: number; pageSize: number }>(`/announcements/histories/all?${q.toString()}`);
 }
 
 export function createAnnouncement(data: {

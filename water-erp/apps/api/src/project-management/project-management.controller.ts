@@ -25,12 +25,17 @@ import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { ProjectManagementService } from './project-management.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { UseGuards } from '@nestjs/common';
+import { CompanyScopeService } from '../company/company-scope';
+import { PmiOwnershipGuard } from './pmi-ownership.guard';
 
 @Roles('leader', 'admin', 'staff')
+@UseGuards(PmiOwnershipGuard) // 个人隔离：:id 端点仅创建人（admin 全量）可访问
 @Controller('project-management')
 export class ProjectManagementController {
   constructor(
     private readonly projectManagementService: ProjectManagementService,
+    private readonly companyScope: CompanyScopeService,
   ) {}
 
   @Get()
@@ -89,8 +94,13 @@ export class ProjectManagementController {
   }
 
   @Post()
-  create(@Body() dto: CreateProjectFromInitiationDto) {
-    return this.projectManagementService.createFromInitiation(dto);
+  async create(
+    @Body() dto: CreateProjectFromInitiationDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    // 公司归属从登录人后端取（写时快照），不信任前端传入
+    const stamp = await this.companyScope.stampFor(user);
+    return this.projectManagementService.createFromInitiation(dto, stamp);
   }
 
   @Post('ai-identify-field')

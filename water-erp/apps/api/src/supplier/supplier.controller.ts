@@ -81,6 +81,13 @@ export class SupplierController {
     return this.supplierService.verifyInvitationCode(code);
   }
 
+  @Get(':id/approval-history')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '供应商审核历史（不可变留痕）' })
+  async getApprovalHistory(@Param('id') id: string) {
+    return this.supplierService.getApprovalHistory(id);
+  }
+
   @Get('register/status')
   @ApiOperation({ summary: '查询供应商注册状态' })
   async getRegisterStatus(@Request() req: any) {
@@ -97,6 +104,19 @@ export class SupplierController {
     const code = (creditCode ?? '').trim();
     if (!code) throw new BadRequestException({ error: '请提供统一社会信用代码', code: 'MISSING_CREDIT_CODE' });
     return this.supplierService.getRegisterStatusByCreditCode(code);
+  }
+
+  // 注册前查重（公开）：统一社会信用代码重复=硬拦截；法人/联系人身份证号重复=软提示。
+  @Get('register/check-duplicate')
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } }) // 防身份证号/信用代码枚举爬取
+  @ApiOperation({ summary: '注册前查重（信用代码/法人身份证/联系人身份证）' })
+  async checkDuplicate(
+    @Query('creditCode') creditCode?: string,
+    @Query('legalPersonIdCard') legalPersonIdCard?: string,
+    @Query('contactIdCard') contactIdCard?: string,
+  ) {
+    return this.supplierService.checkDuplicate({ creditCode, legalPersonIdCard, contactIdCard });
   }
 
   @Get('stats')

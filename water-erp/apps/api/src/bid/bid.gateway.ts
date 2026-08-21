@@ -80,7 +80,11 @@ export function tokenFromHandshake(socket: Socket): string | undefined {
     // :3007 独立门户：优先 token_bid；回退 token_web/token 兼容旧会话（admin 经 :3005 登录）
     return map.get('token_bid') || map.get('token_web') || map.get('token');
   }
-  if (xPortal === 'supplier' || originPort === String(PORTS.supplier)) {
+  if (
+    xPortal === 'supplier' ||
+    originPort === String(PORTS.supplier) ||
+    originPort === String(PORTS.supplierNext) // :3020 supplier-portal-next（迁移期与 :3004 并行，同一 token_supplier 命名空间）
+  ) {
     return map.get('token_supplier');
   }
   if (xPortal === 'expert' || originPort === String(PORTS.expert)) {

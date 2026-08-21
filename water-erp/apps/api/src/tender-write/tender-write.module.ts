@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { TenderWriteController } from './tender-write.controller';
 import { TenderWriteService } from './tender-write.service';
 import { AiModule } from '../ai/ai.module';
+import { LocalAiModule } from '../local-ai/local-ai.module';
 
 @Module({
-  imports: [AiModule],
+  imports: [AiModule, LocalAiModule],
   controllers: [TenderWriteController],
   providers: [TenderWriteService],
   exports: [TenderWriteService],

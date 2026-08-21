@@ -12,6 +12,7 @@ import {
   Sparkles,
   FolderOpen,
   KeyRound,
+  ShieldCheck,
   TrendingUp,
   UserRound,
   Building2,
@@ -113,6 +114,7 @@ const navGroups: NavGroup[] = [
     label: "系统管理",
     icon: KeyRound,
     items: [
+      { key: "registration-review", label: "注册审核", href: "/admin/registration-review", icon: ShieldCheck, meta: "用户准入审核", roles: ["admin"] },
       { key: "password-requests", label: "密码审批", href: "/admin/password-requests", icon: KeyRound, meta: "账号安全", roles: ["admin"] },
     ],
     roles: ["admin"],

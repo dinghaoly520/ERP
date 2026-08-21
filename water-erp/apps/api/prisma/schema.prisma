@@ -10,6 +10,24 @@ datasource db {
 
 // ── 基础 ──
 
+// ── 公司主数据（数据隔离的归属单位，2026-08-20）──
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String   @unique // 规范全称，主数据唯一，杜绝分叉
+  shortName String? // 如「建设/投资/设计院」
+  createdAt DateTime @default(now())
+
+  users               User[]
+  pmItems             ProjectManagementItem[]
+  procurementProjects ProcurementProject[]
+  procurementRounds   ProcurementRound[]
+  bidProjects         BidProject[]
+  announcements       Announcement[]
+
+  @@map("companies")
+}
+
 model Department {
   id                  String               @id @default(cuid())
   name                String               @unique
@@ -29,12 +47,15 @@ model User {
   email          String?
   phone          String?
   officeLocation String?     @map("office_location")
-  company        String?
+  company        String? // 展示快照（公司改名不影响历史展示）
+  companyId      String? // 数据隔离依据 → Company 主数据
+  companyRef     Company?    @relation(fields: [companyId], references: [id])
   avatar         String?
   passwordHash   String?
   role           String      @default("internal_user")
   isActive       Boolean     @default(true)
   requestedRole  String?     @map("requested_role") // 注册申请权限：management | office（审批时映射为正式角色）
+  departmentName String?     @map("department_name") // 注册时填写的部门（自由文本，仅作申请信息留存）
   departmentId   String?
   department     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   createdAt      DateTime    @default(now())
@@ -43,19 +64,21 @@ model User {
   supplier               Supplier?
   notifications          Notification[]
   supplierEvaluations    SupplierEvaluation[]
-  qualificationAlertAcks QualificationAlertAck[] @relation("UserAlertAcks")
+  qualificationAlertAcks QualificationAlertAck[]  @relation("UserAlertAcks")
   bidExperts             BidExpert[]
   uploadedFiles          FileAsset[]
   createdProcurements    ProcurementProject[]
   budgetLists            BudgetList[]
   favorites              UserFavorite[]
   auditLogs              AuditLog[]
+  supplierApprovals      SupplierApprovalRecord[] @relation("SupplierApprovalReviewer")
   expertProfile          ExpertProfile?
-  expertEvaluations      ExpertEvaluation[]      @relation("ExpertEvaluationsReceived")
-  expertEvalsGiven       ExpertEvaluation[]      @relation("ExpertEvaluationsGiven")
+  expertEvaluations      ExpertEvaluation[]       @relation("ExpertEvaluationsReceived")
+  expertEvalsGiven       ExpertEvaluation[]       @relation("ExpertEvaluationsGiven")
 
   // ── 采购中心（从 procurement 项目迁入）──
   attachments                    Attachment[]              @relation("AttachmentUploadedBy")
+  attachmentVersions             AttachmentVersion[]       @relation("AttachmentVersionCreatedBy")
   settings                       UserSettings?
   workArrangements               WorkArrangement[]
   workArrangementTemplates       WorkArrangementTemplate[]
@@ -77,7 +100,7 @@ model User {
   invitationsCreated             SupplierInvitation[]      @relation("InvitationCreator")
 
   // ── 工作印记 ──
-  userBadges                     UserBadge[]
+  userBadges UserBadge[]
 
   // ── 即时聊天 ──
   chatSent     ChatMessage[] @relation("ChatMessageSender")
@@ -294,6 +317,9 @@ model BidProject {
   evaluationMethod         String? // P2: 评标办法 comprehensive|lowest_price|ratio|none
   priceFormulaConfig       Json? // P1: { formulaType, K, penaltyRate, noPenaltyRange }
   scope                    String?
+  companyId                String?
+  companyName              String? // 写时快照（公司改名不扰历史）
+  company                  Company?                   @relation(fields: [companyId], references: [id])
   qualification            String?
   contact                  String?
   qualityRequirement       String? // 质量目标/标准（项目级统一，唱标带出）
@@ -492,9 +518,9 @@ model BidOpeningRecord {
   project         BidProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt       DateTime   @default(now())
 
+  @@unique([projectId, bidSupplierId])
   @@index([bidSupplierId])
   @@index([projectId])
-  @@unique([projectId, bidSupplierId])
 }
 
 model BidExpert {
@@ -992,12 +1018,24 @@ model Supplier {
   userId             String         @unique
   supplierNo         String         @unique // 供应商编号（SUP-000001，由 PG 序列 supplier_no_seq 生成）
   name               String
-  normalizedName     String         @unique
+  normalizedName     String
   creditCode         String?        @unique
   enterpriseType     String
   legalPerson        String
+  legalPersonIdCard  String? // 法定代表人身份证号（注册必填，存量数据可空）
+  legalPersonPhone   String? // 法人联系电话
   registeredAddress  String
+  detailedAddress    String? // 详细地址
   businessScope      String
+  // ── 注册 2.0 扩展字段（存量数据可空）──
+  logoUrl            String? // 公司 logo
+  organizationCode   String? // 机构代码
+  country            String? // 国别
+  region             String? // 所属行政区域
+  registeredCapital  String? // 注册资本
+  industry           String? // 所属行业
+  companyEmail       String? // 公司邮箱
+  companyWebsite     String? // 公司官网地址
   status             SupplierStatus @default(PENDING)
   classificationId   String?
   rejectReason       String?
@@ -1017,6 +1055,8 @@ model Supplier {
   classificationLinks SupplierClassificationLink[]
   contacts            SupplierContact[]
   qualifications      SupplierQualification[]
+  bankAccounts        SupplierBankAccount[]
+  performances        SupplierPerformance[]
   evaluations         SupplierEvaluation[]
   changeRecords       SupplierChangeRecord[]
   bidSuppliers        BidSupplier[]
@@ -1034,8 +1074,27 @@ model Supplier {
   awardedRounds  ProcurementRound[] @relation("AwardedSupplier")
   participations RoundParticipant[]
 
+  approvalRecords SupplierApprovalRecord[]
+
   @@index([status])
   @@index([creditCode])
+}
+
+// ── 供应商审核历史（不可变留痕）──
+// 记录每次审核操作：申请完整快照、验证人、是否同意、时间、理由。不可删减、不可修改。
+model SupplierApprovalRecord {
+  id             String   @id @default(cuid())
+  supplierId     String
+  action         String // APPROVED / REJECTED / RETURNED
+  reviewerUserId String? // 验证/审核人员
+  reason         String? // 同意/拒绝/退回的理由
+  snapshot       Json // 审核时点申请完整信息快照（企业/法人/联系人/资质等）
+  createdAt      DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  reviewer User?    @relation("SupplierApprovalReviewer", fields: [reviewerUserId], references: [id], onDelete: Restrict)
+
+  @@index([supplierId, createdAt])
 }
 
 // ── 临时供应商邀请码（采购端生成，有效期 30/180/360 天）──
@@ -1065,12 +1124,49 @@ model SupplierContact {
   id         String   @id @default(cuid())
   supplierId String
   name       String
+  gender     String? // 性别（男/女）
   phone      String
+  idCard     String? // 联系人身份证号（注册必填，存量数据可空）
   email      String?
-  position   String?
+  position   String? // 部门职务
   isPrimary  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+}
+
+// ── 供应商银行账户（注册第 3 部分，可多项）──
+model SupplierBankAccount {
+  id          String   @id @default(cuid())
+  supplierId  String
+  accountName String // 户名
+  bankName    String // 开户银行
+  bankBranch  String? // 开户支行
+  accountNo   String // 银行账号
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+}
+
+// ── 供应商主体业绩（注册第 5 部分，可多项，每项须上传证明材料）──
+model SupplierPerformance {
+  id             String    @id @default(cuid())
+  supplierId     String
+  projectName    String // 项目名称
+  clientName     String? // 业主/客户名称
+  contractAmount String? // 合同金额
+  signDate       DateTime? // 签订日期
+  description    String? // 业绩描述
+  proofFiles     Json // 证明材料 [{name,url}]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
@@ -1082,11 +1178,12 @@ model SupplierQualification {
   supplierId String
   type       String
   name       String
-  fileUrl    String
-  validFrom  DateTime?
-  validTo    DateTime?
-  status     String    @default("有效")
-  createdAt  DateTime  @default(now())
+  fileUrl     String
+  attachments Json? // 附加材料 [{name,url}]（支持多项上传）
+  validFrom   DateTime?
+  validTo     DateTime?
+  status      String    @default("有效")
+  createdAt   DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
   supplier Supplier                @relation(fields: [supplierId], references: [id], onDelete: Cascade)
@@ -1281,6 +1378,9 @@ model Announcement {
   viewCount          Int                @default(0)
   relatedProjectCode String?
   authorId           String?
+  companyId          String?
+  companyName        String? // 写时快照（公司改名不扰历史）
+  company            Company?           @relation(fields: [companyId], references: [id])
   metadata           Json? // 各类型结构化字段（招标/中标/政策/平台）
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
@@ -1359,7 +1459,7 @@ model SupplierBidSubmission {
   projectId            String
   bidPrice             String?
   deliveryPeriod       String?
-  qualityCommitment    String?   // 供应商投递的质量承诺（2026-08-17）：唱标「质量目标」改自此取，缺失回退项目 qualityRequirement
+  qualityCommitment    String? // 供应商投递的质量承诺（2026-08-17）：唱标「质量目标」改自此取，缺失回退项目 qualityRequirement
   technicalFile        String?
   businessFile         String?
   coverLetter          String?
@@ -1533,6 +1633,9 @@ model ProcurementProject {
   rejectReason      String?
   departmentId      String?
   creatorId         String?
+  companyId         String?
+  companyName       String? // 写时快照（公司改名不扰历史）
+  company           Company?           @relation(fields: [companyId], references: [id])
   bidProjectId      String?            @unique // 关联的招标项目
   bidProject        BidProject?        @relation(fields: [bidProjectId], references: [id])
   department        Department?        @relation(fields: [departmentId], references: [id])
@@ -2224,6 +2327,9 @@ model ProcurementRound {
   importBatchId        String?
   isRecycled           Boolean             @default(false)
   createdById          String?
+  companyId            String?
+  companyName          String? // 写时快照（公司改名不扰历史）
+  company              Company?            @relation(fields: [companyId], references: [id])
   updatedById          String?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -2293,14 +2399,16 @@ model Attachment {
 
 /// 采购文件补丁保存前的旧版本归档（定点补丁路径的回滚保险）
 model AttachmentVersion {
-  id           String     @id @default(cuid())
-  attachmentId String
-  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
-  objectKey    String     @unique
-  fileSize     Int
-  originalHash String
-  createdById  String?
-  createdAt    DateTime   @default(now())
+  id            String     @id @default(cuid())
+  attachmentId  String
+  attachment    Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  objectKey     String     @unique
+  fileSize      Int
+  originalHash  String
+  createdById   String?
+  createdBy     User?      @relation("AttachmentVersionCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime   @default(now())
+  changeSummary String? // 本次保存的变更摘要（旧→新 diff 概要，前端弹窗展示）
 
   @@index([attachmentId])
 }
@@ -2327,6 +2435,9 @@ model ProjectManagementItem {
   analysisSummary             String?
   analysisUpdatedAt           DateTime?
   createdById                 String?
+  companyId                   String?
+  companyName                 String? // 写时快照（公司改名不扰历史）
+  company                     Company?                 @relation(fields: [companyId], references: [id])
   initiationDate              DateTime?
   evaluationMethod            String?
   expertInfo                  String?
@@ -2514,6 +2625,57 @@ model PasswordResetRequest {
   @@index([requestedUsername, status])
   @@index([matchedUserId, status])
   @@index([status, requestedAt])
+}
+
+// ── 注册审核历史（append-only，不可删改）──
+// 每次注册审批（通过/拒绝）写入一条不可变快照。拒绝会删除原 User，
+// 故本表不建 User 外键——userId 仅作快照存证，历史永久保留。
+model RegistrationReview {
+  id             String   @id @default(cuid())
+  userId         String // 被审核用户 ID（快照，不建外键）
+  username       String
+  displayName    String
+  company        String
+  department     String?
+  phone          String
+  email          String?
+  officeLocation String?
+  requestedRole  String // management | office
+  decision       String // APPROVED | REJECTED
+  decisionNote   String? // 审核理由
+  reviewedById   String? // 审核人用户 ID
+  reviewedByName String? // 审核人姓名（快照）
+  reviewedAt     DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([decision, reviewedAt])
+  @@index([username, reviewedAt])
+  @@map("registration_reviews")
+}
+
+// ── 公告操作历史（append-only，不可删改）──
+// 记录每条公告的新建/发布/编辑/删除，含操作人与时间。删除公告会移除原记录，
+// 故不建 Announcement 外键——announcementId 作快照，历史永久保留。
+// content 变更不存全文（体积），存 SHA-256 指纹 + 长度以证明内容是否变化。
+model AnnouncementHistory {
+  id             String   @id @default(cuid())
+  announcementId String // 快照，不建外键
+  action         String // CREATE | PUBLISH | UPDATE | UNPUBLISH | ARCHIVE | DELETE
+  title          String // 操作时标题快照
+  type           String?
+  status         String? // 操作后状态
+  contentHash    String? // 操作时正文 SHA-256（证明内容版本）
+  contentLength  Int?
+  changedFields  String[] // 本次编辑变更的字段名列表
+  operatorId     String? // 操作人用户 ID
+  operatorName   String? // 操作人姓名（快照）
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  @@index([announcementId, createdAt])
+  @@index([action, createdAt])
+  @@map("announcement_histories")
 }
 
 // ── 知识库（RAG）──
@@ -2728,29 +2890,29 @@ model BidSignPacket {
 model BadgeDefinition {
   code            String   @id
   name            String
-  category        String   // quantity | velocity | quality | tenure | collaboration
+  category        String // quantity | velocity | quality | tenure | collaboration
   description     String
-  iconKey         String   // Lucide 图标名
-  levelThresholds Json     // { bronze: 50, silver: 200, gold: 500, platinum: 1000 }
-  unit            String   // "项" | "天" | "个"
+  iconKey         String // Lucide 图标名
+  levelThresholds Json // { bronze: 50, silver: 200, gold: 500, platinum: 1000 }
+  unit            String // "项" | "天" | "个"
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
 
-  userBadges      UserBadge[]
+  userBadges UserBadge[]
 }
 
 /// 用户印记进度（每日 cron 计算）
 model UserBadge {
-  id              String   @id @default(cuid())
-  userId          String
-  badgeCode       String
-  currentValue    Int      @default(0)
-  currentLevel    String?  // bronze | silver | gold | platinum | null
-  awardedLevels   Json     // { bronze: "2026-03-12", silver: null }
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(cuid())
+  userId        String
+  badgeCode     String
+  currentValue  Int      @default(0)
+  currentLevel  String? // bronze | silver | gold | platinum | null
+  awardedLevels Json // { bronze: "2026-03-12", silver: null }
+  updatedAt     DateTime @updatedAt
 
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  badge           BadgeDefinition   @relation(fields: [badgeCode], references: [code])
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge BadgeDefinition @relation(fields: [badgeCode], references: [code])
 
   @@unique([userId, badgeCode])
   @@index([userId])

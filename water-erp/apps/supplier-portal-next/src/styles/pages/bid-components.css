@@ -1,0 +1,70 @@
+/* ── BidStageTimeline（bid-timeline / bt-*，移植自 Vue BidStageTimeline.vue）── */
+.bid-timeline { display: flex; align-items: center; gap: 0; }
+.bt-node { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+.bt-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--sp-gray-200); border: 2px solid var(--sp-gray-200); transition: all 0.3s; }
+.bt-dot.done { background: var(--sp-primary); border-color: var(--sp-primary); }
+.bt-dot.current { background: #fff; border-color: var(--sp-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 22%, transparent); animation: btPulse 1.8s ease-in-out infinite; }
+.bt-label { font-size: 11px; font-weight: 600; color: var(--sp-gray-400); white-space: nowrap; }
+.bt-label.done { color: var(--sp-primary); }
+.bt-label.current { color: var(--sp-primary); font-weight: 800; }
+.bt-line { flex: 1; height: 2px; background: var(--sp-gray-200); margin: 0 6px; margin-bottom: 16px; border-radius: 1px; transition: background 0.3s; min-width: 16px; }
+.bt-line.done { background: var(--sp-primary); }
+.bid-timeline.aborted .bt-dot.current { border-color: var(--sp-gray-400); animation: none; }
+.bid-timeline.aborted .bt-label.current { color: var(--sp-gray-500); }
+@keyframes btPulse { 0%,100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 22%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--sp-primary) 10%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .bt-dot.current { animation: none; } }
+
+/* ── ChatPanel（chat-panel / chat-row 等，移植自 Vue ChatPanel.vue；el-card 头/体结构改为 .chat-panel__header）── */
+.chat-panel { display: flex; flex-direction: column; height: 100%; }
+.chat-panel__header { flex-shrink: 0; }
+.tabs { display: flex; gap: 12px; align-items: center; }
+.cp-tab-badge { position: relative; display: inline-flex; }
+.cp-tab {
+  padding: 6px 14px; border-radius: 10px; border: 1px solid #dce6f3; background: #fff;
+  color: var(--sp-gray-600); font-size: 12.5px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+}
+.cp-tab:hover { border-color: #bfdbfe; color: var(--sp-primary); }
+.cp-tab.on { background: var(--sp-primary); border-color: var(--sp-primary); color: #fff; }
+.cp-badge {
+  position: absolute; top: -6px; right: -8px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 999px; background: var(--sp-red); color: #fff; font-size: 10px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.conn { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #909399; }
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.conn-connected { color: #67c23a; }
+.conn-reconnecting { color: #e6a23c; }
+.conn-disconnected { color: #f56c6c; }
+.cp-reconnect { border: none; background: none; color: var(--sp-primary); font-size: 12px; font-weight: 700; cursor: pointer; padding: 0; }
+.msg-list { flex: 1; overflow-y: auto; min-height: 320px; padding: 10px 4px; }
+.empty { color: #999; text-align: center; padding: 40px 0; }
+.sys-tip { margin: 10px auto; padding: 3px 12px; width: fit-content; max-width: 85%; border-radius: 999px; background: #f0f2f5; color: #909399; font-size: 12px; text-align: center; }
+.chat-row { display: flex; gap: 8px; margin: 12px 0; align-items: flex-start; }
+.chat-row.is-mine { flex-direction: row-reverse; }
+.avatar { flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #fff; background: #8fa6c4; }
+.avatar-host { background: #064ea2; }
+.bubble-col { display: flex; flex-direction: column; max-width: 74%; }
+.is-mine .bubble-col { align-items: flex-end; }
+.meta { font-size: 11px; color: #909399; margin-bottom: 3px; }
+.is-mine .meta { text-align: right; }
+.bubble { padding: 8px 12px; border-radius: 12px; border-top-left-radius: 3px; background: #f5f7fa; border: 1px solid #e8ebf0; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.is-mine .bubble { background: #064ea2; border-color: #064ea2; color: #fff; border-radius: 12px; border-top-right-radius: 3px; }
+.muted-hint { color: #e6a23c; font-size: 12px; padding: 4px 0; flex-shrink: 0; }
+.input-row { display: flex; gap: 8px; margin-top: 8px; flex-shrink: 0; }
+.cp-input {
+  flex: 1; height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid #dce6f3;
+  background: rgba(255,255,255,0.7); color: var(--sp-gray-900); font: inherit; font-size: 13.5px; outline: none;
+  box-shadow: inset 1px 1px 3px rgba(15,47,87,0.05);
+}
+.cp-input:focus { border-color: var(--sp-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 12%, transparent); }
+.cp-input:disabled { background: #f5f7fa; color: #aaa; }
+.cp-send {
+  padding: 0 20px; border: none; border-radius: 10px; background: var(--sp-primary); color: #fff;
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity .15s;
+}
+.cp-send:hover:not(:disabled) { opacity: 0.9; }
+.cp-send:disabled { opacity: 0.5; cursor: not-allowed; }
+/* 移动端单列布局不拉伸：恢复 480px 上限，消息列表内部滚动 */
+@media (max-width: 960px) {
+  .msg-list { max-height: 480px; }
+}

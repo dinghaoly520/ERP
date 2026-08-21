@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
@@ -12,6 +12,9 @@ import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
+import { AnnouncementHistoryService } from './announcement-history.service';
+import { CompanyScopeService } from '../company/company-scope';
+import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('信息公告')
 @Controller('announcements')
@@ -21,7 +24,29 @@ export class AnnouncementController {
     private announcementAiService: AnnouncementAiService,
     private bidDocumentService: BidDocumentService,
     private attachmentService: AnnouncementAttachmentService,
+    private history: AnnouncementHistoryService,
+    private companyScope: CompanyScopeService,
+    private prisma: PrismaService,
   ) {}
+
+  /** 附件越权校验：经附件反查所属公告再校验公司 */
+  private async assertAttachmentScope(attachmentId: string, user: AuthenticatedUser | undefined) {
+    const att = await this.prisma.announcementAttachment.findUnique({
+      where: { id: attachmentId },
+      select: { announcementId: true },
+    }).catch(() => null);
+    if (att) await this.assertAnnouncementScope(att.announcementId, user);
+  }
+
+  /** 公告公司越权校验：非 admin 视野只能操作本公司公告（admin 全量） */
+  private async assertAnnouncementScope(id: string, user: AuthenticatedUser | undefined) {
+    const scope = await this.companyScope.resolveScope(user);
+    if (scope.all) return;
+    const ann = await this.announcementService.get(id).catch(() => null);
+    if (ann && (ann as any).companyId !== scope.companyId) {
+      throw new ForbiddenException({ error: '该公告不属于本公司，无权访问', code: 'COMPANY_SCOPE_FORBIDDEN' });
+    }
+  }
 
   // ─── 公开接口 ───
 
@@ -49,27 +74,35 @@ export class AnnouncementController {
   // ─── 管理接口 ───
 
   @Get()
-  @ApiOperation({ summary: '公告列表（管理端）' })
+  @ApiOperation({ summary: '公告列表（管理端，按公司隔离）' })
   async list(
     @Query('type') type?: string,
     @Query('status') status?: string,
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
+    @Query('companyId') companyId?: string, // 仅 admin 生效：切换查看单公司
+    @Request() req?: any,
   ) {
-    return this.announcementService.list({ type, status, search, page, pageSize });
+    const scope = await this.companyScope.resolveScope(req?.user, companyId);
+    return this.announcementService.list(
+      { type, status, search, page, pageSize },
+      this.companyScope.filter(scope),
+    );
   }
 
   @Get('stats')
-  @ApiOperation({ summary: '公告统计' })
-  async getStats() {
-    return this.announcementService.getStats();
+  @ApiOperation({ summary: '公告统计（按公司隔离）' })
+  async getStats(@Query('companyId') companyId?: string, @Request() req?: any) {
+    const scope = await this.companyScope.resolveScope(req?.user, companyId);
+    return this.announcementService.getStats(this.companyScope.filter(scope));
   }
 
   @Get(':id/participants')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '招标公示投标情况（参与供应商 + 是否已投标）' })
-  async getParticipants(@Param('id') id: string) {
+  async getParticipants(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAnnouncementScope(id, user);
     return this.announcementService.getParticipants(id);
   }
 
@@ -84,7 +117,8 @@ export class AnnouncementController {
   @Post(':id/attachments')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '添加公告附件' })
-  async addAttachment(@Param('id') id: string, @Body() body: { fileAssetId: string; title?: string }) {
+  async addAttachment(@Param('id') id: string, @Body() body: { fileAssetId: string; title?: string }, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAnnouncementScope(id, user);
     return this.attachmentService.add(id, body.fileAssetId, body.title || '');
   }
 
@@ -96,13 +130,15 @@ export class AnnouncementController {
     @Body() body: { objectKey: string; fileName?: string; title?: string; mimeType?: string; size?: number },
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
+    await this.assertAnnouncementScope(id, user);
     return this.attachmentService.attachFromObject(id, body, user?.sub);
   }
 
   @Delete('attachments/:aid')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '删除公告附件' })
-  async removeAttachment(@Param('aid') aid: string) {
+  async removeAttachment(@Param('aid') aid: string, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAttachmentScope(aid, user);
     return this.attachmentService.remove(aid);
   }
 
@@ -118,7 +154,8 @@ export class AnnouncementController {
   @Get(':id/bid-document')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '查看招标文件配置（管理端）' })
-  async getBidDocument(@Param('id') id: string) {
+  async getBidDocument(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAnnouncementScope(id, user);
     return this.bidDocumentService.getForManagement(id);
   }
 
@@ -148,6 +185,7 @@ export class AnnouncementController {
     @Request() req: any,
   ) {
     if (!file) throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
+    await this.assertAnnouncementScope(id, req.user);
     return this.bidDocumentService.upload(
       id,
       file,
@@ -166,7 +204,8 @@ export class AnnouncementController {
   @Put(':id/bid-document')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '更新招标文件访问配置' })
-  async updateBidDocument(@Param('id') id: string, @Body() body: UpdateBidDocumentConfigDto) {
+  async updateBidDocument(@Param('id') id: string, @Body() body: UpdateBidDocumentConfigDto, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAnnouncementScope(id, user);
     const toBool = (v: any): boolean | undefined => {
       if (v === undefined || v === null) return undefined;
       if (typeof v === 'boolean') return v;
@@ -185,14 +224,16 @@ export class AnnouncementController {
   @Post(':id/bid-document/confirm-payment')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '确认供应商付款到账' })
-  async confirmPayment(@Param('id') id: string, @Body() body: { supplierId: string; paymentRef?: string }) {
+  async confirmPayment(@Param('id') id: string, @Body() body: { supplierId: string; paymentRef?: string }, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAnnouncementScope(id, user);
     return this.bidDocumentService.confirmPayment(id, body.supplierId, body.paymentRef);
   }
 
   @Delete(':id/bid-document')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '删除招标文件' })
-  async removeBidDocument(@Param('id') id: string) {
+  async removeBidDocument(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAnnouncementScope(id, user);
     return this.bidDocumentService.remove(id);
   }
 
@@ -200,7 +241,8 @@ export class AnnouncementController {
 
   @Get(':id')
   @ApiOperation({ summary: '公告详情' })
-  async get(@Param('id') id: string) {
+  async get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAnnouncementScope(id, user);
     return this.announcementService.get(id);
   }
 
@@ -208,20 +250,112 @@ export class AnnouncementController {
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '创建公告' })
   async create(@Body() dto: CreateAnnouncementDto, @Request() req: any) {
-    return this.announcementService.create(dto, req.user.sub);
+    const companyStamp = await this.companyScope.stampFor(req.user);
+    const result = await this.announcementService.create(dto, req.user.sub, companyStamp);
+    // 操作历史（append-only）：新建 + 直接发布各记一条
+    await this.history.write({
+      announcementId: result.id,
+      action: 'CREATE',
+      title: result.title,
+      type: result.type,
+      status: result.status,
+      content: result.content,
+      operatorId: req.user.sub,
+      operatorName: req.user.username,
+      ipAddress: this.clientIp(req),
+      userAgent: req.headers?.['user-agent'],
+    }).catch(() => undefined);
+    if (result.status === 'PUBLISHED') {
+      await this.history.write({
+        announcementId: result.id,
+        action: 'PUBLISH',
+        title: result.title,
+        type: result.type,
+        status: result.status,
+        operatorId: req.user.sub,
+        operatorName: req.user.username,
+        ipAddress: this.clientIp(req),
+        userAgent: req.headers?.['user-agent'],
+      }).catch(() => undefined);
+    }
+    return result;
   }
 
   @Put(':id')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '更新公告' })
-  async update(@Param('id') id: string, @Body() dto: UpdateAnnouncementDto) {
-    return this.announcementService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateAnnouncementDto, @Request() req: any) {
+    await this.assertAnnouncementScope(id, req.user);
+    // 编辑前快照：判定状态流转与变更字段
+    const before = await this.announcementService.get(id);
+    const result = await this.announcementService.update(id, dto);
+    const changedFields = Object.keys(dto).filter(
+      (k) => (dto as any)[k] !== undefined && (dto as any)[k] !== (before as any)[k],
+    );
+    // 状态流转判定（发布/撤回/归档）
+    const transition =
+      result.status === 'PUBLISHED' && before.status !== 'PUBLISHED' ? 'PUBLISH'
+      : result.status === 'DRAFT' && before.status === 'PUBLISHED' ? 'UNPUBLISH'
+      : result.status === 'ARCHIVED' && before.status !== 'ARCHIVED' ? 'ARCHIVE'
+      : null;
+    // 纯状态流转（只改了 status）不重复记 UPDATE，只记流转动作
+    const contentFields = changedFields.filter((f) => f !== 'status');
+    if (contentFields.length > 0) {
+      await this.history.write({
+        announcementId: id,
+        action: 'UPDATE',
+        title: result.title,
+        type: result.type,
+        status: result.status,
+        content: dto.content ?? before.content,
+        changedFields: contentFields,
+        operatorId: req.user.sub,
+        operatorName: req.user.username,
+        ipAddress: this.clientIp(req),
+        userAgent: req.headers?.['user-agent'],
+      }).catch(() => undefined);
+    }
+    if (transition) {
+      await this.history.write({
+        announcementId: id,
+        action: transition as any,
+        title: result.title,
+        type: result.type,
+        status: result.status,
+        operatorId: req.user.sub,
+        operatorName: req.user.username,
+        ipAddress: this.clientIp(req),
+        userAgent: req.headers?.['user-agent'],
+      }).catch(() => undefined);
+    }
+    return result;
+  }
+
+  @Get(':id/history')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '公告操作历史（只读，不可删改）' })
+  async historyOf(@Param('id') id: string) {
+    return this.history.timeline(id);
+  }
+
+  @Get('histories/all')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '全部公告操作历史（只读）' })
+  async allHistories(@Query('page') page?: number, @Query('pageSize') pageSize?: number) {
+    return this.history.listAll({ page: page ? Number(page) : undefined, pageSize: pageSize ? Number(pageSize) : undefined });
+  }
+
+  /** 提取客户端 IP（信任反代一跳） */
+  private clientIp(req: any): string | undefined {
+    const xff = (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim();
+    return xff || req.socket?.remoteAddress || req.ip;
   }
 
   @Post(':id/generate-summary')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'AI 重新生成摘要' })
-  async generateSummary(@Param('id') id: string) {
+  async generateSummary(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser | undefined) {
+    await this.assertAnnouncementScope(id, user);
     if (!this.announcementAiService.isConfigured()) {
       throw new BadRequestException({ error: 'AI 摘要未启用：服务端未配置 DeepSeek（请在 apps/api/.env 设置 DEEPSEEK_API_KEY 后重启 API）', code: 'AI_NOT_CONFIGURED' });
     }
@@ -242,7 +376,23 @@ export class AnnouncementController {
   @Delete(':id')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '删除公告' })
-  async remove(@Param('id') id: string) {
-    return this.announcementService.remove(id);
+  async remove(@Param('id') id: string, @Request() req: any) {
+    await this.assertAnnouncementScope(id, req.user);
+    // 删除前快照（删除后原记录不存在，历史须自含信息）
+    const before = await this.announcementService.get(id);
+    const result = await this.announcementService.remove(id);
+    await this.history.write({
+      announcementId: id,
+      action: 'DELETE',
+      title: before.title,
+      type: before.type,
+      status: before.status,
+      content: before.content,
+      operatorId: req.user.sub,
+      operatorName: req.user.username,
+      ipAddress: this.clientIp(req),
+      userAgent: req.headers?.['user-agent'],
+    }).catch(() => undefined);
+    return result;
   }
 }

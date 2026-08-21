@@ -10,6 +10,10 @@ export class CreateQualificationDto {
   @IsString() @IsNotEmpty()
   fileUrl: string;
 
+  /** 附加材料 [{name,url}]（支持多项上传） */
+  @IsOptional()
+  attachments?: { name: string; url: string }[];
+
   @IsDateString() @IsOptional()
   validFrom?: string;
 

@@ -1,0 +1,134 @@
+/* ══════════════════════════════════════════════════════════════════
+   opening.css — 开标组页面（移植自 Vue supplier-portal apps/supplier-portal/src/views/bid/）
+   · OpeningConfirm.vue：无 <style scoped>（仅跳转占位页，样式为内联）
+   · OpeningHall.vue：<style scoped> 逐条迁入；:deep(.el-*) 规则块已删，
+     等价改写为下方 hall-card / hall-desc / hall-table / hall-tag 原生类
+   · RoundQuote.vue：无 <style scoped>（模板全用 Tailwind 工具类）；
+     el-card / el-tag / el-alert / el-input-number 等价改写为 rq-* 原生类
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ──────────────────────────────────────────────────────────────────
+   1. OpeningHall.vue（在线开标大厅）
+   ────────────────────────────────────────────────────────────────── */
+
+/* —— 布局（原 <style scoped> 直迁）—— */
+.hall { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.2fr); gap: 16px; }
+.hall-error { grid-column: 1 / -1; }
+.left { display: flex; flex-direction: column; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.name { font-weight: 700; line-height: 1.4; flex: 1; min-width: 0; }
+.meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+/* 在场徽标：绿色浅底 hairline 药丸（徽标不用新拟态阴影，见 .impeccable.md 反模式），左对齐 */
+.presence { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: #f0f9eb; border: 1px solid #e1f3d8; color: #529b2e; font-size: 12px; font-weight: 600; }
+.presence .num { color: #529b2e; font-weight: 800; font-variant-numeric: tabular-nums; }
+.actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
+.records-card { margin-top: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.records-head { display: flex; align-items: center; justify-content: space-between; }
+.records-title { font-weight: 600; }
+.records-count { color: #909399; font-size: 12px; font-variant-numeric: tabular-nums; }
+.self-tag { margin-left: 6px; }
+.stage-hint { margin-top: 8px; color: #909399; font-size: 12px; }
+.empty { padding: 40px; text-align: center; color: #999; }
+.mismatch { color: #e6a23c; font-weight: 600; }
+
+/* —— el-card 原生等价（hall-card）。
+   Vue 端 el-card 已被 cgzxui 全局改造为无描边新拟态卡（border:none +
+   方向性双影），此处等价复刻，header/body 分层对应 el-card 结构 —— */
+.hall-card {
+  display: flex; flex-direction: column;
+  border-radius: var(--sp-radius-md);
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.94), oklch(0.99 0.004 258 / 0.72));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.10), -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+.hall-card__header { flex-shrink: 0; padding: 13px 20px; border-bottom: 1px solid var(--sp-border-light); }
+.hall-card__body { padding: 20px; }
+
+/* —— el-descriptions（size=small · border · column=1）原生等价（hall-desc）—— */
+.hall-desc { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+.hall-desc th {
+  width: 148px; padding: 8px 12px; text-align: left; font-weight: 600; white-space: nowrap;
+  background: #f7f9fc; color: #5a6d8a; border: 1px solid var(--sp-border-light);
+}
+.hall-desc td { padding: 8px 12px; color: var(--sp-gray-700); border: 1px solid var(--sp-border-light); word-break: break-all; }
+
+/* —— el-table（size=small）原生等价（hall-table）—— */
+.hall-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.hall-table th {
+  padding: 8px 10px; text-align: left; white-space: nowrap;
+  font-weight: 600; font-size: 12px; letter-spacing: 0.04em; color: #5a6d8a;
+  background: #f3f7fc; border-bottom: 1px solid var(--sp-border);
+}
+.hall-table td { padding: 8px 10px; color: var(--sp-gray-700); border-bottom: 1px solid var(--sp-border-light); white-space: nowrap; }
+.hall-table tbody tr:hover { background: var(--sp-primary-lighter); }
+/* 列宽（对应 el-table-column 的 min-width） */
+.hall-table .w-supplier { min-width: 180px; }
+.hall-table .w-amount { min-width: 110px; }
+.hall-table .w-period { min-width: 100px; }
+.hall-table .w-quality { min-width: 110px; }
+.hall-table .w-bond { min-width: 90px; }
+.hall-table .w-status { min-width: 110px; }
+/* 供应商名称列允许换行（原 :deep(.col-supplier .cell) 规则：el-table 单元格默认 nowrap 截断，改用整列换行而非 tooltip） */
+.hall-table .col-supplier { white-space: normal; word-break: break-all; line-height: 1.5; }
+/* el-table 空数据块（empty-text） */
+.hall-table-empty { padding: 32px 0; text-align: center; color: #909399; font-size: 12px; }
+
+/* 唱标总表卡在左列 flex 中撑满（原 :deep(.el-card__body)/:deep(.el-table) 的 flex 链，桌面端与右列聊天面板底边对齐） */
+.records-card .hall-card__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.records-card .hall-table { flex: 1; }
+
+/* —— el-tag 原生等价（hall-tag）—— */
+.hall-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 4px; border: 1px solid; font-size: 12px; line-height: 1; white-space: nowrap; }
+.hall-tag--sm { height: 20px; padding: 0 7px; }
+.hall-tag--info { background: #f4f4f5; color: #909399; border-color: #e9e9eb; }
+/* type="warning" effect="plain"：透明底 + 同色 hairline 边 + 深一档文字 */
+.hall-tag--warning-plain { background: transparent; color: #b88230; border-color: #e6a23c; }
+
+@media (max-width: 960px) { .hall { grid-template-columns: 1fr; } }
+/* 桌面端：网格撑满内容区高度，左右两列同高——右列聊天面板与左列唱标总表卡均延伸至页面底部（底边对齐） */
+@media (min-width: 961px) {
+  .hall { height: 100%; }
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   2. RoundQuote.vue（多轮报价）
+   原模板无 <style scoped>（布局用 Tailwind 工具类，已在 page.tsx 保留）；
+   以下为 el-card / el-tag / el-alert / el-input-number 的原生等价（rq-*）
+   ────────────────────────────────────────────────────────────────── */
+.rq-card {
+  display: flex; flex-direction: column;
+  border-radius: var(--sp-radius-md);
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.94), oklch(0.99 0.004 258 / 0.72));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.10), -2px -2px 8px oklch(1 0 0 / 0.9);
+}
+.rq-card__header { padding: 13px 20px; border-bottom: 1px solid var(--sp-border-light); }
+.rq-card__body { padding: 20px; }
+/* 当前开放轮次（el-card shadow="hover"）：hover 抬升阴影 */
+.rq-card--open { transition: transform .2s ease, box-shadow .2s ease; }
+.rq-card--open:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.85), 3px 3px 10px oklch(0.55 0.03 258 / 0.14), -2px -2px 9px oklch(1 0 0 / 0.92);
+}
+/* 历史轮次（el-card shadow="never" + !border-gray-200）：静态卡 + 灰 hairline 边 */
+.rq-card--plain { padding: 20px; border: 1px solid #e5e7eb; }
+
+/* —— el-tag 原生等价（rq-tag；轮次状态 tag 的 color/borderColor 由行内 style 指定）—— */
+.rq-tag { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 3px; border: 1px solid #d9ecff; background: #ecf5ff; font-size: 12px; line-height: 1; white-space: nowrap; }
+.rq-tag--sm { height: 20px; padding: 0 7px; }
+/* type="info" effect="plain"（已锁定 · 不可修改） */
+.rq-tag--info-plain { background: transparent; color: #909399; border-color: #d3d4d6; }
+
+/* —— el-alert 原生等价（rq-alert，show-icon 由页面内 lucide 图标承担）—— */
+.rq-alert { display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 4px; font-size: 13px; line-height: 1.5; }
+.rq-alert--success { background: #f0f9eb; color: #529b2e; }
+.rq-alert--warning { background: #fdf6ec; color: #b88230; }
+
+/* —— el-input-number 原生等价（rq-input-number；min=0.01 / precision=2 由原生 number 步进 + 提交端 round 提供）—— */
+.rq-input-number {
+  width: 256px; height: 38px; padding: 0 12px;
+  border-radius: 10px; border: 1px solid #dce6f3;
+  background: rgba(255, 255, 255, 0.7); color: inherit;
+  font: inherit; font-size: 13.5px; outline: none;
+  box-shadow: inset 1px 1px 3px rgba(15, 47, 87, 0.05);
+}
+.rq-input-number:focus { border-color: var(--sp-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 12%, transparent); }
+.rq-input-number:disabled { background: #f5f7fa; color: #aaa; }

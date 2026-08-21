@@ -18,7 +18,9 @@ export const INTERNAL_ROLES: readonly AuthRole[] = ['admin', 'leader', 'staff', 
 
 /** Admin 和 bid_host 可以查看全局业务数据 */
 export function canViewGlobalBusinessData(role: string): boolean {
-  return role === 'leader' || role === 'admin' || role === 'bid_host' || role === 'staff';
+  // 2026-08-20 拍板：数据库/台账/采购进度仅管理权限（leader/admin）——staff 不开放，
+  // 与前端 DATABASE_ACCESS_ROLES={admin,leader} 同口径（此前误含 staff/bid_host，API 直调可绕过前端闸）
+  return role === 'leader' || role === 'admin';
 }
 
 /** 只有 admin 可以查看全部用户活动日志 */

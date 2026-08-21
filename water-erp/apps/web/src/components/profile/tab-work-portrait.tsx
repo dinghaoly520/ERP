@@ -6,7 +6,7 @@ import { fetchWorkPortrait, type WorkPortrait } from '@/lib/api/work-arrangement
 
 // Portrait 生成一次约 500 字 AI 叙事，成本不低且个人工作风格半月级别才显著变化。
 // 用 localStorage 持久化缓存，15 天内不重新生成。
-const CACHE_KEY = 'profile:work-portrait-cache';
+const CACHE_KEY = 'profile:work-portrait-cache:v2';
 const CACHE_TTL = 15 * 24 * 60 * 60 * 1000;
 
 type CachedPortrait = { data: WorkPortrait; timestamp: number };

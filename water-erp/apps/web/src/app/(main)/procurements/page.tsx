@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
 import {
@@ -117,6 +118,8 @@ function PageHero({
   data,
   sortBy,
   onSortChange,
+  companyId,
+  onCompanyChange,
 }: {
   filters: LedgerFilterState;
   onFilterChange: (key: keyof LedgerFilterState, value: string | null) => void;
@@ -128,6 +131,8 @@ function PageHero({
   data: ProcurementRoundItem[];
   sortBy: string;
   onSortChange: (value: string) => void;
+  companyId: string;
+  onCompanyChange: (value: string) => void;
 }) {
   const abnormalCount = data.filter(i =>
     ["FAILED_REVIEW", "FILE_REVISION_REQUIRED", "INVALID_RESPONSE", "CANCELLED"].includes(i.resultStatus)
@@ -152,6 +157,7 @@ function PageHero({
         </div>
 
         <div className="page-hero__right">
+          <CompanySelect value={companyId} onChange={onCompanyChange} />
           <span className="page-hero__stat page-hero__stat--info">
             共 {pagination.total} 条
           </span>
@@ -1022,6 +1028,7 @@ export default function ProcurementsPage() {
   // Admin check + 驾驶舱权限守卫（办公权限 staff 重定向到工作台）
   const [isAdmin, setIsAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [companyId, setCompanyId] = useState('all');
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
@@ -1178,9 +1185,10 @@ export default function ProcurementsPage() {
           recycleStatus: filters.recycleStatus || "ACTIVE",
           sortBy,
           sortOrder: 'desc',
+          companyId,
         }),
         fetchProcurementMethods(),
-        fetchLedgerStats().catch(() => null),
+        fetchLedgerStats(undefined, undefined, companyId).catch(() => null),
       ]);
       setData(listRes.data);
       setPagination(listRes.pagination);
@@ -1191,9 +1199,10 @@ export default function ProcurementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, filters, sortBy]);
+  }, [pagination.page, pagination.pageSize, filters, sortBy, companyId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1340,6 +1349,8 @@ export default function ProcurementsPage() {
             data={data}
             sortBy={sortBy}
             onSortChange={(v) => setSortBy(v as typeof sortBy)}
+            companyId={companyId}
+            onCompanyChange={setCompanyId}
           />
         </div>
 
