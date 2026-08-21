@@ -13,6 +13,7 @@ export async function fetchProcurements(params: {
   recycleStatus?: 'ACTIVE' | 'RECYCLED' | 'ALL';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  companyId?: string; // 仅 admin 生效：公司选择器
 }): Promise<ProcurementsListResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set('page', String(params.page));
@@ -26,6 +27,7 @@ export async function fetchProcurements(params: {
   if (params.recycleStatus) query.set('recycleStatus', params.recycleStatus);
   if (params.sortBy) query.set('sortBy', params.sortBy);
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
+  if (params.companyId && params.companyId !== 'all') query.set('companyId', params.companyId);
   return api.get<ProcurementsListResponse>(`/procurements?${query.toString()}`);
 }
 
@@ -33,10 +35,15 @@ export async function fetchProcurementById(id: string) {
   return api.get(`/procurements/${id}`);
 }
 
-export async function fetchLedgerStats(startDate?: string, endDate?: string): Promise<LedgerSummary> {
+export async function fetchLedgerStats(
+  startDate?: string,
+  endDate?: string,
+  companyId?: string,
+): Promise<LedgerSummary> {
   const query = new URLSearchParams();
   if (startDate) query.set('startDate', startDate);
   if (endDate) query.set('endDate', endDate);
+  if (companyId && companyId !== 'all') query.set('companyId', companyId);
   return api.get<LedgerSummary>(`/procurements/stats?${query.toString()}`);
 }
 

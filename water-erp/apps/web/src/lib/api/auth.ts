@@ -364,6 +364,67 @@ export async function fetchRegistrationCompanies(): Promise<string[]> {
   return requestJson<string[]>(`${API_BASE}/auth/companies`, { cache: "no-store" });
 }
 
+// ── 注册审核 ──
+
+export type PendingRegistration = {
+  id: string;
+  username: string;
+  displayName: string;
+  company: string;
+  departmentName: string | null;
+  phone: string;
+  email: string | null;
+  officeLocation: string | null;
+  requestedRole: string | null;
+  createdAt: string;
+};
+
+export type RegistrationReview = {
+  id: string;
+  username: string;
+  displayName: string;
+  company: string;
+  department: string | null;
+  phone: string;
+  email: string | null;
+  officeLocation: string | null;
+  requestedRole: string;
+  decision: "APPROVED" | "REJECTED";
+  decisionNote: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string;
+};
+
+export async function fetchPendingRegistrations(): Promise<PendingRegistration[]> {
+  return requestJson<PendingRegistration[]>(`${API_BASE}/auth/pending-registrations`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+}
+
+export async function fetchRegistrationReviews(): Promise<RegistrationReview[]> {
+  return requestJson<RegistrationReview[]>(`${API_BASE}/auth/registration-reviews`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+}
+
+export async function approveRegistration(userId: string) {
+  return requestJson<{ ok: boolean }>(`${API_BASE}/auth/users/${userId}/approve`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
+export async function rejectRegistration(userId: string, note?: string) {
+  return requestJson<{ ok: boolean }>(`${API_BASE}/auth/users/${userId}/reject`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ note }),
+  });
+}
+
 export async function registerUser(payload: RegisterPayload): Promise<{ pending: true }> {
   return requestJson<{ pending: true }>(`${API_BASE}/auth/register`, {
     method: "POST",

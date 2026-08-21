@@ -45,6 +45,7 @@ import type {
   InternalBiddingAnswers,
 } from './tender-write.types';
 import { AiService } from '../ai/ai.service';
+import { OcrService } from '../local-ai/ocr.service';
 import { parseUploadedFile } from './import-autofill.file-parser';
 import {
   buildImportAutofillSystemPrompt,
@@ -68,7 +69,10 @@ const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 export class TenderWriteService {
   private readonly logger = new Logger(TenderWriteService.name);
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly ocrService: OcrService,
+  ) {}
 
   private resolveTemplatePath(
     documentType: ExportTenderWriteDto['documentType'],
@@ -193,7 +197,7 @@ export class TenderWriteService {
 
     for (const file of files) {
       try {
-        const parsed = await parseUploadedFile(file.buffer, file.originalname);
+        const parsed = await parseUploadedFile(file.buffer, file.originalname, this.ocrService);
         fileResults.push({
           name: file.originalname,
           type: file.originalname.split('.').pop()?.toLowerCase() ?? '',
@@ -239,7 +243,7 @@ export class TenderWriteService {
     );
     const userPrompt = buildImportAutofillUserPrompt(parsedTexts);
 
-    let rawJson: string;
+    let rawJson: unknown;
     try {
       rawJson = await this.aiService.chatJson(systemPrompt, userPrompt, 0.2);
     } catch (err) {
@@ -249,7 +253,7 @@ export class TenderWriteService {
     }
 
     // 4. Parse and validate AI response
-    this.logger.log(`AI raw response (first 500 chars): ${rawJson.slice(0, 500)}`);
+    this.logger.log(`AI raw response (first 500 chars): ${JSON.stringify(rawJson).slice(0, 500)}`);
     const fieldResults = parseAiImportResponse(rawJson, allowedKeys, fieldDefs);
     this.logger.log(`Parsed ${fieldResults.length} fields: ${fieldResults.filter(f => f.status !== 'not_found').length} recognized/low_confidence`);
 

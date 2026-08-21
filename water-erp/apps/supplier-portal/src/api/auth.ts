@@ -51,6 +51,12 @@ export const authApi = {
     return api.get('/supplier/register/status/public', { params: { creditCode } })
   },
 
+  /** 注册前查重（公开）：统一社会信用代码硬拦截 / 法人身份证·联系人身份证软提示。 */
+  checkDuplicate(fields: { creditCode?: string; legalPersonIdCard?: string; contactIdCard?: string }) {
+    return api.get<{ creditCode: boolean; legalPersonIdCard: boolean; contactIdCard: boolean }>(
+      '/supplier/register/check-duplicate', { params: fields })
+  },
+
   /** 公开：校验邀请码（临时注册前）。返回 { valid, validityDays?, expiresAt?, reason? } */
   verifyInvitation(code: string) {
     return api.get('/supplier/invitations/verify', { params: { code } })

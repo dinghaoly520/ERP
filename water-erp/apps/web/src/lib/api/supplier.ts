@@ -318,6 +318,39 @@ export function getSupplierTimeline(id: string) {
   return api.get<SupplierTimeline>(`/supplier/${id}/timeline`);
 }
 
+// ── 审核历史（不可变留痕）──
+/** 快照内文件链接（资质 fileUrl 之外的附加材料 / 业绩证明材料） */
+export interface SnapshotFileLink { name: string; url: string; }
+export interface ApprovalSnapshot {
+  name: string; creditCode: string | null; supplierNo: string; enterpriseType: string;
+  legalPerson: string; legalPersonIdCard: string | null; registeredAddress: string; businessScope: string;
+  tags: string[]; isTemporary: boolean;
+  account: { username: string; displayName: string; email: string | null } | null;
+  contacts: { name: string; gender?: string | null; phone: string; idCard: string | null; email: string | null; position: string | null; isPrimary: boolean }[];
+  qualifications: { type: string; name: string; fileUrl?: string; attachments?: SnapshotFileLink[] | null; validFrom: string | null; validTo: string | null }[];
+  /* ── 注册 2.0 新增字段（旧快照无以下字段，展示侧须优雅降级）── */
+  legalPersonPhone?: string | null;
+  detailedAddress?: string | null;
+  logoUrl?: string | null;
+  organizationCode?: string | null;
+  country?: string | null;
+  region?: string | null;
+  registeredCapital?: string | null;
+  industry?: string | null;
+  companyEmail?: string | null;
+  companyWebsite?: string | null;
+  bankAccounts?: { id: string; accountName: string; bankName: string; bankBranch?: string | null; accountNo: string; isDefault: boolean }[];
+  performances?: { id: string; projectName: string; clientName?: string | null; contractAmount?: string | null; signDate?: string | null; description?: string | null; proofFiles?: SnapshotFileLink[] | null }[];
+}
+export interface ApprovalRecord {
+  id: string; action: 'APPROVED' | 'REJECTED' | 'RETURNED';
+  reason: string | null; snapshot: ApprovalSnapshot; createdAt: string;
+  reviewer: { id: string; displayName: string; username: string } | null;
+}
+export function getApprovalHistory(id: string) {
+  return api.get<ApprovalRecord[]>(`/supplier/${id}/approval-history`);
+}
+
 // ── 资质预警 ──
 export interface QualificationAlertItem {
   id: string; supplierId: string; supplierName: string;

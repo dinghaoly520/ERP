@@ -1311,7 +1311,7 @@ describe('ProjectManagementService', () => {
       const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
       prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-16', projectCode: `JJ-${ymd}01` });
 
-      const res = await service.createItemFromAnnouncement(prisma as any, {
+      const res = await service.createItemFromAnnouncement({} as any, prisma as any, {
         title: '公告直建测试项目', procurementMethod: '竞价采购', budget: 900000, authorId: 'u-1',
       });
 
@@ -1344,7 +1344,7 @@ describe('ProjectManagementService', () => {
       (prisma as any).user = { findUnique: jest.fn().mockResolvedValue(null) };
       prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-17', projectCode: 'TP-2026081701' });
 
-      await service.createItemFromAnnouncement(prisma as any, {
+      await service.createItemFromAnnouncement({} as any, prisma as any, {
         title: '谈判公告直建', procurementMethod: '谈判采购', budget: null, authorId: 'u-2',
       });
 

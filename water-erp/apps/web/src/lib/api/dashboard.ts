@@ -139,10 +139,12 @@ export type DashboardData = {
 export async function fetchDashboardData(
   startDate?: string,
   endDate?: string,
+  companyId?: string, // 仅 admin 生效：公司选择器
 ): Promise<DashboardData> {
   const params = new URLSearchParams();
   if (startDate) params.set('startDate', startDate);
   if (endDate) params.set('endDate', endDate);
+  if (companyId && companyId !== 'all') params.set('companyId', companyId);
 
   const url = `${API_BASE}/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
 

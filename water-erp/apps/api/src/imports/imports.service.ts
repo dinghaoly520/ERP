@@ -305,23 +305,22 @@ export class ImportsService {
         if (row.awardedSupplierName) {
           // TODO: ERP Supplier requires userId — imports create name-only records; revisit after supplier import flow redesign
           const [awardNoRow] = await (tx as any).$queryRaw`SELECT 'SUP-' || lpad(nextval('supplier_no_seq')::text, 6, '0') AS supplier_no`;
-          const awardedSupplier = await (tx as any).supplier.upsert({
-            where: {
-              normalizedName: normalizeName(row.awardedSupplierName),
-            },
-            update: {
-              name: row.awardedSupplierName,
-            },
-            create: {
-              name: row.awardedSupplierName,
-              normalizedName: normalizeName(row.awardedSupplierName),
-              supplierNo: awardNoRow.supplier_no,
-              enterpriseType: '企业',
-              legalPerson: '',
-              registeredAddress: '',
-              businessScope: '',
-            },
-          });
+          // normalizedName 已非唯一，不能用 upsert where normalizedName —— 先查再建
+          const nn = normalizeName(row.awardedSupplierName);
+          let awardedSupplier = await (tx as any).supplier.findFirst({ where: { normalizedName: nn }, select: { id: true } });
+          if (!awardedSupplier) {
+            awardedSupplier = await (tx as any).supplier.create({
+              data: {
+                name: row.awardedSupplierName,
+                normalizedName: nn,
+                supplierNo: awardNoRow.supplier_no,
+                enterpriseType: '企业',
+                legalPerson: '',
+                registeredAddress: '',
+                businessScope: '',
+              },
+            });
+          }
           awardedSupplierId = awardedSupplier.id;
         }
 
@@ -347,23 +346,22 @@ export class ImportsService {
         for (const [index, supplierName] of row.supplierNames.entries()) {
           // TODO: ERP Supplier requires userId — see note above
           const [supNoRow] = await (tx as any).$queryRaw`SELECT 'SUP-' || lpad(nextval('supplier_no_seq')::text, 6, '0') AS supplier_no`;
-          const supplier = await (tx as any).supplier.upsert({
-            where: {
-              normalizedName: normalizeName(supplierName),
-            },
-            update: {
-              name: supplierName,
-            },
-            create: {
-              name: supplierName,
-              normalizedName: normalizeName(supplierName),
-              supplierNo: supNoRow.supplier_no,
-              enterpriseType: '企业',
-              legalPerson: '',
-              registeredAddress: '',
-              businessScope: '',
-            },
-          });
+          // normalizedName 已非唯一，不能用 upsert where normalizedName —— 先查再建
+          const nn2 = normalizeName(supplierName);
+          let supplier = await (tx as any).supplier.findFirst({ where: { normalizedName: nn2 }, select: { id: true } });
+          if (!supplier) {
+            supplier = await (tx as any).supplier.create({
+              data: {
+                name: supplierName,
+                normalizedName: nn2,
+                supplierNo: supNoRow.supplier_no,
+                enterpriseType: '企业',
+                legalPerson: '',
+                registeredAddress: '',
+                businessScope: '',
+              },
+            });
+          }
 
           await tx.roundParticipant.upsert({
             where: {

@@ -23,7 +23,7 @@
  *   如确需执行，须显式设置 ALLOW_PROD_SEED=1。
  */
 import { PrismaClient } from '@prisma/client';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
 import { execSync } from 'node:child_process';
@@ -555,6 +555,85 @@ async function main() {
     }
   } catch (e) {
     console.warn(`    ⚠ AI 摘要回填失败: ${(e as Error).message}（不阻塞 seed）`);
+  }
+
+  // ═══ admin 加密证书 bootstrap（口径同步：src/common/crypto/admin-keystore.service.ts）═══
+  // 全新库 seed 后无 active 证书；运行中 API 不重启则供应商取 admin-cert 409
+  // （ensureBootstrap 仅在 API 启动时执行）。seed 内不引 Nest service——内联同一口径：
+  // SM2 生成 → create(active:true, certDn 与 ADMIN_CERT_DN 一致) → 私钥写 keystore/<id>（0600）。
+  // 已有 active 则跳过（幂等）。keystore 默认目录 <api>/.data/admin-keystore（本文件位于
+  // <api>/prisma，'../' 与 service 的 '../../../' 解析同归 <api> 包根；dir 权限/写盘参数同 service）。
+  console.log('▶ admin 加密证书 bootstrap');
+  const adminCertCount = await prisma.adminEncryptionCert.count({ where: { active: true } });
+  if (adminCertCount === 0) {
+    const { sm2 } = require('sm-crypto');
+    const kp = sm2.generateKeyPairHex();
+    const cert = await prisma.adminEncryptionCert.create({
+      data: { publicKey: kp.publicKey, certDn: 'CN=蜀水云采-管理方加密证书', active: true },
+    });
+    const keystoreDir = process.env.ADMIN_KEYSTORE_DIR ?? join(__dirname, '../.data/admin-keystore');
+    mkdirSync(keystoreDir, { recursive: true, mode: 0o700 });
+    const certFile = join(keystoreDir, cert.id);
+    writeFileSync(certFile, kp.privateKey, { mode: 0o600 });
+    chmodSync(certFile, 0o600);
+    console.log(`    生成 active 证书 ${cert.id}，私钥 → ${certFile}`);
+  } else {
+    console.log(`    已有 ${adminCertCount} 张 active 证书，跳过（幂等）`);
+  }
+
+  // ═══ 重建公司归属（公司级数据隔离，2026-08-20）═══
+  // TRUNCATE+JSON 重载会清空 companyId（快照无此字段）——重种子后必须重建，否则隔离体系塌掉：
+  // 有主数据按创建人回填；种子演示数据（公告等无作者）统一归设计院本部，保证演示门户不空。
+  {
+    const SEED_COMPANIES = [
+      { id: 'co-swhi-sjy', name: '四川水发勘测设计研究有限公司', shortName: '设计院' },
+      { id: 'co-swhi-js', name: '四川水发建设有限公司', shortName: '建设' },
+      { id: 'co-swhi-tz', name: '四川水发投资有限公司', shortName: '投资' },
+    ] as const;
+    for (const c of SEED_COMPANIES) {
+      await prisma.company.upsert({ where: { name: c.name }, update: { shortName: c.shortName }, create: { ...c } });
+    }
+    const sjy = await prisma.company.findUniqueOrThrow({ where: { id: 'co-swhi-sjy' } });
+
+    // 1) User：按 company 文本挂 id
+    const users = await prisma.user.findMany({ select: { id: true, company: true } });
+    const companyByName = new Map((await prisma.company.findMany()).map((c) => [c.name, c.id]));
+    let userLinked = 0;
+    for (const u of users) {
+      const cid = u.company ? companyByName.get(u.company) ?? null : null;
+      if (cid) { await prisma.user.update({ where: { id: u.id }, data: { companyId: cid } }); userLinked++; }
+    }
+
+    // 2) 四张业务表：按创建人回填；无主的种子演示数据归设计院
+    const userCompany = new Map(users.map((u) => [u.id, companyByName.get(u.company ?? '') ?? sjy.id]));
+    const tables = [
+      { delegate: 'projectManagementItem', ownerField: 'createdById' },
+      { delegate: 'procurementProject', ownerField: 'creatorId' },
+      { delegate: 'procurementRound', ownerField: 'createdById' },
+      { delegate: 'announcement', ownerField: 'authorId' },
+    ] as const;
+    for (const tb of tables) {
+      const rows = await (prisma as any)[tb.delegate].findMany({ select: { id: true, [tb.ownerField]: true, companyId: true } });
+      for (const r of rows) {
+        if (r.companyId) continue;
+        const owner = r[tb.ownerField];
+        const cid = owner ? userCompany.get(owner) ?? sjy.id : sjy.id;
+        const c = cid === sjy.id ? sjy : { id: cid, name: [...companyByName.entries()].find(([, id]) => id === cid)?.[0] ?? sjy.name };
+        await (prisma as any)[tb.delegate].update({ where: { id: r.id }, data: { companyId: cid, companyName: c.name } });
+      }
+    }
+    // 3) BidProject：无创建人字段——先经关联 PMI 推导，再归设计院兜底
+    const bpRows = await prisma.bidProject.findMany({ select: { id: true, projectManagementItemId: true, companyId: true } });
+    for (const b of bpRows) {
+      if (b.companyId) continue;
+      let cid = sjy.id, cname = sjy.name;
+      if (b.projectManagementItemId) {
+        const m = await prisma.projectManagementItem.findUnique({ where: { id: b.projectManagementItemId }, select: { companyId: true, companyName: true } });
+        if (m?.companyId) { cid = m.companyId; cname = m.companyName ?? sjy.name; }
+      }
+      await prisma.bidProject.update({ where: { id: b.id }, data: { companyId: cid, companyName: cname } });
+    }
+    console.log(`▶ 公司归属重建: User ${userLinked}/${users.length} 挂靠；业务表全量归属（无主种子归设计院）`);
   }
 
   const counts = {

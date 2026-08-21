@@ -9,6 +9,7 @@ import { RegisterDto } from './dto/register.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from './current-user.decorator';
+import type { AuthenticatedUser } from './auth.types';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { getClientIp } from '../common/client-ip.util';
@@ -52,29 +53,47 @@ export class AuthController {
 
   @Get('companies')
   @Public()
-  @ApiOperation({ summary: '已知公司列表（注册下拉建议，从用户表动态聚合）' })
+  @ApiOperation({ summary: '已知公司列表（注册下拉建议，Company 主数据）' })
   async companies() {
-    const rows = await this.prisma.user.findMany({
-      where: { company: { not: null } },
-      select: { company: true },
-      distinct: ['company'],
+    // 2026-08-20 起改查 Company 主数据表（数据隔离的归属单位），新公司注册时自动建档。
+    // 返回保持纯名称数组——注册 datalist 直接回填，须与 normalizeCompany 的对齐键一致。
+    const rows = await this.prisma.company.findMany({
+      select: { name: true },
+      orderBy: { name: 'asc' },
     });
-    // 非空 + 排序；新公司注册成功后自动进入此列表
-    return [...new Set(rows.map(r => r.company).filter((c): c is string => !!c))].sort();
+    return rows.map(r => r.name);
   }
 
   @Post('users/:id/approve')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: '审核通过注册用户' })
-  async approveUser(@Param('id') id: string) {
-    return this.authService.approveUser(id);
+  async approveUser(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.authService.approveUser(id, { id: user.sub, name: user.username });
   }
 
   @Post('users/:id/reject')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: '拒绝注册用户' })
-  async rejectUser(@Param('id') id: string) {
-    return this.authService.rejectUser(id);
+  async rejectUser(
+    @Param('id') id: string,
+    @Body() body: { note?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.authService.rejectUser(id, { id: user.sub, name: user.username }, body?.note);
+  }
+
+  @Get('registration-reviews')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: '注册审核历史（只读）' })
+  async registrationReviews() {
+    return this.authService.listRegistrationReviews();
+  }
+
+  @Get('pending-registrations')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: '待审核注册用户列表' })
+  async pendingRegistrations() {
+    return this.authService.listPendingRegistrations();
   }
 
   @Post('login')

@@ -19,6 +19,8 @@ import { StartEvaluationDto } from './dto/start-evaluation.dto';
 import { AssignHostDto } from './dto/assign-host.dto';
 import { ArchiveAllDto } from './dto/archive-all.dto';
 import { DecryptSupplierDto } from './dto/decrypt-supplier.dto';
+import { DecryptOuterDto } from './dto/decrypt-outer.dto';
+import { AdjudicateDecryptFaultDto } from './dto/adjudicate-decrypt-fault.dto';
 import { CreateScoreItemDto } from './dto/create-score-item.dto';
 import { UpdateScoreItemDto } from './dto/update-score-item.dto';
 import { CreateScorePointDto } from './dto/create-score-point.dto';
@@ -28,6 +30,8 @@ import { UpdateLinkedRequirementsDto } from './dto/update-linked-requirements.dt
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { ResolveExpertDisputeDto } from './dto/resolve-expert-dispute.dto';
+import { UseGuards } from '@nestjs/common';
+import { BidCompanyScopeGuard } from './bid-company-scope.guard';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { RetryAiBiddersDto } from './dto/retry-ai-bidders.dto';
 import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
@@ -36,6 +40,7 @@ import { ExtendEvaluationDto } from './dto/extend-evaluation.dto';
 @ApiCookieAuth('token')
 @Controller('bid')
 @Roles('admin', 'bid_host', 'leader', 'staff')
+@UseGuards(BidCompanyScopeGuard) // 公司隔离：projects/:id/* 端点跨公司内部角色 403（admin/:3007 被指派人除外）
 export class BidController {
   constructor(
     private readonly bidService: BidService,
@@ -354,6 +359,26 @@ export class BidController {
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   decryptSupplier(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto?: DecryptSupplierDto, @CurrentUser('sub') userId?: string) { return this.bidService.decryptSupplier(id, supplierId, dto, userId); }
 
+  @Post('projects/:id/opening/decrypt-outer')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '主持端解外层（dual-v2）：管理方私钥解 K_admin → C_inner 归属链落库；supplierId 缺省=批量' })
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  decryptOuter(@Param('id') id: string, @Body() dto?: DecryptOuterDto, @CurrentUser('sub') userId?: string) {
+    return this.bidService.decryptOuter(id, dto?.supplierId, userId);
+  }
+
+  @Post('projects/:id/opening/decrypt-adjudge')
+  @Roles('admin', 'bid_host')
+  @ApiOperation({ summary: '解密失败归因裁决（§5.5）：UNKNOWN 家落 BIDDER/PLATFORM 终局（须填原因，告知权利）；BIDDER→PLATFORM 改判；RESET_PENDING 重置解密机会' })
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  adjudicateDecryptFault(
+    @Param('id') id: string,
+    @Body() dto: AdjudicateDecryptFaultDto,
+    @CurrentUser('sub') userId?: string,
+  ) {
+    return this.bidService.adjudicateDecryptFault(id, dto.supplierId, dto.attribution, dto.reason, userId);
+  }
+
   @Post('projects/:id/suppliers/:supplierId/files/:role/reupload')
   @Roles('admin', 'bid_host')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
@@ -373,7 +398,7 @@ export class BidController {
 
   @Post('projects/:id/suppliers/:supplierId/reseal')
   @Roles('admin', 'bid_host')
-  @ApiOperation({ summary: '管理员一键重新封标（从系统内原始明文恢复，无需上传文件）' })
+  @ApiOperation({ summary: '管理员一键重新封标（E2EE 密钥重包裹；服务端明文恢复通道已下线，非 E2EE 请走标书补传）' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   resealBidFiles(
     @Param('id') id: string,

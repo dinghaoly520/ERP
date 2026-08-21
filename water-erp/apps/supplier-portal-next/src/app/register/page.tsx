@@ -1,0 +1,836 @@
+"use client";
+
+/**
+ * 供应商正式注册 — 注册 2.0 六部分向导：
+ * 1 基本信息（logo/名称/信用代码/机构代码/国别/区域/地址/注册资本/体制类型/行业/法人/公司联系/业务标签）
+ * 2 联系人信息（多项：姓名/性别/电话/身份证/邮箱/部门职务）
+ * 3 银行账户信息（多项）
+ * 4 资质信息（营业执照固定 + 其他，支持附加材料多上传）
+ * 5 主体业绩（多项，每项须上传证明材料）
+ * 6 总览确认 + 协议 + 提交审核
+ *
+ * 暂存/恢复：useAutoSave('register') 草稿存于本机 localStorage——
+ * 恢复只读取当前浏览器自己的草稿，天然不会恢复他机/他人填写内容。
+ */
+import { useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import dayjs from "dayjs";
+import { toast } from "sonner";
+import { Building2, ImagePlus, Paperclip, Plus, Trash2, Upload, X } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { authApi } from "@/lib/api/auth";
+import { uploadFile } from "@/lib/api/upload";
+import { useAutoSave } from "@/hooks/use-auto-save";
+import { RegisterAgreement } from "@/components/register-agreement";
+import { SpSwitch } from "@/components/ui";
+import { ENTERPRISE_TYPES, INDUSTRY_OPTIONS } from "@/constants/supplier";
+import "@/styles/pages/register2.css";
+
+interface ContactRow { name: string; gender: string; phone: string; idCard: string; email: string; position: string; isPrimary: boolean }
+interface BankRow { accountName: string; bankName: string; bankBranch: string; accountNo: string; isDefault: boolean }
+interface QualRow { type: string; name: string; fileUrl: string; attachments: { name: string; url: string }[]; validFrom: string; validTo: string }
+interface PerfRow { projectName: string; clientName: string; contractAmount: string; signDate: string; description: string; proofFiles: { name: string; url: string }[] }
+interface FileAsset { url: string; originalName: string }
+
+const STEPS = ["基本信息", "联系人", "银行账户", "资质信息", "主体业绩", "总览确认"];
+const QUAL_TYPES = ["营业执照", "资质证书", "安全生产许可证", "质量管理体系认证", "环境管理体系认证", "其他"];
+
+/* ─── 多文件上传（附加材料 / 业绩证明）─── */
+function MultiFiles({ value, onChange, label = "上传附件" }: {
+  value: { name: string; url: string }[];
+  onChange: (v: { name: string; url: string }[]) => void;
+  label?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) { toast.warning("文件不能超过50MB"); return; }
+    setBusy(true);
+    try {
+      const asset: FileAsset = await uploadFile(file, "qualification");
+      onChange([...value, { name: asset.originalName || file.name, url: asset.url }]);
+    } catch (err: any) {
+      toast.error(err?.message || "上传失败，请重试");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="reg-files">
+      {value.map((f, i) => (
+        <span key={`${f.url}-${i}`} className="reg-file-chip">
+          <Paperclip size={11} />
+          <span>{f.name}</span>
+          <button type="button" className="reg-file-x" aria-label="移除附件" onClick={() => onChange(value.filter((_, j) => j !== i))}>
+            <X size={11} />
+          </button>
+        </span>
+      ))}
+      <button type="button" className="reg-add-file" disabled={busy} onClick={() => inputRef.current?.click()}>
+        <Plus size={11} />
+        {busy ? "上传中…" : label}
+      </button>
+      <input ref={inputRef} type="file" hidden accept=".pdf,.jpg,.jpeg,.png" onChange={pick} />
+    </div>
+  );
+}
+
+/* ─── 单文件上传按钮（资质主文件）─── */
+function SingleFile({ url, onPicked }: { url: string; onPicked: (a: FileAsset | null) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) { toast.warning("文件不能超过50MB"); return; }
+    setBusy(true);
+    try {
+      onPicked(await uploadFile(file, "qualification"));
+    } catch (err: any) {
+      onPicked(null);
+      toast.error(err?.message || "上传失败，请重试");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <button type="button" className="reg-btn reg-btn--file" disabled={busy} onClick={() => inputRef.current?.click()}>
+        <Upload size={13} />
+        {busy ? "上传中…" : url ? "已上传 · 重新上传" : "上传文件"}
+      </button>
+      <input ref={inputRef} type="file" hidden accept=".pdf,.jpg,.jpeg,.png" onChange={pick} />
+    </>
+  );
+}
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const { register } = useAuth();
+
+  const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  /* ── 第 1 部分：账号 + 基本信息 ── */
+  // 用户名固定取「机构代码」、联系人/邮箱在第二步维护，故此处仅保留密码
+  const [account, setAccount] = useState({ password: "", confirmPassword: "" });
+  const [basic, setBasic] = useState({
+    logoUrl: "", name: "", creditCode: "", organizationCode: "", country: "中国", region: "",
+    detailedAddress: "", registeredAddress: "", registeredCapital: "", enterpriseType: "", industry: "",
+    businessScope: "", legalPerson: "", legalPersonIdCard: "", legalPersonPhone: "", companyEmail: "", companyWebsite: "",
+  });
+  const [tags, setTags] = useState<string[]>(["", ""]);
+
+  /* ── 第 2-5 部分 ── */
+  const [contacts, setContacts] = useState<ContactRow[]>([{ name: "", gender: "", phone: "", idCard: "", email: "", position: "", isPrimary: true }]);
+  const [banks, setBanks] = useState<BankRow[]>([]);
+  const [quals, setQuals] = useState<QualRow[]>([{ type: "营业执照", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "" }]);
+  const [perfs, setPerfs] = useState<PerfRow[]>([]);
+
+  const [agree, setAgree] = useState(false);
+  const [creditCodeDuplicate, setCreditCodeDuplicate] = useState(false);
+  const [legalIdCardDuplicate, setLegalIdCardDuplicate] = useState(false);
+
+  /* ── 本机草稿暂存（localStorage 仅本浏览器可读，恢复不会拿到他人内容）── */
+  const draftData = useMemo(() => ({
+    step,
+    basic, tags, contacts, banks, quals, perfs,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [step, JSON.stringify(basic), JSON.stringify(tags), JSON.stringify(contacts), JSON.stringify(banks), JSON.stringify(quals), JSON.stringify(perfs)]);
+  const draft = useAutoSave("register", draftData);
+  const draftTimeLabel = draft.storedAt ? dayjs(draft.storedAt).format("MM月DD日 HH:mm") : "";
+  const [showRecovery, setShowRecovery] = useState(false);
+  const recoveredRef = useRef(false);
+  if (!recoveredRef.current && typeof window !== "undefined") {
+    recoveredRef.current = true;
+    const d = draft.restoreDraft() as any;
+    if (d && (d.basic?.name || d.basic?.organizationCode)) setShowRecovery(true);
+  }
+  function acceptRecovery() {
+    const d = draft.restoreDraft() as any;
+    if (!d) return;
+    setAccount((a) => ({ ...a, ...d.account, password: "", confirmPassword: "" }));
+    setBasic((b) => ({ ...b, ...d.basic }));
+    setTags(d.tags?.length ? [...d.tags] : ["", ""]);
+    setContacts(d.contacts?.length ? d.contacts.map((c: ContactRow) => ({ ...c })) : contacts);
+    setBanks(d.banks?.length ? d.banks.map((b: BankRow) => ({ ...b })) : []);
+    setQuals(d.quals?.length ? d.quals.map((q: QualRow) => ({ ...q, attachments: q.attachments ?? [] })) : quals);
+    setPerfs(d.perfs?.length ? d.perfs.map((p: PerfRow) => ({ ...p, proofFiles: p.proofFiles ?? [] })) : []);
+    setStep(d.step || 0);
+    draft.markClean();
+    setShowRecovery(false);
+    toast.success("已恢复本机草稿（密码需重新输入）");
+  }
+  function discardRecovery() { draft.clearDraft(); setShowRecovery(false); }
+
+  /* ── 查重 ── */
+  async function checkCreditCode() {
+    setCreditCodeDuplicate(false);
+    const code = basic.creditCode.trim();
+    if (!/^[0-9A-Z]{18}$/.test(code)) return;
+    try {
+      const res = await authApi.checkDuplicate({ creditCode: code });
+      setCreditCodeDuplicate(res.creditCode);
+      if (res.creditCode) toast.warning("该统一社会信用代码已被注册，请核对后重试");
+    } catch { /* 查重失败不阻塞 */ }
+  }
+  async function checkLegalIdCard() {
+    setLegalIdCardDuplicate(false);
+    const id = basic.legalPersonIdCard.trim();
+    if (!/^\d{17}[\dXx]$/.test(id)) return;
+    try {
+      const res = await authApi.checkDuplicate({ legalPersonIdCard: id });
+      setLegalIdCardDuplicate(res.legalPersonIdCard);
+      if (res.legalPersonIdCard) toast.warning("该法定代表人身份证号已用于其他供应商注册，请核对");
+    } catch { /* 不阻塞 */ }
+  }
+
+  /* ── 分步校验 ── */
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (step === 0) {
+      // 用户名 = 机构代码：必填且满足登录账号长度约束
+      const oc = basic.organizationCode.trim();
+      if (!oc) e.organizationCode = "请输入机构代码（将作为登录账号）";
+      else if (oc.length < 4 || oc.length > 20) e.organizationCode = "机构代码须4-20个字符（将作为登录账号）";
+      if (!account.password) e.password = "请输入密码";
+      else if (account.password.length < 6) e.password = "密码不少于6位";
+      if (account.confirmPassword !== account.password) e.confirmPassword = "两次输入的密码不一致";
+      if (!basic.name.trim()) e.name = "请输入企业名称";
+      if (!basic.creditCode.trim()) e.creditCode = "请输入统一社会信用代码";
+      else if (!/^[0-9A-Z]{18}$/.test(basic.creditCode.trim())) e.creditCode = "请输入18位统一社会信用代码";
+      if (!basic.enterpriseType) e.enterpriseType = "请选择公司体制类型";
+      if (!basic.registeredAddress.trim()) e.registeredAddress = "请输入注册地址";
+      if (!basic.businessScope.trim()) e.businessScope = "请输入经营范围";
+      if (!basic.legalPerson.trim()) e.legalPerson = "请输入法定代表人姓名";
+      if (!basic.legalPersonIdCard.trim()) e.legalPersonIdCard = "请输入法定代表人身份证号";
+      else if (!/^\d{17}[\dXx]$/.test(basic.legalPersonIdCard.trim())) e.legalPersonIdCard = "请输入18位身份证号";
+      if (basic.legalPersonPhone && !/^1[3-9]\d{9}$/.test(basic.legalPersonPhone.trim())) e.legalPersonPhone = "法人电话须为11位手机号";
+      if (basic.companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(basic.companyEmail.trim())) e.companyEmail = "公司邮箱格式不正确";
+      if (tags.filter((t) => t.trim()).length < 2) e.tags = "请至少填写 2 个业务标签";
+    }
+    if (step === 1) {
+      const contactEmptyRow = (c: ContactRow) => !c.name.trim() && !c.gender && !c.phone.trim() && !c.idCard.trim() && !c.email.trim() && !c.position.trim();
+      const ok = contacts.some((c) => c.name.trim() && /^1[3-9]\d{9}$/.test(c.phone.trim()) && /^\d{17}[\dXx]$/.test(c.idCard.trim()));
+      if (!ok) e.contacts = "请至少完整填写 1 个联系人（姓名 + 11位手机号 + 18位身份证号）";
+      contacts.forEach((c, i) => {
+        if (contactEmptyRow(c)) return; // 全空行提交时过滤
+        if (!c.name.trim()) e[`contact-${i}-name`] = "请输入姓名";
+        if (!c.phone.trim()) e[`contact-${i}-phone`] = "请输入手机号";
+        else if (!/^1[3-9]\d{9}$/.test(c.phone.trim())) e[`contact-${i}-phone`] = "手机号格式不正确";
+        if (!c.idCard.trim()) e[`contact-${i}-idCard`] = "请输入身份证号";
+        else if (!/^\d{17}[\dXx]$/.test(c.idCard.trim())) e[`contact-${i}-idCard`] = "身份证号须为18位";
+        if (c.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) e[`contact-${i}-email`] = "邮箱格式不正确";
+      });
+    }
+    if (step === 2) {
+      banks.forEach((b, i) => {
+        if (!b.accountName.trim() && !b.bankName.trim() && !b.bankBranch.trim() && !b.accountNo.trim()) return; // 全空行提交时过滤
+        if (!b.accountName.trim()) e[`bank-${i}-accountName`] = "请输入户名";
+        if (!b.bankName.trim()) e[`bank-${i}-bankName`] = "请输入开户银行";
+        if (!b.accountNo.trim()) e[`bank-${i}-accountNo`] = "请输入银行账号";
+      });
+    }
+    if (step === 3) {
+      const lic = quals[0];
+      if (!lic?.name.trim() || !lic.fileUrl) e.license = "营业执照为必填资质，请填写名称并上传文件";
+      if (lic?.validFrom && lic?.validTo && lic.validFrom > lic.validTo) e[`qual-0-validTo`] = "有效期止须晚于有效期起";
+      quals.forEach((q, i) => {
+        if (i === 0) return;
+        if (!q.type && !q.name.trim() && !q.fileUrl && !q.validFrom && !q.validTo && q.attachments.length === 0) return; // 全空行提交时过滤
+        if (!q.type) e[`qual-${i}-type`] = "请选择资质类型";
+        if (!q.name.trim()) e[`qual-${i}-name`] = "请输入资质名称";
+        if (!q.fileUrl) e[`qual-${i}-fileUrl`] = "请上传资质文件";
+        if (q.validFrom && q.validTo && q.validFrom > q.validTo) e[`qual-${i}-validTo`] = "有效期止须晚于有效期起";
+      });
+    }
+    if (step === 4) {
+      perfs.forEach((p, i) => {
+        if (!p.projectName.trim() && !p.clientName.trim() && !p.contractAmount.trim() && !p.signDate && !p.description.trim() && p.proofFiles.length === 0) return; // 全空行提交时过滤
+        if (!p.projectName.trim()) e[`perf-${i}-projectName`] = "项目名称必填";
+        if (p.proofFiles.length === 0) e[`perf-${i}-proofFiles`] = "须上传至少 1 份证明材料";
+      });
+    }
+    setErrors(e);
+    const first = Object.values(e)[0];
+    if (first) { toast.warning(first); return false; }
+    return true;
+  }
+
+  function nextStep() {
+    if (step === 0) {
+      if (creditCodeDuplicate) { toast.error("统一社会信用代码重复，无法进入下一步"); return; }
+      if (legalIdCardDuplicate) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
+    }
+    if (!validate()) return;
+    setErrors({});
+    setStep((s) => Math.min(s + 1, 5));
+  }
+  function prevStep() { setStep((s) => Math.max(s - 1, 0)); }
+
+  /* ── 提交 ── */
+  async function submit() {
+    if (!agree) { toast.warning("请先阅读并同意《供应商注册入驻协议》"); return; }
+    const contactIdCards = contacts.map((c) => c.idCard.trim()).filter(Boolean);
+    try {
+      const dup = await authApi.checkDuplicate({
+        creditCode: basic.creditCode.trim(),
+        legalPersonIdCard: basic.legalPersonIdCard.trim(),
+        contactIdCard: contactIdCards[0],
+      });
+      if (dup.creditCode) { toast.error("统一社会信用代码重复，无法注册，请核对后重试"); return; }
+      if (dup.legalPersonIdCard) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
+      if (dup.contactIdCard) { toast.warning("联系人身份证号已存在，请核对"); return; }
+    } catch { /* 不阻塞 */ }
+
+    setLoading(true);
+    try {
+      const ok = await register({
+        username: basic.organizationCode.trim(), // 用户名固定为机构代码
+        // 账号展示名取主要联系人（第二步），邮箱同
+        displayName: (contacts.find((c) => c.isPrimary && c.name.trim()) || contacts.find((c) => c.name.trim()))?.name.trim() || basic.legalPerson.trim(),
+        password: account.password,
+        email: (contacts.find((c) => c.isPrimary && c.email.trim()) || contacts.find((c) => c.email.trim()))?.email.trim() || undefined,
+        name: basic.name.trim(),
+        creditCode: basic.creditCode.trim(),
+        enterpriseType: basic.enterpriseType,
+        legalPerson: basic.legalPerson.trim(),
+        legalPersonIdCard: basic.legalPersonIdCard.trim(),
+        registeredAddress: basic.registeredAddress.trim(),
+        businessScope: basic.businessScope.trim(),
+        logoUrl: basic.logoUrl || undefined,
+        organizationCode: basic.organizationCode.trim() || undefined,
+        country: basic.country.trim() || undefined,
+        region: basic.region.trim() || undefined,
+        detailedAddress: basic.detailedAddress.trim() || undefined,
+        registeredCapital: basic.registeredCapital.trim() || undefined,
+        industry: basic.industry.trim() || undefined,
+        legalPersonPhone: basic.legalPersonPhone.trim() || undefined,
+        companyEmail: basic.companyEmail.trim() || undefined,
+        companyWebsite: basic.companyWebsite.trim() || undefined,
+        tags: tags.filter((t) => t.trim()),
+        contacts: contacts
+          .filter((c) => c.name.trim() || c.gender || c.phone.trim() || c.idCard.trim() || c.email.trim() || c.position.trim())
+          .map((c) => ({
+            name: c.name.trim(), gender: c.gender || undefined, phone: c.phone.trim(),
+            idCard: c.idCard.trim(), email: c.email || undefined, position: c.position || undefined, isPrimary: c.isPrimary,
+          })),
+        qualifications: quals.filter((q, i) => i === 0 || q.type || q.name.trim() || q.fileUrl || q.validFrom || q.validTo || q.attachments.length > 0).map((q) => ({
+          type: q.type, name: q.name.trim(), fileUrl: q.fileUrl,
+          attachments: q.attachments.length ? q.attachments : undefined,
+          validFrom: q.validFrom || undefined, validTo: q.validTo || undefined,
+        })),
+        bankAccounts: banks.filter((b) => b.accountName.trim() || b.bankName.trim() || b.bankBranch.trim() || b.accountNo.trim()).map((b) => ({
+          accountName: b.accountName.trim(), bankName: b.bankName.trim(), bankBranch: b.bankBranch.trim() || undefined,
+          accountNo: b.accountNo.trim(), isDefault: b.isDefault,
+        })),
+        performances: perfs.filter((p) => p.projectName.trim() || p.clientName.trim() || p.contractAmount.trim() || p.signDate || p.description.trim() || p.proofFiles.length > 0).map((p) => ({
+          projectName: p.projectName.trim(), clientName: p.clientName.trim() || undefined,
+          contractAmount: p.contractAmount.trim() || undefined, signDate: p.signDate || undefined,
+          description: p.description.trim() || undefined, proofFiles: p.proofFiles,
+        })),
+      });
+      draft.clearDraft();
+      if (ok) {
+        toast.success("注册申请已提交，请耐心等待采购中心审核（通常 3 个工作日内）");
+        router.push(`/login?registered=1&creditCode=${encodeURIComponent(basic.creditCode)}`);
+      } else {
+        toast.error("注册失败，请检查信息后重试");
+      }
+    } catch {
+      toast.error("注册失败，请检查信息后重试");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* ── logo 上传 ── */
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  async function pickLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.warning("logo 图片不能超过5MB"); return; }
+    try {
+      const asset = await uploadFile(file, "general");
+      setBasic((b) => ({ ...b, logoUrl: asset.url }));
+      toast.success("logo 已上传");
+    } catch (err: any) {
+      toast.error(err?.message || "logo 上传失败");
+    }
+  }
+
+  const item = (prop: string, label: string, node: React.ReactNode, required = false) => (
+    <div className={`reg-item${errors[prop] ? " has-error" : ""}`}>
+      <label className="reg-label">{label}{required && <i style={{ color: "var(--danger)", fontStyle: "normal" }}> *</i>}</label>
+      {node}
+      {errors[prop] && <span className="reg-error-text">{errors[prop]}</span>}
+    </div>
+  );
+  const inp = (v: string, set: (s: string) => void, ph: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
+    <input className="reg-inp" value={v} placeholder={ph} onChange={(e) => set(e.target.value)} {...extra} />
+  );
+  const errCls = (key: string) => (errors[key] ? " is-err" : "");
+  const rowErrText = (prefix: string, i: number) =>
+    Object.entries(errors).filter(([k]) => k.startsWith(`${prefix}${i}-`)).map(([, v]) => v).join("；");
+
+  const filledTags = tags.filter((t) => t.trim());
+
+  return (
+    <main className="reg reg--supplier">
+      <div className="reg-bg" aria-hidden="true" />
+
+      <div className="reg-brand" aria-label="智慧水发 · 蜀水云采">
+        <Image src="/logo.png" alt="" width={54} height={54} className="reg-brand-mark" priority />
+        <span className="reg-brand-name">智慧水发 · 蜀水云采</span>
+      </div>
+
+      <section className="reg-panel" aria-label="供应商注册表单">
+        <div className="reg-card">
+          <div className="reg-head">
+            <div className="reg-brand-word">智慧水发<span className="reg-dot">·</span>蜀水云采</div>
+            <div className="reg-divider" aria-hidden="true">◆</div>
+            <h1 className="reg-title">供应商注册</h1>
+            <p className="reg-sub">请填写以下六部分信息完成供应商注册申请</p>
+          </div>
+
+          {/* ── 本机草稿恢复 ── */}
+          {showRecovery && (
+            <div className="reg-recovery">
+              <div className="reg-recovery-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </div>
+              <div className="reg-recovery-body">
+                <p className="reg-recovery-title">检测到 {draftTimeLabel} 有未完成的注册草稿</p>
+                <p className="reg-recovery-hint">草稿仅存于本机浏览器，恢复不会读取他人内容</p>
+              </div>
+              <div className="reg-recovery-actions">
+                <button className="reg-btn reg-btn--ghost" onClick={discardRecovery}>重新开始</button>
+                <button className="reg-btn reg-btn--primary-sm" onClick={acceptRecovery}>继续填写</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── 步骤条 ── */}
+          <nav className="reg-steps" aria-label="注册进度">
+            <div className="reg-steps-track" aria-hidden="true">
+              <div className="reg-steps-fill" style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} />
+            </div>
+            {STEPS.map((title, i) => (
+              <button
+                key={i}
+                type="button"
+                className={`reg-step${i === step ? " is-active" : ""}${i < step ? " is-done" : ""}`}
+                disabled={i > step}
+                onClick={() => { if (i < step) setStep(i); }}
+              >
+                <span className="reg-step-dot">
+                  {i < step ? (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3.5,8 6.5,11 12.5,5" /></svg>
+                  ) : (
+                    <span className="reg-step-num">{i + 1}</span>
+                  )}
+                </span>
+                <span className="reg-step-label">{title}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="reg-body">
+            {/* ═══ 1 基本信息 ═══ */}
+            <div className="reg-step-pane" hidden={step !== 0}>
+              <div className="reg-form">
+                {/* 登录账号（后端注册契约必填 username/displayName/password；密码不入草稿） */}
+                <div className="reg-subsec">
+                  <h3>登录账号</h3>
+                  <span className="reg-hint">机构代码即登录用户名，密码不保存在草稿中</span>
+                </div>
+                <div className="reg-form-grid">
+                  {item("organizationCode", "机构代码", inp(basic.organizationCode, (s) => setBasic((b) => ({ ...b, organizationCode: s })), "如：JCWY-2015-088", { maxLength: 20 }), true)}
+                  {item("password", "登录密码", (
+                    <input className="reg-inp" type="password" value={account.password} placeholder="不少于6位" autoComplete="new-password"
+                      onChange={(e) => setAccount((a) => ({ ...a, password: e.target.value }))} />
+                  ), true)}
+                  {item("confirmPassword", "确认密码", (
+                    <input className="reg-inp" type="password" value={account.confirmPassword} placeholder="请再次输入密码" autoComplete="new-password"
+                      onChange={(e) => setAccount((a) => ({ ...a, confirmPassword: e.target.value }))} />
+                  ), true)}
+                </div>
+                <div className="reg-subsec"><h3>企业信息</h3></div>
+                <div className="reg-item">
+                  <label className="reg-label">公司 logo</label>
+                  <div className="reg-logo-drop" onClick={() => logoInputRef.current?.click()}>
+                    {basic.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={basic.logoUrl} alt="公司 logo" className="reg-logo-preview" />
+                    ) : (
+                      <span className="reg-logo-ph"><ImagePlus size={22} strokeWidth={1.75} /></span>
+                    )}
+                    <span className="reg-logo-meta">
+                      <strong>{basic.logoUrl ? "已上传，点击更换" : "点击上传公司 logo"}</strong>
+                      <span>支持 png / jpg，≤5MB</span>
+                    </span>
+                  </div>
+                  <input ref={logoInputRef} type="file" hidden accept=".png,.jpg,.jpeg" onChange={pickLogo} />
+                </div>
+
+                <div className="reg-form-grid">
+                  {item("name", "公司名称", inp(basic.name, (s) => setBasic((b) => ({ ...b, name: s })), "营业执照上的企业全称"), true)}
+                  {item("creditCode", "统一社会信用代码", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s })), "18位代码", { maxLength: 18, onBlur: checkCreditCode }), true)}
+                  {item("organizationCode", "机构代码", (
+                    <input className="reg-inp" value={basic.organizationCode} disabled readOnly placeholder="同步登录账号中的机构代码" />
+                  ))}
+                  {item("country", "国别", inp(basic.country, (s) => setBasic((b) => ({ ...b, country: s })), "中国"))}
+                  {item("region", "所属行政区域", inp(basic.region, (s) => setBasic((b) => ({ ...b, region: s })), "如：四川省/成都市/双流区"))}
+                  {item("registeredCapital", "注册资本", inp(basic.registeredCapital, (s) => setBasic((b) => ({ ...b, registeredCapital: s })), "如：5000 万元"))}
+                  {item("enterpriseType", "公司体制类型", (
+                    <select className="reg-sel" value={basic.enterpriseType} onChange={(e) => setBasic((b) => ({ ...b, enterpriseType: e.target.value }))}>
+                      <option value="" disabled>请选择</option>
+                      {ENTERPRISE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  ), true)}
+                  {item("industry", "所属行业", (
+                    <>
+                      <input className="reg-inp" list="reg-industry-list" value={basic.industry} placeholder="下拉选择或自行输入"
+                        onChange={(e) => setBasic((b) => ({ ...b, industry: e.target.value }))} />
+                      <datalist id="reg-industry-list">
+                        {INDUSTRY_OPTIONS.map((o) => <option key={o} value={o} />)}
+                      </datalist>
+                    </>
+                  ))}
+                  {item("registeredAddress", "注册地址", inp(basic.registeredAddress, (s) => setBasic((b) => ({ ...b, registeredAddress: s })), "营业执照登记地址"), true)}
+                </div>
+                {item("detailedAddress", "详细地址", inp(basic.detailedAddress, (s) => setBasic((b) => ({ ...b, detailedAddress: s })), "实际办公/经营详细地址"))}
+                {item("businessScope", "经营范围", (
+                  <textarea className="reg-inp" rows={3} value={basic.businessScope} placeholder="请输入经营范围" onChange={(e) => setBasic((b) => ({ ...b, businessScope: e.target.value }))} />
+                ), true)}
+
+                <div className="reg-subsec"><h3>法人信息</h3></div>
+                <div className="reg-grid-3">
+                  {item("legalPerson", "法人姓名", inp(basic.legalPerson, (s) => setBasic((b) => ({ ...b, legalPerson: s })), "法定代表人姓名"), true)}
+                  {item("legalPersonIdCard", "身份证号", inp(basic.legalPersonIdCard, (s) => setBasic((b) => ({ ...b, legalPersonIdCard: s })), "18位身份证号", { maxLength: 18, onBlur: checkLegalIdCard }), true)}
+                  {item("legalPersonPhone", "联系电话", inp(basic.legalPersonPhone, (s) => setBasic((b) => ({ ...b, legalPersonPhone: s })), "11位手机号", { maxLength: 11 }))}
+                </div>
+
+                <div className="reg-subsec"><h3>公司联系方式</h3></div>
+                <div className="reg-form-grid">
+                  {item("companyEmail", "公司邮箱", inp(basic.companyEmail, (s) => setBasic((b) => ({ ...b, companyEmail: s })), "如：service@company.cn"))}
+                  {item("companyWebsite", "公司官网地址", inp(basic.companyWebsite, (s) => setBasic((b) => ({ ...b, companyWebsite: s })), "如：https://www.company.cn"))}
+                </div>
+
+                <div className="reg-subsec">
+                  <h3>业务标签</h3>
+                  <span className="reg-hint">使用2-8个词语简述并概括业务方向</span>
+                  <button type="button" className="reg-btn reg-btn--ghost-sm" disabled={tags.length >= 8} onClick={() => setTags((t) => [...t, ""])}>
+                    <Plus size={13} />添加标签
+                  </button>
+                </div>
+                {tags.map((t, i) => (
+                  <div key={i} className="reg-row">
+                    <span className="reg-row-idx">{i + 1}</span>
+                    <div className="reg-row-fields">
+                      <input className="reg-inp reg-row-input" value={t} maxLength={20}
+                        placeholder={i === 0 ? "如：水泵" : i === 1 ? "如：阀门" : "请输入业务标签"}
+                        onChange={(e) => setTags((arr) => arr.map((x, j) => (j === i ? e.target.value : x)))} />
+                    </div>
+                    <button type="button" className="reg-row-remove" disabled={tags.length <= 2} onClick={() => setTags((arr) => arr.filter((_, j) => j !== i))} aria-label="删除标签">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                {errors.tags && <span className="reg-error-text">{errors.tags}</span>}
+              </div>
+            </div>
+
+            {/* ═══ 2 联系人信息 ═══ */}
+            <div className="reg-step-pane" hidden={step !== 1}>
+              <div className="reg-form">
+              <section className="reg-block">
+                <div className="reg-block-head">
+                  <h2 className="reg-block-title">联系人信息</h2>
+                  <span className="reg-hint">至少 1 个完整联系人（姓名+手机号+身份证号）</span>
+                  <button type="button" className="reg-btn reg-btn--ghost-sm"
+                    onClick={() => setContacts((cs) => [...cs, { name: "", gender: "", phone: "", idCard: "", email: "", position: "", isPrimary: false }])}>
+                    <Plus size={13} />添加联系人
+                  </button>
+                </div>
+                {contacts.map((c, i) => (
+                  <div key={i} className="reg-row">
+                    <span className="reg-row-idx">{i + 1}</span>
+                    <div className="reg-row-fields reg-row-fields--qual">
+                      <input className={`reg-inp reg-row-input${errCls(`contact-${i}-name`)}`} placeholder="姓名" value={c.name} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+                      <select className="reg-sel reg-row-gender" value={c.gender} aria-label="性别" onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, gender: e.target.value } : x)))}>
+                        <option value="">性别</option>
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                      </select>
+                      <input className={`reg-inp reg-row-input${errCls(`contact-${i}-phone`)}`} placeholder="联系电话" maxLength={11} value={c.phone} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, phone: e.target.value } : x)))} />
+                      <input className={`reg-inp reg-row-input${errCls(`contact-${i}-idCard`)}`} placeholder="身份证号" maxLength={18} value={c.idCard} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, idCard: e.target.value } : x)))} />
+                      <input className={`reg-inp reg-row-input${errCls(`contact-${i}-email`)}`} placeholder="邮箱（选填）" value={c.email} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
+                      <input className="reg-inp reg-row-input" placeholder="部门职务" value={c.position} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, position: e.target.value } : x)))} />
+                      <label className="reg-row-switch">
+                        <span className="reg-row-switch-label">主要联系人</span>
+                        <SpSwitch checked={c.isPrimary} onChange={(v) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, isPrimary: v } : x)))} />
+                      </label>
+                      {rowErrText("contact-", i) && <div className="reg-row-errors">{rowErrText("contact-", i)}</div>}
+                    </div>
+                    <button type="button" className="reg-row-remove" disabled={contacts.length <= 1} onClick={() => setContacts((cs) => cs.filter((_, j) => j !== i))} aria-label="删除联系人">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                {errors.contacts && <span className="reg-error-text">{errors.contacts}</span>}
+              </section>
+              </div>
+            </div>
+
+            {/* ═══ 3 银行账户信息 ═══ */}
+            <div className="reg-step-pane" hidden={step !== 2}>
+              <div className="reg-form">
+              <section className="reg-block">
+                <div className="reg-block-head">
+                  <h2 className="reg-block-title">银行账户信息</h2>
+                  <span className="reg-hint">选填；填写则户名/开户银行/账号必填</span>
+                  <button type="button" className="reg-btn reg-btn--ghost-sm"
+                    onClick={() => setBanks((bs) => [...bs, { accountName: basic.name, bankName: "", bankBranch: "", accountNo: "", isDefault: bs.length === 0 }])}>
+                    <Plus size={13} />添加账户
+                  </button>
+                </div>
+                {banks.length === 0 && (
+                  <div className="sp-empty-panel">
+                    <div className="sp-empty-icon"><Building2 size={22} strokeWidth={1.75} /></div>
+                    <div className="sp-empty-text">暂无银行账户</div>
+                    <div className="sp-empty-desc">可点击"添加账户"填写对公账户信息</div>
+                  </div>
+                )}
+                {banks.map((b, i) => (
+                  <div key={i} className="reg-row">
+                    <span className="reg-row-idx">{i + 1}</span>
+                    <div className="reg-row-fields reg-row-fields--qual">
+                      <input className={`reg-inp reg-row-input${errCls(`bank-${i}-accountName`)}`} placeholder="户名" value={b.accountName} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, accountName: e.target.value } : x)))} />
+                      <input className={`reg-inp reg-row-input${errCls(`bank-${i}-bankName`)}`} placeholder="开户银行" value={b.bankName} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, bankName: e.target.value } : x)))} />
+                      <input className="reg-inp reg-row-input" placeholder="开户支行（选填）" value={b.bankBranch} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, bankBranch: e.target.value } : x)))} />
+                      <input className={`reg-inp reg-row-input${errCls(`bank-${i}-accountNo`)}`} placeholder="银行账号" value={b.accountNo} onChange={(e) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, accountNo: e.target.value } : x)))} />
+                      <label className="reg-row-switch">
+                        <span className="reg-row-switch-label">默认账户</span>
+                        <SpSwitch checked={b.isDefault} onChange={(v) => setBanks((bs) => bs.map((x, j) => (j === i ? { ...x, isDefault: v } : x)))} />
+                      </label>
+                      {rowErrText("bank-", i) && <div className="reg-row-errors">{rowErrText("bank-", i)}</div>}
+                    </div>
+                    <button type="button" className="reg-row-remove" onClick={() => setBanks((bs) => bs.filter((_, j) => j !== i))} aria-label="删除账户">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </section>
+              </div>
+            </div>
+
+            {/* ═══ 4 资质信息 ═══ */}
+            <div className="reg-step-pane" hidden={step !== 3}>
+              <div className="reg-form">
+              <section className="reg-block">
+                <div className="reg-block-head">
+                  <h2 className="reg-block-title">资质材料</h2>
+                  <span className="reg-hint">营业执照必填，其余可添加；均可附加多份材料</span>
+                  <button type="button" className="reg-btn reg-btn--ghost-sm"
+                    onClick={() => setQuals((qs) => [...qs, { type: "", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "" }])}>
+                    <Plus size={13} />添加资质
+                  </button>
+                </div>
+                {quals.map((q, i) => (
+                  <div key={i} className="reg-row reg-row--stack">
+                    <div className="reg-row-line">
+                    <span className="reg-row-idx">{i + 1}</span>
+                    <div className="reg-row-fields reg-row-fields--qual">
+                      <select className={`reg-sel reg-row-sel${errCls(`qual-${i}-type`)}`} value={q.type} disabled={i === 0}
+                        onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}>
+                        {i === 0 ? (
+                          <option value="营业执照">营业执照</option>
+                        ) : (
+                          <>
+                            <option value="" disabled>请选择资质类型</option>
+                            {QUAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                          </>
+                        )}
+                      </select>
+                      <input className={`reg-inp reg-row-input${errCls(`qual-${i}-name`)}`} placeholder={i === 0 ? "营业执照名称（必填）" : "资质名称"} value={q.name}
+                        onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+                      <input type="date" className="reg-date reg-row-date" value={q.validFrom} aria-label="有效期起" onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validFrom: e.target.value } : x)))} />
+                      <input type="date" className={`reg-date reg-row-date${errCls(`qual-${i}-validTo`)}`} value={q.validTo} aria-label="有效期止" onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validTo: e.target.value } : x)))} />
+                      <span className={errors[`qual-${i}-fileUrl`] || (i === 0 && errors.license) ? "reg-file-err" : undefined}>
+                        <SingleFile url={q.fileUrl} onPicked={(a) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, fileUrl: a?.url || "" } : x)))} />
+                      </span>
+                    </div>
+                    <button type="button" className="reg-row-remove" disabled={i === 0}
+                      onClick={() => { if (i === 0) return; setQuals((qs) => qs.filter((_, j) => j !== i)); }} aria-label="删除资质">
+                      <Trash2 size={14} />
+                    </button>
+                    </div>
+                    <div className="reg-attach-wrap">
+                      <MultiFiles value={q.attachments} onChange={(v) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, attachments: v } : x)))} label="附加材料" />
+                    </div>
+                    {(i === 0 && errors.license || rowErrText("qual-", i)) && (
+                      <span className="reg-error-text">{[i === 0 ? errors.license : "", rowErrText("qual-", i)].filter(Boolean).join("；")}</span>
+                    )}
+                  </div>
+                ))}
+              </section>
+              </div>
+            </div>
+
+            {/* ═══ 5 主体业绩 ═══ */}
+            <div className="reg-step-pane" hidden={step !== 4}>
+              <div className="reg-form">
+              <section className="reg-block">
+                <div className="reg-block-head">
+                  <h2 className="reg-block-title">主体业绩</h2>
+                  <span className="reg-hint">选填；每项须上传证明材料</span>
+                  <button type="button" className="reg-btn reg-btn--ghost-sm"
+                    onClick={() => setPerfs((ps) => [...ps, { projectName: "", clientName: "", contractAmount: "", signDate: "", description: "", proofFiles: [] }])}>
+                    <Plus size={13} />添加业绩
+                  </button>
+                </div>
+                {perfs.length === 0 && (
+                  <div className="sp-empty-panel">
+                    <div className="sp-empty-icon"><Building2 size={22} strokeWidth={1.75} /></div>
+                    <div className="sp-empty-text">暂无业绩</div>
+                    <div className="sp-empty-desc">可点击"添加业绩"填写代表性项目（含证明材料）</div>
+                  </div>
+                )}
+                {perfs.map((p, i) => (
+                  <div key={i} className="reg-perf-card">
+                    <div className="reg-perf-head">
+                      <span className="reg-perf-idx">业绩 {i + 1}</span>
+                      <button type="button" className="reg-row-remove" onClick={() => setPerfs((ps) => ps.filter((_, j) => j !== i))} aria-label="删除业绩">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <div className="reg-form-grid">
+                      {item(`perf-${i}-projectName`, "项目名称", inp(p.projectName, (s) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, projectName: s } : x))), "如：XX水库泵站设备供货项目"), true)}
+                      {item(`perf-x-${i}-client`, "业主/客户", inp(p.clientName, (s) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, clientName: s } : x))), "选填"))}
+                      {item(`perf-x-${i}-amount`, "合同金额", inp(p.contractAmount, (s) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, contractAmount: s } : x))), "如：940 万元"))}
+                      {item(`perf-x-${i}-date`, "签订日期", <input type="date" className="reg-inp" value={p.signDate} onChange={(e) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, signDate: e.target.value } : x)))} />)}
+                    </div>
+                    {item(`perf-x-${i}-desc`, "业绩描述", (
+                      <textarea className="reg-inp" rows={2} value={p.description} placeholder="选填：供货范围/工程内容等"
+                        onChange={(e) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
+                    ))}
+                    <div className={`reg-item${errors[`perf-${i}-proofFiles`] ? " has-error" : ""}`}>
+                      <label className="reg-label">证明材料 <i style={{ color: "var(--danger)", fontStyle: "normal" }}>*</i></label>
+                      <MultiFiles value={p.proofFiles} onChange={(v) => setPerfs((ps) => ps.map((x, j) => (j === i ? { ...x, proofFiles: v } : x)))} label="上传证明材料" />
+                      {errors[`perf-${i}-proofFiles`] && <span className="reg-error-text">{errors[`perf-${i}-proofFiles`]}</span>}
+                    </div>
+                  </div>
+                ))}
+              </section>
+              </div>
+            </div>
+
+            {/* ═══ 6 总览确认 ═══ */}
+            <div className="reg-step-pane" hidden={step !== 5}>
+              <div className="reg-ov-sec">
+                <h4>登录账号</h4>
+                <dl className="reg-ov-grid">
+                  <div className="reg-ov-item"><dt>登录用户名（机构代码）</dt><dd>{basic.organizationCode || "—"}</dd></div>
+                </dl>
+              </div>
+              <div className="reg-ov-sec">
+                <h4>1 · 基本信息</h4>
+                {basic.logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={basic.logoUrl} alt="公司 logo" className="reg-logo-preview reg-ov-logo" />
+                )}
+                <dl className="reg-ov-grid">
+                  <div className="reg-ov-item"><dt>公司名称</dt><dd>{basic.name || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>统一社会信用代码</dt><dd className="reg-mono">{basic.creditCode || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>国别 / 行政区域</dt><dd>{basic.country || "—"} / {basic.region || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>注册地址</dt><dd>{basic.registeredAddress || "—"}{basic.detailedAddress ? `（${basic.detailedAddress}）` : ""}</dd></div>
+                  <div className="reg-ov-item"><dt>注册资本 / 行业</dt><dd>{basic.registeredCapital || "—"} / {basic.industry || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>体制类型</dt><dd>{basic.enterpriseType || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>法人</dt><dd>{basic.legalPerson || "—"}{basic.legalPersonPhone ? ` · ${basic.legalPersonPhone}` : ""}</dd></div>
+                  <div className="reg-ov-item"><dt>公司邮箱 / 官网</dt><dd>{basic.companyEmail || "—"} / {basic.companyWebsite || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>业务标签</dt><dd>{filledTags.join("、") || "—"}</dd></div>
+                </dl>
+              </div>
+              <div className="reg-ov-sec">
+                <h4>2 · 联系人（{contacts.filter((c) => c.name.trim() || c.gender || c.phone.trim() || c.idCard.trim() || c.email.trim() || c.position.trim()).length}）</h4>
+                {contacts.filter((c) => c.name.trim() || c.gender || c.phone.trim() || c.idCard.trim() || c.email.trim() || c.position.trim()).map((c, i) => (
+                  <p key={i} className="reg-ov-line">{c.name || "—"}{c.gender ? ` · ${c.gender}` : ""} · {c.phone || "—"}{c.idCard ? ` · 身份证 ${c.idCard}` : ""}{c.position ? ` · ${c.position}` : ""}{c.isPrimary ? " · 主要" : ""}</p>
+                ))}
+              </div>
+              <div className="reg-ov-sec">
+                <h4>3 · 银行账户（{banks.length}）</h4>
+                {banks.length === 0 ? <p className="reg-ov-line">未填写</p> : banks.map((b, i) => (
+                  <p key={i} className="reg-ov-line">{b.accountName} · {b.bankName}{b.bankBranch ? ` ${b.bankBranch}` : ""} · {b.accountNo}{b.isDefault ? " · 默认" : ""}</p>
+                ))}
+              </div>
+              <div className="reg-ov-sec">
+                <h4>4 · 资质材料（{quals.filter((q) => q.name.trim()).length}）</h4>
+                {quals.filter((q) => q.name.trim()).map((q, i) => (
+                  <p key={i} className="reg-ov-line">{q.type} · {q.name}{q.fileUrl ? " · 已上传" : ""}{q.attachments.length ? ` · 附加 ${q.attachments.length} 份` : ""}</p>
+                ))}
+              </div>
+              <div className="reg-ov-sec">
+                <h4>5 · 主体业绩（{perfs.filter((p) => p.projectName.trim()).length}）</h4>
+                {perfs.filter((p) => p.projectName.trim()).map((p, i) => (
+                  <p key={i} className="reg-ov-line">{p.projectName}{p.clientName ? ` · ${p.clientName}` : ""}{p.contractAmount ? ` · ${p.contractAmount}` : ""} · 证明 {p.proofFiles.length} 份</p>
+                ))}
+              </div>
+
+              <div className="reg-notice">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>提交注册后，系统将自动进入审核流程。审核通过后您将获得完整的使用权限。</span>
+              </div>
+              <RegisterAgreement value={agree} onChange={setAgree} />
+            </div>
+          </div>
+
+          {/* ── Actions ── */}
+          <div className="reg-actions">
+            {step > 0 && (
+              <button type="button" className="reg-btn reg-btn--back" onClick={prevStep}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><polyline points="10,3 5,8 10,13" /></svg>
+                上一步
+              </button>
+            )}
+            <div style={{ flex: 1 }} />
+            {step < 5 && (
+              <button type="button" className="reg-btn reg-btn--primary" onClick={nextStep}>
+                下一步
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4 }}><polyline points="6,3 11,8 6,13" /></svg>
+              </button>
+            )}
+            {step === 5 && (
+              <button type="button" className="reg-btn reg-btn--primary" disabled={loading} onClick={submit}>
+                {!loading && (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}><polyline points="3.5,8 6.5,11 12.5,5" /></svg>
+                )}
+                {loading ? "提交中…" : "提交注册申请"}
+              </button>
+            )}
+          </div>
+
+          <div className="reg-foot">
+            已有账号？<Link href="/login">返回登录</Link>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}

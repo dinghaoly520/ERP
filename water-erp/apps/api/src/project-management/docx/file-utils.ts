@@ -118,3 +118,53 @@ import { basename, extname, join, resolve } from 'node:path';
     const decoded = Buffer.from(fileName, 'latin1').toString('utf8');
     return decoded.includes('�') ? fileName : decoded;
   }
+
+/**
+ * 生成编辑器 HTML 的纯文本行 diff 摘要（旧 docx buffer vs 新 HTML）。
+ * 供采购文件"修改历史"弹窗展示：每次保存记录改了什么。
+ * 策略：各自提取纯文本行 → 逐行比对（简单 LCS 太重，用集合差 + 顺序敏感的逐行扫描），
+ * 输出"删除 N 行 / 新增 N 行 + 前 5 条变更摘录"，截断至 600 字符。
+ */
+export async function summarizeHtmlDiff(
+  oldDocxBuffer: Buffer,
+  newHtml: string,
+): Promise<string> {
+  try {
+    // 延迟加载 mammoth，避免 file-utils 引入时强依赖
+    const mammoth = (await import('mammoth')) as any;
+    const oldResult = await mammoth.extractRawText({ buffer: oldDocxBuffer });
+    const oldText: string = oldResult.value || '';
+
+    // 新 HTML → 纯文本（块级标签转行）
+    const newText: string = newHtml
+      .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+
+    const oldLines = oldText.split('\n').map(s => s.trim()).filter(Boolean);
+    const newLines = newText.split('\n').map(s => s.trim()).filter(Boolean);
+
+    const oldSet = new Set(oldLines);
+    const newSet = new Set(newLines);
+    const removed = oldLines.filter((l, i) => !newSet.has(l) && (i === 0 || l !== oldLines[i - 1]));
+    const added = newLines.filter((l, i) => !oldSet.has(l) && (i === 0 || l !== newLines[i - 1]));
+
+    if (removed.length === 0 && added.length === 0) return '无文本内容变更（可能仅格式调整）';
+
+    const parts: string[] = [];
+    if (added.length > 0) {
+      parts.push(`新增 ${added.length} 处：` + added.slice(0, 5).map(l => `「${l.slice(0, 40)}${l.length > 40 ? '…' : ''}」`).join('、'));
+    }
+    if (removed.length > 0) {
+      parts.push(`删除 ${removed.length} 处：` + removed.slice(0, 5).map(l => `「${l.slice(0, 40)}${l.length > 40 ? '…' : ''}」`).join('、'));
+    }
+    if (added.length > 5 || removed.length > 5) parts.push('……等');
+    return parts.join('；').slice(0, 600);
+  } catch {
+    return '内容已更新';
+  }
+}

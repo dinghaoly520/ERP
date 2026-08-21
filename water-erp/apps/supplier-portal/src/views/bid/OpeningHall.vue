@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { supplierApi } from '@/api/supplier'
 import { bidApi } from '@/api/bid'
 import { openingHallApi } from '@/api/openingHall'
+import { getOpeningPackage, decryptUpload } from '@/api/openingPackage'
+import { MockUKeyAdapter, type StorageLike, sha256Hex, canonicalJson, sm4Decrypt, unwrapDekJson } from '@water-erp/ukey'
+import { hexToBytes, hexToUtf8, bytesToHex } from '@/utils/dual-envelope-core'
 import { useBidWebSocket } from '@/composables/useBidWebSocket'
 import { useAuthStore } from '@/stores/auth'
 import { User } from '@element-plus/icons-vue'
@@ -28,6 +31,65 @@ const loadError = ref(false)
 const loadErrorMsg = ref('')
 const profileError = ref(false)
 const bootstrapping = ref(false)
+
+/* ═══ 双信封 v2：解密我的投标（§5.3）═══ */
+// isDualTrack：null=探测中（轮询未决），true=双层新轨（本卡片生效），false=旧轨（主持端代解密，卡片隐藏）
+const isDualTrack = ref<boolean | null>(null)
+const pkg = ref<any>(null)
+const pkgState = ref<'loading' | 'ready' | 'waiting' | 'error'>('loading')
+const pkgError = ref<{ code: string; error: string } | null>(null)
+const sealKey = ref('') // 当前核验过的文件集（assetId 序列）——轮询到新文件集才重做密封核验
+const sealResults = ref<Record<string, 'pending' | 'ok' | 'fail' | 'unavailable'>>({})
+const sealChecking = ref(false)
+const cachedInnerBytes = ref<Record<string, { assetId: string; bytes: Uint8Array }>>({}) // 密封核验下载的 C_inner 字节缓存，解密时复用免二次下载
+// U盾会话（仅内存持有介质实例与所选证书；口令用后即清，不落任何持久存储/日志）
+const profileSm2PublicKey = ref('')
+const ukeyAdapter = ref<MockUKeyAdapter | null>(null)
+const ukeyCertSn = ref('')
+const ukeyPassword = ref('')
+const ukeyOpening = ref(false)
+const ukeyDialogVisible = ref(false)
+// 解密上传
+const decrypting = ref(false)
+const decryptStage = ref('')
+const decryptError = ref('')
+const revealedFields = ref<{ price: string; deliveryPeriod: string; qualityCommitment: string } | null>(null)
+let pkgTimer: ReturnType<typeof setInterval> | null = null
+
+/** MockUKeyAdapter storage 适配（与 UkeyManage.vue/BidSubmit.vue 同键，仅口令加密 keystore 落 localStorage） */
+const ukeyStorage: StorageLike = {
+  getItem: (k) => localStorage.getItem(k),
+  setItem: (k, v) => localStorage.setItem(k, v),
+  removeItem: (k) => localStorage.removeItem(k),
+}
+
+/** 本地缓存的绑定证书序列号（UkeyManage.vue 绑定成功后写入；仅公开信息） */
+function boundCertSn(): string {
+  try {
+    const raw = localStorage.getItem('supplier_ukey_bound')
+    return raw ? (JSON.parse(raw)?.certSn ?? '') : ''
+  } catch { return '' }
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  technical: '技术标', business: '商务标', coverLetter: '投标函', bond: '保证金凭证',
+}
+
+/** opening-package 业务码 → 卡片内文案（轮询错误静默展示，不弹全局 toast） */
+const PKG_ERROR_TEXT: Record<string, string> = {
+  OUTER_NOT_DECRYPTED: '外层尚未解密，等待主持方解外层',
+  DECRYPT_WINDOW_NOT_OPEN: '解密窗口尚未开启',
+  DECRYPT_WINDOW_CLOSED: '解密窗口已关闭，请联系主持人延长窗口',
+  OPENING_PAUSED: '开标已暂停，等待主持人恢复',
+  OPENING_NOT_STARTED: '开标尚未启动（主持人组建会话后开始）',
+  NOT_DUAL_TRACK: '本标书为传统加密投递，由主持人统一解密',
+  NO_SUBMISSION: '尚未提交投标文件',
+  ENVELOPE_MISSING: '信封缺失，请联系平台排查',
+  PROJECT_NOT_OPENING: '项目不在开标阶段',
+}
+const pkgErrorText = computed(() => pkgError.value
+  ? (PKG_ERROR_TEXT[pkgError.value.code] || pkgError.value.error)
+  : '')
 
 /** 投递报价显示文本：有唱标锚点时归一为元（与唱标总表「报价（元）」单位统一）；
  *  未唱标回落投递表单口径（<10000 万元、≥10000 元，见 BidSubmit.vue formatBidPrice） */
@@ -62,9 +124,12 @@ async function refresh() {
 
 async function loadProfile() {
   try {
+    // 注：getProfile 的 TS 静态类型为 AxiosResponse（拦截器运行时已解包）——sm2PublicKey 读取加断言，
+    // 避免新增类型错误；id/name 两行为存量错误（vue-tsc 基线），不动。
     const profile = await supplierApi.getProfile()
     supplierId.value = profile?.id ?? ''
     supplierName.value = profile?.name ?? ''
+    profileSm2PublicKey.value = (profile as any)?.sm2PublicKey ?? ''
     profileError.value = !supplierId.value
   } catch {
     profileError.value = true
@@ -88,6 +153,181 @@ async function bootstrap() {
 async function loadPresence() {
   const res = await openingHallApi.presence(projectId).catch(() => null)
   if (res) onlineCount.value = res.onlineCount ?? 0
+}
+
+/* ═══ 双信封 v2：解密包轮询（10s，OPENING 阶段；silent 静默，业务码在卡片内展示）═══ */
+async function pollPackage() {
+  if (!isOpening.value || !record.value?.submitted) return
+  try {
+    const data = await getOpeningPackage(projectId)
+    isDualTrack.value = true
+    pkg.value = data
+    pkgState.value = 'ready'
+    pkgError.value = null
+    // 文件集变化（assetId 序列）才重做密封核验——轮询幂等，避免重复下载大文件
+    const key = (data?.files ?? []).map((f: any) => f.assetId).join(',')
+    if (sealKey.value !== key) {
+      sealKey.value = key
+      void verifySeals()
+    }
+  } catch (e: any) {
+    const code = e?.response?.data?.code
+    const msg = e?.response?.data?.error
+    if (code === 'NOT_DUAL_TRACK') {
+      // 旧轨（单层信封）投递：由主持端代解密，本卡片隐藏并停止轮询
+      isDualTrack.value = false
+      pkgState.value = 'error'
+      return
+    }
+    if (code === 'OUTER_NOT_DECRYPTED') {
+      pkgState.value = 'waiting'
+      pkg.value = null
+    } else {
+      pkgState.value = 'error'
+    }
+    pkgError.value = { code: code ?? '', error: msg ?? '获取解密包失败' }
+  }
+}
+
+/** 密封核验（招标投标法第36条「当众检查投标文件密封情况」电子化对应物）：
+ *  下载 C_inner 本地重算 SHA-256 与投递存证 ciphertextSha256 比对——通过则缓存字节供解密复用。
+ *  下载失败（网络/CORS）降级为「无法核验」提示，不阻断解密。 */
+async function verifySeals() {
+  const files = pkg.value?.files
+  if (!files?.length) return
+  sealChecking.value = true
+  for (const f of files) {
+    sealResults.value[f.role] = 'pending'
+    try {
+      const res = await fetch(f.downloadUrl, { credentials: 'include' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const bytes = new Uint8Array(await res.arrayBuffer())
+      const digest = await sha256Hex(bytes)
+      if (digest === f.ciphertextSha256) {
+        sealResults.value[f.role] = 'ok'
+        cachedInnerBytes.value[f.role] = { assetId: f.assetId, bytes }
+      } else {
+        sealResults.value[f.role] = 'fail'
+      }
+    } catch {
+      sealResults.value[f.role] = 'unavailable'
+    }
+  }
+  sealChecking.value = false
+}
+
+/** 轮询定时器生命周期：OPENING + 已提交 + 未确认旧轨 → 每 10s 探测；其余停止 */
+function syncPkgTimer() {
+  const active = isOpening.value && !!record.value?.submitted && isDualTrack.value !== false
+  if (active && !pkgTimer) {
+    void pollPackage()
+    pkgTimer = setInterval(() => { pollPackage().catch(() => {}) }, 10000)
+  } else if (!active && pkgTimer) {
+    clearInterval(pkgTimer)
+    pkgTimer = null
+  }
+}
+watch([isOpening, () => !!record.value?.submitted, isDualTrack], syncPkgTimer)
+onUnmounted(() => { if (pkgTimer) clearInterval(pkgTimer) })
+
+/* ═══ U盾会话（与 BidSubmit.vue 同口径：开锁仅内存持有；口令不持久化）═══ */
+async function handleUkeyOpen() {
+  if (!ukeyPassword.value) { ElMessage.warning('请输入 U盾口令'); return }
+  ukeyOpening.value = true
+  try {
+    const uk = await MockUKeyAdapter.open({ storage: ukeyStorage, password: ukeyPassword.value })
+    const certs = await uk.listCertificates()
+    const cert = certs.find((c) => c.certSn === boundCertSn()) || certs.find((c) => c.publicKey === profileSm2PublicKey.value)
+    if (!cert) throw new Error('介质内未找到与平台绑定的证书，请先到「U盾管理」页绑定或导入备份介质')
+    ukeyAdapter.value = uk
+    ukeyCertSn.value = cert.certSn
+    ukeyPassword.value = ''
+    ukeyDialogVisible.value = false
+    ElMessage.success(`U盾已开锁（${cert.certSn}）`)
+  } catch (e: any) {
+    ElMessage.error(e?.message || 'U盾开锁失败')
+  } finally {
+    ukeyOpening.value = false
+  }
+}
+
+/** U盾解密并上传：C_inner → SM2(kself)→DEK_S → SM4 → 明文 ×N 角色 + sealedFields 揭示 F+nonce → decrypt-upload */
+async function handleDecryptUpload() {
+  if (!ukeyAdapter.value || !ukeyCertSn.value) { ukeyDialogVisible.value = true; return }
+  const p = pkg.value
+  if (!p?.files?.length) { ElMessage.warning('解密包未就绪，请等待外层解密完成'); return }
+  decrypting.value = true
+  decryptError.value = ''
+  try {
+    decryptStage.value = 'U盾解密投标文件…'
+    const FIELD_BY_ROLE: Record<string, string> = {
+      technical: 'file_technical', business: 'file_business',
+      coverLetter: 'file_coverLetter', bond: 'file_bond',
+    }
+    const form = new FormData()
+    for (const f of p.files) {
+      const cached = cachedInnerBytes.value[f.role]
+      let bytes: Uint8Array | null = cached && cached.assetId === f.assetId ? cached.bytes : null
+      if (!bytes) {
+        const res = await fetch(f.downloadUrl, { credentials: 'include' })
+        if (!res.ok) throw new Error(`解密包下载失败（HTTP ${res.status}）`)
+        bytes = new Uint8Array(await res.arrayBuffer())
+      }
+      const kself = p.kselfByRole?.[f.role]
+      if (!kself) throw new Error(`信封缺少「${ROLE_LABELS[f.role] ?? f.role}」供应商密钥件（kself）`)
+      const dekJsonHex = await ukeyAdapter.value.decrypt(ukeyCertSn.value, kself)
+      const dek = unwrapDekJson(hexToUtf8(dekJsonHex))
+      const plainHex = sm4Decrypt(dek.keyHex, dek.ivHex, bytesToHex(bytes))
+      form.append(FIELD_BY_ROLE[f.role], new File([hexToBytes(plainHex)], `${f.role}.plain`, { type: 'application/octet-stream' }))
+    }
+
+    // 唱标字段密封件：U盾解 DEK_F → SM4 解 → {fields, nonce}；fieldsSha256 本地核验后随包上传
+    decryptStage.value = '揭示唱标字段（密封核验）…'
+    const sf = p.sealedFields
+    if (!sf?.kself || !sf?.cipher) throw new Error('信封缺少唱标字段密封件')
+    const dekFJsonHex = await ukeyAdapter.value.decrypt(ukeyCertSn.value, sf.kself)
+    const dekF = unwrapDekJson(hexToUtf8(dekFJsonHex))
+    const sealedJson = hexToUtf8(sm4Decrypt(dekF.keyHex, dekF.ivHex, sf.cipher))
+    let payload: { fields: { price?: string; deliveryPeriod?: string; qualityCommitment?: string }; nonce: string }
+    try {
+      payload = JSON.parse(sealedJson)
+      if (!payload?.fields || typeof payload.nonce !== 'string') throw new Error('bad shape')
+    } catch {
+      throw new Error('唱标字段密封件解析失败（密封件损坏）')
+    }
+    if (sf.fieldsSha256) {
+      const digest = await sha256Hex(canonicalJson(payload.fields))
+      if (digest !== sf.fieldsSha256) throw new Error('唱标字段密封核验失败（fieldsSha256 不匹配，密封件可能被调包）')
+    }
+    form.append('fieldsJson', canonicalJson(payload.fields))
+    form.append('nonce', payload.nonce)
+
+    decryptStage.value = '上传解密明文（完整性/承诺双闸校验）…'
+    const res = await decryptUpload(projectId, form)
+    if (res?.decryptStatus === 'SUCCESS') {
+      revealedFields.value = {
+        price: payload.fields.price ?? '',
+        deliveryPeriod: payload.fields.deliveryPeriod ?? '',
+        qualityCommitment: payload.fields.qualityCommitment ?? '',
+      }
+      decryptStatus.value = 'SUCCESS'
+      ElMessage.success('解密成功，唱标信息已提交，等待主持人核对')
+      refresh().catch(() => {})
+    } else {
+      // 双闸失败：HTTP 200 + decryptStatus=DANGER（归因 UNKNOWN/PLATFORM，§5.5 矩阵行 4）——非 4xx，须读返回值判定
+      const reason = res?.decryptError || '解密失败（完整性/承诺校验未通过）'
+      decryptError.value = reason
+      ElMessage.error(reason)
+      refresh().catch(() => {})
+    }
+  } catch (e: any) {
+    // axios 错误（400 门控等）：拦截器已弹业务消息（decrypt-upload 非 silent）；本地解密错误需自行提示
+    decryptError.value = e?.response?.data?.error || e?.message || '解密上传失败'
+    if (!e?.isAxiosError) ElMessage.error(decryptError.value)
+  } finally {
+    decrypting.value = false
+    decryptStage.value = ''
+  }
 }
 
 async function checkIn() {
@@ -198,6 +438,85 @@ onMounted(bootstrap)
         <div v-if="!isOpening && stage" class="stage-hint">大厅互动仅在开标阶段开放。</div>
       </el-card>
 
+      <!-- ═══ 双信封 v2：解密我的投标（§5.3）——OPENING 阶段轮询 opening-package（10s）═══
+           旧轨（NOT_DUAL_TRACK）投递自动隐藏：由主持端代解密，本卡片不参与 -->
+      <el-card v-if="isOpening && record?.submitted && isDualTrack !== false" shadow="never" class="decrypt-card">
+        <template #header>
+          <div class="records-head">
+            <span class="records-title">解密我的投标</span>
+            <span class="records-count">双层信封 · 每 10 秒自动刷新</span>
+          </div>
+        </template>
+
+        <!-- 包未就绪三态：等待外层 / 窗口类错误 / 首次加载 -->
+        <template v-if="pkgState !== 'ready'">
+          <el-alert v-if="pkgState === 'waiting'" type="info" :closable="false" show-icon
+            title="等待主持方解外层…"
+            description="外层由主持人在解密窗口内启动解密（管理方私钥在服务端执行），就绪后本卡片自动显示文件清单。" />
+          <el-alert v-else-if="pkgState === 'error'" type="warning" :closable="false" show-icon
+            :title="pkgErrorText || '解密包暂不可用'"
+            description="页面每 10 秒自动重试，无需手动刷新。" />
+          <el-alert v-else type="info" :closable="false" show-icon title="正在获取解密包…" />
+        </template>
+
+        <!-- 包就绪：文件清单 + 密封核验 + U盾解密上传 -->
+        <template v-else>
+          <div class="pkg-hint">
+            解密窗口截止 {{ new Date(pkg.windowEnd).toLocaleTimeString('zh-CN') }}<template v-if="pkg.paused">（开标已暂停，解密操作暂时禁止）</template>
+          </div>
+
+          <!-- 密封核验（招标投标法第36条「当众检查投标文件密封情况」的电子化对应物） -->
+          <div class="seal-block">
+            <div class="seal-title">密封核验 —— 本地重算 C_inner 密文 SHA-256，与投递存证比对</div>
+            <div v-for="f in pkg.files" :key="f.role" class="seal-row">
+              <span class="seal-role">{{ ROLE_LABELS[f.role] || f.role }}</span>
+              <el-tag v-if="sealResults[f.role] === 'ok'" size="small" type="success" effect="plain">密封完好</el-tag>
+              <el-tag v-else-if="sealResults[f.role] === 'fail'" size="small" type="danger" effect="plain">密封不符！请勿解密，联系主持人</el-tag>
+              <el-tag v-else-if="sealResults[f.role] === 'unavailable'" size="small" type="warning" effect="plain">无法核验（下载失败）</el-tag>
+              <el-tag v-else size="small" type="info" effect="plain">核验中…</el-tag>
+            </div>
+            <el-button size="small" text type="primary" :disabled="sealChecking" @click="verifySeals">重新核验密封</el-button>
+          </div>
+
+          <!-- 解密成功：揭示唱标字段（F 揭示值，与承诺一致后落 decryptedPrice；报价按投递时口径原样揭示） -->
+          <el-alert v-if="revealedFields" type="success" :closable="false" show-icon title="解密成功，唱标字段已揭示并提交">
+            <div class="revealed">
+              <span>报价：<b>{{ revealedFields.price }}</b></span>
+              <span>工期：<b>{{ revealedFields.deliveryPeriod }}</b></span>
+              <span>质量承诺：<b>{{ revealedFields.qualityCommitment }}</b></span>
+            </div>
+            <div class="pkg-hint">等待主持人核对唱标信息，随后请在本页确认开标记录。</div>
+          </el-alert>
+
+          <!-- 解密失败原因（双闸失败 / 门控 400）：失败即归因，可联系主持人重置解密机会 -->
+          <el-alert v-if="decryptError && !revealedFields" type="error" :closable="false" show-icon
+            :title="decryptError"
+            description="解密失败已记录归因（投标人/平台/待裁决由主持人判定）。若为平台原因，可联系主持人「重置解密机会」后重试。" />
+
+          <!-- 未解密成功：U盾 + 解密上传 -->
+          <template v-if="!revealedFields">
+            <div class="ukey-row">
+              <span v-if="ukeyCertSn" class="ukey-ok">U盾已开锁：{{ ukeyCertSn }}</span>
+              <span v-else class="ukey-hint">需使用投递时的 U盾证书（或导入的备份介质）解密</span>
+              <el-button type="primary" size="small" :loading="decrypting" :disabled="sealChecking || !!pkg.paused" @click="handleDecryptUpload">
+                {{ decrypting ? (decryptStage || '解密中…') : 'U盾解密并上传' }}
+              </el-button>
+            </div>
+          </template>
+        </template>
+      </el-card>
+
+      <!-- U盾口令弹窗（开锁后自动继续解密；口令仅内存持有，用后即清） -->
+      <el-dialog v-model="ukeyDialogVisible" title="U盾解密" width="440px" :close-on-click-modal="false" destroy-on-close @closed="ukeyPassword = ''">
+        <p class="ukey-desc">解密内层与揭示唱标字段需使用投递时的 U盾证书。请输入 U盾口令完成介质开锁。</p>
+        <el-input v-model="ukeyPassword" type="password" show-password placeholder="U盾口令" size="large" @keyup.enter="handleUkeyOpen" />
+        <p class="ukey-hint">证书未绑定或介质遗失？前往 <router-link to="/profile/ukey">U盾管理</router-link> 绑定或导入备份介质。</p>
+        <template #footer>
+          <el-button @click="ukeyDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="ukeyOpening" @click="handleUkeyOpen">开锁</el-button>
+        </template>
+      </el-dialog>
+
       <!-- 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），
            WS opening:record:updated → refresh() 实时更新；本司行按 bidSupplierId 高亮 -->
       <el-card shadow="never" class="records-card">
@@ -261,6 +580,19 @@ onMounted(bootstrap)
 .stage-hint { margin-top: 8px; color: #909399; font-size: 12px; }
 .empty { padding: 40px; text-align: center; color: #999; }
 .mismatch { color: #e6a23c; font-weight: 600; }
+/* ── 双信封 v2 解密卡片 ── */
+.decrypt-card { margin-top: 16px; }
+.pkg-hint { margin-top: 8px; color: #909399; font-size: 12px; line-height: 1.6; }
+.seal-block { margin: 10px 0 14px; padding: 10px 12px; border-radius: 8px; background: #f8fafc; border: 1px solid #e4e7ed; }
+.seal-title { margin-bottom: 8px; color: #606266; font-size: 12px; font-weight: 600; }
+.seal-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.seal-role { min-width: 64px; color: #303133; font-size: 13px; }
+.ukey-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.ukey-ok { color: #67c23a; font-size: 12px; font-weight: 600; }
+.ukey-hint { color: #909399; font-size: 12px; }
+.ukey-desc { margin: 0 0 10px; color: #606266; font-size: 13px; line-height: 1.6; }
+.revealed { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 13px; }
+.revealed b { color: #303133; font-variant-numeric: tabular-nums; }
 @media (max-width: 960px) { .hall { grid-template-columns: 1fr; } }
 /* 桌面端：网格撑满内容区高度，左右两列同高——右列聊天面板与左列唱标总表卡均延伸至页面底部（底边对齐） */
 @media (min-width: 961px) {

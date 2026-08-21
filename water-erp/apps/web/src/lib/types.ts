@@ -5,6 +5,7 @@ export type {
   ExpertStatistics, ExpertProject, ExpertProjectDetail,
   DecryptedDocuments, AssistData, EvaluationReport,
   Supplier, SupplierContact, SupplierQualification,
+  SupplierBankAccount, SupplierPerformance, FileLink,
   SupplierClassification, SupplierEvaluation, SupplierChangeRecord,
   SupplierListResponse,
 } from '@water-erp/shared';

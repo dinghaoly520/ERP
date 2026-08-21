@@ -1,12 +1,13 @@
 # 双层数字信封 + 供应商 CA 开标解密 · 设计 Spec
 
-> 日期：2026-08-20（v2 安全评审 → v3 代码对账 → v4 落地性对账 → v5 计划推演补 sealedFields）
-> 状态：待审阅
+> 日期：2026-08-20（v2 安全评审 → v3 代码对账 → v4 落地性对账 → v5 计划推演补 sealedFields → v6 补传密封件锚点锁定）
+> 状态：已实施（feat/dual-envelope）
 > 依据：电子招投标合规审查报告（2026-08-19）P0-1/P1-1/P1-2/P1-13/P2-17；《电子招标投标办法》第26/27/30/31/32条
 > 用户决策（2026-08-20 确认）：①供应商 CA 采用**外部 CA/U 盾介质**形态；②加密次序 = **供应商内层 → 管理方外层**（开标解密镜像次序）；③存量项目**双轨并存**；④解密交互采用「供应商端解密上传」方案；⑤管理方私钥形态 = **B：服务器托管+仅主持人**。
 > v2 评审修订（2026-08-20）：**删除 khost 授权代解密**（其存在使「平台开标前零解密能力」失效——不在场投标人依法视为撤销，在场故障者持 U盾自行重解，代解密无必要）；**报价等唱标字段改用 nonce 承诺绑定**（防开标时篡改）；**撤销归因增加前置条件**（防管理方失误误判供应商）；C_inner 下载权限、管理方密钥轮转布局、bootstrap、多轮报价口径、签名规范化等 11 项修订。
 > v3 代码对账修订（2026-08-20，逐点核对现有代码后）：**下载链路三处冲突修复**（通用 download 的 AES-GCM 流式解密分支对新轨密文必挂——upload.service.ts:172-204：C_outer 本人下载 400/乱码、专家 SUCCESS 后下载需改指明文资产、C_inner 须以 clientEncrypted=false 存储）；**唱标记录预填**（旧轨开标记录由 decryptSupplier 事务内自动 upsert——bid.service.ts:2097-2119，新轨由 decrypt-upload 承担，否则唱标表空）；**归因矩阵触发点**（现有代码无「窗口关闭扫描」，assertOpeningDone 只查不转——惰性执行+UNKNOWN 阻塞完成开标）；WS 事件复用 notifyDecryptStatus、decrypt-upload 原子抢占、bond 解密链路、bid-crypto 并行模块、encryptStatus 文案、本人报价回显、mock 签名法律效力声明。
 > v4 落地性对账修订（2026-08-20 第三轮审核）：**新资产归属链**（FileAsset 无任何 project/supplier 关联，canAccessFile/expert 规则靠 submission 四列 assetId 反查——C_inner/bid_decrypted 不在四列中则 §5.2/§5.4a 权限规则做不出来；envelope 已签名不可事后追加 → SupplierBidSubmission 增 `innerAssets`/`decryptedAssets` 两 Json 列，签名之外并行存储）；**envelope 补 adminCertId**（密钥轮转后定位旧私钥的唯一锚点，v3 内部不一致）；**pickBidSubmissionFields 白名单扩展**（Mass Assignment 白名单不含新字段会被剥离，draft 路径同源）；split 模式首文件语义、outer 就绪通知、服务端 SM4 无流式 API、密封核验（招标投标法第36条电子化对应物）。
+> v6 实施修订（2026-08-20，Task 10 审查裁决）：**补传不得变更唱标字段密封件**——新 envelope 的顶层 `fieldsCommit` 与 `sealedFields.fieldsSha256` 必须与投递时 `submission.envelope` 原值**逐字相等**（任一缺失或不符 → 400 `FIELDS_COMMIT_CHANGED` + 监督日志「疑似借补传改价」）；§5.6 原文「fieldsCommit 随新 envelope 重新签名」作废（开标期借补传改价通道）。
 
 ---
 
@@ -135,7 +136,7 @@ export function canonicalEnvelopeHash(envelope: DualEnvelope): string; // SHA256
 export function computeFieldsCommit(fields: SealedFields, nonce: string): string;
 ```
 
-- **MockUKeyAdapter**（开发/演示/单测）：密钥对生成于浏览器，私钥经用户口令派生密钥（PBKDF2 + AES-GCM）加密存 localStorage；**导出/导入 U盾文件**（JSON：证书私钥密文 + 各项目 DEK_S + nonce）模拟实体介质可携带——换机器、在场换设备重解都依赖此文件；nonce 与 DEK_S 同存于导出文件，丢失则该标书无法自证字段（UI 提醒妥善保存）。
+- **MockUKeyAdapter**（开发/演示/单测）：密钥对生成于浏览器，私钥经用户口令派生密钥（PBKDF2 + AES-GCM）加密存 localStorage；**导出/导入 U盾文件**（仅证书私钥——F+nonce 在 sealedFields 内，见 §12.3）模拟实体介质可携带——换机器、在场换设备重解都依赖此文件。
 - **VendorUKeyAdapter 骨架**：接口同上，实现走 CA 厂商本地中间件（localhost 端口 HTTP 协议）；拿到厂商 SDK 文档后填 adapter 即可，业务代码零改动。
 - **SM2 签名参数统一封装**：der/userId/hash 等参数在共享包内一处显式定义，前后端同参调用（不依赖 sm-crypto 默认值），并附 golden vector 测试（§10）。
 - 加密操作（SM2_Enc 用公钥）不需介质，由前端直接 sm-crypto 执行——只有 **sign 与 decrypt 走适配层**。
@@ -237,7 +238,7 @@ export function computeFieldsCommit(fields: SealedFields, nonce: string): string
 ### 5.6 reseal / 补传
 
 - **删除 reseal 明文分支**（bid.service.ts:2452-2500 段）；E2EE 重包裹分支仅对旧轨保留；
-- 新轨 reseal → 400 引导走补传；补传 reupload 改造：供应商端重新双层加密上传（sha256 逐字节闸门不变，服务器只存 C_outer）。**（v6 修订）补传不得变更唱标字段密封件**：新 envelope 的 `sealedFields.fieldsCommit` 与 `fieldsSha256` 必须逐字等于 submission 原值，不等 → 400 `FIELDS_COMMIT_CHANGED` + 监督日志（防开标期借补传重签报价信封——办法第27条精神，截止后实质内容不得变更；早版「fieldsCommit 随新 envelope 重新签名」为漏洞表述，作废）。
+- 新轨 reseal → 400 引导走补传；补传 reupload 改造：供应商端重新双层加密上传（sha256 逐字节闸门不变，服务器只存 C_outer）。**唱标字段密封件不得变更（v6）**：新 envelope 的顶层 `fieldsCommit` 与 `sealedFields.fieldsSha256` 必须与投递时 `submission.envelope` 原值逐字相等——布局对齐 ukey 类型定义（`fieldsCommit` 在 envelope 顶层、`sealedFields` 为 `{cipher, kself, fieldsSha256}`），任一缺失或不符 → 400 `FIELDS_COMMIT_CHANGED` + 监督日志（防开标期借补传改价）；其余 files 条目保留、仅覆盖补传角色，整体重新签名。
 
 ### 5.7 解密后投标文件归档（P2-17）
 

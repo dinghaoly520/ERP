@@ -11,6 +11,7 @@ module.exports = {
   moduleNameMapper: {
     "^@water-erp/config$": "<rootDir>/../../../packages/config/src/index.ts",
     "^@water-erp/shared$": "<rootDir>/../../../packages/shared/src/index.ts",
+    "^@water-erp/ukey$": "<rootDir>/../../../packages/ukey/src/index.ts",
     // ESM-only 依赖桩化（cuid2 → @noble/hashes 全链 ESM，ts-jest allowJs 转译不稳定）
     "^@paralleldrive/cuid2$": "<rootDir>/../test/mocks/cuid2.cjs",
   },

@@ -43,16 +43,23 @@ function diffDays(from: Date, to: Date) {
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboard(startDate?: string, endDate?: string) {
-    const where =
-      startDate && endDate
+  async getDashboard(
+    startDate?: string,
+    endDate?: string,
+    companyFilter?: { companyId?: string },
+  ) {
+    // 公司隔离：where 注入 companyId，轮次主查询与附件统计（经 procurementRound 关联）同时生效
+    const where = {
+      ...companyFilter,
+      ...(startDate && endDate
         ? {
             procurementDate: {
               gte: startOfDay(startDate),
               lte: endOfDay(endDate),
             },
           }
-        : {};
+        : {}),
+    };
 
     const rounds = await this.prisma.procurementRound.findMany({
       where,

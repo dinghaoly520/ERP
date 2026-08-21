@@ -173,7 +173,11 @@ export class ProgressService {
     private readonly aiService: AiService,
   ) {}
 
-  async getProgressStats(userId?: string, stage?: string): Promise<ProgressStats> {
+  async getProgressStats(
+    userId?: string,
+    stage?: string,
+    companyFilter: { companyId?: string } = {},
+  ): Promise<ProgressStats> {
     const now = new Date();
     const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -182,6 +186,7 @@ export class ProgressService {
 
     const where: Record<string, unknown> = {
       status: ProjectManagementStatus.ACTIVE,
+      ...companyFilter, // 公司隔离（2026-08-20）：非 admin 只统计本公司数据
     };
 
     if (userId) {
@@ -237,6 +242,7 @@ export class ProgressService {
     const monthlyAdded = await this.prisma.projectManagementItem.count({
       where: {
         createdAt: { gte: startOfThisMonth },
+        ...companyFilter,
         ...(userId && { createdById: userId }),
       },
     });
@@ -245,6 +251,7 @@ export class ProgressService {
       where: {
         currentStage: 'CONTRACT',
         updatedAt: { gte: startOfThisMonth },
+        ...companyFilter,
         ...(userId && { createdById: userId }),
       },
     });
@@ -257,6 +264,7 @@ export class ProgressService {
     const lastMonthAdded = await this.prisma.projectManagementItem.count({
       where: {
         createdAt: { gte: startOfLastMonth, lt: endOfLastMonth },
+        ...companyFilter,
         ...(userId && { createdById: userId }),
       },
     });
@@ -265,6 +273,7 @@ export class ProgressService {
       where: {
         currentStage: 'CONTRACT',
         updatedAt: { gte: startOfLastMonth, lt: endOfLastMonth },
+        ...companyFilter,
         ...(userId && { createdById: userId }),
       },
     });
@@ -280,6 +289,7 @@ export class ProgressService {
     const completedProjects = await this.prisma.projectManagementItem.findMany({
       where: {
         currentStage: 'CONTRACT',
+        ...companyFilter,
         ...(userId && { createdById: userId }),
       },
       include: {
@@ -325,8 +335,12 @@ export class ProgressService {
     };
   }
 
-  async getAiInsights(userId?: string, stage?: string) {
-    const stats = await this.getProgressStats(userId, stage);
+  async getAiInsights(
+    userId?: string,
+    stage?: string,
+    companyFilter: { companyId?: string } = {},
+  ) {
+    const stats = await this.getProgressStats(userId, stage, companyFilter);
 
     const stageNames: Record<string, string> = {
       PROCUREMENT_DEMAND: '采购需求',

@@ -11,9 +11,10 @@ import {
 } from "lucide-react";
 import { type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
+import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import {
-  fetchDashboardAnalysis, fetchAiCalibration,
-  type DashboardAnalysisPayload, type DashboardAnalysisResult, type AiCalibration,
+  fetchDashboardAnalysis,
+  type DashboardAnalysisPayload, type DashboardAnalysisResult,
 } from "@/lib/api/ai";
 import { Modal } from "@/components/workbench";
 
@@ -397,13 +398,13 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const [alLoading,setAlLoading] = useState(false);
   const [alErr,setAlErr] = useState<string|null>(null);
   const [dataHash,setDataHash] = useState<string|null>(null);
-  const [calibration,setCalibration] = useState<AiCalibration|null>(null);
   const [showDP,setShowDP] = useState(false);
   const [startDate,setStartDate] = useState("");
   const [endDate,setEndDate] = useState("");
+  const [companyId,setCompanyId] = useState("all");
   const dateBtnRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(()=>{fetchAiCalibration().then(setCalibration).catch(()=>{});},[]);
+  useEffect(()=>{setCompanyId(readInitialCompanyId());},[]);
 
   const bap = useCallback((d:DashboardData):DashboardAnalysisPayload=>({
     rangeLabel:d.range.startDate&&d.range.endDate?`${d.range.startDate} ~ ${d.range.endDate}`:"全部",
@@ -428,10 +429,12 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
 
   const suppliers:SupplierDetail[]=useMemo(()=>{if(!data)return[];return data.supplierStats.map(s=>({...s,id:s.name}));},[data]);
 
-  const ld = useCallback(async(s?:string,e?:string)=>{setLoading(true);setLoadErr(null);try{const d=await fetchDashboardData(s,e);setData(d);setAnalysis(null);setDataHash(null);}catch(err){setLoadErr(err instanceof Error?err.message:"加载仪表盘数据失败");}finally{setLoading(false);}},[],);
+  const ld = useCallback(async(s?:string,e?:string,c?:string)=>{setLoading(true);setLoadErr(null);try{const d=await fetchDashboardData(s,e,c);setData(d);setAnalysis(null);setDataHash(null);}catch(err){setLoadErr(err instanceof Error?err.message:"加载仪表盘数据失败");}finally{setLoading(false);}},[],);
   useEffect(()=>{ld();},[ld]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{ld(startDate||undefined,endDate||undefined,companyId);},[companyId]);
 
-  const hadr = useCallback(()=>{ld(startDate||undefined,endDate||undefined);setShowDP(false);},[startDate,endDate,ld]);
+  const hadr = useCallback(()=>{ld(startDate||undefined,endDate||undefined,companyId);setShowDP(false);},[startDate,endDate,companyId,ld]);
   const hrdr = useCallback(()=>{setStartDate("");setEndDate("");ld();setShowDP(false);},[ld]);
 
   const dp = {
@@ -472,6 +475,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
                 异常 {data.summary.abnormalCount}
               </span>
             )}
+            <CompanySelect value={companyId} onChange={setCompanyId}/>
             <div className="relative">
               {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
               <button ref={dateBtnRef} onClick={()=>setShowDP(!showDP)} className="neu-btn-xs flex items-center gap-1.5"><CalendarRange size={12}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
@@ -506,10 +510,6 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         </div>
         </div>
       </motion.div>
-      {/* AI 校准条 */}
-      {calibration && <motion.div {...fadeIn(1, reducedMotion, 0.05)} className="neu-card-static mb-3 p-4">
-        <div className="flex items-center justify-between mb-3"><div className="flex items-center gap-1.5"><span className="text-xs font-bold text-[var(--foreground)]">AI 评分校准</span><span className="text-[9px] text-[var(--muted-foreground)]">· 专家 vs AI 建议分差异</span></div><span className="text-[10px] text-[var(--muted-foreground)]">{calibration.overall.total} 项已确认</span></div>
-        <div className="flex items-stretch gap-5"><div className="flex items-center gap-4"><div className="flex flex-col justify-center min-w-[80px]"><span className="text-2xl font-black tabular-nums text-[var(--foreground)] leading-none">{Math.round(calibration.overall.adoptionRate*100)}<span className="text-sm">%</span></span><span className="text-[10px] text-[var(--muted-foreground)] mt-1">建议采纳率</span></div><div className="w-56 flex flex-col gap-1.5">{(()=>{const mxa=Math.max(...calibration.byCategory.map(x=>Math.abs(x.avgDelta)),1);return calibration.byCategory.map(c=>{const wp=Math.min((Math.abs(c.avgDelta)/mxa)*50,50);const ip=c.avgDelta>0;const CL:Record<string,string>={BUSINESS:"商务",TECHNICAL:"技术",PRICE:"价格",QUALIFICATION:"资格",RESPONSIVE:"响应"};return <div key={c.category} className="flex items-center gap-2"><span className="w-12 text-[10px] text-[var(--muted-foreground)] shrink-0">{CL[c.category]??c.category}</span><div className="flex-1 h-3 rounded-[3px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] relative overflow-hidden"><div className="absolute top-0 bottom-0 left-1/2 w-px bg-[color-mix(in_oklch,var(--muted-foreground)_25%,transparent)]"/><div className="absolute top-0 bottom-0 rounded-[3px] transition-all duration-500" style={{width:`${wp}%`,left:ip?"50%":`${50-wp}%`,background:ip?"oklch(0.58 0.17 27)":"oklch(0.55 0.14 251)"}}/></div><span className={`w-8 text-[10px] font-bold tabular-nums text-right ${ip?"text-[var(--danger)]":"text-[var(--accent)]"}`}>{ip?"+":""}{c.avgDelta}</span></div>;})})()}</div></div>{calibration.topDeviations.length>0&&<><div className="w-px bg-[color-mix(in_oklch,var(--warning)_20%,transparent)]"/><div className="min-w-[160px]"><div className="text-[9px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-1.5">偏差最大的评分项</div><div className="flex flex-col gap-0.5">{calibration.topDeviations.slice(0,4).map(d=><div key={d.scoreItemId} className="flex items-center gap-2 text-[10px]"><span className="text-[var(--foreground)] truncate">{d.name}</span><span className={`font-bold tabular-nums ${d.avgDelta>0?"text-[var(--danger)]":"text-[var(--accent)]"}`}>{d.avgDelta>0?"+":""}{d.avgDelta}<span className="text-[var(--muted-foreground)] font-normal ml-0.5">({d.count})</span></span></div>)}</div></div></>}</div></motion.div>}
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><IntelligencePanel analysis={analysis} loading={alLoading} error={alErr} onRefresh={()=>hra(true)} index={7} reducedMotion={reducedMotion}/></div>
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={8} reducedMotion={reducedMotion}/></div>

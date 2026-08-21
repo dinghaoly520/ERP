@@ -1064,6 +1064,51 @@ describe('ExpertService', () => {
 
       expect(result.documents).toEqual([]);
     });
+
+    it('dual-v2：文件列表取 decryptedAssets 归属链（SUCCESS 后下发明文资产）', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs-1', supplierId: 'supplier-1', supplierName: '川水建设', decryptStatus: 'SUCCESS',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        envelopeVersion: 'dual-v2',
+        technicalFileAssetId: 'fa-outer-t', businessFileAssetId: 'fa-outer-b', coverLetterAssetId: 'fa-outer-c',
+        decryptedAssets: { technical: 'fa-dec-t', business: 'fa-dec-b', coverLetter: 'fa-dec-c' },
+      });
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-dec-t', originalName: '技术方案.pdf', mimeType: 'application/pdf', size: 131072, sha256: 'hashT' },
+        { id: 'fa-dec-b', originalName: '商务文件.pdf', mimeType: 'application/pdf', size: 65536, sha256: 'hashB' },
+        { id: 'fa-dec-c', originalName: '投标函.pdf', mimeType: 'application/pdf', size: 1024, sha256: 'hashC' },
+      ]);
+
+      const result = await service.getDecryptedDocuments('user-1', 'proj-1', 'bs-1');
+
+      expect(result.canView).toBe(true);
+      expect(result.documents.map(d => d.downloadUrl)).toEqual([
+        '/api/expert/projects/proj-1/suppliers/bs-1/documents/fa-dec-t/download',
+        '/api/expert/projects/proj-1/suppliers/bs-1/documents/fa-dec-b/download',
+        '/api/expert/projects/proj-1/suppliers/bs-1/documents/fa-dec-c/download',
+      ]);
+      expect(result.documents[0].sha256).toBe('hashT');
+    });
+
+    it('dual-v2 未解密（decryptedAssets 缺失）→ 回退旧轨形状、状态加密中', async () => {
+      prisma.bidSupplier.findFirst.mockResolvedValue({
+        id: 'bs-1', supplierId: 'supplier-1', supplierName: '川水建设', decryptStatus: 'PENDING',
+      });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        envelopeVersion: 'dual-v2', technicalFileAssetId: 'fa-outer-t', decryptedAssets: null,
+      });
+      prisma.fileAsset.findMany.mockResolvedValue([
+        { id: 'fa-outer-t', originalName: '技术方案.pdf.enc', mimeType: 'application/octet-stream', size: 100, sha256: 'h' },
+      ]);
+
+      const result = await service.getDecryptedDocuments('user-1', 'proj-1', 'bs-1');
+
+      expect(result.documents).toHaveLength(1);
+      expect(result.documents[0].downloadUrl).toBeUndefined();
+      expect(result.documents[0].sha256).toBeUndefined();
+      expect(result.documents[0].status).toBe('加密中');
+    });
   });
 
   describe('getProfile', () => {
@@ -1512,6 +1557,10 @@ describe('ExpertService', () => {
       plaintextFetcher = service['plaintextFetcher'];
     });
 
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     it('解密返回 buffer（门控通过 + fileId 属于该 supplier）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
@@ -1562,6 +1611,30 @@ describe('ExpertService', () => {
 
       await expect(service.downloadBidDocument('user-1', 'proj-1', 'sup-1', 'file-foreign'))
         .rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+      expect(plaintextFetcher.fetchBidderPlaintext).not.toHaveBeenCalled();
+    });
+
+    it('dual-v2：fileId 落在 decryptedAssets → 直接读明文资产（不走 plaintextFetcher）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue(signedExpert);
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup-1', supplierId: 'sys-1', supplierName: '川水建设', projectId: 'proj-1' });
+      prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+        envelopeVersion: 'dual-v2',
+        technicalFileAssetId: 'fa-outer-t',
+        decryptedAssets: { technical: 'fa-dec-t', business: 'fa-dec-b' },
+      });
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        id: 'fa-dec-t', key: 'bid-decrypted/proj-1/sup-1/technical.plain', originalName: 'technical.plain',
+      });
+      jest.spyOn(minioClient, 'getObject').mockResolvedValue({
+        async *[Symbol.asyncIterator]() { yield Buffer.from('%PDF-1.4'); },
+      } as any);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const out = await service.downloadBidDocument('user-1', 'proj-1', 'sup-1', 'fa-dec-t');
+
+      expect(out.buffer.toString()).toBe('%PDF-1.4');
+      expect(out.mimeType).toBe('application/pdf');
       expect(plaintextFetcher.fetchBidderPlaintext).not.toHaveBeenCalled();
     });
   });

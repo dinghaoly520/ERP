@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { User } from '@/lib/types';
 import NotificationBell from './notification-bell';
+import AdminCertCard from './admin-cert-card';
 import {
   Gavel,
   Archive,
@@ -132,6 +133,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+
+          {/* T17：管理方加密证书（双信封 v2 外层公钥载体；仅 admin 可见，生成=轮转） */}
+          {user?.role === 'admin' && (
+            <div className="mx-2 mb-2 shrink-0">
+              <AdminCertCard />
+            </div>
+          )}
 
           {/* 右边缘折叠手柄 —— 点击向左折叠 */}
           <button

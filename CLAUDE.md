@@ -35,6 +35,7 @@ Run workspace commands from `water-erp/`.
 | `packages/config` | Port definitions (`ports.ts`) and role→portal routing (`urls.ts`) — `@water-erp/config` |
 | `packages/shared` | Domain types, status labels/maps, stage colors, brand constants — `@water-erp/shared` |
 | `packages/ui` | Shared React workbench components (`MetricCard`, `PageHero`, `SectionCard`, `StatusBadge`, `DataToolbar`) + `cn` helper — `@water-erp/ui` |
+| `packages/ukey` | 供应商 CA U盾适配层（SM2/SM4/SM3 封装、`MockUKeyAdapter`、`DualEnvelope`/`SealedFields` 类型与 `canonicalEnvelopeHash`）——双信封投标加密与开标解密前后端共用，浏览器与 Node 同源可跑 — `@water-erp/ukey` |
 
 Infrastructure in `water-erp/docker-compose.yml`: PostgreSQL 16 (`localhost:5432`), Redis 7 (`localhost:6380→6379`), MinIO (`localhost:9000`, console `localhost:9001`).
 
@@ -69,7 +70,7 @@ Self-service portal for suppliers. Supports registration (with enterprise info +
 
 ### 采购管理工作台 (`web`, :3005)
 
-The admin/internal staff management console for procurement users (login roles `staff`/`leader`; the `procurement_staff` schema role is NOT in `PORTAL_ROLE_PRIORITY.web`). Key modules:
+The admin/internal staff management console for procurement users (login roles `staff`/`leader`; the legacy `procurement_staff` ghost account was removed 2026-08-20). **公司级数据隔离（2026-08-20）**：数据库/台账/进度/公告管理端按登录人公司隔离（真隔离=where 注入+:id 越权 403+统计在隔离集上算）；admin 四页有公司选择器（默认全部、?companyId= 切换、非 admin 传参忽略）；项目管理页为个人隔离（非 admin 仅本人项目，admin 全量）。归属写时快照（companyId+companyName），Company 主数据表（`companies`，注册 normalizeCompany 对齐建档）。供应商库/专家库/目录不隔离；公告 public 接口不受限。关键模块:
 
 - **首页驾驶舱** (`/dashboard`) — operational dashboard with AI panel (水叮当 summary)
 - **信息发布中心** (`/notice`) — manage announcements (CRUD + publish)
@@ -133,7 +134,6 @@ Standalone AI chat assistant powered by DeepSeek LLM. Provides procurement domai
 |------|--------|-------------|
 | `admin` | bid (:3007) | `/bid` |
 | `bid_host` | bid (:3007) | `/bid` |
-| `procurement_staff` | web (:3005) | `/dashboard` |
 | `supplier` | supplier (:3004) | `/dashboard` |
 | `bid_expert` | expert (:3006) | `/` |
 | `mall` | mall (:3003) | `/` |
@@ -153,6 +153,7 @@ pnpm infra:logs      # View logs
 # Build shared packages (required before first app start)
 pnpm --filter @water-erp/shared build
 pnpm --filter @water-erp/config build
+pnpm --filter @water-erp/ukey build
 
 # Database
 pnpm db:generate     # Generate Prisma client
@@ -175,7 +176,7 @@ pnpm dev:assistant   # :3008 水叮当助手
 pnpm dev:bigscreen   # :3010 大屏（已在 pnpm dev 内，也可单独启动）
 
 # AI 投标分析 worker（独立进程 — 必需，否则 per-item 分析任务不出队执行）
-pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/src/ai-bid-analysis-worker.js
+pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bid-analysis-worker.js（dist 镜像 src，无 dist/src 层）
 
 # OCR 微服务（Python，:8100）
 pnpm dev:ocr
@@ -229,11 +230,10 @@ Passwords follow `<username>@2026` convention:
 | `Swhi-CGZX-00` | `Swhi-CGZX-00@2026` | leader · 董事长（工作台董事长变体+受限导航，见 `apps/web/src/lib/workbench-profiles.ts`） | 采购管理工作台 (:3005) |
 | `SWDG-01` | `SWDG-01@2026` | staff · 水发集团（落地 /tender-write+受限导航，见 workbench-profiles.ts） | 采购管理工作台 (:3005) |
 | `Swhi-CGZX-admin` | `Swhi-CGZX-admin@2026` | admin · 密码审批等管理功能 | 采购管理工作台 (:3005) |
-| `陈源远` | `陈源远@2026` | procurement_staff · :3005 登录实际解析为 `bid_host`（见下注） | 采购管理工作台 (:3005) |
 | 专家姓名（如 `刘苡池`） | `expert@2026` | bid_expert | 专家门户 (:3006) |
 | `陈源远` | `陈源远@2026` | bid_host | 开评标管理端 (:3007) |
 
-> **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），三个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` **不含 `procurement_staff`**，故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
+> **「陈源远」同名账号**：username 不再全局唯一（改为 `[username, role]` 复合唯一），两个 role 不同的账号共用登录名「陈源远」/ `陈源远@2026`。登录时按来源门户（`X-Portal` 头）区分：电子商城→mall、开标端（专家门户 admin tab）→bid_host。注意 `PORTAL_ROLE_PRIORITY.web` = `[leader, staff, bid_host, admin]` （原 `procurement_staff` 幽灵账户已于 2026-08-20 删除），故「陈源远」从采购管理端 :3005 登录会解析为 `bid_host`、采购功能 403——**:3005 请用 `Swhi-CGZX-*` leader/staff 账号**（口令 `<用户名>@2026`，见上表与 `water-erp/ACCOUNTS.md`）。详见 `auth.service.ts`。
 详见 `auth.service.ts`。另：专家门户 (:3006) 登录页 dev 模式演示提示账号（周祥志 / Swhi-CGZX-admin，`DEMO_ACCOUNTS`）生产构建自动剥离。
 
 > `admin` role 已有种子账号 `Swhi-CGZX-admin`（密码审批等管理功能；登录口令 `<用户名>@2026`）。开评标管理端 (:3007) 演示请用 `陈源远` (bid_host)。
@@ -287,6 +287,7 @@ The NestJS API (`apps/api`, :4001):
 | Module | Purpose |
 |--------|---------|
 | `Auth` | JWT login/register/logout/me; Passport strategy; RBAC guards (`AuthGuard`, `RolesGuard`) |
+| `Company` | 公司主数据 + `CompanyScopeService` 数据隔离引擎（resolveScope/filter/assertInScope/stampFor；dashboard/procurements/progress/announcements/project-management 接入） |
 | `Bid` | Full bid lifecycle: projects, opening sessions, records, scoring, clarifications, supervision, archive, evaluation results |
 | `Expert` | Expert sign-in, avoidance check, scoring, reports; sub-controllers: `expert.controller.ts` (expert-side), `expert-admin.controller.ts` (admin CRUD/extraction/portrait/retire) |
 | `Supplier` | Supplier CRUD, review, evaluations, classifications, change records |
@@ -350,6 +351,8 @@ TRUST_PROXY=1                      # 生产反代后信任一跳；默认 'loopb
 REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker 都读它（缺省回退 localhost:6380）
 OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local-ai/OcrService 消费
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
+BID_DUAL_ENVELOPE=true            # 双信封新轨总开关（=false 全局退回旧轨 KMS 信封投递；默认开，灰度/应急双向可退）
+ADMIN_KEYSTORE_DIR=...            # 管理方加密证书私钥落盘目录（默认 apps/api/.data/admin-keystore；轮转后旧 adminCertId 私钥仍按 id 定位）
 
 # ── AI / LLM ──
 DEEPSEEK_API_URL=https://api.deepseek.com   # 多数模块直接 process.env 读取，未走 LlmService（见模块表后注释）
@@ -380,7 +383,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 ### File Uploads (MinIO)
 
-`POST /api/upload?category=...` (50 MB cap), `GET /api/upload/files/:id`, `DELETE /api/upload/:key`. Files stored in MinIO, metadata in `FileAsset` model.
+`POST /api/upload?category=...` (50 MB cap), `GET /api/upload/files/:id`, `DELETE /api/upload/:key`. Files stored in MinIO, metadata in `FileAsset` model. 双信封新轨类目（2026-08）：`bid_inner_ciphertext`（解外层产物 C_inner，归属链=`SupplierBidSubmission.innerAssets`）与 `bid_decrypted`（供应商解密上传明文，归属链=`decryptedAssets`）——下载授权按 submission 四列+两 Json 列反查（C_outer 本人下载拒收、C_inner 成员放行、bid_decrypted 指派给 SUCCESS 家/staff/专家）；`bid_inner_ciphertext`/`bid_decrypted`/`bid_document` 三类目删除硬保护（永久不可删）。
 
 ### Frontend Conventions
 
@@ -404,3 +407,11 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **ai-bid worker 扩容**：`AI_BID_WORKER_CONCURRENCY`（默认 2）；水平扩容=多开 worker 进程，BullMQ 天然安全（job ID 去重）。见 `docs/ops-scaling.md`。
 - **操作日志排除默认值**：`operation-log.filter.ts` 新增 8 个高频轮询端点（通知角标/驾驶舱统计/审查任务轮询等，带方法限定 GET-only）。
 - **公告直建项目（N16 A 方案，2026-08-17）**：信息发布中心独立发布 BID_NOTICE 且无既有项目时，联动创建 BidProject 的同时自动补建最小 PMI（前置阶段补记 COMPLETED、currentStage=BID_EVALUATION）并回填关联——:3005 开标确认面板对公告直建项目可用。
+
+## 双信封新轨·生产启用前清单（2026-08 双信封落地）
+
+- **ADMIN_KEYSTORE_DIR 必须纳入备份**：管理方外层私钥文件不在 DB/MinIO 备份内；丢失=对应历史信封外层永久不可解（全量 PLATFORM 归因）。生产对应加密机/HSM。
+- **供应商门户须 https（或 localhost）**：`@water-erp/ukey`/WebCrypto（crypto.subtle）要求 secure context，局域网 http 直连会挂。
+- **clean-legacy-plaintext --execute 前**：先 dry-run 审阅清单；旧轨服务端密封资产的回看下载已支持 sealedPath 流式解密（streamFile，2026-08-21），执行后供应商回看/staff/专家下载不受影响。
+- **BID_DUAL_ENVELOPE=false 应急语义**：flag 关时新轨投递（envelope.version='dual-v2'）被显式 400 `DUAL_DISABLED` 拒收——供应商须按旧流程（clientDeks）重新投递；回退前应公告通知投标人。
+- **管理方密钥轮转**：`POST /api/bid/admin-cert/generate` 置旧证 inactive；历史信封按 `envelope.adminCertId` 定位旧私钥（keystore 目录每证一文件，保留至其覆盖提交全部归档）。

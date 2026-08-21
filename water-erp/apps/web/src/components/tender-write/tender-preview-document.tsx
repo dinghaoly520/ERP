@@ -325,6 +325,7 @@ export function TenderPreviewDocument({
   if (documentType === 'INTERNAL_BIDDING' || documentType === 'INVITED_BIDDING') {
     return (
       <InternalBiddingPreview
+        isInvited={documentType === 'INVITED_BIDDING'}
         draft={draft as InternalBiddingDraft}
         activeSectionKey={activeSectionKey}
         onSectionClick={onSectionClick}
@@ -1266,12 +1267,19 @@ function InternalBiddingPreview({
   activeSectionKey,
   onSectionClick,
   onValueChange,
+  isInvited = false,
 }: {
   draft: InternalBiddingDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
+  isInvited?: boolean;
 }) {
+  // 术语映射：邀请招标 vs 竞价采购
+  const T = isInvited
+    ? { docTitle: '邀请招标文件', party: '投标人', file: '投标文件', chapter: '招标邀请', buyer: '招标人' }
+    : { docTitle: '竞价采购文件', party: '供应商', file: '响应文件', chapter: '采购邀请', buyer: '采购人' };
+
   return (
     <div className="pb-4">
       <div className="mx-auto max-w-[72ch] space-y-5">
@@ -1279,7 +1287,7 @@ function InternalBiddingPreview({
         <PreviewSection
           sectionKey="cover"
           chapterLabel="封面"
-          title="竞价采购文件"
+          title={T.docTitle}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -1288,10 +1296,10 @@ function InternalBiddingPreview({
               <PreviewValue value={draft.projectName} placeholder="{{项目名称}}" fieldKey="projectName" onValueChange={onValueChange} />
             </div>
             <div className="mt-4 text-sm font-semibold tracking-[0.04em] text-[var(--muted-foreground)]">
-              竞价采购文件
+              {T.docTitle}
             </div>
             <div className="mt-6 text-sm text-[color:var(--foreground)]">
-              采 购 人：四川水发勘测设计研究有限公司
+              {T.buyer}：四川水发勘测设计研究有限公司
             </div>
             <div className="mt-2 text-sm text-[color:var(--foreground)]">
               日　　期：<PreviewValue value={formatDateToChinese(draft.coverDate)} placeholder="{{封面时间}}" fieldKey="coverDate" onValueChange={onValueChange} />
@@ -1299,11 +1307,11 @@ function InternalBiddingPreview({
           </div>
         </PreviewSection>
 
-        {/* 第一章 采购邀请 */}
+        {/* 第一章 邀请/采购邀请 */}
         <PreviewSection
           sectionKey="invitation"
           chapterLabel="第一章"
-          title="采购邀请"
+          title={T.chapter}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -1323,16 +1331,16 @@ function InternalBiddingPreview({
           </div>
           <div className="tender-preview-subsection">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
-              二、供应商的资格要求（须同时满足）
+              二、{T.party}的资格要求（须同时满足）
             </div>
             <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>1.供应商基本资格要求：</p>
+              <p>1.{T.party}基本资格要求：</p>
               <p className="ml-4">1.1 提供有效营业执照或事业单位法人证书；</p>
               <p className="ml-4">1.2 未被市场监督管理机关在"国家企业信用信息公示系统"网站（www.gsxt.gov.cn）列入严重违法失信名单；</p>
               <p className="ml-4">1.3 未被最高人民法院在"信用中国"网站（www.creditchina.gov.cn）列入严重失信名单；</p>
               <p className="ml-4">1.4 符合法律、行政法规规定的其他条件。</p>
               <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={draft.qualificationRequirements} placeholder="{{特定资质要求}}" multiline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
-              <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受被邀请的供应商以联合体形式参加响应。
+              <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受被邀请的{T.party}以联合体形式参加响应。
               {!draft.consortiumFormType ? (
                 <span><br />联合体还应满足下列要求：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{联合体形式}}"}</span>。</span>
               ) : draft.consortiumFormType === 'accept' ? (
@@ -1345,7 +1353,7 @@ function InternalBiddingPreview({
           </div>
           <div className="tender-preview-subsection">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
-              三、采购文件获取
+              三、{T.file}获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               <p>1.时　　间：<PreviewValue value={draft.documentAcquireTime} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
@@ -1356,10 +1364,10 @@ function InternalBiddingPreview({
           </div>
           <div className="tender-preview-subsection">
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">
-              四、响应文件提交、开标
+              四、{T.file}提交、开标
             </div>
             <div className="mt-3 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>响应文件提交截止时间、开标时间：<PreviewValue value={draft.responseSubmissionTime} placeholder="{{响应文件提交时间}}" fieldKey="responseSubmissionTime" onValueChange={onValueChange} />。</p>
+              <p>{T.file}提交截止时间、开标时间：<PreviewValue value={draft.responseSubmissionTime} placeholder="{{响应文件提交时间}}" fieldKey="responseSubmissionTime" onValueChange={onValueChange} />。</p>
               <p className="mt-2">地　　点：四川省成都市双流区正兴街道红莲街三段383号四川水发集团B栋。</p>
             </div>
           </div>
@@ -1387,7 +1395,7 @@ function InternalBiddingPreview({
               七、联系人及联系电话
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>采 购 人：四川水发勘测设计研究有限公司</p>
+              <p>{T.buyer}：四川水发勘测设计研究有限公司</p>
               <p>地　　址：成都市天府新区红莲街三段383号</p>
               <p>联 系 人：<PreviewValue value={draft.contactName} placeholder="{{联系人}}" fieldKey="contactName" onValueChange={onValueChange} /></p>
               <p>电　　话：<PreviewValue value={draft.contactPhone} placeholder="{{联系电话}}" fieldKey="contactPhone" onValueChange={onValueChange} /></p>
@@ -1400,13 +1408,13 @@ function InternalBiddingPreview({
         <PreviewSection
           sectionKey="supplier"
           chapterLabel="第二章"
-          title="供应商须知"
+          title={`${T.party}须知`}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
           <div className="tender-preview-subsection">
             <div className="text-center font-semibold text-[color:var(--foreground)]">
-              供应商须知前附表
+              {T.party}须知前附表
             </div>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full border-collapse border border-[oklch(0.55_0.05_258_/_0.2)]">
@@ -1431,21 +1439,21 @@ function InternalBiddingPreview({
                   </tr>
                   <tr>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">8.1</td>
-                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应保证金</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">{T.file}保证金</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                      本项目是否收取响应保证金：
+                      本项目是否收取{T.file}保证金：
                       {!draft.responseDepositType ? (
-                        <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{响应保证金}}"}</span>
+                        <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{{T.file}保证金}}"}</span>
                       ) : draft.responseDepositType === 'none' ? (
                         <span>☑不收取</span>
                       ) : (
                         <span>
                           ☐不收取
                           <br />☑收取，具体要求：
-                          <br />（1）响应保证金的金额：<PreviewValue value={draft.responseDepositAmount} placeholder="{{响应保证金金额}}" fieldKey="responseDepositAmount" onValueChange={onValueChange} />元（小写），<PreviewValue value={draft.responseDepositAmount} placeholder="{{响应保证金金额大写}}" />元（大写）。
-                          <br />（2）响应保证金的形式：
+                          <br />（1）{T.file}保证金的金额：<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额}}" fieldKey="responseDepositAmount" onValueChange={onValueChange} />元（小写），<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额大写}}" />元（大写）。
+                          <br />（2）{T.file}保证金的形式：
                           <br />{draft.responseDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
-                          <br />采用现金形式的，收取响应保证金的账号名称、开户银行及账号：<PreviewValue value={draft.responseDepositBankInfo} placeholder="{{账号信息}}" fieldKey="responseDepositBankInfo" onValueChange={onValueChange} />。
+                          <br />采用现金形式的，收取{T.file}保证金的账号名称、开户银行及账号：<PreviewValue value={draft.responseDepositBankInfo} placeholder="{{账号信息}}" fieldKey="responseDepositBankInfo" onValueChange={onValueChange} />。
                           <br />{draft.responseDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
                           <br />{draft.responseDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
                           <br />{draft.responseDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
@@ -1457,23 +1465,23 @@ function InternalBiddingPreview({
                   </tr>
                   <tr>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">9</td>
-                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应有效期</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">{T.file}有效期</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                      自响应文件提交截止日期起算90日历天。
+                      自{T.file}提交截止日期起算90日历天。
                     </td>
                   </tr>
                   <tr>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">12.2</td>
-                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">响应文件份数</td>
+                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">{T.file}份数</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                      纸质版正本一份，副本<PreviewValue value={draft.copyCount} placeholder="{{副本份数}}" fieldKey="copyCount" onValueChange={onValueChange} />份，1份电子文档（U盘，电子文档为响应文件正本PDF扫描件）
+                      纸质版正本一份，副本<PreviewValue value={draft.copyCount} placeholder="{{副本份数}}" fieldKey="copyCount" onValueChange={onValueChange} />份，1份电子文档（U盘，电子文档为{T.file}正本PDF扫描件）
                     </td>
                   </tr>
                   <tr>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">16.1</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">确定中标人</td>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-sm">
-                      最低价中标，如果两家供应商报价相同，且为最低价，则业绩数量丰富者中标，若业绩数量亦相同的，则由评标委员会推荐中标候选人。
+                      最低价中标，如果两家{T.party}报价相同，且为最低价，则业绩数量丰富者中标，若业绩数量亦相同的，则由评标委员会推荐中标候选人。
                     </td>
                   </tr>
                   <tr>
@@ -1508,9 +1516,9 @@ function InternalBiddingPreview({
                       {!draft.contractSubcontractingType ? (
                         <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{合同分包}}"}</span>
                       ) : draft.contractSubcontractingType === 'none' ? (
-                        <span>☑不允许 ☐允许，具体要求：/；分包应征得采购人同意</span>
+                        <span>☑不允许 ☐允许，具体要求：/；分包应征得{T.buyer}同意</span>
                       ) : (
-                        <span>☐不允许 ☑允许，具体要求：<PreviewValue value={draft.contractSubcontracting} placeholder="{{合同分包}}" fieldKey="contractSubcontracting" onValueChange={onValueChange} />；分包应征得采购人同意</span>
+                        <span>☐不允许 ☑允许，具体要求：<PreviewValue value={draft.contractSubcontracting} placeholder="{{合同分包}}" fieldKey="contractSubcontracting" onValueChange={onValueChange} />；分包应征得{T.buyer}同意</span>
                       )}
                     </td>
                   </tr>
@@ -1576,7 +1584,7 @@ function InternalBiddingPreview({
         <PreviewSection
           sectionKey="requirements"
           chapterLabel="第四章"
-          title="采购需求"
+          title={isInvited ? "招标需求" : "采购需求"}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
@@ -1628,7 +1636,7 @@ function InternalBiddingPreview({
         <PreviewSection
           sectionKey="quotation"
           chapterLabel="第五章"
-          title="响应文件格式"
+          title={`${T.file}格式`}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >

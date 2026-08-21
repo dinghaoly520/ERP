@@ -6,7 +6,8 @@ import { streamToBuffer } from '../announcement/bid-document.crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
-export type BackupFileRole = 'technical' | 'business' | 'coverLetter';
+/** 'bond' 仅 dual-v2 新轨投递会产生（旧轨 bond 为程序性明文文件不备份）；verify/reconcile 仍只巡检三标书角色。 */
+export type BackupFileRole = 'technical' | 'business' | 'coverLetter' | 'bond';
 
 /** 封标时暂存的备份元数据（putObject 成功后，在事务内固化为 BidFileBackup 行） */
 export interface StagedBackup {
@@ -104,11 +105,19 @@ export class BidBackupService {
     };
   }
 
-  /** 在 submitBid 事务内调用：把已 staged 的备份固化为 BidFileBackup 行（@@unique 幂等 upsert） */
+  /** 在 submitBid 事务内调用：把已 staged 的备份固化为 BidFileBackup 行（@@unique 幂等 upsert）。
+   *  cryptoVersion 可选覆盖——双信封 v2 投递传 'dual-envelope-v2'（wrappedDek=双 DEK JSON），缺省 envelope-v1。 */
   async persistBackup(
     tx: Prisma.TransactionClient,
     staged: StagedBackup,
-    meta: { projectId: string; supplierId: string; receiptNo: string | null; submittedAt: Date; backupSource: string },
+    meta: {
+      projectId: string;
+      supplierId: string;
+      receiptNo: string | null;
+      submittedAt: Date;
+      backupSource: string;
+      cryptoVersion?: string;
+    },
   ): Promise<void> {
     const data = {
       fileAssetId: staged.fileAssetId,
@@ -121,7 +130,7 @@ export class BidBackupService {
       receiptNo: meta.receiptNo,
       submittedAt: meta.submittedAt,
       backupSource: meta.backupSource,
-      cryptoVersion: CRYPTO_VERSION,
+      cryptoVersion: meta.cryptoVersion ?? CRYPTO_VERSION,
     };
     await tx.bidFileBackup.upsert({
       where: {

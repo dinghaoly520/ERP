@@ -64,10 +64,12 @@ export interface ProgressAiInsights {
 export async function fetchProgressStats(
   userId?: string,
   stage?: string,
+  companyId?: string, // 仅 admin 生效：公司选择器
 ): Promise<ProgressStats> {
   const params = new URLSearchParams();
   if (userId) params.set('userId', userId);
   if (stage) params.set('stage', stage);
+  if (companyId && companyId !== 'all') params.set('companyId', companyId);
 
   const url = `${API_BASE}/progress/stats${params.toString() ? `?${params.toString()}` : ''}`;
 
@@ -80,8 +82,9 @@ export async function fetchProgressStats(
   return response.json();
 }
 
-export async function fetchProgressAiInsights(): Promise<ProgressAiInsights> {
-  const url = `${API_BASE}/progress/ai-insights`;
+export async function fetchProgressAiInsights(companyId?: string): Promise<ProgressAiInsights> {
+  const qs = companyId && companyId !== 'all' ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  const url = `${API_BASE}/progress/ai-insights${qs}`;
 
   const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) {

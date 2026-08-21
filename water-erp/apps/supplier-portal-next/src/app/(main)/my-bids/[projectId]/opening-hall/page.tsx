@@ -1,0 +1,406 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
+import { CloudOff, MessageSquareOff, User } from "lucide-react";
+import { bidApi } from "@/lib/api/bid";
+import { supplierApi } from "@/lib/api/supplier";
+import { openingHallApi } from "@/lib/api/opening-hall";
+import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { useBidWebSocket } from "@/hooks/use-bid-websocket";
+import { ChatPanel } from "@/components/chat-panel";
+import { EmptyState, SpButton, SpDialog, SpTextarea } from "@/components/ui";
+import "@/styles/pages/opening.css";
+import "@/styles/pages/bid-components.css"; // ChatPanel（chat-panel / cp-*）样式
+
+export default function OpeningHallPage() {
+  const params = useParams<{ projectId: string }>();
+  const projectId = params.projectId;
+  // U3：ChatPanel 的 userId 取登录用户 User.id（消息 senderId = actor.userId，非 Supplier.id）
+  const auth = useAuth();
+
+  const [project, setProject] = useState<any>(null);
+  const [record, setRecord] = useState<any>(null);
+  const [records, setRecords] = useState<any[]>([]);
+  const [checkedInAt, setCheckedInAt] = useState<string | null>(null);
+  const [onlineCount, setOnlineCount] = useState(0);
+  const [decryptStatus, setDecryptStatus] = useState<string>("");
+  const [supplierId, setSupplierId] = useState("");
+  const [supplierName, setSupplierName] = useState("");
+  const [loadError, setLoadError] = useState(false);
+  const [loadErrorMsg, setLoadErrorMsg] = useState("");
+  const [profileError, setProfileError] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(false);
+  // 异议弹窗（ElMessageBox.prompt 的样式化等价）：textarea + 必填校验
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+
+  // bootstrap 在 await 后要读最新 loadError/project——React 状态异步，用 ref 镜像
+  const loadErrorRef = useRef(false);
+  const projectRef = useRef<any>(null);
+  const loadErrorMsgRef = useRef("");
+
+  const stage: string = project?.stage ?? "";
+  const isOpening = stage === "OPENING";
+
+  /** 投递报价显示文本：有唱标锚点时归一为元（与唱标总表「报价（元）」单位统一）；
+   *  未唱标回落投递表单口径（<10000 万元、≥10000 元，见 BidSubmit formatBidPrice） */
+  const submittedPriceText = (() => {
+    const s = record?.submitted;
+    if (!s?.bidPrice) return "—";
+    if (s.bidPriceInYuan != null) return `${s.bidPriceInYuan} 元`;
+    const n = Number(s.bidPrice);
+    if (!Number.isFinite(n)) return "—";
+    return n >= 10000 ? `${s.bidPrice} 元` : `${s.bidPrice} 万元`;
+  })();
+
+  async function refresh() {
+    // 失败保留上次成功数据，仅置标志；首屏（project 为空）时由错误态 + 重试展示
+    try {
+      const [p, r, list] = await Promise.all([
+        bidApi.getProject(projectId),
+        supplierApi.getOpeningRecord(projectId).catch(() => null),
+        // 开标前端点返回 400 OPENING_NOT_STARTED——捕获后置空列表，页面不报错
+        supplierApi.getOpeningRecords(projectId).catch(() => null),
+      ]);
+      setProject(p);
+      setRecord(r);
+      setRecords(list ?? []);
+      setLoadError(false);
+      loadErrorRef.current = false;
+      projectRef.current = p;
+    } catch (e: any) {
+      setLoadError(true);
+      loadErrorRef.current = true;
+      const msg = e instanceof ApiError ? e.message : e?.message || "加载开标大厅数据失败";
+      setLoadErrorMsg(msg);
+      loadErrorMsgRef.current = msg;
+    }
+  }
+
+  /** @returns 是否加载失败（profileError）——供 retryProfile/bootstrap 提示 */
+  async function loadProfile(): Promise<boolean> {
+    try {
+      const profile = await supplierApi.getProfile();
+      setSupplierId(profile?.id ?? "");
+      setSupplierName(profile?.name ?? "");
+      const err = !profile?.id;
+      setProfileError(err);
+      return err;
+    } catch {
+      setProfileError(true);
+      return true;
+    }
+  }
+
+  async function retryProfile() {
+    setProfileError(false);
+    const err = await loadProfile();
+    if (err) toast.error("加载供应商信息失败，会话暂不可用");
+  }
+
+  /** 首屏加载逻辑：挂载与「重试」共用 */
+  async function bootstrap() {
+    setBootstrapping(true);
+    await Promise.all([loadProfile(), refresh(), loadPresence()]);
+    setBootstrapping(false);
+    if (loadErrorRef.current && !projectRef.current) toast.error(loadErrorMsgRef.current);
+  }
+
+  async function loadPresence() {
+    const res = await openingHallApi.presence(projectId).catch(() => null);
+    if (res) setOnlineCount(res.onlineCount ?? 0);
+  }
+
+  async function checkIn() {
+    try {
+      const res = await openingHallApi.checkIn(projectId);
+      setCheckedInAt(res?.checkInAt ?? null);
+      toast.success("签到成功");
+    } catch {
+      // U5：业务错误消息已由全局 API 层统一弹出，此处不重复提示
+    }
+  }
+
+  async function confirmRecord() {
+    // ElMessageBox.confirm → 原生 confirm（取消即 return，等价用户关闭弹窗静默）
+    if (!window.confirm("确认开标记录（唱标信息）无误？")) return;
+    try {
+      await supplierApi.confirmOpening(projectId);
+      toast.success("已确认开标记录");
+      await refresh();
+    } catch {
+      // U5：业务错误消息已由全局 API 层统一弹出，此处不重复提示
+    }
+  }
+
+  async function submitDispute() {
+    const reason = disputeReason.trim();
+    if (!reason) return; // 输入校验：请填写异议原因
+    setDisputeSubmitting(true);
+    try {
+      await supplierApi.disputeOpening(projectId, reason);
+      toast.success("异议已提交，请等待主持人处理");
+      setDisputeOpen(false);
+      setDisputeReason("");
+      await refresh();
+    } catch {
+      // U5：业务错误消息已由全局 API 层统一弹出，此处不重复提示
+    } finally {
+      setDisputeSubmitting(false);
+    }
+  }
+
+  // 实时事件 → UI：阶段流转/唱标更新→refresh；解密仅认本司；在场计数直写；
+  // 异议处理结果 toast（确认/退回）。handlers 每渲染取最新闭包（详见 use-bid-websocket.ts）
+  useBidWebSocket(projectId, () => ({
+    // refresh 内部已 try/catch（失败置标志、保留上次数据），.catch 仅作兜底，避免 unhandled rejection
+    onStageChange: () => {
+      refresh().catch(() => {});
+    },
+    onDecryptStatus: (d) => {
+      if (d.supplierId === supplierId) setDecryptStatus(d.decryptStatus);
+    },
+    onHallPresence: (d) => {
+      setOnlineCount(d.onlineCount);
+    },
+    onOpeningDisputeResolved: (d) => {
+      toast.info(d.confirm ? `异议已处理（确认）：${d.result}` : `异议已处理（退回）：${d.result}`);
+      refresh().catch(() => {});
+    },
+    // 唱标录入/更新 → 实时刷新开标记录（此前无此事件，唱标后供应商页不更新，只能手动刷新）
+    onOpeningRecordUpdated: () => {
+      refresh().catch(() => {});
+    },
+  }));
+
+  useEffect(() => {
+    bootstrap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 首屏加载失败（尚无项目数据）：错误态 + 重试
+  if (loadError && !project) {
+    return (
+      <div className="hall">
+        <div className="hall-error">
+          <EmptyState icon={CloudOff} title={loadErrorMsg || "加载开标大厅数据失败"}>
+            <SpButton variant="primary" loading={bootstrapping} onClick={bootstrap}>
+              重试
+            </SpButton>
+          </EmptyState>
+        </div>
+      </div>
+    );
+  }
+
+  // 后端/种子数据实际写入 '待供应商确认'（bid.service.ts），旧页兼容 '待确认'，两者都接受
+  const canConfirm = isOpening && record && (record.confirmStatus === "待确认" || record.confirmStatus === "待供应商确认");
+
+  return (
+    <div className="hall">
+      <div className="left">
+        <section className="hall-card">
+          <header className="hall-card__header">
+            <div className="head">
+              <span className="name">{project?.name || "加载中…"}</span>
+              <div className="meta">
+                {/* 在线数：图标 + 等宽数字，左对齐（开标阶段状态由签到按钮/阶段提示条/聊天禁言条表达，不再单设徽标） */}
+                <span className="presence">
+                  <User size={14} strokeWidth={2} />
+                  在线 <b className="num">{onlineCount}</b> 家
+                </span>
+              </div>
+            </div>
+          </header>
+
+          <div className="hall-card__body">
+            <table className="hall-desc">
+              <tbody>
+                <tr>
+                  <th>本司解密状态</th>
+                  <td>{decryptStatus || record?.decryptResult || "—"}</td>
+                </tr>
+                <tr>
+                  <th>唱标金额</th>
+                  <td>{record?.amount != null ? `${record.amount} 元` : "—"}</td>
+                </tr>
+                <tr>
+                  <th>投递报价</th>
+                  <td>
+                    <span className={record?.submitted?.priceMismatch ? "mismatch" : undefined}>{submittedPriceText}</span>
+                    {record?.submitted?.priceMismatch && (
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain" style={{ marginLeft: 6 }}>
+                        与唱标不一致
+                      </span>
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <th>工期（唱标）</th>
+                  <td>{record?.period || "—"}</td>
+                </tr>
+                <tr>
+                  <th>工期（投递）</th>
+                  <td>
+                    <span className={record?.submitted?.periodMismatch ? "mismatch" : undefined}>
+                      {record?.submitted?.deliveryPeriod || "—"}
+                    </span>
+                    {record?.submitted?.periodMismatch && (
+                      <span className="hall-tag hall-tag--sm hall-tag--warning-plain" style={{ marginLeft: 6 }}>
+                        与唱标不一致
+                      </span>
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <th>质量承诺（唱标）</th>
+                  <td>{record?.qualityTarget || "—"}</td>
+                </tr>
+                {record?.submitted?.qualityCommitment && (
+                  <tr>
+                    <th>质量承诺（投递）</th>
+                    <td>
+                      <span
+                        className={
+                          record.qualityTarget != null && record.qualityTarget !== record.submitted.qualityCommitment
+                            ? "mismatch"
+                            : undefined
+                        }
+                      >
+                        {record.submitted.qualityCommitment}
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                <tr>
+                  <th>开标记录状态</th>
+                  <td>{record?.confirmStatus || "—"}</td>
+                </tr>
+                {record?.handleResult && (
+                  <tr>
+                    <th>异议处理结果</th>
+                    <td>{record.handleResult}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <div className="actions">
+              {isOpening && !checkedInAt ? (
+                <SpButton variant="primary" onClick={checkIn}>
+                  签到
+                </SpButton>
+              ) : checkedInAt ? (
+                <span className="hall-tag hall-tag--info">已签到 {new Date(checkedInAt).toLocaleTimeString("zh-CN")}</span>
+              ) : null}
+              {canConfirm && (
+                <>
+                  <SpButton variant="primary" success onClick={confirmRecord}>
+                    确认开标记录
+                  </SpButton>
+                  <SpButton warning onClick={() => setDisputeOpen(true)}>
+                    提出异议
+                  </SpButton>
+                </>
+              )}
+            </div>
+            {!isOpening && stage && <div className="stage-hint">大厅互动仅在开标阶段开放。</div>}
+          </div>
+        </section>
+
+        {/* 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），
+             WS opening:record:updated → refresh() 实时更新；本司行按 bidSupplierId 高亮 */}
+        <section className="hall-card records-card">
+          <header className="hall-card__header">
+            <div className="records-head">
+              <span className="records-title">唱标记录（全部投标人）</span>
+              <span className="records-count">{records.length} 条</span>
+            </div>
+          </header>
+          <div className="hall-card__body">
+            <table className="hall-table">
+              <thead>
+                <tr>
+                  <th className="col-supplier w-supplier">供应商</th>
+                  <th className="w-amount">报价（元）</th>
+                  <th className="w-period">工期</th>
+                  <th className="w-quality">质量目标</th>
+                  <th className="w-bond">保证金</th>
+                  <th className="w-status">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map((row) => (
+                  <tr key={row.id}>
+                    <td className="col-supplier w-supplier">
+                      <span>{row.supplierName}</span>
+                      {row.bidSupplierId === record?.bidSupplierId && (
+                        <span className="hall-tag hall-tag--sm hall-tag--info self-tag">本司</span>
+                      )}
+                    </td>
+                    <td className="w-amount">{row.amount}</td>
+                    <td className="w-period">{row.period}</td>
+                    <td className="w-quality">{row.qualityTarget}</td>
+                    <td className="w-bond">{row.bondStatus}</td>
+                    <td className="w-status">{row.confirmStatus}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {records.length === 0 && <div className="hall-table-empty">暂无唱标记录（开标后实时展示）</div>}
+          </div>
+        </section>
+      </div>
+
+      <div className="right">
+        {supplierId ? (
+          <ChatPanel projectId={projectId} supplierId={supplierId} supplierName={supplierName} userId={auth.user?.id ?? ""} />
+        ) : profileError ? (
+          <section className="hall-card">
+            <div className="hall-card__body">
+              <EmptyState icon={MessageSquareOff} title="会话加载失败">
+                <SpButton variant="primary" onClick={retryProfile}>
+                  重试
+                </SpButton>
+              </EmptyState>
+            </div>
+          </section>
+        ) : (
+          <section className="hall-card">
+            <div className="hall-card__body">
+              <div className="empty">加载供应商信息中…</div>
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* 提出开标异议（ElMessageBox.prompt 等价：textarea + 必填校验） */}
+      <SpDialog
+        open={disputeOpen}
+        onClose={() => setDisputeOpen(false)}
+        title="提出开标异议"
+        icon={MessageSquareOff}
+        footer={
+          <>
+            <SpButton onClick={() => setDisputeOpen(false)}>取消</SpButton>
+            <SpButton variant="primary" loading={disputeSubmitting} disabled={!disputeReason.trim()} onClick={submitDispute}>
+              提交
+            </SpButton>
+          </>
+        }
+      >
+        <SpTextarea
+          value={disputeReason}
+          onChange={(e) => setDisputeReason(e.target.value)}
+          placeholder="请输入异议原因"
+          autoFocus
+        />
+        {!disputeReason.trim() && <p style={{ marginTop: 8, fontSize: 12, color: "#e6a23c" }}>请填写异议原因</p>}
+      </SpDialog>
+    </div>
+  );
+}
