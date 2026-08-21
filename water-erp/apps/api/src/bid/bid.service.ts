@@ -28,6 +28,7 @@ import { openField } from '../common/crypto/field-crypto';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan } from './opening-compare.util';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { generateProjectCode } from '../common/project-code.util';
+import { assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
@@ -621,6 +622,16 @@ export class BidService {
 
   async createProject(dto: CreateBidProjectDto) {
     const projectCode = await generateProjectCode(this.prisma, dto.procurementMethod);
+    // 截标↔开标 24h（P0-2）：双字段提供 → align 校验；缺 deadline → 按规则派生
+    // （DTO 层 openTime/deadline 均为必填，此分支为服务层防御；缺 openTime 保持原行为不动）
+    const openTime = new Date(dto.openTime);
+    let deadline: Date;
+    if (dto.deadline != null) {
+      deadline = new Date(dto.deadline);
+      assertOpeningDeadlineRelation({ openTime, deadline, mode: 'align' });
+    } else {
+      deadline = deriveDeadlineFromOpenTime(openTime);
+    }
     const project = await this.prisma.bidProject.create({
       data: {
         name: dto.name,
@@ -630,8 +641,8 @@ export class BidService {
         roundMode: dto.procurementMethod === '谈判采购' ? 'negotiation'
                   : dto.procurementMethod === '竞价采购' ? 'sealed_auction'
                   : null,
-        openTime: new Date(dto.openTime),
-        deadline: new Date(dto.deadline),
+        openTime,
+        deadline,
         riskNote: dto.riskNote,
         qualityRequirement: dto.qualityRequirement,
         bondRequired: dto.bondRequired ?? false,
@@ -669,7 +680,15 @@ export class BidService {
     const procurementMethod = metadata.method || '公开招标';
     const projectCode = await generateProjectCode(this.prisma, procurementMethod);
     const openTime = parseFlexibleDate(metadata.openTime) ?? (announcement.publishDate || new Date());
-    const deadline = parseFlexibleDate(metadata.deadline) ?? new Date(openTime.getTime() + 7 * 86400000);
+    // 截标↔开标 24h（P0-2）：metadata.deadline 缺省 → 派生（替换原 +7 天兜底）；提供 → align 校验
+    const parsedDeadline = parseFlexibleDate(metadata.deadline);
+    let deadline: Date;
+    if (parsedDeadline) {
+      assertOpeningDeadlineRelation({ openTime, deadline: parsedDeadline, mode: 'align' });
+      deadline = parsedDeadline;
+    } else {
+      deadline = deriveDeadlineFromOpenTime(openTime);
+    }
     // 采购文件下载截止时间（= 公告截止时间），超时不可下载
     const downloadDeadline = parseFlexibleDate(metadata.downloadDeadline);
 
@@ -727,9 +746,11 @@ export class BidService {
     const openTime = parsedOpen && parsedOpen.getTime() > Date.now()
       ? parsedOpen
       : undefined;
+    // 截标↔开标 24h（P0-2）：覆盖方向不变（parsedDeadline < openTime 才覆盖 / 无有效 openTime 时
+    // 沿用 metadata deadline），但覆盖值改为按 openTime 派生 24h，杜绝公告元数据把非 24h 关系写回。
     const deadline = parsedDeadline
       && (!openTime || parsedDeadline.getTime() < openTime.getTime())
-      ? parsedDeadline
+      ? (openTime ? deriveDeadlineFromOpenTime(openTime) : parsedDeadline)
       : undefined;
     const downloadDeadline = parseFlexibleDate(metadata.downloadDeadline) ?? undefined;
 
@@ -761,13 +782,58 @@ export class BidService {
     // stage 流转不走此接口：曾允许 PATCH stage 绕过专用端点的前置校验/副作用/审计
     // （OPENING→EVALUATING 不建 AI task 致分析死锁，且无监督/审计日志）。
     // 阶段变更须走 openSubmission/startOpening/startEvaluation/archiveAll 等专用端点。
+
+    // 截标↔开标 24h（P0-2）分阶段语义：
+    // - align（prev.deadline 未过）：仅传 openTime → deadline 派生；仅传 deadline → openTime 派生；双传 → align 校验
+    // - frozen（prev.deadline 已过，延时开标 PATCH openTime 走此分支）：deadline 不得变更；openTime ≥ deadline + 24h
+    // 非时间字段更新不读 prev、不走校验（零回归）。
+    let openTime: Date | undefined;
+    let deadline: Date | undefined;
+    // 终审 null 守卫：@IsOptional 放行显式 null，若按 !== undefined 判定会把 new Date(null)=epoch
+    // 当「提供」反推 1969；null 一律视同未提供（不写时间字段、不进 align/frozen 校验）
+    if (dto.openTime != null || dto.deadline != null) {
+      const prev = await this.prisma.bidProject.findUnique({
+        where: { id },
+        select: { openTime: true, deadline: true, stage: true },
+      });
+      if (prev?.openTime && prev?.deadline) {
+        const mode = modeFor(prev.deadline);
+        const newOpen = dto.openTime != null ? new Date(dto.openTime) : undefined;
+        const newDeadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
+        if (mode === 'frozen') {
+          // frozen 必传 prev：DEADLINE_FROZEN 检查依赖现值比对，缺失会静默跳过
+          assertOpeningDeadlineRelation({
+            openTime: newOpen ?? prev.openTime,
+            deadline: newDeadline ?? prev.deadline,
+            prev: { openTime: prev.openTime, deadline: prev.deadline },
+            mode: 'frozen',
+          });
+          openTime = newOpen;
+          deadline = newDeadline;
+        } else if (newOpen && newDeadline) {
+          assertOpeningDeadlineRelation({ openTime: newOpen, deadline: newDeadline, mode: 'align' });
+          openTime = newOpen;
+          deadline = newDeadline;
+        } else if (newOpen) {
+          openTime = newOpen;
+          deadline = deriveDeadlineFromOpenTime(newOpen);
+        } else if (newDeadline) {
+          openTime = deriveOpenTimeFromDeadline(newDeadline);
+          deadline = newDeadline;
+        }
+      } else {
+        // 项目不存在或时间字段缺失的历史行：保持原行为（仅写入所传字段，由 update 抛 P2025/落库）
+        openTime = dto.openTime != null ? new Date(dto.openTime) : undefined;
+        deadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
+      }
+    }
     return this.prisma.bidProject.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.procurementMethod !== undefined && { procurementMethod: dto.procurementMethod }),
-        ...(dto.openTime !== undefined && { openTime: new Date(dto.openTime) }),
-        ...(dto.deadline !== undefined && { deadline: new Date(dto.deadline) }),
+        ...(openTime !== undefined && { openTime }),
+        ...(deadline !== undefined && { deadline }),
         ...(dto.riskNote !== undefined && { riskNote: dto.riskNote }),
         ...(dto.budget !== undefined && { budget: dto.budget }),
         ...(dto.scope !== undefined && { scope: dto.scope }),
@@ -1209,9 +1275,9 @@ export class BidService {
       throw new BadRequestException({ error: '仅流标项目可重启', code: 'PROJECT_NOT_ABORTED' });
     }
 
-    // N5：原时间已随流标过期——重启项目给「截标 +3 天、开标 +2h」兜底窗口，并在留痕中提示重新设定
+    // N5：原时间已随流标过期——重启项目给「截标 +3 天、开标 = 截标 +24h」兜底窗口，并在留痕中提示重新设定
     const fallbackDeadline = new Date(Date.now() + 3 * 24 * 3600 * 1000);
-    const fallbackOpenTime = new Date(fallbackDeadline.getTime() + 2 * 3600 * 1000);
+    const fallbackOpenTime = deriveOpenTimeFromDeadline(fallbackDeadline);
     const newCode = await generateProjectCode(this.prisma, original.procurementMethod);
     const now = new Date();
     const newProject = await this.prisma.bidProject.create({

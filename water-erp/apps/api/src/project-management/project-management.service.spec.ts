@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import { BadRequestException } from '@nestjs/common';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { ProjectManagementService } from './project-management.service';
+import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 
 const SAMPLE_DEMAND_TEXT = `采购需求申请表
 采购分类解释
@@ -1287,7 +1288,7 @@ describe('ProjectManagementService', () => {
       }));
     });
 
-    it('未来开标时间（>12h）时：保持「开标前 12h 截标」业务规则不变', async () => {
+    it('未来开标时间时：惰性创建 deadline = openTime − 24h（BID_DEADLINE_BEFORE_OPENING_MS）', async () => {
       const { service, prisma } = makeService();
       prisma.announcement = { findFirst: jest.fn() };
       prisma.bidProject = { findFirst: jest.fn(), create: jest.fn(), count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) };
@@ -1299,7 +1300,7 @@ describe('ProjectManagementService', () => {
 
       const r = await service.ensureBidProject('pm-01');
 
-      expect(Math.abs(new Date(r.deadline).getTime() - (future.getTime() - 12 * 3600 * 1000))).toBeLessThan(5000);
+      expect(Math.abs(new Date(r.deadline).getTime() - (future.getTime() - BID_DEADLINE_BEFORE_OPENING_MS))).toBeLessThan(5000);
     });
   });
   describe('N16-A createItemFromAnnouncement（公告直建补 PMI）', () => {

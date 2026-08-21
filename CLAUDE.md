@@ -380,6 +380,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ```
 
 **单向棘轮（2026-07 弱化，`bid/bid-state.ts`）**：只许前进、**允许跳步**（DOWNLOAD→OPENING、OPENING→ARCHIVED 合法），同阶段幂等；回退或离开 ARCHIVED 抛 `ConflictException` (409)。阶段是**单向进度标记而非逐级许可**——实质准入闸门下沉到端点业务前置（投递 = OPENING 前 + deadline 未到 + 已发布招标公告；解密 = OPENING + 解密窗口内）。人工流转按分工 v3（2026-08-13）：按时开标 :3005「开标确认」面板、启动评标与评标中流标 :3007、完整归档 :3005（闸门=签字闭环+评标回流已生成）。:3007 在 OPENING 阶段内写开标会话并持有「完成开标·资料移交」（`POST /bid/projects/:id/complete-opening`：开标文件包（JSON + SHA-256 指纹）存 MinIO、FileAsset 挂到会话并回传 :3005，幂等、不改 stage，**不作为启动评标的前置闸门**）。水叮当助理的归档动作经用户确认后复用同一 archiveAll 路径，是面板之外唯一的流转入口。例外：删除公告会把关联项目 stage 裸重置回 DOWNLOAD（`announcement.service.ts`，管理员刻意回滚，不经状态机）。
+截标↔开标 24h 业务规则（2026-08-21 P0-2，集团内部惯例，与《招标投标法》第34条偏离留痕）——常量 `BID_DEADLINE_BEFORE_OPENING_MS`（packages/shared）、校验 util `apps/api/src/bid/opening-deadline.util.ts`（align/frozen 分阶段）、存量迁移脚本 `scripts/align-opening-deadline-24h.ts`。
 
 ### File Uploads (MinIO)
 
