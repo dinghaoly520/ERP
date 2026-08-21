@@ -3508,6 +3508,19 @@ describe('截标↔开标 24h（P0-2）', () => {
     } as any)).rejects.toMatchObject({ response: { code: 'DEADLINE_OPENING_GAP_INVALID' } });
     expect(prisma.bidProject.update).not.toHaveBeenCalled();
   });
+
+  it('updateProject 终审 null 守卫：PATCH {openTime: null} 视同未提供——不写时间字段、不进 align 校验', async () => {
+    const prevOpen = new Date(Date.now() + 5 * 86400_000);
+    prisma.bidProject.findUnique.mockResolvedValue({
+      openTime: prevOpen, deadline: new Date(prevOpen.getTime() - H24), stage: 'SUBMIT',
+    });
+    await service.updateProject('p1', { openTime: null } as any);
+    // null 视同未提供：不读 prev（无 align/frozen 校验）、update 入参不含 openTime/deadline
+    expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
+    const data = prisma.bidProject.update.mock.calls[0][0].data;
+    expect(data.openTime).toBeUndefined();
+    expect(data.deadline).toBeUndefined();
+  });
 });
 
 describe('BidService — getOpeningRecordDraft', () => {

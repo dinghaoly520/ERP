@@ -1005,7 +1005,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                   </div>
                   <div>
                     <div className="mb-1">
-                      <span className="text-xs text-[var(--muted-foreground)]">标书投递截止（开标前24h）</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{`标书投递截止（开标前${DEADLINE_HOURS_BEFORE_OPENING}h）`}</span>
                     </div>
                     <input type="datetime-local" value={bidSubmissionDeadline} onChange={(e) => setBidSubmissionDeadline(e.target.value)} className="workbench-input w-full text-sm" />
                   </div>

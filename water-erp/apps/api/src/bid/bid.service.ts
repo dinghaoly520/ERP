@@ -789,15 +789,17 @@ export class BidService {
     // 非时间字段更新不读 prev、不走校验（零回归）。
     let openTime: Date | undefined;
     let deadline: Date | undefined;
-    if (dto.openTime !== undefined || dto.deadline !== undefined) {
+    // 终审 null 守卫：@IsOptional 放行显式 null，若按 !== undefined 判定会把 new Date(null)=epoch
+    // 当「提供」反推 1969；null 一律视同未提供（不写时间字段、不进 align/frozen 校验）
+    if (dto.openTime != null || dto.deadline != null) {
       const prev = await this.prisma.bidProject.findUnique({
         where: { id },
         select: { openTime: true, deadline: true, stage: true },
       });
       if (prev?.openTime && prev?.deadline) {
         const mode = modeFor(prev.deadline);
-        const newOpen = dto.openTime !== undefined ? new Date(dto.openTime) : undefined;
-        const newDeadline = dto.deadline !== undefined ? new Date(dto.deadline) : undefined;
+        const newOpen = dto.openTime != null ? new Date(dto.openTime) : undefined;
+        const newDeadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
         if (mode === 'frozen') {
           // frozen 必传 prev：DEADLINE_FROZEN 检查依赖现值比对，缺失会静默跳过
           assertOpeningDeadlineRelation({
@@ -821,8 +823,8 @@ export class BidService {
         }
       } else {
         // 项目不存在或时间字段缺失的历史行：保持原行为（仅写入所传字段，由 update 抛 P2025/落库）
-        openTime = dto.openTime !== undefined ? new Date(dto.openTime) : undefined;
-        deadline = dto.deadline !== undefined ? new Date(dto.deadline) : undefined;
+        openTime = dto.openTime != null ? new Date(dto.openTime) : undefined;
+        deadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
       }
     }
     return this.prisma.bidProject.update({
