@@ -5,7 +5,6 @@ import { AnnouncementAiService } from './announcement-ai.service';
 import { BidService } from '../bid/bid.service';
 import { ProjectManagementService } from '../project-management/project-management.service';
 import { BidDocumentService } from './bid-document.service';
-import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 @Injectable()
 export class AnnouncementService {
@@ -421,8 +420,6 @@ export class AnnouncementService {
         })
       : null;
 
-    let sealedPathsToClean: string[] = [];
-
     // P0-4 闸门：关联项目已进入投标/开标/评标流程（SUBMIT/OPENING/EVALUATING）时禁删公告。
     // 置于事务前拦截——零副作用：不下发任何级联删除/复位/MinIO 清理，引导先完成流标或归档。
     if (project) {
@@ -434,71 +431,19 @@ export class AnnouncementService {
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        // Cleanup linked project before delete — reset to DOWNLOAD if progressed
+        // 终审裁定（2026-08-21）：DOWNLOAD/ABORTED/ARCHIVED 三态仅解关联——追加风险备注、解除标书关联，
+        // 不重置阶段、不级联删除开标/评标产物、不清理 MinIO（SUBMIT+ 已由上方 409 闸门拦截）。
         if (project) {
-          const stageReset = project.stage !== 'DOWNLOAD' && project.stage !== 'ARCHIVED';
           await tx.bidProject.update({
             where: { projectCode: relatedProjectCode! },
             data: {
-              stage: stageReset ? 'DOWNLOAD' : undefined,
               riskNote: (project.riskNote || '') + '（来源公告已删除）',
             },
           });
-          if (stageReset) {
-            await tx.bidSupervisionLog.create({
-              data: {
-                projectId: project.id,
-                time: new Date(),
-                role: '系统',
-                target: relatedProjectCode!,
-                action: '公告删除导致项目阶段重置',
-                result: `阶段从 ${project.stage} 重置为 DOWNLOAD（来源公告已删除）`,
-                riskFlag: '高',
-              },
-            });
-            // H3: 级联失效下游开标/评标产物——否则陈旧数据被棘轮跳步当作合法准入凭证
-            // （可直接用上一轮的解密成功供应商/已确认报告"启动评标/生成结果"；重投新标书因 SUCCESS 保护永不开封）。
-            // 复位供应商与专家、删除开标会话/唱标/评分记录/评标结果/废标，关闭所有流转闸门。
-            // 注：评分标准结构（BidScoreItem/BidScorePoint）保留以便重招复用；闸门已由复位关闭。
-            await tx.bidOpeningSession.deleteMany({ where: { projectId: project.id } });
-            await tx.bidOpeningRecord.deleteMany({ where: { projectId: project.id } });
-            await tx.bidScoreRecord.deleteMany({ where: { supplier: { projectId: project.id } } });
-            await tx.bidEvaluationResult.deleteMany({ where: { projectId: project.id } });
-            await tx.bidInvalidBid.deleteMany({ where: { projectId: project.id } });
-            await tx.bidSupplier.updateMany({
-              where: { projectId: project.id },
-              data: { decryptStatus: 'PENDING', confirmStatus: 'PENDING', bidValidity: null },
-            });
-            await tx.bidExpert.updateMany({
-              where: { projectId: project.id },
-              data: { reportConfirmed: false, reportConfirmedAt: null },
-            });
-          }
           await tx.bidDocument.updateMany({
             where: { announcementId: id },
             data: { bidProjectId: null },
           });
-
-          // 收集密封文件路径（供事务后异步清理 MinIO 孤儿对象）
-          if (stageReset) {
-            const submissions = await tx.supplierBidSubmission.findMany({
-              where: { projectId: project.id },
-              select: { technicalFileAssetId: true, businessFileAssetId: true, coverLetterAssetId: true },
-            });
-            const assetIds = new Set<string>();
-            for (const s of submissions) {
-              if (s.technicalFileAssetId) assetIds.add(s.technicalFileAssetId);
-              if (s.businessFileAssetId) assetIds.add(s.businessFileAssetId);
-              if (s.coverLetterAssetId) assetIds.add(s.coverLetterAssetId);
-            }
-            if (assetIds.size > 0) {
-              const fileAssets = await tx.fileAsset.findMany({
-                where: { id: { in: [...assetIds] } },
-                select: { sealedPath: true },
-              });
-              sealedPathsToClean = fileAssets.map(f => f.sealedPath).filter(Boolean) as string[];
-            }
-          }
         }
 
         await tx.announcement.delete({ where: { id } });
@@ -508,14 +453,6 @@ export class AnnouncementService {
         `公告删除事务失败 (announcementId=${id}): ${(e as Error).message}`,
       );
       throw e; // re-throw so caller knows delete failed
-    }
-
-    // 事务成功后异步清理 MinIO 密封文件（best-effort，不阻塞）
-    if (sealedPathsToClean.length > 0) {
-      for (const path of [...new Set(sealedPathsToClean)]) {
-        try { await minioClient.removeObject(MINIO_BUCKET, path); } catch (_) { /* best-effort */ }
-      }
-      this.logger.log(`公告删除清理 MinIO 密封文件 ${sealedPathsToClean.length} 个 (project=${relatedProjectCode})`);
     }
 
     if (project) {
