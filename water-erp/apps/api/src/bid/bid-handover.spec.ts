@@ -9,6 +9,8 @@ import { BidGateway } from './bid.gateway';
 import { ScoreStandardValidator } from './score-standard-validator.service';
 import { StorageService } from '../storage/storage.service';
 import { PriceFormulaService } from './price-formula.service';
+import { AdminKeyService } from '../common/crypto/admin-keystore.service';
+import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
 
 jest.mock('../upload/minio.client', () => ({
   minioClient: { getObject: jest.fn().mockResolvedValue({}), putObject: jest.fn().mockResolvedValue({}) },
@@ -31,6 +33,8 @@ function makePrismaMock() {
     bidOpeningSession: { findUnique: jest.fn() },
     bidSupplier: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn() },
     bidOpeningRecord: { findMany: jest.fn().mockResolvedValue([]) },
+    // §5.5b（Task 18）：buildHandoverPackage 解密明文指纹段查 submission（默认空 → 旧项目零变化）
+    supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
     bidSupervisionLog: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn(async (cb: any) => cb(tx)),
     __tx: tx,
@@ -53,6 +57,9 @@ async function buildService(prisma: any) {
       { provide: StorageService, useValue: { upload: jest.fn().mockResolvedValue(undefined) } },
       // BidService 构造器中 @InjectQueue 的可选队列：提供空令牌避免 DI 报错
       { provide: 'BullQueue_tender-processing', useValue: {} },
+      // Task 12 新增构造依赖（Nest 测试模块不自动实例化未注册 provider）
+      { provide: AdminKeyService, useValue: { readPrivateKey: jest.fn(), getActiveCert: jest.fn(), ensureBootstrap: jest.fn(), generate: jest.fn() } },
+      { provide: DualEnvelopeService, useValue: { verifySignature: jest.fn(), assertEnvelopeIntact: jest.fn(), decryptOuterFile: jest.fn(), verifyFieldsCommit: jest.fn() } },
     ],
   }).compile();
   return moduleRef.get(BidService);

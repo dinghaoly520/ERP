@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening } from '@/lib/api';
+import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
 import DecryptConfirmDialog from '@/components/decrypt-confirm-dialog';
+import AdjudicateDialog, { type AdjudgeMode } from '@/components/adjudicate-dialog';
 import {
   Unlock, Clock, Shield, CheckCircle, AlertTriangle, ExternalLink,
-  Volume2, Zap, Loader, FileText, RotateCcw, PencilLine,
+  Volume2, Zap, Loader, FileText, RotateCcw, PencilLine, Lock, Gavel,
 } from 'lucide-react';
 import { DECRYPT_LABEL, BOND_STATUS_OPTIONS } from '@water-erp/shared';
 import { toast } from 'sonner';
@@ -28,6 +29,12 @@ const decryptColors: Record<string, { cls: string }> = {
 };
 
 const STAGES = ['投递中', '解密中', '确认中', '已完成'] as const;
+
+/** decrypt-outer 批量聚合形状判别（批量：details 数组 + total/success/skipped/failed 计数） */
+type DecryptOuterBatch = { total: number; success: number; skipped: number; failed: number; details: DecryptOuterDetail[] };
+function isDecryptOuterBatch(r: DecryptOuterResult): r is DecryptOuterBatch {
+  return 'details' in r && Array.isArray((r as DecryptOuterBatch).details);
+}
 
 // 保证金状态选项 BOND_STATUS_OPTIONS 从 @water-erp/shared 导入（单一来源，原前端镜像已删）
 
@@ -105,6 +112,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const [resuming, setResuming] = useState(false);
   // ═══ DANGER 兜底：重新封标（从系统内原始明文恢复）═══
   const [resealing, setResealing] = useState<Set<string>>(new Set());
+  // ═══ 双信封 v2（T17）：解外层 / 归因裁决 ═══
+  const [outerDecrypting, setOuterDecrypting] = useState<Set<string>>(new Set());
+  const [bulkOuterDecrypting, setBulkOuterDecrypting] = useState(false);
+  const [adjudgeTarget, setAdjudgeTarget] = useState<{ id: string; name: string; mode: AdjudgeMode } | null>(null);
+  const [adjudgeSubmitting, setAdjudgeSubmitting] = useState(false);
 
   const handleReseal = async (supplierId: string) => {
     setResealing(prev => new Set(prev).add(supplierId));
@@ -120,6 +132,94 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       toast.error(err?.message || '重新封标失败');
     }
     setResealing(prev => { const n = new Set(prev); n.delete(supplierId); return n; });
+  };
+
+  // ═══ 双信封 v2（T17）：解外层（单家/批量，§5.2）═══
+  const handleDecryptOuter = async (sid: string) => {
+    setOuterDecrypting(prev => new Set(prev).add(sid));
+    try {
+      const res = await decryptOuter(project.id, sid);
+      if (isDecryptOuterBatch(res)) {
+        // 单家路径正常不返回批量形状；防御性处理（后端契约变更时仍可读）
+        toast.info(`解外层完成：成功 ${res.success} · 跳过 ${res.skipped} · 失败 ${res.failed}`);
+      } else if ('skipped' in res) {
+        toast.info('外层已解密（幂等跳过）');
+      } else if (res.success) {
+        toast.success(`外层解密成功（${res.roles.length} 个密封件）`);
+      } else {
+        toast.error(`${res.error ?? '解外层失败'}`);
+      }
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e?.message || '解外层失败');
+      onRefresh();
+    } finally {
+      setOuterDecrypting(prev => { const n = new Set(prev); n.delete(sid); return n; });
+    }
+  };
+
+  const handleBulkDecryptOuter = async () => {
+    setBulkOuterDecrypting(true);
+    try {
+      const res = await decryptOuter(project.id);
+      // 批量路径返回明细聚合（total=进入处理的供应商数，Task 12 口径）
+      if (isDecryptOuterBatch(res)) {
+        toast.success(`解外层完成：成功 ${res.success} · 跳过 ${res.skipped} · 失败 ${res.failed}`);
+        for (const d of res.details) {
+          if ('success' in d && !d.success) {
+            toast.error(`${d.supplierName}：${d.error ?? d.code ?? '解外层失败'}`);
+          }
+        }
+      } else if ('skipped' in res) {
+        toast.info('外层已解密（幂等跳过）');
+      } else if (res.success) {
+        toast.success('外层解密成功');
+      } else {
+        toast.error(`${res.error ?? '解外层失败'}`);
+      }
+      onRefresh();
+    } catch (e: any) {
+      toast.error(e?.message || '解外层失败');
+      onRefresh();
+    } finally {
+      setBulkOuterDecrypting(false);
+    }
+  };
+
+  // ═══ 双信封 v2（T17）：归因裁决（§5.5）═══
+  const openAdjudge = (s: { id: string; supplierName: string }, mode: AdjudgeMode) => {
+    setAdjudgeTarget({ id: s.id, name: s.supplierName, mode });
+  };
+
+  const handleAdjudge = async (attribution: DecryptAdjudgeAttribution, reason: string) => {
+    if (!adjudgeTarget || adjudgeSubmitting) return;
+    setAdjudgeSubmitting(true);
+    try {
+      await decryptAdjudge(project.id, { supplierId: adjudgeTarget.id, attribution, reason });
+      if (attribution === 'RESET_PENDING') {
+        toast.success('已重置解密机会，供应商可在窗口内重新解密');
+      } else if (attribution === 'BIDDER') {
+        toast.success('已裁决：投标人责任（视为撤销）');
+      } else {
+        toast.success('已裁决：平台责任（视为撤回）');
+      }
+      setAdjudgeTarget(null);
+      onRefresh();
+    } catch (e: any) {
+      // RESET_PENDING 且窗口已关：后端 409 DECRYPT_WINDOW_CLOSED——提示先延长窗口
+      if (e?.code === 'DECRYPT_WINDOW_CLOSED') {
+        toast.error('解密窗口已关闭，请先延长解密窗口再重置解密机会');
+      } else if (e?.code === 'NOT_UNKNOWN') {
+        // 惰性归因已在请求内先行执行（如矩阵行 3 自动落 BIDDER）——刷新呈现终局
+        toast.error(e?.message || '该供应商无需裁决');
+        setAdjudgeTarget(null);
+        onRefresh();
+      } else {
+        toast.error(e?.message || '裁决失败');
+      }
+    } finally {
+      setAdjudgeSubmitting(false);
+    }
   };
 
   // 每秒驱动重渲染，让倒计时圆环/MM:SS 实时跳动（remaining 依赖 now 重新计算）
@@ -156,6 +256,17 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     const pending = statuses.filter(s => s !== 'SUCCESS' && s !== 'DANGER' && s !== 'RUNNING').length;
     return { total, success, danger, running, pending, pct: total > 0 ? (success + danger) / total : 0 };
   }, [project]);
+
+  // ═══ 双信封 v2（T17）：分轨操作集 ═══
+  // dualOuterPending：外层待解（§5.2 批量候选；已撤回排除）
+  const dualOuterPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
+    s.envelopeVersion === 'dual-v2' && !s.outerDecryptedAt && s.submitStatus !== '已撤回'), [project]);
+  // legacyPending：旧轨批量解密候选（主持端代解密仍走 decryptSupplier；与既有 decryptProgress.pending
+  // 口径一致——仅 PENDING 计数展示与入列，DANGER/RUNNING 行不入批量）
+  const legacyPending = useMemo(() => (project?.suppliers ?? []).filter(s =>
+    s.envelopeVersion !== 'dual-v2'
+    && s.decryptStatus !== 'SUCCESS' && s.decryptStatus !== 'DANGER' && s.decryptStatus !== 'RUNNING'
+    && s.submitStatus !== '已撤回'), [project]);
 
   const sortedRecords = useMemo(() => {
     if (!project) return [];
@@ -204,6 +315,23 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       : Math.max(0, Math.floor((new Date(session.decryptWindowEnd).getTime() - now - serverTimeOffset) / 1000))
     : 0;
   const timeWarning = remaining <= 0 ? 'none' : remaining <= 60 ? '1min' : remaining <= 300 ? '5min' : 'none';
+  // 解密窗口是否已过期（含无会话兜底：未组建会话视为不可解密，不构成裁决候选）
+  const windowExpired = !!session && remaining <= 0;
+
+  // ═══ 待裁决清单（§5.5）：UNKNOWN 家 + 窗口关闭后的未归因候选（惰性归因将标记 UNKNOWN）═══
+  const adjudgeRows = useMemo(() => {
+    if (!project) return [];
+    return project.suppliers.filter(s => {
+      if (s.submitStatus === '已撤回' || s.envelopeVersion !== 'dual-v2' || s.decryptStatus === 'SUCCESS') return false;
+      if (s.dangerAttribution === 'UNKNOWN') return true;
+      if (s.dangerAttribution) return false; // BIDDER/PLATFORM 已终局
+      // 未归因候选：仅窗口关闭后（窗口内供应商仍可自行解密，不可裁决）
+      return windowExpired;
+    });
+  }, [project, windowExpired]);
+
+  /** 本项目是否含双信封 v2 供应商（混轨项目文案分派用） */
+  const hasDual = useMemo(() => (project?.suppliers ?? []).some(s => s.envelopeVersion === 'dual-v2'), [project]);
 
   // ═══ API ══
   const handleResolveDispute = async (recordId: string, result: string, confirm: boolean) => {
@@ -267,7 +395,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   };
 
   const handleBulkDecrypt = () => {
-    const pending = (project?.suppliers ?? []).filter(s => s.decryptStatus !== 'SUCCESS');
+    // T17：批量解密仅旧轨（dual-v2 行由「解外层」承载；服务端对混轨调用旧端点会 400 USE_SUPPLIER_DECRYPT）
+    const pending = legacyPending;
     if (pending.length === 0) return;
     setDecryptTarget(pending.map(s => ({ id: s.id, name: s.supplierName })));
   };
@@ -356,7 +485,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <AlertTriangle size={16} /> 解密窗口已过期，仍有供应商未到终局态。
           </div>
           <div className="pl-6 text-xs font-medium text-[var(--foreground)]">
-            可重新「组建开标会话」延长窗口继续解密；或对未解密供应商执行「接受未解密」定性为解密异常（记入监督日志）。
+            {hasDual
+              ? '可重新「组建开标会话」延长窗口继续解密；或对待裁决供应商执行「归因裁决」定性（投标人责任 / 平台责任，记入监督日志）。'
+              : '可重新「组建开标会话」延长窗口继续解密；或对未解密供应商执行「接受未解密」定性为解密异常（记入监督日志）。'}
           </div>
         </div>
       )}
@@ -524,16 +655,63 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </h2>
           <div className="flex items-center gap-2">
             {/* 阶段流转（开放投递/确定开标）已归 :3005 采购管理工作台，本页仅执行开标 */}
-            {!!session && project.stage === 'OPENING' && decryptProgress.total > 0 && decryptProgress.pending > 0 && (
+            {/* T17：双信封 v2——管理方解外层（§5.2；批量逐家串行，返回明细聚合） */}
+            {!!session && project.stage === 'OPENING' && dualOuterPending.length > 0 && (
+              <button type="button" onClick={handleBulkDecryptOuter} disabled={bulkOuterDecrypting || !!session.pausedAt}
+                className="neu-btn-soft is-warning disabled:opacity-50">
+                <Unlock size={13} /> {bulkOuterDecrypting ? '批量解外层中...' : session.pausedAt ? '开标已暂停' : `全部解外层 (${dualOuterPending.length})`}
+              </button>
+            )}
+            {/* 旧轨批量解密（dual-v2 行由「解外层」承载） */}
+            {!!session && project.stage === 'OPENING' && legacyPending.length > 0 && (
               <button type="button" onClick={handleBulkDecrypt} disabled={bulkDecrypting || !!session.pausedAt}
                 className="neu-btn-soft is-warning disabled:opacity-50">
-                <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : session.pausedAt ? '开标已暂停' : `全部解密 (${decryptProgress.pending})`}
+                <Zap size={13} /> {bulkDecrypting ? '批量解密中...' : session.pausedAt ? '开标已暂停' : `全部解密 (${legacyPending.length})`}
               </button>
             )}
             {/* Wave 5-6：阶段已离 OPENING 后才开抽屉时，initialStageClosed 让输入框初始即禁用（免首次发送撞 403） */}
             {projectId && <ExchangeDrawer projectId={projectId} initialStageClosed={project.stage !== 'OPENING'} />}
           </div>
         </div>
+
+        {/* ═══ 待裁决面板（§5.5）：UNKNOWN 非终局态继续阻塞开标——主持人在此逐家落归因 ═══ */}
+        {adjudgeRows.length > 0 && (
+          <div className="border-b border-[oklch(0.78_0.12_83_/_0.3)] bg-[oklch(0.78_0.12_83_/_0.08)] px-6 py-3">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Gavel size={13} strokeWidth={1.5} className="text-[oklch(0.46_0.11_65)]" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[oklch(0.46_0.11_65)]">
+                解密失败归因 · 待裁决（{adjudgeRows.length}）
+              </span>
+              <span className="text-[11px] text-[color:var(--muted-foreground)]">
+                归因未决将阻塞「完成开标·移交」，请依据外层解密/取包事实逐家裁决
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {adjudgeRows.map(s => (
+                <div key={s.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-[oklch(0.99_0.004_258_/_0.8)] px-3 py-2">
+                  <span className="min-w-[140px] flex-1 text-[12px] font-bold text-[color:var(--foreground)]">{s.supplierName}</span>
+                  <span className={`text-[11px] font-semibold ${s.outerDecryptedAt ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+                    外层解密：{s.outerDecryptedAt ? '已解' : '未解'}
+                  </span>
+                  <span className={`text-[11px] font-semibold ${s.packageFetchedAt ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+                    解密包领取：{s.packageFetchedAt ? '已取' : '未取'}
+                  </span>
+                  <span className="rounded-full bg-[oklch(0.78_0.12_83_/_0.16)] px-2 py-0.5 text-[11px] font-semibold text-[oklch(0.46_0.11_65)]">
+                    {DECRYPT_LABEL[s.decryptStatus] || DECRYPT_LABEL.PENDING}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={adjudgeSubmitting}
+                    onClick={() => openAdjudge(s, 'unknown')}
+                    className="neu-btn-soft is-warning !h-[28px] text-[11px] disabled:opacity-50"
+                  >
+                    <Gavel size={11} /> 裁决
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Decrypt progress bar */}
         {decryptProgress.total > 0 && (
@@ -577,6 +755,20 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 const isDanger = s.decryptStatus === 'DANGER';
                 const resealFailed = isDanger && !!s.decryptError?.includes('重新封标失败');
                 const isDecrypting = decrypting.has(s.id);
+                // ═══ 双信封 v2（T17）：新轨分派（envelopeVersion 由项目详情派生下发）═══
+                const isDual = s.envelopeVersion === 'dual-v2';
+                const outerDone = !!s.outerDecryptedAt;
+                const attribution = s.dangerAttribution ?? null;
+                const isOuterDecrypting = outerDecrypting.has(s.id);
+                const canAct = !!session && project.stage === 'OPENING' && !session.pausedAt;
+                // 归因徽标（§5.5）：BIDDER=撤销·投标人责任 / PLATFORM=撤回·平台责任 / UNKNOWN=待裁决
+                const attributionMeta = attribution === 'BIDDER'
+                  ? { label: '撤销 · 投标人责任', cls: 'text-[var(--danger)] bg-[oklch(0.66_0.175_27_/_0.14)]' }
+                  : attribution === 'PLATFORM'
+                    ? { label: '撤回 · 平台责任', cls: 'text-[var(--warning)] bg-[oklch(0.78_0.12_83_/_0.16)]' }
+                    : attribution === 'UNKNOWN'
+                      ? { label: '待裁决', cls: 'text-[oklch(0.46_0.11_65)] bg-[oklch(0.78_0.12_83_/_0.2)] animate-pulse' }
+                      : null;
                 // 唱标状态由该供应商的开标记录决定：无记录→唱标；待供应商确认→可重录（后端 upsert）；
                 // 已确认/异议态记录后端 409（RECORD_LOCKED/RECORD_ALREADY_CONFIRMED）→ 只读「已唱标」
                 const record = project.openingRecords.find(r => r.bidSupplierId === s.id);
@@ -592,12 +784,33 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                       )}
                     </td>
                     <td className="px-5 py-3 font-mono tracking-tight text-[color:var(--accent-strong)]">{s.receiptNo || '—'}</td>
-                    <td className="px-5 py-3 text-[color:var(--muted-foreground)]">{s.encryptStatus}</td>
+                    <td className="px-5 py-3 text-[color:var(--muted-foreground)]">
+                      <div>{s.encryptStatus}</div>
+                      {/* T17：双信封 v2 外层状态（管理方解外层进度的事实锚） */}
+                      {isDual && (
+                        <div className="mt-1">
+                          {outerDone ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.71_0.11_164_/_0.16)] px-2 py-0.5 text-[10px] font-semibold text-[var(--success)]">
+                              <Shield size={10} strokeWidth={1.7} /> 外层已解
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(0.78_0.12_83_/_0.16)] px-2 py-0.5 text-[10px] font-semibold text-[oklch(0.46_0.11_65)]">
+                              <Lock size={10} strokeWidth={1.7} /> 外层未解
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide ${isRunning ? 'animate-pulse' : ''} ${c.cls}`}>
                         {isRunning && <Loader size={10} className="animate-spin" />}
                         {label}
                       </span>
+                      {isDual && attributionMeta && (
+                        <span className={`ml-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${attributionMeta.cls}`}>
+                          {attributionMeta.label}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       {s.confirmStatus === 'CONFIRMED' ? (
@@ -610,12 +823,27 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
-                        {!!session && project.stage === 'OPENING' && !isSuccess && !isDanger && (
+                        {/* 旧轨：主持端代解密（dual-v2 行改用「解外层」） */}
+                        {!!session && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && (
                           <button type="button" onClick={() => handleDecrypt(s.id)} disabled={isDecrypting || bulkDecrypting || !!session.pausedAt}
                             className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
                             {isDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
                             {isDecrypting ? '解密中...' : session.pausedAt ? '已暂停' : '解密'}
                           </button>
+                        )}
+                        {/* T17：双信封 v2——管理方解外层（§5.2；幂等，重复调用返回 skipped） */}
+                        {isDual && !outerDone && canAct && (
+                          <button type="button" onClick={() => handleDecryptOuter(s.id)} disabled={isOuterDecrypting || bulkOuterDecrypting}
+                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
+                            {isOuterDecrypting ? <Loader size={12} className="animate-spin" /> : <Unlock size={12} strokeWidth={1.5} />}
+                            {isOuterDecrypting ? '解外层中...' : '解外层'}
+                          </button>
+                        )}
+                        {/* T17：外层已解、等待供应商自行解密上传（主持端无代解密通道） */}
+                        {isDual && outerDone && !isSuccess && !isDanger && (
+                          <span className="flex items-center gap-1 text-[11px] font-semibold text-[color:var(--muted-foreground)]">
+                            <Loader size={12} strokeWidth={1.5} /> 待供应商解密
+                          </span>
                         )}
                         {isSuccess && project.stage === 'OPENING' && (
                           !record ? (
@@ -634,8 +862,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             </span>
                           )
                         )}
-                        {/* P1-1：窗口过期后的未解密定性通道（后端已放宽 PENDING/RUNNING） */}
-                        {!!session && remaining <= 0 && project.stage === 'OPENING' && !isSuccess && !isDanger && (
+                        {/* P1-1：窗口过期后的未解密定性通道（后端已放宽 PENDING/RUNNING）；dual-v2 行改用归因裁决 */}
+                        {!!session && remaining <= 0 && project.stage === 'OPENING' && !isSuccess && !isDanger && !isDual && (
                           <button type="button"
                             onClick={async () => {
                               const reason = prompt('解密窗口已过期未解密。请填写定性原因（如：供应商未在窗口内完成解密）：');
@@ -650,7 +878,31 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             <AlertTriangle size={12} strokeWidth={1.5} /> 接受未解密
                           </button>
                         )}
-                        {isDanger && project.stage === 'OPENING' && !resealFailed && (
+                        {/* T17：归因裁决入口（UNKNOWN 家 / 窗口关闭后的未归因候选；裁决即落终局） */}
+                        {isDual && !isSuccess && (attribution === 'UNKNOWN' || (!attribution && windowExpired)) && (
+                          <button type="button" disabled={adjudgeSubmitting}
+                            onClick={() => openAdjudge(s, 'unknown')}
+                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[oklch(0.46_0.11_65)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
+                            <Gavel size={12} strokeWidth={1.5} /> 裁决
+                          </button>
+                        )}
+                        {/* T15 纠错通道：BIDDER→PLATFORM 改判（撤销判定更正为撤回） */}
+                        {isDual && isDanger && attribution === 'BIDDER' && (
+                          <button type="button" disabled={adjudgeSubmitting}
+                            onClick={() => openAdjudge(s, 'rejudge')}
+                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--warning)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
+                            <Gavel size={12} strokeWidth={1.5} /> 改判平台责任
+                          </button>
+                        )}
+                        {/* T13 硬前置：平台责任家重置解密机会（窗口须开，关闭时隐藏——需先延长窗口） */}
+                        {isDual && isDanger && attribution === 'PLATFORM' && canAct && !windowExpired && (
+                          <button type="button" disabled={adjudgeSubmitting}
+                            onClick={() => openAdjudge(s, 'reset')}
+                            className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--success)] transition-colors hover:text-[var(--accent-strong)] disabled:opacity-50">
+                            <RotateCcw size={12} strokeWidth={1.5} /> 重置解密机会
+                          </button>
+                        )}
+                        {isDanger && project.stage === 'OPENING' && !resealFailed && !isDual && (
                           <>
                             <button type="button"
                               disabled={resealing.has(s.id)}
@@ -812,6 +1064,17 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           }
         }}
         onClose={() => setDecryptTarget(null)}
+      />
+
+      {/* ═══ T17：解密失败归因裁决弹窗（unknown/rejudge/reset 三模式共用）═══ */}
+      <AdjudicateDialog
+        open={adjudgeTarget !== null}
+        supplierName={adjudgeTarget?.name ?? ''}
+        mode={adjudgeTarget?.mode ?? 'unknown'}
+        windowOpen={!windowExpired}
+        submitting={adjudgeSubmitting}
+        onConfirm={handleAdjudge}
+        onClose={() => setAdjudgeTarget(null)}
       />
 
       {/* ═══ 唱标信息录入（修复开标闭环：解密后主持人补录报价/工期/质量/保证金）═══ */}

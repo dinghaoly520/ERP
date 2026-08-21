@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { AdminCertController } from './admin-cert.controller';
 import { BidController } from './bid.controller';
 import { BidService } from './bid.service';
 import { BidScoreStandardService } from './bid-score-standard.service';
@@ -17,6 +18,9 @@ import { ScorePointExtractorService } from './score-point-extractor.service';
 import { ScoreStandardValidator } from './score-standard-validator.service';
 import { PriceFormulaService } from './price-formula.service';
 import { BidBackupModule } from '../bid-backup/bid-backup.module';
+import { AdminKeyService } from '../common/crypto/admin-keystore.service';
+import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
+import { SignatureService } from '../common/crypto/signature.service';
 
 @Module({
   imports: [
@@ -30,8 +34,21 @@ import { BidBackupModule } from '../bid-backup/bid-backup.module';
     AiBidAnalysisModule, // ← 为了注入 PlaintextFetcherService（Task 1: AI 提取得分点）
     BidBackupModule,
   ],
-  controllers: [BidController, BidSignPacketController],
-  providers: [BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService],
-  exports: [BidGateway, BidService, ClarificationAiService],
+  controllers: [BidController, BidSignPacketController, AdminCertController],
+  providers: [BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService],
+  exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService],
 })
-export class BidModule {}
+export class BidModule implements OnModuleInit {
+  private readonly logger = new Logger(BidModule.name);
+  constructor(private readonly adminKey: AdminKeyService) {}
+
+  /** 管理方加密证书 bootstrap：无 active 证书时自动生成（幂等）。
+   *  失败不阻塞启动——DB/文件系统暂不可用时 warn 放行，首次实际使用前可重试（ensureBootstrap 幂等）。 */
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.adminKey.ensureBootstrap();
+    } catch (e) {
+      this.logger.warn(`管理方加密证书 bootstrap 失败（不阻塞启动）：${(e as Error).message}`);
+    }
+  }
+}

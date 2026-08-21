@@ -2,7 +2,7 @@ import { computed } from 'vue'
 import { useSupplierStore } from '@/stores/supplier'
 import {
   HomeFilled, OfficeBuilding, EditPen, Document, DocumentChecked,
-  Bell, ChatDotRound, Goods, Connection, Box,
+  Bell, ChatDotRound, Goods, Connection, Box, Key,
 } from '@element-plus/icons-vue'
 
 // X-1：集中供应商菜单权限逻辑。当前基于 isTemporary 布尔分支，后续扩展为权限矩阵时只需改此文件。
@@ -25,6 +25,7 @@ export function useSupplierMenu() {
         { path: '/supply', title: '我的供货', icon: Box, desc: '已准入品类与报价' },
         { divider: true, label: '企业档案' },
         { path: '/profile', title: '企业信息', icon: OfficeBuilding, desc: '主体资料、资质与联系人' },
+        { path: '/profile/ukey', title: 'U盾管理', icon: Key, desc: '投标加密证书与介质' },
         { path: '/change-records', title: '申请记录', icon: EditPen, desc: '变更审核进度' },
       )
     }

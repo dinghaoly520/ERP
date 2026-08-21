@@ -415,6 +415,7 @@ model BidSupplier {
   checkInAt             DateTime? // 开标大厅签到时间
   checkInMeta           String? // 签到环境 JSON 快照：IP / User-Agent（存证）
   lastSeenAt            DateTime? // 大厅在场心跳（节流写入）
+  dangerAttribution     String? // BIDDER | PLATFORM | UNKNOWN
 
   @@unique([projectId, supplierName])
   @@index([supplierId])
@@ -1067,6 +1068,7 @@ model Supplier {
   clarifications      BidClarification[]
   contractPrices      ContractPrice[]
   invitation          SupplierInvitation[]         @relation("InvitationUsedBy")
+  certs               SupplierCert[]
 
   // ── 采购中心关联 ──
   awardedRounds  ProcurementRound[] @relation("AwardedSupplier")
@@ -1474,6 +1476,14 @@ model SupplierBidSubmission {
   fileHash             String? // 投标文件整体 SHA-256（签名前计算）
   signature            String? // SM2 签名值 hex
   signedAt             DateTime? // 签名时间
+  // ── 双信封 v2（dual-envelope）──
+  envelope          Json?    // dual-v2 信封（version/certSn/adminCertId/files/sealedFields/fieldsCommit）
+  envelopeVersion   String?  // 'dual-v2' | null(旧轨)
+  decryptedPrice    String?  // 解密上传后经 fieldsCommit 验证的报价
+  outerDecryptedAt  DateTime?
+  packageFetchedAt  DateTime?
+  innerAssets       Json?    // {role: assetId}——C_inner 归属链（§5.4a）
+  decryptedAssets   Json?    // {role: assetId}——解密明文归属链（§5.4a）
   status               String    @default("draft") // draft, submitted, withdrawn
   submittedAt          DateTime?
   serverSubmittedAt    DateTime? // 服务端权威提交时间（审计信任锚点）
@@ -1530,7 +1540,7 @@ model BidFileBackup {
   projectId        String
   supplierId       String
   fileAssetId      String
-  fileRole         String // technical | business | coverLetter
+  fileRole         String // technical | business | coverLetter | bond(dual-v2 新轨)
   backupKey        String   @unique // MinIO: sealed-backup/{pid}/{sid}/{role}/{basename}
   sealedPath       String // 本备份所镜像的 sealed 对象键（核验时直接读取）
   wrappedDek       String // KMS 包裹的 DEK（密文，需 KMS_SECRET 解包）
@@ -2907,4 +2917,28 @@ model UserBadge {
   @@unique([userId, badgeCode])
   @@index([userId])
   @@index([badgeCode])
+}
+
+// ── 双信封 v2：证书体系（spec 2026-08-20 §3.1/§3.2）──
+
+model SupplierCert {
+  id            String   @id @default(cuid())
+  supplierId    String
+  certSn        String   @unique        // 证书序列号
+  certDn        String                   // 证书主体（CN=企业名称,...）
+  publicKey     String                   // SM2 公钥 hex（04 开头）
+  alg           String   @default("SM2")
+  bindingStatus String   @default("ACTIVE") // ACTIVE | REVOKED
+  boundAt       DateTime @default(now())
+  revokedAt     DateTime?
+  supplier      Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  @@index([supplierId])
+}
+
+model AdminEncryptionCert {
+  id        String   @id @default(cuid())
+  publicKey String                   // SM2 公钥 hex
+  certDn    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 }

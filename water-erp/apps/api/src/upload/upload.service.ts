@@ -169,6 +169,30 @@ export class UploadService implements OnModuleInit {
       throw new ForbiddenException({ error: '无权访问该文件', code: 'FILE_FORBIDDEN' });
     }
 
+    // §5.4a 新轨 C_outer 拒收（置于 E2EE AES 分支之前）：dual-v2 四列引用的 bid_document 密文
+    // 对任何人都不提供下载——解密必须走开标解密流程（主持端 decrypt-outer → 供应商 decrypt-upload）。
+    // 判定限定 envelopeVersion='dual-v2'，不误伤旧轨 clientEncrypted 资产（旧轨供应商本人下载明文是合法功能）。
+    if (asset.category === 'bid_document') {
+      const dualSubmission = await this.prisma.supplierBidSubmission.findFirst({
+        where: {
+          envelopeVersion: 'dual-v2',
+          OR: [
+            { technicalFileAssetId: asset.id },
+            { businessFileAssetId: asset.id },
+            { coverLetterAssetId: asset.id },
+            { bidBondAssetId: asset.id },
+          ],
+        },
+        select: { id: true },
+      });
+      if (dualSubmission) {
+        throw new BadRequestException({
+          error: '双层信封密文不提供下载；请走开标解密流程',
+          code: 'SEALED_NO_DOWNLOAD',
+        });
+      }
+    }
+
     // E2EE: 文件在 MinIO 中是 ciphertext，需在流式输出时解密
     if (asset.clientEncrypted) {
       const submission = await this.prisma.supplierBidSubmission.findFirst({
@@ -203,6 +227,40 @@ export class UploadService implements OnModuleInit {
       return;
     }
 
+    // 旧轨服务端密封资产（encrypted && sealedPath，clientEncrypted=false）：
+    // clean-legacy-plaintext 清理 asset.key 明文原对象后，通用分支必须从 sealedPath
+    // 读密文并 KMS 解包 sealedKey 流式解密输出（口径镜像 plaintext-fetcher：
+    // sealedPath || key 读点 + isWrappedKey→unwrapKey + AES 解密）。否则供应商回看/
+    // staff/专家下载此类资产会 404。dual-v2 已在前置 SEALED_NO_DOWNLOAD 拒收，不落此分支。
+    if (asset.encrypted && asset.sealedPath) {
+      const submission = await this.prisma.supplierBidSubmission.findFirst({
+        where: {
+          OR: [
+            { technicalFileAssetId: asset.id },
+            { businessFileAssetId: asset.id },
+            { coverLetterAssetId: asset.id },
+          ],
+        },
+      });
+      const sealedKey = submission?.technicalFileAssetId === asset.id ? submission?.technicalSealedKey
+        : submission?.businessFileAssetId === asset.id ? submission?.businessSealedKey
+        : submission?.coverLetterSealedKey;
+      if (!sealedKey) {
+        throw new BadRequestException({ error: '密封文件缺少解密密钥', code: 'MISSING_SEALED_KEY' });
+      }
+      const rawKey = isWrappedKey(sealedKey) ? unwrapKey(sealedKey, process.env.KMS_SECRET!) : sealedKey;
+
+      const sealedStream = await minioClient.getObject(MINIO_BUCKET, asset.sealedPath);
+      const sealedDecryptStream = createDecryptStream(rawKey);
+      res.setHeader('Content-Type', asset.mimeType);
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${encodeURIComponent(asset.originalName)}"`,
+      );
+      sealedStream.pipe(sealedDecryptStream).pipe(res);
+      return;
+    }
+
     res.setHeader('Content-Type', asset.mimeType);
     res.setHeader('Content-Length', String(asset.size));
     res.setHeader(
@@ -218,13 +276,81 @@ export class UploadService implements OnModuleInit {
   /**
    * 文件访问权限判定：
    * - 上传者本人：允许
+   * - §5.4a 新轨 C_inner（bid_inner_ciphertext）：反查 submission.innerAssets 归属链，
+   *   仅该项目 BidSupplier 对应的登录用户放行（现四列规则不含等待解密中的供应商本人）
+   * - §5.4a 新轨明文（bid_decrypted）：反查 submission.decryptedAssets 归属链——项目成员本人、
+   *   admin / bid_host / leader / staff（要求该供应商 decryptStatus=SUCCESS）、
+   *   本项目专家（SUCCESS 门控复用）
+   *   ★ 两分支必须先于下方「四列反查」通用规则——新轨资产不在四列中，通用规则会把
+   *   staff/专家 判为「非投标文件 → 放行」，绕过 SUCCESS 门控与成员规则
    * - admin / bid_host / leader / staff：允许，但若文件属于供应商投标提交则需 decryptStatus=SUCCESS
    * - bid_expert：仅当被分配到某项目，且该文件属于该项目某供应商提交的投标文件，
    *   且对应 BidSupplier 已解密成功时允许
    * - 其他：拒绝
    */
-  private async canAccessFile(asset: { id: string; uploaderId: string | null }, user: { sub: string; role: string }): Promise<boolean> {
+  private async canAccessFile(
+    asset: { id: string; uploaderId: string | null; category: string },
+    user: { sub: string; role: string },
+  ): Promise<boolean> {
     if (asset.uploaderId && asset.uploaderId === user.sub) return true;
+
+    if (asset.category === 'bid_inner_ciphertext') {
+      // §5.2 成员规则：innerAssets 归属链反查（asset.id 是某角色 C_inner）→ 成员本人放行
+      const submission = await this.findSubmissionByDualAssets('innerAssets', asset.id);
+      if (!submission) return false;
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { id: submission.supplierId },
+        select: { userId: true },
+      });
+      return !!supplier && supplier.userId === user.sub;
+    }
+
+    if (asset.category === 'bid_decrypted') {
+      // decryptedAssets 归属链反查；成员兜底（正常 uploaderId=supplier.userId 已被本人检查放行）
+      const submission = await this.findSubmissionByDualAssets('decryptedAssets', asset.id);
+      if (!submission) return false;
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { id: submission.supplierId },
+        select: { userId: true },
+      });
+      if (supplier && supplier.userId === user.sub) return true;
+
+      if (['admin', 'bid_host', 'leader', 'staff'].includes(user.role)) {
+        const decrypted = await this.prisma.bidSupplier.findFirst({
+          where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
+        });
+        return !!decrypted;
+      }
+
+      if (user.role === 'bid_expert') {
+        const expert = await this.prisma.bidExpert.findFirst({
+          where: { userId: user.sub, projectId: submission.projectId },
+        });
+        if (!expert) return false;
+        const bidSupplier = await this.prisma.bidSupplier.findFirst({
+          where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
+        });
+        if (!bidSupplier) return false;
+
+        // 审计：记录专家文件访问（与四列分支同款）
+        await this.prisma.bidSupervisionLog.create({
+          data: {
+            projectId: submission.projectId,
+            time: new Date(),
+            role: '专家',
+            target: bidSupplier.supplierName,
+            action: '文件访问',
+            result: `专家预览/下载投标文件 (asset: ${asset.id})`,
+            riskFlag: '无',
+          },
+        });
+
+        return true;
+      }
+
+      return false;
+    }
+
     if (['admin', 'bid_host', 'leader', 'staff'].includes(user.role)) {
       const submission = await this.prisma.supplierBidSubmission.findFirst({
         where: {
@@ -320,6 +446,24 @@ export class UploadService implements OnModuleInit {
   }
 
   /**
+   * §5.4a 归属链反查：新轨 C_inner / bid_decrypted 资产不在 submission 四列中，
+   * 必须经 innerAssets/decryptedAssets 两 Json 列解析归属。
+   * 角色是封闭集合（EnvelopeRole），按 path 精确匹配各角色键。
+   */
+  private async findSubmissionByDualAssets(
+    column: 'innerAssets' | 'decryptedAssets',
+    assetId: string,
+  ): Promise<{ supplierId: string; projectId: string } | null> {
+    const roles = ['technical', 'business', 'coverLetter', 'bond'] as const;
+    return this.prisma.supplierBidSubmission.findFirst({
+      where: {
+        OR: roles.map(role => ({ [column]: { path: [role], equals: assetId } })),
+      },
+      select: { supplierId: true, projectId: true },
+    });
+  }
+
+  /**
    * 删除文件（MinIO 对象 + 元数据）
    */
   async delete(key: string, user?: { sub: string; role: string }) {
@@ -333,6 +477,30 @@ export class UploadService implements OnModuleInit {
     const isAdmin = !!user && ['admin', 'bid_host'].includes(user.role);
     if (!isAdmin && asset.uploaderId !== user?.sub) {
       throw new ForbiddenException({ error: '无权删除该文件', code: 'FILE_FORBIDDEN' });
+    }
+
+    // §5.5b（Task 18）解密链路资产删除保护——置于四列引用保护之前：
+    // ① 新轨 C_inner / 明文资产不在 submission 四列中，通用规则漏不掉也得拦——按类目整体禁删；
+    // ② dual-v2 C_outer 恰在四列内，必须先按 dual-v2 口径给 FILE_PROTECTED（否则被通用规则吞成 FILE_REFERENCED）。
+    if (asset.category === 'bid_inner_ciphertext' || asset.category === 'bid_decrypted') {
+      throw new ConflictException({ error: '该文件属开标解密链路资产，禁止删除', code: 'FILE_PROTECTED' });
+    }
+    if (asset.category === 'bid_document') {
+      const dualOuter = await this.prisma.supplierBidSubmission.findFirst({
+        where: {
+          envelopeVersion: 'dual-v2',
+          OR: [
+            { technicalFileAssetId: asset.id },
+            { businessFileAssetId: asset.id },
+            { coverLetterAssetId: asset.id },
+            { bidBondAssetId: asset.id },
+          ],
+        },
+        select: { id: true },
+      });
+      if (dualOuter) {
+        throw new ConflictException({ error: '该文件属开标解密链路资产，禁止删除', code: 'FILE_PROTECTED' });
+      }
     }
 
     // H7: 已被投标文件引用的资产不可删除——防供应商截标后删件伪装技术故障 / 触发解密误判（H1 组合）

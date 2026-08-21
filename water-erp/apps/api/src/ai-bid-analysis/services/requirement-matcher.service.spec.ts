@@ -76,6 +76,62 @@ describe('RequirementMatcherService', () => {
     expect(out[0].excerpt).toBe('first');                    // 保留首条
   });
 
+  // ── 分块匹配（2026-08-18）：33 条条款单次输出的 JSON 超 LLM 输出上限被截断（finish_reason=length），
+  //    第十二地质大队 requirementResponses 曾因此为 0。分批（默认 11 条/批）防截断。──
+  it('超过单批上限时分多批调用并合并结果', async () => {
+    const manyReq: TenderRequirements = {
+      ...req,
+      technicalRequirements: Array.from({ length: 23 }, (_, i) => ({
+        id: `T${i + 1}`, category: '技术', content: `要求${i + 1}`, isStarred: false, weight: 1,
+      })),
+    };
+    const llm = {
+      chatJson: jest.fn().mockImplementation((_sys: string, prompt: string) => {
+        const seqs = [...prompt.matchAll(/"seq":(\d+)/g)].map((m) => Number(m[1]));
+        return Promise.resolve({
+          responses: seqs.map((seq) => ({
+            seq, status: 'met', excerpt: `摘录${seq}`, file: 'technical', page: 1, confidence: 0.9,
+          })),
+        });
+      }),
+    } as any;
+    const out = await new RequirementMatcherService(llm).match(
+      manyReq, pages, { technical: 'fa-tech', business: 'fa-biz' }, 'task-1',
+    );
+    expect(llm.chatJson).toHaveBeenCalledTimes(3);           // 23 条 → 11+11+1 三批
+    expect(out).toHaveLength(23);
+    expect(out[22]).toMatchObject({ requirementId: 'T23', excerpt: '摘录23' });
+    expect(out[0].requirementId).toBe('T1');
+  });
+
+  it('单批失败不拖垮其余批次（部分成功）', async () => {
+    const manyReq: TenderRequirements = {
+      ...req,
+      technicalRequirements: Array.from({ length: 23 }, (_, i) => ({
+        id: `T${i + 1}`, category: '技术', content: `要求${i + 1}`, isStarred: false, weight: 1,
+      })),
+    };
+    let call = 0;
+    const llm = {
+      chatJson: jest.fn().mockImplementation((_sys: string, prompt: string) => {
+        call++;
+        if (call === 2) return Promise.reject(new Error('LLM 输出被截断（finish_reason=length）'));
+        const seqs = [...prompt.matchAll(/"seq":(\d+)/g)].map((m) => Number(m[1]));
+        return Promise.resolve({
+          responses: seqs.map((seq) => ({
+            seq, status: 'met', excerpt: `摘录${seq}`, file: 'technical', page: 1, confidence: 0.9,
+          })),
+        });
+      }),
+    } as any;
+    const out = await new RequirementMatcherService(llm).match(
+      manyReq, pages, { technical: 'fa-tech', business: 'fa-biz' }, 'task-1',
+    );
+    expect(out).toHaveLength(12);                            // 批1(11) + 批2失败 + 批3(1)
+    expect(out[0].requirementId).toBe('T1');
+    expect(out[out.length - 1].requirementId).toBe('T23');
+  });
+
   async function svcMatch(llm: any) {
     return new RequirementMatcherService(llm).match(req, pages, { technical: 'fa-tech', business: 'fa-biz' }, 'task-1');
   }

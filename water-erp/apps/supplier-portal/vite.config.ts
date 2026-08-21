@@ -10,10 +10,11 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
   },
-  // @water-erp/{shared,config} 的 dist 是 CJS；dev 模式直出 ESM 无法命名导入，
-  // 需强制预打包（esbuild 转 ESM）。生产构建经 rollup interop 无此问题。
+  // @water-erp/{shared,config,ukey} 的 dist 是 CJS（ukey 含 require('sm-crypto')）；
+  // dev 模式直出 ESM 无法命名导入（ukey 更是浏览器侧 require is not defined），
+  // 需强制预打包（esbuild 转 ESM）。生产构建经 rollup commonjs/interop 无此问题。
   optimizeDeps: {
-    include: ['@water-erp/shared', '@water-erp/config'],
+    include: ['@water-erp/shared', '@water-erp/config', '@water-erp/ukey'],
   },
   build: {
     chunkSizeWarningLimit: 1200,

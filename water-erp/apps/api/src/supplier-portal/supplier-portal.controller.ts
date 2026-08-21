@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request, Res, UseInterceptors, UploadedFile, UploadedFiles, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { SupplierPortalService } from './supplier-portal.service';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
@@ -6,6 +8,7 @@ import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
 import { CreateQualificationDto } from '../supplier/dto/create-qualification.dto';
 import { CreateChangeRequestDto } from '../supplier/dto/create-change-request.dto';
 import { ConvertToRegularDto } from './dto/convert-to-regular.dto';
+import type { DualEnvelope, EnvelopeRole } from '@water-erp/ukey';
 import { ReactivateDto } from './dto/reactivate.dto';
 import { CreateCatalogApplicationDto, UpdateCatalogApplicationDto } from './dto/catalog-application.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -45,6 +48,35 @@ export class SupplierPortalController {
   @Get('dashboard-stats')
   async getDashboardStats(@Request() req: any) {
     return this.portalService.getDashboardStats(req.user.sub);
+  }
+
+  // ─── CA 证书绑定（双信封 v2：DN↔企业名校验）───
+
+  // 管理方加密证书公钥公开端点（投递端取用；类级 @Roles('supplier') 已覆盖）
+  @Get('admin-cert')
+  async getAdminCert() {
+    return this.portalService.getActiveAdminCert();
+  }
+
+  @Get('profile/cert')
+  async listMyCerts(@Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.listMyCerts(supplierId);
+  }
+
+  @Post('profile/cert')
+  async bindCert(
+    @Request() req: any,
+    @Body() body: { certSn: string; certDn: string; publicKey: string; alg?: string },
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.bindCert(supplierId, body);
+  }
+
+  @Delete('profile/cert/:id')
+  async revokeCert(@Request() req: any, @Param('id') id: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.revokeCert(supplierId, id);
   }
 
   // ─── Contacts ───
@@ -226,16 +258,88 @@ export class SupplierPortalController {
       splitFiles?: { tech?: any; biz?: any; other?: any };
       // E2EE: 客户端加密密钥（assetId → "keyHex:ivHex:authTagHex"）
       clientDeks?: Record<string, string>;
+      // 双信封 v2（dual-v2 新轨）：客户端密封信封 + 对 canonicalEnvelopeHash(envelope) 的供应商证书签名
+      envelope?: DualEnvelope;
+      signature?: string;
     },
   ) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.submitBid(supplierId, projectId, body);
   }
 
+  // ─── 新轨补传（双信封 v2：解密异常恢复由供应商端双层重封，Task 10）───
+  // file 字段收的是新 C_outer 密文（客户端重新双层加密产物，非明文）；envelope 为整体新信封 JSON string。
+  @Post('bid-submissions/:projectId/reupload-dual')
+  @Throttle({ default: { ttl: 60000, limit: 5 } }) // 旧轨 reupload 5/min 同款，防刷拦截路径灌监督日志
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
+  async reuploadDual(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { role: string; envelope: string; signature?: string; ciphertextSha256?: string },
+  ) {
+    if (!file) throw new BadRequestException({ error: '请选择文件', code: 'NO_FILE' });
+    if (!body?.role || !body?.envelope) {
+      throw new BadRequestException({ error: '缺少 role 或 envelope 参数', code: 'MISSING_PARAMS' });
+    }
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.reuploadDualEnvelope(supplierId, projectId, {
+      role: body.role,
+      envelopeJson: body.envelope,
+      signature: body.signature,
+      ciphertext: file.buffer,
+      ciphertextSha256: body.ciphertextSha256,
+    });
+  }
+
   @Post('bid-submissions/:submissionId/withdraw')
   async withdrawSubmission(@Request() req: any, @Param('submissionId') submissionId: string) {
     const supplierId = await this.getSupplierId(req.user.sub);
     return this.portalService.withdrawSubmission(supplierId, submissionId);
+  }
+
+  // ─── 双信封 v2 开标解密（Task 13：供应商解内层）───
+
+  /** 取开标解密包：C_inner 下载凭证 + K_self + sealedFields + 窗口状态（记 packageFetchedAt 归因锚点） */
+  @Get('bid-submissions/:projectId/opening-package')
+  async getOpeningPackage(@Request() req: any, @Param('projectId') projectId: string) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getOpeningPackage(supplierId, projectId);
+  }
+
+  /** 解密上传：各角色解密明文（file_* 四文件 optional）+ F+nonce 承诺（fieldsJson/nonce）——服务端双闸校验 */
+  @Post('bid-submissions/:projectId/decrypt-upload')
+  @Throttle({ default: { ttl: 60000, limit: 5 } }) // reupload-dual 同款防刷（审查 fix round 1）
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'file_technical', maxCount: 1 },
+    { name: 'file_business', maxCount: 1 },
+    { name: 'file_coverLetter', maxCount: 1 },
+    { name: 'file_bond', maxCount: 1 },
+  ], { limits: { fileSize: 50 * 1024 * 1024 } }))
+  async decryptUpload(
+    @Request() req: any,
+    @Param('projectId') projectId: string,
+    @UploadedFiles() uploaded: {
+      file_technical?: Express.Multer.File[];
+      file_business?: Express.Multer.File[];
+      file_coverLetter?: Express.Multer.File[];
+      file_bond?: Express.Multer.File[];
+    },
+    @Body() body: { fieldsJson?: string; nonce?: string },
+  ) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    const FIELD_ROLE_MAP: ReadonlyArray<readonly [string, EnvelopeRole]> = [
+      ['file_technical', 'technical'],
+      ['file_business', 'business'],
+      ['file_coverLetter', 'coverLetter'],
+      ['file_bond', 'bond'],
+    ];
+    const files: Partial<Record<EnvelopeRole, Buffer>> = {};
+    for (const [field, role] of FIELD_ROLE_MAP) {
+      const f = (uploaded as any)?.[field]?.[0] as Express.Multer.File | undefined;
+      if (f) files[role] = f.buffer;
+    }
+    return this.portalService.decryptUpload(supplierId, projectId, files, body?.fieldsJson ?? '', body?.nonce ?? '');
   }
 
   // ─── 开标确认（供应商侧）───

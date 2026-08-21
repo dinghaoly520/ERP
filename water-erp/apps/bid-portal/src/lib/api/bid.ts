@@ -60,6 +60,62 @@ export function decryptBid(projectId: string, supplierId: string) {
   return api.post(`/bid/projects/${projectId}/decrypt/${supplierId}`, {});
 }
 
+/* ── 双信封 v2：解外层 / 归因裁决（§5.2/§5.5，admin·bid_host）── */
+
+/** decrypt-outer 单家明细（单家路径直接返回该明细；批量路径以 details 数组聚合） */
+export type DecryptOuterDetail =
+  | { supplierId: string; supplierName: string; skipped: true }
+  | { supplierId: string; supplierName: string; success: true; roles: string[]; innerAssets: Record<string, string> }
+  | { supplierId: string; supplierName: string; success: false; error?: string; code?: string };
+
+export type DecryptOuterResult =
+  | DecryptOuterDetail
+  | { total: number; success: number; skipped: number; failed: number; details: DecryptOuterDetail[] };
+
+/** 管理方解外层（服务端执行，窗口门控）；supplierId 缺省 = 批量（逐家串行返回明细聚合）。 */
+export function decryptOuter(projectId: string, supplierId?: string) {
+  return api.post<DecryptOuterResult>(
+    `/bid/projects/${projectId}/opening/decrypt-outer`,
+    supplierId ? { supplierId } : {},
+  );
+}
+
+export type DecryptAdjudgeAttribution = 'BIDDER' | 'PLATFORM' | 'RESET_PENDING';
+
+/**
+ * 解密失败归因裁决（§5.5）：UNKNOWN 家落 BIDDER/PLATFORM 终局（须填原因）；
+ * BIDDER→PLATFORM 改判；RESET_PENDING 重置解密机会（窗口关时后端 409 DECRYPT_WINDOW_CLOSED）。
+ */
+export function decryptAdjudge(projectId: string, body: {
+  supplierId: string;
+  attribution: DecryptAdjudgeAttribution;
+  reason: string;
+}) {
+  return api.post<{ adjudged: boolean; supplierId: string; supplierName: string; attribution: string }>(
+    `/bid/projects/${projectId}/opening/decrypt-adjudge`,
+    body,
+  );
+}
+
+/* ── 管理方加密证书（§3.2：查看 admin·bid_host；生成仅 admin）── */
+
+export interface AdminCertInfo {
+  id: string;
+  publicKey: string;
+  certDn: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export function getAdminCert() {
+  return api.get<AdminCertInfo | null>('/bid/admin-cert');
+}
+
+/** 轮转：生成新证书置 active、旧证全部 inactive（历史信封仍可凭旧私钥解外层）。 */
+export function generateAdminCert() {
+  return api.post<AdminCertInfo>('/bid/admin-cert/generate', {});
+}
+
 /* ── 管理员一键重新封标（从系统内原始明文恢复，无需上传文件）── */
 
 export interface ResealResult {

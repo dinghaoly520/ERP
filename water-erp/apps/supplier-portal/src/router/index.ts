@@ -53,6 +53,12 @@ const router = createRouter({
           meta: { title: '申请记录', icon: 'EditPen' },
         },
         {
+          path: 'profile/ukey',
+          name: 'UkeyManage',
+          component: () => import('@/views/profile/UkeyManage.vue'),
+          meta: { title: 'U盾管理', icon: 'Key' },
+        },
+        {
           path: 'bids',
           name: 'BidList',
           component: () => import('@/views/bid/BidList.vue'),

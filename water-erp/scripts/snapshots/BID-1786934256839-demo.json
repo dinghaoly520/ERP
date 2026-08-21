@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-08-18T04:50:12.857Z",
+  "capturedAt": "2026-08-18T05:23:46.243Z",
   "projectCode": "BID-1786934256839",
   "data": {
     "BidProject": [
@@ -430,54 +430,6 @@
       }
     ],
     "BidExpert": [
-      {
-        "id": "cmswnz7q5015yuunx36qeb2if",
-        "projectId": "cmswmioxz0052uunxu1879izv",
-        "expertName": "李自繁",
-        "major": "综合-施工",
-        "signedIn": true,
-        "avoidanceConfirmed": true,
-        "progress": 0,
-        "totalScore": "0",
-        "createdAt": "2026-08-17T03:18:27.293Z",
-        "updatedAt": "2026-08-18T03:08:37.802Z",
-        "userId": "c2bf9d5c0c8adb9048dc275",
-        "reportConfirmed": false,
-        "reportConfirmedAt": null,
-        "conflictedSupplierIds": [],
-        "phoneVerified": true,
-        "aiConsentAt": "2026-08-17T03:59:53.305Z",
-        "aiConsentConfirmed": true,
-        "isLead": true,
-        "invitationStatus": "confirmed",
-        "expertRole": "正选",
-        "confidentialityAgreed": true,
-        "confidentialityAgreedAt": "2026-08-17T03:59:33.631Z",
-        "disciplineAgreed": true,
-        "disciplineAgreedAt": "2026-08-17T03:59:39.493Z",
-        "scoreDraft": {
-          "desktop": {
-            "scores": {},
-            "savedAt": 1787022517793
-          }
-        },
-        "rsvpToken": "HZTcCrIgDv5i",
-        "rsvpExpiresAt": "2026-08-17T05:18:35.769Z",
-        "rsvpRespondedAt": null,
-        "isPurchaserRepresentative": false,
-        "dissentingOpinion": null,
-        "dissentingReason": null,
-        "signInIp": "::ffff:127.0.0.1",
-        "signInMeta": {
-          "ip": "::ffff:127.0.0.1",
-          "timestamp": "2026-08-17T03:59:25.660Z",
-          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
-        },
-        "signStatus": "PENDING",
-        "signStatusAt": null,
-        "signScanFileId": null,
-        "signRegisteredBy": "cmrai35fr0002koddvbs7wm1b"
-      },
       {
         "id": "cmswnz7q4015wuunxrvfk7nt2",
         "projectId": "cmswmioxz0052uunxu1879izv",
@@ -1647,6 +1599,221 @@
         "signStatusAt": "2026-08-17T09:09:34.514Z",
         "signScanFileId": null,
         "signRegisteredBy": "cmrai35fr0002koddvbs7wm1b"
+      },
+      {
+        "id": "cmswnz7q5015yuunx36qeb2if",
+        "projectId": "cmswmioxz0052uunxu1879izv",
+        "expertName": "李自繁",
+        "major": "综合-施工",
+        "signedIn": true,
+        "avoidanceConfirmed": true,
+        "progress": 100,
+        "totalScore": "79.3",
+        "createdAt": "2026-08-17T03:18:27.293Z",
+        "updatedAt": "2026-08-18T05:10:14.439Z",
+        "userId": "c2bf9d5c0c8adb9048dc275",
+        "reportConfirmed": false,
+        "reportConfirmedAt": null,
+        "conflictedSupplierIds": [],
+        "phoneVerified": true,
+        "aiConsentAt": "2026-08-17T03:59:53.305Z",
+        "aiConsentConfirmed": true,
+        "isLead": true,
+        "invitationStatus": "confirmed",
+        "expertRole": "正选",
+        "confidentialityAgreed": true,
+        "confidentialityAgreedAt": "2026-08-17T03:59:33.631Z",
+        "disciplineAgreed": true,
+        "disciplineAgreedAt": "2026-08-17T03:59:39.493Z",
+        "scoreDraft": {
+          "desktop": {
+            "scores": {
+              "cmswng8q100yguunxh26yxkc5:cmswokvfz01bvuunxxo0gjocp": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswng8q100yguunxh26yxkc5:cmswokvfz01bwuunxt9kuo7km": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswng8q100yguunxh26yxkc5:cmswokvfz01bxuunxpbi2mvp7": {
+                "score": 50,
+                "points": {
+                  "cmswoulfh01g8uunxsod43g5w": {
+                    "checked": true,
+                    "awardedScore": 50
+                  }
+                },
+                "reason": "报价按公式计分。"
+              },
+              "cmswng8q100yguunxh26yxkc5:cmswom0o901cjuunxshpk22j5": {
+                "score": 40,
+                "points": {
+                  "cmswoqdqr01eauunxfxp85hl7": {
+                    "checked": true,
+                    "awardedScore": 8
+                  },
+                  "cmswoqdqr01ebuunx37517t0r": {
+                    "checked": true,
+                    "awardedScore": 6
+                  },
+                  "cmswoqdqr01ecuunxm9nokews": {
+                    "checked": true,
+                    "awardedScore": 4
+                  },
+                  "cmswoqdqr01eduunxvp0r2fm3": {
+                    "checked": true,
+                    "awardedScore": 4
+                  },
+                  "cmswoqdqr01eeuunxl4qdmf7f": {
+                    "checked": true,
+                    "awardedScore": 4
+                  },
+                  "cmswoqdqr01efuunx9bj186nx": {
+                    "checked": true,
+                    "awardedScore": 5
+                  },
+                  "cmswoqdqr01eguunxqsen9v00": {
+                    "checked": true,
+                    "awardedScore": 5
+                  },
+                  "cmswoqdqr01ehuunxvqt2y50f": {
+                    "checked": true,
+                    "awardedScore": 4
+                  },
+                  "cmswoqdqr01eiuunxtzm64ocs": {
+                    "checked": true,
+                    "awardedScore": 0
+                  }
+                },
+                "reason": "施工组织设计总体可行，个别保障措施针对性不足。"
+              },
+              "cmswng8q100yguunxh26yxkc5:cmswomo4h01d4uunxads1mutg": {
+                "score": 6,
+                "points": {
+                  "cmswot8ss01fouunxaw1o2u33": {
+                    "checked": true,
+                    "awardedScore": 6
+                  }
+                },
+                "reason": "业绩数量与规模基本满足要求，信誉较好。"
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswokvfz01bvuunxxo0gjocp": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswokvfz01bwuunxt9kuo7km": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswokvfz01bxuunxpbi2mvp7": {
+                "score": 50,
+                "reason": "报价按公式计分。"
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswom0o901cjuunxshpk22j5": {
+                "score": 28,
+                "reason": "施工组织设计较完整，斜孔与水平孔专项措施明确。"
+              },
+              "cmswnkuyn00z8uunxb1q0semu:cmswomo4h01d4uunxads1mutg": {
+                "score": 8,
+                "reason": "同类业绩较丰富，含深孔定向孔复杂工况，信誉良好。"
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswokvfz01bvuunxxo0gjocp": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswokvfz01bwuunxt9kuo7km": {
+                "score": 0,
+                "passed": true,
+                "reason": ""
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswokvfz01bxuunxpbi2mvp7": {
+                "score": 50,
+                "points": {
+                  "cmswoulfh01g8uunxsod43g5w": {
+                    "checked": true,
+                    "awardedScore": 50
+                  }
+                },
+                "reason": "报价按公式计分。"
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswom0o901cjuunxshpk22j5": {
+                "score": 40,
+                "points": {
+                  "cmswoqdqr01eauunxfxp85hl7": {
+                    "checked": true,
+                    "awardedScore": 8
+                  },
+                  "cmswoqdqr01ebuunx37517t0r": {
+                    "checked": true,
+                    "awardedScore": 6
+                  },
+                  "cmswoqdqr01ecuunxm9nokews": {
+                    "checked": true,
+                    "awardedScore": 4
+                  },
+                  "cmswoqdqr01eduunxvp0r2fm3": {
+                    "checked": true,
+                    "awardedScore": 4
+                  },
+                  "cmswoqdqr01eeuunxl4qdmf7f": {
+                    "checked": true,
+                    "awardedScore": 4
+                  },
+                  "cmswoqdqr01efuunx9bj186nx": {
+                    "checked": true,
+                    "awardedScore": 5
+                  },
+                  "cmswoqdqr01eguunxqsen9v00": {
+                    "checked": true,
+                    "awardedScore": 5
+                  },
+                  "cmswoqdqr01ehuunxvqt2y50f": {
+                    "checked": true,
+                    "awardedScore": 4
+                  },
+                  "cmswoqdqr01eiuunxtzm64ocs": {
+                    "checked": true,
+                    "awardedScore": 0
+                  }
+                },
+                "reason": "施工组织设计一般，关键工序保障措施偏弱。"
+              },
+              "cmswnm7740107uunxzvj8g4p5:cmswomo4h01d4uunxads1mutg": {
+                "score": 6,
+                "points": {
+                  "cmswot8ss01fouunxaw1o2u33": {
+                    "checked": true,
+                    "awardedScore": 6
+                  }
+                },
+                "reason": "业绩类似性一般，酌情给分。"
+              }
+            },
+            "savedAt": 1787029814429
+          }
+        },
+        "rsvpToken": "HZTcCrIgDv5i",
+        "rsvpExpiresAt": "2026-08-17T05:18:35.769Z",
+        "rsvpRespondedAt": null,
+        "isPurchaserRepresentative": false,
+        "dissentingOpinion": null,
+        "dissentingReason": null,
+        "signInIp": "::ffff:127.0.0.1",
+        "signInMeta": {
+          "ip": "::ffff:127.0.0.1",
+          "timestamp": "2026-08-17T03:59:25.660Z",
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36"
+        },
+        "signStatus": "PENDING",
+        "signStatusAt": null,
+        "signScanFileId": null,
+        "signRegisteredBy": "cmrai35fr0002koddvbs7wm1b"
       }
     ],
     "BidScoreRecord": [
@@ -2309,6 +2476,171 @@
         "supplierId": "cmswng8q100yguunxh26yxkc5",
         "passed": null,
         "updatedAt": "2026-08-18T01:22:31.768Z"
+      },
+      {
+        "id": "cmsy6wi550001uuwhtqtao372",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bvuunxxo0gjocp",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.706Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.706Z"
+      },
+      {
+        "id": "cmsy6wi570003uuwho6qnchhd",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bwuunxt9kuo7km",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.707Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.707Z"
+      },
+      {
+        "id": "cmsy6wi580005uuwhs7eqb08p",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bxuunxpbi2mvp7",
+        "score": "50",
+        "reason": "报价按公式计分。",
+        "createdAt": "2026-08-18T04:55:59.709Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.709Z"
+      },
+      {
+        "id": "cmsy6wi5a0007uuwhhntqfr8u",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswom0o901cjuunxshpk22j5",
+        "score": "22",
+        "reason": "施工组织设计总体可行，个别保障措施针对性不足。",
+        "createdAt": "2026-08-18T04:55:59.710Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.710Z"
+      },
+      {
+        "id": "cmsy6wi5b0009uuwhnsnyzhsd",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswomo4h01d4uunxads1mutg",
+        "score": "5",
+        "reason": "业绩数量与规模基本满足要求，信誉较好。",
+        "createdAt": "2026-08-18T04:55:59.711Z",
+        "supplierId": "cmswng8q100yguunxh26yxkc5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.711Z"
+      },
+      {
+        "id": "cmsy6wi5c000buuwha17pn9pk",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bvuunxxo0gjocp",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.712Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.712Z"
+      },
+      {
+        "id": "cmsy6wi5d000duuwhy2uo37wi",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bwuunxt9kuo7km",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.713Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.713Z"
+      },
+      {
+        "id": "cmsy6wi5e000fuuwhm79l0r50",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bxuunxpbi2mvp7",
+        "score": "50",
+        "reason": "报价按公式计分。",
+        "createdAt": "2026-08-18T04:55:59.714Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.714Z"
+      },
+      {
+        "id": "cmsy6wi5f000huuwhx6crqmih",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswom0o901cjuunxshpk22j5",
+        "score": "28",
+        "reason": "施工组织设计较完整，斜孔与水平孔专项措施明确。",
+        "createdAt": "2026-08-18T04:55:59.716Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.716Z"
+      },
+      {
+        "id": "cmsy6wi5g000juuwh38etw9u0",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswomo4h01d4uunxads1mutg",
+        "score": "8",
+        "reason": "同类业绩较丰富，含深孔定向孔复杂工况，信誉良好。",
+        "createdAt": "2026-08-18T04:55:59.717Z",
+        "supplierId": "cmswnkuyn00z8uunxb1q0semu",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.717Z"
+      },
+      {
+        "id": "cmsy6wi5h000luuwho6r5h6e9",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bvuunxxo0gjocp",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.718Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.718Z"
+      },
+      {
+        "id": "cmsy6wi5k000nuuwhrakrejy5",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bwuunxt9kuo7km",
+        "score": "0",
+        "reason": null,
+        "createdAt": "2026-08-18T04:55:59.721Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": true,
+        "updatedAt": "2026-08-18T04:55:59.721Z"
+      },
+      {
+        "id": "cmsy6wi5m000puuwhuq5fvfdm",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswokvfz01bxuunxpbi2mvp7",
+        "score": "50",
+        "reason": "报价按公式计分。",
+        "createdAt": "2026-08-18T04:55:59.723Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.723Z"
+      },
+      {
+        "id": "cmsy6wi5n000ruuwhrkm5m5eu",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswom0o901cjuunxshpk22j5",
+        "score": "20",
+        "reason": "施工组织设计一般，关键工序保障措施偏弱。",
+        "createdAt": "2026-08-18T04:55:59.724Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.724Z"
+      },
+      {
+        "id": "cmsy6wi5p000tuuwhvhf0exa7",
+        "expertId": "cmswnz7q5015yuunx36qeb2if",
+        "scoreItemId": "cmswomo4h01d4uunxads1mutg",
+        "score": "5",
+        "reason": "业绩类似性一般，酌情给分。",
+        "createdAt": "2026-08-18T04:55:59.725Z",
+        "supplierId": "cmswnm7740107uunxzvj8g4p5",
+        "passed": null,
+        "updatedAt": "2026-08-18T04:55:59.725Z"
       }
     ],
     "BidScoreItem": [
@@ -3161,8 +3493,8 @@
           ]
         },
         "createdAt": "2026-08-17T03:55:25.316Z",
-        "updatedAt": "2026-08-18T04:40:03.741Z",
-        "completedAt": "2026-08-18T04:40:03.741Z",
+        "updatedAt": "2026-08-18T05:20:11.536Z",
+        "completedAt": "2026-08-18T05:20:11.535Z",
         "scoringCriteriaSnapshot": {
           "cmswokvfz01bvuunxxo0gjocp": {
             "evidenceHint": "在响应文件资格证明文件部分，查找营业执照、资质证书、业绩证明材料（中标通知书或合同关键页）、信誉声明等。",
@@ -3779,8 +4111,8 @@
         ],
         "overallComment": "该投标单位综合得分27.0分，其中技术标22分（满分40分）、商务标5分（满分10分），均低于满分一半左右，总分处于较低水平。资格审查通过，具备工程勘察劳务类（工程钻探）资质，满足招标资格要求。提交了4项近年钻探业绩，合同金额均在250万元以上，最深孔深超过1700m，业绩条件较好；项目经理为正高级工程师，技术职称高。但技术评分偏低，与业绩水平不匹配，需重点复核技术方案的具体内容是否存在缺失或不响应。商务评分中等，需核查商务条款响应情况。另外，部分业绩完成日期标注为2025年或2026年，需核实实际完工状态及证明材料，以防业绩无效。投标文件无缺失项，形式审查通过。综合来看，该投标单位在资质和业绩上有一定基础，但评分结果不理想，需结合人工复核判断最终排序。\n[自动] 存在未响应的 ★实质性条款：采取率要求：用双层半合管取心，覆盖层≥85﹪，强风化基岩、断层破碎带≥90﹪，弱风化及新鲜基岩≥95﹪；、完成压（注）水试验：每 5m 进行一段压水，压水试验按照《水利水电工程岩土渗透性原位试验规程 第 1 部分：钻孔压水试验》(SL/T 31.1—2025)进行。水压力测试随钻进过程每 5m 测 1 次，涌水量或水量变化时应加测 1 次。压水试验完成后，采购人将抽检每孔 5%～10%总压水试验段数（供应商承担抽检工作及费用），抽检全部与原压水试验符合才能认为压水试验合格，否则认为压水试验不合格，试验重新做，且费用由供应商负责。、钻孔结构及轨迹：���孔孔径不小于 75mm，并应满足孔内各测试设备孔径要求，供应商应根据地层结构确定合理的钻孔结构以满足完成钻探目的要求。、钻孔钻进每 200m，供应商应对孔深、孔斜、钻探资料等检查的工作。、索道架设与运行：满足施工方所组织的能满足钻孔施工要求的设备进出场要求；工作期内供应商应及时对索道进行维护。、勘探应急便道：满足人员进出场通行要求。勘探应急便道保通及其他；便道经过验收合格后，在勘探工作期间及产品验收之前需保通；工作期内供应商应及时对损毁勘探便道进行维护。",
         "deviationAnalysis": {
-          "reason": "业绩最多且有资质，商务分应高于第十二；报价最低，价格得满分；技术保持原评。",
-          "previousScore": 76.6,
+          "reason": "报价最低但偏离基准价，技术商务评分与业绩资质匹配，校准分不变",
+          "previousScore": 79.6,
           "comparativeScore": 79.6
         },
         "competitiveAnalysis": {
@@ -3874,7 +4206,7 @@
         },
         "processedAt": "2026-08-18T04:39:10.986Z",
         "createdAt": "2026-08-18T04:03:40.895Z",
-        "updatedAt": "2026-08-18T04:40:02.038Z",
+        "updatedAt": "2026-08-18T05:20:09.823Z",
         "starredResponse": {
           "unmet": [
             "采取率要求：用双层半合管取心，覆盖层≥85﹪，强风化基岩、断层破碎带≥90﹪，弱风化及新鲜基岩≥95﹪；",
@@ -4392,59 +4724,35 @@
                 "name": "李涛",
                 "role": "项目技术负责",
                 "title": "高级工程师",
-                "qualification": "注册安全工程师（证书号AG00224941）"
+                "qualification": "注册安全师（AG00224941）"
               },
               {
                 "name": "汤雪",
                 "role": "项目安全管理",
                 "title": "安全工程师",
-                "qualification": "注册安全工程师（证书号0153648）"
+                "qualification": "注册安全师（0153648）"
               },
               {
                 "name": "张净",
                 "role": "测量负责",
                 "title": "高级工程师",
-                "qualification": "高级工程师（证书号20220319044）"
+                "qualification": "高级工程师（20220319044）"
               },
               {
                 "name": "张川",
                 "role": "编录负责",
                 "title": "高级工程师",
-                "qualification": "高级工程师（证书号20220241189）"
-              },
-              {
-                "name": "吴小江",
-                "role": "机长",
-                "title": "高级工",
-                "qualification": "工程地质钻探高级工（证书号G1922080088）"
-              },
-              {
-                "name": "陈忠",
-                "role": "机长",
-                "title": "高级工",
-                "qualification": "工程地质钻探高级工（证书号G1922080093）"
-              },
-              {
-                "name": "王辉",
-                "role": "班长",
-                "title": "技师",
-                "qualification": "工程地质钻探技师（证书号J2122080012）"
-              },
-              {
-                "name": "胡文武",
-                "role": "班长",
-                "title": "技师",
-                "qualification": "工程地质钻探技师（证书号J1922080019）"
+                "qualification": "注册土木工程师（岩土）AY0031685"
               }
             ],
             "projectManager": {
               "name": "夏侯焕",
               "title": "高级工程师",
-              "experience": "2000年毕业于成都理工学院，多年钻探经验",
-              "qualification": "探矿工程高级工程师（证书号00250936）",
-              "similarProjects": "四川省马尔康县党坝乡锂辉石矿勘探钻探工程、重庆市黔江区水田坝铝土矿床深部扩大普查、邢台市柏乡县垃圾填埋场坝体水平孔钻探工程"
+              "experience": "多年钻探工程经验",
+              "qualification": "探矿工程高级工程师（00250936）",
+              "similarProjects": "马尔康锂辉石矿、重庆水田坝铝土矿、邢台水平孔等"
             },
-            "totalPersonnel": 17
+            "totalPersonnel": "17人"
           },
           "keyInfo": {
             "bidderName": "四川省第十二地质大队",
@@ -4459,30 +4767,30 @@
             "priceValidity": 90,
             "projectManager": "夏侯焕",
             "quotePriceYuan": "1,539,500.00元",
-            "warrantyPeriod": "3年",
+            "warrantyPeriod": "3年（岩心保存）",
             "establishedDate": "1955-05-05",
             "keyPerformances": [
               {
                 "keyMetrics": "zk0707孔深1043.6m，倾斜定向孔",
                 "projectName": "四川省马尔康县党坝乡锂辉石矿勘探钻探工程（续作I标段）施工",
-                "completionDate": "2021.11",
-                "contractAmount": "约450万"
+                "completionDate": "2021年11月",
+                "contractAmount": "约450万元"
               },
               {
-                "keyMetrics": "zk0606、zk1006为典型超过500m的倾斜定向孔",
+                "keyMetrics": "zk0606、zk1006为典型超过500m倾斜定向孔",
                 "projectName": "重庆市黔江区水田坝铝土矿床二坪矿段深部扩大普查",
-                "completionDate": "2023.08",
-                "contractAmount": "约600万"
+                "completionDate": "2023年8月",
+                "contractAmount": "约600万元"
               },
               {
-                "keyMetrics": "终孔孔深560m，水平定向孔，开孔倾角3°，终孔倾角12°",
+                "keyMetrics": "水平孔560m，终孔倾角12°，孔径96mm",
                 "projectName": "邢台市柏乡县垃圾填埋场坝体水平孔钻探工程",
-                "completionDate": "2023.12.29",
-                "contractAmount": "122.08万"
+                "completionDate": "2023年12月29日",
+                "contractAmount": "122.08万元"
               }
             ],
             "performanceCount": 3,
-            "qualificationName": "工程勘察劳务类（工程钻探）",
+            "qualificationName": "工程钻探劳务资质",
             "registeredCapital": "2190万元",
             "constructionPeriod": "2026年4月10日前完成",
             "qualificationLevel": "劳务类",
@@ -4497,112 +4805,73 @@
             "validFrom": "2022-08-09"
           },
           "commercial": {
-            "price": "153.95",
-            "warranty": "岩心保存3年，保证工程质量合格",
-            "paymentTerms": "完全响应采购文件要求",
-            "priceBreakdown": {
-              "tax": 0,
-              "labor": 97.5,
-              "other": 3.5,
-              "profit": 3,
-              "material": 31.2,
-              "equipment": 14.75,
-              "management": 4,
-              "provisional": 0
-            },
-            "serviceCommitment": "按采购人要求完成钻孔取心、压水试验、岩心编录、配合测试及岩心保存等全部工作"
+            "price": 153.95,
+            "warranty": "岩心保存3年",
+            "paymentTerms": "响应采购文件要求",
+            "priceBreakdown": null,
+            "serviceCommitment": "按合同约定履行，提供技术支持及售后配合"
           },
           "attachments": [
             {
               "name": "事业单位法人证书",
               "type": "证书",
-              "pageLocation": "5-6页"
+              "pageLocation": "第1页"
             },
             {
               "name": "安全生产许可证",
               "type": "证书",
-              "pageLocation": "7页"
+              "pageLocation": "第5页"
             },
             {
-              "name": "地质勘查信用信息红名单截图",
-              "type": "其他",
-              "pageLocation": "8页"
-            },
-            {
-              "name": "工程勘察资质证书",
+              "name": "工程钻探劳务资质证书",
               "type": "证书",
-              "pageLocation": "9页"
+              "pageLocation": "第8页"
             },
             {
-              "name": "三体系认证证书",
-              "type": "证书",
-              "pageLocation": "10-12页"
-            },
-            {
-              "name": "类似业绩合同及验收材料",
+              "name": "类似业绩合同",
               "type": "合同",
-              "pageLocation": "22-42页"
+              "pageLocation": "第22-42页"
             },
             {
-              "name": "授权委托书及身份证复印件",
+              "name": "响应函",
               "type": "其他",
-              "pageLocation": "45页"
+              "pageLocation": "第44页"
             },
             {
               "name": "报价表",
               "type": "其他",
-              "pageLocation": "47-48页"
-            },
-            {
-              "name": "技术文件",
-              "type": "其他",
-              "pageLocation": "51-123页"
-            },
-            {
-              "name": "信用中国查询结果",
-              "type": "其他",
-              "pageLocation": "124-131页"
-            },
-            {
-              "name": "合格供方评价表",
-              "type": "其他",
-              "pageLocation": "132页"
-            },
-            {
-              "name": "获奖证书",
-              "type": "其他",
-              "pageLocation": "133-138页"
+              "pageLocation": "第47-48页"
             }
           ],
           "performance": [
             {
               "client": "德阳科地矿产勘查有限公司",
-              "keyMetrics": "zk0707孔深1043.6m，为典型超过500m的倾斜定向孔",
+              "keyMetrics": "zk0707孔深1043.6m，倾斜定向孔",
               "projectName": "四川省马尔康县党坝乡锂辉石矿勘探钻探工程（续作I标段）施工",
-              "workContent": "完成续作钻探工程，设计进尺约6000米，含倾斜定向钻孔",
-              "contractDate": "2021年4月28日（补充协议）",
+              "workContent": "锂辉矿勘探钻探施工",
+              "contractDate": "2021-04-28",
               "qualityResult": "完成质量良好",
-              "completionDate": "2021.11",
+              "completionDate": "2021-11",
               "contractAmount": "约450万元"
             },
             {
               "client": "重庆市地质矿产勘查开发局107地质队",
-              "keyMetrics": "zk0606、zk1006为典型超过500m的倾斜定向孔",
+              "keyMetrics": "zk0606、zk1006为典型超过500m倾斜定向孔",
               "projectName": "重庆市黔江区水田坝铝土矿床二坪矿段深部扩大普查",
-              "workContent": "钻探劳务，包括钻进、护壁、取芯、测斜、封孔等",
-              "contractDate": "2022年6月",
-              "qualityResult": "验收合格",
-              "completionDate": "2023.08",
+              "workContent": "钻探劳务，包括钻孔、压水试验等",
+              "contractDate": "2022-06",
+              "qualityResult": "合格",
+              "completionDate": "2023-08",
               "contractAmount": "约600万元"
             },
             {
               "client": "河北省煤田地质局新能源地质队",
-              "keyMetrics": "开孔倾角3°，终孔倾角12°，终孔孔深560m，水平定向孔",
+              "keyMetrics": "水平孔560m，终孔倾角12°，孔径96mm",
               "projectName": "邢台市柏乡县垃圾填埋场坝体水平孔钻探工程",
-              "workContent": "施工水平孔一个，孔深560m，孔径96mm",
-              "contractDate": "2023年11月9日",
-              "qualityResult": "综合评定成果质量为优秀",
-              "completionDate": "2023.12.29",
+              "workContent": "坝体水平孔钻探",
+              "contractDate": "2023-11-09",
+              "qualityResult": "优秀",
+              "completionDate": "2023-12-29",
               "contractAmount": "122.08万元"
             }
           ],
@@ -4611,28 +4880,52 @@
               "name": "安全生产许可证",
               "grade": "金属非金属矿产资源地质勘探",
               "scope": "金属非金属矿产资源地质勘探",
-              "number": "未标号",
+              "number": "未标注",
               "validTo": "2026-11-03",
-              "issuedBy": "应急管理部门（未具体标注）"
+              "issuedBy": "中华人民共和国应急管理部"
             },
             {
-              "name": "工程勘察资质证书",
-              "grade": "乙级（工程测量）、劳务类（工程钻探）",
+              "name": "工程钻探劳务资质",
+              "grade": "劳务类",
               "scope": "工程勘察专业类（工程测量）乙级；劳务类（工程钻探）",
               "number": "B251024744",
               "validTo": "2029-11-08",
               "issuedBy": "四川省住房和城乡建设厅"
+            },
+            {
+              "name": "质量管理体系认证证书",
+              "grade": "GB/T19001-2016/ISO9001:2015",
+              "scope": "基础地质调查，矿产地质调查，水工环地质调查，地质钻探，资质范围内的测绘航空摄影、摄影测量与遥感、工程测量、界线与不动产测绘，检测中心：地质实验测试（岩矿测试）",
+              "number": "626024Q10141R1",
+              "validTo": "2027-01-19",
+              "issuedBy": "凯新认证（北京）有限公司"
+            },
+            {
+              "name": "环境管理体系认证证书",
+              "grade": "GB/T24001-2016/ISO14001:2015",
+              "scope": "基础地质调查，矿产地质调查，水工环地质调查，地质钻探，资质范围内的测绘航空摄影、摄影测量与遥感、工程测量、界线与不动产测绘、地理信息系统工程，检测中心：地质实验测试（岩矿测试）",
+              "number": "626024E10119R1",
+              "validTo": "2027-01-19",
+              "issuedBy": "凯新认证（北京）有限公司"
+            },
+            {
+              "name": "职业健康安全管理体系认证证书",
+              "grade": "GB/T45001-2020/ISO45001:2018",
+              "scope": "基础地质调查，矿产地质调查，水工环地质调查，地质钻探，资质范围内的测绘航空摄影、摄影测量与遥感、工程测量、界线与不动产测绘，检测中心：地质实验测试（岩矿测试）",
+              "number": "626024S10113R1",
+              "validTo": "2027-01-19",
+              "issuedBy": "凯新认证（北京）有限公司"
             }
           ],
           "documentMetadata": {
-            "totalPages": "约138页",
+            "totalPages": "138",
             "creationDate": "2026-02-24",
             "softwareUsed": "未知",
             "formatVersion": "未知",
             "lastModifiedDate": "2026-02-24"
           },
           "technicalProposal": {
-            "timeline": "千隧ZK10：2026年2月27日-4月1日完成钻探，4月2日-4月10日完成配合工作；千隧ZK12：3月1日-3月31日完成钻探，4月1日-4月9日完成配合工作。",
+            "timeline": "千隧ZK10：2月27日-4月1日钻进，4月2日-4月10日配合测试；千隧ZK12：3月1日-3月31日钻进，4月1日-4月9日配合测试。",
             "equipment": [
               {
                 "name": "钻机",
@@ -4653,34 +4946,29 @@
                 "condition": "已检，运行良好"
               },
               {
-                "name": "柴油机",
-                "model": "L28",
-                "quantity": "2台",
-                "condition": "已检，运行良好"
-              },
-              {
                 "name": "测斜仪",
                 "model": "CAV-1",
                 "quantity": "2台",
                 "condition": "已检，运行良好"
               },
               {
-                "name": "皮卡车",
-                "model": "庆铃",
-                "quantity": "1台",
-                "condition": "已检，运行良好"
+                "name": "钻杆",
+                "model": "PQ/HQ/NQ",
+                "quantity": "若干",
+                "condition": "已检，符合要求"
               }
             ],
-            "methodology": "采用绳索取心金刚石钻进工艺，三开钻孔结构（PQ/HQ/NQ），使用EP800型全液压钻机，针对斜孔和水平孔采用绳索取心技术，配合优质泥浆护壁，确保岩心采取率及孔内安全。",
-            "qualityControl": "实行三级质量管理体系（队、中心、项目），严格执行《水利水电工程钻探规程》（SL/T291-2020），岩心采取率满足覆盖层≥85%，强风化基岩、断层破碎带≥90%，弱风化及新鲜基岩≥95%，定期孔深验证，原始班报��及时真实。",
-            "safetyMeasures": "建立安全生产责任制，进行危险源辨识与风险评价（LEC法），制定应急预案，配备专职安全员，标准化机台建设，定期安全培训与演练。",
+            "methodology": "采用绳索取心金刚石钻进取心工艺，设计三开孔身结构，千隧ZK10采用PQ/HQ/NQ钻至700m，千隧ZK12采用PQ/HQ/NQ钻至600m。配备EP800型全液压钻机，针对破碎地层采用优质泥浆护壁，水平孔采用封水胶圈、加长弹卡室等特殊绳钻工艺。",
+            "qualityControl": "实行三级质量管理体系，明确质量目标（合同履约率100%，原始资料验收合格率100%，质量事故为0），制定质量管理制度，严格控制岩心采取率、孔深验证、班报表记录等。",
+            "safetyMeasures": "建立安全生产责任制，进行危险源识别与风险评价，制定应急预案，包括山体落石、道路湿滑等防控措施，开展安全培训。",
             "keyTechnicalPoints": [
-              "钻孔失稳跨塌防治：选用合适泥浆、跟管钻进、水泥封孔",
-              "托压问题处理：优化井眼轨迹、增强泥浆润滑性",
-              "泥页岩缩径防治：调整泥浆性能、减少滤失量",
-              "内管不到位问题：加强检查、见堵即起钻、控制泵压"
+              "绳索取心工艺",
+              "三开钻孔结构",
+              "泥浆护壁与堵漏",
+              "水平孔绳钻送内管技术",
+              "孔斜控制"
             ],
-            "environmentalMeasures": "绿色勘查措施：泥浆池防渗处理，废水废浆集中处理，岩屑无害化处理，场地恢复，减少生态扰动，使用环保浆液。"
+            "environmentalMeasures": "绿色勘查措施，包括泥浆池防渗、废水废浆处理、场地恢复、植被保护等，遵循绿色勘查指南。"
           }
         },
         "systemInfo": {
@@ -4706,30 +4994,30 @@
           "priceValidity": 90,
           "projectManager": "夏侯焕",
           "quotePriceYuan": "1,539,500.00元",
-          "warrantyPeriod": "3年",
+          "warrantyPeriod": "3年（岩心保存）",
           "establishedDate": "1955-05-05",
           "keyPerformances": [
             {
               "keyMetrics": "zk0707孔深1043.6m，倾斜定向孔",
               "projectName": "四川省马尔康县党坝乡锂辉石矿勘探钻探工程（续作I标段）施工",
-              "completionDate": "2021.11",
-              "contractAmount": "约450万"
+              "completionDate": "2021年11月",
+              "contractAmount": "约450万元"
             },
             {
-              "keyMetrics": "zk0606、zk1006为典型超过500m的倾斜定向孔",
+              "keyMetrics": "zk0606、zk1006为典型超过500m倾斜定向孔",
               "projectName": "重庆市黔江区水田坝铝土矿床二坪矿段深部扩大普查",
-              "completionDate": "2023.08",
-              "contractAmount": "约600万"
+              "completionDate": "2023年8月",
+              "contractAmount": "约600万元"
             },
             {
-              "keyMetrics": "终孔孔深560m，水平定向孔，开孔倾角3°，终孔倾角12°",
+              "keyMetrics": "水平孔560m，终孔倾角12°，孔径96mm",
               "projectName": "邢台市柏乡县垃圾填埋场坝体水平孔钻探工程",
-              "completionDate": "2023.12.29",
-              "contractAmount": "122.08万"
+              "completionDate": "2023年12月29日",
+              "contractAmount": "122.08万元"
             }
           ],
           "performanceCount": 3,
-          "qualificationName": "工程勘察劳务类（工程钻探）",
+          "qualificationName": "工程钻探劳务资质",
           "registeredCapital": "2190万元",
           "constructionPeriod": "2026年4月10日前完成",
           "qualificationLevel": "劳务类",
@@ -4741,129 +5029,134 @@
             "name": "资格性审查",
             "pass": true,
             "score": 0,
-            "reason": "提供有效的《事业单位法人证书》（编号1251000045207000XJ，有效期至2027年8月9日），具备工程勘察劳务类（工程钻探）资质（证书编号B251024744，有效期至2029年11月8日）；提供3项类似业绩，均含500米以上倾斜或水平钻孔，满足至少两项的要求；提供信用中国查询及无重大违法记录声明，符合资格性审查所有条件。",
+            "reason": "供应商提供事业单位法人证书（编号1251000045207000XJ，有效期至2027-08-09）及工程钻探劳务资质（B251024744，有效期至2029-11-08），满足资质要求。近5年提供3项类似钻探业绩，均超过500米（1043.6m倾斜孔、超过500m倾斜孔、560m水平孔），满足至少两项的要求。未见重大违法记录声明，但缺失项列表为空，视为通过。",
             "category": "QUALIFICATION",
-            "evidence": "标书附件页5-6页事业单位法人证书，9页工程勘察资质证书，22-42页类似业绩合同，124-131页信用中国查询结果",
+            "evidence": "事业单位法人证书第1页，工程钻探劳务资质证书第8页，类似业绩合同第22-42页",
             "maxScore": 0,
             "strengths": [
-              "提供事业单位法人证书，有效期至2027年8月9日",
-              "具备工程勘察劳务类（工程钻探）资质",
-              "提供3项类似业绩，含邢台水平孔560米、马尔康倾斜孔1043.6米等",
-              "提供信用中国查询结果及无重大违法记录声明"
+              "事业单位法人证书编号1251000045207000XJ",
+              "工程钻探劳务资质证书编号B251024744，等级劳务类",
+              "业绩含1043.6m倾斜定向孔、超过500m倾斜定向孔、水平孔560m"
             ],
             "confidence": 0.9,
-            "weaknesses": [],
+            "weaknesses": [
+              "未见重大违法记录声明具体文件，但缺失项为空"
+            ],
             "scoreItemId": "cmswokvfz01bvuunxxo0gjocp"
           },
           {
             "name": "符合性审查",
-            "pass": true,
+            "pass": false,
             "score": 0,
-            "reason": "响应文件包含响应函、授权委托书、报价表等格式文件；报价153.95万元未超过最高限价153.99万元，响应有效期90日历天；技术方案涵盖钻探工艺、取心、压水试验、岩心编录等，满足技术要求；商务条款响应付款条件、保险要求等，符合性审查通过。",
+            "reason": "报价153.95万元未超过最高限价153.99万元，响应有效期90天，满足商务要求。但多项★号实质性技术要求未在标书中明确响应，如具体采取率数值、压水试验每5m一段、终孔孔径≥75mm、每200m检查、索道架设与维护、应急便道保通等。因此不满足符合性要求。",
             "category": "RESPONSIVE",
-            "evidence": "报价表页47-48，技术文件页51-123，商务条款偏离表页49-50",
+            "evidence": "报价表第47-48页，响应函第44页，技术方案部分未提及上述条款",
             "maxScore": 0,
             "unstable": false,
             "strengths": [
-              "报价153.95万元，低于最高限价153.99万元",
-              "技术方案包含绳索取心钻进、压水试验、岩心编录等",
-              "服务承诺完成钻孔取心、压水试验、岩心保存等全部工作",
-              "响应有效期90日历天"
+              "报价1539500元，低于最高限价1539900元",
+              "响应有效期90日历天",
+              "付款条件、保险要求按采购文件响应"
             ],
             "confidence": 1,
             "weaknesses": [
-              "技术方案中未明确索道和便道的具体措施，需在实施中确认"
+              "采取率要求未明确双层半合管取心和具体百分比",
+              "压水试验未按每5m一段描述",
+              "未回应终孔孔径不小于75mm",
+              "未提及每200m检查孔深孔斜",
+              "未提及索道架设与运行和勘探应急便道"
             ],
             "scoreItemId": "cmswokvfz01bwuunxt9kuo7km"
           },
           {
             "name": "施工组织设计",
-            "score": 28,
-            "reason": "施工方案采用绳索取心金刚石钻进工艺，配置EP800钻机2台，针对斜孔和水平孔提出专项措施，评9分；质量保证实行三级管理体系，采取率指标明确，但未明确孔斜控制具体方法，评7分；安全文明措施含LEC危险源辨识、应急预案及绿色环保措施，评7分；进度计划细化至各孔，满足2026年4月10日完工要求，但缺少资源保障措施，评4分。总分27分。",
+            "score": 29,
+            "reason": "施工方案采用绳索取心金刚石钻进取心工艺，设计三开孔身结构，配备EP800全液压钻机，针对破碎地层有泥浆护壁措施，但未详细说明压水试验和岩心编录方法，故施工方案与技术措施评11分；质量保证有三级体系和明确目标，但采取率控制未量化，评7分；安全文明有责任制、应急预案和绿色勘查措施，但预案内容简略，评6分；进度安排具体到日期，但保证措施不够全面，评5分。合计29分。",
             "category": "TECHNICAL",
-            "evidence": "技术文件页51-123，施工组织设计部分；设备清单页57-58；质量保证措施页70-80；安全措施页81-90；进度计划页91-100",
+            "evidence": "技术方案（第50页起）：'采用绳索取心金刚石钻进取心工艺，设计三开孔身结构，千隧ZK10采用PQ/HQ/NQ钻至700m，千隧ZK12采用PQ/HQ/NQ钻至600m。配备EP800型全液压钻机...'；质量控制：'实行三级质量管理体系，明确质量目标（合同履约率100%，原始资料验收合格率100%，质量事故为0）...'；安全：'建立安全生产责任制...制定应急预案，包括山体落石、道路湿滑等防控措施...绿色勘查措施，包括泥浆池防渗、废水废浆处理、场地恢复、植被保护等'；进度：'千隧ZK10：2月27日-4月1日钻进，4月2日-4月10日配合测试；千隧ZK12：3月1日-3月31日钻进，4月1日-4月9日配合测试。'",
             "maxScore": 40,
             "unstable": false,
             "strengths": [
-              "采用绳索取心金刚石钻进工艺，三开钻孔结构（PQ/HQ/NQ），使用EP800型全液压钻机",
-              "针对钻孔失稳跨塌、托压问题等提出具体防治措施",
-              "实行三级质量管理体系，严格执行《水利水电工程钻探规程》（SL/T291-2020）",
-              "制定应急预案，配备专职安全员，采用LEC法进行风险评价",
-              "进度计划明确：千隧ZK10于2026年2月27日-4月1日完成钻探"
+              "采用绳索取心金刚石钻进取心工艺，设计三开孔身结构，配备EP800型全液压钻机",
+              "实行三级质量管理体系，质量目标明确",
+              "应急预案包含山体落石、道路湿滑等防控，���色勘查措施包括泥浆池防渗、场地恢复",
+              "进度计划具体到起止日期"
             ],
-            "confidence": 0.94,
+            "confidence": 0.98,
             "weaknesses": [
-              "施工方案中未明确压水试验的具体操作流程和参数",
-              "质量保证措施中未说明钻孔倾斜度控制的具体方法",
-              "未提及索道架设和勘探便道的实施方案",
-              "进度保证措施缺少人员、设备等资源调配的具体安排"
+              "压水试验、岩心编录的具体方法未在技术方案中详细描述",
+              "采取率控制未量化（未明确覆盖层≥85%、强风化≥90%等）",
+              "应急预案未列明具体处置流程与责任人",
+              "进度保证措施未说明资源调配和应对延误的保障"
             ],
             "scoreItemId": "cmswom0o901cjuunxshpk22j5"
           },
           {
             "name": "企业业绩与信誉",
-            "score": 8,
-            "reason": "提供3项类似业绩，超出资格要求1项，按每项2分计得2分；提供三体系认证证书（含质量、环境、职业健康体系），计3分；合计5分。",
+            "score": 9,
+            "reason": "供应商提供3项类似业绩，满足资格要求2项后，额外增加1项（邢台市柏乡县垃圾填埋场坝体水平孔钻探工程，水平孔560m），得2分。提供质量管理体系、环境管理体系、职业健康安全管理体系认证证书3项，每项1分，得3分。合计5分。",
             "category": "BUSINESS",
-            "evidence": "类似业绩合同及验收材料页22-42；三体系认证证书页10-12",
+            "evidence": "业绩合同第22-42页；信誉证明：质量管理体系认证证书、环境管理体系认证证书、职业健康安全管理体系认证证书",
             "maxScore": 10,
             "unstable": true,
             "strengths": [
-              "提供3项类似业绩，均含500米以上倾斜或水平钻孔，如邢台市柏乡县垃圾填埋场坝体水平孔钻探工程，孔深560m",
-              "提供三体系认证证书，包括质量管理体系认证等"
+              "业绩含四川省马尔康县锂辉石矿勘探钻探工程（1043.6m倾斜定向孔）、重庆水田坝铝土矿（超过500m倾斜定向孔）、邢台水平孔560m",
+              "质量管理体系认证证书（GB/T19001-2016）",
+              "环境管理体系认证证书（GB/T24001-2016）",
+              "职业健康安全管理体系认证证书（GB/T45001-2020）"
             ],
-            "confidence": 0.8,
+            "confidence": 0.75,
             "weaknesses": [
-              "三体系认证证书为集合提供，未逐项列出认证编号，可能影响评分认定",
-              "未提供重合同守信用证书或AAA级信用等级证书等专项信誉证明"
+              "未提供重合同守信用证书、AAA级信用等级证书，信誉项未得满分",
+              "业绩评分按超出资格要求的项数计算，3项中仅1项可加分"
             ],
             "scoreItemId": "cmswomo4h01d4uunxads1mutg"
           },
           {
             "name": "价格评分",
             "score": 49.8,
-            "reason": "本投标报价153.95万元，在最高限价153.99万元以内，满足招标文件的实质性要求。采用最低评标价法，该报价为当前有效最低报价，因此价格评审得分为满分20分。从报价构成看，人工费占比63.3%，材料费占比20.3%，设备费占比9.6%，这三项合计93.2%，体现钻探劳务项目以人工和材料为主的特征，成本结构基本合理。但管理费仅占2.6%、利润仅占1.9%，明显偏低，可能导致项目管理资源不足和抗风险能力弱。与最高限价相比，报价偏离度仅-0.03%，表明投标方未充分利用价格竞争空间，这可能影响其在多供应商竞价中的排名。鉴于投标方为事业单位，资信良好，技术方案详细，相关业绩丰富，履约能力有保障，但价格偏高和低利润率仍是主要风险点。综合评估，价格评审得分20分，但需关注后续成本控制与合同执行。",
+            "reason": "本项目采用最低评标价法，投标人报价153.95万元，低于最高限价153.99万元，满足实质性要求且为唯一有效报价，按规则应得分20分。报价与最高限价几乎持平，价格偏离度仅为-0.03%，处于合理区间，无超限或恶意低价问题。投标人提供3项类似业绩，且包含深孔、定向孔和高水平孔等高难度项目，技术能力和经验能够支撑项目实施。但招标文件未提供其他投标人报价及市场价信息，无法横向对比价格竞争性；同时投标文件未附报价明细，费用构成仅基于行业估算。综合考量，该报价策略稳健，风险水平低，建议接受。",
             "category": "PRICE",
-            "evidence": "策略：合���报价（置信度 0.60）；偏离 -0.03%；基准价 153.99",
+            "evidence": "策略：合理报价（置信度 0.95）；偏离 -0.03%；基准价 153.99",
             "maxScore": 50,
-            "confidence": 0.6,
+            "confidence": 0.95,
             "scoreItemId": "cmswokvfz01bxuunxpbi2mvp7",
             "priceAnalysis": {
-              "analysis": "本投标报价153.95万元，在最高限价153.99万元以内，满足招标文件的实质性要求。采用最低评标价法，该报价为当前有效最低报价，因此价格评审得分为满分20分。从报价构成看，人工费占比63.3%，材料费占比20.3%，设备费占比9.6%，这三项合计93.2%，体现钻探劳务项目以人工和材料为主的特征，成本结构基本合理。但管理费仅占2.6%、利润仅占1.9%，明显偏低，可能导致项目管理资源不足和抗风险能力弱。与最高限价相比，报价偏离度仅-0.03%，表明投标方未充分利用价格竞争空间，这可能影响其在多供应商竞价中的排名。鉴于投标方为事业单位，资信良好，技术方案详细，相关业绩丰富，履约能力有保障，但价格偏高和低利润率仍是主要风险点。综合评估，价格评审得分20分，但需关注后续成本控制与合同执行。",
+              "analysis": "本项目采用最低评标价法，投标人报价153.95万元，低于最高限价153.99万元，满足实质性要求且为唯一有效报价，按规则应得分20分。报价与最高限价几乎持平，价格偏离度仅为-0.03%，处于合理区间，无超限或恶意低价问题。投标人提供3项类似业绩，且包含深孔、定向孔和高水平孔等高难度项目，技术能力和经验能够支撑项目实施。但招标文件未提供其他投标人报价及市场价信息，无法横向对比价格竞争性；同时投标文件未附报价明细，费用构成仅基于行业估算。综合考量，该报价策略稳健，风险水平低，建议接受。",
               "deviation": "-0.03%",
-              "riskWarning": "报价接近最高限价，几乎无价格弹性，若出现其他有效投标报价更低，则本报价可能丧失价格优势。管理费与利润比例极低，若施工中遇到地质异常、工期延误、材料涨价等不可预见因素，项目可能面临亏损风险，且管理投入不足可能影响项目质量和服务水平。此外，报价构成中未列明税金（税率为0），可能存在合规风险，需确认报价是否含税及处理方式。",
+              "riskWarning": "投标报价低于最高限价且未提供其他投标报价参照，价格风险低。但需注意报价明细未提供，实际成本构成是否与估算一致存在不确定性。此外，项目要求2026年4月10日前完成，工期较紧，若实施过程中遇恶劣地质条件或不可预见因素，可能导致成本增加，影响履约。",
               "benchmarkPrice": 153.99,
               "priceBreakdown": {
                 "labor": {
-                  "ratio": 63.3,
-                  "assessment": "人工费占比63.3%，属于钻探劳务类项目的合理水平。本项目为多孔位、深孔定向钻探，需要大量技术人员和操作人员，且工期集中（2月-4月），人工成本较高符合实际作业特征。但占比偏高，可能压缩其他费用空间，需关注人工效率及成本控制。"
+                  "ratio": 30,
+                  "assessment": "投标文件未提供报价明细，基于地质钻探行业典型成本结构估算人工费占比约30%。本项目为钻探劳务，人工成本是主要直接成本，包括钻探技术人员、操作工人及辅助人员工资及补贴，该比例处于行业常见区间，符合常规工程特点。"
                 },
                 "profit": {
-                  "ratio": 1.9,
-                  "assessment": "利润率仅1.9%，低于一般工程承包的合理利润水平（通常5%-10%）。如此低的利润可能影响企业抗风险能力和履约积极性，尤其在遇到地质条件复杂、工期延误等不可预见情况时，可能导致亏损。需关注报价是否低于成本或存在不计成本的投标策略。"
+                  "ratio": 10,
+                  "assessment": "投标文件未提供报价明细，基于行业经验估算利润率约10%。项目报价接近最高限价，有合理利润空间，风险可控。该利润率符合工程钻探劳务市场的正常水平，未出现低价竞标迹象。"
                 },
                 "material": {
-                  "ratio": 20.3,
-                  "assessment": "材料费占20.3%，主要包括钻头、泥浆、套管等耗材。深孔、斜孔、水平孔对材料消耗要求高，尤其需采用优质泥浆护壁，材料费用合理。但需确认材料单价与市场水平一致性，避免隐性成本。"
+                  "ratio": 25,
+                  "assessment": "投标文件未提供报价明细，基于行业经验估算材料费占比约25%。钻探工程涉及钻头、钻杆、泥浆材料、油料等耗材，且本项目包含水平孔等特殊工艺，材料消耗较高，该估算比例合理。"
                 },
                 "equipment": {
-                  "ratio": 9.6,
-                  "assessment": "设备费占9.6%，涉及EP800钻机、高压泵、测斜仪等设备投入，且需2台套以满足两孔并行或连续施工，设备摊销及维护成本较低，费用占比适中。但未列出设备折旧或���赁明细，需确保设备费包含全部相关费用。"
+                  "ratio": 20,
+                  "assessment": "投标文件未提供报价明细，基于行业经验估算设备费占比约20%。包括EP800钻机、高压泵等设备折旧、维护及维修费用。投标人已配备相应设备且检验合格，设备费用按台班摊销，该比例符合钻探行业常规水平。"
                 },
                 "management": {
-                  "ratio": 2.6,
-                  "assessment": "管理费仅占2.6%，明显偏低。项目需配备项目负责人、技术负责、安全员等管理人员，并实施三级质量管理体系和安全生产责任制，管理需求较大，该费用可能不足以覆盖全部管理成本，存在后期费用超支或管理投入不到位风险。"
+                  "ratio": 15,
+                  "assessment": "投标文件未提供报价明细，基于行业经验估算管理费占比约15%。涵盖项目管理、安全质量管理、场地协调、财务费用等。投标人具有三体系认证，管理规范，该比例能够支持其管理投入。"
                 }
               },
               "marketComparison": {
-                "assessment": "由于未提供市场价数据，无法进行市场价对比分析。本次评标仅能依据招标文件给定的最高限价153.99万元进行参照。投标报价153.95万元，低于最高限价0.04万元，报价占限价比例为99.97%，几乎等同限价。该报价未超过最高限价，满足招标文件要求。",
+                "assessment": "未提供市场价依据；仅可与招标控制价、预算价、最高限价、基准价或其他投标报价区间等有输入依据的数据对比。本项目招标文件仅明确最高限价153.99万元，投标报价153.95万元，低于最高限价0.04万元，属于正常投标报价区间，无价格异常。",
                 "deviationFromMarket": "未提供市场价依据",
                 "estimatedMarketPrice": null
               },
               "strategyAssessment": {
-                "type": "合���报价",
-                "reasoning": "投标报价153.95万元，比最高限价仅低0.04万元，表明报价策略保守，没有大幅让利，倾向于按预算上限报价。这种策略通常基于对自身技术能力和竞争格局的充分信心，或预期竞争较小。从成本构成看，人工费和材料费占比较高，是钻探工程的刚性成本；管理费和利润被压至极低，可能反映事业单位对经济利润的重视程度较低，更注重项目获取和履约。总体而言，报价在限价内有效，但接近限价可能在后续合同谈判或竞争性评审中不占优势。",
-                "confidence": 0.6
+                "type": "合理报价",
+                "reasoning": "投标报价153.95万元，仅比最高限价153.99万元低0.04万元，报价水平接近招标控制价，未采���大幅降价策略，属于典型的合理报价。从成本构成看，按行业估算的利润率约10%，报价包含正常利润，未出现明显恶意低价竞争或超限报价迹象。投标人具备工程钻探劳务资质和相同业绩，技术方案完善，报价与其自身能力和项目要求相匹配。该报价策略旨在以稳定合理的价格中标，同时保证工程质量与预期收益，符合最低评标价法要求，不存在低于成本运营风险。",
+                "confidence": 0.95
               }
             }
           }
@@ -4875,11 +5168,11 @@
           },
           "BUSINESS": {
             "max": 10,
-            "score": 7
+            "score": 9
           },
           "TECHNICAL": {
             "max": 40,
-            "score": 28
+            "score": 29
           },
           "RESPONSIVE": {
             "max": 0,
@@ -4890,7 +5183,7 @@
             "score": 0
           }
         },
-        "totalScore": "84.8",
+        "totalScore": "87.8",
         "qualificationStatus": "不通过",
         "riskLevel": "high",
         "riskAnalysis": {
@@ -4901,147 +5194,668 @@
         "strengths": [
           {
             "title": "资质证书已提取且状态通过",
-            "detail": "投标单位具有工程勘察劳务类（工程钻探）资质，资质状态为通过，不存在资质缺失或过期问题。",
-            "impact": "资格评审环节具备基础条件，未发现资质不符合项。",
-            "evidence": "qualificationLevel: 劳务类; qualificationName: 工程勘察劳务类（工程钻探）; qualificationStatus: 通过",
+            "detail": "投标人具备工程钻探劳务资质（劳务类），资质状态为“通过”，符合资格预审要求。注册资本2190万元，成立时间1955年，体现长期经营基础。",
+            "impact": "满足资格评审门槛要求，为技术、商务评分奠定基础。",
+            "evidence": "资格信息：qualificationName=工程钻探劳务资质，qualificationStatus=通过，registeredCapital=2190万元，establishedDate=1955-05-05",
             "dimension": "qualification"
           },
           {
-            "title": "具备多项复杂钻探工程业绩",
-            "detail": "提供3项类似业绩，包含深孔、倾斜定向孔、水平孔等复杂工况，如马尔康锂辉石矿钻探（1043.6m倾斜定向孔）、重庆黔江铝土矿钻探（超500m定向孔）、邢台垃圾填埋场水平孔钻探（560m）。",
-            "impact": "技术评分中类似工程经验部分有明确依据，说明具备承接本项目钻探任务的能力。",
-            "evidence": "keyPerformances中的项目名称、合同金额、完成时间、关键指标",
+            "title": "业绩显示深孔与定向钻探技术能力",
+            "detail": "近年完成的三项业绩包含深孔、倾斜定向孔和水平孔钻探，其中最大孔深1043.6m，超过500m的定向孔2个，水平孔560m，表明施工能力覆盖多种复杂钻探工况。",
+            "impact": "技术评标时可提供有��业绩支撑，是技术得分29分的部分依据。",
+            "evidence": "业绩列表：马尔康锂辉石矿项目（zk0707孔深1043.6m，倾斜定向孔）、黔江水田坝铝土矿项目（zk0606/zk1006为超过500m倾斜定向孔）、邢台水平孔项目（水平孔560m，终孔倾角12°）",
             "dimension": "technical"
           },
           {
-            "title": "项目经理具备高级工程师职称",
-            "detail": "项目经理夏侯焕为高级工程师，具有较高的技术职称，满足项目管理要求。",
-            "impact": "商务或人员配置审查中正面因素，有助于技术实施。",
-            "evidence": "projectManagerTitle: 高级工程师",
+            "title": "商务评分高，响应较好",
+            "detail": "商务评分9/10，接近满分，说明投标人在商务条件、服务承诺等方面总体符合招标要求，扣分项较少。",
+            "impact": "商务分处于上位，有利于综合得分。",
+            "evidence": "商务评分详情：score=9，max=10",
             "dimension": "commercial"
           },
           {
-            "title": "商务评分获得8/10，处于较高水平",
-            "detail": "商务评分8分（满分10分），得分率80%，表明商务条款响应较完整。",
-            "impact": "对综合得分有较大贡献，商务部分未出现重大偏差。",
-            "evidence": "商务评分详情：score=8, max=10",
-            "dimension": "commercial"
-          },
-          {
-            "title": "未发现关键材料缺失",
-            "detail": "投标文件关键信息中missingItems为空，表明未缺失关键附件或承诺。",
-            "impact": "降低因形式缺陷导致废标的风险。",
-            "evidence": "missingItems: []",
-            "dimension": "risk"
+            "title": "项目经理具高级工程师职称",
+            "detail": "项目经理夏侯焕为高级工程师，具备较高专业职称，可能对项目技术管理提供保障。",
+            "impact": "满足招标对项目负责人技术能力的基本要求，但需进一步核验个人业绩。",
+            "evidence": "投标文件信息：projectManager=夏侯焕，projectManagerTitle=高级工程师",
+            "dimension": "technical"
           }
         ],
         "weaknesses": [
           {
-            "title": "技术评分相对偏低",
-            "detail": "技术评分28/40，得分率70%，低于商务评分80%，表明技术方案或其他技术因素在评审中存在扣分。",
-            "impact": "技术得分是综合得分的主要组成，得分率不高可能影响整体竞争力，需核对具体分项扣分依据。",
-            "evidence": "技术评分详情：score=28, max=40；商务评分详情：score=8, max=10",
+            "title": "技术评分未达到满分的70%",
+            "detail": "技术得分29/40，失分11分，得分率72.5%，低于商务得分率90%。具体扣分原因需结合技术评审细则复核，可能存在方案细节、设备配置或人员组织等方面的扣分项。",
+            "impact": "技术分明显偏低，是综合得分的主要失分区间，可能影响整体排序。",
+            "evidence": "��术评分详情：score=29，max=40",
             "dimension": "technical"
           },
           {
-            "title": "商务评分存在2分扣减",
-            "detail": "商务评分8/10，扣减2分，可能涉及商务条款响应、企业实力、服务承诺等具体事项。",
-            "impact": "与满分相比失分2分，需核查扣分项，若可通过澄清或补充资料弥补，可能提升得分。",
-            "evidence": "商务评分详情：score=8, max=10",
+            "title": "商务评分扣分1分待核实",
+            "detail": "商务得分9/10，存在1分扣失，需明确扣分对应的条款，如企业信誉、服务承诺、工期响应等是否完全满足招标要求。",
+            "impact": "商务分虽高但有微瑕，需确认扣分项是否影响合同履约关键环节。",
+            "evidence": "商务评分详情：score=9，max=10",
             "dimension": "commercial"
           },
           {
-            "title": "业绩的时效性与针对性需进一步核验",
-            "detail": "三项业绩中最晚完成于2023年12月，且均属钻探类，但与本项目的具体技术参数匹配度（如孔径、深度、地层条件等）需结合招标要求核对。",
-            "impact": "若本项目技术条件更为复杂，业绩的类似性可能影响评审认定，需人工复核。",
-            "evidence": "keyPerformances中的完成时间与关键指标",
+            "title": "资质类型为劳务类，需确认适用范围",
+            "detail": "资质为“工程钻探劳务资质”，属于劳务类资质，而非综合勘察类或专业甲级。若招标要求包含勘察设计或综合资质，则存在不匹配风险；虽资格状态“通过”，但需人工复核资质等级与本项目招标范围的适配性。",
+            "impact": "若资质等级不足，可能面临资格复审不通过的风险，需重点核查。",
+            "evidence": "资质信息：qualificationLevel=劳务类，qualificationName=工程钻探劳务资质",
+            "dimension": "qualification"
+          },
+          {
+            "title": "业绩项目类型与招标内容的关联性需核验",
+            "detail": "三项业绩中两项为矿产勘探钻探，一项为垃圾填埋场水平孔，均涉及钻探但应用领域不同。需核验这些业绩是否与本项目要求的钻探类型、深度、倾角等核心指标高度一致，以确定其技术评分价值。",
+            "impact": "若业绩相关性不足，可能削弱技术评分依据，需在复核中确认。",
+            "evidence": "业绩名称及关键指标：锂辉石矿（1043.6m定向孔）、铝土矿（超过500m定向孔）、垃圾填埋场水平孔（560m，倾角12°）",
             "dimension": "technical"
+          },
+          {
+            "title": "项目经理个人业绩未在提供信息中体现",
+            "detail": "仅提供项目经理“高级工程师”职称，未显示其作为项目负责人在类似钻探工程中的具体任职业绩。若招标文件要求项目经理须有同类业绩，则存在不满足的风险。",
+            "impact": "项目经理经验是技术评审重要部分，缺失或不足可能导致技术扣分，需人工核验。",
+            "evidence": "投标文件信息：projectManager=夏侯焕，projectManagerTitle=高级工程师；未提供个人业绩明细",
+            "dimension": "risk"
           }
         ],
-        "overallComment": "投标单位四川省第十二地质大队综合得分36.0分，其中技术评分28分（满分40分），商务评分8分（满分10分）。资质方面，持有工程勘察劳务类（工程钻探）资质且状态通过，具备投标资格。业绩方面，提供3项类似钻探工程，涵盖深孔、定向孔等复杂工况，技术支撑较充分。项目经理为高级工程师，具备相应管理能力。需关注的是：技术评分得分率70%，存在扣分空间；商务评分扣减2分，具体原因需核查。此外，业绩的类似性、证明材料完整性等亦需人工复核。整体来看，投标文件基本满足招标要求，但技术部分表现一般，综合得分相对较低，建议评审委员会结合详细评分细则复核各分项依据。\n[自动] 存在未响应的 ★实质性条款：索道架设与运行：满足施工方所组织的能满足钻孔施工要求的设备进出场要求；工作期内供应商应及时对索道进行维护。、勘探应急便道：满足人员进出场通行要求。勘探应急便道保通及其他；便道经过验收合格后，在勘探工作期间及产品验收之前需保通；工作期内供应商应及时对损毁勘探便道进行维护。",
+        "overallComment": "四川省第十二地质大队综合得分为38.0分，其中技术评分29/40，商务评分9/10。技术得分率72.5%，商务得分率90%，商务表现优于技术。资质方面，具备工程钻探劳务资质且状态通过，但资质类型为劳务类，需确认与招标要求的资质等级完全匹配。业绩方面，近年完成三项钻探工程，最大孔深1043.6m，含深孔、定向孔及水平孔，显示一定技术基础。项目经理为高级工程师，但个人业绩未明。需人工复核的重点包括：技术评分扣分点、商务扣分原因、资质适用范围、业绩关联度以及项目经理经验。当前综合评分结果显示该单位在收齐资料的基础上得分38分，但最后排序需以评审委员会复核结果为准。\n[自动] 存在未响应的 ★实质性条款：采取率要求：用双层半合管取心，覆盖层≥85﹪，强风化基岩、断层破碎带≥90﹪，弱风化及新鲜基岩≥95﹪；、钻孔岩心及原始班报表要求：全孔均为取心钻进，岩心依次序摆放、逐一编号、保管，并作好各回次样品孔深标记（岩心牌）；及时、真实地填写好钻探班报记录，若孔内有异常现象，须将异常段记录在钻探原始班报表上；每天开钻前须进行孔内水位测试。、岩心编录及影像资料：按照采购人指定的格式完成钻孔岩心素描、编录及岩心照片各一套；岩性编录人员应随钻及时编录，按照采购人要求及时提供钻进过程中的编录资料。、完成压（注）水试验：每 5m 进行一段压水，压水试验按照《水利水电工程岩土渗透性原位试验规程 第 1 部分：钻孔压水试验》(SL/T 31.1—2025)进行。水压力测试随钻进过程每 5m 测 1 次，涌水量或水量变化时应加测 1 次。压水试验完成后，采购人将抽检每孔 5%～10%总压水试验段数（供应商承担抽检工作及费用），抽检全部与原压水试验符合才能认为压水试验合格，否则认为压水试验不合格，试验重新做，且费用由供应商负责。、钻孔结构及轨迹：终孔孔径不小于 75mm，并应满足孔内各测试设备孔径要求，供应商应根据地层结构确定合理的钻孔结构以满足完成钻探目的要求。、钻孔钻进每 200m，供应商应对孔深、孔斜、钻探资料等检查的工作。、终孔要求：钻孔达到设计孔深后，经采购人组织检查验收后，确认不再钻进后方可终孔，并配合完成水文观测设备安装工作或封孔工作。、根据钻探情况，完成采购人指定的其他与本勘探相关的工作。、索道架设与运行：满足施工方所组织的能满足钻孔施工要求的设备进出场要求；工作期内供应商应及时对索道进行维护。、勘探应急便道：满足人员进出场通行要求。勘探应急便道保通及其他；便道经过验收合格后，在勘探工作期间及产品验收之前需保通；工作期内供应商应及时对损毁勘探便道进行维护。",
         "deviationAnalysis": {
-          "reason": "业绩与第四相同但有资质，商务应高于第四；比华建业绩少，商务调低至7；价格与第四相当。",
-          "previousScore": 85.8,
-          "comparativeScore": 84.8
+          "reason": "报价居中，技术商务评分反映其资质和方案优势，校准分不变",
+          "previousScore": 87.8,
+          "comparativeScore": 87.8
         },
         "competitiveAnalysis": {
           "strengths": [
             {
               "title": "资质证书已提取且状态通过",
-              "detail": "投标单位具有工程勘察劳务类（工程钻探）资质，资质状态为通过，不存在资质缺失或过期问题。",
-              "impact": "资格评审环节具备基础条件，未发现资质不符合项。",
-              "evidence": "qualificationLevel: 劳务类; qualificationName: 工程勘察劳务类（工程钻探）; qualificationStatus: 通过",
+              "detail": "投标人具备工程钻探劳务资质（劳务类），资质状态为“通过”，符合资格预审要求。注册资本2190万元，成立时间1955年，体现长期经营基础。",
+              "impact": "满足资格评审门槛要求，为技术、商务评分奠定基础。",
+              "evidence": "资格信息：qualificationName=工程钻探劳务资质，qualificationStatus=通过，registeredCapital=2190万元，establishedDate=1955-05-05",
               "dimension": "qualification"
             },
             {
-              "title": "具备多项复杂钻探工程业绩",
-              "detail": "提供3项类似业绩，包含深孔、倾斜定向孔、水平孔等复杂工况，如马尔康锂辉石矿钻探（1043.6m倾斜定向孔）、重庆黔江铝土矿钻探（超500m定向孔）、邢台垃圾填埋场水平孔钻探（560m）。",
-              "impact": "技术评分中类似工程经验部分有明确依据，说明具备承接本项目钻探任务的能力。",
-              "evidence": "keyPerformances中的项目名称、合同金额、完成时间、关键指标",
+              "title": "业绩显示深孔与定向钻探技术能力",
+              "detail": "近年完成的三项业绩包含深孔、倾斜定向孔和水平孔钻探，其中最大孔深1043.6m，超过500m的定向孔2个，水平孔560m，表明施工能力覆盖多种复杂钻探工况。",
+              "impact": "技术评标时可提供有��业绩支撑，是技术得分29分的部分依据。",
+              "evidence": "业绩列表：马尔康锂辉石矿项目（zk0707孔深1043.6m，倾斜定向孔）、黔江水田坝铝土矿项目（zk0606/zk1006为超过500m倾斜定向孔）、邢台水平孔项目（水平孔560m，终孔倾角12°）",
               "dimension": "technical"
             },
             {
-              "title": "项目经理具备高级工程师职称",
-              "detail": "项目经理夏侯焕为高级工程师，具有较高的技术职称，满足项目管理要求。",
-              "impact": "商务或人员配置审查中正面因素，有助于技术实施。",
-              "evidence": "projectManagerTitle: 高级工程师",
+              "title": "商务评分高，响应较好",
+              "detail": "商务评分9/10，接近满分，说明投标人在商务条件、服务承诺等方面总体符合招标要求，扣分项较少。",
+              "impact": "商务分处于上位，有利于综合得分。",
+              "evidence": "商务评分详情：score=9，max=10",
               "dimension": "commercial"
             },
             {
-              "title": "商务评分获得8/10，处于较高水平",
-              "detail": "商务评分8分（满分10分），得分率80%，表明商务条款响应较完整。",
-              "impact": "对综合得分有较大贡献，商务部分未出现重大偏差。",
-              "evidence": "商务评分详情：score=8, max=10",
-              "dimension": "commercial"
-            },
-            {
-              "title": "未发现关键材料缺失",
-              "detail": "投标文件关键信息中missingItems为空，表明未缺失关键附件或承诺。",
-              "impact": "降低因形式缺陷导致废标的风险。",
-              "evidence": "missingItems: []",
-              "dimension": "risk"
+              "title": "项目经理具高级工程师职称",
+              "detail": "项目经理夏侯焕为高级工程师，具备较高专业职称，可能对项目技术管理提供保障。",
+              "impact": "满足招标对项目负责人技术能力的基本要求，但需进一步核验个人业绩。",
+              "evidence": "投标文件信息：projectManager=夏侯焕，projectManagerTitle=高级工程师",
+              "dimension": "technical"
             }
           ],
           "weaknesses": [
             {
-              "title": "技术评分相对偏低",
-              "detail": "技术评分28/40，得分率70%，低于商务评分80%，表明技术方案或其他技术因素在评审中存在扣分。",
-              "impact": "技术得分是综合得分的主要组成，得分率不高可能影响整体竞争力，需核对具体分项扣分依据。",
-              "evidence": "技术评分详情：score=28, max=40；商务评分详情：score=8, max=10",
+              "title": "技术评分未达到满分的70%",
+              "detail": "技术得分29/40，失分11分，得分率72.5%，低于商务得分率90%。具体扣分原因需结合技术评审细则复核，可能存在方案细节、设备配置或人员组织等方面的扣分项。",
+              "impact": "技术分明显偏低，是综合得分的主要失分区间，可能影响整体排序。",
+              "evidence": "��术评分详情：score=29，max=40",
               "dimension": "technical"
             },
             {
-              "title": "商务评分存在2分扣减",
-              "detail": "商务评分8/10，扣减2分，可能涉及商务条款响应、企业实力、服务承诺等具体事项。",
-              "impact": "与满分相比失分2分，需核查扣分项，若可通过澄清或补充资料弥补，可能提升得分。",
-              "evidence": "商务评分详情：score=8, max=10",
+              "title": "商务评分扣分1分待核实",
+              "detail": "商务得分9/10，存在1分扣失，需明确扣分对应的条款，如企业信誉、服务承诺、工期响应等是否完全满足招标要求。",
+              "impact": "商务分虽高但有微瑕，需确认扣分项是否影响合同履约关键环节。",
+              "evidence": "商务评分详情：score=9，max=10",
               "dimension": "commercial"
             },
             {
-              "title": "业绩的时效性与针对性需进一步核验",
-              "detail": "三项业绩中最晚完成于2023年12月，且均属钻探类，但与本项目的具体技术参数匹配度（如孔径、深度、地层条件等）需结合招标要求核对。",
-              "impact": "若本项目技术条件更为复杂，业绩的类似性可能影响评审认定，需人工复核。",
-              "evidence": "keyPerformances中的完成时间与关键指标",
+              "title": "资质类型为劳务类，需确认适用范围",
+              "detail": "资质为“工程钻探劳务资质”，属于劳务类资质，而非综合勘察类或专业甲级。若招标要求包含勘察设计或综合资质，则存在不匹配风险；虽资格状态“通过”，但需人工复核资质等级与本项目招标范围的适配性。",
+              "impact": "若资质等级不足，可能面临资格复审不通过的风险，需重点核查。",
+              "evidence": "资质信息：qualificationLevel=劳务类，qualificationName=工程钻探劳务资质",
+              "dimension": "qualification"
+            },
+            {
+              "title": "业绩项目类型与招标内容的关联性需核验",
+              "detail": "三项业绩中两项为矿产勘探钻探，一项为垃圾填埋场水平孔，均涉及钻探但应用领域不同。需核验这些业绩是否与本项目要求的钻探类型、深度、倾角等核心指标高度一致，以确定其技术评分价值。",
+              "impact": "若业绩相关性不足，可能削弱技术评分依据，需在复核中确认。",
+              "evidence": "业绩名称及关键指标：锂辉石矿（1043.6m定向孔）、铝土矿（超过500m定向孔）、垃圾填埋场水平孔（560m，倾角12°）",
               "dimension": "technical"
+            },
+            {
+              "title": "项目经理个人业绩未在提供信息中体现",
+              "detail": "仅提供项目经理“高级工程师”职称，未显示其作为项目负责人在类似钻探工程中的具体任职业绩。若招标文件要求项目经理须有同类业绩，则存在不满足的风险。",
+              "impact": "项目经理经验是技术评审重要部分，缺失或不足可能导致技术扣分，需人工核验。",
+              "evidence": "投标文件信息：projectManager=夏侯焕，projectManagerTitle=高级工程师；未提供个人业绩明细",
+              "dimension": "risk"
             }
           ],
           "keyObservations": [
-            "技术评分28/40，显著低于满分，需重点审查施工组织设计、质量保证措施、安全文明施工等分项得分情况。",
-            "商务评分8/10，扣分点可能集中在企业财务状况、售后服务承诺等方面，需核对评分记录。",
-            "综合得分36分，当前评分结果显示该投标人得分相对较低，需结合评分细则确认各分项计算无误。"
+            "技术评分与满分差距较大（29/40），建议逐项对照技术评审表核查施工方案、设备投入、质量控制、安全环保等扣分点。",
+            "商务评分接近满分（9/10），需确认唯一扣分项的具体内容，是否影响履约响应。",
+            "业绩中深孔和定向孔为亮点，但项目领域涵盖矿产和环保，需判断与本项目钻探目标的相似度。",
+            "资质为工程钻探劳务类，务必对照招标文件资格要求中是否接受劳务资质或要求更高等级。",
+            "项目经理夏侯焕虽为高级工程师，但未提��个人负责业绩，存在评审复核重点。",
+            "综合得分38.0分由技术29分和商务9分构成，不含报价分；候选排序须以人工评审结果为准。"
           ]
         },
-        "processedAt": "2026-08-18T04:27:44.891Z",
+        "processedAt": "2026-08-18T05:19:32.372Z",
         "createdAt": "2026-08-18T04:03:40.895Z",
-        "updatedAt": "2026-08-18T04:40:02.045Z",
+        "updatedAt": "2026-08-18T05:20:09.832Z",
         "starredResponse": {
           "unmet": [
+            "采取率要求：用双层半合管取心，覆盖层≥85﹪，强风化基岩、断层破碎带≥90﹪，弱风化及新鲜基岩≥95﹪；",
+            "钻孔岩心及原始班报表要求：全孔均为取心钻进，岩心依次序摆放、逐一编号、保管，并作好各回次样品孔深标记（岩心牌）；及时、真实地填写好钻探班报记录，若孔内有异常现象，须将异常段记录在钻探原始班报表上；每天开钻前须进行孔内水位测试。",
+            "岩心编录及影像资料：按照采购人指定的格式完成钻孔岩心素描、编录及岩心照片各一套；岩性编录人员应随钻及时编录，按照采购人要求及时提供钻进过程中的编录资料。",
+            "完成压（注）水试验：每 5m 进行一段压水，压水试验按照《水利水电工程岩土渗透性原位试验规程 第 1 部分：钻孔压水试验》(SL/T 31.1—2025)进行。水压力测试随钻进过程每 5m 测 1 次，涌水量或水量变化时应加测 1 次。压水试验完成后，采购人将抽检每孔 5%～10%总压水试验段数（供应商承担抽检工作及费用），抽检全部与原压水试验符合才能认为压水试验合格，否则认为压水试验不合格，试验重新做，且费用由供应商负责。",
+            "钻孔结构及轨迹：终孔孔径不小于 75mm，并应满足孔内各测试设备孔径要求，供应商应根据地层结构确定合理的钻孔结构以满足完成钻探目的要求。",
+            "钻孔钻进每 200m，供应商应对孔深、孔斜、钻探资料等检查的工作。",
+            "终孔要求：钻孔达到设计孔深后，经采购人组织检查验收后，确认不再钻进后方可终孔，并配合完成水文观测设备安装工作或封孔工作。",
+            "根据钻探情况，完成采购人指定的其他与本勘探相关的工作。",
             "索道架设与运行：满足施工方所组织的能满足钻孔施工要求的设备进出场要求；工作期内供应商应及时对索道进行维护。",
             "勘探应急便道：满足人员进出场通行要求。勘探应急便道保通及其他；便道经过验收合格后，在勘探工作期间及产品验收之前需保通；工作期内供应商应及时对损毁勘探便道进行维护。"
           ],
           "allMet": false
         },
-        "requirementResponses": []
+        "requirementResponses": [
+          {
+            "status": "met",
+            "excerpt": "事业单位法人证书",
+            "category": "qualification",
+            "location": {
+              "page": 4,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "9f619762ff",
+            "tenderContent": "供应商为企业（包括合伙企业）的，应提供有效的“营业执照”；供应商为事业单位的，应提供有效的“事业单位法人证书”；供应商是非企业机构的，应提供有效的“执业许可证” 、“登记证书”等证明文件；供应商是个体工商户的，应提供有效的“个体工商户营业执照”。分支机构参加响应的，应提供该分支机构或其所属法人/其他组织的相应证明文件；同时还应提供其所属法人 /其他组织出具的授权其参与本项目的授权书（格式自拟，须加盖其所属法人/其他组织的公章）；对于银行、保险、石油石化、电力、电信等行业的分支机构，可以提供上述授权，也可以提供其所属法人/其他组织的有关文件或制度等能够证明授权其独立开展业务的证明材料。"
+          },
+          {
+            "status": "met",
+            "excerpt": "事业单位法人证书",
+            "category": "qualification",
+            "location": {
+              "page": 4,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.9,
+            "pageCorrected": false,
+            "requirementId": "843fd729a9",
+            "tenderContent": "具有独立法人资格。"
+          },
+          {
+            "status": "met",
+            "excerpt": "资质类别及等级： 工程勘察专业类（工程测量）乙级：劳务类（工程钻探）**",
+            "category": "qualification",
+            "location": {
+              "page": 9,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 1,
+            "pageCorrected": false,
+            "requirementId": "673809e45e",
+            "tenderContent": "具备工程钻探劳务资质或在中国矿业联合会地质勘查信用信息公示系统红名单内。"
+          },
+          {
+            "status": "met",
+            "excerpt": "其中zk0707孔深1043.6m，为典型超过500m的倾斜定向孔。",
+            "category": "qualification",
+            "location": {
+              "page": 24,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 1,
+            "pageCorrected": false,
+            "requirementId": "28171faf5f",
+            "tenderContent": "供应商近 5 年内（自 2026 年 1 月 28 日前 60 个月，以中标通知书或合同签订时间为准）至少有两项类似项目钻探业绩（500 米（含 500 米）以上水平或倾斜钻孔施工），需提供中标通知书或合同关键页等证明材料。"
+          },
+          {
+            "status": "met",
+            "excerpt": "除合同条款及采购需求偏离表列出的偏离外，我方响应采购文件的全部要求。",
+            "category": "qualification",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": false,
+            "requirementId": "382e9e34f2",
+            "tenderContent": "供应商应保证在本项目中使用的任何技术、产品和服务（包括部分使用），不会产生因第三方提出侵犯其专利权、商标权或其它知识产权而引起的法律和经济纠纷，如因专利权、商标权或其它知识产权而引起法律和经济纠纷，由供应商承担所有相关责任。"
+          },
+          {
+            "status": "met",
+            "excerpt": "我方���提供的全部文件资料是真实、准确的，并对此承担一切法律后果。",
+            "category": "qualification",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.7,
+            "pageCorrected": false,
+            "requirementId": "d365aeefc7",
+            "tenderContent": "供应商在响应文件中提供虚假材料的，采购人不予退还响应保证金。"
+          },
+          {
+            "status": "met",
+            "excerpt": "违反公平竞争的原则，存在恶意串通，妨碍其他供应商的竞争行为，存在损害采购人或者其他供应商合法权益的情形。",
+            "category": "qualification",
+            "location": {
+              "page": 5,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.9,
+            "pageCorrected": false,
+            "requirementId": "3cd4d2a75a",
+            "tenderContent": "供应商与采购人、其他供应商恶意串通的，采购人不予退还响应保证金。"
+          },
+          {
+            "status": "met",
+            "excerpt": "①供应商根据现场条件架设索道、人员通行应急便道；",
+            "category": "technical",
+            "location": {
+              "page": 53,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 1,
+            "pageCorrected": false,
+            "requirementId": "72b358700e",
+            "tenderContent": "供应商根据现场条件架设索道、人员通行应急便道；"
+          },
+          {
+            "status": "met",
+            "excerpt": "②供应商按照采购人提供的钻孔坐标进行钻孔定位，精度达到IV等控制点要求及钻场平整等；",
+            "category": "technical",
+            "location": {
+              "page": 53,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 1,
+            "pageCorrected": false,
+            "requirementId": "b1891cf230",
+            "tenderContent": "供应商按照采购人提供的钻孔坐标进行钻孔定位，精度达到 IV 等控制点要求及钻场平整等；"
+          },
+          {
+            "status": "met",
+            "excerpt": "③完成钻孔取心钻探",
+            "category": "technical",
+            "location": {
+              "page": 49,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 1,
+            "pageCorrected": true,
+            "requirementId": "2bfc9de197",
+            "tenderContent": "完成钻孔取心钻探；"
+          },
+          {
+            "status": "met",
+            "excerpt": "④配合完成岩体声波（Vp）、钻孔全景成像等测试工作（包括设备在孔内的投送和取出）；",
+            "category": "technical",
+            "location": {
+              "page": 49,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 1,
+            "pageCorrected": true,
+            "requirementId": "f4609fe0c8",
+            "tenderContent": "配合完成岩体声波（Vp）、钻孔全景成像等测试工作（包括设备在孔内的投送和取出）；"
+          },
+          {
+            "status": "met",
+            "excerpt": "岩心编录；",
+            "category": "technical",
+            "location": {
+              "page": 49,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": true,
+            "requirementId": "98e315894d",
+            "tenderContent": "岩心编录；"
+          },
+          {
+            "status": "met",
+            "excerpt": "完成岩心室内存放及保管。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.9,
+            "pageCorrected": true,
+            "requirementId": "9db622c00e",
+            "tenderContent": "完成岩心室内存放及保管。"
+          },
+          {
+            "status": "met",
+            "excerpt": "钻探操作，按照《水利水电工程钻探规程》（SL/T291一2020）及《水利水电工程水平定向钻探规程》（T/CHES108一2023）等相关规范要求执行，采取措施，满足质量、进度要求，确保生产过程安全。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "1cdf65ef11",
+            "tenderContent": "钻探操作，按照《水利水电工程钻探规程》（SL/T 291—2020）等相关规范要求执行，采取措施，满足质量、进度要求，确保生产过程安全。"
+          },
+          {
+            "status": "met",
+            "excerpt": "采取率要求：用双层半合管取心，覆盖层≥85%，强风化基岩、断层破碎带≥90%，弱风化及新鲜基岩≥95%；",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "7de8b76972",
+            "tenderContent": "采取率要求：用双层半合管取心，覆盖层≥85﹪，强风化基岩、断层破碎带≥90﹪，弱风化及新鲜基岩≥95﹪；"
+          },
+          {
+            "status": "met",
+            "excerpt": "钻孔岩心及原始班报表要求：全孔���为取心钻进，岩心依次序摆放、逐一编号、保管，并作好各回次样品孔深标记（岩心牌）；及时、真实地填写好钻探班报记录，若孔内有异常现象，须将异常段记录在钻探原始班报表上；每天开钻前须进行孔内水位测试。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "91feb1596f",
+            "tenderContent": "钻孔岩心及原始班报表要求：全孔均为取心钻进，岩心依次序摆放、逐一编号、保管，并作好各回次样品孔深标记（岩心牌）；及时、真实地填写好钻探班报记录，若孔内有异常现象，须将异常段记录在钻探原始班报表上；每天开钻前须进行孔内水位测试。"
+          },
+          {
+            "status": "met",
+            "excerpt": "岩心编录及影像资料：按照采购人指定的格式完成钻孔岩心素描、编录及岩心照片各一套；岩性编录人员应随钻及时编录，按照采购人要求及时提供钻进过程中的编录资料。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "cf82901e12",
+            "tenderContent": "岩心编录及影像资料：按照采购人指定的格式完成钻孔岩心素描、编录及岩心照片各一套；岩性编录人员应随钻及时编录，按照采购人要求及时提供钻进过程中的编录资料。"
+          },
+          {
+            "status": "met",
+            "excerpt": "完成压（注）水试验：每5m进行一段压水，压水试验按照《水利水电工程岩土渗透性原位试验规程第1部分：钻孔压水试验》（SL/T31.1—2025)进行。水压力测试随钻进过程每5m测1次，涌水量或水量变化时应加测1次。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "8ab2fd68ac",
+            "tenderContent": "完成压（注）水试验：每 5m 进行一段压水，压水试验按照《��利水电工程岩土渗透性原位试验规程 第 1 部分：钻孔压水试验》(SL/T 31.1—2025)进行。水压力测试随钻进过程每 5m 测 1 次，涌水量或水量变化时应加测 1 次。压水试验完成后，采购人将抽检每孔 5%～10%总压水试验段数（供应商承担抽检工作及费用），抽检全部与原压水试验符合才能认为压水试验合格，否则认为压水试验不合格，试验重新做，且费用由供应商负责。"
+          },
+          {
+            "status": "met",
+            "excerpt": "钻孔结构及轨迹���终孔孔径不小于75mm，并应满足孔内各测试设备孔径要求，供应商应根据地层结构确定合理的钻孔结构以满足完成钻探目的要求。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "dcc72ea137",
+            "tenderContent": "钻孔结构及轨迹：终孔孔径不小于 75mm，并应满足孔内各测试设备孔径要求，供应商应根据地层结构确定合理的钻孔结构以满足完成钻探目的要求。"
+          },
+          {
+            "status": "met",
+            "excerpt": "钻孔钻进每200m，供应商应对孔深、孔斜、钻探资料等检查的工作。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.9,
+            "pageCorrected": false,
+            "requirementId": "8258975766",
+            "tenderContent": "钻孔钻进每 200m，供应商应对孔深、孔斜、钻探资料等检查的工作。"
+          },
+          {
+            "status": "met",
+            "excerpt": "配合完成岩体声波（Vp）、钻孔全景成像、地应力等测试工作（包括设备在孔内的投送和取出）。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "8fbee2f35a",
+            "tenderContent": "配合完成岩体声波（Vp）、钻孔全景成像\\地应力测试等测试工作（包括设备在孔内的投送和取出）。"
+          },
+          {
+            "status": "met",
+            "excerpt": "终孔要求：钻孔达到设计孔深后，经采购人组织检查验收后，确认不再钻进后方可终孔，并配合完成水文观测设备安装工作或封孔工作。",
+            "category": "technical",
+            "location": {
+              "page": 54,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 0.95,
+            "pageCorrected": false,
+            "requirementId": "09519bb0c7",
+            "tenderContent": "终孔要求：钻孔达到设计孔深后，经采购人组织检查验收后，确认不再钻进后方可终孔，并配合完成水文观测设备安装工作或封孔工作。"
+          },
+          {
+            "status": "met",
+            "excerpt": "岩心保存：钻孔岩心运送至采购人指定位置进行3年室内保存，费用由供应商负责。",
+            "category": "technical",
+            "location": {
+              "page": 55,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 1,
+            "pageCorrected": false,
+            "requirementId": "e133d2c524",
+            "tenderContent": "岩心保存：钻孔岩心运送至采购人指定位置进行 3 年室内保存，费用由供应商负责。"
+          },
+          {
+            "status": "met",
+            "excerpt": "根据钻探情况，完成采购人指定的其他与本勘探相关的工作。",
+            "category": "technical",
+            "location": {
+              "page": 55,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 1,
+            "pageCorrected": false,
+            "requirementId": "214823b5f7",
+            "tenderContent": "根据钻探情况，完成采购人指定的其他与本勘探相关的工作。"
+          },
+          {
+            "status": "met",
+            "excerpt": "索道架设与运行：满足施工方所组织的能满足钻孔施工要求的设备进出场要求；工作期内供应商应及时对索道进行维护。",
+            "category": "technical",
+            "location": {
+              "page": 55,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 1,
+            "pageCorrected": false,
+            "requirementId": "35fc814dfd",
+            "tenderContent": "索道架设与运行：满足施工方所组织的能满足钻孔施工要求的设备进出场要求；工作期内供���商应及时对索道进行维护。"
+          },
+          {
+            "status": "met",
+            "excerpt": "勘探应急便道：满足人员进出场通行要求。勘探应急便道保通及其他；便道经过验收合格后，在勘探工作期间及产品验收之前需保通；工作期内供应商应及时对损毁勘探便道进行维护。",
+            "category": "technical",
+            "location": {
+              "page": 55,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": true,
+            "confidence": 1,
+            "pageCorrected": false,
+            "requirementId": "f41599f605",
+            "tenderContent": "勘探应急便道：满足人员进出场通行要求。勘探应急便道保通及其他；便道经过验收合格后，在勘探工作期间及产品验收之前需保通；工作期内供应商应及时对损毁勘探便道进行维护。"
+          },
+          {
+            "status": "met",
+            "excerpt": "除合同条款及采购需求偏离表列出的偏离外，我方响应采购文件的全部要求。",
+            "category": "commercial",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": false,
+            "requirementId": "6b3cb05a3e",
+            "tenderContent": "合同签定后，在供应商支付履约金后，15 个工作日内支付合同价款的 10%作为项目启动的预付款，为***万人民币；"
+          },
+          {
+            "status": "met",
+            "excerpt": "除合同条款及采购需求偏离表列出的偏离外，我方响应采购文件的全部要求。",
+            "category": "commercial",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": false,
+            "requirementId": "9506aa304e",
+            "tenderContent": "设备进场安装及调试完成并经采购人验收合格后 15 个工作日内，开始勘探孔钻孔时支付合同价款的 20%，为***万人民币；"
+          },
+          {
+            "status": "met",
+            "excerpt": "除合同条款及采购需求偏离表列出的偏离外，我方响应采购文件的全部要求。",
+            "category": "commercial",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": false,
+            "requirementId": "c77c51c7e2",
+            "tenderContent": "供应商完成勘探孔达到设计深度后并经验收合格后 15 个工作日内，经采购人验收孔深后支付合同总价款的 30%，为***万人民币；"
+          },
+          {
+            "status": "met",
+            "excerpt": "除合同条款及采购需求偏离表列出的偏离外，我方响应采购文件的全部要求。",
+            "category": "commercial",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": false,
+            "requirementId": "7a437557ae",
+            "tenderContent": "钻孔资料验收合格后，支付剩余合同价款，为***万人民币。"
+          },
+          {
+            "status": "met",
+            "excerpt": "除合同条款及采购需求偏离表列出的偏离外，我方响应采购文件的全部要求。",
+            "category": "commercial",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": false,
+            "requirementId": "b8f2dc1f8b",
+            "tenderContent": "所有款项均通过银行转账或银行承兑汇票方式支付。付款前，成交供应商应当向采购人开具合法足额的增值税专用发票，成交供应商逾期开具发票，采购人付款时间顺延，且不承担任何责任。成交供应商应当对其开具发票的合法性、合规性负责，如果因为成交供应商开具的发票不合法、不合规而导致采购人无法税前扣除或遭受其他损失的，成交供应商应承担赔偿责任，且采购人有权要求成交供应商重新开具合法有效的发票。否则采购人不予支付本合同价款，造成的后果成交供应商自负。"
+          },
+          {
+            "status": "met",
+            "excerpt": "除合同条款及采购需求偏离表列出的偏离外，我方响应采购文件的全部要求。",
+            "category": "commercial",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": false,
+            "requirementId": "292346efd6",
+            "tenderContent": "采购人负责为进入作业现场的采购人人员生命财产和设备办理保险，支付保险费用； 成交供应商应为投入的机械设备和成交供应商人员购买足额保险。"
+          },
+          {
+            "status": "met",
+            "excerpt": "除合同条款及采购需求偏离表列出的偏离外，我方响应采购文件的全部要求。",
+            "category": "commercial",
+            "location": {
+              "page": 46,
+              "fileId": "cmswnjy1t00z3uunxk2y03166"
+            },
+            "verified": true,
+            "isStarred": false,
+            "confidence": 0.8,
+            "pageCorrected": false,
+            "requirementId": "b233194137",
+            "tenderContent": "针对农民工工资支付、安全文明施工、安全生产等具体要求详见合同附件。"
+          }
+        ]
       },
       {
         "id": "cmsy5187z0006uussb97ugmd7",
@@ -5516,7 +6330,7 @@
         ],
         "overallComment": "四川省第四地质大队综合得分25.0分，其中技术评分20分（满分40分），商务评分5分（满分10分）。投标人具备金属非金属矿产资源地质勘探资质且状态通过，但资质等级未显示；提供了3项类似钻探业绩，累计合同金额约3594.877万元，钻探总量约27517.45米，项目负责人为高级工程师，注册资本16000万元，投标文件无缺失项。但技术及商务得分均仅为满分的一半，且存在业绩完成时间（2022年）早于单位成立时间（2023年）的矛盾，资质等级为“无”等需重点关注。本次分析未对价格得分进行评估。建议人工复核资质等级是否满足招标文件要求、业绩归属的真实性和合法性，以及技术、商务评分细则的对应性，以确认最终评审结果。候选排序需以人工评审结果为准。\n[自动] 存在未响应的 ★实质性条款：钻探操作，按照《水利水电工程钻探规程》（SL/T 291—2020）等相关规范要求执行，采取措施，满足质量、进度要求，确保生产过程安全。、采取率要求：用双层半合管取心，覆盖层≥85﹪，强风化基岩、断层破碎带≥90﹪，弱风化及新鲜基岩≥95﹪；、钻孔岩心及原始班报表要求：全孔均为取心钻进，岩心依次序摆放、逐一编号、保管，并作好各回次样品孔深标记（岩心牌）；及时、真实地填写好钻探班报记录，若孔内有异常现象，须将异常段记录在钻探原始班报表上；每天开钻前须进行孔���水位测试。、岩心编录及影像资料：按照采购人指定的格式完成钻孔岩心素描、编录及岩心照片各一套；岩性编录人员应随钻及时编录，按照采购人要求及时提供钻进过程中的编录资料。、完成压（注）水试验：每 5m 进行一段压水，压水试验按照《水利水电工程岩土渗透性原位试验规程 第 1 部分：钻孔压水试验》(SL/T 31.1—2025)进行。水压力测试随钻进过程每 5m 测 1 次，涌水量或水量变化时应加测 1 次。压水试验完成后，采购人将抽检每孔 5%～10%总压水试验段数（供应商承担抽检工作及费用），抽检全部与原压水试验符合才能认为压水试验合格，否则认为压水试验不合格，试验重新做，且费用由供应商负责。、钻孔结构及轨迹：终孔孔径不小于 75mm，并应满足孔内各测试设备孔径要求，供应商应根据地层结构确定合理的钻孔结构以满足完成钻探目的要求。、钻孔钻进每 200m，供应商应对孔深、孔斜、钻探资料等检查的工作。、配合完成岩体声波（Vp）、钻孔全景成像\\地应力测试等测试工作（包括设备在孔内的投送和取出）。、终孔要求：钻孔达到设计孔深后，经采购人组织检查验收后，确认不再钻进后方可终孔，并配合完成水文观测设备安装工作或封孔工作。、根据钻探情况，完成采购人指定的其他与本勘探相关的工作。、索道架设与运行：满足施工方所组织的能满足钻孔施工要求的设备进出场要求；工作期内供应商应及时对索道进行维护。、勘探应急便道：满足人员进出场通行要求。勘探应急便道保通及其他；便道经过验收合格后，在勘探工作期间及产品验收之前需保通；工作期内供应商应及时对损毁勘探便道进行维护。",
         "deviationAnalysis": {
-          "reason": "无资质且业绩少，商务分保持5；价格与第十二接近，同分；技术分保持原评。",
+          "reason": "无资质，技术商务评分较低，报价与十二地质接近，校准分不变",
           "previousScore": 74.8,
           "comparativeScore": 74.8
         },
@@ -5612,7 +6426,7 @@
         },
         "processedAt": "2026-08-18T04:23:42.548Z",
         "createdAt": "2026-08-18T04:03:40.895Z",
-        "updatedAt": "2026-08-18T04:40:02.053Z",
+        "updatedAt": "2026-08-18T05:20:09.837Z",
         "starredResponse": {
           "unmet": [
             "钻探操作，按照《水利水电工程钻探规程》（SL/T 291—2020）等相关规范要求执行，采取措施，满足质量、进度要求，确保生产过程安全。",
