@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsArray, ValidateNested, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsIn, IsNotEmpty, IsArray, ValidateNested, IsOptional, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ExtractionExpertDto {
@@ -36,4 +36,8 @@ export class ConfirmExtractionDto {
   /** 追加模式：不清空已有记录，只追加新专家（补选使用）。默认 false 时清空再写入（正选初次使用）。 */
   @IsOptional() @IsBoolean()
   append?: boolean;
+
+  /** P1-9：抽取模式快照（specialty_match/random/merit_best）——确认时载明，供抽取审计留痕 */
+  @IsOptional() @IsIn(['specialty_match', 'random', 'merit_best'])
+  extractMode?: string;
 }
