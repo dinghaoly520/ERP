@@ -22,6 +22,11 @@ describe('UploadService — download permission', () => {
       bidSupplier: { findFirst: jest.fn() },
       supplier: { findUnique: jest.fn() },
       bidSupervisionLog: { create: jest.fn() },
+      bidOpeningSession: { findFirst: jest.fn() },
+      bidSignPacket: { findFirst: jest.fn() },
+      awardLetterDelivery: { findFirst: jest.fn() },
+      expertMemo: { findFirst: jest.fn() },
+      openingHallMessage: { findFirst: jest.fn() },
     };
     res = { setHeader: jest.fn() };
 
@@ -200,6 +205,57 @@ describe('UploadService — download permission', () => {
       await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
         .rejects.toMatchObject({ response: { code: 'FILE_REFERENCED' } });
       expect(minioClient.removeObject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('§P0-5 — 开评标留痕资产删除保护（category 全集 + 引用反查兜底）', () => {
+    const EVIDENCE_CATEGORIES = [
+      'bid_opening_handover', 'bid_evaluation_handover', 'bid_evaluation_sign_handover',
+      'bid_sign_packet', 'sign_packet_signature_page', 'expert_sign_scan',
+      'expert_memo_ink', 'expert_signin_photo',
+    ];
+
+    beforeEach(() => {
+      jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
+    });
+
+    for (const cat of EVIDENCE_CATEGORIES) {
+      it(`${cat} 资产（admin 亦）→ 409 FILE_PROTECTED，不落 MinIO 删除`, async () => {
+        prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: cat, uploaderId: 'u-host' });
+
+        await expect(service.delete('uploads/evidence.bin', { sub: 'u-admin', role: 'admin' }))
+          .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
+        expect(minioClient.removeObject).not.toHaveBeenCalled();
+        expect(prisma.fileAsset.delete).not.toHaveBeenCalled();
+      });
+    }
+
+    it('反查兜底：中标通知书 DOCX 被 AwardLetterDelivery 引用 → 409 FILE_PROTECTED', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'general' });
+      prisma.awardLetterDelivery.findFirst.mockResolvedValue({ id: 'ald-1' });
+
+      await expect(service.delete('uploads/letter.docx', { sub: 'u-admin', role: 'admin' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+    });
+
+    it('反查兜底：签字包 PDF 被 BidSignPacket 引用 → 409 FILE_PROTECTED', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'general' });
+      prisma.bidSignPacket.findFirst.mockResolvedValue({ id: 'sp-1' });
+
+      await expect(service.delete('uploads/packet.pdf', { sub: 'u-admin', role: 'admin' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+    });
+
+    it('反查兜底：无任何引用的一般资产 → 照删（回归）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'general' });
+      for (const k of ['awardLetterDelivery', 'bidSignPacket', 'bidOpeningSession', 'bidExpert', 'expertMemo', 'openingHallMessage']) {
+        prisma[k].findFirst.mockResolvedValue(null);
+      }
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue(null);
+
+      await expect(service.delete('uploads/plain.pdf', { sub: 'u-supplier', role: 'supplier' })).resolves.toEqual({ deleted: true, key: 'uploads/plain.pdf' });
     });
   });
 
