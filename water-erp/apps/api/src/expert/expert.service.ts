@@ -365,6 +365,16 @@ export class ExpertService {
 
   /* ── 身份核验 ── */
 
+  /** P1-6：候补专家门控——正式递补（expertRole 置'正选'）前不可参与评标活动。
+   * 依据《招标投标法》第37条：评标委员会成员须正式进入委员会；候补专家仅在正选
+   * 缺席时经递补程序（swapExpertRole）进入。回避确认/协议签署等核验准备不拦（对递补有利）。 */
+  private assertRegularExpert(expert: { expertRole: string }, action = '参与评标'): void {
+    if (expert.expertRole !== '正选') {
+      throw new ForbiddenException({ error: `您是候补专家，正式递补前不可${action}`, code: 'SUBSTITUTE_EXPERT' });
+    }
+  }
+
+
   async signIn(userId: string, projectId: string, env?: { ip: string; userAgent: string | null }, photoAssetId?: string) {
     // P1: 阶段门控 — 仅开标/评标阶段可签到
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
@@ -376,6 +386,7 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '签到');
 
     if (!expert.phoneVerified) {
       throw new ForbiddenException({
@@ -531,6 +542,7 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '获取投标文件');
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
       // 审计：专家核验未完成即尝试访问
       this.prisma.bidSupervisionLog.create({
@@ -630,6 +642,7 @@ export class ExpertService {
     }
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '下载投标文件');
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }
@@ -844,6 +857,7 @@ export class ExpertService {
     }
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '下载投标文件');
     // 回避名单检查先于签到/回避确认检查：回避名单本身即最终阻断信号，避免泄露后续状态细节
     const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
     if (conflictedIds.includes(supplierId)) {
@@ -898,6 +912,7 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '查看 AI 辅助数据');
 
     // P1-2：身份核验/回避/AI声明门控——未完成前置步骤不可读 AI 分析（服务端强制，前端门控不可绕过）
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
@@ -986,6 +1001,7 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '查看 AI 对比分析');
 
     // P1-2：身份核验/回避/AI声明门控——未完成前置步骤不可读竞争态势（含 projectFraudSummary）
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
@@ -1091,6 +1107,7 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '提交评分');
     if (expert.reportConfirmed) {
       throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     }
@@ -1579,6 +1596,7 @@ export class ExpertService {
 
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '核对评分');
     if (expert.reportConfirmed) throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
     // P2-3：身份核验/回避/AI声明门控
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
@@ -1839,6 +1857,7 @@ export class ExpertService {
       where: { userId, projectId },
     });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    this.assertRegularExpert(expert, '确认评审报告');
     if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
       throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
     }

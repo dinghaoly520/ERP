@@ -107,6 +107,7 @@ const splitCats = ref<{ tech: SplitCategory; biz: SplitCategory; other: SplitCat
 })
 
 const autoSaveReady = ref(false); const showRecovery = ref(false); const submitDialogVisible = ref(false)
+const hostDecryptConsent = ref(false) // P1-1：旧轨代解密授权勾选（新轨供应商自解无需）
 // E2EE: localStorage key for DEK persistence (separate from form draft)
 const DEK_STORAGE_KEY = computed(() => `supplier_dek:bidsubmit:${projectId.value}`)
 
@@ -502,6 +503,7 @@ async function doSubmit() {
   submitting.value = true
   try {
     const payload: any = { ...form.value }
+    if (!dualReady.value) payload.hostDecryptAuthorized = hostDecryptConsent.value // P1-1：旧轨授权记录随提交落库
     if (submissionMode.value === 'split') {
       payload.splitFiles = {
         tech: splitCats.value.tech.files,
@@ -706,9 +708,12 @@ async function doSubmit() {
       </div>
       <el-alert v-if="!canConfirm" type="error" :closable="false" show-icon style="margin-top:16px"><template #title>存在未通过的必填项，请完善后重新提交</template></el-alert>
       <el-alert v-else type="success" :closable="false" show-icon style="margin-top:16px"><template #title>检查通过，可以提交</template></el-alert>
+      <div v-if="!dualReady" class="host-decrypt-consent" style="margin-top:14px">
+        <el-checkbox v-model="hostDecryptConsent">本人同意平台在开标环节按招标文件规定方式<b>代为解密</b>本投标文件（电子招标投标办法第30条）</el-checkbox>
+      </div>
       <template #footer>
         <el-button @click="submitDialogVisible=false">取消</el-button>
-        <el-button type="primary" :disabled="!canConfirm" @click="confirmSubmit">确认提交</el-button>
+        <el-button type="primary" :disabled="!canConfirm || (!dualReady && !hostDecryptConsent)" @click="confirmSubmit">确认提交</el-button>
       </template>
     </el-dialog>
 
