@@ -11,8 +11,9 @@ interface ArchiveItemLike {
   name: string;
   ownerRole: string;
   status: string;
-  /** 关联文件的 SHA-256 哈希，纳入链式哈希以保证内容完整性 */
-  fileHashes?: string[];
+  /** 关联文件的 SHA-256 哈希，纳入链式哈希以保证内容完整性。
+   * P1-14 起从 BidArchiveItem.fileHashes（Json?）持久化列回读——运行时按数组归一，非数组视为无。 */
+  fileHashes?: string[] | null;
 }
 
 /** 稳定排序：归档项按 id 升序，确保输入顺序不影响哈希。 */
@@ -40,7 +41,7 @@ export function genesisHash(project: ArchiveProject): string {
  */
 export function computeArchiveDigest(project: ArchiveProject, items: ArchiveItemLike[]): string {
   const normalizedItems = sortByItemId(items).map(i =>
-    [i.id, i.name, i.ownerRole, i.status, ...(i.fileHashes?.length ? [i.fileHashes.slice().sort()] : [])],
+    [i.id, i.name, i.ownerRole, i.status, ...(Array.isArray(i.fileHashes) && i.fileHashes.length ? [i.fileHashes.slice().sort()] : [])],
   );
   const payload = JSON.stringify({
     projectId: project.id,
@@ -74,7 +75,7 @@ export function computeArchiveChain(project: ArchiveProject, items: ArchiveItemL
       name: item.name,
       ownerRole: item.ownerRole,
       status: item.status,
-      ...(item.fileHashes?.length ? { fileHashes: item.fileHashes.slice().sort() } : {}),
+      ...(Array.isArray(item.fileHashes) && item.fileHashes.length ? { fileHashes: item.fileHashes.slice().sort() } : {}),
     });
     const h = crypto.createHash('sha256').update(itemPayload, 'utf8').digest('hex');
     result.set(item.id, `sha256:${h}`);

@@ -468,7 +468,9 @@ export class BidController {
 
   @Get('projects/:id/experts')
   @ApiOperation({ summary: '评标专家列表' })
-  listExperts(@Param('id') id: string) { return this.bidService.listExperts(id); }
+  listExperts(@Param('id') id: string, @CurrentUser('role') role?: string) {
+    return this.bidService.listExperts(id, role);
+  }
 
   @Get('projects/:id/evaluation-results')
   @ApiOperation({ summary: '评标结果汇总' })

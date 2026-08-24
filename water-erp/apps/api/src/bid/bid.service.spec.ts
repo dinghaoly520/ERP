@@ -5951,3 +5951,135 @@ describe('BidService — decryptOuter 主持端解外层 (dual-v2 · Task 12)', 
   });
 });
 });
+
+describe('P1-5 — 评委名单评标前保密（EXPERTS_CONFIDENTIAL）', () => {
+  let svc: any;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = { bidProject: { findUnique: jest.fn() }, bidExpert: { findMany: jest.fn() } };
+    const { BidService } = await import('./bid.service');
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    svc = instance;
+  });
+
+  it('leader/staff 在 DOWNLOAD 阶段 → 403 EXPERTS_CONFIDENTIAL 且零查询专家表', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
+    await expect(svc.listExperts('p1', 'staff'))
+      .rejects.toMatchObject({ response: { code: 'EXPERTS_CONFIDENTIAL' } });
+    expect(prisma.bidExpert.findMany).not.toHaveBeenCalled();
+  });
+  it('staff 在 EVALUATING 阶段 → 放行', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+    prisma.bidExpert.findMany.mockResolvedValue([{ id: 'e1' }]);
+    await expect(svc.listExperts('p1', 'staff')).resolves.toEqual([{ id: 'e1' }]);
+  });
+  it('admin/bid_host 在 DOWNLOAD 阶段 → 放行', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
+    prisma.bidExpert.findMany.mockResolvedValue([]);
+    await expect(svc.listExperts('p1', 'admin')).resolves.toEqual([]);
+    expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
+  });
+  it('callerRole 缺省（内部直调）→ 放行（向后兼容）', async () => {
+    prisma.bidExpert.findMany.mockResolvedValue([]);
+    await expect(svc.listExperts('p1')).resolves.toEqual([]);
+  });
+});
+
+describe('P1-14 — 签字包指纹链持久化', () => {
+  let svc: any;
+  let prisma: any;
+  let tx: any;
+
+  beforeEach(async () => {
+    const txOverrides: any = {
+      bidArchiveItem: { update: jest.fn(), findMany: jest.fn() },
+      bidProject: { update: jest.fn(), findUnique: jest.fn().mockResolvedValue({ id: 'p1', stage: 'EVALUATING' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      bidSignPacket: { findUnique: jest.fn() },
+      bidExpert: { findMany: jest.fn() },
+      fileAsset: { findMany: jest.fn() },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'p1' }]),
+    };
+    // 兜底：archiveAll 内部其他 prisma 调用（count/findMany/updateMany 等）一律返回 []，测试只关心签字包项的 update
+    const makeCatchAll = (): any => {
+      const fn: any = jest.fn(async () => []);
+      return new Proxy(fn, {
+        get(t, p) {
+          if (p === 'then') return undefined;
+          if (p in t) return t[p];
+          const child = makeCatchAll();
+          t[p] = child;
+          return child;
+        },
+      });
+    };
+    tx = new Proxy(txOverrides, {
+      get(target, prop) {
+        if (prop === 'then') return undefined;
+        if (prop in target) return (target as any)[prop];
+        const child = makeCatchAll();
+        (target as any)[prop] = child;
+        return child;
+      },
+    });
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidArchiveItem: { findMany: jest.fn() },
+      bidSupervisionLog: { create: jest.fn() },
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const { BidService } = await import('./bid.service');
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    instance.logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    instance.ensureArchiveItems = jest.fn();
+    svc = instance;
+  });
+
+  it('完整归档签字包项持久化 fileHashes（与算链同值）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'GK-1', name: 'P', stage: 'EVALUATING' });
+    tx.bidSignPacket = { findUnique: jest.fn().mockResolvedValue({
+      closedAt: new Date(), handoverFileAssetId: 'fa-h', sha256: 'sha-packet',
+    }) };
+    tx.bidExpert = { findMany: jest.fn().mockResolvedValue([
+      { expertName: '甲', signStatus: 'SIGNED', signScanFileId: 'fa-scan' },
+    ]) };
+    tx.fileAsset = { findMany: jest.fn().mockResolvedValue([{ sha256: 'sha-scan' }]) };
+    tx.auditLog = { create: jest.fn() };
+    tx.bidArchiveItem.findMany.mockResolvedValue([
+      { id: 'i1', name: '招标项目基础信息', ownerRole: '系统', status: 'PENDING_CONFIRM' },
+      { id: 'i2', name: '评标签字包', ownerRole: '评审委员会', status: 'PENDING_CONFIRM' },
+    ]);
+
+    await svc.archiveAll('p1', 'u-host', 'full');
+
+    const signUpdate = tx.bidArchiveItem.update.mock.calls
+      .find((c: any[]) => c[0].where.id === 'i2');
+    expect(signUpdate).toBeTruthy();
+    expect(signUpdate[0].data.fileHashes).toBeTruthy();
+    expect(signUpdate[0].data.fileHashes).toHaveLength(3); // packet.sha256 + scan.sha256 + 状态 JSON 哈希
+  });
+
+  it('verifyArchiveIntegrity 对持久化 fileHashes 的行重算 valid:true（修复恒 mismatch）', async () => {
+    const { computeArchiveChain } = await import('./bid-archive.digest');
+    const fileHashes = ['h1', 'h2'];
+    const items = [
+      { id: 'i1', name: '招标项目基础信息', ownerRole: '系统', status: 'ARCHIVED' },
+      { id: 'i2', name: '评标签字包', ownerRole: '评审委员会', status: 'ARCHIVED', fileHashes },
+    ];
+    const project = { id: 'p1', projectCode: 'GK-1', name: 'P', stage: 'ARCHIVED' };
+    const chain = computeArchiveChain(project, items as any);
+    const rows = items.map((i: any) => ({ ...i, hashDigest: chain.get(i.id) }));
+
+    prisma.bidProject.findUnique.mockResolvedValue(project);
+    prisma.bidArchiveItem.findMany.mockResolvedValue(rows);
+    prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+    const result = await svc.verifyArchiveIntegrity('p1');
+    expect(result.valid).toBe(true);
+    expect(result.mismatches).toHaveLength(0);
+  });
+});
