@@ -778,7 +778,7 @@ export class BidService {
     return updated;
   }
 
-  async updateProject(id: string, dto: UpdateBidProjectDto) {
+  async updateProject(id: string, dto: UpdateBidProjectDto, actorId?: string) {
     // stage 流转不走此接口：曾允许 PATCH stage 绕过专用端点的前置校验/副作用/审计
     // （OPENING→EVALUATING 不建 AI task 致分析死锁，且无监督/审计日志）。
     // 阶段变更须走 openSubmission/startOpening/startEvaluation/archiveAll 等专用端点。
@@ -789,6 +789,7 @@ export class BidService {
     // 非时间字段更新不读 prev、不走校验（零回归）。
     let openTime: Date | undefined;
     let deadline: Date | undefined;
+    let prevTime: { openTime: Date; deadline: Date } | undefined;
     // 终审 null 守卫：@IsOptional 放行显式 null，若按 !== undefined 判定会把 new Date(null)=epoch
     // 当「提供」反推 1969；null 一律视同未提供（不写时间字段、不进 align/frozen 校验）
     if (dto.openTime != null || dto.deadline != null) {
@@ -797,6 +798,7 @@ export class BidService {
         select: { openTime: true, deadline: true, stage: true },
       });
       if (prev?.openTime && prev?.deadline) {
+        prevTime = { openTime: prev.openTime, deadline: prev.deadline };
         const mode = modeFor(prev.deadline);
         const newOpen = dto.openTime != null ? new Date(dto.openTime) : undefined;
         const newDeadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
@@ -827,7 +829,7 @@ export class BidService {
         deadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
       }
     }
-    return this.prisma.bidProject.update({
+    const updated = await this.prisma.bidProject.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -844,6 +846,36 @@ export class BidService {
         ...(dto.bondAmount !== undefined && { bondAmount: dto.bondAmount }),
       },
     });
+
+    // P1-4：截标/开标时间修改留痕（监督日志 + 审计日志，含前后值；fire-and-forget 不阻塞主流程）
+    if (openTime !== undefined || deadline !== undefined) {
+      const detail = {
+        prev: prevTime ? { openTime: prevTime.openTime.toISOString(), deadline: prevTime.deadline.toISOString() } : null,
+        next: { openTime: openTime?.toISOString() ?? null, deadline: deadline?.toISOString() ?? null },
+      };
+      this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId: id,
+          time: new Date(),
+          role: actorId ? '采购人员' : '系统',
+          target: '开标/截标时间调整',
+          action: '项目时间调整',
+          result: JSON.stringify(detail),
+          riskFlag: '中',
+        },
+      }).catch(() => {});
+      if (actorId) {
+        this.prisma.auditLog.create({
+          data: {
+            userId: actorId,
+            action: 'BID_PROJECT_TIME_UPDATED',
+            resourceType: `BidProject:${id}`,
+            details: detail,
+          },
+        }).catch(() => {});
+      }
+    }
+    return updated;
   }
 
   listSuppliers(projectId: string) {
@@ -2591,7 +2623,7 @@ export class BidService {
     let finalState: any = null;
     await this.prisma.$transaction(async (tx) => {
       if (outcome === 'DANGER') {
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: dangerReason } });
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: dangerReason, dangerAttribution: 'PLATFORM' } });
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${dangerReason}`, riskFlag: '高风险' },
         });
@@ -2665,7 +2697,7 @@ export class BidService {
         await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
           type: 'BID_DECRYPT_FAILED',
           title: `投标文件解密异常：${supplierName}`,
-          content: `您在项目中的投标文件解密失败：${reason}。请联系开标主持人处理或等待重新解密。`,
+          content: `您在项目中的投标文件解密失败：${reason}。因平台原因未完成解密，视为撤回投标文件，你有权要求责任方赔偿因此遭受的直接损失（《电子招标投标办法》第31条）。`,
           link: `/supplier/bid/${projectId}`,
         });
       }

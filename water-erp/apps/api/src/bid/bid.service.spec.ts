@@ -6173,3 +6173,99 @@ describe('P1-14 — 签字包指纹链持久化', () => {
     expect(result.mismatches).toHaveLength(0);
   });
 });
+
+describe('P1-2/P1-4 — 旧轨解密归因与时间修改留痕', () => {
+  let svc: any;
+  let prisma: any;
+  let tx: any;
+
+  beforeEach(async () => {
+    const makeCatchAll = (): any => {
+      const fn: any = jest.fn(async () => []);
+      return new Proxy(fn, {
+        get(t, p) {
+          if (p === 'then') return undefined;
+          if (p in t) return t[p];
+          const child = makeCatchAll();
+          t[p] = child;
+          return child;
+        },
+      });
+    };
+    tx = makeCatchAll();
+    prisma = {
+      bidProject: { findUnique: jest.fn(), update: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), updateMany: jest.fn() },
+      bidOpeningSession: { findUnique: jest.fn() },
+      supplierBidSubmission: { findUnique: jest.fn() },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-sup', name: '甲' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const { BidService } = await import('./bid.service');
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    instance.gateway = undefined;
+    instance.notificationService = { sendToUser: jest.fn().mockResolvedValue({}) };
+    instance.logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    instance.notifySupplierDecryptFailure = jest.fn();
+    svc = instance;
+  });
+
+  it('P1-2：旧轨解密失败落 dangerAttribution=PLATFORM（主持人代解密失败=平台侧）', async () => {
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲', decryptStatus: 'PENDING' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' });
+    prisma.bidOpeningSession.findUnique.mockResolvedValue({
+      decryptWindowStart: new Date(Date.now() - 60_000), decryptWindowEnd: new Date(Date.now() + 60_000), pausedAt: null,
+    });
+    prisma.bidSupplier.updateMany.mockResolvedValue({ count: 1 });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue(null); // 无文件 → DANGER
+
+    await svc.decryptSupplier('p1', 'bs1', undefined, 'u-host');
+
+    const updateCalls = tx.bidSupplier.update.mock.calls;
+    expect(updateCalls.length).toBeGreaterThan(0);
+    expect(updateCalls[0][0].data).toEqual(expect.objectContaining({
+      decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', dangerAttribution: 'PLATFORM',
+    }));
+  });
+
+  it('P1-4：updateProject 时间变更 → 监督日志 + 审计日志（含前后值）', async () => {
+    const prevOpen = new Date('2026-09-01T10:00:00Z');
+    const prevDeadline = new Date('2026-08-31T10:00:00Z');
+    prisma.bidProject.findUnique.mockResolvedValue({ openTime: prevOpen, deadline: prevDeadline, stage: 'DOWNLOAD' });
+    prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
+
+    await svc.updateProject('p1', { openTime: '2026-09-02T10:00:00Z' } as any, 'u-host');
+
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
+    const logData = prisma.bidSupervisionLog.create.mock.calls[0][0].data;
+    expect(logData.action).toBe('项目时间调整');
+    expect(JSON.parse(logData.result).prev.openTime).toBe('2026-09-01T10:00:00.000Z');
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ userId: 'u-host', action: 'BID_PROJECT_TIME_UPDATED' }),
+    }));
+  });
+
+  it('P1-4：actorId 缺省 → 有监督日志、无审计日志', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({
+      openTime: new Date('2026-09-01T10:00:00Z'), deadline: new Date('2026-08-31T10:00:00Z'), stage: 'DOWNLOAD',
+    });
+    prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
+
+    await svc.updateProject('p1', { deadline: '2026-08-30T10:00:00Z' } as any);
+
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('P1-4：非时间字段更新 → 无时间留痕日志', async () => {
+    prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
+
+    await svc.updateProject('p1', { riskNote: '备注' } as any, 'u-host');
+
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+});
