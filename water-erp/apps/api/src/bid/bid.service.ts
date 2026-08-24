@@ -5128,7 +5128,8 @@ export class BidService {
     }
     const now = new Date();
     const publicityEnd = notice.publicityEnd;
-    const canIssueAward = !publicityEnd || now >= new Date(publicityEnd);
+    // P1-8：公示期未设置（null）不再放行——create/update 路径已兜底必设；null 视为未满足（条例第54条）
+    const canIssueAward = !!publicityEnd && now >= new Date(publicityEnd);
     return { hasPublicity: true, publicityEnd, canIssueAward };
   }
 
@@ -5161,22 +5162,36 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    // 找到中标供应商的 BidSupplier 记录
-    let supplierId = dto.winnerSupplierId;
-    let supplierName = dto.winnerName;
-    if (!supplierId) {
-      const winnerResult = await this.prisma.bidEvaluationResult.findFirst({
-        where: { projectId, recommended: true, rank: 1 },
-        select: { supplierId: true, supplierName: true },
+    // P1-8：公示期硬闸——公示未发布或未期满不得发出中标通知书（实施条例第54条）
+    const publicity = await this.getPublicityStatus(projectId);
+    if (!publicity.canIssueAward) {
+      throw new ConflictException({
+        error: publicity.hasPublicity
+          ? `中标候选人公示期未满（公示截止 ${publicity.publicityEnd}），不得发出中标通知书`
+          : '中标候选人公示未发布，不得发出中标通知书',
+        code: 'PUBLICITY_NOT_ENDED',
       });
-      if (winnerResult) {
-        supplierId = winnerResult.supplierId;
-        supplierName = winnerResult.supplierName;
-      }
     }
 
+    // 中标人一致性：以 rank1 推荐为准，防向任意供应商发通知书
+    const winnerResult = await this.prisma.bidEvaluationResult.findFirst({
+      where: { projectId, recommended: true, rank: 1 },
+      select: { supplierId: true, supplierName: true },
+    });
+    if (!winnerResult) {
+      throw new BadRequestException({ error: '缺少中标候选人推荐记录，无法发出通知书', code: 'WINNER_MISMATCH' });
+    }
+    if (dto.winnerSupplierId && dto.winnerSupplierId !== winnerResult.supplierId) {
+      throw new BadRequestException({ error: '中标通知书接收人与推荐中标候选人不一致', code: 'WINNER_MISMATCH' });
+    }
+    if (dto.winnerName && dto.winnerName !== winnerResult.supplierName) {
+      throw new BadRequestException({ error: '中标通知书中标人与推荐中标候选人不一致', code: 'WINNER_MISMATCH' });
+    }
+    const supplierId = winnerResult.supplierId;
+    const supplierName = winnerResult.supplierName;
+
     const delivery = await this.prisma.awardLetterDelivery.upsert({
-      where: { projectId_supplierId: { projectId, supplierId: supplierId || dto.winnerName } },
+      where: { projectId_supplierId: { projectId, supplierId } },
       update: {
         supplierName,
         content: (dto.content as any) ?? undefined,
@@ -5186,7 +5201,7 @@ export class BidService {
       },
       create: {
         projectId,
-        supplierId: supplierId || dto.winnerName,
+        supplierId,
         supplierName,
         content: (dto.content as any) ?? undefined,
         letterAssetId: dto.letterAssetId,
@@ -5194,14 +5209,22 @@ export class BidService {
       },
     });
 
-    // 推送通知给中标供应商
+    // P1-8：定向通知中标供应商（不再广播全体供应商）
     try {
-      await this.notificationService.sendToRole('supplier', {
-        type: 'AWARD_LETTER',
-        title: `中标通知书：${project.name}`,
-        content: `恭喜贵公司中标${project.name}，请及时签收中标通知书。`,
-        link: `/award-letter`,
+      const winner = await this.prisma.supplier.findUnique({
+        where: { id: supplierId },
+        select: { userId: true },
       });
+      if (winner?.userId) {
+        await this.notificationService.sendToUser(winner.userId, ['in_app'], {
+          type: 'AWARD_LETTER',
+          title: `中标通知书：${project.name}`,
+          content: `恭喜贵公司中标${project.name}，请及时签收中标通知书。`,
+          link: `/award-letter`,
+        });
+      } else {
+        this.logger.warn(`中标通知书已生成，但供应商 ${supplierName} 无关联用户，跳过站内信`);
+      }
     } catch { /* 通知失败不阻塞 */ }
 
     return delivery;
