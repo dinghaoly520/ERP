@@ -797,7 +797,7 @@ export class SupplierPortalService {
     return result;
   }
 
-  async getBidProject(id: string) {
+  async getBidProject(id: string, supplierId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
       select: {
@@ -833,6 +833,17 @@ export class SupplierPortalService {
       throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
     }
     if (project) {
+      // P1-7：澄清答疑记录仅本项目投标成员可见——非成员（浏览机会的供应商）剥离，
+      // 防评标期澄清答复（可能含他方商务信息）泄露给任意登录供应商（评标保密）。
+      if (supplierId) {
+        const member = await this.prisma.bidSupplier.findFirst({
+          where: { projectId: id, supplierId },
+          select: { id: true },
+        });
+        if (!member) {
+          project.clarifications = [];
+        }
+      }
       // 脱敏：供应商提问(type=question)的 issuer 含竞对企业名，开标前属保密信息（防串标/围标）；
       // 管理端发起的澄清/通知(type=clarification 等)保留 issuer。
       project.clarifications = project.clarifications.map((c) => ({

@@ -800,6 +800,7 @@ model BidArchiveItem {
   ownerRole  String
   status     ArchiveStatus @default(NOT_STARTED)
   hashDigest String?
+  fileHashes Json? // P1-14：签字包指纹链持久化（archiveAll 写入，verify/export 重算回读——修复恒 mismatch）
   archivedAt DateTime?
   project    BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt  DateTime      @default(now())

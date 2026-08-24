@@ -2131,3 +2131,58 @@ describe('SupplierPortalService', () => {
   });
 
 });
+
+describe('SupplierPortalService P1-7 — 澄清答疑仅本项目成员可见', () => {
+  let svc: any;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidSupplier: { findFirst: jest.fn() },
+      announcement: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const { SupplierPortalService } = await import('./supplier-portal.service');
+    const instance: any = Object.create(SupplierPortalService.prototype);
+    instance.prisma = prisma;
+    instance.resolveAnnouncementCodes = jest.fn(async (p: any) => [p.projectCode]);
+    instance.resolveDisplayCode = jest.fn(async (p: any) => p);
+    svc = instance;
+  });
+
+  const PROJECT = (clarifications: any[]) => ({
+    id: 'p1', projectCode: 'GK-1', name: 'P', stage: 'EVALUATING', isExtractionOnly: false,
+    clarifications,
+  });
+
+  it('本项目投标成员 → 澄清记录保留（issuer 脱敏照旧）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue(PROJECT([
+      { id: 'c1', type: 'question', issuer: '竞争对手公司', reply: '答复', createdAt: new Date() },
+    ]));
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1' });
+
+    const result = await svc.getBidProject('p1', 'sup-1');
+    expect(result.clarifications).toHaveLength(1);
+    expect(result.clarifications[0].issuer).toBe('供应商');
+  });
+
+  it('非本项目成员（浏览机会的供应商）→ 澄清记录剥离为空数组，其余字段保留', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue(PROJECT([
+      { id: 'c1', type: 'clarification', issuer: '主持人', reply: '含他方商务信息', createdAt: new Date() },
+    ]));
+    prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+    const result = await svc.getBidProject('p1', 'sup-other');
+    expect(result.clarifications).toEqual([]);
+    expect(result.name).toBe('P');
+  });
+
+  it('supplierId 缺省（内部兼容调用）→ 澄清保留', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue(PROJECT([
+      { id: 'c1', type: 'clarification', issuer: '主持人', reply: 'x', createdAt: new Date() },
+    ]));
+
+    const result = await svc.getBidProject('p1');
+    expect(result.clarifications).toHaveLength(1);
+  });
+});
