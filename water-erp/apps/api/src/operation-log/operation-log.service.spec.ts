@@ -9,8 +9,10 @@ describe('OperationLogService', () => {
   beforeEach(async () => {
     prisma = {
       operationLog: { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), deleteMany: jest.fn() },
+      operationLogArchive: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}), findMany: jest.fn().mockResolvedValue([]) },
       $executeRawUnsafe: jest.fn(),
       $queryRaw: jest.fn(),
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [OperationLogService, { provide: PrismaService, useValue: prisma }],
@@ -130,5 +132,85 @@ describe('OperationLogService', () => {
 
     prisma.$executeRawUnsafe.mockRejectedValue(new Error('db down'));
     await expect(service.scheduledCleanup()).resolves.toBeUndefined();
+  });
+});
+
+describe('OperationLogService P1-12 — archive-before-drop 法定留存', () => {
+  let svc: any;
+  let prisma: any;
+
+  beforeEach(async () => {
+    const { OperationLogService } = await import('./operation-log.service');
+    const instance: any = Object.create(OperationLogService.prototype);
+    // 直接构造不可行（private readonly 字段经 constructor）——用构造签名显式 mock prisma 后 new
+    const { PrismaService } = await import('../prisma/prisma.service');
+    instance.prisma = undefined;
+    // 用 Object.create 后手动 set private 字段不可行（readonly TS 编译期，运行时可写）
+    (instance as any).prisma = undefined;
+    prisma = {
+      operationLogArchive: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      $queryRawUnsafe: jest.fn(),
+      $queryRaw: jest.fn(),
+      $executeRawUnsafe: jest.fn(),
+      operationLog: { create: jest.fn() },
+    };
+    instance.prisma = prisma;
+    (instance as any).logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    (instance as any).retentionDays = 180;
+    (instance as any).monthsAhead = 2;
+    (instance as any).archiveEnabled = true;
+    svc = instance;
+  });
+
+  it('归档成功后 DROP 分区；清单写入 rowCount/sha256', async () => {
+    prisma.$queryRawUnsafe.mockResolvedValue([
+      { id: 'l1', userId: 'u1', username: '甲', role: 'staff', portal: 'web', method: 'GET', path: '/x', query: null, body: null, statusCode: 200, durationMs: 5, ipAddress: '1.2.3.4', userAgent: 'ua', referer: null, error: null, createdAt: new Date('2026-01-15T00:00:00Z') },
+    ]);
+    prisma.$queryRaw.mockResolvedValue([{ relname: 'OperationLog_2025_11' }]);
+
+    const { minioClient } = await import('../upload/minio.client');
+    const putSpy = jest.spyOn(minioClient, 'putObject').mockResolvedValue({} as any);
+
+    await svc.dropExpiredPartitions();
+
+    expect(putSpy).toHaveBeenCalled();
+    const putArgs = putSpy.mock.calls[0];
+    expect(putArgs[1]).toBe('operation-log-archive/2025_11.jsonl.gz');
+    expect(prisma.operationLogArchive.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ month: '2025_11', rowCount: 1, objectKey: 'operation-log-archive/2025_11.jsonl.gz', sha256: expect.stringMatching(/^[0-9a-f]{64}$/) }),
+    });
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith('DROP TABLE IF EXISTS "OperationLog_2025_11"');
+    putSpy.mockRestore();
+  });
+
+  it('归档失败 → 不 DROP（数据保留，下轮重试）', async () => {
+    prisma.$queryRaw.mockResolvedValue([{ relname: 'OperationLog_2025_12' }]);
+    prisma.$queryRawUnsafe.mockRejectedValue(new Error('partition read failed'));
+    await svc.dropExpiredPartitions();
+    expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    expect((svc as any).logger.warn).toHaveBeenCalled();
+  });
+
+  it('幂等：该月已有归档清单 → 跳过导出直接 DROP', async () => {
+    prisma.$queryRaw.mockResolvedValue([{ relname: 'OperationLog_2025_10' }]);
+    prisma.operationLogArchive.findUnique.mockResolvedValue({ month: '2025_10', objectKey: 'k', rowCount: 0 });
+    await svc.dropExpiredPartitions();
+    expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled(); // 无 SELECT 导出
+    expect(prisma.operationLogArchive.create).not.toHaveBeenCalled();
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith('DROP TABLE IF EXISTS "OperationLog_2025_10"');
+  });
+
+  it('空分区 → 占位清单（objectKey 空串）后 DROP', async () => {
+    prisma.$queryRaw.mockResolvedValue([{ relname: 'OperationLog_2025_09' }]);
+    prisma.$queryRawUnsafe.mockResolvedValue([]);
+    await svc.dropExpiredPartitions();
+    expect(prisma.operationLogArchive.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ month: '2025_09', rowCount: 0, objectKey: '' }),
+    });
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith('DROP TABLE IF EXISTS "OperationLog_2025_09"');
   });
 });
