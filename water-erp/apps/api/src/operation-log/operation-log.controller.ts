@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Param, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -16,6 +16,30 @@ export class OperationLogController {
   @ApiOperation({ summary: '查询全部操作日志（admin/bid_host）' })
   async findAll(@Query() q: OperationLogQuery) {
     return this.service.findAll(this.normalize(q));
+  }
+
+  @Get('archive')
+  @Roles('admin')
+  @ApiOperation({ summary: '操作日志归档清单（P1-12 法定留存，admin）' })
+  async listArchives() {
+    return this.service.listArchives();
+  }
+
+  @Get('archive/verify/:month')
+  @Roles('admin')
+  @ApiOperation({ summary: '操作日志归档完整性验证（sha256 比对，admin）' })
+  async verifyArchive(@Param('month') month: string) {
+    if (!/^\d{4}_\d{2}$/.test(month)) {
+      throw new BadRequestException({ error: '月份格式应为 YYYY_MM', code: 'INVALID_MONTH' });
+    }
+    try {
+      return await this.service.verifyArchive(month);
+    } catch (err) {
+      if ((err as Error).message === 'ARCHIVE_NOT_FOUND') {
+        throw new BadRequestException({ error: '该月无归档清单', code: 'ARCHIVE_NOT_FOUND' });
+      }
+      throw err;
+    }
   }
 
   @Get('my')

@@ -1539,6 +1539,20 @@ model FileAsset {
   @@index([uploaderId])
 }
 
+/// P1-12：操作日志月分区归档清单（archive-before-drop）——办法第42条≥15年留存的凭据+幂等锚点。
+/// dropExpiredPartitions 先导出分区到 MinIO（gzip JSON-lines）写本清单，再 DROP；导出失败不 DROP（数据保留）。
+model OperationLogArchive {
+  id         String   @id @default(cuid())
+  month      String   @unique // 分区月 YYYY_MM
+  rowCount   Int
+  objectKey  String   @unique // MinIO: operation-log-archive/<yyyy_mm>.jsonl.gz（空分区为空串）
+  sha256     String // gzip 对象 SHA-256（空分区为空串）
+  sizeBytes  Int
+  archivedAt DateTime @default(now())
+
+  @@index([archivedAt])
+}
+
 /// 未解密投标文件备份：提交时即固化的加密态副本（自包含证据包），用于争议核验。
 /// 不设外键级联——备份需独立长存，即使提交记录撤回/删除也保留。
 model BidFileBackup {

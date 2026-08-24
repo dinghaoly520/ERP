@@ -83,11 +83,11 @@ export class AuditService {
     return undefined;
   }
 
-  /** Daily cleanup at 3:00 AM — removes audit logs older than 90 days */
+  /** Daily cleanup at 3:00 AM — removes audit logs older than retention (P1-12 默认 15 年/5475 天) */
   @Cron('0 3 * * *')
   async scheduledCleanup() {
     try {
-      const count = await this.cleanupOldLogs(90);
+      const count = await this.cleanupOldLogs(this.auditRetentionDays());
       if (count > 0) {
         this.logger.log(`Scheduled audit log cleanup: removed ${count} old entries`);
       }
@@ -161,7 +161,13 @@ export class AuditService {
     return { items, total };
   }
 
-  async cleanupOldLogs(daysToKeep: number = 90) {
+  /** P1-12：保留期参数化——AUDIT_LOG_RETENTION_DAYS 默认 5475（15 年，办法第42条）。低频业务动作表体量小，直接留 PG。 */
+  private auditRetentionDays(): number {
+    const raw = Number(process.env.AUDIT_LOG_RETENTION_DAYS);
+    return Number.isFinite(raw) && raw > 0 ? raw : 5475;
+  }
+
+  async cleanupOldLogs(daysToKeep: number = 5475) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
