@@ -21,7 +21,18 @@ const ALLOWED_MIME_TYPES = [
   'text/plain',
 ];
 
-/** Allowed categories */
+/** P0-5：开评标留痕资产类目——删除一律 409 FILE_PROTECTED（办法第49条不得损毁；审计 P0-5 剩余面，2026-08-24） */
+const EVIDENCE_PROTECTED_CATEGORIES = [
+  'bid_opening_handover',       // 开标文件包（完成开标·资料移交）
+  'bid_evaluation_handover',    // 评标完整性包
+  'bid_evaluation_sign_handover', // 评标回流包
+  'bid_sign_packet',            // 评标签字包 PDF/DOCX
+  'sign_packet_signature_page', // 签字页扫描（全员共签页）
+  'expert_sign_scan',           // 专家签字/不同意见书扫描
+  'expert_memo_ink',            // 专家手写备忘录
+  'expert_signin_photo',        // 专家签到拍照留痕
+];
+
 const ALLOWED_CATEGORIES = [
   'qualification',  // 资质材料
   'bid_document',   // 投标文件
@@ -501,6 +512,27 @@ export class UploadService implements OnModuleInit {
       if (dualOuter) {
         throw new ConflictException({ error: '该文件属开标解密链路资产，禁止删除', code: 'FILE_PROTECTED' });
       }
+    }
+
+    // P0-5：开评标留痕资产删除保护（审计 P0-5 剩余面，2026-08-24）——
+    // ① category 保护集：归档包/签字包/扫描件等留痕类目整体禁删；
+    // ② 引用反查兜底：category 不在集内但被留痕关键列引用的资产（如中标通知书 DOCX）同样禁删。
+    if ((EVIDENCE_PROTECTED_CATEGORIES as readonly string[]).includes(asset.category)) {
+      throw new ConflictException({ error: '该文件属开评标留痕资产，禁止删除', code: 'FILE_PROTECTED' });
+    }
+    const evidenceRefs = await Promise.all([
+      this.prisma.bidOpeningSession.findFirst({ where: { handoverAssetId: asset.id }, select: { id: true } }),
+      this.prisma.bidSignPacket.findFirst({
+        where: { OR: [{ fileAssetId: asset.id }, { signPageScanFileId: asset.id }, { handoverFileAssetId: asset.id }] },
+        select: { id: true },
+      }),
+      this.prisma.bidExpert.findFirst({ where: { signScanFileId: asset.id }, select: { id: true } }),
+      this.prisma.awardLetterDelivery.findFirst({ where: { letterAssetId: asset.id }, select: { id: true } }),
+      this.prisma.expertMemo.findFirst({ where: { inkFileId: asset.id }, select: { id: true } }),
+      this.prisma.openingHallMessage.findFirst({ where: { fileAssetId: asset.id }, select: { id: true } }),
+    ]);
+    if (evidenceRefs.some(Boolean)) {
+      throw new ConflictException({ error: '该文件被开评标留痕引用，禁止删除', code: 'FILE_PROTECTED' });
     }
 
     // H7: 已被投标文件引用的资产不可删除——防供应商截标后删件伪装技术故障 / 触发解密误判（H1 组合）
