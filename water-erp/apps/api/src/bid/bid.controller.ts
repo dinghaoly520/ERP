@@ -193,7 +193,9 @@ export class BidController {
 
   @Patch('projects/:id')
   @ApiOperation({ summary: '更新项目' })
-  updateProject(@Param('id') id: string, @Body() dto: UpdateBidProjectDto) { return this.bidService.updateProject(id, dto); }
+  updateProject(@Param('id') id: string, @Body() dto: UpdateBidProjectDto, @CurrentUser('sub') userId?: string) {
+    return this.bidService.updateProject(id, dto, userId);
+  }
 
   @Get('projects/:id/suppliers')
   @ApiOperation({ summary: '投标供应商列表' })
