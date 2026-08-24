@@ -396,7 +396,7 @@ export class ExpertAdminService {
     const totalNeeded = Math.min(Math.max(dto.totalNeeded ?? 5, 1), 9);
     const alternatives = Math.min(Math.max(dto.alternatives ?? 2, 0), 9);
     const extractMode: 'specialty_match' | 'random' | 'merit_best' =
-      dto.extractMode ?? (dto.mode === 'fair' ? 'random' : 'specialty_match');
+      dto.extractMode ?? 'random'; // P1-9：默认随机抽取（条例第46条基线）；加权模式仅显式指定时使用
 
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -796,6 +796,10 @@ export class ExpertAdminService {
             projectName: project.name,
             expertCount: dto.experts?.length ?? 0,
             experts: (dto.experts ?? []).map(e => ({ userId: e.userId, name: e.expertName, major: e.major, isLead: e.isLead ?? false })),
+            // P1-9/P2-8：抽取快照留痕——候选池与命中序列（事后可复核随机性；模式由前端预览步骤决定，确认时以 DTO 载明为准）
+            extractMode: (dto as any).extractMode ?? null,
+            poolUserIds: (dto.candidates ?? []).map(c => c.userId),
+            drawnUserIds: (dto.experts ?? []).map(e => e.userId),
           },
         },
       });

@@ -120,12 +120,13 @@ export class ExpertExtractionAiService {
 
     const indexToId = new Map<string, string>();
     // 候选行精简到核心6项（减少 token、降低 LLM 耗时、避免超时触发代理 500）
+    // P1-9：脱敏出境——姓名/单位不送外部 LLM（条例第46条评委名单保密纪律），打分所需字段保留
     const lines = aiCandidates.map((c, i) => {
       const key = `e${i}`;
       indexToId.set(key, c.id);
       const grade = c.evaluationLevel || '-';
       const dev = c.scoreDeviation != null ? `${c.scoreDeviation > 0 ? '+' : ''}${c.scoreDeviation}` : '-';
-      return [key, c.displayName, `专业:${c.specialty}`, c.title || '', c.employer || '', `履职:${grade} 偏离:${dev} 负荷:${c.currentLoadStatus || '-'} 经验:${c.pastProjects}次`].join(' | ');
+      return [key, `专业:${c.specialty}`, `职称:${c.title || '-'}`, `履职:${grade} 偏离:${dev} 负荷:${c.currentLoadStatus || '-'} 经验:${c.pastProjects}次`].join(' | ');
     });
 
     const system = this.buildSystemPrompt(extractMode, totalNeeded);
@@ -138,7 +139,7 @@ export class ExpertExtractionAiService {
       `项目概况/范围：${project.scope}\n` +
       (project.budget ? `预算：${project.budget}\n` : '') +
       (manualSpecs ? `已指定专业配额：${manualSpecs}。requiredSpecialties 请直接用这些专业，analysis 围绕它们分析。\n` : '') +
-      `\n候选(编号|姓名|专业|职称|单位|履职 偏离 负荷 经验)：\n${lines.join('\n')}`;
+      `\n候选(编号|专业|职称|履职 偏离 负荷 经验)：\n${lines.join('\n')}`;
 
     let parsed: any;
     try {
