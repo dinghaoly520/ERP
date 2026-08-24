@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
+import { SessionWatchdog } from "@/components/session-watchdog";
 import { UserSettingsProvider } from "@/lib/user-settings-context";
 import { AssistantProvider, useAssistant } from "@/components/assistant/assistant-provider";
 
@@ -17,7 +18,9 @@ const routeToKey: Record<string, string> = {
   "/tender-write": "tender-write",
   "/tender-review": "tender-review",
   "/assistant": "assistant",
-  "/admin/password-requests": "password-requests",
+  "/admin/password-requests": "accounts",
+  "/admin/accounts": "accounts",
+  "/admin/registration-review": "accounts",
   // 公告管理
   "/notice": "notice",
   "/clar-notice": "clar-notice",
@@ -52,6 +55,7 @@ const routeToModule: Record<string, string> = {
   "/tender-review": "采购文件审查",
   "/assistant": "水叮当助手",
   "/admin/password-requests": "密码审批",
+  "/admin/accounts": "账号管理",
   "/notice": "信息发布中心",
   "/clar-notice": "澄清说明",
   "/notifications": "通知中心",
@@ -134,6 +138,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
   return (
     <UserSettingsProvider>
       <AssistantProvider>
+        <SessionWatchdog />
         <AssistantLayoutInner>{children}</AssistantLayoutInner>
       </AssistantProvider>
     </UserSettingsProvider>

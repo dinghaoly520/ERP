@@ -154,8 +154,8 @@ export class ProjectManagementService {
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
     const where: Record<string, unknown> = {};
 
-    // 项目可见性（2026-08-20 拍板 1C）：非 admin 仅见本人创建的项目；admin 全量（可结合公司维度统计）
-    // 注意不能写 user?.sub ?? undefined —— Prisma 会忽略 undefined 字段导致退化为全量可见
+    // 项目可见性（拍板 1C，2026-08-24 确认保留）：非 admin 仅见本人创建的项目；admin 全量。
+    // 隔离是硬性要求，不做全员可见。user=undefined 属鉴权异常，返回空集不泄露数据。
     if (user?.role !== 'admin') {
       where.createdById = user?.sub ?? '__no_user__';
     }
@@ -2972,6 +2972,61 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     return updatedStage;
+  }
+
+  /**
+   * 重新打开已完成的步骤：目标步骤 → 进行中；同轮后续步骤及后续轮次全部 → 待解锁；
+   * 项目指针（currentStage/currentRound）回退到该步骤。
+   * 附件（已上传文件）与分析缓存（按 stageKey 键控）一律不动——文件在，分析结论保留。
+   */
+  async reopenStage(projectId: string, stageKey: string, round?: number) {
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: {
+        projectManagementItemId: projectId,
+        stageKey,
+        ...(round != null ? { round } : {}),
+      },
+    });
+    if (!stage) throw new NotFoundException('未找到对应的项目阶段。');
+    if (stage.status !== PROJECT_STAGE_STATUS.COMPLETED) {
+      throw new BadRequestException('只有已完成的步骤才能重新设置为进行中。');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. 目标步骤 → 进行中（清除完成时间）
+      await tx.projectManagementStage.update({
+        where: { id: stage.id },
+        data: { status: PROJECT_STAGE_STATUS.IN_PROGRESS, completedAt: null },
+      });
+      // 2. 同轮后续步骤 → 待解锁
+      await tx.projectManagementStage.updateMany({
+        where: {
+          projectManagementItemId: projectId,
+          round: stage.round,
+          stageOrder: { gt: stage.stageOrder },
+        },
+        data: { status: PROJECT_STAGE_STATUS.NOT_STARTED, completedAt: null },
+      });
+      // 3. 后续轮次的全部步骤 → 待解锁（重开早轮步骤使再次采购轮失效）
+      await tx.projectManagementStage.updateMany({
+        where: {
+          projectManagementItemId: projectId,
+          round: { gt: stage.round },
+        },
+        data: { status: PROJECT_STAGE_STATUS.NOT_STARTED, completedAt: null },
+      });
+      // 4. 项目指针回退
+      await tx.projectManagementItem.update({
+        where: { id: projectId },
+        data: {
+          currentStage: stage.stageKey,
+          ...(stage.round > 1 ? { currentRound: stage.round } : {}),
+        },
+      });
+    });
+
+    this.logger.log(`步骤重开：项目 ${projectId} 的 ${stageKey}(round=${stage.round}) → 进行中，后续步骤已重置为待解锁`);
+    return { success: true };
   }
 
   async completeProject(projectId: string, dto: CompleteProjectDto, userId?: string) {

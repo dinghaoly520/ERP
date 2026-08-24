@@ -13,7 +13,7 @@ import type { AuthenticatedUser } from './auth.types';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { getClientIp } from '../common/client-ip.util';
-import { cookieNameForPortal, portalForRole, portalFromRequest, LEGACY_COOKIE } from './portal-cookie';
+import { cookieNameForPortal, portalForRole, portalFromRequest, tokenFromRequest, LEGACY_COOKIE } from './portal-cookie';
 import { checkPortRole } from './port-roles';
 import { PORTS } from '@water-erp/config';
 
@@ -103,13 +103,17 @@ export class AuthController {
   @ApiOperation({ summary: '用户登录' })
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const requestPortal = portalFromRequest(req);
-    const result = await this.authService.login(dto, requestPortal);
+    let result = await this.authService.login(dto, requestPortal);
     if (!result) throw new UnauthorizedException('用户名或密码错误');
     // 待审核/停用账号：密码正确但不可登录，返回专用码供前端引导「查询审核进度」。
     // pending 变体为字面量 pending:true，用 'pending' in result 判别即可让 TS 正确收窄类型。
     if ('pending' in result) {
-      // ACCOUNT_PENDING：待审核/停用；TEMPORARY_EXPIRED：临时供应商邀请码有效期已过
-      const msg = result.code === 'TEMPORARY_EXPIRED' ? '临时供应商有效期已过，请联系采购中心' : '账号待审核，尚未激活';
+      // ACCOUNT_PENDING：待审核/停用；TEMPORARY_EXPIRED：临时供应商邀请码有效期已过；
+      // ACCOUNT_FROZEN：管理员冻结
+      const msg =
+        result.code === 'TEMPORARY_EXPIRED' ? '临时供应商有效期已过，请联系采购中心'
+        : result.code === 'ACCOUNT_FROZEN' ? '该账号已被冻结，请联系管理员'
+        : '账号待审核，尚未激活';
       throw new UnauthorizedException({ error: msg, code: result.code });
     }
 
@@ -125,6 +129,13 @@ export class AuthController {
     // bid_expert 写 token_expert（留在 :3006）
     if (requestPortal === 'expert' && result.role !== 'bid_expert') {
       cookiePortal = 'bid';
+    }
+
+    // :3005 单设备登录（2026-08-21）：凡是最终写入 token_web 命名空间的登录（无论从
+    // :3005 还是 :3002 入口）都轮换会话 ID 并重签带 sid 的 token——后登录者顶掉先登录者。
+    // 写 token_bid/token_expert/token_mall 等其他门户的登录不轮换、不互踢。
+    if (cookiePortal === 'web') {
+      result = await this.authService.rotateWebSession(result.userId, result.username, result.role);
     }
     res.cookie(cookiePortal ? cookieNameForPortal(cookiePortal) : LEGACY_COOKIE, result.access_token, COOKIE_OPTS);
 
@@ -144,6 +155,35 @@ export class AuthController {
     });
 
     return { access_token: result.access_token, role: result.role, username: result.username };
+  }
+
+  @Post('security-feedback')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: '被顶下线设备反馈「账号被他人登录」，通知管理员处理' })
+  async securityFeedback(@Req() req: Request) {
+    // 被顶下线的旧会话 JWT 签名仍有效（仅会话标识过期）——用它确认反馈人身份
+    let username = '未知账号';
+    const token = tokenFromRequest(req);
+    if (token) {
+      try {
+        const payload = this.jwt.verify(token) as { username?: string };
+        if (payload?.username) username = payload.username;
+      } catch { /* 签名无效则保留兜底文案 */ }
+    }
+    await this.authService.notifySecurityFeedback(
+      username,
+      getClientIp(req),
+      (req.headers['user-agent'] as string) ?? null,
+    );
+    return { ok: true };
+  }
+
+  @Get('heartbeat')
+  @ApiOperation({ summary: '单设备登录心跳：会话被顶替/账号冻结时返回 401，由前端踢回登录页' })
+  heartbeat() {
+    // 实际校验在全局 AuthGuard；本端点仅为前端提供轻量轮询目标（操作日志已排除）
+    return { ok: true };
   }
 
   @Post('logout')
@@ -182,7 +222,8 @@ export class AuthController {
   }
 
   @Patch('me')
-  @ApiOperation({ summary: '更新当前用户个人资料' })
+  @Roles('admin')
+  @ApiOperation({ summary: '更新当前用户个人资料（仅 admin 运维通道；普通用户一律走 /auth/profile-change-requests 审批）' })
   async updateProfile(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdateProfileDto,

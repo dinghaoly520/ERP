@@ -75,8 +75,19 @@ export function portalFromRequest(req: Request): string | undefined {
   return undefined;
 }
 
-/** 读取当前请求应使用的鉴权 token（按门户命名 cookie，回退到旧版 token） */
+/**
+ * 读取当前请求应使用的鉴权 token。
+ * 优先级：X-Web-Token 头（tab 级会话）→ 按门户命名 cookie → 旧版 token。
+ *
+ * X-Web-Token（2026-08-21，:3005 单设备登录配套）：token_web cookie 在同一浏览器
+ * 全局只有一份——两个标签页登录两个账号时会互相覆盖，先登录的标签页拿到的已是
+ * 他人 cookie。登录后前端把 access_token 存进 sessionStorage（各标签页独立），
+ * 请求经此头携带自己的 token，同浏览器多账号并存；cookie 仅作回退
+ * （无头客户端 / SSR / 关闭标签页后重开）。
+ */
 export function tokenFromRequest(req: Request): string | undefined {
+  const headerToken = req.headers['x-web-token'] as string | undefined;
+  if (headerToken) return headerToken;
   const portal = portalFromRequest(req);
   const cookies = req.cookies as Record<string, string | undefined> | undefined;
   if (portal && cookies && cookies[cookieNameForPortal(portal)]) {

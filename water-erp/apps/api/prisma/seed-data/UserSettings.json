@@ -28,5 +28,35 @@
     "notificationPrefs": null,
     "createdAt": "2026-07-26T08:11:30.413Z",
     "updatedAt": "2026-07-26T08:11:30.413Z"
+  },
+  {
+    "id": "cmsoajejt01orkoqwdomyudfq",
+    "userId": "cmrailrk30000koj5ngvpodt0",
+    "theme": "system",
+    "defaultHomePage": "work-arrangements",
+    "compactMode": false,
+    "notificationPrefs": null,
+    "createdAt": "2026-08-11T06:40:05.225Z",
+    "updatedAt": "2026-08-11T06:40:05.225Z"
+  },
+  {
+    "id": "cmszvc2wh000kkoqhqn7djdc2",
+    "userId": "cmrai35gi0007koddby9ynwqe",
+    "theme": "system",
+    "defaultHomePage": "work-arrangements",
+    "compactMode": false,
+    "notificationPrefs": null,
+    "createdAt": "2026-08-19T09:07:43.409Z",
+    "updatedAt": "2026-08-19T09:07:43.409Z"
+  },
+  {
+    "id": "cmt10bxf90017koa7cqhmfdp3",
+    "userId": "cmsy3epdj0001kon5uqcj24yy",
+    "theme": "system",
+    "defaultHomePage": "work-arrangements",
+    "compactMode": false,
+    "notificationPrefs": null,
+    "createdAt": "2026-08-20T04:15:20.565Z",
+    "updatedAt": "2026-08-20T04:15:20.565Z"
   }
 ]

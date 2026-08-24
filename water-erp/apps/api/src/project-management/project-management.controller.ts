@@ -100,7 +100,10 @@ export class ProjectManagementController {
   ) {
     // 公司归属从登录人后端取（写时快照），不信任前端传入
     const stamp = await this.companyScope.stampFor(user);
-    return this.projectManagementService.createFromInitiation(dto, stamp);
+    // 项目归属同样以服务端登录身份为准：前端 fetchCurrentUser 存在竞态（未加载完时
+    // createdById=undefined → 项目无主，隔离过滤下任何人都看不到）。dto 值仅作无会话时的兜底。
+    const dtoWithOwner = { ...dto, createdById: user?.sub ?? dto.createdById };
+    return this.projectManagementService.createFromInitiation(dtoWithOwner, stamp);
   }
 
   @Post('ai-identify-field')
@@ -120,6 +123,21 @@ export class ProjectManagementController {
     @Body() dto: UpdateProjectStageDto,
   ) {
     return this.projectManagementService.updateStage(id, stageKey, dto);
+  }
+
+  /** 重开已完成步骤：该步骤→进行中，后续步骤→待解锁；文件与分析内容保留。 */
+  @Post(':id/stages/:stageKey/reopen')
+  reopenStage(
+    @Param('id') id: string,
+    @Param('stageKey') stageKey: string,
+    @Query('round') round?: string,
+  ) {
+    const roundNum = round != null && round !== '' ? Number(round) : undefined;
+    return this.projectManagementService.reopenStage(
+      id,
+      stageKey,
+      Number.isNaN(roundNum as number) ? undefined : roundNum,
+    );
   }
 
   @Post(':id/stages/:stageKey/attachments')

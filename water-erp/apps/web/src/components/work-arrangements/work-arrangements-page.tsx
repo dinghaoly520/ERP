@@ -331,6 +331,11 @@ export function WorkArrangementsPage({
     () => getOverdueTasks(allItems).length,
     [allItems],
   );
+  // 是否有进行中的任务（待处理/进行中/受阻）——无任务时 AI 面板隐藏"风险提醒"
+  const hasActiveTasks = useMemo(
+    () => allItems.some((item) => item.status !== 'COMPLETED' && item.status !== 'CANCELLED'),
+    [allItems],
+  );
   const [activeReminders, setActiveReminders] = useState<ReminderInfo[]>([]);
 
   const linkedProject =
@@ -998,6 +1003,7 @@ export function WorkArrangementsPage({
                 if (id) handleSelectTask(id);
               }}
               onAddToCalendar={handleAddToCalendar}
+              hasActiveTasks={hasActiveTasks}
             />
           </div>
         </div>

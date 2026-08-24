@@ -133,6 +133,16 @@ export async function extractTenderFields(projectId: string, field?: string) {
   return parseJsonResponse<Record<string, string | null>>(response);
 }
 
+/** 重开已完成步骤：该步骤→进行中，后续步骤→待解锁；文件与分析内容保留。 */
+export async function reopenProjectStage(projectId: string, stageKey: string, round?: number) {
+  const qs = round ? `?round=${round}` : '';
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}/reopen${qs}`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return parseJsonResponse<{ success: boolean }>(response);
+}
+
 /** 直接采购供应商抽选：读取项目各阶段文档，AI 推荐 3-5 家供应商 */
 export async function recommendSuppliersForProject(projectId: string) {
   const response = await fetch(`${API_BASE}/project-management/${projectId}/recommend-suppliers`, {

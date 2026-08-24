@@ -348,6 +348,19 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
               </label>
             </div>
 
+            <label className="block">
+              <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">
+                办公位置
+              </span>
+              <input
+                type="text"
+                value={form.officeLocation}
+                onChange={(e) => set("officeLocation", e.target.value)}
+                placeholder="如：A 座 3 楼"
+                className={inputCls}
+              />
+            </label>
+
             <div className="block">
               <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">
                 申请权限 <span className="text-[var(--danger)]">*</span>
@@ -419,19 +432,6 @@ export function RegisterDialog({ isOpen, onClose }: RegisterDialogProps) {
                 placeholder="6 位手机验证码"
                 className={inputCls}
                 maxLength={6}
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-xs font-medium text-[var(--muted-foreground)] mb-1 block">
-                办公位置
-              </span>
-              <input
-                type="text"
-                value={form.officeLocation}
-                onChange={(e) => set("officeLocation", e.target.value)}
-                placeholder="如：A 座 3 楼"
-                className={inputCls}
               />
             </label>
 

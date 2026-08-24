@@ -1,1 +1,1594 @@
-[]
+[
+  {
+    "id": "cmswl502c0gqlkovwrw9y7342",
+    "fieldKey": "supplierName",
+    "content": "中国地质",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-17T01:58:58.452Z",
+    "updatedAt": "2026-08-17T01:58:58.452Z"
+  },
+  {
+    "id": "cmswl502c0gqmkovwuo5eakeo",
+    "fieldKey": "supplierName",
+    "content": "中国地质",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-17T01:58:58.453Z",
+    "updatedAt": "2026-08-17T01:58:58.453Z"
+  },
+  {
+    "id": "cmswl5acj0gqqkovwwsols5da",
+    "fieldKey": "supplierName",
+    "content": "中国地质科学院探矿工艺研究所",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-17T01:59:11.779Z",
+    "updatedAt": "2026-08-17T01:59:11.779Z"
+  },
+  {
+    "id": "cmswl7dye0gs2kovw9w7pil8l",
+    "fieldKey": "contractSubcontracting",
+    "content": "合同分包：\n1. 本项目的主体工作、关键性工作及核心部件（包括但不限于钻机整机设计、动力系统集成、液压系统制造与装配、钻进参数控制单元等）不得分包，须由中标人自行完成。\n2. 允许分包的内容仅限于非关键性辅助部件（如通用液压元件、标准紧固件、包装材料、运输服务等），且分包金额合计不得超过合同总金额的30%。\n3. 除上述允许分包的范围外，未经采购人书面同意，中标人不得以任何形式将合同项下的权利、义务或工作内容转让给第三方。否则，采购人有权单方解除合同，并要求中标人承担由此造成的全部损失。\n4. 中标人如需分包，必须在投标文件中明确列出拟分包项目、具体内容、分包金额、拟分包供应商名称及其资质证书（如生产许可证、ISO质量体系认证等）。分包供应商不得再次分包。\n5. 中标人对分包部分的工程质量、交货期、售后服务及法律责任向采购人承担全部责任，分包内容不得影响整机性能与安全要求。采购人有权对分包供应商进行审查，不符合要求的，中标人须立即更换并经采购人同意。",
+    "isFavorite": true,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-17T02:00:49.767Z",
+    "updatedAt": "2026-08-17T02:00:49.767Z"
+  },
+  {
+    "id": "cmswnb6co005fkoz79g76g9ox",
+    "fieldKey": "supplierName",
+    "content": "中国地质科学院探矿工艺研究所",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-17T02:59:45.768Z",
+    "updatedAt": "2026-08-17T02:59:45.768Z"
+  },
+  {
+    "id": "cmswq1l0j003ykoauac519tp8",
+    "fieldKey": "supplierName",
+    "content": "中国地质科学院探矿工艺研究所",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-17T04:16:17.060Z",
+    "updatedAt": "2026-08-17T04:16:17.060Z"
+  },
+  {
+    "id": "cmswqt723002kkobv8psxs9v3",
+    "fieldKey": "supplierName",
+    "content": "中国",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-17T04:37:45.340Z",
+    "updatedAt": "2026-08-17T04:37:45.340Z"
+  },
+  {
+    "id": "cmswtt03b005skobvktqcisuf",
+    "fieldKey": "supplierName",
+    "content": "中国地质",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-17T06:01:35.160Z",
+    "updatedAt": "2026-08-17T06:01:35.160Z"
+  },
+  {
+    "id": "cmswu4umc000pkoydga47rxs2",
+    "fieldKey": "supplierAddress",
+    "content": "四川省成都市郫都区成都现代工业港北区港华路139号",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "根据拟定供应商名称，生成供应商的详细地址信息。格式为：省+市+区+详细地址。只输出地址，不要其他说明。",
+      "generatedAt": "2026-08-17T06:10:47.923Z"
+    },
+    "createdAt": "2026-08-17T06:10:47.941Z",
+    "updatedAt": "2026-08-17T06:10:47.941Z"
+  },
+  {
+    "id": "cmswu770100t2koyd9xp6wp2h",
+    "fieldKey": "supplierAddress",
+    "content": "四川省成都市金牛区一环路北二段1号",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "根据拟定供应商名称，生成供应商的详细地址信息。格式为：省+市+区+详细地址。只输出地址，不要其他说明。",
+      "generatedAt": "2026-08-17T06:12:37.290Z"
+    },
+    "createdAt": "2026-08-17T06:12:37.297Z",
+    "updatedAt": "2026-08-17T06:12:37.297Z"
+  },
+  {
+    "id": "cmswzg5sf001jko77xes0tdkl",
+    "fieldKey": "supplierAddress",
+    "content": "四川省成都市郫都区红光街道港通北三路170号",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "根据拟定供应商名称，生成供应商的详细地址信息。格式为：省+市+区+详细地址。只输出地址，不要其他说明。",
+      "generatedAt": "2026-08-17T08:39:33.697Z"
+    },
+    "createdAt": "2026-08-17T08:39:33.712Z",
+    "updatedAt": "2026-08-17T08:39:33.712Z"
+  },
+  {
+    "id": "cmszetliu001okot5igbpkn9y",
+    "fieldKey": "projectName",
+    "content": "公司办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:25:27.222Z",
+    "updatedAt": "2026-08-19T01:25:27.222Z"
+  },
+  {
+    "id": "cmszetnhb001qkot5dw5mlcak",
+    "fieldKey": "projectName",
+    "content": "公司办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:25:29.759Z",
+    "updatedAt": "2026-08-19T01:25:29.759Z"
+  },
+  {
+    "id": "cmszf0wo40024kot5onrdh4lh",
+    "fieldKey": "projectName",
+    "content": "公司办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:31:08.260Z",
+    "updatedAt": "2026-08-19T01:31:08.260Z"
+  },
+  {
+    "id": "cmszf1mi70026kot5g19n4z9g",
+    "fieldKey": "projectName",
+    "content": "公司办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:31:41.743Z",
+    "updatedAt": "2026-08-19T01:31:41.743Z"
+  },
+  {
+    "id": "cmszf1s1q002akot5werz1ckl",
+    "fieldKey": "projectName",
+    "content": "公司办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:31:48.926Z",
+    "updatedAt": "2026-08-19T01:31:48.926Z"
+  },
+  {
+    "id": "cmszf2dn2002ckot5ksw43oyo",
+    "fieldKey": "projectName",
+    "content": "办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:32:16.910Z",
+    "updatedAt": "2026-08-19T01:32:16.910Z"
+  },
+  {
+    "id": "cmszf32a1002gkot51ackaw84",
+    "fieldKey": "projectName",
+    "content": "办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:32:48.842Z",
+    "updatedAt": "2026-08-19T01:32:48.842Z"
+  },
+  {
+    "id": "cmszf3tn5002ikot5fk0z6a7a",
+    "fieldKey": "projectName",
+    "content": "办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:33:24.306Z",
+    "updatedAt": "2026-08-19T01:33:24.306Z"
+  },
+  {
+    "id": "cmszf3z8i002kkot5b6p2acx6",
+    "fieldKey": "projectName",
+    "content": "办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:33:31.554Z",
+    "updatedAt": "2026-08-19T01:33:31.554Z"
+  },
+  {
+    "id": "cmszf5ql8002qkot5sziqjss4",
+    "fieldKey": "projectName",
+    "content": "办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:34:53.660Z",
+    "updatedAt": "2026-08-19T01:34:53.660Z"
+  },
+  {
+    "id": "cmszfma9k003ikot5jqhmoj00",
+    "fieldKey": "projectName",
+    "content": "办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:47:45.657Z",
+    "updatedAt": "2026-08-19T01:47:45.657Z"
+  },
+  {
+    "id": "cmszfydfv0042kot50410n9uh",
+    "fieldKey": "projectOverview",
+    "content": "为保证公司办公",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T01:57:09.644Z",
+    "updatedAt": "2026-08-19T01:57:09.644Z"
+  },
+  {
+    "id": "cmszh5gc7005ykot5q3l61bnu",
+    "fieldKey": "projectOverview",
+    "content": "为提升公司办公用品采购的时效性、保证办公用品的",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T02:30:39.608Z",
+    "updatedAt": "2026-08-19T02:30:39.608Z"
+  },
+  {
+    "id": "cmszh60420062kot5vw2lgl2f",
+    "fieldKey": "projectOverview",
+    "content": "为提升公司办公用品采购的时效性、保证办公用品的",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T02:31:05.235Z",
+    "updatedAt": "2026-08-19T02:31:05.235Z"
+  },
+  {
+    "id": "cmszh6hhd0064kot58a0bwh4p",
+    "fieldKey": "projectOverview",
+    "content": "为提升公司办公用品采购的时效性、保证办公用品的",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T02:31:27.745Z",
+    "updatedAt": "2026-08-19T02:31:27.745Z"
+  },
+  {
+    "id": "cmszh6j4q0066kot5wuigbs2p",
+    "fieldKey": "projectOverview",
+    "content": "为提升公司办公用品采购的时效性、保证办公用品的",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T02:31:29.883Z",
+    "updatedAt": "2026-08-19T02:31:29.883Z"
+  },
+  {
+    "id": "cmszh74ru006akot5nm6sn2fq",
+    "fieldKey": "projectOverview",
+    "content": "为提升公司办公用品采购的时效性、保证办公用品的",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T02:31:57.930Z",
+    "updatedAt": "2026-08-19T02:31:57.930Z"
+  },
+  {
+    "id": "cmszh7fdr006ckot5qgcbo222",
+    "fieldKey": "projectOverview",
+    "content": "为提升公司办公用品采购的时效性、保证办公用品的",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T02:32:11.680Z",
+    "updatedAt": "2026-08-19T02:32:11.680Z"
+  },
+  {
+    "id": "cmszh9jur006ikot5mg52eooi",
+    "fieldKey": "projectOverview",
+    "content": "为提升公司办公用品采购的时效性、保证办公用品的",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T02:33:50.788Z",
+    "updatedAt": "2026-08-19T02:33:50.788Z"
+  },
+  {
+    "id": "cmszheczt006qkot51237doul",
+    "fieldKey": "projectOverview",
+    "content": "为提升公司办公用品采购的时效性、保证办公用品的",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T02:37:35.178Z",
+    "updatedAt": "2026-08-19T02:37:35.178Z"
+  },
+  {
+    "id": "cmszpcbxt0000ko9im9uedbx7",
+    "fieldKey": "projectName",
+    "content": "办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:19:57.425Z",
+    "updatedAt": "2026-08-19T06:19:57.425Z"
+  },
+  {
+    "id": "cmszpfya70002ko9iknagqaa2",
+    "fieldKey": "projectOverview",
+    "content": "为及时响应公司员工采购办公用品的需求，提升公司办公用品采购的时效性，保证办公用品",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:22:46.351Z",
+    "updatedAt": "2026-08-19T06:22:46.351Z"
+  },
+  {
+    "id": "cmszpnr3k0004ko9ia52ou53b",
+    "fieldKey": "projectOverview",
+    "content": "为及时响应公司员工对办公用品的采购需求，提升公司办公用品采购的时效性，保证办公用品品质、",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:28:50.289Z",
+    "updatedAt": "2026-08-19T06:28:50.289Z"
+  },
+  {
+    "id": "cmszpp9fo0006ko9icp31nys4",
+    "fieldKey": "projectOverview",
+    "content": "为及时响应公司员工对办公用品的采购需求，提升办公用品采购的时效性，保证办公用品品质、维持价格的稳定性和统一性，",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:30:00.708Z",
+    "updatedAt": "2026-08-19T06:30:00.708Z"
+  },
+  {
+    "id": "cmszprnb50008ko9i9w14vspk",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率、降低采购成本，现通过邀请招标方式，择优选取具备稳定供货能力、价格优势和服务质量的供应商，为公司提供办公用品供应服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:31:52.002Z",
+    "updatedAt": "2026-08-19T06:31:52.002Z"
+  },
+  {
+    "id": "cmszpskq0000ako9is7p5p48t",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率、降低采购成本，择优选取具备稳定供货能力、价格优势和服务质量的供应商，为公司提供办公用品供应服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:32:35.305Z",
+    "updatedAt": "2026-08-19T06:32:35.305Z"
+  },
+  {
+    "id": "cmszptf2g000cko9iv1o9id08",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率、降低采购成本，择优选取具备稳定供货能力、价格优势和服务质量的供应商，为公司提供办公用品供应服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:33:14.633Z",
+    "updatedAt": "2026-08-19T06:33:14.633Z"
+  },
+  {
+    "id": "cmszpuduz000eko9i0bc0qp8i",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率、降低采购成本，择优选取具备稳定供货能力、价格优势和服务质量的供应商，为公司提供办公用品供应服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:33:59.724Z",
+    "updatedAt": "2026-08-19T06:33:59.724Z"
+  },
+  {
+    "id": "cmszpwvcu000iko9ikry8iy2l",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本。现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，为公司提供办公用品供应服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:35:55.711Z",
+    "updatedAt": "2026-08-19T06:35:55.711Z"
+  },
+  {
+    "id": "cmszpvo4w000gko9ibdi8cstv",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理、提高采购效率、降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，为公司提供办公用品供应服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:34:59.696Z",
+    "updatedAt": "2026-08-19T06:34:59.696Z"
+  },
+  {
+    "id": "cmszpxwjf000kko9iu4h5p72t",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本。现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，为公司提供办公用品供应服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:36:43.900Z",
+    "updatedAt": "2026-08-19T06:36:43.900Z"
+  },
+  {
+    "id": "cmszq0qc10007kotvibvfvb1j",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本。现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，为公司提供办公用品供应服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:38:55.826Z",
+    "updatedAt": "2026-08-19T06:38:55.826Z"
+  },
+  {
+    "id": "cmszq0xz6000akotvevew5v5v",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现开展办公用品集中采购工作。本次采购旨在择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应，满足各部门日常办公需要。采购范围涵盖书写工具、本册纸品、文件管理用品、桌面用品、办公耗材、办公清洁用品及会议用品等常用办公物资，具体包括中性笔、签字笔、铅笔、记号笔、笔记本、便签纸、复印纸、档案盒、文件夹、文件袋、长尾夹、订书机、计算器、硒鼓、墨盒、电池、垃圾袋、纸杯、抽纸等品目。供应商须根据采购人提供的办公用品需求清单，按约定时间、数量和质量要求完成供货，并提供相应的售后服务和应急保障措施。通过集中采购，进一步优化采购流程，发挥规模采购优势，有效控制办公费用支出，提升采购管理规范化水平。",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "根据项目名称生成项目概况和采购内容，包含采购背景、目标、范围、具体采购内容等关键信息。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
+      "generatedAt": "2026-08-19T06:39:05.369Z"
+    },
+    "createdAt": "2026-08-19T06:39:05.731Z",
+    "updatedAt": "2026-08-19T06:39:05.731Z"
+  },
+  {
+    "id": "cmszq2cjd000ckotvdh54cmdz",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应，满足各部门日常办公需要。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:40:11.258Z",
+    "updatedAt": "2026-08-19T06:40:11.258Z"
+  },
+  {
+    "id": "cmszq2g07000ekotvs8ziealq",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应，满足各部门日常办公需要。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:40:15.751Z",
+    "updatedAt": "2026-08-19T06:40:15.751Z"
+  },
+  {
+    "id": "cmszq2ku6000hkotvenp6dyen",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应，满足各部门日常办公需要。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:40:22.015Z",
+    "updatedAt": "2026-08-19T06:40:22.015Z"
+  },
+  {
+    "id": "cmszq2lps000jkotvueq4dwav",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应，满足各部门日常办公需要。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T06:40:23.152Z",
+    "updatedAt": "2026-08-19T06:40:23.152Z"
+  },
+  {
+    "id": "cmszrqg210006korp24m302gg",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T07:26:55.178Z",
+    "updatedAt": "2026-08-19T07:26:55.178Z"
+  },
+  {
+    "id": "cmszrqkvg0008korphwas1xgt",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T07:27:01.421Z",
+    "updatedAt": "2026-08-19T07:27:01.421Z"
+  },
+  {
+    "id": "cmszrr81t000akorp6aa17dj2",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T07:27:31.457Z",
+    "updatedAt": "2026-08-19T07:27:31.457Z"
+  },
+  {
+    "id": "cmszrs7cv000ckorpaxs2pxn2",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T07:28:17.216Z",
+    "updatedAt": "2026-08-19T07:28:17.216Z"
+  },
+  {
+    "id": "cmsztedot004wkouhwfavckof",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T08:13:31.470Z",
+    "updatedAt": "2026-08-19T08:13:31.470Z"
+  },
+  {
+    "id": "cmszw5jz5006gkoqhcliqa9xk",
+    "fieldKey": "projectName",
+    "content": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:30:38.562Z",
+    "updatedAt": "2026-08-19T09:30:38.562Z"
+  },
+  {
+    "id": "cmszw75pv006ikoqhpiv9wjkt",
+    "fieldKey": "projectOverview",
+    "content": "为推进《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，需购买雷视融合监测雷达及雨量计",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:31:53.396Z",
+    "updatedAt": "2026-08-19T09:31:53.396Z"
+  },
+  {
+    "id": "cmszw797r006lkoqhmgpymriy",
+    "fieldKey": "projectOverview",
+    "content": "为推进《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，需采购雷视融合监测雷达及配套雨量计，用于高陡边坡位移的实时监测与预警。采购背景源于传统边坡监测手段在复杂地形下存在精度不足、受天气影响大等问题，而雷视融合技术结合了雷达与视觉识别的优势，可实现对边坡表面位移的高精度、全天候自动化监测。本次采购目标是获得满足项目研究要求的监测设备，支撑边坡位移数据的采集与分析，进而构建有效的预警系统。采购范围为科研项目所需的硬件设备及其安装调试、数据接口支持等配套服务。具体采购内容为雷视融合监测雷达一套，该设备应具备毫米波雷达与高清视频融合能力，可输出位移量、速度及影像数据，测距精度不低于0.1米，最大监测距离不小于500米，工作温度范围覆盖-20℃至60℃，防护等级达IP65以上；同时采购翻斗式雨量计两台，其分辨率为0.2毫米，测量准确度符合国家标准，用于同步采集降雨量数据，辅助分析降雨与边坡位移的关联性。供应商需提供设备安装、调试及技术培训服务，并保证所供设备能与项目现有数据采集平台对接，数据传输频率不低于1Hz。设备质保期不少于两年，质保期内免费提供维修及软件升级服务。",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "根据项目名称生成项目概况和采购内容，包含采购背景、目标、范围、具体采购内容等关键信息。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
+      "generatedAt": "2026-08-19T09:31:58.032Z"
+    },
+    "createdAt": "2026-08-19T09:31:57.928Z",
+    "updatedAt": "2026-08-19T09:31:57.928Z"
+  },
+  {
+    "id": "cmszw7sar006nkoqh3m8bkv7b",
+    "fieldKey": "projectOverview",
+    "content": "为推进《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，需采购雷视融合监测雷达及配套雨量计，用于高陡边坡位移的实时监测与预警。采购背景源于传统边坡监测手段在复杂地形下存在精度不足、受天气影响大等问题，而雷视融合技术结合了雷达与视觉识别的优势，可实现对边坡表面位移的高精度、全天候自动化监测。本次采购目标是获得满足项目研究要求的监测设备，支撑边坡位移数据的采集与分析，进而构建有效的预警系统。采购范围为科研项目所需的硬件设备及其安装调试、数据接口支持等配套服务。具体采购内容为雷视融合监测雷达一套，该设备应具备毫米波雷达与高清视频融合能力，可输出位移量、速度及影像数据，测距精度不低于0.1米，最大监测距离不小于500米，工作温度范围覆盖-20℃至60℃，防护等级达IP65以上；同时采购翻斗式雨量计两台，其分辨率为0.2毫米，测量准确度符合国家标准，用于同步采集降雨量数据，辅助分析降雨与边坡位移的关联性。供应商需提供设备安装、调试及技术培训服务，并保证所供设备能与项目现有数据采集平台对接，数据传输频率不低于1Hz。设备质保期不少于两年，质保期内免费提供维修及软件升级服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:32:22.659Z",
+    "updatedAt": "2026-08-19T09:32:22.659Z"
+  },
+  {
+    "id": "cmszw92gv006pkoqhg7847h50",
+    "fieldKey": "projectName",
+    "content": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:33:22.495Z",
+    "updatedAt": "2026-08-19T09:33:22.495Z"
+  },
+  {
+    "id": "cmszw9ao6006rkoqhmpgzq6im",
+    "fieldKey": "projectName",
+    "content": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:33:33.127Z",
+    "updatedAt": "2026-08-19T09:33:33.127Z"
+  },
+  {
+    "id": "cmszwb3g6006tkoqhccy6w9za",
+    "fieldKey": "projectName",
+    "content": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:34:57.078Z",
+    "updatedAt": "2026-08-19T09:34:57.078Z"
+  },
+  {
+    "id": "cmszwe9wu006vkoqhv6diegak",
+    "fieldKey": "projectOverview",
+    "content": "为推进《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，需购买雷视融合监测雷达及雨量计。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:37:25.423Z",
+    "updatedAt": "2026-08-19T09:37:25.423Z"
+  },
+  {
+    "id": "cmszweg1s006ykoqh5iysq9a8",
+    "fieldKey": "projectOverview",
+    "content": "本项目为《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，旨在通过雷视融合技术实现对高陡边坡位移的实时、精准监测与预警。目前，高陡边坡在自然因素和工程活动影响下易发生变形失稳，传统监测手段存在精度不足、实时性差等问题，亟需引入先进的雷视融合监测设备。本次采购的目标是为科研项目提供核心监测硬件支撑，确保系统能够高效采集边坡位移数据并用于算法验证与预警模型构建，采购范围包括雷视融合监测雷达及配套雨量计。其中，雷视融合监测雷达需具备毫米波雷达与视觉传感器融合能力，能够实现亚毫米级位移测量、多目标跟踪以及三维场景重建，适用于野外复杂环境，具有防护等级不低于IP65、工作温度范围-20℃至60℃、通信接口支持以太网及4G/5G传输等性能；雨量计需采用翻斗式或称重式原理，测量精度不低于0.2mm，分辨率0.1mm，并具备RS485或SDI-12通信接口，用于同步采集降雨量数据，为降雨与位移相关性分析提供基础。所购设备均需附带完整的技术文档、安装支架、数据采集软件及质保服务，质保期不少于两年，并包含现场安装调试与操作培训。设备将部署于选定的高陡边坡试验场，以满足科研项目对长期稳定监测数据的需求。",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "根据项目名称生成项目概况和采购内容，包含采购背景、目标、范围、具体采购内容等关键信息。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
+      "generatedAt": "2026-08-19T09:37:33.501Z"
+    },
+    "createdAt": "2026-08-19T09:37:33.376Z",
+    "updatedAt": "2026-08-19T09:37:33.376Z"
+  },
+  {
+    "id": "cmszwf4ib0070koqht9z8hrb8",
+    "fieldKey": "projectOverview",
+    "content": "本项目为《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，旨在通过雷视融合技术实现对高陡边坡位移的实时、精准监测与预警。目前，高陡边坡在自然因素和工程活动影响下易发生变形失稳，传统监测手段存在精度不足、实时性差等问题，亟需引入先进的雷视融合监测设备。本次采购的目标是为科研项目提供核心监测硬件支撑，确保系统能够高效采集边坡位移数据并用于算法验证与预警模型构建，采购范围包括雷视融合监测雷达及配套雨量计。设备将部署于选定的高陡边坡试验场，以满足科研项目对长期稳定监测数据的需求。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:38:05.076Z",
+    "updatedAt": "2026-08-19T09:38:05.076Z"
+  },
+  {
+    "id": "cmszwfk7n0072koqhcuog4m7i",
+    "fieldKey": "qualificationRequirements",
+    "content": "无",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:38:25.427Z",
+    "updatedAt": "2026-08-19T09:38:25.427Z"
+  },
+  {
+    "id": "cmszwfsbj0075koqhdpyrkwdq",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年08月06日09:00至2026年08月11日15:00",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "生成文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。",
+      "generatedAt": "2026-08-19T09:38:36.062Z"
+    },
+    "createdAt": "2026-08-19T09:38:35.936Z",
+    "updatedAt": "2026-08-19T09:38:35.936Z"
+  },
+  {
+    "id": "cmszwgmcc0077koqhzhnafr89",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年08月18日09:00至2026年08月20日15:00",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:39:14.844Z",
+    "updatedAt": "2026-08-19T09:39:14.844Z"
+  },
+  {
+    "id": "cmszwgykc0079koqhrofl8efm",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年08月24日09:00至2026年08月26日15:00",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:39:30.684Z",
+    "updatedAt": "2026-08-19T09:39:30.684Z"
+  },
+  {
+    "id": "cmszwitiu007gkoqh4fwr3xtb",
+    "fieldKey": "businessRequirements",
+    "content": "交付期限：自合同签订之日起30日内完成全部设备的供货、安装及调试，并具备试运行条件。付款方式：合同签订后7个工作日内支付合同总价的30%作为预付款，设备到货并完成安装调试、经采购方初步验收合格后支付至合同总价的90%，剩余10%作为质保金，待质保期满且无质量问题后10个工作日内无息支付。验收标准：按照采购文件技术要求及国家相关标准进行验收，雷视融合监测雷达需在试验场部署后连续运行72小时无故障，位移监测精度达到设计指标（水平位移误差不超过±2mm，垂直位移误差不超过±3mm），雨量计计量误差不超过±4%，数据采集与传输系统稳定，监测数据完整率不低于98%，并提供第三方检测报告。售后服务：质保期为设备验收合格之日起24个月，质保期内免费提供设备维修、软件升级及技术支持服务；设备发生故障时，供应商须在2小时内响应，24小时内到达现场处理，普通故障48小时内修复，重大故障72小时内提供备用设备替代运行。提供不少于2次的现场技术培训，每次培训时长不少于4小时，确保采购方人员能够独立操作与维护设备。质保期满后，供应商应以优惠价格提供终身维修服务，并按采购方要求提供远程技术支持与数据解读服务。",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "根据项目类型生成商务要求，包含交付期限、付款方式、验收标准、售后服务等。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。【关键要求】所有涉及天数、百分比、期限、比例、金额、数量等可量化指标的条款，必须根据项目类型、规模、行业惯例直接填入合理具体的数值，禁止出现下划线占位符（如____、空格留白、横线、括号待填等），也禁止出现「待定」「另行约定」等模糊表述。例如：交付期限根据项目规模填「合同签订后30日内」或「60日历天」；违约金按行业惯例填「每日按合同总价的1‰」；付款方式填「预付款30%、到货验收后付至90%、质保金10%」；质保期根据设备类型填「12个月」或「24个月」；响应时间填「2小时内响应、24小时内到场」。数值须具体且符合该类项目的实际惯例，不要全部使用相同默认值，应根据项目特征差异化设置。",
+      "generatedAt": "2026-08-19T09:40:57.583Z"
+    },
+    "createdAt": "2026-08-19T09:40:57.463Z",
+    "updatedAt": "2026-08-19T09:40:57.463Z"
+  },
+  {
+    "id": "cmszwjdww007ikoqhrdxcz4mw",
+    "fieldKey": "technicalRequirements",
+    "content": "雷视融合监测雷达\n序号\t项目\t性能参数\n1\t工作距离\t1000米\n2\t监测精度\t0.1-1毫米\n3\t距离分辨率\t0.15米\n4\t方位视野\t≥100°\n5\t俯仰视野\t30°\n6\t视频监控\t内置摄像头，具备在线视频监控功能\n7\t供电方式\t支持市电和太阳能供电\n8\t工作温度\t-40~+65℃\n9\t防水等级\tIP65\n10\t平台预警\t平台可实时显示各台设备不同区域的形变曲线与预警等级，支持短信、邮件、现场声光等预警方式\n11\t通讯方式\t移动/电信双网自动切换\n12\t远程控制\t支持远程诊断与升级\n雨量计参数\n序号\t项目\t性能参数\n1\t分辨率\t0.2mm\n2\t测量降水强度\t0.01-4mm/min，误差：±2%\n3\t工作温度\t-10℃-+50℃\n4\t输出形式\t0-5VDC、4～20mA、RS485 通讯",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:41:23.888Z",
+    "updatedAt": "2026-08-19T09:41:23.888Z"
+  },
+  {
+    "id": "cmt0vgs3e0008koxkhdq446ak",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T01:59:08.858Z",
+    "updatedAt": "2026-08-20T01:59:08.858Z"
+  },
+  {
+    "id": "cmt0vw1ey0007koje4m32pqle",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T02:11:00.778Z",
+    "updatedAt": "2026-08-20T02:11:00.778Z"
+  },
+  {
+    "id": "cmszwjo0s007lkoqh4yoehr1s",
+    "fieldKey": "technicalRequirements",
+    "content": "本次采购的雷视融合监测雷达需具备远距离、高精度的位移监测能力，适用于高陡边坡复杂地形。主要性能要求如下：工作距离不小于1000米，监测精度范围0.1毫米至1毫米，距离分辨率优于0.15米，方位视野不小于100度，俯仰视野不小于30度。雷达内置高清摄像头，支持在线视频监控，并能与位移数据同步联动。供电方式兼容市电和太阳能供电，满足野外无市电环境长期运行。工作温度范围-40℃至+65℃，防护等级不低于IP65。监测平台应实时显示各台设备不同区域的形变曲线与预警等级，支持短信、邮件、现场声光等多种预警方式；通讯方式支持移动、电信双网自动切换，确保数据传输稳定；设备支持远程诊断与远程升级，便于后期维护。配套雨量计用于同步采集降雨量，分辨率不低于0.2mm，测量降水强度范围0.01mm/min至4mm/min，测量误差不超过±2%，工作温度-10℃至+50℃，输出形式同时支持0-5VDC、4～20mA和RS485通讯接口，便于与数据采集系统集成。所有设备应符合国家相关产品标准并提供有效检测报告，雷视融合监测雷达部署后需经测试验证水平位移误差不超过±2mm，垂直位移误差不超过±3mm；雨量计计量误差不超过±4%。设备平均无故障工作时间不低于10000小时，设计使用寿命不少于8年。关键元器件选用工业级产品，具备抗电磁干扰和防雷性能，结构件经防腐防锈处理，适应高陡边坡野外环境。供货范围包括雷达主机、数据采集与处理单元、安装支架、电源适配器、太阳能供电组件、通讯模块、防雷接地装置、配套预警软件及雨量计全套附属设备，并附带安装手册、产品合格证、第三方计量检定证书等文件。",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "根据项目类型生成技术要求，包含技术标准、性能参数、质量要求等。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。【关键要求】所有涉及技术参数、规格、数值、公差、等级等可量化指标的条款，必须根据项目类型、设备/服务特征、行业规范直接填入合理具体的数值，禁止出现下划线占位符（如____、空格留白、横线、括号待填等），也禁止出现「待定」「详见厂家资料」「按相关标准」等模糊或推诿表述。例如：设备参数填「额定功率75kW」「钻进深度≥800m」「精度等级±0.5%」；材料规格填「DN200」「壁厚6mm」「抗压强度C30」；性能指标填「处理水量≥100m³/h」「效率≥95%」「防护等级IP65」。数值须具体且符合该类项目的技术规范，可根据项目名称中体现的规模和型号进行合理推断，不要全部使用相同默认值。",
+      "generatedAt": "2026-08-19T09:41:37.106Z"
+    },
+    "createdAt": "2026-08-19T09:41:36.988Z",
+    "updatedAt": "2026-08-19T09:41:36.988Z"
+  },
+  {
+    "id": "cmszwnoxo007nkoqh47ujnltj",
+    "fieldKey": "businessRequirements",
+    "content": "交付期限：自合同签订之日起30日内完成全部设备的供货、安装及调试，并具备试运行条件。付款方式：合同签订后7个工作日内支付合同总价的30%作为预付款，设备到货并完成安装调试、经采购方初步验收合格后支付至合同总价的90%，剩余10%作为质保金，待验收合格后起算6个月满且无质量问题后10个工作日内无息支付。售后服务：质保期为设备验收合格之日起24个月，质保期内免费提供设备维修、软件升级及技术支持服务；设备发生故障时，供应商须在6小时内响应，普通故障48小时内修复，重大故障72小时内提供备用设备替代运行。提供不少于1次的现场技术培训，每次培训时长不少于4小时，确保采购方人员能够独立操作与维护设备。质保期满后，供应商应按采购方要求提供远程技术支持与数据解读服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:44:44.797Z",
+    "updatedAt": "2026-08-19T09:44:44.797Z"
+  },
+  {
+    "id": "cmszwnqzl007pkoqhzolhmgyk",
+    "fieldKey": "businessRequirements",
+    "content": "交付期限：自合同签订之日起30日内完成全部设备的供货、安装及调试，并具备试运行条件。付款方式：合同签订后7个工作日内支付合同总价的30%作为预付款，设备到货并完成安装调试、经采购方初步验收合格后支付至合同总价的90%，剩余10%作为质保金，待验收合格后起算6个月满且无质量问题后10个工作日内无息支付。售后服务：质保期为设备验收合格之日起24个月，质保期内免费提供设备维修、软件升级及技术支持服务；设备发生故障时，供应商须在6小时内响应，普通故障48小时内修复，重大故障72小时内提供备用设备替代运行。提供不少于1次的现场技术培训，每次培训时长不少于4小时，确保采购方人员能够独立操作与维护设备。质保期满后，供应商应按采购方要求提供远程技术支持与数据解读服务。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:44:47.458Z",
+    "updatedAt": "2026-08-19T09:44:47.458Z"
+  },
+  {
+    "id": "cmszwolda007rkoqhgkxo1lms",
+    "fieldKey": "technicalRequirements",
+    "content": "本次采购的雷视融合监测雷达需具备远距离、高精度的位移监测能力，适用于高陡边坡复杂地形。主要性能要求如下：工作距离不小于1000米，监测精度范围0.1毫米至1毫米，距离分辨率优于0.15米，方位视野不小于100度，俯仰视野不小于30度。雷达内置高清摄像头，支持在线视频监控，并能与位移数据同步联动。供电方式兼容市电和太阳能供电，满足野外无市电环境长期运行。工作温度范围-40℃至+65℃，防护等级不低于IP65。监测平台应实时显示各台设备不同区域的形变曲线与预警等级，支持短信、邮件、现场声光等多种预警方式；通讯方式支持移动、电信双网自动切换，确保数据传输稳定；设备支持远程诊断与远程升级，便于后期维护。配套雨量计用于同步采集降雨量，分辨率不低于0.2mm，测量降水强度范围0.01mm/min至4mm/min，测量误差不超过±2%，工作温度-10℃至+50℃，输出形式同时支持0-5VDC、4～20mA和RS485通讯接口，便于与数据采集系统集成。所有设备应符合国家相关产品标准并提供有效检测报告，雷视融合监测雷达部署后需经测试验证水平位移误差不超过±2mm，垂直位移误差不超过±3mm；雨量计计量误差不超过±4%。设备平均无故障工作时间不低于10000小时，设计使用寿命不少于8年。关键元器件选用工业级产品，具备抗电磁干扰和防雷性能，结构件经防腐防锈处理，适应高陡边坡野外环境。供货范围包括雷达主机、数据采集与处理单元、安装支架、电源适配器、太阳能供电组件、通讯模块、防雷接地装置、配套预警软件及雨量计全套附属设备，并附带安装手册、产品合格证、第三方计量检定证书等文件。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:45:26.830Z",
+    "updatedAt": "2026-08-19T09:45:26.830Z"
+  },
+  {
+    "id": "cmszwoxhl007ukoqh1w8wdjck",
+    "fieldKey": "quotationLetter",
+    "content": "雷视融合监测雷达\t工作距离≥1000m，监测精度0.1mm～1mm，距离分辨率≤0.15m，方位视野≥100°，俯仰视野≥30°，含高清摄像头、数据采集与处理单元、安装支架、电源适配器、太阳能供电组件、通讯模块、防雷接地装置及配套预警软件\t套\t1\t____\t____\n雨量计\t分辨率≥0.2mm，测量强度0.01mm/min～4mm/min，测量误差≤±2%，工作温度-10℃～+50℃，输出形式：0-5VDC、4～20mA、RS485\t台\t1\t____\t____",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "本部分是针对各项采购物品的报价清单，以供应商口吻呈现（即供应商填报的报价单）。删除一切说明性条款、抬头（如 致：××）和落款尾缀（如 投标人盖章、法定代表人或授权代表签字、日期），只保留具体采购事项及其报价：依据项目采购内容逐项列出物品的名称、规格型号、单位、数量，并设报价栏（单价、合价）以 ____ 留空供供应商填写，不得编造金额。条目清晰即可，不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以制表符（Tab 键）分隔各项各列，列序为 名称、规格型号、单位、数量、单价、合价（单价和合价留空），不写表头行。",
+      "generatedAt": "2026-08-19T09:45:42.665Z"
+    },
+    "createdAt": "2026-08-19T09:45:42.537Z",
+    "updatedAt": "2026-08-19T09:45:42.537Z"
+  },
+  {
+    "id": "cmszwq4da007wkoqhp3d0hefp",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价包含税费安装调试等所有费用",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:46:38.111Z",
+    "updatedAt": "2026-08-19T09:46:38.111Z"
+  },
+  {
+    "id": "cmszwqjnj007zkoqhawut9oe3",
+    "fieldKey": "quotationLetter",
+    "content": "雷视融合监测雷达\t工作距离≥1000m，监测精度0.1-1mm，方位视野≥100°，俯仰视野≥30°，内置高清摄像头，防护等级IP65，工作温度-40℃~+65℃，支持市电/太阳能供电，移动/电信双网通讯，含全套附属设备\t套\t1\t____\t____\n雨量计\t分辨率≥0.2mm，测量强度0.01~4mm/min，误差≤±2%，输出支持0-5VDC/4-20mA/RS485，工作温度-10℃~+50℃\t套\t1\t____\t____",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "本部分是针对各项采购物品的报价清单，以供应商口吻呈现（即供应商填报的报价单）。删除一切说明性条款、抬头（如 致：××）和落款尾缀（如 投标人盖章、法定代表人或授权代表签字、日期），只保留具体采购事项及其报价：依据项目采购内容逐项列出物品的名称、规格型号、单位、数量，并设报价栏（单价、合价）以 ____ 留空供供应商填写，不得编造金额。条目清晰即可，不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以制表符（Tab 键）分隔各项各列，列序为 名称、规格型号、单位、数量、单价、合价（单价和合价留空），不写表头行。",
+      "generatedAt": "2026-08-19T09:46:58.035Z"
+    },
+    "createdAt": "2026-08-19T09:46:57.920Z",
+    "updatedAt": "2026-08-19T09:46:57.920Z"
+  },
+  {
+    "id": "cmszwr8gf0081koqhu10pjdtc",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价包含税费安装调试等所有费用",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:47:30.063Z",
+    "updatedAt": "2026-08-19T09:47:30.063Z"
+  },
+  {
+    "id": "cmszwrzt10086koqhk7ypdykr",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价包含税费安装调试等所有费用",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:48:05.509Z",
+    "updatedAt": "2026-08-19T09:48:05.509Z"
+  },
+  {
+    "id": "cmszws2z30088koqhy6b0bkmq",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价包含税费安装调试等所有费用",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:48:09.616Z",
+    "updatedAt": "2026-08-19T09:48:09.616Z"
+  },
+  {
+    "id": "cmszwskbz008akoqhpd750l7x",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价包含税费、运输、安装调试等所有费用",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:48:32.111Z",
+    "updatedAt": "2026-08-19T09:48:32.111Z"
+  },
+  {
+    "id": "cmt0vst5q0004kojeshzt8itu",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T02:08:30.111Z",
+    "updatedAt": "2026-08-20T02:08:30.111Z"
+  },
+  {
+    "id": "cmszwrdcr0084koqhgozjetlj",
+    "fieldKey": "quotationLetter",
+    "content": "雷视融合监测雷达\t工作距离≥1000m，监测精度0.1-1mm，距离分辨率≤0.15m，方位视野≥100°，俯仰视野≥30°，内置高清摄像头，支持太阳能供电，工作温度-40℃~+65℃，防护等级≥IP65，含数据采集处理单元、安装支架、电源适配器、太阳能供电组件、通讯模块、防雷接地装置及配套预警软件\t套\t1\t____\t____\n雨量计\t分辨率≥0.2mm，测量强度0.01-4mm/min，误差≤±2%，输出0-5VDC/4-20mA/RS485，工作温度-10℃~+50℃\t套\t1\t____\t____",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "本部分是针对各项采购物品的报价清单，以供应商口吻呈现（即供应商填报的报价单）。删除一切说明性条款、抬头（如 致：××）和落款尾缀（如 投标人盖章、法定代表人或授权代表签字、日期），只保留具体采购事项及其报价：依据项目采购内容逐项列出物品的名称、规格型号、单位、数量，并设报价栏（单价、合价）以 ____ 留空供供应商填写，不得编造金额。条目清晰即可，不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以制表符（Tab 键）分隔各项各列，列序为 名称、规格型号、单位、数量、单价、合价（单价和合价留空），不写表头行。",
+      "generatedAt": "2026-08-19T09:47:36.537Z"
+    },
+    "createdAt": "2026-08-19T09:47:36.411Z",
+    "updatedAt": "2026-08-19T09:47:36.411Z"
+  },
+  {
+    "id": "cmszwtyy2008fkoqhb0vycz70",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价包含税费、运输、安装调试等所有费用",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:49:37.706Z",
+    "updatedAt": "2026-08-19T09:49:37.706Z"
+  },
+  {
+    "id": "cmszwsvts008dkoqhmwtlgb0b",
+    "fieldKey": "quotationLetter",
+    "content": "雷视融合监测雷达\t满足招标技术要求\t套\t1\t\t\n配套雨量计\t满足招标技术要求\t台\t1",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "本部分是针对各项采购物品的报价清单，以供应商口吻呈现（即供应商填报的报价单）。删除一切说明性条款、抬头（如 致：××）和落款尾缀（如 投标人盖章、法定代表人或授权代表签字、日期），只保留具体采购事项及其报价：依据项目采购内容逐项列出物品的名称、规格型号、单位、数量，并设报价栏（单价、合价）以 ____ 留空供供应商填写，不得编造金额。条目清晰即可，不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以制表符（Tab 键）分隔各项各列，列序为 名称、规格型号、单位、数量、单价、合价（单价和合价留空），不写表头行。",
+      "generatedAt": "2026-08-19T09:48:47.293Z"
+    },
+    "createdAt": "2026-08-19T09:48:47.009Z",
+    "updatedAt": "2026-08-19T09:48:47.009Z"
+  },
+  {
+    "id": "cmszwum3j008hkoqhuwzcxbrf",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价包含税费、运输、安装调试等所有费用",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:50:07.712Z",
+    "updatedAt": "2026-08-19T09:50:07.712Z"
+  },
+  {
+    "id": "cmszwur5q008jkoqh3ampzxs4",
+    "fieldKey": "projectName",
+    "content": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:50:14.270Z",
+    "updatedAt": "2026-08-19T09:50:14.270Z"
+  },
+  {
+    "id": "cmszwvd9s008lkoqhaxs7qhz4",
+    "fieldKey": "projectOverview",
+    "content": "本项目为《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，旨在通过雷视融合技术实现对高陡边坡位移的实时、精准监测与预警。目前，高陡边坡在自然因素和工程活动影响下易发生变形失稳，传统监测手段存在精度不足、实时性差等问题，亟需引入先进的雷视融合监测设备。本次采购的目标是为科研项目提供核心监测硬件支撑，确保系统能够高效采集边坡位移数据并用于算法验证与预警模型构建，采购雷视融合监测雷达及配套雨量计。设备将部署于选定的高陡边坡试验场，以满足科研项目对长期稳定监测数据的需求。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:50:42.928Z",
+    "updatedAt": "2026-08-19T09:50:42.928Z"
+  },
+  {
+    "id": "cmszwwwyv008nkoqhd44cppcn",
+    "fieldKey": "projectOverview",
+    "content": "本项目为《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，旨在通过雷视融合技术实现对高陡边坡位移的实时、精准监测与预警。目前，高陡边坡在自然因素和工程活动影响下易发生变形失稳，传统监测手段存在精度不足、实时性差等问题，亟需引入先进的雷视融合监测设备。本次采购的目标是为科研项目提供核心监测硬件支撑，确保系统能够高效采集边坡位移数据并用于算法验证与预警模型构建，采购雷视融合监测雷达及配套雨量计。设备将部署于选定的高陡边坡试验场，以满足科研项目对长期稳定监测数据的需求。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:51:55.112Z",
+    "updatedAt": "2026-08-19T09:51:55.112Z"
+  },
+  {
+    "id": "cmszwx6bl008pkoqh48byxgm6",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价为总价包干，包含设备本体、税费、运输、安装调试及质保期服务等完成本项目所需的一切费用。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:52:07.234Z",
+    "updatedAt": "2026-08-19T09:52:07.234Z"
+  },
+  {
+    "id": "cmszwzrm9008wkoqhc5hls5ck",
+    "fieldKey": "projectName",
+    "content": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:54:08.146Z",
+    "updatedAt": "2026-08-19T09:54:08.146Z"
+  },
+  {
+    "id": "cmszx0pfi008ykoqhgsykff8b",
+    "fieldKey": "projectIntroduction",
+    "content": "本项目为《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，旨在通过雷视融合技术实现对高陡边坡位移的实时、精准监测与预警。目前，高陡边坡在自然因素和工程活动影响下易发生变形失稳，传统监测手段存在精度不足、实时性差等问题，亟须引入先进的雷视融合监测设备。本次采购的目标是为科研项目提供核心监测硬件支撑，确保系统能够高效采集边坡位移数据并用于算法验证与预警模型构建，采购雷视融合监测雷达及配套雨量计。设备将部署于选定的高陡边坡试验场，以满足科研项目对长期稳定监测数据的需求。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:54:51.966Z",
+    "updatedAt": "2026-08-19T09:54:51.966Z"
+  },
+  {
+    "id": "cmszx0vvq0090koqhjvmekhc2",
+    "fieldKey": "projectIntroduction",
+    "content": "本项目为《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，旨在通过雷视融合技术实现对高陡边坡位移的实时、精准监测与预警。目前，高陡边坡在自然因素和工程活动影响下易发生变形失稳，传统监测手段存在精度不足、实时性差等问题，亟须引入先进的雷视融合监测设备。本次采购的目标是为科研项目提供核心监测硬件支撑，确保系统能够高效采集边坡位移数据并用于算法验证与预警模型构建。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:55:00.326Z",
+    "updatedAt": "2026-08-19T09:55:00.326Z"
+  },
+  {
+    "id": "cmszx11rk0092koqh8m6c682h",
+    "fieldKey": "procurementContent",
+    "content": "采购雷视融合监测雷达及配套雨量计。设备将部署于选定的高陡边坡试验场，以满足科研项目对长期稳定监测数据的需求。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:55:07.952Z",
+    "updatedAt": "2026-08-19T09:55:07.952Z"
+  },
+  {
+    "id": "cmszx2eff0094koqhrofiusyw",
+    "fieldKey": "requiredDocuments",
+    "content": "1.提供有效营业执照或事业单位法人证书；\n2.未被市场监督管理机关在“ 国家企业信用信息公示系统 ”网站（www.gsxt.gov.cn）列入严重违法失信名单（若供应商不属于国家企业信用信息公示范围则可不提供）；\n3.未被最高人民法院在“信用中国 ”网站（www.creditchina.gov.cn）列入严重失信名单；",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:56:11.020Z",
+    "updatedAt": "2026-08-19T09:56:11.020Z"
+  },
+  {
+    "id": "cmszx2qoa0096koqhe2pa10jx",
+    "fieldKey": "requiredDocuments",
+    "content": "1.提供有效营业执照或事业单位法人证书；\n2.未被市场监督管理机关在“ 国家企业信用信息公示系统 ”网站（www.gsxt.gov.cn）列入严重违法失信名单（若供应商不属于国家企业信用信息公示范围则可不提供）；\n3.未被最高人民法院在“信用中国 ”网站（www.creditchina.gov.cn）列入严重失信名单；",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:56:26.890Z",
+    "updatedAt": "2026-08-19T09:56:26.890Z"
+  },
+  {
+    "id": "cmszx2tkp0098koqhm8szpq0c",
+    "fieldKey": "evaluationMethod",
+    "content": "最低价成交，成交候选人并列的，按照以下方式确定成交供应商：再次报价，直到确定最低报价的供应商为止。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:56:30.649Z",
+    "updatedAt": "2026-08-19T09:56:30.649Z"
+  },
+  {
+    "id": "cmszx2umi009bkoqhyc4duxky",
+    "fieldKey": "evaluationMethod",
+    "content": "最低评标价法",
+    "isFavorite": false,
+    "sourceType": "ai_generated",
+    "context": {
+      "prompt": "生成评标方法名称，只输出方法名称，例如 '最低评标价法' 或 '综合评分法'。",
+      "generatedAt": "2026-08-19T09:56:32.297Z"
+    },
+    "createdAt": "2026-08-19T09:56:32.010Z",
+    "updatedAt": "2026-08-19T09:56:32.010Z"
+  },
+  {
+    "id": "cmszx3bht009dkoqhkows669n",
+    "fieldKey": "evaluationMethod",
+    "content": "再次报价，直到确定最低报价的供应商为止。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:56:53.874Z",
+    "updatedAt": "2026-08-19T09:56:53.874Z"
+  },
+  {
+    "id": "cmszx3myw009fkoqhs48uftx2",
+    "fieldKey": "priceLimit",
+    "content": "97000.00",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:57:08.744Z",
+    "updatedAt": "2026-08-19T09:57:08.744Z"
+  },
+  {
+    "id": "cmszx403o009hkoqhref2ux3j",
+    "fieldKey": "submissionDeadline",
+    "content": "另行通知",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:57:25.765Z",
+    "updatedAt": "2026-08-19T09:57:25.765Z"
+  },
+  {
+    "id": "cmszx53iw009lkoqht391wpxw",
+    "fieldKey": "quotationLetter",
+    "content": "报价格式自拟，报价为总价包干，包含设备本体、税费、运输、安装调试及质保期服务等完成本项目所需的一切费用。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-19T09:58:16.857Z",
+    "updatedAt": "2026-08-19T09:58:16.857Z"
+  },
+  {
+    "id": "cmt0uywd605tlkoqhvksqcx8f",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T01:45:14.587Z",
+    "updatedAt": "2026-08-20T01:45:14.587Z"
+  },
+  {
+    "id": "cmt0v1jm605u9koqh1ge8y3n6",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T01:47:18.030Z",
+    "updatedAt": "2026-08-20T01:47:18.030Z"
+  },
+  {
+    "id": "cmt0w4ior0008koo6uslsbh28",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T02:17:36.412Z",
+    "updatedAt": "2026-08-20T02:17:36.412Z"
+  },
+  {
+    "id": "cmt0w7i290001koqeaydjxs2u",
+    "fieldKey": "projectName",
+    "content": "办公用品集中采购",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T02:19:55.570Z",
+    "updatedAt": "2026-08-20T02:19:55.570Z"
+  },
+  {
+    "id": "cmt0w7ukf0003koqerhui79k9",
+    "fieldKey": "projectOverview",
+    "content": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T02:20:11.776Z",
+    "updatedAt": "2026-08-20T02:20:11.776Z"
+  },
+  {
+    "id": "cmt14bi37002mkotcpfj4h65b",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照具有办公用品销售",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:06:59.155Z",
+    "updatedAt": "2026-08-20T06:06:59.155Z"
+  },
+  {
+    "id": "cmt14caz6002skotcua6lfy1y",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照具有办公用品销售",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:07:36.595Z",
+    "updatedAt": "2026-08-20T06:07:36.595Z"
+  },
+  {
+    "id": "cmt14fhfx0043kotchavcovug",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照具有办公用品销售",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:10:04.941Z",
+    "updatedAt": "2026-08-20T06:10:04.941Z"
+  },
+  {
+    "id": "cmt14lgx50076kotc64ps4543",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照具有办公用品销售",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:14:44.202Z",
+    "updatedAt": "2026-08-20T06:14:44.202Z"
+  },
+  {
+    "id": "cmt14mub6007fkotcofmn9dj6",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照经营范围须包含“办公用品销售”及“食品销售”（或“预包装食品销售”等明确表述）。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:15:48.211Z",
+    "updatedAt": "2026-08-20T06:15:48.211Z"
+  },
+  {
+    "id": "cmt14nal4007hkotc0xy7lmeq",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照经营范围须包含“办公用品销售”及“食品销售”（或“预包装食品销售”等明确表述）。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:16:09.305Z",
+    "updatedAt": "2026-08-20T06:16:09.305Z"
+  },
+  {
+    "id": "cmt14nhzo007jkotc7jbszsyl",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照经营范围须包含“办公用品销售”及“食品销售”（或“预包装食品销售”等明确表述）",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:16:18.901Z",
+    "updatedAt": "2026-08-20T06:16:18.901Z"
+  },
+  {
+    "id": "cmt14nn3w007lkotcwy6b907m",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照经营范围须包含“办公用品销售”及“食品销售”（或“预包装食品销售”等明确表述）。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:16:25.532Z",
+    "updatedAt": "2026-08-20T06:16:25.532Z"
+  },
+  {
+    "id": "cmt14q3oa007ukotci7xcc9f4",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照经营范围须包含“办公用品销售”及“食品销售”（或“预包装食品销售”等明确表述）",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:18:20.314Z",
+    "updatedAt": "2026-08-20T06:18:20.314Z"
+  },
+  {
+    "id": "cmt14qhk8007wkotctp66cvfu",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:18:38.312Z",
+    "updatedAt": "2026-08-20T06:18:38.312Z"
+  },
+  {
+    "id": "cmt14qm8f007ykotcvc0gf52k",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:18:44.368Z",
+    "updatedAt": "2026-08-20T06:18:44.368Z"
+  },
+  {
+    "id": "cmt14qtj60081kotccukea9d8",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:18:53.827Z",
+    "updatedAt": "2026-08-20T06:18:53.827Z"
+  },
+  {
+    "id": "cmt14qvz80083kotcs13irnvj",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照经营范围须包含“办公用品销售”及“食品销售”（或“预包装食品销售”等明确表述）",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:18:56.996Z",
+    "updatedAt": "2026-08-20T06:18:56.996Z"
+  },
+  {
+    "id": "cmt14r20c0086kotcpbttxpy8",
+    "fieldKey": "qualificationRequirements",
+    "content": "营业执照经营范围须包含“办公用品销售”及“食品销售”（或“预包装食品销售”等明确表述）",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:19:04.813Z",
+    "updatedAt": "2026-08-20T06:19:04.813Z"
+  },
+  {
+    "id": "cmt14rc7a0088kotcx5md819u",
+    "fieldKey": "projectOverview",
+    "content": "111",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:19:18.022Z",
+    "updatedAt": "2026-08-20T06:19:18.022Z"
+  },
+  {
+    "id": "cmt14tglp008bkotc81nqikyg",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:20:57.038Z",
+    "updatedAt": "2026-08-20T06:20:57.038Z"
+  },
+  {
+    "id": "cmt14ugda008dkotcee0ltpi1",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年9月7日-2026年9月9日",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:21:43.391Z",
+    "updatedAt": "2026-08-20T06:21:43.391Z"
+  },
+  {
+    "id": "cmt14uqcb008fkotc4ve0adu5",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年9月7日-2026年9月9日",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:21:56.316Z",
+    "updatedAt": "2026-08-20T06:21:56.316Z"
+  },
+  {
+    "id": "cmt14vobl008hkotcrygk30ts",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年9月7日-2026年9月9日，上午",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:22:40.353Z",
+    "updatedAt": "2026-08-20T06:22:40.353Z"
+  },
+  {
+    "id": "cmt14x14s008jkotcjwxznh5d",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年9月7日-2026年9月9日，每日上午9:00-12:00",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:23:43.612Z",
+    "updatedAt": "2026-08-20T06:23:43.612Z"
+  },
+  {
+    "id": "cmt14xrtd008mkotcu8hb9tj0",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年9月7日-2026年9月9日，每日上午9:00时-12:00时，下午14：00时-17:00时。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:24:18.193Z",
+    "updatedAt": "2026-08-20T06:24:18.193Z"
+  },
+  {
+    "id": "cmt14ymht008wkotceqjj341f",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年9月7日-2026年9月9日，每日上午9:00时至12:00，下午14：00时至17:00（北京时间，法定节假日除外）。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:24:57.953Z",
+    "updatedAt": "2026-08-20T06:24:57.953Z"
+  },
+  {
+    "id": "cmt14ype3008ykotcklde6919",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年9月7日-2026年9月9日，每日上午9:00时至12:00，下午14：00时至17:00（北京时间，法定节假日除外）。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:25:01.707Z",
+    "updatedAt": "2026-08-20T06:25:01.707Z"
+  },
+  {
+    "id": "cmt14z48e0090kotcmatvl6nu",
+    "fieldKey": "documentAcquireTime",
+    "content": "2026年9月7日-2026年9月9日，每日上午9:00时至12:00，下午14：00时至17:00（北京时间，法定节假日除外）。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:25:20.943Z",
+    "updatedAt": "2026-08-20T06:25:20.943Z"
+  },
+  {
+    "id": "cmt14z7zc0092kotcpk43hmpy",
+    "fieldKey": "documentPrice",
+    "content": "0",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:25:25.800Z",
+    "updatedAt": "2026-08-20T06:25:25.800Z"
+  },
+  {
+    "id": "cmt153a5o00awkotcty0bicwt",
+    "fieldKey": "responseSubmissionTime",
+    "content": "另行通知",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:28:35.245Z",
+    "updatedAt": "2026-08-20T06:28:35.245Z"
+  },
+  {
+    "id": "cmt157z5f00dtkotch6onnyy6",
+    "fieldKey": "copyCount",
+    "content": "6",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:32:14.260Z",
+    "updatedAt": "2026-08-20T06:32:14.260Z"
+  },
+  {
+    "id": "cmt15ggye0001ko3pagaixnz8",
+    "fieldKey": "businessRequirements",
+    "content": "服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:38:50.583Z",
+    "updatedAt": "2026-08-20T06:38:50.583Z"
+  },
+  {
+    "id": "cmt15hlnf0008ko3pyl2zfimj",
+    "fieldKey": "businessRequirements",
+    "content": "服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:39:43.323Z",
+    "updatedAt": "2026-08-20T06:39:43.323Z"
+  },
+  {
+    "id": "cmt15lvni0010ko3phmw6lrn8",
+    "fieldKey": "businessRequirements",
+    "content": "报价要求：本项目采用“品牌统一折扣率”方式报价。投标人须针对各品牌，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:43:02.910Z",
+    "updatedAt": "2026-08-20T06:43:02.910Z"
+  },
+  {
+    "id": "cmt15m6ve0012ko3pr3rz2u0w",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对各品牌，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:43:17.450Z",
+    "updatedAt": "2026-08-20T06:43:17.450Z"
+  },
+  {
+    "id": "cmt15mkmd0014ko3pvag2qe33",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人各品牌，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:43:35.269Z",
+    "updatedAt": "2026-08-20T06:43:35.269Z"
+  },
+  {
+    "id": "cmt15mqu70017ko3pjqczpbbb",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的各品牌，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:43:43.327Z",
+    "updatedAt": "2026-08-20T06:43:43.327Z"
+  },
+  {
+    "id": "cmt15mysc0019ko3pa71jkcp5",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的各品牌，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:43:53.628Z",
+    "updatedAt": "2026-08-20T06:43:53.628Z"
+  },
+  {
+    "id": "cmt15n6oi001bko3piogxe93z",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的各品牌，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:44:03.858Z",
+    "updatedAt": "2026-08-20T06:44:03.858Z"
+  },
+  {
+    "id": "cmt15ncr3001dko3prsjnc23u",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的各品牌，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:44:11.727Z",
+    "updatedAt": "2026-08-20T06:44:11.727Z"
+  },
+  {
+    "id": "cmt15nqk4001fko3pwtgn2a6j",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的各品牌，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:44:29.621Z",
+    "updatedAt": "2026-08-20T06:44:29.621Z"
+  },
+  {
+    "id": "cmt15pkcf001jko3p673qmcw1",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:45:54.880Z",
+    "updatedAt": "2026-08-20T06:45:54.880Z"
+  },
+  {
+    "id": "cmt15pn5w001lko3p2q6c6m6e",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:45:58.532Z",
+    "updatedAt": "2026-08-20T06:45:58.532Z"
+  },
+  {
+    "id": "cmt15q0t1001nko3pwd7v7cmk",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》，报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:46:16.213Z",
+    "updatedAt": "2026-08-20T06:46:16.213Z"
+  },
+  {
+    "id": "cmt15qmzk001qko3pbev5tz3h",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》（详见下表），报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:46:44.961Z",
+    "updatedAt": "2026-08-20T06:46:44.961Z"
+  },
+  {
+    "id": "cmt15r3i3001sko3pjx8rfavx",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》（详见下表），报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:47:06.364Z",
+    "updatedAt": "2026-08-20T06:47:06.364Z"
+  },
+  {
+    "id": "cmt15r6at001uko3pi75gp2tt",
+    "fieldKey": "businessRequirements",
+    "content": "报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》（详见下表），报出统一的折扣率（百分比）。\n服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:47:09.989Z",
+    "updatedAt": "2026-08-20T06:47:09.989Z"
+  },
+  {
+    "id": "cmt15st6y001xko3ptlfrweil",
+    "fieldKey": "businessRequirements",
+    "content": "1.报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》（详见下表），报出统一的折扣率（百分比）。\n2.服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:48:26.314Z",
+    "updatedAt": "2026-08-20T06:48:26.314Z"
+  },
+  {
+    "id": "cmt160jrj0025ko3pnlwio4i0",
+    "fieldKey": "businessRequirements",
+    "content": "1.报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》（详见下表），报出统一的折扣率（百分比），且只保留。\n2.服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:54:27.344Z",
+    "updatedAt": "2026-08-20T06:54:27.344Z"
+  },
+  {
+    "id": "cmt161ahw0028ko3pv0k8gk39",
+    "fieldKey": "businessRequirements",
+    "content": "1.报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》（详见下表），报出统一的折扣率（百分比），且只保留。\n2.服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T06:55:01.989Z",
+    "updatedAt": "2026-08-20T06:55:01.989Z"
+  },
+  {
+    "id": "cmt18hesp004iko86hlrcaeex",
+    "fieldKey": "businessRequirements",
+    "content": "1.报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》（详见下表），报出统一的折扣率（百分比），且只保留。\n2.服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+    "isFavorite": false,
+    "sourceType": "manual",
+    "context": null,
+    "createdAt": "2026-08-20T08:03:33.289Z",
+    "updatedAt": "2026-08-20T08:03:33.289Z"
+  }
+]

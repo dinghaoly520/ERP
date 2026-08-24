@@ -1,5 +1,71 @@
 [
   {
+    "id": "cmqhero-si01",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "QUALIFICATION",
+    "name": "资格性审查",
+    "maxScore": "0",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-si02",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "RESPONSIVE",
+    "name": "符合性审查",
+    "maxScore": "0",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-si03",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "BUSINESS",
+    "name": "商务评分",
+    "maxScore": "20",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-si04",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "TECHNICAL",
+    "name": "技术评分",
+    "maxScore": "50",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cmqhero-si05",
+    "projectId": "cmqhero-bid-proj01",
+    "category": "PRICE",
+    "name": "价格评分",
+    "maxScore": "30",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
+    "createdAt": "2026-06-10T08:30:00.000Z"
+  },
+  {
+    "id": "cms1hfyaa006tuu2oz9pb6hxg",
+    "projectId": "cms1hda40006duu2o4fx28ubd",
+    "category": "TECHNICAL",
+    "name": "法",
+    "maxScore": "0",
+    "scoringCriteria": null,
+    "evidenceHint": null,
+    "criteriaSource": null,
+    "createdAt": "2026-07-26T07:34:39.443Z"
+  },
+  {
     "id": "cms1iuh5j000quucs4k7e89qf",
     "projectId": "cms1hda40006duu2o4fx28ubd",
     "category": "QUALIFICATION",

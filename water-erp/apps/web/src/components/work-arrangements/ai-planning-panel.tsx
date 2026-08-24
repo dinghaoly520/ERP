@@ -24,6 +24,8 @@ interface AiPlanningPanelProps {
   refreshingPlan: boolean;
   onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
+  /** 当前是否有进行中的任务（待处理/进行中/受阻）；无任务时隐藏"风险提醒" */
+  hasActiveTasks?: boolean;
 }
 
 
@@ -32,6 +34,7 @@ export function AiPlanningPanel({
   refreshingPlan,
   onRefreshPlan,
   onSelectTimeBlock,
+  hasActiveTasks = true,
 }: AiPlanningPanelProps) {
   return (
     <section className="flex flex-col">
@@ -106,8 +109,8 @@ export function AiPlanningPanel({
               </div>
             )}
 
-            {/* 风险提醒 */}
-            {dailyPlan.riskSummary && (
+            {/* 风险提醒 — 无进行中任务时不显示（此时无风险可言） */}
+            {hasActiveTasks && dailyPlan.riskSummary && (
               <div className="rounded-[12px] border border-[rgba(245,166,35,0.2)] bg-[rgba(245,166,35,0.04)] px-3.5 py-2.5">
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold text-[#d97706]">
                   <AlertTriangle size={11} />

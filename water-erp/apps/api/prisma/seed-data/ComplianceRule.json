@@ -2561,6 +2561,42 @@
     "updatedAt": "2026-07-28T06:19:14.276Z"
   },
   {
+    "id": "cms49pwny00hluumtv25k9u55",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "非招标项目候选人公示期不少于1日",
+    "ruleType": "numeric_compare",
+    "checkTarget": "采购公告",
+    "logicExpression": {
+      "unit": "days",
+      "field": "candidatePublicityPeriod",
+      "operator": ">=",
+      "threshold": 1
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
+    "id": "cms49pwny00hmuumtfcvi38o9",
+    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
+    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
+    "name": "成交通知书发出后30日内签订采购合同",
+    "ruleType": "numeric_compare",
+    "checkTarget": "合同",
+    "logicExpression": {
+      "unit": "days",
+      "field": "contractSignDelay",
+      "operator": "<=",
+      "threshold": 30
+    },
+    "severity": "warning",
+    "isActive": true,
+    "createdAt": "2026-07-28T06:21:45.502Z",
+    "updatedAt": "2026-07-28T06:21:45.502Z"
+  },
+  {
     "id": "cms49mnz800dyuumt2oguct85",
     "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
     "source": "第一条 为规范四川水发勘测设计研究有限公司（以下简称“公司”）采购行为，依据《中华人民共和国招标投标法》《必须招标的工程项目规定》（国家发改委第16号令）、《国务院办公厅关于促进建筑业持续健康发展的意见》（国办发〔2017〕19号）、国家发展改革委等部门关于印发招标人主体责任履行指引》的通知（发改法规【2025】1358号）、《关于规范省属监管企业采购管理工作的指导意见》（川国资委【2025】51号）、《四川省水利发展集团有限公司采购管理办法（修订）》，结合公司实际情况，制订本办法。（《采购管理办法（修订）》(征求意见稿）.docx）",
@@ -2852,40 +2888,22 @@
     "updatedAt": "2026-07-28T06:21:45.502Z"
   },
   {
-    "id": "cms49pwny00hluumtv25k9u55",
+    "id": "cms4apknf0198uumtxo9cp3dl",
     "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
-    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
-    "name": "非招标项目候选人公示期不少于1日",
+    "source": "第十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
+    "name": "内部竞标须邀请三家及以上供应商",
     "ruleType": "numeric_compare",
-    "checkTarget": "采购公告",
+    "checkTarget": "采购文件",
     "logicExpression": {
-      "unit": "days",
-      "field": "candidatePublicityPeriod",
+      "unit": "count",
+      "field": "invitedSupplierCount",
       "operator": ">=",
-      "threshold": 1
+      "threshold": 3
     },
-    "severity": "warning",
+    "severity": "critical",
     "isActive": true,
-    "createdAt": "2026-07-28T06:21:45.502Z",
-    "updatedAt": "2026-07-28T06:21:45.502Z"
-  },
-  {
-    "id": "cms49pwny00hmuumtfcvi38o9",
-    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
-    "source": "三 严格规范采购程序（川国资委〔2025〕51号关于规范省属监管企业采购管理工作的指导意见.docx）",
-    "name": "成交通知书发出后30日内签订采购合同",
-    "ruleType": "numeric_compare",
-    "checkTarget": "合同",
-    "logicExpression": {
-      "unit": "days",
-      "field": "contractSignDelay",
-      "operator": "<=",
-      "threshold": 30
-    },
-    "severity": "warning",
-    "isActive": true,
-    "createdAt": "2026-07-28T06:21:45.502Z",
-    "updatedAt": "2026-07-28T06:21:45.502Z"
+    "createdAt": "2026-07-28T06:49:29.547Z",
+    "updatedAt": "2026-07-28T06:49:29.547Z"
   },
   {
     "id": "cms49pwny00hnuumtxyomkg1i",
@@ -3508,24 +3526,6 @@
     "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
     "source": "第九条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
     "name": "邀请招标须邀请三家及以上供应商",
-    "ruleType": "numeric_compare",
-    "checkTarget": "采购文件",
-    "logicExpression": {
-      "unit": "count",
-      "field": "invitedSupplierCount",
-      "operator": ">=",
-      "threshold": 3
-    },
-    "severity": "critical",
-    "isActive": true,
-    "createdAt": "2026-07-28T06:49:29.547Z",
-    "updatedAt": "2026-07-28T06:49:29.547Z"
-  },
-  {
-    "id": "cms4apknf0198uumtxo9cp3dl",
-    "knowledgeBaseId": "cms48o9hx00equuhx4cixdfb9",
-    "source": "第十条（76号-关于印发《采购管理办法（修订）》的通知.docx）",
-    "name": "内部竞标须邀请三家及以上供应商",
     "ruleType": "numeric_compare",
     "checkTarget": "采购文件",
     "logicExpression": {

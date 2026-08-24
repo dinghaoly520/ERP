@@ -4,6 +4,7 @@ import {
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
 import { Fragment, useState } from 'react';
+import { AlertTriangle, Loader2, RotateCcw, X } from 'lucide-react';
 
 type ArchiveStepState = 'PENDING' | 'READY' | 'DONE';
 
@@ -38,6 +39,7 @@ type SelectableTimelineEntry = TimelineEntryBase & {
   stageKey: ProjectWorkflowStageKey;
   round: number;
   isInProgress: boolean;
+  isCompleted: boolean;
 };
 
 type ArchiveTimelineEntry = TimelineEntryBase & {
@@ -91,6 +93,7 @@ export function ProjectStageTimeline({
   archiveStepState,
   tenderDocxAttachments,
   onEditTenderFile,
+  onReopenStage,
 }: {
   stages: ProjectManagementStage[];
   activeStageKey: ProjectWorkflowStageKey;
@@ -101,6 +104,8 @@ export function ProjectStageTimeline({
   archiveStepState: ArchiveStepState;
   tenderDocxAttachments?: Array<{ id: string; fileName: string }>;
   onEditTenderFile?: (attachmentId: string, fileName: string) => void;
+  /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
+  onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
 }) {
   const entries: TimelineEntry[] = stages.map((stage): SelectableTimelineEntry => {
     const isCompleted = stage.status === 'COMPLETED';
@@ -130,6 +135,7 @@ export function ProjectStageTimeline({
       stageKey: stage.stageKey,
       round: stage.round ?? 1,
       isInProgress,
+      isCompleted,
       progressLabel: isCompleted ? '已完成' : isInProgress ? '进行中' : '待解锁',
       progressClassName: isCompleted
         ? 'pm-stage-progress--completed'
@@ -195,6 +201,21 @@ export function ProjectStageTimeline({
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(sortedRounds.filter((r) => r < maxRound)),
   );
+
+  // ── 重开已完成步骤：确认对话框状态 ──
+  const [reopenTarget, setReopenTarget] = useState<{ key: ProjectWorkflowStageKey; round: number; title: string } | null>(null);
+  const [reopening, setReopening] = useState(false);
+
+  const confirmReopen = async () => {
+    if (!reopenTarget || !onReopenStage) return;
+    setReopening(true);
+    try {
+      await onReopenStage(reopenTarget.key, reopenTarget.round);
+      setReopenTarget(null);
+    } finally {
+      setReopening(false);
+    }
+  };
 
   return (
     <div className="pm-stage-rail px-1 py-1 sm:px-2">
@@ -265,12 +286,24 @@ export function ProjectStageTimeline({
                           {entry.orderLabel}
                         </span>
                         <div className="flex min-w-0 flex-col items-end gap-2 text-right">
-                          <span
-                            className={['pm-stage-progress', isSelected ? 'pm-stage-progress--selected' : entry.progressClassName].join(' ')}
-                            style={isSelected ? { background: 'oklch(0.78 0.122 83)', color: 'white' } : undefined}
-                          >
-                            {isSelected ? '当前选择' : entry.progressLabel}
-                          </span>
+                          {entry.isCompleted && !isSelected && onReopenStage ? (
+                            /* 已完成徽章 → 可点击重开（不触发卡片选中） */
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setReopenTarget({ key: stageKey, round: entry.round, title: entry.title }); }}
+                              title="点击可将该步骤重新设置为进行中"
+                              className={['pm-stage-progress pm-stage-progress--completed', 'cursor-pointer hover:brightness-95 active:scale-95 transition-all'].join(' ')}
+                            >
+                              已完成 ↺
+                            </button>
+                          ) : (
+                            <span
+                              className={['pm-stage-progress', isSelected ? 'pm-stage-progress--selected' : entry.progressClassName].join(' ')}
+                              style={isSelected ? { background: 'oklch(0.78 0.122 83)', color: 'white' } : undefined}
+                            >
+                              {isSelected ? '当前选择' : entry.progressLabel}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -284,7 +317,8 @@ export function ProjectStageTimeline({
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1.5">
-                          {actionLabel && onStageAction && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && entry.stageKey !== 'CONTRACT' && (
+                          {/* 步骤操作按钮仅对"进行中"步骤开放——已完成/待解锁均不可再操作 */}
+                          {actionLabel && onStageAction && entry.isInProgress && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && entry.stageKey !== 'CONTRACT' && (
                             <span
                               role="button"
                               tabIndex={0}
@@ -295,7 +329,7 @@ export function ProjectStageTimeline({
                               {actionLabel}
                             </span>
                           )}
-                          {onEditTenderFile && stageKey === 'TENDER_DOCUMENT' && (
+                          {onEditTenderFile && entry.isInProgress && stageKey === 'TENDER_DOCUMENT' && (
                             <span
                               role="button"
                               tabIndex={0}
@@ -382,6 +416,45 @@ export function ProjectStageTimeline({
           </div>
         </Fragment>
       ))}
+
+      {/* ══════ 重开已完成步骤确认对话框 ══════ */}
+      {reopenTarget && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center" onClick={() => !reopening && setReopenTarget(null)}>
+          <div className="absolute inset-0" style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }} />
+          <div className="relative z-10 mx-5 w-full max-w-[420px] rounded-[22px] p-6"
+            style={{ background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18)' }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]"
+                  style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)' }}>
+                  <RotateCcw size={17} className="text-[var(--warning)]" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">重新设置为进行中</div>
+                  <div className="text-[11px] text-[color:var(--muted-foreground)]">{reopenTarget.title}</div>
+                </div>
+              </div>
+              <button type="button" onClick={() => !reopening && setReopenTarget(null)} className="neu-btn-xs"><X size={16} /></button>
+            </div>
+            <p className="text-sm leading-6 text-[color:var(--muted-foreground)] mb-3">
+              将「{reopenTarget.title}」重新设置为进行中？该步骤之后的<b>所有步骤将重置为待解锁</b>。
+            </p>
+            <div className="rounded-[10px] px-3.5 py-2.5 text-[12px] leading-relaxed text-[color:var(--muted-foreground)] mb-4"
+              style={{ background: 'color-mix(in oklch, var(--success) 7%, transparent)' }}>
+              <span className="font-semibold text-[color:var(--success)]">保留内容：</span>已上传的文件、文件分析与步骤检查的结果均会保留，不会删除。
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <span className="mr-auto flex items-center gap-1 text-[10px] text-[color:var(--danger)]"><AlertTriangle size={11} />后续步骤需重新推进</span>
+              <button type="button" onClick={() => setReopenTarget(null)} disabled={reopening} className="neu-btn-soft gap-1.5">取消</button>
+              <button type="button" onClick={() => void confirmReopen()} disabled={reopening} className="neu-btn-soft gap-1.5">
+                {reopening ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                {reopening ? '处理中…' : '确认重开'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

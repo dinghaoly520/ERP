@@ -182,8 +182,34 @@ export const NOTIFICATION_META: Record<string, NotificationMeta> = {
   HALL_MESSAGE:            { icon: 'MessagesSquare',   tone: 'blue',   actionable: true  },
   PRICE_REVIEW:            { icon: 'Tag',               tone: 'purple', actionable: true  },
   CATALOG_APPLICATION:     { icon: 'ShoppingBag',       tone: 'gray',   actionable: false },
+  USER_REGISTRATION_PENDING: { icon: 'UserPlus',        tone: 'blue',   actionable: true  },
+  ACCOUNT_SECURITY_FEEDBACK: { icon: 'ShieldAlert',     tone: 'red',    actionable: true  },
   SYSTEM:                  { icon: 'Bell',              tone: 'gray',   actionable: false },
 };
+
+/** 通知类型中文标签（各端类型列/聚合组共用；缺省回退原始 type） */
+export const NOTIFICATION_LABEL: Record<string, string> = {
+  SUPPLIER_APPROVED: '供应商入库',
+  SUPPLIER_REJECTED: '供应商驳回',
+  SUPPLIER_RETURNED: '退回补正',
+  SUPPLIER_PENDING: '供应商审批',
+  QUALIFICATION_EXPIRING: '资质到期',
+  BID_PUBLISHED: '招标公告',
+  BID_REMINDER: '投标提醒',
+  BID_OPENING: '开标通知',
+  BID_EVALUATION_RESULT: '评标结果',
+  CLARIFICATION_REPLIED: '澄清答疑',
+  HALL_MESSAGE: '会场交流',
+  PRICE_REVIEW: '价格复核',
+  CATALOG_APPLICATION: '目录申请',
+  USER_REGISTRATION_PENDING: '注册审核',
+  ACCOUNT_SECURITY_FEEDBACK: '账号安全反馈',
+  SYSTEM: '系统通知',
+};
+
+export function getNotificationLabel(type: string): string {
+  return NOTIFICATION_LABEL[type] ?? type;
+}
 
 export const NOTIFICATION_META_DEFAULT: NotificationMeta = { icon: 'Bell', tone: 'gray', actionable: false };
 

@@ -39,8 +39,14 @@ export interface ApiClientOptions {
   portal: string;
   /** API 基址；默认 '/api'（各 Next 门户经 rewrites/middleware 代理到 :4001） */
   baseUrl?: string;
-  /** 401 回调（通常是跳转登录页）。仅浏览器端触发；SSR 下由调用方 catch ApiError */
-  on401?: () => void;
+  /**
+   * 401 回调（通常是跳转登录页）。仅浏览器端触发；SSR 下由调用方 catch ApiError。
+   * 参数为解析后的 ApiError——回调方可据 code 区分场景
+   * （如 SESSION_REPLACED = 账号被其他设备顶下线，需专门提示）。
+   */
+  on401?: (error: ApiError) => void;
+  /** 每次请求动态附加的额外头（如 :3005 单设备登录的 tab 级会话标识 X-Web-Sid） */
+  extraHeaders?: () => Record<string, string>;
 }
 
 export interface ApiClient {
@@ -83,10 +89,11 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     const res = await fetch(`${base}${path}`, {
       credentials: 'include',
       ...init,
-      headers: mergeHeaders(init, { 'X-Portal': options.portal }),
+      headers: mergeHeaders(init, { 'X-Portal': options.portal, ...(options.extraHeaders?.() ?? {}) }),
     });
     if (res.status === 401 && isBrowser && options.on401) {
-      options.on401();
+      // clone 保证 fetchApi 侧仍能正常读取响应体；toApiError 解析失败时兜底返回通用错误
+      options.on401(await toApiError(res.clone()));
     }
     return res;
   }

@@ -1,1 +1,79 @@
-[]
+[
+  {
+    "id": "cmqhero-ai01",
+    "projectId": "cmqhero-bid-proj01",
+    "name": "招标项目基础信息",
+    "ownerRole": "系统",
+    "status": "NOT_STARTED",
+    "hashDigest": null,
+    "archivedAt": null,
+    "createdAt": "2026-07-02T01:00:00.000Z",
+    "updatedAt": "2026-07-02T01:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-ai02",
+    "projectId": "cmqhero-bid-proj01",
+    "name": "投标供应商名单",
+    "ownerRole": "开标主持人",
+    "status": "NOT_STARTED",
+    "hashDigest": null,
+    "archivedAt": null,
+    "createdAt": "2026-07-02T01:00:00.000Z",
+    "updatedAt": "2026-07-02T01:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-ai03",
+    "projectId": "cmqhero-bid-proj01",
+    "name": "开标记录表",
+    "ownerRole": "开标主持人",
+    "status": "NOT_STARTED",
+    "hashDigest": null,
+    "archivedAt": null,
+    "createdAt": "2026-07-02T01:00:00.000Z",
+    "updatedAt": "2026-07-02T01:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-ai04",
+    "projectId": "cmqhero-bid-proj01",
+    "name": "供应商确认/异议记录",
+    "ownerRole": "供应商",
+    "status": "NOT_STARTED",
+    "hashDigest": null,
+    "archivedAt": null,
+    "createdAt": "2026-07-02T01:00:00.000Z",
+    "updatedAt": "2026-07-02T01:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-ai05",
+    "projectId": "cmqhero-bid-proj01",
+    "name": "专家评分明细",
+    "ownerRole": "评审专家",
+    "status": "NOT_STARTED",
+    "hashDigest": null,
+    "archivedAt": null,
+    "createdAt": "2026-07-02T01:00:00.000Z",
+    "updatedAt": "2026-07-02T01:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-ai06",
+    "projectId": "cmqhero-bid-proj01",
+    "name": "评标结果汇总",
+    "ownerRole": "评审委员会",
+    "status": "NOT_STARTED",
+    "hashDigest": null,
+    "archivedAt": null,
+    "createdAt": "2026-07-02T01:00:00.000Z",
+    "updatedAt": "2026-07-02T01:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-ai07",
+    "projectId": "cmqhero-bid-proj01",
+    "name": "监督日志",
+    "ownerRole": "监督人",
+    "status": "NOT_STARTED",
+    "hashDigest": null,
+    "archivedAt": null,
+    "createdAt": "2026-07-02T01:00:00.000Z",
+    "updatedAt": "2026-07-02T01:00:00.000Z"
+  }
+]

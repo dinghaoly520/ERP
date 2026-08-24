@@ -21,6 +21,7 @@ import { ForgotPasswordDialog } from "@/components/login/forgot-password-dialog"
 import { LoginErrorDialog } from "@/components/login/login-error-dialog";
 import { RegisterDialog } from "@/components/login/register-dialog";
 import { login } from "@/lib/api/auth";
+import { readLoginPrefill } from "@/lib/session-store";
 import { fetchUserSettings } from "@/lib/api/user-settings";
 import { getPostLoginDestination, getHomePageRoute } from "@/lib/login/login-routing";
 import { getWorkbenchProfile } from "@/lib/workbench-profiles";
@@ -60,6 +61,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
     register,
     handleSubmit,
     setError,
+    setValue,
     clearErrors,
     formState: { errors, isValid },
   } = useForm<LoginFormValues>({
@@ -70,6 +72,16 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
       remember: true,
     },
   });
+
+  // 被顶下线/冻结回登录页时预填账号密码（session-store 的 prefill）
+  useEffect(() => {
+    const prefill = readLoginPrefill();
+    if (prefill) {
+      setValue("username", prefill.username);
+      setValue("password", prefill.password);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = handleSubmit(async (values) => {
     const username = values.username.trim();

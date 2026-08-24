@@ -43,10 +43,6 @@ export function PersonalCenterPage() {
     void load();
   }, []);
 
-  const handleUserUpdated = (updated: AuthUser) => {
-    setUser((prev) => prev ? { ...prev, ...updated } : prev);
-  };
-
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
@@ -135,7 +131,7 @@ export function PersonalCenterPage() {
             <hr className="wb-section-rule mx-6 shrink-0" />
             {/* 独立滚动内容区 */}
             <div className="flex-1 overflow-y-auto px-6 pt-5 pb-6">
-              {modal === 'basic-info' && <TabBasicInfo user={user} departments={departments} onUserUpdated={handleUserUpdated} />}
+              {modal === 'basic-info' && <TabBasicInfo user={user} departments={departments} />}
               {modal === 'preferences' && <TabPreferences />}
             </div>
           </div>

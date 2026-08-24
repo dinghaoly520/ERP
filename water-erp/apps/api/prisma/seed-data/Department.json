@@ -124,5 +124,40 @@
     "code": null,
     "createdAt": "2026-07-22T03:12:48.905Z",
     "updatedAt": "2026-07-22T03:12:48.905Z"
+  },
+  {
+    "id": "cmspgh0ou001wko3im3go66xq",
+    "name": "工程勘察院/钻探室",
+    "code": null,
+    "createdAt": "2026-08-12T02:13:57.822Z",
+    "updatedAt": "2026-08-12T02:13:57.822Z"
+  },
+  {
+    "id": "cmsptm99z0000kordjzsryj29",
+    "name": "生产技术部",
+    "code": null,
+    "createdAt": "2026-08-12T08:21:57.239Z",
+    "updatedAt": "2026-08-12T08:21:57.239Z"
+  },
+  {
+    "id": "cmsptm9a80001kordu7f41klv",
+    "name": "工程建设管理部",
+    "code": null,
+    "createdAt": "2026-08-12T08:21:57.249Z",
+    "updatedAt": "2026-08-12T08:21:57.249Z"
+  },
+  {
+    "id": "cmsptm9ah0002kordmd0yir3h",
+    "name": "移民分院",
+    "code": null,
+    "createdAt": "2026-08-12T08:21:57.258Z",
+    "updatedAt": "2026-08-12T08:21:57.258Z"
+  },
+  {
+    "id": "cmsptm9ci0003kordl43n8n5b",
+    "name": "测试单位",
+    "code": null,
+    "createdAt": "2026-08-12T08:21:57.331Z",
+    "updatedAt": "2026-08-12T08:21:57.331Z"
   }
 ]

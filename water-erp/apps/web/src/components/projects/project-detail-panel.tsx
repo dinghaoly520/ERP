@@ -9,6 +9,7 @@ import {
   analyzeProjectStep,
   completeProjectManagementItem,
   extractTenderFields,
+  reopenProjectStage,
   reprocProject,
   fetchProjectAttributions,
   refreshProjectSummary,
@@ -1151,6 +1152,17 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               tenderDocxAttachments={tenderDocxFiles}
               onEditTenderFile={(attachmentId, fileName) => setEditingFile({ attachmentId, fileName, stageKey: 'TENDER_DOCUMENT' })}
+              onReopenStage={async (stageKey, round) => {
+                try {
+                  await reopenProjectStage(item.id, stageKey, round);
+                  // 重开后选中该步骤并回到编辑视图；compliance 缓存按 stageKey 键控、附件未动——分析内容保留
+                  setSelectedStageKey(stageKey);
+                  setSelectedRound(round);
+                  await onUpdated();
+                } catch (e) {
+                  setErrorMessage(e instanceof Error ? e.message : '重开步骤失败');
+                }
+              }}
             />
 
             {showArchiveStep ? (

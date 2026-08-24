@@ -9080,6 +9080,25 @@ a {
 .neu-btn-soft.is-primary:hover { color: #fff; background: var(--neu-brand-deep); }
 .neu-btn-soft.is-primary:disabled { opacity: 0.5; }
 
+/* 按钮组容器 —— 将并排的 .neu-btn-primary(44px) 与 .neu-btn-soft(38px) 统一为 38px 等高，
+   消除主/次按钮高度不齐（如弹窗底部「反馈给管理员 / 直接重新登录」）。 */
+.neu-btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.neu-btn-group > .neu-btn-primary,
+.neu-btn-group > .neu-btn-soft {
+  flex: 1;
+  height: 38px;
+  padding-top: 0;
+  padding-bottom: 0;
+  /* neu-btn-soft 源定义无水平居中（老样式靠 padding 撑高），组内等宽 flex 后须显式居中 */
+  justify-content: center;
+  text-align: center;
+}
+
 /* 紧凑行操作按钮 —— 用于表格行内的 查看/详情/停用/删除 等 */
 .neu-btn-xs {
   display: inline-flex;
@@ -9620,6 +9639,51 @@ select.workbench-input {
     inset 0 1px 0 oklch(1 0 0 / 0.65),
     2px 2px 6px oklch(0.55 0.03 258 / 0.08),
     -1px -1px 3px oklch(1 0 0 / 0.85);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   页面级文字下划线 tab — .page-tab（2026-08-21）
+   Linear 式克制形态：无按钮块、无容器框，透明底融入工具栏白卡，
+   激活 = 品牌色文字 + 自下缘升起的 2px 品牌色指示线（落在整行 hairline 上）。
+   用于账号管理「账号列表/注册审核/密码审批」三合一切换。
+   ══════════════════════════════════════════════════════════════════ */
+.page-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+}
+.page-tab:hover { color: var(--foreground); }
+.page-tab::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+.page-tab.is-active,
+.page-tab[aria-selected="true"] { color: var(--accent); }
+.page-tab.is-active::after,
+.page-tab[aria-selected="true"]::after { background: var(--accent); }
+.page-tab:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 45%, transparent);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-tab, .page-tab::after { transition: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════

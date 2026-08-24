@@ -1,1 +1,41 @@
-[]
+[
+  {
+    "id": "cmqhero-er03",
+    "projectId": "cmqhero-bid-proj01",
+    "supplierId": "cmqhero-bs03",
+    "supplierName": "四川省通信产业服务有限公司",
+    "totalScore": "165.8",
+    "averageScore": "82.9",
+    "rank": 3,
+    "recommended": false,
+    "disqualified": true,
+    "bidPrice": null,
+    "generatedAt": "2026-07-03T08:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-er01",
+    "projectId": "cmqhero-bid-proj01",
+    "supplierId": "cmqhero-bs02",
+    "supplierName": "中科院成都信息技术股份有限公司",
+    "totalScore": "259",
+    "averageScore": "86.33",
+    "rank": 1,
+    "recommended": true,
+    "disqualified": false,
+    "bidPrice": null,
+    "generatedAt": "2026-07-03T08:00:00.000Z"
+  },
+  {
+    "id": "cmqhero-er02",
+    "projectId": "cmqhero-bid-proj01",
+    "supplierId": "cmqhero-bs01",
+    "supplierName": "四川水发建设有限公司",
+    "totalScore": "253.5",
+    "averageScore": "84.5",
+    "rank": 2,
+    "recommended": false,
+    "disqualified": false,
+    "bidPrice": null,
+    "generatedAt": "2026-07-03T08:00:00.000Z"
+  }
+]

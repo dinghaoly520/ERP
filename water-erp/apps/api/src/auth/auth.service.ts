@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import { compareSync, hashSync } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -48,9 +49,9 @@ export class AuthService {
       throw new ConflictException({ error: '该用户名的注册申请正在审核中，请耐心等待', code: 'REGISTRATION_PENDING' });
     }
 
-    // ② 已激活（成功注册）：用户名/手机号占用 → 冲突
+    // ② 用户名全局唯一（2026-08-24 收紧）：不限角色/激活状态，库里存在任何同名账号即拒绝
     const usernameTaken = await this.prisma.user.findFirst({
-      where: { username: dto.username, isActive: true },
+      where: { username: dto.username },
       select: { id: true },
     });
     if (usernameTaken) {
@@ -84,7 +85,7 @@ export class AuthService {
     // 注册用户默认未激活（isActive=false），需管理员审核通过后才能登录。
     // 组织归属只记公司（company 文本），不做 Department 关联——现有部门均属
     // 四川水发勘测设计研究有限公司，后续会有其他公司注册，公司才是区分维度。
-    await this.prisma.user.create({
+    const created = await this.prisma.user.create({
       data: {
         username: dto.username,
         displayName: dto.displayName,
@@ -103,7 +104,7 @@ export class AuthService {
 
     // 通知管理员有新注册待审核
     const roleLabel = dto.requestedRole === 'management' ? '管理权限' : '办公权限';
-    await this.notifyAdminsPendingRegistration(dto.displayName, company, dto.department, roleLabel);
+    await this.notifyAdminsPendingRegistration(created.id, dto.displayName, company, dto.department, roleLabel);
 
     return { pending: true as const };
   }
@@ -115,7 +116,7 @@ export class AuthService {
     // 「错密码+用户名不存在」响应不同，会构成用户名枚举。passwordHash 仅在此函数内使用，不外泄。
     const candidates = await this.prisma.user.findMany({
       where: { username: dto.username },
-      select: { id: true, username: true, role: true, isActive: true, passwordHash: true },
+      select: { id: true, username: true, role: true, isActive: true, isFrozen: true, passwordHash: true },
     });
     const user =
       priority.map((role) => candidates.find((u) => u.role === role)).find(Boolean) ??
@@ -127,6 +128,10 @@ export class AuthService {
     // 密码正确但账号未激活 → 专用码，引导前端走「查询审核进度」。此时已证明知道密码，不构成枚举。
     if (!user.isActive) {
       return { pending: true as const, role: user.role, code: 'ACCOUNT_PENDING' };
+    }
+    // 冻结账号（管理员在「账号管理」中冻结）→ 专用码，登录页提示「账号已被冻结」
+    if (user.isFrozen) {
+      return { pending: true as const, role: user.role, code: 'ACCOUNT_FROZEN' };
     }
     // 临时供应商过期拦截：邀请码绑定的有效期已过则禁止登录（与未激活一样走 pending 分支）
     if (user.role === 'supplier') {
@@ -174,8 +179,8 @@ export class AuthService {
     return fuzzy ?? trimmed;
   }
 
-  /** 通知管理员（leader/admin）有新注册待审核 */
-  private async notifyAdminsPendingRegistration(name: string, company: string, department: string, roleLabel: string) {
+  /** 通知管理员（leader/admin）有新注册待审核；link 带 userId 供审核完成后精确清除 */
+  private async notifyAdminsPendingRegistration(userId: string, name: string, company: string, department: string, roleLabel: string) {
     try {
       const admins = await this.prisma.user.findMany({
         where: { role: { in: ['admin', 'leader'] }, isActive: true },
@@ -188,11 +193,32 @@ export class AuthService {
             type: 'USER_REGISTRATION_PENDING',
             title: '新用户注册待审核',
             content: `${name}（${company} · ${department}）申请${roleLabel}，等待审核。`,
-            link: '/admin/registration-review',
+            link: `/admin/accounts?userId=${userId}`,
           },
         });
       }
     } catch { /* 通知失败不阻塞注册 */ }
+  }
+
+  /**
+   * 注册审核完成后，清除所有管理员名下该用户的待审通知（resolvedAt 打标）。
+   * 处理完即自动从「任务通知/待办」消失，无需逐条点击已读。
+   * 锚点：新通知按 link?userId= 精确匹配；存量通知（link 无 userId）按 content 含 displayName 兜底。
+   */
+  private async resolvePendingRegistrationNotifications(user: { id: string; displayName: string }) {
+    try {
+      await this.prisma.notification.updateMany({
+        where: {
+          type: 'USER_REGISTRATION_PENDING',
+          resolvedAt: null,
+          OR: [
+            { link: `/admin/accounts?userId=${user.id}` },
+            { content: { contains: user.displayName } },
+          ],
+        },
+        data: { resolvedAt: new Date() },
+      });
+    } catch { /* 清理失败不阻塞审核 */ }
   }
 
   /** 管理员审核：通过注册 —— 按申请权限映射正式角色（leader/staff），公司为唯一组织归属，并写入不可变审核记录 */
@@ -223,6 +249,8 @@ export class AuthService {
     }
 
     await this.writeRegistrationReview(user, 'APPROVED', null, reviewer);
+    // 审核完成 → 清除各管理员的待审通知（待办自动消）
+    await this.resolvePendingRegistrationNotifications(user);
     return { ok: true, user: updated };
   }
 
@@ -233,7 +261,30 @@ export class AuthService {
     if (user.isActive) throw new BadRequestException({ error: '用户已激活，无法拒绝', code: 'ALREADY_ACTIVE' });
     await this.prisma.user.delete({ where: { id: userId } });
     await this.writeRegistrationReview(user, 'REJECTED', note ?? null, reviewer);
+    // 审核完成 → 清除各管理员的待审通知（待办自动消）
+    await this.resolvePendingRegistrationNotifications(user);
     return { ok: true };
+  }
+
+  /** 被顶下线设备的「反馈」：通知所有管理员到「账号管理」核查处理（通知失败不阻塞反馈） */
+  async notifySecurityFeedback(username: string, ip?: string | null, userAgent?: string | null) {
+    try {
+      const admins = await this.prisma.user.findMany({
+        where: { role: 'admin', isActive: true },
+        select: { id: true },
+      });
+      for (const admin of admins) {
+        await this.prisma.notification.create({
+          data: {
+            userId: admin.id,
+            type: 'ACCOUNT_SECURITY_FEEDBACK',
+            title: '账号异地登录反馈',
+            content: `「${username}」反馈：账号被他人登录（IP：${ip ?? '未知'}），请核查并处理。`,
+            link: '/admin/accounts',
+          },
+        });
+      }
+    } catch { /* 通知失败不阻塞反馈 */ }
   }
 
   /** 写入注册审核历史（append-only，仅 create，不提供 update/delete） */
@@ -332,8 +383,23 @@ export class AuthService {
     return updated;
   }
 
-  issueToken(sub: string, username: string, role: string) {
-    const access_token = this.jwt.sign({ sub, username, role });
+  issueToken(sub: string, username: string, role: string, sid?: string) {
+    const access_token = this.jwt.sign({ sub, username, role, ...(sid ? { sid } : {}) });
     return { access_token, role, username, userId: sub };
+  }
+
+  /**
+   * :3005 单设备登录（2026-08-21）：web 门户（token_web 命名空间）每次登录轮换会话 ID。
+   * 新 sid 写入 User.webSessionId 并随 JWT 下发；AuthGuard 发现旧设备 token 的 sid
+   * 与库中不一致即 401 SESSION_REPLACED —— 同一账号同一时间只有一台设备在线。
+   * 仅 cookiePortal==='web' 时调用（:3006 分流写 token_bid 的登录不轮换、不互踢）。
+   */
+  async rotateWebSession(userId: string, username: string, role: string) {
+    const sid = randomUUID();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { webSessionId: sid },
+    });
+    return this.issueToken(userId, username, role, sid);
   }
 }

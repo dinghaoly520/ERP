@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "id": "cmqhero-proc-proj01",
+    "title": "2026年度智慧水利大数据平台建设项目",
+    "projectCode": "PROC-2026-0001",
+    "description": "智慧水利大数据平台建设采购项目，含数据中台、AI调度引擎、数字孪生大屏及12套业务系统对接集成",
+    "budget": "12000000",
+    "procurementType": "工程",
+    "procurementMethod": "公开招标",
+    "status": "BIDDING",
+    "rejectReason": null,
+    "departmentId": "seeddept001",
+    "creatorId": "cmrmvzupb0000kozb2ijyav4o",
+    "companyId": "co-swhi-sjy",
+    "companyName": "四川水发勘测设计研究有限公司",
+    "bidProjectId": "cmqhero-bid-proj01",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-07-22T04:37:07.085Z"
+  }
+]

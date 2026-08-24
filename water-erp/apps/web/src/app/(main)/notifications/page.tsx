@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import * as LucideIcons from 'lucide-react';
-import { getNotificationMeta } from '@water-erp/shared';
+import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
 import { listNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from '@/lib/api/notification';
 import { handleNotificationClick } from '@/lib/notification-click';
 import { Check, Bell, RefreshCw, CheckCheck, X, ChevronUp, ChevronDown, ChevronsUpDown, ArrowRight } from 'lucide-react';
@@ -259,7 +259,7 @@ function NotifTypeBadge({ type, meta }: { type: string; meta: ReturnType<typeof 
     <span className="inline-flex items-center gap-1.5 rounded-[6px] px-2 py-1 text-[11px] font-semibold whitespace-nowrap"
       style={{ color: colorVar, backgroundColor: `color-mix(in oklch, ${colorVar} 10%, transparent)` }}>
       <Icon size={13} strokeWidth={1.8} />
-      {type.split('_').map(w => w[0] + w.slice(1).toLowerCase()).join(' ')}
+      {getNotificationLabel(type)}
     </span>
   );
 }

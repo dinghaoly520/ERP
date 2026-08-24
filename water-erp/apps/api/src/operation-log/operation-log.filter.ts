@@ -24,6 +24,7 @@ export const DEFAULT_EXCLUDE_PATHS: ExcludePattern[] = [
   '/api/alerts/overview', // web 驾驶舱 30s
   '/api/tender-review/rules/extract/tasks/', // 3s 轮询（该前缀下只有 GET，前缀安全）
   // 以下前缀下有写端点（DELETE/stop/resolve、POST confirm/decline），用方法限定只排除轮询 GET、保留写审计
+  { method: 'GET', path: '/api/auth/heartbeat' }, // 15s 单设备登录心跳（AuthGuard 实际校验）
   { method: 'GET', path: '/api/tender-review/review/tasks' }, // 2s 轮询审查任务状态
   { method: 'GET', path: '/api/expert-admin/invitations/' }, // 5s 轮询专家邀请状态
   { method: 'GET', path: '/api/ai-bid-analysis/tasks' }, // 3s/1.5s 轮询分析进度（controller 待补，面向未来）

@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ListChecks } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { getNotificationMeta, statusTone } from '@water-erp/shared';
+import { getNotificationMeta, getNotificationLabel, statusTone } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
 import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-panel';
 import { Modal } from '@/components/workbench';
@@ -21,23 +21,7 @@ export interface PlannedItem {
 }
 
 // ── 中文标签 + 跳转链接 ──
-
-const TYPE_LABELS: Record<string, string> = {
-  SUPPLIER_PENDING:       '供应商审批',
-  SUPPLIER_APPROVED:      '供应商入库',
-  SUPPLIER_REJECTED:      '供应商驳回',
-  SUPPLIER_RETURNED:      '退回补正',
-  PRICE_REVIEW:           '价格复核',
-  QUALIFICATION_EXPIRING: '资质到期',
-  BID_PUBLISHED:          '招标公告',
-  BID_REMINDER:           '投标提醒',
-  BID_OPENING:            '开标通知',
-  BID_EVALUATION_RESULT:  '评标结果',
-  CLARIFICATION_REPLIED:  '澄清答疑',
-  CATALOG_APPLICATION:    '目录申请',
-  CATALOG_PRICE_ALERT:    '目录价格预警',
-  SYSTEM:                 '系统通知',
-};
+// 类型中文标签统一走 shared 的 getNotificationLabel（单一来源，新类型只补 shared 一处）
 
 // 兜底链接：仅在后端未下发 link 时使用。注意 /bid、/bid/clarifications、
 // /supplier/qualifications 在 :3005 不存在（属开评标端 :3007 或写错），
@@ -55,6 +39,8 @@ const TYPE_LINKS: Record<string, string> = {
   BID_EVALUATION_RESULT:  '/projects',              // 评标结果回传 :3005 指挥中心查看
   CLARIFICATION_REPLIED:  portalURL('bid', '/bid'), // 澄清答疑归 :3007（分工 v3），:3005 无该页面
   CATALOG_APPLICATION:    '/mall-management/catalog?tab=approval',
+  USER_REGISTRATION_PENDING: '/admin/accounts',
+  ACCOUNT_SECURITY_FEEDBACK: '/admin/accounts',
   SYSTEM:                 '/notifications',
 };
 
@@ -102,7 +88,7 @@ function enrich(item: NotificationItem): EnrichedItem {
   const link = (forced ?? item.link ?? TYPE_LINKS[item.type]) || '/notifications';
   return {
     ...item,
-    typeLabel: TYPE_LABELS[item.type] ?? item.type,
+    typeLabel: getNotificationLabel(item.type),
     link,
     icon: resolveIcon(item.type, item.title),
     toneColor: tone.color,
@@ -280,11 +266,14 @@ interface TaskNotificationCenterProps {
   onRefreshPlan: () => void;
   onSelectTimeBlock: (taskIds: string[]) => void;
   onAddToCalendar: (items: PlannedItem[]) => void;
+  /** 当前是否有进行中的任务；无任务时 AI 面板隐藏"风险提醒" */
+  hasActiveTasks?: boolean;
 }
 
 export function TaskNotificationCenter({
   dailyPlan, refreshingPlan,
   onRefreshPlan, onSelectTimeBlock, onAddToCalendar,
+  hasActiveTasks = true,
 }: TaskNotificationCenterProps) {
   const router = useRouter();
   const { recent } = useNotifications();
@@ -359,6 +348,7 @@ export function TaskNotificationCenter({
             dailyPlan={dailyPlan} refreshingPlan={refreshingPlan}
             onRefreshPlan={() => onRefreshPlan()}
             onSelectTimeBlock={onSelectTimeBlock}
+            hasActiveTasks={hasActiveTasks}
           />
         </div>
       </section>

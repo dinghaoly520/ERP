@@ -12,9 +12,9 @@ import {
   Sparkles,
   FolderOpen,
   KeyRound,
-  ShieldCheck,
   TrendingUp,
   UserRound,
+  UserCog,
   Building2,
   Users,
   Boxes,
@@ -114,8 +114,8 @@ const navGroups: NavGroup[] = [
     label: "系统管理",
     icon: KeyRound,
     items: [
-      { key: "registration-review", label: "注册审核", href: "/admin/registration-review", icon: ShieldCheck, meta: "用户准入审核", roles: ["admin"] },
-      { key: "password-requests", label: "密码审批", href: "/admin/password-requests", icon: KeyRound, meta: "账号安全", roles: ["admin"] },
+      // 注册审核 / 密码审批已并入账号管理（2026-08-21 三合一），旧路由重定向到 /admin/accounts
+      { key: "accounts", label: "账号管理", href: "/admin/accounts", icon: UserCog, meta: "账号/注册审核/密码审批", roles: ["admin"] },
     ],
     roles: ["admin"],
   },

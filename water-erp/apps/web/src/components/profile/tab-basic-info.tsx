@@ -5,8 +5,8 @@ import {
   AlertTriangle, Check, Camera, Upload, KeyRound, Clock, Eye, EyeOff, X,
 } from 'lucide-react';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { updateMyProfile, requestPasswordChange } from '@/lib/api/auth';
-import type { AuthUser, DepartmentItem, UpdateProfileInput } from '@/lib/api/auth';
+import { submitProfileChange, requestPasswordChange } from '@/lib/api/auth';
+import type { AuthUser, DepartmentItem, ProfileChangePayload } from '@/lib/api/auth';
 import { api } from '@/lib/api';
 
 function fileToBase64(file: File): Promise<string> {
@@ -49,10 +49,9 @@ interface OperationLogItem { id: string; statusCode: number; ipAddress: string |
 interface TabBasicInfoProps {
   user: AuthUser;
   departments: DepartmentItem[];
-  onUserUpdated: (updated: AuthUser) => void;
 }
 
-export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoProps) {
+export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
   // 资料编辑
   const [displayName, setDisplayName] = useState(user.displayName);
   const [email, setEmail] = useState(user.email ?? '');
@@ -92,6 +91,7 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
     company !== (user.company ?? '') ||
     departmentId !== (user.department?.id ?? '') || avatar !== (user.avatar ?? '');
 
+  // 所有资料修改一律提交审批，审批通过前当前资料保持不变
   const handleSave = async () => {
     setError(null); setSuccess(null);
     if (!displayName.trim()) { setError('姓名不能为空'); return; }
@@ -100,7 +100,7 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
     if (phone && !/^[\d\-+() ]{7,20}$/.test(phone)) { setError('手机号码格式不正确'); return; }
     setSaving(true);
     try {
-      const payload: UpdateProfileInput = {};
+      const payload: ProfileChangePayload = {};
       if (displayName !== user.displayName) payload.displayName = displayName.trim();
       if (email !== (user.email ?? '')) payload.email = email.trim() || null;
       if (phone !== (user.phone ?? '')) payload.phone = phone.trim() || null;
@@ -108,10 +108,17 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
       if (company !== (user.company ?? '')) payload.company = company.trim() || null;
       if (departmentId !== (user.department?.id ?? '')) payload.departmentId = departmentId || null;
       if (avatar !== (user.avatar ?? '')) payload.avatar = avatar.trim() || null;
-      const updated = await updateMyProfile(payload);
-      onUserUpdated(updated);
-      setSuccess('保存成功'); setTimeout(() => setSuccess(null), 3000);
-    } catch (err) { setError(err instanceof Error ? err.message : '保存失败'); }
+      await submitProfileChange(payload);
+      // 未生效：表单回滚到当前资料，避免误以为已保存
+      setDisplayName(user.displayName);
+      setEmail(user.email ?? '');
+      setPhone(user.phone ?? '');
+      setOfficeLocation(user.officeLocation ?? '');
+      setCompany(user.company ?? '');
+      setDepartmentId(user.department?.id ?? '');
+      setAvatar(user.avatar ?? '');
+      setSuccess('资料变更申请已提交，等待管理员审批后生效'); setTimeout(() => setSuccess(null), 4000);
+    } catch (err) { setError(err instanceof Error ? err.message : '提交失败'); }
     finally { setSaving(false); }
   };
 
@@ -149,6 +156,10 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
         <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
           <UserRound size={12} strokeWidth={1.8} className="text-[var(--accent)]" />编辑资料
         </h3>
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
+          <Clock size={11} strokeWidth={1.6} />
+          所有资料修改均需管理员审批后生效
+        </div>
 
         {/* 头像 — 紧凑水平布局 */}
         <div className="mt-4 flex items-center gap-4">
@@ -208,7 +219,7 @@ export function TabBasicInfo({ user, departments, onUserUpdated }: TabBasicInfoP
 
         <div className="mt-4 flex justify-end">
           <button type="button" onClick={handleSave} disabled={saving || !hasChanges} className="neu-btn-primary !h-[36px] !text-[13px]">
-            {saving ? <><Loader2 size={14} className="animate-spin" />保存中</> : '保存修改'}
+            {saving ? <><Loader2 size={14} className="animate-spin" />提交中</> : '提交审批'}
           </button>
         </div>
       </div>

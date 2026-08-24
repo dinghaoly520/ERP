@@ -54,6 +54,8 @@ model User {
   passwordHash   String?
   role           String      @default("internal_user")
   isActive       Boolean     @default(true)
+  webSessionId   String? // :3005 单设备登录：每次 web 登录轮换；JWT 里的 sid 与之不符即拒绝（旧设备被顶下线）
+  isFrozen       Boolean     @default(false) // 管理员冻结：登录拦截（ACCOUNT_FROZEN）+ 守卫即时 401，区别于未激活 isActive=false
   requestedRole  String?     @map("requested_role") // 注册申请权限：management | office（审批时映射为正式角色）
   departmentName String?     @map("department_name") // 注册时填写的部门（自由文本，仅作申请信息留存）
   departmentId   String?
@@ -90,6 +92,8 @@ model User {
   approvedPasswordChangeRequests PasswordChangeRequest[]   @relation("PasswordChangeRequestApprovedBy")
   passwordResetRequests          PasswordResetRequest[]    @relation("PasswordResetRequestUser")
   reviewedPasswordResetRequests  PasswordResetRequest[]    @relation("PasswordResetRequestReviewedBy")
+  profileChangeRequests          ProfileChangeRequest[]    @relation("ProfileChangeRequestUser")
+  reviewedProfileChanges         ProfileChangeRequest[]    @relation("ProfileChangeRequestReviewedBy")
   createdRounds                  ProcurementRound[]        @relation("RoundCreatedBy")
   updatedRounds                  ProcurementRound[]        @relation("RoundUpdatedBy")
   assistantConversations         AssistantConversation[]
@@ -2624,6 +2628,25 @@ model PasswordResetRequest {
 
   @@index([requestedUsername, status])
   @@index([matchedUserId, status])
+  @@index([status, requestedAt])
+}
+
+// ── 资料变更申请（2026-08-24）：个人中心所有资料修改一律走审批，不再支持直改 ──
+// payload 只存申请人提交的新值（白名单字段，null = 清除），批准时应用到 User；
+// 审批界面以 User 当前值作旧值对照（批准前用户资料未变）。
+model ProfileChangeRequest {
+  id           String                      @id @default(cuid())
+  userId       String
+  payload      Json
+  status       PasswordChangeRequestStatus @default(PENDING)
+  decisionNote String?
+  requestedAt  DateTime                    @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+  user         User                        @relation("ProfileChangeRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy   User?                       @relation("ProfileChangeRequestReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([userId, status])
   @@index([status, requestedAt])
 }
 

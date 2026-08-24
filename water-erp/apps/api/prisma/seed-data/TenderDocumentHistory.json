@@ -163,5 +163,319 @@
     "updatedAt": "2026-07-28T02:25:21.048Z",
     "contentHash": "d368181ee773c2b3c6fa2163e7b68d9d11219477b23da74a5424873af69e7593",
     "userId": "cmrmvzupb0000kozb2ijyav4o"
+  },
+  {
+    "id": "cmszt7acf0006kouhtumihbdw",
+    "documentType": "INVITED_BIDDING",
+    "title": "未命名项目",
+    "draftData": {
+      "maxPrice": "",
+      "copyCount": "",
+      "coverDate": "2026-08",
+      "siteSurvey": "",
+      "contactName": "",
+      "projectName": "",
+      "contactEmail": "",
+      "contactPhone": "",
+      "documentPrice": "",
+      "consortiumForm": "",
+      "siteSurveyType": "",
+      "projectOverview": "",
+      "quotationLetter": "",
+      "evaluationMethod": "",
+      "consortiumFormType": "",
+      "procurementContent": "",
+      "documentAcquireTime": "",
+      "quotationLetterType": "",
+      "responseDepositForm": "",
+      "responseDepositType": "",
+      "businessRequirements": "",
+      "responseDepositAmount": "",
+      "technicalRequirements": "",
+      "contractSubcontracting": "",
+      "performanceDepositForm": "",
+      "performanceDepositType": "",
+      "responseSubmissionTime": "",
+      "submissionRequirements": "",
+      "responseDepositBankInfo": "",
+      "evaluationCommitteeCount": "",
+      "performanceDepositAmount": "",
+      "responseDepositOtherForm": "",
+      "qualificationRequirements": "",
+      "contractSubcontractingType": "",
+      "submissionRequirementsType": "",
+      "performanceDepositOtherForm": "",
+      "responseDepositNonRefundType": "",
+      "responseDepositNonRefundContent": "",
+      "responseDepositOtherRequirement": "",
+      "responseDepositOtherRequirementType": ""
+    },
+    "createdAt": "2026-08-19T08:08:00.543Z",
+    "updatedAt": "2026-08-19T08:08:00.543Z",
+    "contentHash": "1436fc70310d7a5a30fe2f0685c2c12a4678fc6125f7b89cf1927242d1650b22",
+    "userId": "cmrmvzupb0000kozb2ijyav4o"
+  },
+  {
+    "id": "cmsztfns50078kouh4e126lm4",
+    "documentType": "COMPETITIVE_NEGOTIATION",
+    "title": "未命名项目",
+    "draftData": {
+      "maxPrice": "",
+      "coverDate": "2026-08",
+      "siteSurvey": "",
+      "contactName": "",
+      "projectName": "",
+      "contactEmail": "",
+      "contactPhone": "",
+      "siteSurveyType": "",
+      "projectOverview": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+      "quotationLetter": "",
+      "responseDeadline": "",
+      "procurementContent": "",
+      "documentAcquireTime": "",
+      "quotationLetterType": "",
+      "businessRequirements": "",
+      "responseDeadlineType": "",
+      "technicalRequirements": "",
+      "contractSubcontracting": "",
+      "submissionRequirements": "",
+      "qualificationRequirements": "",
+      "contractSubcontractingType": "",
+      "submissionRequirementsType": ""
+    },
+    "createdAt": "2026-08-19T08:14:31.206Z",
+    "updatedAt": "2026-08-19T08:14:31.206Z",
+    "contentHash": "969f10399af5c6f4df9b57ded1d6c4e6b498057ba243d2763a1eab67e1e72e2f",
+    "userId": "cmrailrk30000koj5ngvpodt0"
+  },
+  {
+    "id": "cmszwx87q008skoqhz86yawhf",
+    "documentType": "COMPETITIVE_NEGOTIATION",
+    "title": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+    "draftData": {
+      "maxPrice": "97000.00",
+      "copyCount": "4",
+      "coverDate": "2026-08",
+      "siteSurvey": "/",
+      "contactName": "李女士",
+      "projectName": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+      "contactEmail": "2114993350@qq.com",
+      "contactPhone": "18613235858",
+      "siteSurveyType": "",
+      "projectOverview": "本项目为《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，旨在通过雷视融合技术实现对高陡边坡位移的实时、精准监测与预警。目前，高陡边坡在自然因素和工程活动影响下易发生变形失稳，传统监测手段存在精度不足、实时性差等问题，亟需引入先进的雷视融合监测设备。本次采购的目标是为科研项目提供核心监测硬件支撑，确保系统能够高效采集边坡位移数据并用于算法验证与预警模型构建，采购雷视融合监测雷达及配套雨量计。设备将部署于选定的高陡边坡试验场，以满足科研项目对长期稳定监测数据的需求。",
+      "quotationLetter": "报价格式自拟，报价为总价包干，包含设备本体、税费、运输、安装调试及质保期服务等完成本项目所需的一切费用。",
+      "responseDeadline": "另行通知",
+      "procurementContent": "",
+      "documentAcquireTime": "2026年08月24日09:00至2026年08月26日15:00",
+      "quotationLetterType": "text",
+      "businessRequirements": "交付期限：自合同签订之日起30日内完成全部设备的供货、安装及调试，并具备试运行条件。付款方式：合同签订后7个工作日内支付合同总价的30%作为预付款，设备到货并完成安装调试、经采购方初步验收合格后支付至合同总价的90%，剩余10%作为质保金，待验收合格后起算6个月满且无质量问题后10个工作日内无息支付。售后服务：质保期为设备验收合格之日起24个月，质保期内免费提供设备维修、软件升级及技术支持服务；设备发生故障时，供应商须在6小时内响应，普通故障48小时内修复，重大故障72小时内提供备用设备替代运行。提供不少于1次的现场技术培训，每次培训时长不少于4小时，确保采购方人员能够独立操作与维护设备。质保期满后，供应商应按采购方要求提供远程技术支持与数据解读服务。",
+      "quotationLetterTable": {
+        "cols": 6,
+        "rows": 3,
+        "cells": [
+          [
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "名称",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "规格型号",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "单位",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "数量",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "单价（元）",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "合价（元）",
+              "rowSpan": 1
+            }
+          ],
+          [
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "雷视融合监测雷达",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "满足招标技术要求",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "套",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "1",
+              "rowSpan": 1
+            },
+            {
+              "align": "right",
+              "colSpan": 1,
+              "content": "",
+              "rowSpan": 1
+            },
+            {
+              "align": "right",
+              "colSpan": 1,
+              "content": "",
+              "rowSpan": 1
+            }
+          ],
+          [
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "配套雨量计",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "满足招标技术要求",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "台",
+              "rowSpan": 1
+            },
+            {
+              "align": "center",
+              "colSpan": 1,
+              "content": "1",
+              "rowSpan": 1
+            },
+            {
+              "align": "right",
+              "colSpan": 1,
+              "content": "",
+              "rowSpan": 1
+            },
+            {
+              "align": "right",
+              "colSpan": 1,
+              "content": "",
+              "rowSpan": 1
+            }
+          ]
+        ]
+      },
+      "responseDeadlineType": "text",
+      "technicalRequirements": "本次采购的雷视融合监测雷达需具备远距离、高精度的位移监测能力，适用于高陡边坡复杂地形。主要性能要求如下：工作距离不小于1000米，监测精度范围0.1毫米至1毫米，距离分辨率优于0.15米，方位视野不小于100度，俯仰视野不小于30度。雷达内置高清摄像头，支持在线视频监控，并能与位移数据同步联动。供电方式兼容市电和太阳能供电，满足野外无市电环境长期运行。工作温度范围-40℃至+65℃，防护等级不低于IP65。监测平台应实时显示各台设备不同区域的形变曲线与预警等级，支持短信、邮件、现场声光等多种预警方式；通讯方式支持移动、电信双网自动切换，确保数据传输稳定；设备支持远程诊断与远程升级，便于后期维护。配套雨量计用于同步采集降雨量，分辨率不低于0.2mm，测量降水强度范围0.01mm/min至4mm/min，测量误差不超过±2%，工作温度-10℃至+50℃，输出形式同时支持0-5VDC、4～20mA和RS485通讯接口，便于与数据采集系统集成。所有设备应符合国家相关产品标准并提供有效检测报告，雷视融合监测雷达部署后需经测试验证水平位移误差不超过±2mm，垂直位移误差不超过±3mm；雨量计计量误差不超过±4%。设备平均无故障工作时间不低于10000小时，设计使用寿命不少于8年。关键元器件选用工业级产品，具备抗电磁干扰和防雷性能，结构件经防腐防锈处理，适应高陡边坡野外环境。供货范围包括雷达主机、数据采集与处理单元、安装支架、电源适配器、太阳能供电组件、通讯模块、防雷接地装置、配套预警软件及雨量计全套附属设备，并附带安装手册、产品合格证、第三方计量检定证书等文件。",
+      "contractSubcontracting": "",
+      "submissionRequirements": "",
+      "evaluationCommitteeCount": "5",
+      "qualificationRequirements": "无",
+      "contractSubcontractingType": "none",
+      "submissionRequirementsType": "none"
+    },
+    "createdAt": "2026-08-19T09:52:09.687Z",
+    "updatedAt": "2026-08-19T09:52:09.687Z",
+    "contentHash": "312f472b8d7cde8c602297238ed3f7ec30f574454894a7a5208e63fbb4d0bd78",
+    "userId": "cmrai35gi0007koddby9ynwqe"
+  },
+  {
+    "id": "cmszx54cc009okoqhoxexnx7f",
+    "documentType": "INQUIRY_PURCHASE",
+    "title": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+    "draftData": {
+      "coverDate": "2026-08",
+      "priceLimit": "97000.00",
+      "contactName": "李女士",
+      "projectName": "基于雷视融合的高陡边坡位移自动化监测预警系统研究",
+      "contactEmail": "2114993350@qq.com",
+      "contactPhone": "18613235858",
+      "quotationLetter": "报价格式自拟，报价为总价包干，包含设备本体、税费、运输、安装调试及质保期服务等完成本项目所需的一切费用。",
+      "evaluationMethod": "再次报价，直到确定最低报价的供应商为止。",
+      "requiredDocuments": "1.提供有效营业执照或事业单位法人证书；\n2.未被市场监督管理机关在“ 国家企业信用信息公示系统 ”网站（www.gsxt.gov.cn）列入严重违法失信名单（若供应商不属于国家企业信用信息公示范围则可不提供）；\n3.未被最高人民法院在“信用中国 ”网站（www.creditchina.gov.cn）列入严重失信名单；",
+      "procurementContent": "采购雷视融合监测雷达及配套雨量计。设备将部署于选定的高陡边坡试验场，以满足科研项目对长期稳定监测数据的需求。",
+      "submissionDeadline": "另行通知",
+      "projectIntroduction": "本项目为《基于雷视融合的高陡边坡位移自动化监测预警系统研究》科研项目，旨在通过雷视融合技术实现对高陡边坡位移的实时、精准监测与预警。目前，高陡边坡在自然因素和工程活动影响下易发生变形失稳，传统监测手段存在精度不足、实时性差等问题，亟须引入先进的雷视融合监测设备。本次采购的目标是为科研项目提供核心监测硬件支撑，确保系统能够高效采集边坡位移数据并用于算法验证与预警模型构建。",
+      "quotationLetterType": ""
+    },
+    "createdAt": "2026-08-19T09:58:17.916Z",
+    "updatedAt": "2026-08-19T09:58:17.916Z",
+    "contentHash": "c5fe29e9e31ce52139cb8bfd6074603507c2831bbd08f691e5a60ff1f4062c6d",
+    "userId": "cmrai35gi0007koddby9ynwqe"
+  },
+  {
+    "id": "cmt18hetx004lko86b1g9djvk",
+    "documentType": "INVITED_BIDDING",
+    "title": "办公用品集中采购",
+    "draftData": {
+      "maxPrice": "2000000",
+      "copyCount": "6",
+      "coverDate": "2026-08",
+      "siteSurvey": "/",
+      "contactName": "任女生",
+      "projectName": "办公用品集中采购",
+      "contactEmail": "137485066@qq.com",
+      "contactPhone": "18200185053",
+      "documentPrice": "0",
+      "consortiumForm": "",
+      "siteSurveyType": "",
+      "projectOverview": "为保障公司日常办公需求，规范办公用品采购管理，提高采购效率，降低采购成本，现需择优选取具备稳定供货能力、价格优势和服务质量的供应商，建立长期稳定的办公用品供应渠道，确保各类办公用品及时、足量供应。",
+      "quotationLetter": "",
+      "evaluationMethod": "最低评标价法",
+      "consortiumFormType": "reject",
+      "procurementContent": "",
+      "documentAcquireTime": "2026年9月7日-2026年9月9日，每日上午9:00时至12:00，下午14：00时至17:00（北京时间，法定节假日除外）。",
+      "quotationLetterType": "",
+      "responseDepositForm": "",
+      "responseDepositType": "none",
+      "businessRequirements": "1.报价方式：本项目采用“品牌统一折扣率”方式报价。投标人须针对采购人提供的《供货品牌目录》（详见下表），报出统一的折扣率（百分比），且只保留。\n2.服务期限：本项目服务期限为24个月，自合同签订之日起计算。",
+      "responseDepositAmount": "",
+      "technicalRequirements": "",
+      "contractSubcontracting": "",
+      "performanceDepositForm": "",
+      "performanceDepositType": "none",
+      "responseSubmissionTime": "另行通知",
+      "submissionRequirements": "",
+      "responseDepositBankInfo": "",
+      "evaluationCommitteeCount": "7",
+      "performanceDepositAmount": "",
+      "responseDepositOtherForm": "",
+      "qualificationRequirements": "营业执照经营范围须包含“办公用品销售”及“食品销售”（或“预包装食品销售”等明确表述）",
+      "contractSubcontractingType": "none",
+      "submissionRequirementsType": "none",
+      "performanceDepositOtherForm": "",
+      "responseDepositNonRefundType": "",
+      "responseDepositNonRefundContent": "",
+      "responseDepositOtherRequirement": "",
+      "responseDepositOtherRequirementType": ""
+    },
+    "createdAt": "2026-08-20T08:03:33.334Z",
+    "updatedAt": "2026-08-20T08:03:41.758Z",
+    "contentHash": "20146e58a6dfbcf7531531edb46229d90b478a46ff8cd8e88c5270e9832e7b84",
+    "userId": "cmrailrk30000koj5ngvpodt0"
   }
 ]

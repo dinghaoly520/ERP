@@ -110,8 +110,10 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
     Promise.allSettled(typeGroups.map(type => fetchPublicAnnouncements({ type, pageSize: 5 })))
       .then(results => {
         const items = results.map(r => (r.status === 'fulfilled' ? r.value.items : [])).flat();
+        const anyFulfilled = results.some(r => r.status === 'fulfilled');
         if (items.length > 0) { setFetchedAnnouncements(items); setAnnouncementsError(false); }
-        else setAnnouncementsError(true);
+        else if (anyFulfilled) { setFetchedAnnouncements([]); setAnnouncementsError(false); } // 请求成功但无公告 → 空态「暂无公告」，不是加载失败
+        else setAnnouncementsError(true); // 四类请求全部失败才是加载失败
       })
       .catch(() => setAnnouncementsError(true))
       .finally(() => setAnnouncementsLoading(false));
