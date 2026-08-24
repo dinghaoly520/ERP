@@ -6039,6 +6039,9 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司', winnerSupplierId: 'sup-other' }))
       .rejects.toMatchObject({ response: { code: 'WINNER_MISMATCH' } });
     expect(prisma.awardLetterDelivery.upsert).not.toHaveBeenCalled();
+  });
+});
+
 describe('P1-5 — 评委名单评标前保密（EXPERTS_CONFIDENTIAL）', () => {
   let svc: any;
   let prisma: any;
