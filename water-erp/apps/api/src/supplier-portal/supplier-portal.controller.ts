@@ -188,8 +188,8 @@ export class SupplierPortalController {
   }
 
   @Get('bid-projects/:id')
-  async getBidProject(@Param('id') id: string) {
-    return this.portalService.getBidProject(id);
+  async getBidProject(@Request() req: any, @Param('id') id: string) {
+    return this.portalService.getBidProject(id, this.getSupplierId(req.user?.sub));
   }
 
   @Get('bid-projects/:id/overview')

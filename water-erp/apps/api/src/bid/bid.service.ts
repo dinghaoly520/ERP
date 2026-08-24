@@ -3786,7 +3786,23 @@ export class BidService {
     return { overridden: true, supplierId, supplierName: bidSupplier.supplierName, confirmStatus: targetStatus };
   }
 
-  listExperts(projectId: string) {
+  async listExperts(projectId: string, callerRole?: string) {
+    // P1-5：评委名单保密（招标投标法第37条——名单在中标结果确定前保密）。
+    // 评标启动前（DOWNLOAD/SUBMIT/OPENING）leader/staff 不得查看；admin/bid_host 与
+    // EVALUATING 及以后放行。callerRole 缺省（内部直调）向后兼容放行。
+    if (callerRole && ['leader', 'staff'].includes(callerRole)) {
+      const project = await this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { stage: true },
+      });
+      if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+      if (['DOWNLOAD', 'SUBMIT', 'OPENING'].includes(project.stage)) {
+        throw new ForbiddenException({
+          error: '评标启动前评委名单保密，启动评标后可查看',
+          code: 'EXPERTS_CONFIDENTIAL',
+        });
+      }
+    }
     return this.prisma.bidExpert.findMany({ where: { projectId }, include: { scoreRecords: true } });
   }
 
@@ -4653,10 +4669,17 @@ export class BidService {
       return { valid: true, checkedAt: new Date().toISOString(), totalItems: 0, mismatches: [] };
     }
 
-    // 重算哈希链（与 archiveAll 同口径：status 视为 ARCHIVED）
+    // 重算哈希链（与 archiveAll 同口径：status 视为 ARCHIVED；fileHashes 持久化列归一为 string[]）
     const chain = computeArchiveChain(
       { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
-      archiveItems.map(i => ({ ...i, status: 'ARCHIVED' as const })),
+      archiveItems.map(i => {
+        const { fileHashes, ...rest } = i;
+        return {
+          ...rest,
+          status: 'ARCHIVED' as const,
+          ...(Array.isArray(fileHashes) ? { fileHashes: fileHashes as string[] } : {}),
+        };
+      }),
     );
 
     const mismatches: Array<{ itemId: string; itemName: string; stored: string; computed: string }> = [];
@@ -4958,14 +4981,27 @@ export class BidService {
       // （修预存 bug：此前按 PENDING_CONFIRM 算链，导出按 ARCHIVED 重算，两者永不匹配）
       const chain = computeArchiveChain(
         { id: project.id, projectCode: project.projectCode, name: project.name, stage: 'ARCHIVED' },
-        archiveItems.map(i => ({ ...i, status: 'ARCHIVED' as const, ...(i.name === '评标签字包' && signFileHashes ? { fileHashes: signFileHashes } : {}) })),
+        archiveItems.map(i => {
+          const { fileHashes: _persisted, ...rest } = i;
+          return {
+            ...rest,
+            status: 'ARCHIVED' as const,
+            ...(i.name === '评标签字包' && signFileHashes ? { fileHashes: signFileHashes } : {}),
+          };
+        }),
       );
 
       // 逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志
       for (const item of archiveItems) {
         await tx.bidArchiveItem.update({
           where: { id: item.id },
-          data: { status: 'ARCHIVED', hashDigest: chain.get(item.id)!, archivedAt: now },
+          data: {
+            status: 'ARCHIVED',
+            hashDigest: chain.get(item.id)!,
+            // P1-14：签字包指纹链持久化——verify/export 重算经 spread 回读，修复恒 mismatch
+            ...(item.name === '评标签字包' && signFileHashes ? { fileHashes: signFileHashes } : {}),
+            archivedAt: now,
+          },
         });
       }
       await tx.bidProject.update({
@@ -5664,7 +5700,10 @@ export class BidService {
 
     const chain = computeArchiveChain(
       { id: project.id, projectCode: project.projectCode, name: project.name, stage: project.stage },
-      project.archiveItems,
+      project.archiveItems.map((i: any) => {
+        const { fileHashes, ...rest } = i;
+        return { ...rest, ...(Array.isArray(fileHashes) ? { fileHashes: fileHashes as string[] } : {}) };
+      }),
     );
     const genesis = project.archiveItems.length > 0
       ? archiveGenesisHash({ id: project.id, projectCode: project.projectCode, name: project.name, stage: project.stage })
