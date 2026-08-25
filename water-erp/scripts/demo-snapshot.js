@@ -166,13 +166,27 @@ async function restore() {
     ai_bid_analysis_tasks: prisma.aiBidAnalysisTask,
     ai_bidder_results: prisma.aiBidderResult,
   };
-  for (const table of Object.keys(MODELS)) {
-    const model = MODELS[table];
-    for (const row of data[table] || []) {
-      await model.create({ data: row }).catch((e) => {
-        console.error(`  回灌 ${table} 行失败（id=${row.id}）：${e.message?.slice(0, 140)}`);
-        throw e;
-      });
+  // 回灌期临时禁用 FK 校验（CI 全新库快照引用的 FileAsset 等父行可能不存在——
+  // dev 上这些行由 seed PDF 生成、ID 每次新造）。CI postgres 为超管可用；
+  // dev 应用账号非超管时静默跳过，保持原有严格 FK 行为。
+  let fkBypassed = false;
+  try {
+    await prisma.$executeRawUnsafe('SET session_replication_role = replica');
+    fkBypassed = true;
+  } catch { /* 非超管（dev）——保持原行为 */ }
+  try {
+    for (const table of Object.keys(MODELS)) {
+      const model = MODELS[table];
+      for (const row of data[table] || []) {
+        await model.create({ data: row }).catch((e) => {
+          console.error(`  回灌 ${table} 行失败（id=${row.id}）：${e.message?.slice(0, 140)}`);
+          throw e;
+        });
+      }
+    }
+  } finally {
+    if (fkBypassed) {
+      try { await prisma.$executeRawUnsafe('SET session_replication_role = DEFAULT'); } catch { /* ignore */ }
     }
   }
 
