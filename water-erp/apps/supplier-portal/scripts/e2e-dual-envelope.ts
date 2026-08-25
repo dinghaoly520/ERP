@@ -165,12 +165,16 @@ async function main() {
       creditCode: credit,
       enterpriseType: '有限责任公司',
       legalPerson: '冒烟法人',
+      legalPersonIdCard: '51010419900101' + String(Date.now()).slice(-3) + String(seq),
       registeredAddress: '成都市武侯区测试大道1号',
       businessScope: '岩土工程勘察与施工',
       username: who.username,
       displayName: '冒烟联系人',
       password: who.password,
-      contacts: [{ name: '冒烟联系人', phone: '139' + String(Date.now()).slice(-8), isPrimary: true }],
+      // P1-13：注册手机验证（SMS_DEBUG_BYPASS=true 下万能码 123456 通过）
+      registrationPhone: '138' + String(Date.now()).slice(-8),
+      registrationCode: '123456',
+      contacts: [{ name: '冒烟联系人', phone: '139' + String(Date.now()).slice(-8), idCard: '51010419800101' + String(Date.now()).slice(-3) + String(seq), isPrimary: true, position: '联系人' }],
       qualifications: [{ type: '营业执照', name: '营业执照', fileUrl: 'https://example.com/license.pdf' }],
       tags: ['岩土工程', '勘察设计'],
     }
@@ -216,8 +220,9 @@ async function main() {
       metadata: {
         method: '公开招标',
         budget: 3000000,
-        deadline: iso(new Date(t0 + 8 * 60 * 1000)), // 8 分钟后截标（提交后回拨为已过）
-        openTime: iso(new Date(t0 + 5 * 60 * 1000)),
+        // P0-2：截标=开标前 24h——deadline 8 分钟后（提交后回拨为已过），openTime = deadline + 24h
+        deadline: iso(new Date(t0 + 8 * 60 * 1000)),
+        openTime: iso(new Date(t0 + 8 * 60 * 1000 + 24 * 3600 * 1000)),
         scope: '全部内容',
         qualification: '具备岩土工程勘察资质',
         contact: '采购中心 张工',
