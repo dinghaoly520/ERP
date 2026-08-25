@@ -2177,14 +2177,27 @@ export class SupplierService {
     await this.redis.set(key, JSON.stringify(payload), 'EX', 86400 * 30); // 30 天过期
 
     // 配置写回 BidProject：openTime=开标时间，deadline=开标前24小时，downloadDeadline=获取截止
+    // backlog §1.1：截标已过（frozen 语义）禁改时间——谈判配置重发不得动已固化截标时间
     const bidOpening = new Date(dto.bidOpeningTime);
     const acquireEnd = new Date(dto.acquireEndTime);
     if (!isNaN(bidOpening.getTime())) {
+      const prev = await this.prisma.bidProject.findUnique({
+        where: { id: dto.projectId },
+        select: { deadline: true },
+      });
+      const newDeadline = new Date(bidOpening.getTime() - 24 * 60 * 60 * 1000);
+      if (prev?.deadline && prev.deadline.getTime() < Date.now()
+          && prev.deadline.getTime() !== newDeadline.getTime()) {
+        throw new ConflictException({
+          error: `截标时间已固化（${prev.deadline.toISOString()}），谈判配置不可变更投标截止时间`,
+          code: 'DEADLINE_FROZEN',
+        });
+      }
       await this.prisma.bidProject.update({
         where: { id: dto.projectId },
         data: {
           openTime: bidOpening,
-          deadline: new Date(bidOpening.getTime() - 24 * 60 * 60 * 1000),
+          deadline: newDeadline,
           ...(acquireEnd && !isNaN(acquireEnd.getTime()) ? { downloadDeadline: acquireEnd } : {}),
         },
       }).catch(() => { /* 项目可能不存在，忽略 */ });

@@ -6132,3 +6132,41 @@ describe('P1-2/P1-4 — 旧轨解密归因与时间修改留痕', () => {
     expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 });
+
+
+describe('backlog C — swapExpertRole 阶段闸门（EXPERT_SWAP_LOCKED）', () => {
+  let svc: any;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      bidProject: { findUnique: jest.fn() },
+      bidExpert: { findFirst: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn().mockImplementation(async (ops: any) => Array.isArray(ops) ? Promise.all(ops) : ops(prisma)),
+    };
+    const { BidService } = await import('./bid.service');
+    svc = Object.create(BidService.prototype);
+    svc.prisma = prisma;
+  });
+
+  it('EVALUATING 互换 → 409 EXPERT_SWAP_LOCKED 且零更新', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+    await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_SWAP_LOCKED' } });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('ARCHIVED 互换 → 409 同码', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
+    await expect(svc.swapExpertRole('p1', 'e1', 'e2'))
+      .rejects.toMatchObject({ response: { code: 'EXPERT_SWAP_LOCKED' } });
+  });
+
+  it('DOWNLOAD（评标前递补）→ 放行', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1' });
+    const res = await svc.swapExpertRole('p1', 'e1', 'e2');
+    expect(res.success).toBe(true);
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
+});

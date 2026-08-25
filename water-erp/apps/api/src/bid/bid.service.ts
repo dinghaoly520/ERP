@@ -6264,6 +6264,19 @@ export class BidService {
 
   /** 正选↔候补角色互换（开标确认页 操作→替换） */
   async swapExpertRole(projectId: string, fromExpertId: string, toExpertId: string) {
+    // backlog §6.2（原 P2-5）：评标启动后互换评委 = 改变委员会组成，被换正选的已交评分
+    // 会被聚合口径静默排除——须走重评/补选流程，不允许静默互换。评标前互换是正常递补，放行。
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') {
+      throw new ConflictException({
+        error: '评标已启动，不可互换正选/候补专家（改变委员会组成）——如需更换请走异议裁决或重新评标流程',
+        code: 'EXPERT_SWAP_LOCKED',
+      });
+    }
     const [e1, e2] = await Promise.all([
       this.prisma.bidExpert.findFirst({ where: { projectId, id: fromExpertId } }),
       this.prisma.bidExpert.findFirst({ where: { projectId, id: toExpertId } }),

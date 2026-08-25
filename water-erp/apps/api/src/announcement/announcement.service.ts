@@ -81,11 +81,18 @@ export class AnnouncementService {
           );
         }
       }
-      await this.syncBidProject(result.id, {
-        id: result.id, title: result.title, publishDate: result.publishDate,
-        metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId,
-        companyId: result.companyId, companyName: result.companyName,
-      });
+      try {
+        await this.syncBidProject(result.id, {
+          id: result.id, title: result.title, publishDate: result.publishDate,
+          metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId,
+          companyId: result.companyId, companyName: result.companyName,
+        });
+      } catch (e) {
+        // backlog §2.1：公告直建项目失败此前仅 error log——发布人不知情、公告却已发布。
+        // 发布仍成功（不回滚），但响应带警示供 :3005 展示。
+        this.logger.error(`公告发布联动创建项目失败 (announcementId=${result.id}): ${(e as Error).message}`);
+        (result as any).projectSyncWarning = `公告已发布，但联动创建招标项目失败（${(e as Error).message}）——请检查元数据时间并重试或联系管理员`;
+      }
     }
     // 发布即通知（所有类型，不仅 BID_NOTICE）：按可见范围向供应商发站内信
     if (status === 'PUBLISHED') {
@@ -266,7 +273,13 @@ export class AnnouncementService {
           );
         }
       }
-      await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId, companyId: result.companyId, companyName: result.companyName });
+      try {
+        await this.syncBidProject(id, { id: result.id, title: result.title, publishDate: result.publishDate, metadata: result.metadata, relatedProjectCode: result.relatedProjectCode, authorId: result.authorId, companyId: result.companyId, companyName: result.companyName });
+      } catch (e) {
+        // backlog §2.1：与 create 路径同款——发布成功但响应带 projectSyncWarning
+        this.logger.error(`公告发布联动创建项目失败 (announcementId=${id}): ${(e as Error).message}`);
+        (result as any).projectSyncWarning = `公告已发布，但联动创建招标项目失败（${(e as Error).message}）——请检查元数据时间并重试或联系管理员`;
+      }
     }
     // 发布即通知（所有类型）：按可见范围向供应商发站内信
     if (isPublishTransition) {
