@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { OpeningSignBlock } from './opening-hall-sign-block';
 import { enterOpeningRecord, resolveOpeningDispute, getOpeningSessionTime, decryptBid, getOpeningDraft, completeOpening, resealBidFiles, startOpening, acceptSupplierDanger, pauseOpening, resumeOpening, decryptOuter, decryptAdjudge, type DecryptAdjudgeAttribution, type DecryptOuterResult, type DecryptOuterDetail } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
 import StartOpeningDialog from '@/components/start-opening-dialog';
@@ -552,6 +553,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             前往采购管理工作台 <ExternalLink size={13} />
           </a>
         </div>
+      )}
+      {(!!session?.handoverAt || project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') && (
+        <OpeningSignBlock projectId={project.id} />
       )}
       {openingDone && project.stage === 'OPENING' && !session?.handoverAt && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">

@@ -31,6 +31,8 @@ const EVIDENCE_PROTECTED_CATEGORIES = [
   'expert_sign_scan',           // 专家签字/不同意见书扫描
   'expert_memo_ink',            // 专家手写备忘录
   'expert_signin_photo',        // 专家签到拍照留痕
+  'opening_sign_page',          // P1-3①A：开标记录签字页 PDF
+  'opening_sign_scan',          // P1-3①A：开标签字扫描件（主持人/监督人）
 ];
 
 const ALLOWED_CATEGORIES = [

@@ -490,6 +490,11 @@ model BidOpeningSession {
   exchangeControl       String     @default("OPEN") // OPEN 允许群聊 | MUTED 仅主持人可发言 | CLOSED 关闭互动
   handoverAssetId       String? // 开标文件包 FileAsset 引用（完成开标·移交后写入）
   handoverAt            DateTime? // 移交时间
+  // P1-3①A：开标记录纸面签字（主持人/监督人扫描回传登记，进开标文件包哈希链）
+  hostSignScanFileId       String?   // 主持人签字扫描 → FileAsset（category=opening_sign_scan）
+  supervisorSignScanFileId String?   // 监督人签字扫描（选填）
+  openingSignRegisteredAt  DateTime? // 签字登记闭环时间
+  openingSignRegisteredBy  String?   // 登记操作人 userId
   disputeTimeoutMinutes Int? // 异议超时分钟数（null=不限）
   disputedSince         DateTime? // 首个异议提出时间（全部解决后清零）
   activeHostId          String? // 当前操作者 userId（并发检测）
