@@ -254,3 +254,40 @@ describe('AnnouncementService — syncBidProject 公告直建补 PMI (N16-A)', (
     expect(createItemFromAnnouncement).not.toHaveBeenCalled();
   });
 });
+
+
+describe('backlog A — 公告直建失败 projectSyncWarning（发布不阻塞）', () => {
+  let svc: any;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      announcement: { create: jest.fn(), findUnique: jest.fn() },
+    };
+    const { AnnouncementService } = await import('./announcement.service');
+    svc = Object.create(AnnouncementService.prototype);
+    svc.prisma = prisma;
+    svc.logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    svc.announcementAi = { summarize: jest.fn().mockResolvedValue('AI 摘要') };
+    svc.notificationService = undefined;
+    // syncBidProject 抛错——模拟 24h 校验失败等联动错误
+    svc.syncBidProject = jest.fn().mockRejectedValue(new Error('截标须为开标前 24 小时'));
+  });
+
+  it('联动失败 → 公告仍创建成功，响应带 projectSyncWarning', async () => {
+    const created = {
+      id: 'a1', title: 'T', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c',
+      publishDate: new Date(), metadata: { method: '公开招标', openTime: '2099-01-01T00:00:00Z', deadline: '2098-12-30T00:00:00Z' },
+      relatedProjectCode: null, authorId: 'u1', companyId: null, companyName: null,
+    };
+    prisma.announcement.create.mockResolvedValue(created);
+    // create 对 BID_NOTICE 发布返回 this.get(result.id)——findUnique 回同一对象（携带 warning）
+    prisma.announcement.findUnique.mockImplementation(async () => prisma.announcement.create.mock.results[0]?.value ?? created);
+    const res = await svc.create({ title: 'T', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c',
+      metadata: { method: '公开招标', openTime: '2099-01-01T00:00:00Z', deadline: '2098-12-30T00:00:00Z' } } as any, 'u1');
+    expect(res.id).toBe('a1'); // 公告创建未被阻塞
+    expect((res as any).projectSyncWarning).toBeTruthy();
+    expect((res as any).projectSyncWarning).toContain('联动创建招标项目失败');
+    expect(svc.syncBidProject).toHaveBeenCalled();
+  });
+});

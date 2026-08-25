@@ -251,3 +251,8 @@ export const isPassFailCategory = (category: string): boolean => PASS_FAIL_CATEG
 export const BID_DEADLINE_BEFORE_OPENING_MS = 24 * 3_600_000;
 /** 截标↔开标关系校验的分钟级容差 */
 export const BID_OPENING_GAP_TOLERANCE_MS = 60_000;
+
+/** P1/backlog-E：双信封投标文件角色集（与 @water-erp/ukey 的 EnvelopeRole 对齐——勿漂移；
+ * JSON 列 innerAssets/decryptedAssets 的 path 键、四列资产引用判定共用）。 */
+export const BID_FILE_ROLES = ['technical', 'business', 'coverLetter', 'bond'] as const;
+export type BidFileRole = (typeof BID_FILE_ROLES)[number];

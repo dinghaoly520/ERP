@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenEx
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
+import { BID_FILE_ROLES } from '@water-erp/shared';
 import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { createDecryptStream } from '../announcement/bid-document.crypto';
@@ -467,7 +468,7 @@ export class UploadService implements OnModuleInit {
     column: 'innerAssets' | 'decryptedAssets',
     assetId: string,
   ): Promise<{ supplierId: string; projectId: string } | null> {
-    const roles = ['technical', 'business', 'coverLetter', 'bond'] as const;
+    const roles = BID_FILE_ROLES; // backlog-E：角色集单一来源（packages/shared），与 EnvelopeRole 对齐
     return this.prisma.supplierBidSubmission.findFirst({
       where: {
         OR: roles.map(role => ({ [column]: { path: [role], equals: assetId } })),
