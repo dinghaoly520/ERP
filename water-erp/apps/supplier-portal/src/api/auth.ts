@@ -57,6 +57,16 @@ export const authApi = {
       '/supplier/register/check-duplicate', { params: fields })
   },
 
+  /** P1-13：注册手机验证码发送（公开） */
+  sendRegistrationCode(phone: string) {
+    return api.post('/verification/send-registration-code', { phone })
+  },
+
+  /** P1-13：注册手机验证码校验（公开） */
+  verifyRegistrationCode(phone: string, code: string) {
+    return api.post('/verification/verify-registration-code', { phone, code })
+  },
+
   /** 公开：校验邀请码（临时注册前）。返回 { valid, validityDays?, expiresAt?, reason? } */
   verifyInvitation(code: string) {
     return api.get('/supplier/invitations/verify', { params: { code } })

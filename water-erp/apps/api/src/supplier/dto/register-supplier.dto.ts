@@ -73,6 +73,13 @@ export class RegisterSupplierDto {
   @IsArray() @ValidateNested({ each: true }) @Type(() => RegisterContactDto)
   contacts: RegisterContactDto[];
 
+  /** P1-13：注册手机验证——主联系人手机号（须与短信验证码目标一致） */
+  @IsString() @IsNotEmpty() @Matches(/^1\d{10}$/)
+  registrationPhone: string;
+
+  @IsString() @IsNotEmpty() @Length(6, 6)
+  registrationCode: string;
+
   @IsArray() @ValidateNested({ each: true }) @Type(() => CreateQualificationDto)
   qualifications: CreateQualificationDto[];
 

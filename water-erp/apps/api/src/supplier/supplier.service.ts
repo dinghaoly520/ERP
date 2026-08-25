@@ -3,6 +3,7 @@ import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { VerificationService } from '../verification/verification.service';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
@@ -49,6 +50,7 @@ export class SupplierService {
     private notificationService: NotificationService,
     @Inject('REDIS_CLIENT') private redis: any,
     private llm: LlmService,
+    private verificationService: VerificationService,
   ) {}
 
   /**
@@ -64,6 +66,12 @@ export class SupplierService {
   }
 
   async register(dto: RegisterSupplierDto) {
+    // P1-13：注册实名核验——主联系人手机号短信验证码前置校验（verifyRegistrationCode 消费后失效）。
+    // 内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
+    if (dto.registrationCode !== '__INTERNAL_IMPORT__') {
+      await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
+    }
+
     // 检查信用代码是否重复
     const existingCreditCode = await this.prisma.supplier.findUnique({
       where: { creditCode: dto.creditCode },
@@ -2349,6 +2357,9 @@ export class SupplierService {
           tags: [],
           contacts: [],
           qualifications: [],
+          // P1-13：内部导入（管理端批量建档）跳过短信验证——直接调用内部建档绕过 verifyRegistrationCode
+          registrationPhone: '',
+          registrationCode: '__INTERNAL_IMPORT__',
         });
         created++;
       } catch (e: any) {
