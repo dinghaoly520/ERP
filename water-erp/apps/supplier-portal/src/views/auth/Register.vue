@@ -21,6 +21,8 @@ const accountForm = reactive({
   password: '',
   confirmPassword: '',
   email: '',
+  registrationPhone: '',
+  registrationCode: '',
 })
 
 // Step 2: Company
@@ -49,7 +51,7 @@ const showRecovery = ref(false)
 const agreeAgreement = ref(false)
 const draftSource = computed(() => ({
   currentStep: currentStep.value,
-  accountForm: { username: accountForm.username, displayName: accountForm.displayName, email: accountForm.email },
+  accountForm: { username: accountForm.username, displayName: accountForm.displayName, email: accountForm.email, registrationPhone: accountForm.registrationPhone },
   companyForm: { ...companyForm },
   contacts: contacts.value.map(c => ({ ...c })),
   qualifications: qualifications.value.map(q => ({ ...q })),
@@ -72,6 +74,14 @@ function discardRecovery() { draft.clearDraft(); showRecovery.value = false }
 import { ENTERPRISE_TYPES as enterpriseTypes } from '@/constants/supplier'
 
 const accountRules = {
+  registrationPhone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1\d{10}$/, message: '手机号格式不正确', trigger: 'blur' },
+  ],
+  registrationCode: [
+    { required: true, message: '请输入短信验证码', trigger: 'blur' },
+    { pattern: /^\d{6}$/, message: '验证码为6位数字', trigger: 'blur' },
+  ],
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 4, max: 20, message: '用户名4-20个字符', trigger: 'blur' },
@@ -206,6 +216,27 @@ function prevStep() {
   if (currentStep.value > 0) currentStep.value--
 }
 
+const codeSending = ref(false)
+const codeCooldown = ref(0)
+async function sendRegCode() {
+  const phone = accountForm.registrationPhone.trim()
+  if (!/^1\d{10}$/.test(phone)) { ElMessage.warning('请输入有效的手机号'); return }
+  codeSending.value = true
+  try {
+    await authApi.sendRegistrationCode(phone)
+    ElMessage.success('验证码已发送，请注意查收短信')
+    codeCooldown.value = 60
+    const timer = setInterval(() => {
+      codeCooldown.value -= 1
+      if (codeCooldown.value <= 0) clearInterval(timer)
+    }, 1000)
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.error || '验证码发送失败，请稍后重试')
+  } finally {
+    codeSending.value = false
+  }
+}
+
 async function submitRegister() {
   if (!agreeAgreement.value) { ElMessage.warning('请先阅读并同意《供应商注册入驻协议》'); return }
   // 提交前最终查重：公司名硬拦截；法人/联系人身份证号软提示
@@ -225,6 +256,8 @@ async function submitRegister() {
     const data = {
       username: accountForm.username,
       displayName: accountForm.displayName,
+      registrationPhone: accountForm.registrationPhone.trim(),
+      registrationCode: accountForm.registrationCode.trim(),
       password: accountForm.password,
       email: accountForm.email || undefined,
       name: companyForm.name,
@@ -371,6 +404,19 @@ async function submitRegister() {
               <el-form-item label="电子邮箱（选填）" prop="email" class="reg-form-wide">
                 <el-input v-model="accountForm.email" placeholder="请输入邮箱地址" />
               </el-form-item>
+              <div class="reg-form-grid">
+                <el-form-item label="手机号（实名核验）" prop="registrationPhone">
+                  <el-input v-model="accountForm.registrationPhone" placeholder="主联系人手机号" maxlength="11" />
+                </el-form-item>
+                <el-form-item label="短信验证码" prop="registrationCode">
+                  <div style="display:flex; gap:8px; width:100%">
+                    <el-input v-model="accountForm.registrationCode" placeholder="6位验证码" maxlength="6" style="flex:1" />
+                    <el-button :loading="codeSending" :disabled="codeCooldown > 0" @click="sendRegCode" style="width:130px">
+                      {{ codeCooldown > 0 ? `${codeCooldown}s 后重发` : '获取验证码' }}
+                    </el-button>
+                  </div>
+                </el-form-item>
+              </div>
             </el-form>
           </div>
 

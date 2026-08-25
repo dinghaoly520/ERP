@@ -7,9 +7,10 @@ import { OwnerGuard } from './owner.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { AuthModule } from '../auth/auth.module';
+import { VerificationModule } from '../verification/verification.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, NotificationModule],
+  imports: [AuthModule, PrismaModule, NotificationModule, VerificationModule],
   controllers: [SupplierController, RsvpController],
   providers: [SupplierService, RsvpService, OwnerGuard],
   exports: [SupplierService, RsvpService],

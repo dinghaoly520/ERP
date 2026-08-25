@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { VerificationService } from '../verification/verification.service';
 import { SupplierService } from './supplier.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
@@ -24,6 +25,7 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SupplierService,
+        { provide: VerificationService, useValue: {} },
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: notification },
         // SupplierService 构造器 @Inject('REDIS_CLIENT')（口径同 verification.service.spec.ts）
