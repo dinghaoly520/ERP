@@ -80,6 +80,37 @@ export function decryptOuter(projectId: string, supplierId?: string) {
   );
 }
 
+export interface OpeningSignStatus {
+  hasSession: boolean;
+  host?: string; supervisor?: string | null; sessionStatus?: string;
+  handoverReady?: boolean; hostScanUploaded?: boolean; supervisorScanUploaded?: boolean;
+  registeredAt?: string | null;
+}
+
+export function getOpeningSignStatus(projectId: string) {
+  return api.get<OpeningSignStatus>(`/bid/projects/${projectId}/opening/sign-status`);
+}
+
+export function generateOpeningSignPage(projectId: string) {
+  return api.post<{ assetId: string; downloadUrl: string; sha256: string }>(
+    `/bid/projects/${projectId}/opening/sign-page`, {},
+  );
+}
+
+export function uploadOpeningSignScan(projectId: string, role: 'host' | 'supervisor', file: File, _onProgress?: (pct: number) => void) {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post<{ assetId: string; sha256: string }>(
+    `/bid/projects/${projectId}/opening/sign-scan?role=${role}`, form,
+  );
+}
+
+export function registerOpeningSign(projectId: string) {
+  return api.post<{ registered: boolean; alreadyRegistered: boolean; registeredAt: string; packageSha256?: string }>(
+    `/bid/projects/${projectId}/opening/sign-register`, {},
+  );
+}
+
 export type DecryptAdjudgeAttribution = 'BIDDER' | 'PLATFORM' | 'RESET_PENDING';
 
 /**

@@ -1,5 +1,7 @@
 import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { OpeningSignController } from './opening-sign.controller';
+import { OpeningSignService } from './opening-sign.service';
 import { AdminCertController } from './admin-cert.controller';
 import { BidController } from './bid.controller';
 import { BidService } from './bid.service';
@@ -34,8 +36,8 @@ import { SignatureService } from '../common/crypto/signature.service';
     AiBidAnalysisModule, // ← 为了注入 PlaintextFetcherService（Task 1: AI 提取得分点）
     BidBackupModule,
   ],
-  controllers: [BidController, BidSignPacketController, AdminCertController],
-  providers: [BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService],
+  controllers: [BidController, BidSignPacketController, AdminCertController, OpeningSignController],
+  providers: [BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService, OpeningSignService],
   exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService],
 })
 export class BidModule implements OnModuleInit {
