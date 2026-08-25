@@ -166,6 +166,61 @@ async function restore() {
     ai_bid_analysis_tasks: prisma.aiBidAnalysisTask,
     ai_bidder_results: prisma.aiBidderResult,
   };
+  // CI/异 KMS 环境适配（SNAPSHOT_RESEAL_CRYPTO=1 时生效，dev 默认关闭保持原值）：
+  // 快照内 SupplierBidSubmission 的 sealedKey/bidPrice 是 dev KMS_SECRET 包裹的——
+  // 换 KMS 环境解不开（解密全 DANGER）。此模式：①缺失的 FileAsset 补桩（dummy
+  // 密文对象 + 哈希）②sealedKey 置 null（走 legacy 完整性校验路径）③bidPrice
+  // 用本环境 KMS 重封确定性占位价（唱标/记录链可续）。产物仅作冒烟，非证据。
+  if (process.env.SNAPSHOT_RESEAL_CRYPTO === '1' && Array.isArray(data['SupplierBidSubmission'])) {
+    console.log('▶ CI 重封模式（SNAPSHOT_RESEAL_CRYPTO=1）');
+    const kms = process.env.KMS_SECRET;
+    if (!kms) throw new Error('CI 重封模式需要 KMS_SECRET');
+    const crypto = require('crypto');
+    const seal = (plain) => {
+      const iv = crypto.randomBytes(12);
+      const c = crypto.createCipheriv('aes-256-gcm', crypto.createHash('sha256').update('water-erp-field-seal-v1').update(kms).digest(), iv);
+      const ct = Buffer.concat([c.update(plain, 'utf8'), c.final()]);
+      return 'v1:' + Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64');
+    };
+    // ① FileAsset 桩
+    const stubIds = new Set();
+    for (const row of data['SupplierBidSubmission']) {
+      for (const col of ['technicalFileAssetId', 'businessFileAssetId', 'coverLetterAssetId']) {
+        if (row[col]) stubIds.add(row[col]);
+      }
+    }
+    // minio.client.ts 是 TS 源码不能被裸 node require——按同口径从 env 构造 Client
+    const Minio = require(path.join(__dirname, '..', 'apps', 'api', 'node_modules', 'minio'));
+    const minioClient = new Minio.Client({
+      endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+      port: Number(process.env.MINIO_PORT || 9000),
+      useSSL: process.env.MINIO_USE_SSL === 'true',
+      accessKey: process.env.MINIO_ACCESS_KEY || 'water_erp_minio',
+      secretKey: process.env.MINIO_SECRET_KEY || 'water_erp_minio_dev',
+    });
+    const MINIO_BUCKET = process.env.MINIO_BUCKET || 'water-erp';
+    let stubbed = 0;
+    for (const id of stubIds) {
+      if (await prisma.fileAsset.findUnique({ where: { id } })) continue;
+      const buf = Buffer.from(`snapshot-stub-${id}`);
+      const sha = crypto.createHash('sha256').update(buf).digest('hex');
+      const key = `snapshot-stub/${id}`;
+      await minioClient.putObject(MINIO_BUCKET, key, buf, buf.length, { 'Content-Type': 'application/octet-stream' });
+      await prisma.fileAsset.create({ data: { id, key, originalName: `stub-${id}.bin`, mimeType: 'application/octet-stream', size: buf.length, sha256: sha, category: 'bid_document', encrypted: false, clientEncrypted: false } });
+      stubbed++;
+    }
+    console.log(`    FileAsset 补桩 ${stubbed}/${stubIds.size}`);
+    // ②③ sealedKey 置空 + bidPrice 重封
+    let idx = 0;
+    for (const row of data['SupplierBidSubmission']) {
+      row.technicalSealedKey = null;
+      row.businessSealedKey = null;
+      row.coverLetterSealedKey = null;
+      row.bidPrice = seal(String(1000000 * (++idx)));
+    }
+    console.log(`    ${data['SupplierBidSubmission'].length} 行 sealedKey 清空 + bidPrice 重封`);
+  }
+
   // 回灌期临时禁用 FK 校验（CI 全新库快照引用的 FileAsset 等父行可能不存在——
   // dev 上这些行由 seed PDF 生成、ID 每次新造）。CI postgres 为超管可用；
   // dev 应用账号非超管时静默跳过，保持原有严格 FK 行为。

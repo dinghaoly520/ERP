@@ -207,6 +207,8 @@ jobs:
 
       - name: Legacy-track regression (13 checks, snapshot-based)
         working-directory: water-erp/scripts
+        env:
+          SNAPSHOT_RESEAL_CRYPTO: '1'   # 快照密文是 dev KMS 包裹——CI 重封为本地占位（冒烟用）
         run: |
           node demo-snapshot.js restore snapshots/BID-DEMO-20260817150148-pre-open.json
           E2E_API=http://localhost:4001 node e2e-legacy-regression.js
