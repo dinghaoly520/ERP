@@ -180,6 +180,9 @@ jobs:
           done
           echo "boot smoke FAILED"; tail -30 /tmp/boot-smoke.log; exit 1
 
+      - name: Install reportlab (seed 投标 PDF 生成依赖——缺则 ensureBidFiles 跳过上传、旧轨解密全 DANGER)
+        run: pip3 install --break-system-packages reportlab
+
       - name: Seed
         run: pnpm db:seed
 
