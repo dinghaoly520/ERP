@@ -163,6 +163,9 @@ jobs:
           npx prisma migrate status --schema prisma/schema.prisma | tee /tmp/migrate-status.log
           ! grep -q "have not yet been applied" /tmp/migrate-status.log
 
+      - name: Generate Prisma client (build 需最新生成类型)
+        run: pnpm db:generate
+
       - name: Build API
         run: pnpm --filter api build
 
