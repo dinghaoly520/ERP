@@ -32,6 +32,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Write CI .env (prisma validate/generate 需 DATABASE_URL/DIRECT_URL)
+        working-directory: water-erp/apps/api
+        run: |
+          cat > .env <<'EOF'
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/water_erp
+          DIRECT_URL=postgresql://postgres:postgres@localhost:5432/water_erp
+          JWT_SECRET=ci-dummy-jwt-secret-0123456789abcdef0123456789abcdef
+          KMS_SECRET=ci-dummy-kms-secret-0123456789abcdef0123456789
+          REDIS_URL=redis://localhost:6379
+          EOF
+
       - name: Build shared packages (generate 依赖 shared 类型)
         run: |
           pnpm --filter @water-erp/shared build
@@ -121,6 +132,7 @@ jobs:
         run: |
           cat > .env <<'EOF'
           DATABASE_URL=postgresql://postgres:postgres@localhost:5432/water_erp
+          DIRECT_URL=postgresql://postgres:postgres@localhost:5432/water_erp
           JWT_SECRET=ci-dummy-jwt-secret-0123456789abcdef0123456789abcdef
           SMS_DEBUG_BYPASS=true
           SMS_PROVIDER=console
