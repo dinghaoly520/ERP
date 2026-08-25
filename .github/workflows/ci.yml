@@ -1,0 +1,207 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: water-erp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: water-erp/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages (generate 依赖 shared 类型)
+        run: |
+          pnpm --filter @water-erp/shared build
+          pnpm --filter @water-erp/config build
+          pnpm --filter @water-erp/ukey build
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Validate Prisma schema
+        run: pnpm db:validate
+
+      - name: TypeScript type check (api)
+        run: pnpm --filter api exec tsc --noEmit
+
+      - name: Lint (api)
+        run: pnpm --filter api exec eslint "src/**/*.ts" "test/**/*.ts"
+
+      - name: Unit tests (api)
+        run: pnpm --filter api test
+
+  # 2026-08-25：e2e 回归流水线——三条实战教训各对应一道闸：
+  #   migrate deploy 全新库重放   → 迁移链可重放（漂移/坏迁移）
+  #   boot smoke（build→启动→200）→ 单测绿但启动崩（Length 导入教训）
+  #   e2e 双轨全链路              → 契约漂移（改注册/公告/时间不同步脚本即红）
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: water-erp
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: water_erp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d water_erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      MINIO_ROOT_USER: water_erp_minio
+      MINIO_ROOT_PASSWORD: water_erp_minio_dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: water-erp/pnpm-lock.yaml
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=$MINIO_ROOT_USER \
+            -e MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD \
+            minio/minio server /data
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:9000/minio/health/live && echo "minio up" && break
+            sleep 2
+          done
+
+      - name: Write CI .env
+        working-directory: water-erp/apps/api
+        run: |
+          cat > .env <<'EOF'
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/water_erp
+          JWT_SECRET=ci-dummy-jwt-secret-0123456789abcdef0123456789abcdef
+          SMS_DEBUG_BYPASS=true
+          SMS_PROVIDER=console
+          REDIS_URL=redis://localhost:6379
+          KMS_SECRET=ci-dummy-kms-secret-0123456789abcdef0123456789
+          MINIO_ENDPOINT=localhost
+          MINIO_PORT=9000
+          MINIO_ACCESS_KEY=water_erp_minio
+          MINIO_SECRET_KEY=water_erp_minio_dev
+          OPERATION_LOG_ENABLED=false
+          EOF
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter @water-erp/shared build
+          pnpm --filter @water-erp/config build
+          pnpm --filter @water-erp/ukey build
+
+      - name: Migrate (fresh DB replay = migration chain health check)
+        working-directory: water-erp/apps/api
+        run: npx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Migrate status must be clean
+        working-directory: water-erp/apps/api
+        run: |
+          npx prisma migrate status --schema prisma/schema.prisma | tee /tmp/migrate-status.log
+          ! grep -q "have not yet been applied" /tmp/migrate-status.log
+
+      - name: Build API
+        run: pnpm --filter api build
+
+      - name: "Boot smoke (Length lesson — tests green ≠ boots)"
+        working-directory: water-erp/apps/api
+        run: |
+          PORT=4099 nohup node dist/main.js > /tmp/boot-smoke.log 2>&1 &
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4099/api/docs || true)
+            [ "$code" = "200" ] && echo "boot OK (docs 200)" && exit 0
+            sleep 2
+          done
+          echo "boot smoke FAILED"; tail -30 /tmp/boot-smoke.log; exit 1
+
+      - name: Seed
+        run: pnpm db:seed
+
+      - name: Start API for e2e
+        working-directory: water-erp/apps/api
+        run: |
+          nohup node dist/main.js > /tmp/api-e2e.log 2>&1 &
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4001/api/docs || true)
+            [ "$code" = "200" ] && echo "api up" && exit 0
+            sleep 2
+          done
+          echo "api failed to start"; tail -30 /tmp/api-e2e.log; exit 1
+
+      - name: Dual-envelope crypto symmetry selfcheck
+        working-directory: water-erp/apps/supplier-portal
+        run: ../api/node_modules/.bin/tsx scripts/dual-selfcheck.ts
+
+      - name: New-track e2e (55 checks)
+        working-directory: water-erp/apps/supplier-portal
+        run: E2E_API=http://localhost:4001 ../api/node_modules/.bin/tsx scripts/e2e-dual-envelope.ts
+
+      - name: Legacy-track regression (13 checks, snapshot-based)
+        working-directory: water-erp/scripts
+        run: |
+          node demo-snapshot.js restore snapshots/BID-DEMO-20260817150148-pre-open.json
+          E2E_API=http://localhost:4001 node e2e-legacy-regression.js
+          node demo-snapshot.js restore snapshots/BID-DEMO-20260817150148-pre-open.json
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: |
+            /tmp/boot-smoke.log
+            /tmp/api-e2e.log
+            /tmp/migrate-status.log
+          if-no-files-found: ignore
+          retention-days: 7
