@@ -6,7 +6,7 @@
 
 ## 1. 开评标时间与状态机
 
-- **sendNegotiationConfig 直更 deadline**：24h 字面量直接 update（不走 updateProject 的 frozen 语义），理论上可动已冻结截标时间（值当前正确，属「单常量例外」）。
+- ~~sendNegotiationConfig 直更 deadline~~ **已修**（PR #65：截标已过 → 409 DEADLINE_FROZEN）
 - **createCustomExtractionProject 影子项目 7 天 gap**：抽取专用项目 openTime/deadline 差 7 天，不属投标项目但造成口径不齐。
 - **procurement.service createBid（legacy）+7d/+5d**：仅查 `deadline < openTime`，残留旧口径。
 - **60s 接管魔数三处重复**（decryptOuter 预筛/单家接管/decryptSupplier）——可抽命名常量。
@@ -14,14 +14,14 @@
 
 ## 2. 公告与招标文件
 
-- **公告直建 400 仅 log**：createFromAnnouncement 失败只写 error log，公告 publish 照样成功 → 无项目；发布用户无可见提示（P0-2 终审提出 follow-up，未做）。
+- ~~公告直建 400 仅 log~~ **已修**（PR #65：发布不阻塞但响应带 projectSyncWarning）
 - **向导双草稿字段优先级**：`bidOpeningTime` vs `procurementTime` 同时存在且不同时可自触发 align 400（边缘）。
 - **pre-open 快照 1h gap** 与面板 −24h 展示不一致（演示专用，重拍快照即消）。
 - **wizard「开标前24h」类展示标签**：部分仍为字面量（多数已常量化，残个别）。
 
 ## 3. 上传与文件保护
 
-- **findSubmissionByDualAssets 硬编码角色数组**：与 `EnvelopeRole` 联合类型重复定义（fail-closed，新角色会静默 403）；建议从共享常量驱动。
+- ~~findSubmissionByDualAssets 硬编码角色数组~~ **已修**（PR #65：BID_FILE_ROLES 常量单一来源）
 - **staff/专家门控与四列规则平行副本**（canAccessFile vs delete 保护）：~60 行同语义重复，改一处漏另一处的漂移风险。
 - **MinIO 无 versioning/retention/SSE**：归档文件 at rest 明文 + 同 key 覆盖（生产基础设施项）。
 
@@ -36,13 +36,13 @@
 
 - **`clean-legacy-plaintext --execute` 从未执行**：dev 库 0 候选故无操作；生产执行前须先跑 dry-run 审阅 + streamFile sealedPath 条件已具备。
 - **seed bootstrap 写盘失败回滚 parked**：seed.ts 内联 bootstrap 缺「写盘失败回滚 active 行」（P1-12 终审 Minor，极窄窗口）。
-- **改判后 decryptError 残留旧文案**：BIDDER→PLATFORM 改判时 decryptError 未同步改写为 PLATFORM 文案（一行级）。
+- ~~改判后 decryptError 残留旧文案~~ **核实已在 main 实现**（Task 15 顺带 Minor，含测试）——backlog 录入时过时
 - **OperationLog 归档验证端点无 e2e**：verify/:month 仅单测（真实 MinIO roundtrip 未冒烟）。
 
 ## 6. 专家与评标
 
 - **利害关系检测仅单位名子串匹配**：亲属/控股/任职靠自我声明；可加法人代表/控股链数据源。
-- **候补→正选互换无阶段闸门**（P2-5）：swapExpertRole 任何阶段可调，被换专家已交分数被静默排除。
+- ~~候补→正选互换无阶段闸门（P2-5）~~ **已修**（PR #65：EVALUATING/ARCHIVED → 409 EXPERT_SWAP_LOCKED）
 - **3 人委员会豁免无项目规模门槛**：任何项目 3 人即过（大型项目应 ≥5）。
 - **评标时限仅约束专家侧**：管理端代评通道已删（P1-10），但生成评标结果/异议裁决不校验 evaluationDeadline。
 - **web tsc pre-existing 6 错**（accounts.ts）：P1-9 冒烟时发现，与本次改动无关。
