@@ -4778,6 +4778,142 @@ export class BidService {
   }
 
   /**
+   * D2（GB/T 43711 4.1.5.2）：档案移交登记——清单快照（含指纹与保存期）+ 双方签收留痕。
+   */
+  async registerArchiveTransfer(
+    projectId: string,
+    dto: { receivedByName: string; note?: string; confirm?: boolean },
+    operator: { userId: string; username: string },
+  ) {
+    if (!dto.receivedByName?.trim()) throw new BadRequestException({ error: '请填写接收方', code: 'BAD_PARAMS' });
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true, projectCode: true, stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'ARCHIVED') {
+      throw new BadRequestException({ error: '项目归档后方可移交', code: 'NOT_ARCHIVED' });
+    }
+    const items = await this.prisma.bidArchiveItem.findMany({
+      where: { projectId, status: 'ARCHIVED' },
+      select: { id: true, name: true, hashDigest: true, retentionUntil: true },
+    });
+    if (items.length === 0) throw new BadRequestException({ error: '无已归档材料可移交', code: 'NO_ITEMS' });
+
+    const transfer = await this.prisma.archiveTransfer.create({
+      data: {
+        projectId,
+        transferredByName: operator.username,
+        receivedByName: dto.receivedByName.trim(),
+        itemCount: items.length,
+        scope: items.map(i => ({
+          itemId: i.id, name: i.name,
+          hashDigest: i.hashDigest,
+          retentionUntil: i.retentionUntil?.toISOString() ?? null,
+        })) as any,
+        confirmedAt: dto.confirm ? new Date() : null,
+        note: dto.note?.trim() || null,
+      },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: operator.username, target: project.name,
+        action: '档案移交登记', result: `${items.length} 项 → ${dto.receivedByName.trim()}${dto.confirm ? '（已确认接收）' : '（待确认）'}`,
+        riskFlag: '无',
+      },
+    }).catch(() => {});
+    return transfer;
+  }
+
+  /** D2：移交确认（接收方二次确认制） */
+  async confirmArchiveTransfer(transferId: string, operator: { userId: string; username: string }) {
+    const transfer = await this.prisma.archiveTransfer.findUnique({ where: { id: transferId } });
+    if (!transfer) throw new BadRequestException({ error: '移交记录不存在', code: 'NOT_FOUND' });
+    if (transfer.confirmedAt) return transfer;
+    return this.prisma.archiveTransfer.update({
+      where: { id: transferId },
+      data: { confirmedAt: new Date() },
+    });
+  }
+
+  /**
+   * D3（GB/T 43711 8.2/8.3）：监管数据时间线——按项目聚合 监督日志 + 审计日志 + 操作日志（事前/事中/事后追溯）。
+   */
+  async supervisionTimeline(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectCode: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const [logs, audits, operations] = await Promise.all([
+      this.prisma.bidSupervisionLog.findMany({ where: { projectId }, orderBy: { time: 'desc' }, take: 200 }),
+      this.prisma.auditLog.findMany({
+        where: { OR: [{ resourceId: projectId }, { details: { path: ['$'], string_contains: projectId } } as any] },
+        orderBy: { createdAt: 'desc' }, take: 100,
+      }).catch(() => []),
+      this.prisma.operationLog.findMany({
+        where: { OR: [{ path: { contains: projectId } }, { query: { contains: projectId } }] },
+        orderBy: { createdAt: 'desc' }, take: 150,
+      }).catch(() => [] as any[]),
+    ]);
+
+    type Entry = { at: string; source: string; actor: string; action: string; detail: string; risk?: string };
+    const entries: Entry[] = [
+      ...logs.map(l => ({
+        at: l.time.toISOString(), source: '监督日志', actor: l.role,
+        action: l.action, detail: `${l.target ?? ''}：${l.result ?? ''}`.trim(), risk: l.riskFlag,
+      })),
+      ...audits.map(a => ({
+        at: a.createdAt.toISOString(), source: '审计日志',
+        actor: (a as any).user?.displayName ?? '—',
+        action: a.action, detail: a.resourceType ?? '',
+      })),
+      ...operations.map(o => ({
+        at: o.createdAt.toISOString(), source: '操作日志',
+        actor: o.username ?? '—',
+        action: `${o.method} ${o.path}`.slice(0, 80), detail: o.statusCode >= 400 ? `HTTP ${o.statusCode}${o.error ? ' ' + o.error.slice(0, 60) : ''}` : `HTTP ${o.statusCode} ${o.durationMs}ms`,
+      })),
+    ].sort((a, b) => b.at.localeCompare(a.at));
+
+    return { project, entries, counts: { supervision: logs.length, audit: audits.length, operation: operations.length } };
+  }
+
+  /** D3：监管数据包导出（JSON——公告+档案对标+移交+时间线，事前预警/事后追溯一体） */
+  async supervisionExport(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectCode: true, gbProcureCode: true, name: true, procurementMethod: true, stage: true, createdAt: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const [announcements, transfers, timeline, archiveItems] = await Promise.all([
+      this.prisma.announcement.findMany({
+        where: { relatedProjectCode: project.projectCode },
+        select: { title: true, type: true, status: true, publishDate: true, dataClass: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.archiveTransfer.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
+      this.supervisionTimeline(projectId),
+      this.prisma.bidArchiveItem.findMany({
+        where: { projectId },
+        select: { name: true, status: true, hashDigest: true, archivedAt: true, retentionUntil: true, gbCategory: true },
+        orderBy: { archivedAt: 'asc' },
+      }),
+    ]);
+
+    return {
+      exportedAt: new Date().toISOString(),
+      standard: 'GB/T 43711—2024 第 8 章（8.2/8.3 事前预警、事中控制、事后追溯）',
+      project,
+      announcements,
+      archive: { items: archiveItems, gbTemplate: await this.getArchiveTemplate(projectId) },
+      transfers,
+      supervisionTimeline: timeline,
+    };
+  }
+
+  /**
    * D1（GB/T 43711 4.1.5.1）：档案清单对标——标准 13 类满足度（线上数据自动判定 + 人工登记缺口）。
    */
   async getArchiveTemplate(projectId: string) {
@@ -5062,6 +5198,8 @@ export class BidService {
       );
 
       // 逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志
+      // D2（4.1.5.2）：保存期 = 归档日 + 15 年（期内不可销毁；到期由档案部门依规处置）
+      const retentionUntil = new Date(now.getTime() + 15 * 365.25 * 24 * 3600 * 1000);
       for (const item of archiveItems) {
         await tx.bidArchiveItem.update({
           where: { id: item.id },
@@ -5071,6 +5209,7 @@ export class BidService {
             // P1-14：签字包指纹链持久化——verify/export 重算经 spread 回读，修复恒 mismatch
             ...(item.name === '评标签字包' && signFileHashes ? { fileHashes: signFileHashes } : {}),
             archivedAt: now,
+            retentionUntil,
           },
         });
       }

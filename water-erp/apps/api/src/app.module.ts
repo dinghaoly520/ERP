@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { WorkflowModule } from './workflow/workflow.module';
 import { RedisModule } from './redis/redis.module';
 import { VerificationModule } from './verification/verification.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -117,8 +118,9 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     OpeningHallModule,
     SystemConfigModule,
     BadgeModule,
+    WorkflowModule,
   ],
-  controllers: [AppController],
+    controllers: [AppController],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_GUARD, useClass: AuthGuard },

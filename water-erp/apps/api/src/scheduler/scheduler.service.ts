@@ -5,6 +5,7 @@ import { NotificationService } from '../notification/notification.service';
 import { ExpertAdminService } from '../expert/expert-admin.service';
 import { SupplierService } from '../supplier/supplier.service';
 import { AnnouncementService } from '../announcement/announcement.service';
+import { BidService } from '../bid/bid.service';
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 
 export function buildExpiryNotification(input: { qualificationName: string; validTo: Date; daysLeft: number }) {
@@ -27,6 +28,7 @@ export class SchedulerService {
     private expertAdmin: ExpertAdminService,
     private supplierService: SupplierService,
     private announcementService: AnnouncementService,
+    private bidService: BidService,
   ) {}
 
   /** D2 归档时限扫描（DA/T 103-2024 §8.2/§10.1）：每日 05:00。
@@ -181,6 +183,35 @@ export class SchedulerService {
       reminded++;
     }
     if (reminded > 0) this.logger.log(`[C1] 预成交公示期满提醒已发 ${reminded} 条`);
+  }
+
+  /** D2（GB/T 43711 4.1.5.2/8.3）：每月 1 日 05:30 抽检已归档项目指纹链——漂移=高风险告警（不可更改要求）。
+   *  复用 BidService.verifyArchiveIntegrity（其内部已写监督日志）；再定向通知经办。 */
+  @Cron('30 5 1 * *')
+  async verifyArchivedIntegrity() {
+    const archived = await this.prisma.bidProject.findMany({
+      where: { stage: 'ARCHIVED' },
+      select: { id: true, name: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+    });
+    let mismatches = 0;
+    for (const p of archived) {
+      try {
+        const r = await this.bidService.verifyArchiveIntegrity(p.id);
+        if (!r.valid) mismatches++;
+      } catch { /* 单项目失败不阻塞抽检 */ }
+    }
+    if (mismatches > 0) {
+      void this.notification.sendToRole('staff', {
+        type: 'SYSTEM',
+        title: '档案完整性抽检告警',
+        content: `月度抽检发现 ${mismatches} 个归档项目指纹链不匹配（GB/T 43711 8.3 不可更改要求）——详情见各项目监督日志，请立即核查。`,
+      }).catch(() => {});
+      this.logger.warn(`[D2] 档案指纹抽检：${mismatches}/${archived.length} 项不匹配`);
+    } else {
+      this.logger.log(`[D2] 档案指纹抽检通过：${archived.length} 项`);
+    }
   }
 
   /** C4（GB/T 43711 7.5.4.4）：每日 08:30 已签署/已验收合同与已归档项目、响应担保未登记退还 → 提醒经办。

@@ -785,12 +785,32 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   accent="var(--stage-evaluation)"
                   accentSoft="var(--stage-evaluation-soft)"
                   action={
-                    expertOnlineCount > 0 ? (
-                      <span className="flex items-center gap-1 text-xs font-semibold text-[var(--success)]">
-                        <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
-                        专家在线 {expertOnlineCount} 人
-                      </span>
-                    ) : undefined
+                    <div className="flex items-center gap-2">
+                      {expertOnlineCount > 0 && (
+                        <span className="flex items-center gap-1 text-xs font-semibold text-[var(--success)]">
+                          <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
+                          专家在线 {expertOnlineCount} 人
+                        </span>
+                      )}
+                      {/* D2/D3（GB/T 43711 4.1.5.2/8.2）：档案移交登记 + 监管数据包导出 */}
+                      {bidProject?.stage === 'ARCHIVED' && (
+                        <>
+                          <button type="button" className="neu-btn-xs !text-[10px]" onClick={() => {
+                            const receivedByName = prompt('档案移交接收方（档案管理部门/接收人）：');
+                            if (!receivedByName) return;
+                            fetch(`/api/bid/projects/${bpId}/archive-transfer`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' },
+                              credentials: 'include',
+                              body: JSON.stringify({ receivedByName, confirm: true }),
+                            }).then(r => r.ok ? (showToast('档案移交已登记（含清单快照与签收留痕）'), load()) : r.json().then(e => showToast(e.error || '移交失败', 'err')));
+                          }}>档案移交</button>
+                          <button type="button" className="neu-btn-xs !text-[10px]" onClick={() => {
+                            window.open(`/api/bid/projects/${bpId}/supervision-export`, '_blank');
+                          }}>监管数据包</button>
+                        </>
+                      )}
+                    </div>
                   }
                 >
                   {/* G2: 监督日志表（全量滚动 + 风险高亮） */}

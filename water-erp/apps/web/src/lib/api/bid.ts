@@ -358,6 +358,21 @@ export function invalidateBid(bidProjectId: string, bidSupplierId: string, reaso
 }
 
 /** A1: 公示状态查询 */
+/** D2（4.1.5.2）：档案移交登记（清单快照+签收留痕） */
+export function registerArchiveTransfer(projectId: string, data: { receivedByName: string; note?: string; confirm?: boolean }) {
+  return api.post(`/bid/projects/${projectId}/archive-transfer`, data);
+}
+
+/** D3（8.2/8.3）：监管数据时间线（监督+审计+操作日志聚合） */
+export function getSupervisionTimeline(projectId: string) {
+  return api.get<{ project: { name: string; projectCode: string }; entries: Array<{ at: string; source: string; actor: string; action: string; detail: string; risk?: string }>; counts: { supervision: number; audit: number; operation: number } }>(`/bid/projects/${projectId}/supervision-timeline`);
+}
+
+/** D3：监管数据包导出（JSON 下载） */
+export function downloadSupervisionExport(projectId: string) {
+  return api.get<unknown>(`/bid/projects/${projectId}/supervision-export`);
+}
+
 export function getPublicityStatus(bidProjectId: string) {
   return api.get<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean }>(
     `/bid/projects/${bidProjectId}/publicity-status`,

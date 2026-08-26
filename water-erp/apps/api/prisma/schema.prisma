@@ -817,6 +817,7 @@ model BidArchiveItem {
   hashDigest String?
   fileHashes Json? // P1-14：签字包指纹链持久化（archiveAll 写入，verify/export 重算回读——修复恒 mismatch）
   gbCategory String? // D1（GB/T 43711 4.1.5.1）：对应标准档案类别 key（人工登记项标注）
+  retentionUntil DateTime? // D2（4.1.5.2）：归档保存期限（归档日+15 年；期内不得销毁）
   archivedAt DateTime?
   project    BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt  DateTime      @default(now())
@@ -977,6 +978,22 @@ model SupplierObjection {
 
   @@index([supplierId])
   @@index([status])
+}
+
+// ── D2（GB/T 43711 4.1.5.2/A.3.1.3）：档案移交台账 ──
+// 归档项目向档案管理部门移交的记录：清单快照（含 hashDigest）+ 双方签收；保存期 15 年自归档起算。
+model ArchiveTransfer {
+  id                String    @id @default(cuid())
+  projectId         String
+  transferredByName String // 移交人（采购经办）
+  receivedByName    String // 接收方（档案管理部门）
+  scope             Json // 移交清单快照 [{itemId, name, hashDigest, retentionUntil}]
+  itemCount         Int
+  confirmedAt       DateTime? // 接收方确认时间（二次确认制）
+  note              String?
+  createdAt         DateTime  @default(now())
+
+  @@index([projectId])
 }
 
 // ── B3（GB/T 43711 7.2.3）：资格预审（登记制——评审线下完成，结果登记入系统）──

@@ -140,6 +140,41 @@ export class BidController {
     return this.bidService.registerQualificationReview(id, dto.result);
   }
 
+  @Post('projects/:id/archive-transfer')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'D2（4.1.5.2）：档案移交登记（清单快照+签收留痕）' })
+  registerArchiveTransfer(
+    @Param('id') id: string,
+    @Body() dto: { receivedByName: string; note?: string; confirm?: boolean },
+    @Req() req: any,
+  ) {
+    return this.bidService.registerArchiveTransfer(id, dto, { userId: req.user.sub, username: req.user.username });
+  }
+
+  @Post('archive-transfers/:transferId/confirm')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'D2：移交接收确认（二次确认制）' })
+  confirmArchiveTransfer(@Param('transferId') transferId: string, @Req() req: any) {
+    return this.bidService.confirmArchiveTransfer(transferId, { userId: req.user.sub, username: req.user.username });
+  }
+
+  @Get('projects/:id/supervision-timeline')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: 'D3（8.2/8.3）：监管数据时间线（监督+审计+操作日志聚合）' })
+  supervisionTimeline(@Param('id') id: string) {
+    return this.bidService.supervisionTimeline(id);
+  }
+
+  @Get('projects/:id/supervision-export')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: 'D3：监管数据包导出（JSON）' })
+  async supervisionExport(@Param('id') id: string, @Res({ passthrough: true }) res: any) {
+    const data = await this.bidService.supervisionExport(id);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="supervision-${id}.json"`);
+    return data;
+  }
+
   @Get('projects/:id/archive-template')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'D1: 档案清单对标（GB/T 43711 4.1.5.1 标准 13 类满足度）' })
