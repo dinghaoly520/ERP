@@ -29,8 +29,9 @@ export function getOpeningPackage(projectId: string): Promise<any> {
 
 /** 解密明文上传（四角色 multipart + fieldsJson/nonce）；返回 BidSupplier 终局行（decryptStatus 判定成败） */
 export function decryptUpload(projectId: string, form: FormData): Promise<any> {
+  // 勿手设 Content-Type：axios 对 FormData 会自动补 multipart/form-data; boundary=…
+  // 手动设置会丢掉 boundary，服务端 multer 报 "Multipart: Boundary not found"（迁移引入的回归）
   return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/decrypt-upload`, form, {
-    headers: { "Content-Type": "multipart/form-data" },
     timeout: 120000, // 明文 50MB×4 全量上传，沿用 upload 120s 口径
   });
 }

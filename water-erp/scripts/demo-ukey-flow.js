@@ -78,6 +78,11 @@ async function create() {
       currentRoundNo: 1,
       bondRequired: false,
       isExtractionOnly: false,
+      // 公司级数据隔离归属戳：归设计院本部（陈源远/主持端同公司，:3007 可访问）
+      companyId: 'co-swhi-sjy',
+      companyName: '四川水发勘测设计研究有限公司',
+      // 主持人指派：陈源远(bid_host)——:3007 组建开标会话/解外层凭此
+      assignedHostUserId: 'cmrai35fr0002koddvbs7wm1b',
     },
   });
   await prisma.bidSupplier.create({
