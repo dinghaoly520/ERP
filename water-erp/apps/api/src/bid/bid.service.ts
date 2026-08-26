@@ -21,6 +21,7 @@ import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
+import { assertMinAcceptedInvitees } from './bid-timing-rules';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
@@ -1195,7 +1196,7 @@ export class BidService {
   async openSubmission(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, projectCode: true, projectManagementItemId: true },
+      select: { stage: true, name: true, projectCode: true, projectManagementItemId: true, procurementMethod: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'SUBMIT');
@@ -1211,6 +1212,14 @@ export class BidService {
         error: '尚未发布招标公示，供应商无法获取招标文件，请先在信息发布中心发布招标公告',
         code: 'BID_NOTICE_REQUIRED',
       });
+    }
+
+    // W3/B-006：邀请类采购（邀请招标/谈判）须 ≥3 家已接受邀请方可开放投递
+    if (['邀请招标', '谈判采购'].includes(project.procurementMethod)) {
+      const accepted = await this.prisma.invitationRsvp.count({
+        where: { projectId: id, status: 'ACCEPTED' },
+      });
+      assertMinAcceptedInvitees({ procurementMethod: project.procurementMethod, acceptedCount: accepted });
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {

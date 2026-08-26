@@ -63,3 +63,23 @@ describe('bid-timing-rules（CTS-EBS01 B-004/B-009）', () => {
     expect(shiftPastStatutoryHolidays(D('2026-09-19T00:00:00Z')).toISOString().slice(0, 10)).toBe('2026-09-19');
   });
 });
+
+import { ForbiddenException } from '@nestjs/common';
+import { assertMinAcceptedInvitees } from './bid-timing-rules';
+
+describe('B-006 邀请对象 ≥3 家闸门（W3）', () => {
+  const ok = () => expect(true).toBe(true);
+  it('邀请类项目已接受 <3 家 → 409 INSUFFICIENT_INVITEES', () => {
+    try {
+      assertMinAcceptedInvitees({ procurementMethod: '邀请招标', acceptedCount: 2 });
+      fail('应当抛');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ForbiddenException);
+      expect((e as ForbiddenException).getResponse()).toMatchObject({ code: 'INSUFFICIENT_INVITEES' });
+    }
+  });
+  it('已接受 3 家放行；公开招标不设闸', () => {
+    expect(() => assertMinAcceptedInvitees({ procurementMethod: '邀请招标', acceptedCount: 3 })).not.toThrow();
+    expect(() => assertMinAcceptedInvitees({ procurementMethod: '公开招标', acceptedCount: 0 })).not.toThrow();
+  });
+});

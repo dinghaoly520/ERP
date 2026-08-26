@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { DOC_SALE_MIN_DAYS, SALE_TO_OPENING_MIN_DAYS } from '@water-erp/shared';
 
 /**
@@ -102,4 +102,18 @@ export function assertBidNoticeTiming(input: BidNoticeTimingInput): BidNoticeTim
     }
   }
   return { violated: false, deviated: false };
+}
+
+/** W3/B-006：邀请招标项目邀请对象（已接受）不足 3 家 → 阻断（409 INSUFFICIENT_INVITEES）。 */
+export const MIN_INVITED_SUPPLIERS = 3;
+const INVITED_METHODS = new Set(['邀请招标', '谈判采购']);
+
+export function assertMinAcceptedInvitees(opts: { procurementMethod: string; acceptedCount: number }) {
+  if (!INVITED_METHODS.has(opts.procurementMethod)) return;
+  if (opts.acceptedCount < MIN_INVITED_SUPPLIERS) {
+    throw new ForbiddenException({
+      error: `邀请类采购须至少 ${MIN_INVITED_SUPPLIERS} 家供应商接受邀请（当前 ${opts.acceptedCount} 家），不足不得进入投标`,
+      code: 'INSUFFICIENT_INVITEES',
+    });
+  }
 }
