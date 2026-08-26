@@ -8,6 +8,7 @@ import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path'
 import { createRequire } from 'node:module';
 import { startServer } from './server.mjs';
 import { issueShield, unblockShield } from './shield.mjs';
+import { ShieldSessions } from './session.mjs';
 
 const require = createRequire(import.meta.url);
 const { sm2 } = require('sm-crypto');
@@ -27,6 +28,7 @@ try {
   const b = await issueShield({ cn: '乙公司', pin: '654321', slotDir });
   console.log('① 发行双盾', a.shield.shieldId, b.shield.shieldId);
   assert.equal((await get('/health')).shields, 2);
+  assert.equal((await get('/certs')).certs.length, 2);
 
   // ② 全错 PIN:两盾各扣 1
   const wrong = await post('/session/unlock', { pin: '000000' });
@@ -71,7 +73,20 @@ try {
   await post('/session/lock', {});
   assert.equal((await get('/health')).unlocked, 0);
   console.log('⑦ 手动上锁 全通过');
-  console.log('\n✓ selfcheck 全链通过(15 项断言)');
+
+  // ⑧ 空闲 TTL 惰性上锁:独立会话表(ttl=1s)的第二服务实例,同槽目录。
+  //    实测:甲已被前面广播扣减锁死(见报告),故用乙盾+其 PIN,断言语义不变
+  //    (解锁成功→200→等 1.1s>TTL→403)。
+  const ttlSrv = await startServer({ port: 0, slotDir, sessions: new ShieldSessions(1) });
+  const ttlBase = `http://127.0.0.1:${ttlSrv.port}`;
+  const ttlPost = (p, body) => fetch(ttlBase + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
+  assert.equal((await ttlPost('/session/unlock', { pin: '654321' })).unlocked.length, 1);
+  assert.equal((await ttlPost('/sign', { certSn: b.shield.certSn, data: 'ttl' })).status, 200);
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.equal((await ttlPost('/sign', { certSn: b.shield.certSn, data: 'ttl' })).status, 403);
+  ttlSrv.close();
+  console.log('⑧ 空闲 TTL 惰性上锁 全通过');
+  console.log('\n✓ selfcheck 全链通过(20 项断言)');
 } finally {
   srv.close();
   fs.rmSync(slotDir, { recursive: true, force: true });
