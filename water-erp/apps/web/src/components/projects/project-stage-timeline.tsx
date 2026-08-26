@@ -287,15 +287,17 @@ export function ProjectStageTimeline({
                         </span>
                         <div className="flex min-w-0 flex-col items-end gap-2 text-right">
                           {entry.isCompleted && !isSelected && onReopenStage ? (
-                            /* 已完成徽章 → 可点击重开（不触发卡片选中） */
-                            <button
-                              type="button"
+                            /* 已完成徽章 → 可点击重开（卡片是 button，内层用 span role=button 避免嵌套 button 的 hydration 错误） */
+                            <span
+                              role="button"
+                              tabIndex={0}
                               onClick={(e) => { e.stopPropagation(); setReopenTarget({ key: stageKey, round: entry.round, title: entry.title }); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setReopenTarget({ key: stageKey, round: entry.round, title: entry.title }); } }}
                               title="点击可将该步骤重新设置为进行中"
                               className={['pm-stage-progress pm-stage-progress--completed', 'cursor-pointer hover:brightness-95 active:scale-95 transition-all'].join(' ')}
                             >
                               已完成 ↺
-                            </button>
+                            </span>
                           ) : (
                             <span
                               className={['pm-stage-progress', isSelected ? 'pm-stage-progress--selected' : entry.progressClassName].join(' ')}
