@@ -48,6 +48,7 @@ export class ArchiveExportService {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: pmiId },
       select: {
+        id: true,
         title: true, projectCode: true, requesterName: true, requesterDepartment: true,
         procurementMethod: true, createdAt: true,
         stages: { orderBy: { stageOrder: 'asc' }, include: { attachments: true } },
