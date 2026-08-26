@@ -1,6 +1,5 @@
 import { Public } from './common/decorators/public.decorator';
 import { Controller, Get, Inject } from '@nestjs/common';
-import { Public } from './common/decorators/public.decorator';
 import type Redis from 'ioredis';
 import { PrismaService } from './prisma/prisma.service';
 
