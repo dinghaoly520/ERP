@@ -180,6 +180,9 @@ pnpm dev:bigscreen   # :3010 大屏（已在 pnpm dev 内，也可单独启动�
 # AI 投标分析 worker（独立进程 — 必需，否则 per-item 分析任务不出队执行）
 pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bid-analysis-worker.js（dist 镜像 src，无 dist/src 层）
 
+# Mock U盾中间件（Node，:17999，全仿真 CA 盾：插拔/PIN/锁死）
+pnpm dev:ukey-mw            # :17999
+
 # OCR 微服务（Python，:8100）
 pnpm dev:ocr
 
