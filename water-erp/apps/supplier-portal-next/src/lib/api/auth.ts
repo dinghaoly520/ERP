@@ -19,7 +19,6 @@ export interface RegisterParams {
   businessScope: string;
   // ── 注册 2.0 扩展 ──
   logoUrl?: string;
-  organizationCode?: string;
   country?: string;
   region?: string;
   detailedAddress?: string;

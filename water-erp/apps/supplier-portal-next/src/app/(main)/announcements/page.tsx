@@ -12,13 +12,23 @@ import "@/styles/pages/announcements.css";
 const typeOptions = [
   { label: "全部", value: "" },
   { label: "采购公告", value: "BID_NOTICE" },
-  { label: "中标公示", value: "WIN_NOTICE" },
+  { label: "补遗公告", value: "ADDENDUM" },
+  { label: "资格预审", value: "PREQUAL_NOTICE" },
+  { label: "预成交公示", value: "PRE_WIN_NOTICE" },
+  { label: "成交公告", value: "WIN_NOTICE" },
+  { label: "合同公告", value: "CONTRACT_NOTICE" },
+  { label: "履行结果", value: "PERFORMANCE_NOTICE" },
   { label: "政策法规", value: "POLICY" },
   { label: "平台通知", value: "PLATFORM" },
 ];
 const typeTagMap: Record<string, { label: string; type: string }> = {
   BID_NOTICE: { label: "采购公告", type: "primary" },
-  WIN_NOTICE: { label: "中标公示", type: "success" },
+  ADDENDUM: { label: "补遗公告", type: "warning" },
+  PREQUAL_NOTICE: { label: "资格预审公告", type: "primary" },
+  PRE_WIN_NOTICE: { label: "预成交公示", type: "success" },
+  WIN_NOTICE: { label: "成交公告", type: "success" },
+  CONTRACT_NOTICE: { label: "合同公告", type: "primary" },
+  PERFORMANCE_NOTICE: { label: "履行结果公告", type: "success" },
   POLICY: { label: "政策法规", type: "warning" },
   PLATFORM: { label: "平台通知", type: "info" },
 };
@@ -108,7 +118,7 @@ export default function AnnouncementListPage() {
 
   return (
     <>
-      <SpPageHero icon={Megaphone} title="公告公示" sub="集中查看采购公告、中标公示、政策法规和平台通知。" />
+      <SpPageHero icon={Megaphone} title="公告公示" sub="集中查看采购公告、预成交公示、成交公告、政策法规和平台通知。" />
 
       <div className="neu-card ann-filter">
         <div className="neu-tab-bar ann-tabs">

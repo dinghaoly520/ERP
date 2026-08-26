@@ -12,6 +12,20 @@ export const supplierApi = {
     return api.get<any>("/supplier-portal/dashboard-stats");
   },
 
+  // ── CA 证书（双信封 v2 · U盾管理）──
+  getAdminCert() {
+    return api.get<any>("/supplier-portal/admin-cert");
+  },
+  listMyCerts() {
+    return api.get<any[]>("/supplier-portal/profile/cert");
+  },
+  bindCert(data: { certSn: string; certDn: string; publicKey: string; alg?: string }) {
+    return api.post<any>("/supplier-portal/profile/cert", data);
+  },
+  revokeCert(certId: string) {
+    return api.delete<any>(`/supplier-portal/profile/cert/${certId}`);
+  },
+
   // Contacts
   listContacts() {
     return api.get<any[]>("/supplier-portal/contacts");

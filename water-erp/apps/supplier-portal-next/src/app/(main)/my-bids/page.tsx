@@ -216,12 +216,18 @@ export default function MyBidsPage() {
 
                       {/* Meta row */}
                       <div className="mb-card-meta">
-                        {row.bidPrice && (
+                        {row.bidPrice ? (
                           <span className="mb-card-meta-item">
                             <span className="mb-card-meta-label">报价</span>
                             {formatBidPrice(row.bidPrice)}
                           </span>
-                        )}
+                        ) : row.envelopeVersion === "dual-v2" ? (
+                          // dual-v2：报价已密封进双层信封，服务端不回传明文（开标唱标时揭示）
+                          <span className="mb-card-meta-item sealed">
+                            <span className="mb-card-meta-label">报价</span>
+                            已密封 · 开标时揭示
+                          </span>
+                        ) : null}
                         {row.deliveryPeriod && (
                           <span className="mb-card-meta-item">
                             <span className="mb-card-meta-label">工期</span>

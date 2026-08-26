@@ -21,7 +21,7 @@ Run workspace commands from `water-erp/`.
 | **API** | `apps/api` | NestJS 11 + Prisma | 4001 | REST API backend; Swagger at `/api/docs` |
 | **信息门户** | `apps/public-portal` | Next.js 16 App Router | 3002 | Public landing page, announcements, policies, login entry for all roles |
 | **采购商城** | `apps/mall` | Next.js 16 App Router | 3003 | E-commerce procurement mall — catalog browsing, procurement, favorites |
-| **供应商门户** | `apps/supplier-portal` | Vue 3 + Vite | 3004 | Supplier self-service — registration, bidding, qualifications, profile |
+| **供应商门户** | `apps/supplier-portal-next` | Next.js 16 App Router | 3004 | Supplier self-service — registration 2.0（六部分向导）, bidding（dual-v2 双信封）, U盾管理, qualifications, profile |
 | **采购管理工作台** | `apps/web` | Next.js 16 App Router | 3005 | Admin/internal staff — announcements, supplier management, expert admin, mall management |
 | **专家门户** | `apps/expert-portal` | Next.js 16 App Router | 3006 | Bid expert workstation — project review, identity verification, scoring, reports |
 | **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | **开标+评标全过程执行终端（现场）**：开标任务板 + 开标大厅（组建会话/解密/唱标/异议/监督视图）+ 评标管理（启动评标/评分矩阵/生成结果/异议裁决/澄清答疑）+ 评标签字包（打印·手写签字·回传登记）+ 评标回流包。评标前准备与评标后归档归 :3005 |
@@ -59,11 +59,13 @@ The e-commerce procurement platform for browsing and purchasing from the central
 **Login cookie:** `token_mall`.  
 **Target audience:** Mall procurement staff.
 
-### 供应商门户 (`supplier-portal`, :3004)
+### 供应商门户 (`supplier-portal-next`, :3004)
+
+**Migration note (2026-08-25):** fully rewritten from Vue 3 to Next.js 16 + React 19 + Tailwind v4 (same stack as all other portals); the old `apps/supplier-portal` Vue directory has been deleted.
 
 Self-service portal for suppliers. Supports registration (with enterprise info + qualification uploads), browsing bid opportunities, submitting encrypted bids, viewing bid progress, managing company profile/contacts/qualifications, and requesting change approvals.
 
-**Tech:** The only Vue 3 portal — uses Element Plus UI, Pinia state management, and Vue Router.  
+**Tech:** Next.js 16 App Router + React 19 + Tailwind v4（视图类名沿用迁移时的 sp-*/reg-* 体系，样式在 globals.css + `src/styles/pages/*.css` 分组）。**登录用户名 = 统一社会信用代码（机构代码）**——注册/临时注册/Excel 导入三处后端强制，`organizationCode` 仅作冗余同步存储。  
 **Access:** Requires login as `supplier` role.  
 **Login cookie:** `token_supplier`.  
 **Target audience:** Registered suppliers and new suppliers registering.
@@ -393,7 +395,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ### Frontend Conventions
 
 - Shared workbench components live in `packages/ui` (`@water-erp/ui`). Consuming apps must add `@source "../../node_modules/@water-erp/ui"` to their `globals.css` (Tailwind v4 requirement).
-- Next.js portals use React 19 + Tailwind CSS v4; supplier portal uses Vue 3 + Element Plus + Pinia.
+- All portals (incl. supplier) use Next.js 16 + React 19 + Tailwind CSS v4.
 - **Design system** (see `.impeccable.md`): industrial precision aesthetic — 1px hairline dividers, monospace numerals, layered navy→ice blue palette, Lucide 1.5px-stroke icons, `rounded-2xl` cards, `rounded-xl` buttons. The signature component treatment is a **neumorphic raised-border system** (directional light/dark shadow pairs derived from the page BG `oklch(0.975 0.012 258)`; never flat omnidirectional `box-shadow`) — buttons raise on hover, inset on active. Anti-patterns: no gradient buttons, no emoji-as-icons, no Material-style elevation shadows, no generic admin-template look. (`docs/glass-morphism-design-system.md` is an earlier, superseded direction; `.impeccable.md` is current.)
 - No mock data fallbacks — show real DB data, loading, or empty states.
 

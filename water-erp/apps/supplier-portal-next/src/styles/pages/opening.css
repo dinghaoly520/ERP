@@ -132,3 +132,17 @@
 }
 .rq-input-number:focus { border-color: var(--sp-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sp-primary) 12%, transparent); }
 .rq-input-number:disabled { background: #f5f7fa; color: #aaa; }
+
+/* ── 双信封 v2：解密我的投标卡片（移植自 Vue OpeningHall.vue）── */
+.decrypt-card { margin-top: 16px; }
+.pkg-hint { margin-top: 8px; color: #909399; font-size: 12px; line-height: 1.6; }
+.seal-block { margin: 10px 0 14px; padding: 10px 12px; border-radius: 8px; background: #f8fafc; border: 1px solid #e4e7ed; }
+.seal-title { margin-bottom: 8px; color: #606266; font-size: 12px; font-weight: 600; }
+.seal-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.seal-role { min-width: 64px; color: #303133; font-size: 13px; }
+.ukey-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.ukey-ok { color: #67c23a; font-size: 12px; font-weight: 600; }
+.ukey-hint { color: #909399; font-size: 12px; }
+.ukey-desc { margin: 0 0 10px; color: #606266; font-size: 13px; line-height: 1.6; }
+.revealed { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 13px; }
+.revealed b { color: #303133; font-variant-numeric: tabular-nums; }

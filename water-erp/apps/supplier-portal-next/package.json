@@ -12,6 +12,7 @@
     "@water-erp/client": "workspace:*",
     "@water-erp/config": "workspace:*",
     "@water-erp/shared": "workspace:*",
+    "@water-erp/ukey": "workspace:*",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.13",
     "lucide-react": "^1.8.0",

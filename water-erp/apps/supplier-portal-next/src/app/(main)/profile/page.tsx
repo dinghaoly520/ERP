@@ -37,12 +37,12 @@ const STATUS_TEXT: Record<string, string> = {
 const CR_FIELDS = [
   "name", "enterpriseType", "legalPerson", "registeredAddress", "businessScope",
   // ── 注册 2.0 扩展字段 ──
-  "logoUrl", "organizationCode", "country", "region", "detailedAddress",
+  "logoUrl", "country", "region", "detailedAddress",
   "registeredCapital", "industry", "legalPersonPhone", "companyEmail", "companyWebsite",
 ] as const;
 const CR_FIELD_LABELS: Record<string, string> = {
   name: "企业名称", enterpriseType: "企业类型", legalPerson: "法定代表人", registeredAddress: "注册地址", businessScope: "经营范围", tags: "业务标签",
-  logoUrl: "公司logo", organizationCode: "机构代码", country: "国别", region: "所属行政区域", detailedAddress: "详细地址",
+  logoUrl: "公司logo", country: "国别", region: "所属行政区域", detailedAddress: "详细地址",
   registeredCapital: "注册资本", industry: "所属行业", legalPersonPhone: "法人联系电话", companyEmail: "公司邮箱", companyWebsite: "公司官网",
 };
 /** 基本资料弹窗中以多行文本呈现的字段 */
@@ -76,7 +76,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [profile, setProfile] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"info" | "quals" | "contacts">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "quals" | "contacts" | "bank" | "perf">("info");
 
   // ═══════════ 资质与证照 ═══════════
   const [qualifications, setQualifications] = useState<any[]>([]);
@@ -164,7 +164,7 @@ export default function ProfilePage() {
       { label: "法定代表人", value: p.legalPerson },
       { label: "注册时间", value: dayjs(p.createdAt).format("YYYY-MM-DD") },
       // ── 注册 2.0 扩展字段 ──
-      { label: "机构代码", value: p.organizationCode },
+      { label: "机构代码（统一社会信用代码）", value: p.creditCode ?? p.organizationCode },
       { label: "国别", value: p.country },
       { label: "所属行政区域", value: p.region },
       { label: "注册资本", value: p.registeredCapital },
@@ -434,6 +434,8 @@ export default function ProfilePage() {
         <button type="button" className={cn("neu-tab", activeTab === "info" && "active", activeTab === "info" && "is-active")} onClick={() => setActiveTab("info")}>基本信息</button>
         <button type="button" className={cn("neu-tab", activeTab === "quals" && "active", activeTab === "quals" && "is-active")} onClick={() => { setActiveTab("quals"); void loadQualifications(); }}>资质信息</button>
         <button type="button" className={cn("neu-tab", activeTab === "contacts" && "active", activeTab === "contacts" && "is-active")} onClick={() => { setActiveTab("contacts"); void loadContacts(); }}>联系人信息</button>
+        <button type="button" className={cn("neu-tab", activeTab === "bank" && "active", activeTab === "bank" && "is-active")} onClick={() => setActiveTab("bank")}>银行账户</button>
+        <button type="button" className={cn("neu-tab", activeTab === "perf" && "active", activeTab === "perf" && "is-active")} onClick={() => setActiveTab("perf")}>主体业绩</button>
       </div>
 
       {loading ? (
@@ -507,6 +509,12 @@ export default function ProfilePage() {
               )}
             </div>
 
+          </>
+          )}
+
+          {/* ══════════ 银行账户 Tab（独立页面，注册 2.0）═══════════ */}
+          {activeTab === "bank" && (
+            <>
             {/* ═══ 银行账户（注册 2.0）═══ */}
             <div className="detail-card prof-block">
               <div className="prof-block-head">
@@ -516,14 +524,14 @@ export default function ProfilePage() {
               </div>
               {bankAccounts.length > 0 ? (
                 <div className="neu-table-card">
-                  <table className="neu-table">
+                  <table className="neu-table prof-bank-table">
                     <thead>
                       <tr>
                         <th>户名</th>
                         <th>开户银行</th>
                         <th>支行</th>
                         <th>账号</th>
-                        <th style={{ width: 90 }}>默认</th>
+                        <th>默认</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -548,6 +556,12 @@ export default function ProfilePage() {
               )}
             </div>
 
+            </>
+          )}
+
+          {/* ══════════ 主体业绩 Tab（独立页面，注册 2.0）═══════════ */}
+          {activeTab === "perf" && (
+            <>
             {/* ═══ 主体业绩（注册 2.0）═══ */}
             <div className="detail-card prof-block">
               <div className="prof-block-head">
@@ -590,7 +604,7 @@ export default function ProfilePage() {
                 <div className="prof-empty"><Briefcase size={20} strokeWidth={1.5} /><p>暂无主体业绩</p></div>
               )}
             </div>
-          </>
+            </>
           )}
 
           {/* ══════════ 资质与证照 Tab ══════════ */}
