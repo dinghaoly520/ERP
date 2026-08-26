@@ -8,6 +8,8 @@ module.exports = {
   collectCoverageFrom: ["**/*.(t|j)s"],
   coverageDirectory: "../coverage",
   testEnvironment: "node",
+  // CI 共享 runner 较慢：PBKDF2 210k + sm-crypto 用例本地秒过、CI 可超 5s 默认值
+  testTimeout: 20000,
   moduleNameMapper: {
     "^@water-erp/config$": "<rootDir>/../../../packages/config/src/index.ts",
     "^@water-erp/shared$": "<rootDir>/../../../packages/shared/src/index.ts",

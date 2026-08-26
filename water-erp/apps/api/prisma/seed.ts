@@ -379,6 +379,23 @@ async function main() {
     console.log(`    续期 ${renewed.count} 个 SUBMIT 项目`);
   }
 
+  // ═══ 供应商编号序列对齐（CI/全新库） ═══
+  // Supplier.json 灌入固定 SUP-00000N 编号但序列 supplier_no_seq 从 1 起——
+  // 不对齐则新注册 nextval 撞已占编号（DUPLICATE_RECORD supplierNo）。
+  // dev 库当年手工 setval 过；这里幂等自动对齐（任何全新环境一次到位）。
+  try {
+    await prisma.$executeRaw`
+      SELECT setval('supplier_no_seq',
+        GREATEST(
+          (SELECT COALESCE(MAX(CAST(SUBSTRING("supplierNo" FROM 5) AS INTEGER)), 0) FROM "Supplier" WHERE "supplierNo" LIKE 'SUP-%'),
+          (SELECT last_value FROM supplier_no_seq)
+        ), true)
+    `;
+    console.log('    供应商编号序列已对齐（supplier_no_seq）');
+  } catch (e) {
+    console.warn(`    ⚠ 供应商编号序列对齐失败（不阻塞）: ${(e as Error).message}`);
+  }
+
   // ═══ 评审专家凭据规整 ═══
   // 真实库导出的专家用户名是编号（如 a000912）、口令为真实库哈希（本地不知明文）。
   // 统一重置为：用户名 = 专家姓名（displayName），口令 = expert@2026，便于演示登录。

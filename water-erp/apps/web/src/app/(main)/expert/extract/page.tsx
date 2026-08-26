@@ -1108,7 +1108,7 @@ export function ExpertExtractPage({
         major: s.specialty,
         isLead: false,
       }));
-      const result = await confirmExtraction({ projectId: pid, experts: exps });
+      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode });
       const ids = result.expertIds || exps.map(e => e.userId);
       setConfirmedExpertIds(ids);
       originalConfirmedIdsRef.current = new Set(ids);
@@ -1293,7 +1293,7 @@ export function ExpertExtractPage({
     setConfirming(true); setError('');
     try {
       const exps = reDraft.selected.map(s => ({ userId: s.userId, expertName: s.name, major: s.specialty, isLead: false }));
-      const result = await confirmExtraction({ projectId: pid, experts: exps, append: true });
+      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode, append: true });
       const ids = result.expertIds || exps.map(e => e.userId);
       updateDraft({ confirmed: true, expertIds: ids });
       // 入库即入历史（roundNo 已存在则更新，避免重开时重复 push）
@@ -1468,7 +1468,7 @@ export function ExpertExtractPage({
         major: s.specialty,
         isLead: false,
       }));
-      const result = await confirmExtraction({ projectId: pid, experts: exps });
+      const result = await confirmExtraction({ projectId: pid, experts: exps, extractMode: extractMode === 'manual' ? undefined : extractMode });
       const ids = result.expertIds || exps.map(e => e.userId);
       setConfirmedExpertIds(ids);
       originalConfirmedIdsRef.current = new Set(ids);

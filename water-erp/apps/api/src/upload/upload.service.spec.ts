@@ -219,7 +219,7 @@ describe('UploadService — download permission', () => {
       jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
     });
 
-    for (const cat of EVIDENCE_CATEGORIES) {
+    for (const cat of [...EVIDENCE_CATEGORIES, 'opening_sign_page', 'opening_sign_scan']) {
       it(`${cat} 资产（admin 亦）→ 409 FILE_PROTECTED，不落 MinIO 删除`, async () => {
         prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: cat, uploaderId: 'u-host' });
 

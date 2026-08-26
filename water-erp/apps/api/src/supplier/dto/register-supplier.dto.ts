@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength, Length } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 import { RegisterContactDto } from './register-contact.dto';
@@ -74,6 +74,13 @@ export class RegisterSupplierDto {
 
   @IsArray() @ValidateNested({ each: true }) @Type(() => RegisterContactDto)
   contacts: RegisterContactDto[];
+
+  /** P1-13：注册手机验证——主联系人手机号（须与短信验证码目标一致） */
+  @IsString() @IsNotEmpty() @Matches(/^1\d{10}$/)
+  registrationPhone: string;
+
+  @IsString() @IsNotEmpty() @Length(6, 6)
+  registrationCode: string;
 
   @IsArray() @ValidateNested({ each: true }) @Type(() => CreateQualificationDto)
   qualifications: CreateQualificationDto[];

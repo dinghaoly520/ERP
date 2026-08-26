@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { fileCategoryDefaults } from '@water-erp/shared';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
+import { BID_FILE_ROLES } from '@water-erp/shared';
 import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { createDecryptStream } from '../announcement/bid-document.crypto';
@@ -32,6 +33,8 @@ const EVIDENCE_PROTECTED_CATEGORIES = [
   'expert_sign_scan',           // 专家签字/不同意见书扫描
   'expert_memo_ink',            // 专家手写备忘录
   'expert_signin_photo',        // 专家签到拍照留痕
+  'opening_sign_page',          // P1-3①A：开标记录签字页 PDF
+  'opening_sign_scan',          // P1-3①A：开标签字扫描件（主持人/监督人）
 ];
 
 const ALLOWED_CATEGORIES = [
@@ -468,7 +471,7 @@ export class UploadService implements OnModuleInit {
     column: 'innerAssets' | 'decryptedAssets',
     assetId: string,
   ): Promise<{ supplierId: string; projectId: string } | null> {
-    const roles = ['technical', 'business', 'coverLetter', 'bond'] as const;
+    const roles = BID_FILE_ROLES; // backlog-E：角色集单一来源（packages/shared），与 EnvelopeRole 对齐
     return this.prisma.supplierBidSubmission.findFirst({
       where: {
         OR: roles.map(role => ({ [column]: { path: [role], equals: assetId } })),

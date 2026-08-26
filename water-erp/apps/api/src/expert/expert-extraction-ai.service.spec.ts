@@ -95,3 +95,36 @@ describe('ExpertExtractionAiService', () => {
     });
   });
 });
+
+describe('P1-9 — LLM 输入脱敏出境', () => {
+  let svc: any;
+  let llm: any;
+
+  beforeEach(async () => {
+    process.env.DEEPSEEK_API_KEY = 'test-key';
+    const { ExpertExtractionAiService } = await import('./expert-extraction-ai.service');
+    const instance: any = Object.create(ExpertExtractionAiService.prototype);
+    llm = { chat: jest.fn().mockResolvedValue('{"analysis":"ok","scoredExperts":[{"id":"e0","matchScore":90,"fitSpecialty":"水利工程","reason":"r"}]}'), getModel: jest.fn().mockReturnValue('mock-model') };
+    instance.llm = llm;
+    instance.logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    instance.metrics = { llmErrors: 0, llmLatencyMs: 0, llmCalls: 0 };
+    svc = instance;
+  });
+  afterEach(() => { delete process.env.DEEPSEEK_API_KEY; });
+
+  it('候选行不含姓名/单位（脱敏出境，条例第46条名单保密）', async () => {
+    const candidates = [
+      { id: 'u1', displayName: '王建国', specialty: '水利工程', title: '正高级', employer: '四川省水利院', evaluationLevel: 'A', scoreDeviation: 1, currentLoadStatus: '低', pastProjects: 12 },
+    ];
+    await svc.analyzeAndScore(
+      { name: 'P', procurementMethod: '公开招标', scope: 's' },
+      candidates, 1, 'specialty_match', undefined,
+    );
+    const userPrompt = llm.chat.mock.calls[0][1] as string;
+    expect(userPrompt).not.toContain('王建国');
+    expect(userPrompt).not.toContain('四川省水利院');
+    expect(userPrompt).toContain('专业:水利工程');
+    expect(userPrompt).toContain('职称:正高级');
+    expect(userPrompt).toMatch(/候选\(编号\|专业\|职称\|履职/);
+  });
+});

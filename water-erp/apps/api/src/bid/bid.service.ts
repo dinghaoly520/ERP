@@ -9,7 +9,6 @@ import { BidScoreStandardService } from './bid-score-standard.service';
 import { sanitizeForBidHost } from './bid-sanitizer';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
-import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
@@ -797,7 +796,7 @@ export class BidService {
     return updated;
   }
 
-  async updateProject(id: string, dto: UpdateBidProjectDto) {
+  async updateProject(id: string, dto: UpdateBidProjectDto, actorId?: string) {
     // stage 流转不走此接口：曾允许 PATCH stage 绕过专用端点的前置校验/副作用/审计
     // （OPENING→EVALUATING 不建 AI task 致分析死锁，且无监督/审计日志）。
     // 阶段变更须走 openSubmission/startOpening/startEvaluation/archiveAll 等专用端点。
@@ -808,6 +807,7 @@ export class BidService {
     // 非时间字段更新不读 prev、不走校验（零回归）。
     let openTime: Date | undefined;
     let deadline: Date | undefined;
+    let prevTime: { openTime: Date; deadline: Date } | undefined;
     // 终审 null 守卫：@IsOptional 放行显式 null，若按 !== undefined 判定会把 new Date(null)=epoch
     // 当「提供」反推 1969；null 一律视同未提供（不写时间字段、不进 align/frozen 校验）
     if (dto.openTime != null || dto.deadline != null) {
@@ -816,6 +816,7 @@ export class BidService {
         select: { openTime: true, deadline: true, stage: true },
       });
       if (prev?.openTime && prev?.deadline) {
+        prevTime = { openTime: prev.openTime, deadline: prev.deadline };
         const mode = modeFor(prev.deadline);
         const newOpen = dto.openTime != null ? new Date(dto.openTime) : undefined;
         const newDeadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
@@ -846,7 +847,7 @@ export class BidService {
         deadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
       }
     }
-    return this.prisma.bidProject.update({
+    const updated = await this.prisma.bidProject.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -865,6 +866,36 @@ export class BidService {
         ...(dto.sectionName !== undefined && { sectionName: dto.sectionName }),
       },
     });
+
+    // P1-4：截标/开标时间修改留痕（监督日志 + 审计日志，含前后值；fire-and-forget 不阻塞主流程）
+    if (openTime !== undefined || deadline !== undefined) {
+      const detail = {
+        prev: prevTime ? { openTime: prevTime.openTime.toISOString(), deadline: prevTime.deadline.toISOString() } : null,
+        next: { openTime: openTime?.toISOString() ?? null, deadline: deadline?.toISOString() ?? null },
+      };
+      this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId: id,
+          time: new Date(),
+          role: actorId ? '采购人员' : '系统',
+          target: '开标/截标时间调整',
+          action: '项目时间调整',
+          result: JSON.stringify(detail),
+          riskFlag: '中',
+        },
+      }).catch(() => {});
+      if (actorId) {
+        this.prisma.auditLog.create({
+          data: {
+            userId: actorId,
+            action: 'BID_PROJECT_TIME_UPDATED',
+            resourceType: `BidProject:${id}`,
+            details: detail,
+          },
+        }).catch(() => {});
+      }
+    }
+    return updated;
   }
 
   listSuppliers(projectId: string) {
@@ -2612,7 +2643,7 @@ export class BidService {
     let finalState: any = null;
     await this.prisma.$transaction(async (tx) => {
       if (outcome === 'DANGER') {
-        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: dangerReason } });
+        await tx.bidSupplier.update({ where: { id: supplierId }, data: { decryptStatus: 'DANGER', confirmStatus: 'EXCEPTION', decryptError: dangerReason, dangerAttribution: 'PLATFORM' } });
         await tx.bidSupervisionLog.create({
           data: { projectId, time: new Date(), role: '系统', target: bidSupplier.supplierName, action: '标书解密', result: `解密异常：${dangerReason}`, riskFlag: '高风险' },
         });
@@ -2686,7 +2717,7 @@ export class BidService {
         await this.notificationService.sendToUser(supplier.userId, ['in_app'], {
           type: 'BID_DECRYPT_FAILED',
           title: `投标文件解密异常：${supplierName}`,
-          content: `您在项目中的投标文件解密失败：${reason}。请联系开标主持人处理或等待重新解密。`,
+          content: `您在项目中的投标文件解密失败：${reason}。因平台原因未完成解密，视为撤回投标文件，你有权要求责任方赔偿因此遭受的直接损失（《电子招标投标办法》第31条）。`,
           link: `/supplier/bid/${projectId}`,
         });
       }
@@ -4340,200 +4371,6 @@ export class BidService {
       return { ...result, excludedSuppliers: excludedExceptionSuppliers.map(s => ({ supplierId: s.id, supplierName: s.supplierName, reason: '开标确认状态为异常(EXCEPTION)，未纳入排名' })) };
     }
     return result;
-  }
-
-  async submitScore(projectId: string, dto: CreateScoreDto, actorId?: string) {
-    // P0: 阶段门控 — 仅在评标阶段可提交评分
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId } });
-    if (!project || project.stage !== 'EVALUATING') {
-      throw new BadRequestException({ error: '项目不在评标阶段，无法提交评分', code: 'PROJECT_NOT_EVALUATING' });
-    }
-
-    // 校验 expert 属于该项目
-    const expert = await this.prisma.bidExpert.findFirst({
-      where: { id: dto.expertId, projectId },
-    });
-    if (!expert) {
-      throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' });
-    }
-    // P1-5：代评锁定——专家已确认报告后不可再代评改分
-    if (expert.reportConfirmed) {
-      throw new BadRequestException({ error: '评审报告已确认，评分已锁定', code: 'SCORE_LOCKED' });
-    }
-    // #2: 代评核验链——与专家自评同口径（signedIn + avoidanceConfirmed + aiConsentConfirmed + agreements）
-    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed
-        || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
-      throw new ForbiddenException({ error: '该专家未完成身份核验/回避确认/AI声明/保密承诺/评标纪律，不可代评', code: 'VERIFICATION_REQUIRED' });
-    }
-    // P1: 回避校验——与专家自评同口径，代评不可对已声明冲突的供应商打分
-    const expertConflicts = parseConflictedIds(expert.conflictedSupplierIds);
-    if (expertConflicts.includes(dto.supplierId)) {
-      throw new BadRequestException({
-        error: '该专家已声明与此供应商存在利益冲突，无法代评',
-        code: 'AVOIDANCE_CONFLICT',
-      });
-    }
-
-    // 校验 scoreItem 属于该项目
-    const scoreItem = await this.prisma.bidScoreItem.findFirst({
-      where: { id: dto.scoreItemId, projectId },
-    });
-    if (!scoreItem) {
-      throw new BadRequestException({ error: '评分项不属于此项目', code: 'SCORE_ITEM_NOT_IN_PROJECT' });
-    }
-
-    // 校验 supplierId 属于该项目（防跨项目写脏分：bid_host 可传别项目的 supplierId，FK 满足即落库）
-    const bidSupplier = await this.prisma.bidSupplier.findFirst({
-      where: { id: dto.supplierId, projectId },
-    });
-    if (!bidSupplier) {
-      throw new BadRequestException({ error: '供应商不属于此项目', code: 'SUPPLIER_NOT_IN_PROJECT' });
-    }
-    // P1-9：代评不可对未解密成功/已撤回的供应商打分（与专家自评口径一致）
-    if (bidSupplier.decryptStatus !== 'SUCCESS' || bidSupplier.submitStatus === '已撤回') {
-      throw new BadRequestException({ error: '该供应商未解密成功或已撤回，无法代评', code: 'SUPPLIER_NOT_DECRYPTED' });
-    }
-
-    // 校验分数不超过评分项满分
-    if (Number(dto.score) > Number(scoreItem.maxScore)) {
-      throw new BadRequestException({
-        error: `评分项 ${scoreItem.name} 分数 ${dto.score} 超过满分 ${scoreItem.maxScore}`,
-        code: 'SCORE_EXCEEDS_MAX',
-      });
-    }
-
-    // checklist 模式：若该 item 有 points，走 decision 汇总（与 ExpertService.submitScores 同口径）
-    const points = await this.prisma.bidScorePoint.findMany({
-      where: { scoreItemId: dto.scoreItemId },
-      select: { id: true, objective: true, fullScore: true, scoreItemId: true },
-    });
-    let finalScore = Number(dto.score);
-    let finalPassed = dto.passed;
-    if (points.length > 0) {
-      // 含得分点的评分项必须提交 pointDecisions（与 ExpertService.submitScores 同口径）
-      if (!dto.pointDecisions || dto.pointDecisions.length === 0) {
-        throw new BadRequestException({
-          error: `评分项 ${scoreItem.name} 含得分点，必须提交得分点裁定`,
-          code: 'DECISIONS_REQUIRED',
-        });
-      }
-      for (const d of dto.pointDecisions) {
-        const pm = points.find(p => p.id === d.pointId);
-        if (!pm) throw new BadRequestException({ error: `得分点 ${d.pointId} 不属于该评分项`, code: 'POINT_NOT_IN_ITEM' });
-        if (Number(d.awardedScore) > Number(pm.fullScore)) {
-          throw new BadRequestException({ error: `得分点 ${d.pointId} 分数超过满分`, code: 'POINT_SCORE_EXCEEDS_MAX' });
-        }
-      }
-      const decisionMap = new Map(dto.pointDecisions.map(d => [d.pointId, { checked: d.checked, awardedScore: Number(d.awardedScore) }]));
-      const recomputed = recomputeItemFromDecisions({
-        category: scoreItem.category,
-        points: points.map(p => ({ id: p.id, objective: p.objective, fullScore: Number(p.fullScore) })),
-        decisions: decisionMap,
-        maxScore: Number(scoreItem.maxScore), // P0-A：封顶，防止数据异常使单项分 > maxScore
-      });
-      finalScore = recomputed.score;
-      finalPassed = recomputed.passed ?? dto.passed;
-      // （decision 的写 upsert 移入下方事务，与 record/review/progress 原子提交）
-    }
-
-    // P1-4/P1-5：写操作整体事务化（decisions + record + review + progress），中途失败整体回滚
-    const { record, progress } = await this.prisma.$transaction(async (tx) => {
-      // checklist 得分点裁定写入
-      if (points.length > 0 && dto.pointDecisions) {
-        for (const d of dto.pointDecisions) {
-          await tx.bidScorePointDecision.upsert({
-            where: { expertId_pointId_supplierId: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId } },
-            update: { checked: d.checked, awardedScore: d.awardedScore, note: d.note },
-            create: { expertId: dto.expertId, pointId: d.pointId, supplierId: dto.supplierId, checked: d.checked, awardedScore: d.awardedScore, note: d.note },
-          });
-        }
-      }
-      // #3: 评分修订历史——覆盖前写快照（防篡改取证，与 ExpertService.submitScores 同口径）
-      const existingRec = await tx.bidScoreRecord.findUnique({
-        where: { expertId_scoreItemId_supplierId: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId } },
-      });
-      if (existingRec) {
-        await tx.bidScoreRecordHistory.create({
-          data: {
-            recordId: existingRec.id, expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId,
-            score: existingRec.score, passed: existingRec.passed, reason: existingRec.reason, action: 'update',
-          },
-        });
-      }
-      // 利用唯一约束 upsert：存在则更新，不存在则创建
-      const rec = await tx.bidScoreRecord.upsert({
-        where: {
-          expertId_scoreItemId_supplierId: {
-            expertId: dto.expertId,
-            scoreItemId: dto.scoreItemId,
-            supplierId: dto.supplierId,
-          },
-        },
-        update: { score: finalScore, reason: dto.reason, ...(finalPassed !== undefined ? { passed: finalPassed } : {}) },
-        create: {
-          expertId: dto.expertId,
-          scoreItemId: dto.scoreItemId,
-          supplierId: dto.supplierId,
-          score: finalScore,
-          reason: dto.reason,
-          ...(finalPassed !== undefined ? { passed: finalPassed } : {}),
-        },
-      });
-      // P1-4：代评也写核对记录（否则专家核对时 P2025 → 无法确认报告）；改分后重置为 draft 需重新核对
-      await tx.bidScoreReview.upsert({
-        where: { expertId_projectId_supplierId: { expertId: dto.expertId, projectId, supplierId: dto.supplierId } },
-        update: { status: 'draft', verifiedAt: null },
-        create: { expertId: dto.expertId, projectId, supplierId: dto.supplierId, status: 'draft' },
-      });
-      // 同步专家进度/总分（事务内，复用纯函数，与 ExpertService.submitScores 同口径）
-      const { progress, totalScore } = await recomputeExpertProgress(tx, dto.expertId, projectId);
-      await tx.bidExpert.update({ where: { id: expert.id }, data: { progress, totalScore } });
-      return { record: rec, progress };
-    });
-
-    // 非否认审计：此为管理端代评/改分通道（bid_expert 走 expert 模块自评），记录实际操作者与落库分 finalScore
-    if (actorId) {
-      this.prisma.auditLog.create({
-        data: {
-          userId: actorId,
-          action: 'BID_SCORE_SUBMIT',
-          resourceType: `BidProject:${projectId}`,
-          details: { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: finalScore },
-        },
-      }).catch((err) => this.logger.error('评分提交审计日志写入失败', err));
-    }
-
-    // P1: 评分偏差实时检测（事务外只读 + 广播）
-    const existingRows = await this.prisma.bidScoreRecord.findMany({
-      where: { scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, expertId: { not: dto.expertId } },
-      select: { expertId: true, scoreItemId: true, supplierId: true, score: true },
-    });
-    const existingScores: ScoreRecordInput[] = (existingRows ?? []).map(r => ({
-      expertId: r.expertId, scoreItemId: r.scoreItemId,
-      supplierId: r.supplierId, score: Number(r.score),
-    }));
-
-    const alert = checkScoreAnomaly(
-      { expertId: dto.expertId, scoreItemId: dto.scoreItemId, supplierId: dto.supplierId, score: finalScore },
-      existingScores,
-    );
-    if (alert) {
-      this.logger.warn(`[ScoreAnomaly] project=${projectId} ${alert.detail}`);
-      this.gateway?.notifyAnomaly(projectId, {
-        type: 'score_deviation',
-        supplierId: dto.supplierId,
-        supplierName: '',
-        detail: alert.detail,
-        severity: alert.severity,
-      });
-    }
-
-    // P2: 不再广播分数值（专家独立评审）。仅通知"评分活动"里程碑 + 刷新聚合在场（无分数）。
-    this.gateway?.notifyExpertPresence(projectId, {
-      expertId: dto.expertId, expertName: expert.expertName, milestone: 'scoring_activity',
-      progressPercent: progress,
-    });
-    return record;
   }
 
   async listScores(projectId: string) {
@@ -6703,6 +6540,19 @@ export class BidService {
 
   /** 正选↔候补角色互换（开标确认页 操作→替换） */
   async swapExpertRole(projectId: string, fromExpertId: string, toExpertId: string) {
+    // backlog §6.2（原 P2-5）：评标启动后互换评委 = 改变委员会组成，被换正选的已交评分
+    // 会被聚合口径静默排除——须走重评/补选流程，不允许静默互换。评标前互换是正常递补，放行。
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') {
+      throw new ConflictException({
+        error: '评标已启动，不可互换正选/候补专家（改变委员会组成）——如需更换请走异议裁决或重新评标流程',
+        code: 'EXPERT_SWAP_LOCKED',
+      });
+    }
     const [e1, e2] = await Promise.all([
       this.prisma.bidExpert.findFirst({ where: { projectId, id: fromExpertId } }),
       this.prisma.bidExpert.findFirst({ where: { projectId, id: toExpertId } }),

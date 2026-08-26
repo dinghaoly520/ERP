@@ -297,7 +297,7 @@ describe('SupplierPortalService', () => {
       prisma.bidSupplier.findFirst.mockResolvedValue(null);
       prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-1', supplierId: 'supplier-1' });
 
-      const result = await service.submitBid('supplier-1', 'project-1', { bidPrice: '100' });
+      const result = await service.submitBid('supplier-1', 'project-1', { bidPrice: '100', hostDecryptAuthorized: true });
 
       expect(result.status).toBe('submitted');
       expect(prisma.bidSupplier.create).toHaveBeenCalledWith(
@@ -324,7 +324,7 @@ describe('SupplierPortalService', () => {
       prisma.bidSupplier.findFirst.mockResolvedValue(null);
       prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-2' });
 
-      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100' })).resolves.toBeDefined();
+      await expect(service.submitBid('supplier-1', 'project-1', { bidPrice: '100', hostDecryptAuthorized: true })).resolves.toBeDefined();
     });
 
     it('放宽门控：DOWNLOAD 阶段但无公告 → 400 BID_NOTICE_REQUIRED（G3 兜底）', async () => {
@@ -362,7 +362,7 @@ describe('SupplierPortalService', () => {
       prisma.bidSupplier.findFirst.mockResolvedValue(null);
       prisma.bidSupplier.create.mockResolvedValue({ id: 'bs-2' });
 
-      await service.submitBid('supplier-1', 'project-1', { bidPrice: '100', qualityCommitment: '满足招标文件要求，一次验收合格' } as any);
+      await service.submitBid('supplier-1', 'project-1', { bidPrice: '100', qualityCommitment: '满足招标文件要求，一次验收合格', hostDecryptAuthorized: true } as any);
 
       expect(prisma.supplierBidSubmission.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ qualityCommitment: '满足招标文件要求，一次验收合格' }) }),
@@ -416,7 +416,7 @@ describe('SupplierPortalService', () => {
       ]);
 
       const result = await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2',
+        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2', hostDecryptAuthorized: true,
       });
 
       expect(result.status).toBe('submitted');
@@ -451,7 +451,7 @@ describe('SupplierPortalService', () => {
     });
 
     it('encrypts bid files on submit and stores sealedKeys', async () => {
-      const result = await service.submitBid('supplier-1', 'project-1', { technicalFileAssetId: 'fa-1' });
+      const result = await service.submitBid('supplier-1', 'project-1', { technicalFileAssetId: 'fa-1', hostDecryptAuthorized: true });
 
       expect(encryptBuffer).toHaveBeenCalled();
       expect(minioClient.getObject).toHaveBeenCalledWith('test-bucket', mockAsset.key);
@@ -490,7 +490,7 @@ describe('SupplierPortalService', () => {
       prisma.fileAsset.findUnique.mockResolvedValueOnce({ ...mockAsset }).mockResolvedValueOnce(mockAsset2);
 
       await expect(service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2',
+        technicalFileAssetId: 'fa-1', businessFileAssetId: 'fa-2', hostDecryptAuthorized: true,
       })).rejects.toThrow('minio write error');
 
       // Should clean up the sealed file that was already written (fa-1)
@@ -506,6 +506,7 @@ describe('SupplierPortalService', () => {
       await service.submitBid('supplier-1', 'project-1', {
         technicalFileAssetId: 'fa-1',
         bidPrice: plain,
+        hostDecryptAuthorized: true,
       });
 
       expect(prisma.supplierBidSubmission.create).toHaveBeenCalledTimes(1);
@@ -538,6 +539,7 @@ describe('SupplierPortalService', () => {
         await expect(service.submitBid('supplier-1', 'project-1', {
           technicalFileAssetId: 'fa-1',
           bidPrice: '999',
+          hostDecryptAuthorized: true,
         })).rejects.toThrow(/KMS_SECRET is not configured/);
       } finally {
         process.env.KMS_SECRET = orig;
@@ -1441,7 +1443,7 @@ describe('SupplierPortalService', () => {
 
     it('⑤ 旧轨回归（flag 默认开、不传 envelope）：clientDeks E2EE 分支照旧', async () => {
       await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-dual-1', bidPrice: '100',
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '100', hostDecryptAuthorized: true,
         clientDeks: { 'fa-dual-1': 'aabbccdd:11223344:55667788' },
       } as any);
 
@@ -1485,13 +1487,41 @@ describe('SupplierPortalService', () => {
       const junkVersion = { ...envelope, version: 'junk-v1' } as any;
 
       await service.submitBid('supplier-1', 'project-1', {
-        technicalFileAssetId: 'fa-dual-1', envelope: junkVersion, signature,
+        technicalFileAssetId: 'fa-dual-1', envelope: junkVersion, signature, hostDecryptAuthorized: true,
       } as any);
 
       expect(encryptBuffer).toHaveBeenCalled();
       const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
       expect(call.data.envelope).toBeUndefined();
       expect(call.data.envelopeVersion).toBeUndefined();
+    });
+
+    it('P1-1：旧轨未勾选代解密授权 → 400 HOST_DECRYPT_CONSENT_REQUIRED 零落库', async () => {
+      await expect(service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '100',
+        clientDeks: { 'fa-dual-1': 'aabbccdd:11223344:55667788' },
+      } as any)).rejects.toMatchObject({ response: { code: 'HOST_DECRYPT_CONSENT_REQUIRED' } });
+      expect(prisma.supplierBidSubmission.create).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.update).not.toHaveBeenCalled();
+    });
+
+    it('P1-1：旧轨勾选授权 → hostDecryptAuthorized=true 落库（授权记录）', async () => {
+      await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', bidPrice: '100', hostDecryptAuthorized: true,
+        clientDeks: { 'fa-dual-1': 'aabbccdd:11223344:55667788' },
+      } as any);
+      const call = prisma.supplierBidSubmission.create.mock.calls[0][0];
+      expect(call.data.hostDecryptAuthorized).toBe(true);
+    });
+
+    it('P1-1：新轨（dual-v2）提交不受授权门控影响（供应商自解无需授权）', async () => {
+      // 复用 ① 的合法 fixture 路径：仅断言不因缺 hostDecryptAuthorized 报错
+      const { envelope, signature } = await buildDualSubmission();
+      const res = await service.submitBid('supplier-1', 'project-1', {
+        technicalFileAssetId: 'fa-dual-1', envelope, signature,
+      } as any);
+      expect(res).toBeTruthy();
+      expect(prisma.supplierBidSubmission.create.mock.calls[0][0].data.envelopeVersion).toBe('dual-v2');
     });
 
     it('⑦a bond 双轨：bondRequired=true + bond 密封齐备（clientEncrypted + 信封条目）→ 通过且 bond 角色入备份/封存', async () => {

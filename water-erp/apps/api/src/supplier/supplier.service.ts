@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { buildSubjectCode } from '@water-erp/shared';
 import { NotificationService } from '../notification/notification.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { VerificationService } from '../verification/verification.service';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
@@ -53,6 +54,7 @@ export class SupplierService {
     private notificationService: NotificationService,
     @Inject('REDIS_CLIENT') private redis: any,
     private llm: LlmService,
+    private verificationService: VerificationService,
   ) {}
 
   /**
@@ -68,6 +70,12 @@ export class SupplierService {
   }
 
   async register(dto: RegisterSupplierDto) {
+    // P1-13：注册实名核验——主联系人手机号短信验证码前置校验（verifyRegistrationCode 消费后失效）。
+    // 内部批量导入用哨兵码跳过（管理端已实名核验的建档渠道）。
+    if (dto.registrationCode !== '__INTERNAL_IMPORT__') {
+      await this.verificationService.verifyRegistrationCode(dto.registrationPhone, dto.registrationCode);
+    }
+
     // ★ 用户名强制 = 统一社会信用代码（机构代码）：忽略调用方传入的 username。
     //   creditCode 唯一 → 登录用户名天然唯一。
     const username = dto.creditCode.trim();
@@ -2314,14 +2322,27 @@ export class SupplierService {
     await this.redis.set(key, JSON.stringify(payload), 'EX', 86400 * 30); // 30 天过期
 
     // 配置写回 BidProject：openTime=开标时间，deadline=开标前24小时，downloadDeadline=获取截止
+    // backlog §1.1：截标已过（frozen 语义）禁改时间——谈判配置重发不得动已固化截标时间
     const bidOpening = new Date(dto.bidOpeningTime);
     const acquireEnd = new Date(dto.acquireEndTime);
     if (!isNaN(bidOpening.getTime())) {
+      const prev = await this.prisma.bidProject.findUnique({
+        where: { id: dto.projectId },
+        select: { deadline: true },
+      });
+      const newDeadline = new Date(bidOpening.getTime() - 24 * 60 * 60 * 1000);
+      if (prev?.deadline && prev.deadline.getTime() < Date.now()
+          && prev.deadline.getTime() !== newDeadline.getTime()) {
+        throw new ConflictException({
+          error: `截标时间已固化（${prev.deadline.toISOString()}），谈判配置不可变更投标截止时间`,
+          code: 'DEADLINE_FROZEN',
+        });
+      }
       await this.prisma.bidProject.update({
         where: { id: dto.projectId },
         data: {
           openTime: bidOpening,
-          deadline: new Date(bidOpening.getTime() - 24 * 60 * 60 * 1000),
+          deadline: newDeadline,
           ...(acquireEnd && !isNaN(acquireEnd.getTime()) ? { downloadDeadline: acquireEnd } : {}),
         },
       }).catch(() => { /* 项目可能不存在，忽略 */ });
@@ -2494,6 +2515,9 @@ export class SupplierService {
           tags: [],
           contacts: [],
           qualifications: [],
+          // P1-13：内部导入（管理端批量建档）跳过短信验证——直接调用内部建档绕过 verifyRegistrationCode
+          registrationPhone: '',
+          registrationCode: '__INTERNAL_IMPORT__',
         });
         created++;
       } catch (e: any) {

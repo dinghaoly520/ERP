@@ -501,6 +501,11 @@ model BidOpeningSession {
   exchangeControl       String     @default("OPEN") // OPEN 允许群聊 | MUTED 仅主持人可发言 | CLOSED 关闭互动
   handoverAssetId       String? // 开标文件包 FileAsset 引用（完成开标·移交后写入）
   handoverAt            DateTime? // 移交时间
+  // P1-3①A：开标记录纸面签字（主持人/监督人扫描回传登记，进开标文件包哈希链）
+  hostSignScanFileId       String?   // 主持人签字扫描 → FileAsset（category=opening_sign_scan）
+  supervisorSignScanFileId String?   // 监督人签字扫描（选填）
+  openingSignRegisteredAt  DateTime? // 签字登记闭环时间
+  openingSignRegisteredBy  String?   // 登记操作人 userId
   disputeTimeoutMinutes Int? // 异议超时分钟数（null=不限）
   disputedSince         DateTime? // 首个异议提出时间（全部解决后清零）
   activeHostId          String? // 当前操作者 userId（并发检测）
@@ -1751,6 +1756,7 @@ model SupplierBidSubmission {
   // ── 双信封 v2（dual-envelope）──
   envelope          Json?    // dual-v2 信封（version/certSn/adminCertId/files/sealedFields/fieldsCommit）
   envelopeVersion   String?  // 'dual-v2' | null(旧轨)
+  hostDecryptAuthorized Boolean @default(false) // P1-1：旧轨投递时投标人勾选「同意平台在开标环节代解密」的授权记录（办法第30条留痕；新轨供应商自解无需）
   decryptedPrice    String?  // 解密上传后经 fieldsCommit 验证的报价
   outerDecryptedAt  DateTime?
   packageFetchedAt  DateTime?
@@ -1807,6 +1813,20 @@ model FileAsset {
 
   @@index([category])
   @@index([uploaderId])
+}
+
+/// P1-12：操作日志月分区归档清单（archive-before-drop）——办法第42条≥15年留存的凭据+幂等锚点。
+/// dropExpiredPartitions 先导出分区到 MinIO（gzip JSON-lines）写本清单，再 DROP；导出失败不 DROP（数据保留）。
+model OperationLogArchive {
+  id         String   @id @default(cuid())
+  month      String   @unique // 分区月 YYYY_MM
+  rowCount   Int
+  objectKey  String   @unique // MinIO: operation-log-archive/<yyyy_mm>.jsonl.gz（空分区为空串）
+  sha256     String // gzip 对象 SHA-256（空分区为空串）
+  sizeBytes  Int
+  archivedAt DateTime @default(now())
+
+  @@index([archivedAt])
 }
 
 /// 未解密投标文件备份：提交时即固化的加密态副本（自包含证据包），用于争议核验。

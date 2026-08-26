@@ -11,7 +11,6 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { portalFromRequest } from '../auth/portal-cookie';
 import { CreateBidProjectDto } from './dto/create-bid-project.dto';
 import { UpdateBidProjectDto } from './dto/update-bid-project.dto';
-import { CreateScoreDto } from './dto/create-score.dto';
 import { CreateClarificationDto } from './dto/create-clarification.dto';
 import { ReplyClarificationDto } from './dto/reply-clarification.dto';
 import { StartOpeningDto } from './dto/start-opening.dto';
@@ -260,7 +259,9 @@ export class BidController {
 
   @Patch('projects/:id')
   @ApiOperation({ summary: '更新项目' })
-  updateProject(@Param('id') id: string, @Body() dto: UpdateBidProjectDto) { return this.bidService.updateProject(id, dto); }
+  updateProject(@Param('id') id: string, @Body() dto: UpdateBidProjectDto, @CurrentUser('sub') userId?: string) {
+    return this.bidService.updateProject(id, dto, userId);
+  }
 
   @Get('projects/:id/suppliers')
   @ApiOperation({ summary: '投标供应商列表' })
@@ -550,10 +551,6 @@ export class BidController {
   @Post('projects/:id/evaluation-results/generate')
   @ApiOperation({ summary: '生成评标结果与候选人' })
   generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) { return this.bidService.generateEvaluationResults(id, userId); }
-
-  @Post('projects/:id/scores')
-  @ApiOperation({ summary: '提交评分' })
-  submitScore(@Param('id') id: string, @Body() dto: CreateScoreDto, @CurrentUser('sub') actorId: string) { return this.bidService.submitScore(id, dto, actorId); }
 
   @Get('projects/:id/scores')
   @ApiOperation({ summary: '评分列表' })

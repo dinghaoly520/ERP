@@ -1,8 +1,9 @@
-import { Injectable, Inject, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, BadRequestException, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { VerificationScene } from './dto/send-code.dto';
 import { randomInt } from 'node:crypto';
+import { SmsProvider, resolveSmsProvider } from './sms-provider';
 
 interface VerificationRecord {
   code: string;
@@ -21,10 +22,15 @@ const DEBUG_BYPASS_CODE = '123456';
 
 @Injectable()
 export class VerificationService {
+  private readonly logger = new Logger(VerificationService.name);
+  private readonly sms: SmsProvider;
+
   constructor(
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly prisma: PrismaService,
-  ) {}
+  ) {
+    this.sms = resolveSmsProvider();
+  }
 
   private codeKey(scene: string, userId: string, targetId: string) {
     return `verification:${scene}:${userId}:${targetId}`;
@@ -138,9 +144,16 @@ export class VerificationService {
       COOLDOWN_TTL,
     );
 
-    // 仅在 dev stub 模式下打印验证码（生产用真 SMS 时不应把验证码写进日志）
-    if (process.env.SMS_DEBUG_BYPASS === 'true') {
-      console.log(`[SMS-STUB] 验证码: ${code} → ${phone} (场景: ${scene})`);
+    // P1-13：真实发送通道——provider 发送失败时回滚 Redis 记录并抛 503（不再静默死链）
+    try {
+      await this.sms.send(phone, code, scene);
+    } catch (err) {
+      try { await this.redis.del(key); } catch { /* 回滚尽力而为 */ }
+      this.logger.error(`SMS 发送失败（scene=${scene}）：${(err as Error).message}`);
+      throw new BadRequestException({
+        code: 'SMS_PROVIDER_FAILED',
+        error: '验证码发送失败，请稍后重试或联系管理员',
+      });
     }
 
     return { maskedPhone: this.maskPhone(phone) };
@@ -262,8 +275,16 @@ export class VerificationService {
     await this.redis.set(this.regCodeKey(phone), JSON.stringify(record), 'EX', CODE_TTL);
     await this.redis.set(this.regCooldownKey(phone), '1', 'EX', COOLDOWN_TTL);
 
-    if (process.env.SMS_DEBUG_BYPASS === 'true') {
-      console.log(`[SMS-STUB] 注册验证码: ${code} → ${phone}`);
+    // P1-13：真实发送通道（provider 失败回滚 Redis 记录，不再静默死链）
+    try {
+      await this.sms.send(phone, code, 'supplier_registration');
+    } catch (err) {
+      try { await this.redis.del(this.regCodeKey(phone)); } catch { /* 回滚尽力而为 */ }
+      this.logger.error(`SMS 发送失败（scene=supplier_registration）：${(err as Error).message}`);
+      throw new BadRequestException({
+        code: 'SMS_PROVIDER_FAILED',
+        error: '验证码发送失败，请稍后重试或联系管理员',
+      });
     }
 
     return { maskedPhone: this.maskPhone(phone) };

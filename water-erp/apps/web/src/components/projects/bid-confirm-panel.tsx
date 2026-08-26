@@ -381,9 +381,15 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
       const updated = await updateBidProjectSchedule(bpId, { openTime: iso });
       setBidProject(updated);
       setDelayOpen(false);
-      // 弹出"是否通知供应商与专家"确认
-      setPendingOpenTime(updated.openTime);
-      setNotifyConfirmOpen(true);
+      // P1-4：变更通知为强制步骤（改时间必须通知全部已获标书供应商与已确认专家）——
+      // 自动发出；失败时保留重试弹窗（无「不通知」选项）
+      try {
+        const r = await notifyBidScheduleChange(bpId, iso);
+        showToast(`已通知 ${r.reached ?? 0} 位供应商/专家`);
+      } catch {
+        setPendingOpenTime(updated.openTime);
+        setNotifyConfirmOpen(true);
+      }
     }, '更新开标时间失败');
   }
 
@@ -391,7 +397,7 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
     const openTime = pendingOpenTime;
     setNotifyConfirmOpen(false);
     setPendingOpenTime('');
-    if (!notify || !bpId) return;
+    if (!bpId) return;
     await withBusy(async () => {
       const r = await notifyBidScheduleChange(bpId, openTime);
       showToast(`已通知 ${r.reached ?? 0} 位供应商/专家`);
@@ -1041,12 +1047,11 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
               <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
                 开标时间已更新为
                 <span className="mx-1 font-semibold tabular-nums text-[var(--foreground)]">{formatDateTime(pendingOpenTime)}</span>
-                。是否立即通知所有投标供应商与评标专家？
+                ，但自动通知失败。变更通知为强制步骤——请重试通知全部投标供应商与评标专家。
               </p>
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => void handleConfirmNotify(false)} className="neu-btn-soft !h-[36px] !text-xs">不通知</button>
                 <button type="button" onClick={() => void handleConfirmNotify(true)} disabled={busy} className="neu-btn-primary !h-[36px] !text-xs">
-                  <BellRing size={13} /> 立即通知
+                  <BellRing size={13} /> 重试通知
                 </button>
               </div>
             </div>

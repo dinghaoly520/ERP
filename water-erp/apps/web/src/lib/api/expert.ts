@@ -135,7 +135,7 @@ export function previewExtraction(data: {
   return api.post<ExtractionPreview>('/expert-admin/extract', data);
 }
 
-export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[]; append?: boolean }) {
+export function confirmExtraction(data: { projectId: string; experts: { userId: string; expertName: string; major: string; isLead?: boolean }[]; candidates?: { userId: string; expertName: string; major: string }[]; append?: boolean; extractMode?: 'specialty_match' | 'random' | 'merit_best' }) {
   return api.post<{ success: boolean; count: number; expertIds: string[] }>('/expert-admin/extract/confirm', data);
 }
 
