@@ -139,6 +139,34 @@ export class ArchiveExportService {
     }));
     other.file('元数据.json', JSON.stringify(metaPayload, null, 2));
 
+    // C3（CTS-EBS01 A-199）：非招标成交记录——流标转非招标的项目补记成交方式与结果
+    const deal = await this.prisma.nonTenderDealRecord.findFirst({
+      where: { pmItemId: item.id },
+      orderBy: { recordedAt: 'desc' },
+    });
+    if (deal) {
+      const dealPayload = JSON.stringify(
+        {
+          登记依据: 'CTS-EBS01-2016 A-199 变更为非招标方式的处理',
+          方式: deal.method,
+          成交供应商: deal.winnerName,
+          成交金额: deal.dealAmount != null ? Number(deal.dealAmount) : null,
+          成交文件: deal.fileAssetId ?? null,
+          备注: deal.note,
+          登记时间: deal.recordedAt.toISOString(),
+        },
+        null,
+        2,
+      );
+      other.file('非招标成交记录.json', dealPayload);
+      manifest.push({
+        path: `${volName}/其他/非招标成交记录.json`,
+        sha256: crypto.createHash('sha256').update(dealPayload).digest('hex'),
+        size: Buffer.byteLength(dealPayload),
+        source: 'generated/非招标成交记录',
+      });
+    }
+
     const trailBuf = await this.trail.build(pmiId);
     other.file(`审批留痕_${volName}.json`, trailBuf);
     manifest.push({

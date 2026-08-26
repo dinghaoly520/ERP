@@ -2,6 +2,8 @@ import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AdminCertController } from './admin-cert.controller';
 import { BidController } from './bid.controller';
+import { NonTenderDealController } from './non-tender-deal.controller';
+import { NonTenderDealService } from './non-tender-deal.service';
 import { BidService } from './bid.service';
 import { GbCodeService } from '../common/gb-code.service';
 import { BidScoreStandardService } from './bid-score-standard.service';
@@ -35,9 +37,9 @@ import { SignatureService } from '../common/crypto/signature.service';
     AiBidAnalysisModule, // ← 为了注入 PlaintextFetcherService（Task 1: AI 提取得分点）
     BidBackupModule,
   ],
-  controllers: [BidController, BidSignPacketController, AdminCertController],
+  controllers: [BidController, BidSignPacketController, AdminCertController, NonTenderDealController],
   providers: [
-    GbCodeService,BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService],
+    GbCodeService, NonTenderDealService, BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService],
   exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService],
 })
 export class BidModule implements OnModuleInit {

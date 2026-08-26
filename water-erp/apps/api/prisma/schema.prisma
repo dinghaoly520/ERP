@@ -2791,6 +2791,26 @@ enum ArchiveRetentionPeriod {
 }
 
 /// 归档范围表（规范 §6 + 附录 B 共 36 项；驱动阶段闸门/质检勾稽/ASIP 组包）
+/// C3 转非招标方式成交记录（CTS-EBS01 A-199）：流标项目改用非招标方式的成交结果登记。
+/// 结构化字段入 ASIP「其他/非招标成交记录.json」；成交文件同时挂 PMI 定标阶段附件随档。
+model NonTenderDealRecord {
+  id              String    @id @default(cuid())
+  bidProjectId    String    @unique
+  pmItemId        String?
+  method          String // 竞争性谈判 | 询价 | 单一来源
+  winnerSupplierId String?
+  winnerName      String
+  dealAmount      Decimal?  @db.Decimal(14, 2)
+  fileAssetId     String?
+  note            String?
+  recordedById    String?
+  recordedAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([pmItemId])
+}
+
 model ArchiveScopeItem {
   id             String   @id @default(cuid())
   code           String   @unique // 附录 B 序号，如 "2.4"

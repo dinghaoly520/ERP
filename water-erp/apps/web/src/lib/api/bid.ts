@@ -615,3 +615,23 @@ export interface SignPacketResponse {
 export function getSignPacket(bidProjectId: string) {
   return api.get<SignPacketResponse>(`/bid/projects/${bidProjectId}/sign-packet`);
 }
+
+/* ── C3 转非招标方式成交登记（A-199）：流标项目改用非招标方式后的成交结果 ── */
+
+export type NonTenderDealRecord = {
+  id: string; bidProjectId: string; pmItemId: string | null;
+  method: string; winnerSupplierId: string | null; winnerName: string;
+  dealAmount: string | null; fileAssetId: string | null; note: string | null;
+  recordedAt: string; createdAt: string;
+};
+
+export async function registerNonTenderDeal(
+  bidProjectId: string,
+  body: { method: string; winnerName: string; winnerSupplierId?: string; dealAmount?: number; fileAssetId?: string; note?: string },
+) {
+  return api.post<NonTenderDealRecord>(`/bid/projects/${bidProjectId}/non-tender-deal`, body);
+}
+
+export async function getNonTenderDeal(bidProjectId: string) {
+  return api.get<NonTenderDealRecord | null>(`/bid/projects/${bidProjectId}/non-tender-deal`);
+}
