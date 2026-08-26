@@ -115,7 +115,7 @@ export class TenderClarificationService {
     if (!doc || doc.projectId !== projectId) {
       throw new BadRequestException({ error: '澄清文件不存在', code: 'NOT_FOUND' });
     }
-    if (doc.status === '已发布') return doc; // 幂等
+    if (doc.status === '已发布') return { ...doc, notifiedCount: 0 }; // 幂等（不再触发通知/公告）
 
     assertIssueWithinWindow(project.deadline);
 
@@ -171,18 +171,52 @@ export class TenderClarificationService {
     return { companyId: u.companyId, companyName: u.companyRef?.name };
   }
 
-  /** B-013：通知已获取招标文件的供应商（Task 6 实装）。 */
-  private async notifyDownloaders(_project: { id: string; name: string }, _doc: { id: string; version: number; title: string }): Promise<number> {
-    return 0;
+  /** B-013：向所有已获取招标文件的供应商发站内通知。 */
+  private async notifyDownloaders(project: { id: string; name: string }, doc: { id: string; version: number; title: string }): Promise<number> {
+    const rows = await this.prisma.bidSupplier.findMany({
+      where: { projectId: project.id, downloadStatus: '已下载' },
+      select: { supplier: { select: { userId: true } } },
+    });
+    let notified = 0;
+    for (const r of rows) {
+      const uid = r.supplier?.userId;
+      if (!uid) continue; // 未关联登录账号的供应商跳过
+      await this.notifications
+        .create({
+          userId: uid,
+          type: 'CLARIFICATION',
+          title: `【第${doc.version}次澄清】${project.name}`,
+          content: `${doc.title}——请登录供应商门户「澄清与修改」及时查看下载。`,
+        })
+        .catch((err) => this.logger.warn(`通知发送失败 u=${uid}: ${err.message}`));
+      notified += 1;
+    }
+    return notified;
   }
 
-  /** B-014：发布置顶澄清公告（Task 6 实装）。 */
+  /** B-014：发布置顶澄清公告（同步进入公共门户公告流）。 */
   private async publishClarifyNotice(
-    _project: { id: string; name: string; projectCode: string },
-    _doc: { id: string; version: number; title: string; content: string },
-    _authorId?: string,
-    _companyStamp: { companyId?: string; companyName?: string } = {},
-  ): Promise<void> {}
+    project: { id: string; name: string; projectCode: string },
+    doc: { id: string; version: number; title: string; content: string },
+    authorId?: string,
+    companyStamp: { companyId?: string; companyName?: string } = {},
+  ): Promise<void> {
+    await this.announcements
+      .create(
+        {
+          title: `【澄清与修改】${project.name}（第${doc.version}次）`,
+          content: doc.content || doc.title,
+          type: 'CLARIFY_NOTICE' as never,
+          status: 'PUBLISHED' as never,
+          isTop: true,
+          relatedProjectCode: project.projectCode,
+          metadata: { clarificationVersion: doc.version, docId: doc.id },
+        } as never,
+        authorId,
+        companyStamp,
+      )
+      .catch((err) => this.logger.error(`澄清公告发布失败: ${err.message}`));
+  }
 
   /** 供应商视角列表（Task 7 完整实现）。 */
   async listForSupplier(_projectId: string, _supplierId: string) {

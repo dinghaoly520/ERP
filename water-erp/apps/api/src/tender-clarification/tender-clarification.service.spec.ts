@@ -125,8 +125,9 @@ describe('TenderClarificationService 版本化澄清文件（A-82/A-83/B-012）'
           .mockResolvedValueOnce({ id: 'd1', projectId: 'p1', status: '已发布', version: 1, title: 't', content: 'c' }),
         update: jest.fn().mockResolvedValue({ id: 'd1', status: '已发布', publishedAt: new Date() }),
       },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
     };
-    const svc = makeService(prisma);
+    const svc = new TenderClarificationService(prisma as any, {} as any, { create: jest.fn().mockResolvedValue({}) } as any);
     const first = await svc.publishDoc('p1', 'd1');
     expect(first.status).toBe('已发布');
     const again = await svc.publishDoc('p1', 'd1');
@@ -149,5 +150,33 @@ describe('TenderClarificationService 版本化澄清文件（A-82/A-83/B-012）'
     await expect(svc.updateDoc('p1', 'd1', { title: '新标题' })).resolves.toMatchObject({ title: '新标题' });
     await expect(svc.updateDoc('p1', 'd1', { title: 'x' })).rejects.toMatchObject({ response: { code: 'DOC_LOCKED' } });
     await expect(svc.deleteDoc('p1', 'd1')).rejects.toMatchObject({ response: { code: 'DOC_LOCKED' } });
+  });
+});
+
+describe('publishDoc 副作用（B-013/B-014）', () => {
+  it('通知所有已下载供应商并发布 CLARIFY_NOTICE 置顶公告（带公司归属戳）', async () => {
+    const notifications = { create: jest.fn().mockResolvedValue({}) };
+    const announcements = { create: jest.fn().mockResolvedValue({ id: 'a1' }) };
+    const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p1', projectCode: 'PC-1', name: '水厂设备', deadline: new Date(Date.now() + 20 * DAY) }) },
+      tenderClarificationDoc: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '草稿', version: 1, title: '澄清一', content: '正文' }),
+        update: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '已发布', version: 1, title: '澄清一', content: '正文', publishedAt: new Date() }),
+      },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([
+        { supplier: { userId: 'u1' } },
+        { supplier: { userId: 'u2' } },
+      ]) },
+    };
+    const svc = new TenderClarificationService(prisma as any, notifications as any, announcements as any);
+    const r = await svc.publishDoc('p1', 'd1', 'staff-1', { companyId: 'c1', companyName: '采购中心' });
+    expect(r.notifiedCount).toBe(2);
+    expect(notifications.create).toHaveBeenCalledTimes(2);
+    expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1', type: 'CLARIFICATION' }));
+    expect(announcements.create).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'CLARIFY_NOTICE', status: 'PUBLISHED', isTop: true, relatedProjectCode: 'PC-1' }),
+      'staff-1',
+      { companyId: 'c1', companyName: '采购中心' },
+    );
   });
 });
