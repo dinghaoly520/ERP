@@ -74,6 +74,7 @@ export class AnnouncementController {
   // ─── 管理接口 ───
 
   @Get()
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '公告列表（管理端，按公司隔离）' })
   async list(
     @Query('type') type?: string,
@@ -92,6 +93,7 @@ export class AnnouncementController {
   }
 
   @Get('stats')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '公告统计（按公司隔离）' })
   async getStats(@Query('companyId') companyId?: string, @Request() req?: any) {
     const scope = await this.companyScope.resolveScope(req?.user, companyId);
@@ -109,6 +111,7 @@ export class AnnouncementController {
   // ─── 普通附件 ───
 
   @Get(':id/attachments')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '公告附件列表' })
   async listAttachments(@Param('id') id: string) {
     return this.attachmentService.list(id);
@@ -240,6 +243,7 @@ export class AnnouncementController {
   // ─── 公告详情（管理端，含招标文件配置）───
 
   @Get(':id')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '公告详情' })
   async get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser | undefined) {
     await this.assertAnnouncementScope(id, user);
