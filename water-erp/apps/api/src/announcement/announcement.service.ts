@@ -38,6 +38,11 @@ export class AnnouncementService {
 
     const status = (dto.status as any) ?? 'DRAFT';
 
+    // W2（B-004/B-009）：依法必招时间规则预检——置于建行之前，违者 400 且不留孤儿公告
+    if (dto.type === 'BID_NOTICE' && status === 'PUBLISHED') {
+      await this.assertBidNoticeTimingGuard(dto);
+    }
+
     // A2（表 B.1）：公告按类型落默认公开范围（可由 dto.metadata.dataClass 覆盖）
     const dataClass = ((dto.metadata as any)?.dataClass as string) ?? ANNOUNCEMENT_TYPE_DATA_CLASS[dto.type] ?? 'public_voluntary';
 
@@ -75,7 +80,6 @@ export class AnnouncementService {
     // P1: create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
     const isBidNoticePublish = dto.type === 'BID_NOTICE' && status === 'PUBLISHED';
     if (isBidNoticePublish) {
-      await this.assertBidNoticeTimingGuard(dto); // W2：B-004/B-009（依法必招强制，违者 400 阻断发布）
       // P1b（2026-08-17）：「引用采购文件」发布时自动生成加密 BidDocument。
       // 前端把 PMI 阶段采购文件的 MinIO objectKey 放进 metadata.selectedTenderObjectKey，
       // 此前无人消费导致招标文件断链（供应商下载/专家获取/AI 提取得分点全挂）。
