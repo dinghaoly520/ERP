@@ -6,6 +6,7 @@ import { ArchiveModule } from '../archive/archive.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StorageModule } from '../storage/storage.module';
 import { ProjectManagementController } from './project-management.controller';
+import { TimelineService } from './timeline.service';
 import { ProjectManagementService } from './project-management.service';
 import { GbCodeService } from '../common/gb-code.service';
 
@@ -13,6 +14,7 @@ import { GbCodeService } from '../common/gb-code.service';
   imports: [AiModule, AuthModule, KnowledgeModule, PrismaModule, StorageModule, ArchiveModule],
   controllers: [ProjectManagementController],
   providers: [
+    TimelineService,
     GbCodeService,ProjectManagementService],
   exports: [ProjectManagementService],
 })

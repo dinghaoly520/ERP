@@ -35,6 +35,7 @@ import {
   type ProjectManagementStage,
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
+import { ProjectTimelineStrip } from './project-timeline-strip';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
@@ -1088,6 +1089,9 @@ export function ProjectDetailPanel({
       <section className="absolute inset-0 z-[121] overflow-y-auto rounded-[24px] bg-[var(--background)] shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
         {/* ══════ page-hero: 标题 + 简报 + 流程 ══════ */}
         <div className="page-hero">
+          {/* B3（A-204）时间信息轴 */}
+          <ProjectTimelineStrip pmiId={item.id} />
+          <div style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)', paddingTop: '0.75rem', marginBottom: '0.75rem' }} />
           {/* ── row 1: 标题 + meta + 操作按钮 ── */}
           <div className="page-hero__row">
             <div className="page-hero__left">

@@ -24,6 +24,7 @@ import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
 import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
+import { TimelineService } from './timeline.service';
 import { ProjectManagementService } from './project-management.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UseGuards } from '@nestjs/common';
@@ -37,6 +38,7 @@ export class ProjectManagementController {
   constructor(
     private readonly projectManagementService: ProjectManagementService,
     private readonly companyScope: CompanyScopeService,
+    private readonly timelineService: TimelineService,
   ) {}
 
   @Get()
@@ -236,6 +238,12 @@ export class ProjectManagementController {
       parseInt(fileIndex, 10),
       res,
     );
+  }
+
+  /** B3（A-204）：项目时间信息轴——六类节点聚合（立项/获取文件/截标/开标/签约/归档） */
+  @Get(':id/timeline')
+  getTimeline(@Param('id') id: string) {
+    return this.timelineService.getTimeline(id);
   }
 
   @Get(':id/summary')
