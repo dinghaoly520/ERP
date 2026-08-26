@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
+import { ApprovalTimeline } from '@/components/workbench/approval-timeline';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
 import { useSupplierAlerts } from '@/lib/hooks/use-alerts';
 import { LEVEL_LABEL, LEVEL_COLOR } from '@water-erp/shared';
@@ -73,6 +74,7 @@ export default function SupplierDetailPage() {
   const [qualifications, setQualifications] = useState<SupplierQualification[]>([]);
   const [evaluations, setEvaluations] = useState<SupplierEvaluation[]>([]);
   const [changes, setChanges] = useState<SupplierChangeRecord[]>([]);
+  const [expandedChangeId, setExpandedChangeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('info');
   const [loading, setLoading] = useState(true);
 
@@ -1044,7 +1046,8 @@ export default function SupplierDetailPage() {
                     </thead>
                     <tbody>
                       {changes.map(c => (
-                        <tr key={c.id}>
+                        <>
+                        <tr key={c.id} className="row-clickable" onClick={() => setExpandedChangeId(expandedChangeId === c.id ? null : c.id)}>
                           <td className="font-semibold text-[var(--foreground)]">
                             {c.fieldLabel}
                             {c.fieldName === 'convertToRegular' && (
@@ -1065,6 +1068,23 @@ export default function SupplierDetailPage() {
                             )}
                           </td>
                         </tr>
+                        {expandedChangeId === c.id && (
+                          <tr>
+                            <td colSpan={7} className="bg-[color-mix(in_oklch,var(--foreground)_3%,transparent)] px-4 py-2.5">
+                              <ApprovalTimeline compact events={[
+                                { action: '提交变更申请', actor: supplier.name, time: c.createdAt, note: c.reason, outcome: 'pending' as const },
+                                ...(c.status !== 'PENDING' ? [{
+                                  action: c.status === 'APPROVED' ? '审批通过' : '审批拒绝',
+                                  actor: c.reviewedBy ?? undefined,
+                                  time: c.reviewedAt ?? null,
+                                  note: c.rejectReason ?? null,
+                                  outcome: c.status === 'APPROVED' ? 'approved' as const : 'rejected' as const,
+                                }] : []),
+                              ]} />
+                            </td>
+                          </tr>
+                        )}
+                        </>
                       ))}
                     </tbody>
                   </table>
