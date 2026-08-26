@@ -17,7 +17,7 @@ import { GbCodeService } from '../common/gb-code.service';
   controllers: [StageComplianceController, ProjectManagementController],
   providers: [
     TimelineService,
-    GbCodeService,ProjectManagementService],
+    GbCodeService, StageComplianceConfigService, ProjectManagementService],
   exports: [ProjectManagementService],
 })
 export class ProjectManagementModule {}
