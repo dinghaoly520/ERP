@@ -362,6 +362,8 @@ model BidProject {
   clarifications           BidClarification[]
   supervisionLogs          BidSupervisionLog[]
   archiveItems             BidArchiveItem[]
+  tenderClarifications      TenderClarification[]
+  tenderClarificationDocs   TenderClarificationDoc[]
   aiAnalysisTask           AiBidAnalysisTask?
   evaluationResults        BidEvaluationResult[]
   supervisionAnnotations   BidSupervisionAnnotation[]
