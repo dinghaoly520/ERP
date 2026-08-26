@@ -423,3 +423,21 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **clean-legacy-plaintext --execute 前**：先 dry-run 审阅清单；旧轨服务端密封资产的回看下载已支持 sealedPath 流式解密（streamFile，2026-08-21），执行后供应商回看/staff/专家下载不受影响。
 - **BID_DUAL_ENVELOPE=false 应急语义**：flag 关时新轨投递（envelope.version='dual-v2'）被显式 400 `DUAL_DISABLED` 拒收——供应商须按旧流程（clientDeks）重新投递；回退前应公告通知投标人。
 - **管理方密钥轮转**：`POST /api/bid/admin-cert/generate` 置旧证 inactive；历史信封按 `envelope.adminCertId` 定位旧私钥（keystore 目录每证一文件，保留至其覆盖提交全部归档）。
+
+## 并行会话协作约定（2026-08-26 起生效）
+
+两个 Claude 会话并行实施不同规范计划，**分工与避让规则如下（双方必须遵守）**：
+
+| 会话 | 负责范围 | 计划文档 |
+|------|---------|---------|
+| 会话 A（GB/T 43711） | GB/T 43711 规范全部工作项 | `docs/plans/GB-T-43711规范完善任务计划-2026-08-24.md` |
+| 会话 B（CTS/DA-T103） | CTS-EBS01 + DA/T 103 收窄路线图剩余项（A/B/C/D 域） | `docs/superpowers/plans/2026-08-24-system-pm-process-archive-roadmap.md` |
+
+规则：
+1. **一方工作时另一方不动工作区**（不改代码、不跑会写盘的命令）。开工前先 `git status` 确认对方无未提交改动；对方有改动则等待其提交。
+2. **禁用 `git add -A` / `git add .`**——只 add 自己明确改动的文件路径，防止卷入对方半成品。
+3. **共享高危文件**（`apps/api/prisma/schema.prisma`、`app.module.ts`、`bid.controller.ts`、`bid-confirm-panel.tsx`、`packages/shared`）：仅在对方工作区干净时修改；schema 改动须在己方提交内附对应迁移。
+4. **每完成一个小步骤即提交**，不留大跨度未提交状态；提交信息注明所属规范（如 `feat(43711):` / `feat(compliance):`）。
+5. 冲突已发生时：外科手术只摘除自己的片段（按块精确匹配），不回滚对方改动，向用户报告。
+
+会话 B 的 C3 暂存件：`docs/superpowers/plans/2026-08-26-c3-non-tender-deal-pending.md`（含设计+测试代码，恢复时按文档落地）。
