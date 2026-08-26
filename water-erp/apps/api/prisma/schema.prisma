@@ -319,6 +319,7 @@ model BidProject {
   sectionNo                String?                   // CTS A-39/40 标段（包）编号（三级映射：PMI=项目、BidProject=招标项目/标段）
   sectionName              String?
   stage                    BidStage                   @default(DOWNLOAD)
+  legalMandatory           Boolean                   @default(false) // W2：依法必招标志——B-004/B-009 时间规则仅对此强制
   scoreStandardPublishedAt DateTime?
   riskNote                 String?
   budget                   Decimal?                   @db.Decimal(14, 2)
