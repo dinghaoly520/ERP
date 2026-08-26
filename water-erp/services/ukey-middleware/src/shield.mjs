@@ -55,11 +55,11 @@ export function persistShield(slotDir, shield) {
   fs.chmodSync(file, 0o600);
 }
 
-/** 读单个盾文件:截断/非 JSON/非普通文件(目录、断链软链)→ warn 带文件名并跳过——一个坏盾不得砖全部端点 */
+/** 读单个盾文件:截断/非 JSON/JSON 数组体/非普通文件(目录、断链软链)→ warn 带文件名并跳过——一个坏盾不得砖全部端点 */
 function readShieldFile(file) {
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!parsed || typeof parsed !== 'object') throw new Error('not a shield object');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('bad shield shape');
     return parsed;
   } catch (e) {
     console.warn(`[ukey-mw] 跳过无法解析的盾文件 ${file}: ${e?.message ?? e}`);

@@ -74,11 +74,12 @@ test('listShields:扫描槽目录全部 .ukey 文件', async () => {
   assert.ok(all.every((s) => s.certSn.startsWith('SHD-')));
 });
 
-test('listShields:坏盾文件(非 JSON)跳过不砖——其余盾继续可用', async () => {
+test('listShields:坏盾文件(非 JSON/JSON 数组体)跳过不砖——其余盾继续可用', async () => {
   const slotDir = tmpSlot();
   const { shield } = await issueShield({ cn: '己公司', pin: '123456', slotDir });
   fs.writeFileSync(path.join(slotDir, 'broken.ukey'), 'not json');
+  fs.writeFileSync(path.join(slotDir, 'array.ukey'), '[1,2,3]');
   const all = listShields(slotDir);
-  assert.equal(all.length, 1, '坏文件被跳过,好盾仍枚举');
+  assert.equal(all.length, 1, '坏文件(含数组体)被跳过,好盾仍枚举');
   assert.equal(all[0].shieldId, shield.shieldId);
 });
