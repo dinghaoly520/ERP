@@ -9,6 +9,7 @@ import {
   CircleX, CircleCheck, Info,
 } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
+import { TenderClarificationCard } from "@/components/tender-clarification-card";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -448,6 +449,9 @@ function BidDetailInner() {
                       <div className="bc-empty">暂无澄清/答疑记录</div>
                     )}
                   </div>
+
+                  {/* W1（A-80~86）：澄清与修改——提问 + 澄清文件下载（区别于上方评标澄清答疑只读区） */}
+                  <TenderClarificationCard projectId={projectId} />
                 </div>
               )}
             </>
