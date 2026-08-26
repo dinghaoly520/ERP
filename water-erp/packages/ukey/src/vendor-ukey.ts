@@ -30,7 +30,10 @@ async function requestJson(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    // 中间件被杀/超时 abort/连接拒绝 → fetch 抛 TypeError/DOMException,统一转译中文(spec §6);probe 自己 catch 故不受影响
+    const res = await fetch(url, { ...init, signal: ctrl.signal }).catch(() => {
+      throw new Error('U盾中间件连接失败或已退出，请重启驱动服务（pnpm dev:ukey-mw）');
+    });
     const body = await res.json().catch(() => null);
     return { status: res.status, body };
   } finally {

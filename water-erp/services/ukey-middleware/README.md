@@ -4,6 +4,12 @@
 设计 spec:`docs/superpowers/specs/2026-08-26-mock-ukey-middleware-design.md`。
 **诚实边界**:自签密钥对,不构成《电子签名法》可靠电子签名;演示材料涉「U盾签名」须标注 mock 出处。
 
+## 威胁模型(loopback 语境,书面决定)
+
+- **CORS 只挡读不挡写**:本机恶意页面可对 `127.0.0.1:17999` 发 simple request(content-type 之外无自定义头的 POST 不触发预检)调 `/session/unlock` 烧 PIN 计数直至锁盾——响应读不到,请求照发。
+- **解锁窗口无进程隔离**:PIN 解锁期间,本机任意进程均可直接调 `/sign`、`/sm2/decrypt`(loopback 无鉴权)。
+- 两者均在 dev 演示边界内接受;真 CA 接入时按 spec §10 重审(真驱动有进程校验/令牌/硬件在场检测)。
+
 ## 快速开始
 
 ```bash

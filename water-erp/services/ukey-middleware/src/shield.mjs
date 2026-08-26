@@ -55,12 +55,25 @@ export function persistShield(slotDir, shield) {
   fs.chmodSync(file, 0o600);
 }
 
+/** 读单个盾文件:截断/非 JSON/非普通文件(目录、断链软链)→ warn 带文件名并跳过——一个坏盾不得砖全部端点 */
+function readShieldFile(file) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!parsed || typeof parsed !== 'object') throw new Error('not a shield object');
+    return parsed;
+  } catch (e) {
+    console.warn(`[ukey-mw] 跳过无法解析的盾文件 ${file}: ${e?.message ?? e}`);
+    return null;
+  }
+}
+
 export function listShields(slotDir = defaultSlotDir()) {
   if (!fs.existsSync(slotDir)) return [];
   return fs
     .readdirSync(slotDir)
     .filter((f) => f.endsWith('.ukey'))
-    .map((f) => JSON.parse(fs.readFileSync(path.join(slotDir, f), 'utf8')));
+    .map((f) => readShieldFile(path.join(slotDir, f)))
+    .filter((s) => s !== null);
 }
 
 export function findShieldByCertSn(slotDir, certSn) {

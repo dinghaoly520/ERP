@@ -79,4 +79,22 @@ describe('VendorUKeyAdapter', () => {
     await expect(uk.sign('SHD-AAAABBBB', 'msg')).rejects.toThrow('未解锁');
     await expect(uk.decrypt('SHD-AAAABBBB', 'c')).rejects.toThrow('密文损坏');
   });
+
+  it('中间件中途退出:网络/超时异常转译中文(不漏原始 fetch failed)', async () => {
+    const tmp = http.createServer((req, res) => {
+      const send = (status: number, body: unknown) => {
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
+      };
+      if (req.url === '/health' && req.method === 'GET') return send(200, { ok: true, version: '1.0.0', shields: 1, unlocked: 0 });
+      req.on('data', () => {});
+      req.on('end', () => send(200, { ok: true, unlocked: ['SHD-AAAABBBB'], failed: [] }));
+    });
+    await new Promise<void>((r) => tmp.listen(0, '127.0.0.1', r));
+    const tmpBase = `http://127.0.0.1:${(tmp.address() as AddressInfo).port}`;
+    const uk = await VendorUKeyAdapter.open({ password: '123456', baseUrl: tmpBase });
+    await new Promise<void>((r) => tmp.close(() => r())); // 模拟驱动服务中途退出
+    await expect(uk.sign('SHD-AAAABBBB', 'msg')).rejects.toThrow('U盾中间件连接失败或已退出');
+    await expect(uk.decrypt('SHD-AAAABBBB', 'c')).rejects.toThrow('连接失败');
+  });
 });
