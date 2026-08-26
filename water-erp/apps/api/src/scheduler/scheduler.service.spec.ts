@@ -18,7 +18,7 @@ describe('autoNudgePendingBidders — 截止 24h（P0-2 第六写点）', () => 
       bidSupplier: { findMany: jest.fn() },
     };
     const notification: any = { create: jest.fn() };
-    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any);
+    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any, {} as any);
     return { scheduler, prisma, notification };
   };
 
