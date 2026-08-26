@@ -69,16 +69,17 @@ water-erp/services/ukey-middleware/
   "publicKey": "04…(130 位 hex)",
   "alg": "SM2",
   "issuedAt": "2026-08-26T03:00:00.000Z",
-  "kdf": { "algo": "PBKDF2-SHA256", "iterations": 210000, "salt": "<b64>" },
+  "kdf": { "algo": "PBKDF2-SHA256", "iterations": 210000, "salt": "<b64>", "pukSalt": "<b64>" },
   "encPrivKey": { "nonce": "<b64>", "ct": "<b64>" },
-  "pinPolicy": { "maxRetry": 6, "retryLeft": 6, "locked": false, "pukHash": "<sha256(puk+salt)>" }
+  "encPrivKeyPuk": { "nonce": "<b64>", "ct": "<b64>" },
+  "pinPolicy": { "maxRetry": 6, "retryLeft": 6, "locked": false, "pukHash": "<sha256(puk+pukSalt)>" }
 }
 ```
 
-- 私钥封装与 `MockUKeyAdapter` 同参数族:AES-256-GCM(PBKDF2-SHA256(PIN, salt, 210k)) 加密 SM2 私钥 hex——**盾文件内永无明文私钥**。
+- 私钥封装与 `MockUKeyAdapter` 同参数族:AES-256-GCM(PBKDF2-SHA256(PIN, salt, 210k)) 加密 SM2 私钥 hex——**盾文件内永无明文私钥**。另存 **PUK 封装份**(`encPrivKeyPuk`,以 PUK+`pukSalt` 派生):PUK 权限高于 PIN,unblock 重设新 PIN 时经 PUK 份取私钥重封,**不需旧 PIN**——真实盾语义。
 - `certSn` 直接复用 `shieldId`(演示口径,全局唯一即可);`certDn` 的 CN 由发行方传 `--cn`,须与平台注册企业名一致(否则绑定被 `bindCert` 的 DN 校验拒收——这正是要演练的校验)。
 - PIN 校验方式:尝试解封 encPrivKey(GCM 认证失败=PIN 错),不单独存 PIN 哈希。
-- PUK:发行时随机 12 位、**仅打印一次**,落盘仅存 `sha256(puk+kdf.salt)`;unblock 校验通过后 `retryLeft` 重置为 maxRetry、`locked=false`,可顺带 `--new-pin`(重封装私钥)。
+- PUK:发行时随机 12 位、**仅打印一次**,落盘仅存 `sha256(puk+pukSalt)`;unblock 校验通过后 `retryLeft` 重置为 maxRetry、`locked=false`,可顺带 `--new-pin`(经 PUK 封装份重封装私钥,不需旧 PIN)。
 
 ## 5. HTTP 协议(`127.0.0.1:17999`)
 
