@@ -1,3 +1,4 @@
+import { Public } from './common/decorators/public.decorator';
 import { Controller, Get, Inject } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from './prisma/prisma.service';
@@ -17,6 +18,15 @@ export class AppController {
       docs: '/api/docs',
       health: '/api/health',
     };
+  }
+
+  /** W4/A-97~A-98：国家授时中心标准时间（服务器经 chronyd 同步 ntp.ac.cn，见 docs/ops-ntp.md）。
+   * 客户端经 serverClock() 算 offset 后统一用 serverNow()，杜绝本地时间被篡改导致的截止误判。 */
+  @Public()
+  @Get('time')
+  getTime() {
+    const now = Date.now();
+    return { serverTime: now, iso: new Date(now).toISOString(), source: 'server-clock' };
   }
 
   @Get('health')

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock, Timer, CircleX } from "lucide-react";
+import { serverNowMs, syncServerClock } from "@water-erp/shared";
 
 /**
  * 投递截止倒计时 — 移植自 Vue CountdownTimer.vue。
@@ -9,10 +10,12 @@ import { Clock, Timer, CircleX } from "lucide-react";
  * 样式 .sp-countdown / .pulse-icon 已在 globals.css。
  */
 export function CountdownTimer({ deadline }: { deadline: string | Date }) {
-  const [now, setNow] = useState(() => Date.now());
+  // W4/A-97：截止判断用服务器标准时钟（本地时间可被篡改）；同步失败退化为本地时间
+  const [now, setNow] = useState(() => serverNowMs());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    void syncServerClock();
+    const timer = setInterval(() => setNow(serverNowMs()), 1000);
     return () => clearInterval(timer);
   }, []);
 
