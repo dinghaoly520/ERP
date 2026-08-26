@@ -980,6 +980,42 @@ model SupplierObjection {
   @@index([status])
 }
 
+// ── E1（GB/T 43711 第 9 章）：采购质效评价 ──
+// 评分卡：质量/效率/合规三维（0-100），权重 SystemConfig 可配（eval_weight_*，默认 40/30/30）。
+model ProjectEvaluation {
+  id                      String   @id @default(cuid())
+  projectManagementItemId String?
+  projectId               String? // BidProject
+  projectCode             String // 业务编号快照
+  projectName             String
+  evaluatorId             String
+  evaluatorName           String
+  qualityScore            Int // 质量维度 0-100
+  efficiencyScore         Int // 效率维度 0-100
+  complianceScore         Int // 合规维度 0-100
+  weightedScore           Int // 加权总分（服务端按权重计算）
+  period                  String? // 评价周期标签（如 2026-Q3 / 2026 年度）
+  comment                 String?
+  createdAt               DateTime @default(now())
+
+  @@index([projectCode])
+  @@index([createdAt])
+}
+
+// 供应商满意度（9.2 交易和服务对象评价）：成交供应商对采购过程/服务的简表反馈
+model SatisfactionFeedback {
+  id          String   @id @default(cuid())
+  supplierId  String
+  supplierName String
+  projectCode String
+  score       Int // 1-5
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  @@unique([supplierId, projectCode])
+  @@index([projectCode])
+}
+
 // ── D2（GB/T 43711 4.1.5.2/A.3.1.3）：档案移交台账 ──
 // 归档项目向档案管理部门移交的记录：清单快照（含 hashDigest）+ 双方签收；保存期 15 年自归档起算。
 model ArchiveTransfer {

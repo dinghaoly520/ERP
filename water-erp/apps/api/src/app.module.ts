@@ -17,6 +17,7 @@ import { SupplierPortalModule } from './supplier-portal/supplier-portal.module';
 import { ContractModule } from './contract/contract.module';
 import { PrequalModule } from './prequal/prequal.module';
 import { FrameworkModule } from './framework/framework.module';
+import { PerformanceModule } from './performance/performance.module';
 import { ExpertModule } from './expert/expert.module';
 import { AiModule } from './ai';
 import { ProcurementModule } from './procurement/procurement.module';
@@ -84,6 +85,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ContractModule,
     PrequalModule,
     FrameworkModule,
+    PerformanceModule,
     ExpertModule,
     AiModule,
     ProcurementModule,

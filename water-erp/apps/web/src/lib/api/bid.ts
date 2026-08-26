@@ -364,13 +364,13 @@ export function registerArchiveTransfer(projectId: string, data: { receivedByNam
 }
 
 /** D3（8.2/8.3）：监管数据时间线（监督+审计+操作日志聚合） */
-export function getSupervisionTimeline(projectId: string) {
-  return api.get<{ project: { name: string; projectCode: string }; entries: Array<{ at: string; source: string; actor: string; action: string; detail: string; risk?: string }>; counts: { supervision: number; audit: number; operation: number } }>(`/bid/projects/${projectId}/supervision-timeline`);
+export function getRegulatoryTimeline(projectId: string) {
+  return api.get<{ project: { name: string; projectCode: string }; entries: Array<{ at: string; source: string; actor: string; action: string; detail: string; risk?: string }>; counts: { supervision: number; audit: number; operation: number } }>(`/bid/projects/${projectId}/regulatory-timeline`);
 }
 
 /** D3：监管数据包导出（JSON 下载） */
-export function downloadSupervisionExport(projectId: string) {
-  return api.get<unknown>(`/bid/projects/${projectId}/supervision-export`);
+export function downloadRegulatoryExport(projectId: string) {
+  return api.get<unknown>(`/bid/projects/${projectId}/regulatory-export`);
 }
 
 export function getPublicityStatus(bidProjectId: string) {

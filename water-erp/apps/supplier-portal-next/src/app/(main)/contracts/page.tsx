@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { FileSignature, Inbox, TriangleAlert, Upload } from "lucide-react";
 import { contractApi, type SpContract } from "@/lib/api/contract";
+import { submitSatisfaction } from "@/lib/performance-client";
 import { uploadFile } from "@/lib/api/upload";
 import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton } from "@/components/ui";
@@ -116,6 +117,18 @@ export default function ContractsPage() {
                             <span style={{ color: "var(--success, #1e7e34)", fontSize: "0.7rem" }}>已上传证明</span>
                           ) : (
                             <SpButton onClick={() => uploadProof(c, f.id)}><Upload size={12} /> 上传证明</SpButton>
+                          )}
+                          {/* E1（9.2）：验收后满意度简表 */}
+                          {c.status === "accepted" && f.type === "acceptance" && (
+                            <SpButton onClick={async () => {
+                              const score = Number(prompt("满意度评分（1-5 分）:", "5"));
+                              if (!score || score < 1 || score > 5) return;
+                              const comment = prompt("意见建议（选填）:") ?? "";
+                              try {
+                                await submitSatisfaction({ projectCode: c.projectCode, score, comment: comment || undefined });
+                                toast.success("感谢反馈（GB/T 43711 9.2 交易和服务对象评价）");
+                              } catch { /* 全局 toast 已提示 */ }
+                            }}>满意度评价</SpButton>
                           )}
                         </div>
                       ))}

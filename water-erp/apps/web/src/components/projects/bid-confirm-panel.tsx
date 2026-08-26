@@ -43,6 +43,7 @@ import {
   type BidWorkspace,
 } from '@/lib/api/bid';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
+import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ArchiveBlock } from './bid-confirm/archive-block';
@@ -795,18 +796,24 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                       {/* D2/D3（GB/T 43711 4.1.5.2/8.2）：档案移交登记 + 监管数据包导出 */}
                       {bidProject?.stage === 'ARCHIVED' && (
                         <>
-                          <button type="button" className="neu-btn-xs !text-[10px]" onClick={() => {
+                          <button type="button" className="neu-btn-xs !text-[10px]" onClick={async () => {
                             const receivedByName = prompt('档案移交接收方（档案管理部门/接收人）：');
                             if (!receivedByName) return;
-                            fetch(`/api/bid/projects/${bpId}/archive-transfer`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', 'X-Portal': 'web' },
-                              credentials: 'include',
-                              body: JSON.stringify({ receivedByName, confirm: true }),
-                            }).then(r => r.ok ? (showToast('档案移交已登记（含清单快照与签收留痕）'), load()) : r.json().then(e => showToast(e.error || '移交失败', 'err')));
+                            try {
+                              await registerArchiveTransfer(bpId, { receivedByName, confirm: true });
+                              showToast('档案移交已登记（含清单快照与签收留痕）');
+                              void load();
+                            } catch (e: any) { showToast(e?.message || '移交失败', 'err'); }
                           }}>档案移交</button>
-                          <button type="button" className="neu-btn-xs !text-[10px]" onClick={() => {
-                            window.open(`/api/bid/projects/${bpId}/supervision-export`, '_blank');
+                          <button type="button" className="neu-btn-xs !text-[10px]" onClick={async () => {
+                            try {
+                              const data = await downloadRegulatoryExport(bpId);
+                              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url; a.download = `supervision-${bpId}.json`; a.click();
+                              URL.revokeObjectURL(url);
+                            } catch (e: any) { showToast(e?.message || '导出失败', 'err'); }
                           }}>监管数据包</button>
                         </>
                       )}

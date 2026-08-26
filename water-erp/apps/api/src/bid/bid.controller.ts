@@ -158,14 +158,14 @@ export class BidController {
     return this.bidService.confirmArchiveTransfer(transferId, { userId: req.user.sub, username: req.user.username });
   }
 
-  @Get('projects/:id/supervision-timeline')
+  @Get('projects/:id/regulatory-timeline')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'D3（8.2/8.3）：监管数据时间线（监督+审计+操作日志聚合）' })
   supervisionTimeline(@Param('id') id: string) {
     return this.bidService.supervisionTimeline(id);
   }
 
-  @Get('projects/:id/supervision-export')
+  @Get('projects/:id/regulatory-export')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: 'D3：监管数据包导出（JSON）' })
   async supervisionExport(@Param('id') id: string, @Res({ passthrough: true }) res: any) {

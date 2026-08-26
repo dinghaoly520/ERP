@@ -16,6 +16,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { ObjectionService } from './objection.service';
 import { PrequalService } from '../prequal/prequal.service';
 import { FrameworkService } from '../framework/framework.service';
+import { PerformanceService } from '../performance/performance.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('supplier-portal')
@@ -28,6 +29,7 @@ export class SupplierPortalController {
     private objectionService: ObjectionService,
     private prequalService: PrequalService,
     private frameworkService: FrameworkService,
+    private performanceService: PerformanceService,
   ) {}
 
   private async getSupplierId(userId: string): Promise<string> {
@@ -194,6 +196,18 @@ export class SupplierPortalController {
     });
     if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
     return this.prequalService.apply(id, supplier, dto.note);
+  }
+
+  // ─── E1（第 9.2 条）：供应商满意度简表 ───
+
+  @Post('satisfaction')
+  async submitSatisfaction(@Request() req: any, @Body() dto: { projectCode: string; score: number; comment?: string }) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId: req.user.sub },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
+    return this.performanceService.submitSatisfaction(supplier, dto);
   }
 
   // ─── B4：我的框架协议（GB/T 43711 附录 D 供应商侧）───
