@@ -49,6 +49,28 @@ export class TenderClarificationService {
     });
   }
 
+  /** A-81：采购中心答复澄清问题（幂等：已答复不重复写）。 */
+  async answer(projectId: string, questionId: string, answerText: string, answeredBy: string) {
+    const q = await this.prisma.tenderClarification.findUnique({ where: { id: questionId } });
+    if (!q || q.projectId !== projectId) {
+      throw new BadRequestException({ error: '澄清问题不存在', code: 'NOT_FOUND' });
+    }
+    if (q.status !== '待答复') return q;
+    return this.prisma.tenderClarification.update({
+      where: { id: questionId },
+      data: { answer: answerText, status: '已答复', answeredBy, answeredAt: new Date() },
+    });
+  }
+
+  /** 管理端：问答 + 澄清文件 + 回执（docs 由 Task 5 填充）。 */
+  async listForStaff(projectId: string) {
+    const questions = await this.prisma.tenderClarification.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { questions, docs: [] };
+  }
+
   /** 供应商视角列表（Task 7 完整实现）。 */
   async listForSupplier(_projectId: string, _supplierId: string) {
     return { questions: [], docs: [] };

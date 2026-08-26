@@ -55,3 +55,37 @@ describe('TenderClarificationService.askQuestion（A-80/B-011）', () => {
     });
   });
 });
+
+describe('TenderClarificationService.answer（A-81）', () => {
+  it('待答复问题答复成功并留痕', async () => {
+    const prisma = {
+      tenderClarification: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'q1', projectId: 'p1', status: '待答复' }),
+        update: jest.fn().mockResolvedValue({ id: 'q1', status: '已答复', answer: '含安全生产许可证' }),
+      },
+    };
+    const r = await makeService(prisma).answer('p1', 'q1', '含安全生产许可证', 'user-9');
+    expect(r.status).toBe('已答复');
+    expect(prisma.tenderClarification.update).toHaveBeenCalledWith({
+      where: { id: 'q1' },
+      data: expect.objectContaining({ answeredBy: 'user-9', answer: '含安全生产许可证' }),
+    });
+  });
+
+  it('非本项目或已答复的问题被拒 NOT_FOUND / 幂等返回', async () => {
+    const prisma = {
+      tenderClarification: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({ id: 'q2', projectId: 'other', status: '待答复' })
+          .mockResolvedValueOnce({ id: 'q1', projectId: 'p1', status: '已答复', answer: 'a' }),
+        update: jest.fn(),
+      },
+    };
+    await expect(makeService(prisma).answer('p1', 'q2', 'x', 'u')).rejects.toMatchObject({
+      response: { code: 'NOT_FOUND' },
+    });
+    const again = await makeService(prisma).answer('p1', 'q1', 'x', 'u');
+    expect(again.status).toBe('已答复');
+    expect(prisma.tenderClarification.update).not.toHaveBeenCalled();
+  });
+});
