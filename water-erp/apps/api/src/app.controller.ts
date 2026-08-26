@@ -1,4 +1,5 @@
 import { Controller, Get, Inject } from '@nestjs/common';
+import { Public } from './common/decorators/public.decorator';
 import type Redis from 'ioredis';
 import { PrismaService } from './prisma/prisma.service';
 
@@ -10,6 +11,7 @@ export class AppController {
   ) {}
 
   @Get()
+  @Public()
   getOverview() {
     return {
       name: '智慧水发·蜀水云采 ERP API',
@@ -20,6 +22,7 @@ export class AppController {
   }
 
   @Get('health')
+  @Public()
   async getHealth() {
     let dbOk = false;
     let redisOk = false;

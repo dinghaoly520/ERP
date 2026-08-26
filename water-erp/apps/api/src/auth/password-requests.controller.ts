@@ -6,6 +6,7 @@ import { Request } from 'express';
 import { PasswordRequestsService } from './password-requests.service';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { AnyRole } from '../common/decorators/any-role.decorator';
 import { CurrentUser } from './current-user.decorator';
 import type { AuthenticatedUser } from './auth.types';
 
@@ -48,6 +49,7 @@ export class PasswordRequestsController {
   // ── 用户端 ──
 
   @Post('password-change-requests')
+  @AnyRole()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: '提交修改密码申请（管理员审批后生效）' })
   submitChange(@CurrentUser('sub') userId: string, @Body() dto: SubmitChangeDto) {
@@ -55,6 +57,7 @@ export class PasswordRequestsController {
   }
 
   @Post('profile-change-requests')
+  @AnyRole()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: '提交资料变更申请（个人中心所有资料修改一律走审批）' })
   submitProfileChange(@CurrentUser('sub') userId: string, @Body() dto: SubmitProfileChangeDto) {

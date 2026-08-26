@@ -8,6 +8,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { AnyRole } from '../common/decorators/any-role.decorator';
 import { CurrentUser } from './current-user.decorator';
 import type { AuthenticatedUser } from './auth.types';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -180,6 +181,7 @@ export class AuthController {
   }
 
   @Get('heartbeat')
+  @AnyRole()
   @ApiOperation({ summary: '单设备登录心跳：会话被顶替/账号冻结时返回 401，由前端踢回登录页' })
   heartbeat() {
     // 实际校验在全局 AuthGuard；本端点仅为前端提供轻量轮询目标（操作日志已排除）
@@ -187,6 +189,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @AnyRole()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '退出登录' })
   async logout(@CurrentUser('sub') userId: string, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
@@ -214,7 +217,7 @@ export class AuthController {
   }
 
   @Get('me')
-
+  @AnyRole()
   @ApiCookieAuth('token')
   @ApiOperation({ summary: '获取当前用户信息' })
   me(@CurrentUser('sub') userId: string) {
@@ -255,6 +258,7 @@ export class AuthController {
   }
 
   @Get('me/login-history')
+  @AnyRole()
   @ApiOperation({ summary: '获取当前用户的登录历史（最近20条）' })
   async loginHistory(@CurrentUser('sub') userId: string) {
     return this.prisma.auditLog.findMany({
@@ -322,6 +326,7 @@ export class AuthController {
   }
 
   @Get('departments')
+  @AnyRole()
   @ApiOperation({ summary: '获取部门列表（下拉选择用）' })
   async listDepartments() {
     return this.prisma.department.findMany({
