@@ -34,10 +34,13 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    // No @Roles decorator means public access (AuthGuard handles auth)
+    // 三者皆无（@Public/@AnyRole/@Roles）→ 默认拒绝（2026-08-26 Task 8 翻转）
+    // 新路由必须显式标注其一；排障见 scripts/list-uncovered-routes.ts
     if (!requiredRoles || requiredRoles.length === 0) {
-      // TODO(Task 8): 翻转为 NO_ROLE_CONFIGURED 拒绝
-      return true;
+      throw new ForbiddenException({
+        error: '路由未配置角色元数据，默认拒绝',
+        code: 'NO_ROLE_CONFIGURED',
+      });
     }
 
     const { user } = context.switchToHttp().getRequest();

@@ -35,4 +35,15 @@ describe('RolesGuard — 默认拒绝语义', () => {
     meta({ roles: ['staff'] });
     expect(() => guard.canActivate(ctx({ sub: 'u1', role: 'supplier' } as any))).toThrow();
   });
+  it('三者皆无 → 403 NO_ROLE_CONFIGURED（Task 8 翻转：默认拒绝）', () => {
+    meta({});
+    let err: any;
+    try {
+      guard.canActivate(ctx({ sub: 'u1', role: 'supplier' } as any));
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeDefined();
+    expect(err?.getResponse?.()?.code).toBe('NO_ROLE_CONFIGURED');
+  });
 });
