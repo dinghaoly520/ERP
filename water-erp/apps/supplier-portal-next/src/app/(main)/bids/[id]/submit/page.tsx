@@ -206,6 +206,8 @@ function BidSubmitInner() {
   const [ukeyOpening, setUkeyOpening] = useState(false);
   const [ukeyDialogVisible, setUkeyDialogVisible] = useState(false);
   const pendingSubmitRef = useRef(false);
+  /** U盾会话快照 ref——解锁后同一事件闭包内立即 doSubmit，useState 异步更新会读到空值（Vue ref 语义的 React 等价物） */
+  const ukeySessionRef = useRef<{ adapter: UKeyAdapter; certSn: string; certPublicKey: string } | null>(null);
   /** 是否已绑定 U盾证书（profile.sm2PublicKey 由 bindCert 回填）→ 走双层加密新轨；否则保留传统 E2EE 旧轨 */
   const dualReady = !!profile?.sm2PublicKey;
   /** 前端文件分类 → 信封角色（与服务端 normalizeBidFileAssets 的契约镜像） */
@@ -546,13 +548,14 @@ function BidSubmitInner() {
 
   /** 组装 dual-v2 信封 + 供应商证书签名 */
   async function buildDualEnvelope() {
-    if (!ukeyAdapter || !ukeyCertSn) throw new Error("U盾未解锁，请先插入 U盾并输入证书口令");
+    const session = ukeySessionRef.current;
+    if (!session) throw new Error("U盾未解锁，请先插入 U盾并输入证书口令");
     // 换证窗口期拦截——条目缺失或上传时所用证书公钥 ≠ 当前签名证书公钥，
     // 说明存在用旧证书加密的条目（kself 用旧公钥，服务端只验 sha256/签名会放行，开标解密才爆），
     // 一律要求重新加密上传，不提交。
     const changed = collectDeclaredAssetIds().filter((id) => {
       const rec = dualEntries[id];
-      return !rec || rec.certPublicKey !== ukeyCertPublicKey;
+      return !rec || rec.certPublicKey !== session.certPublicKey;
     });
     if (changed.length > 0) {
       throw new Error("U盾证书已更换或文件密封件缺失（可能在其他浏览器上传），请重新加密上传投标文件后再提交");
@@ -565,9 +568,9 @@ function BidSubmitInner() {
         deliveryPeriod: form.deliveryPeriod,
         qualityCommitment: form.qualityCommitment || "",
       },
-      ukey: ukeyAdapter,
-      certSn: ukeyCertSn,
-      certPublicKey: ukeyCertPublicKey,
+      ukey: session.adapter,
+      certSn: session.certSn,
+      certPublicKey: session.certPublicKey,
       adminCertId: admin.adminCertId,
     });
   }
@@ -586,6 +589,7 @@ function BidSubmitInner() {
       setUkeyAdapter(uk);
       setUkeyCertSn(cert.certSn);
       setUkeyCertPublicKey(cert.publicKey);
+      ukeySessionRef.current = { adapter: uk, certSn: cert.certSn, certPublicKey: cert.publicKey };
       setUkeyPassword("");
       setUkeyDialogVisible(false);
       toast.success(`U盾已解锁（${cert.certSn}）`);
