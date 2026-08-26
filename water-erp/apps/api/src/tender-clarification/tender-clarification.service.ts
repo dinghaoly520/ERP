@@ -218,8 +218,47 @@ export class TenderClarificationService {
       .catch((err) => this.logger.error(`澄清公告发布失败: ${err.message}`));
   }
 
-  /** 供应商视角列表（Task 7 完整实现）。 */
-  async listForSupplier(_projectId: string, _supplierId: string) {
-    return { questions: [], docs: [] };
+  /** 供应商视角：问答（澄清不涉密，全体可见）+ 已发布澄清文件 + 本人回执。 */
+  async listForSupplier(projectId: string, supplierId: string) {
+    const [questions, docs, mine] = await Promise.all([
+      this.prisma.tenderClarification.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.tenderClarificationDoc.findMany({
+        where: { projectId, status: '已发布' },
+        orderBy: { version: 'asc' },
+      }),
+      this.prisma.tenderClarificationReceipt.findMany({
+        where: { supplierId, doc: { projectId } },
+        select: { docId: true, downloadedAt: true, receiptedAt: true },
+      }),
+    ]);
+    const receiptMap = new Map(mine.map((r) => [r.docId, r]));
+    return { questions, docs: docs.map((d) => ({ ...d, receipt: receiptMap.get(d.id) ?? null })) };
+  }
+
+  /** A-85/A-86：下载已发布澄清文件（仅已获取招标文件者），下载即回执。 */
+  async downloadDoc(projectId: string, docId: string, supplier: { id: string; name: string }) {
+    const doc = await this.prisma.tenderClarificationDoc.findUnique({ where: { id: docId } });
+    if (!doc || doc.projectId !== projectId || doc.status !== '已发布') {
+      throw new BadRequestException({ error: '澄清文件不存在或未发布', code: 'NOT_FOUND' });
+    }
+    const bid = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId: supplier.id },
+      select: { downloadStatus: true },
+    });
+    if (!bid || bid.downloadStatus !== '已下载') {
+      throw new ForbiddenException({ error: '仅已获取招标文件的供应商可下载澄清文件', code: 'NOT_DOWNLOADED' });
+    }
+    await this.prisma.tenderClarificationReceipt.upsert({
+      where: { docId_supplierId: { docId, supplierId: supplier.id } },
+      create: { docId, supplierId: supplier.id },
+      update: { receiptedAt: new Date() },
+    });
+    return {
+      id: doc.id,
+      version: doc.version,
+      title: doc.title,
+      content: doc.content,
+      fileUrl: doc.fileAssetId ? `/api/upload/files/${doc.fileAssetId}` : null,
+    };
   }
 }

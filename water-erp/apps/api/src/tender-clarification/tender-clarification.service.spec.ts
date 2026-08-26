@@ -180,3 +180,46 @@ describe('publishDoc 副作用（B-013/B-014）', () => {
     );
   });
 });
+
+describe('TenderClarificationService 供应商侧（A-85/A-86）', () => {
+  const supplier = { id: 'sup-1', name: '供应商A' };
+  const published = { id: 'd1', projectId: 'p1', status: '已发布', version: 1, title: '澄清一', content: 'c', fileAssetId: 'fa-1' };
+
+  it('listForSupplier 只见已发布文件并带本人回执', async () => {
+    const prisma = {
+      tenderClarification: { findMany: jest.fn().mockResolvedValue([{ id: 'q1' }]) },
+      tenderClarificationDoc: { findMany: jest.fn().mockResolvedValue([published]) },
+      tenderClarificationReceipt: { findMany: jest.fn().mockResolvedValue([{ docId: 'd1', downloadedAt: new Date(), receiptedAt: new Date() }]) },
+    };
+    const r = await makeService(prisma).listForSupplier('p1', 'sup-1');
+    expect(r.questions).toHaveLength(1);
+    expect(r.docs[0].receipt).not.toBeNull();
+    expect(prisma.tenderClarificationDoc.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { projectId: 'p1', status: '已发布' } }),
+    );
+  });
+
+  it('downloadDoc：已下载供应商下载成功并 upsert 回执', async () => {
+    const prisma = {
+      tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue(published) },
+      bidSupplier: { findFirst: jest.fn().mockResolvedValue({ downloadStatus: '已下载' }) },
+      tenderClarificationReceipt: { upsert: jest.fn().mockResolvedValue({}) },
+    };
+    const r = await makeService(prisma).downloadDoc('p1', 'd1', supplier);
+    expect(r.fileUrl).toBe('/api/upload/files/fa-1');
+    expect(prisma.tenderClarificationReceipt.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { docId_supplierId: { docId: 'd1', supplierId: 'sup-1' } } }),
+    );
+  });
+
+  it('downloadDoc：未下载招标文件者被拒 NOT_DOWNLOADED', async () => {
+    const prisma = {
+      tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue(published) },
+      bidSupplier: { findFirst: jest.fn().mockResolvedValue({ downloadStatus: '待下载' }) },
+      tenderClarificationReceipt: { upsert: jest.fn() },
+    };
+    await expect(makeService(prisma).downloadDoc('p1', 'd1', supplier)).rejects.toMatchObject({
+      response: { code: 'NOT_DOWNLOADED' },
+    });
+  });
+});

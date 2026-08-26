@@ -61,6 +61,21 @@ export class SupplierPortalController {
     return this.clarifications.askQuestion(id, supplier, dto);
   }
 
+  /** A-85/A-86：下载澄清文件（下载即回执） */
+  @Post('projects/:id/clarification-docs/:docId/download')
+  async downloadClarificationDoc(
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @Request() req: any,
+  ) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId: req.user.sub },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new ForbiddenException('非供应商账号');
+    return this.clarifications.downloadDoc(id, docId, supplier);
+  }
+
   /** 供应商视角澄清问答+澄清文件列表（Task 7 实装） */
   @Get('projects/:id/clarifications')
   async listClarifications(@Param('id') id: string, @Request() req: any) {
