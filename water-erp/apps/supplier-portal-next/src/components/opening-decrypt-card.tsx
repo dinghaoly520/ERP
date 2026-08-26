@@ -11,7 +11,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { KeyRound, ShieldCheck, ShieldX, CircleX, Info, TriangleAlert, CircleCheck } from "lucide-react";
-import { MockUKeyAdapter, sha256Hex, canonicalJson, sm4Decrypt, unwrapDekJson, type StorageLike } from "@water-erp/ukey";
+import { sha256Hex, canonicalJson, sm4Decrypt, unwrapDekJson, type UKeyAdapter } from "@water-erp/ukey";
+import { openUkey } from "@/utils/ukey-factory";
 import { getOpeningPackage, decryptUpload, type OpeningPackage } from "@/lib/api/opening-package";
 import { hexToUtf8, bytesToHex, hexToBytes } from "@/utils/dual-envelope-core";
 import { SpButton, SpDialog, SpInput } from "@/components/ui";
@@ -31,11 +32,6 @@ const PKG_ERROR_TEXT: Record<string, string> = {
   PROJECT_NOT_OPENING: "项目不在开标阶段",
 };
 
-const ukeyStorage: StorageLike = {
-  getItem: (k) => localStorage.getItem(k),
-  setItem: (k, v) => localStorage.setItem(k, v),
-  removeItem: (k) => localStorage.removeItem(k),
-};
 function boundCertSn(): string {
   try {
     const raw = localStorage.getItem("supplier_ukey_bound");
@@ -58,7 +54,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
   const [sealResults, setSealResults] = useState<Record<string, "pending" | "ok" | "fail" | "unavailable">>({});
   const [sealChecking, setSealChecking] = useState(false);
   const cachedInnerRef = useRef<Record<string, { assetId: string; bytes: Uint8Array }>>({});
-  const [ukeyAdapter, setUkeyAdapter] = useState<MockUKeyAdapter | null>(null);
+  const [ukeyAdapter, setUkeyAdapter] = useState<UKeyAdapter | null>(null);
   const [ukeyCertSn, setUkeyCertSn] = useState("");
   const [ukeyPassword, setUkeyPassword] = useState("");
   const [ukeyOpening, setUkeyOpening] = useState(false);
@@ -146,7 +142,7 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
     if (!ukeyPassword) { toast.warning("请输入 U盾口令"); return; }
     setUkeyOpening(true);
     try {
-      const uk = await MockUKeyAdapter.open({ storage: ukeyStorage, password: ukeyPassword });
+      const uk = (await openUkey(ukeyPassword)).adapter;
       const certs = await uk.listCertificates();
       const cert = certs.find((c) => c.certSn === boundCertSn()) || certs.find((c) => c.publicKey === pubKeyRef.current);
       if (!cert) throw new Error("介质内未找到与平台绑定的证书，请先到「U盾管理」页绑定或导入备份介质");

@@ -19,7 +19,8 @@ import {
   generateDEK, encryptFile, formatDEK, computePlaintextHash, packageEncryptedFile,
   type ClientDek,
 } from "@/utils/bid-crypto";
-import { MockUKeyAdapter, type StorageLike, type EnvelopeFileEntry, type EnvelopeRole } from "@water-erp/ukey";
+import { type EnvelopeFileEntry, type EnvelopeRole, type UKeyAdapter } from "@water-erp/ukey";
+import { openUkey } from "@/utils/ukey-factory";
 import { encryptAndUploadFile, buildEnvelope, type AdminCertRef } from "@/utils/dual-envelope";
 import "@/styles/pages/bids.css";
 
@@ -198,7 +199,7 @@ function BidSubmitInner() {
   // 管理方加密证书（getAdminCert，惰性缓存）
   const adminCertRef = useRef<AdminCertRef | null>(null);
   // U盾会话（仅内存持有介质实例与所选证书，口令不落任何持久存储）
-  const [ukeyAdapter, setUkeyAdapter] = useState<MockUKeyAdapter | null>(null);
+  const [ukeyAdapter, setUkeyAdapter] = useState<UKeyAdapter | null>(null);
   const [ukeyCertSn, setUkeyCertSn] = useState("");
   const [ukeyCertPublicKey, setUkeyCertPublicKey] = useState("");
   const [ukeyPassword, setUkeyPassword] = useState("");
@@ -211,12 +212,6 @@ function BidSubmitInner() {
   const ROLE_BY_CAT: Record<string, EnvelopeRole> = {
     full: "technical", "split-tech": "technical", "split-biz": "business",
     "split-other": "coverLetter", coverLetter: "coverLetter",
-  };
-  /** MockUKeyAdapter storage 适配（与 U盾管理页同键，仅口令加密 keystore 落 localStorage） */
-  const ukeyStorage: StorageLike = {
-    getItem: (k) => localStorage.getItem(k),
-    setItem: (k, v) => localStorage.setItem(k, v),
-    removeItem: (k) => localStorage.removeItem(k),
   };
   /** 本地缓存的绑定证书序列号（U盾管理页绑定成功后写入；仅公开信息） */
   function boundCertSn(): string {
@@ -582,7 +577,7 @@ function BidSubmitInner() {
     if (!ukeyPassword) { toast.warning("请输入 U盾口令"); return; }
     setUkeyOpening(true);
     try {
-      const uk = await MockUKeyAdapter.open({ storage: ukeyStorage, password: ukeyPassword });
+      const uk = (await openUkey(ukeyPassword)).adapter;
       const certs = await uk.listCertificates();
       // 选中平台已绑定证书：优先本地缓存的 certSn（U盾管理页绑定后写入），兜底按公钥匹配 profile.sm2PublicKey
       const profilePub = profile?.sm2PublicKey;
