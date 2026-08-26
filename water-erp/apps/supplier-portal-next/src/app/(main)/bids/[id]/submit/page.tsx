@@ -546,7 +546,7 @@ function BidSubmitInner() {
 
   /** 组装 dual-v2 信封 + 供应商证书签名 */
   async function buildDualEnvelope() {
-    if (!ukeyAdapter || !ukeyCertSn) throw new Error("U盾未开锁，请先插入 U盾并输入口令");
+    if (!ukeyAdapter || !ukeyCertSn) throw new Error("U盾未解锁，请先插入 U盾并输入证书口令");
     // 换证窗口期拦截——条目缺失或上传时所用证书公钥 ≠ 当前签名证书公钥，
     // 说明存在用旧证书加密的条目（kself 用旧公钥，服务端只验 sha256/签名会放行，开标解密才爆），
     // 一律要求重新加密上传，不提交。
@@ -574,7 +574,7 @@ function BidSubmitInner() {
 
   // ═══ U盾会话（提交时开锁，仅内存持有；口令不持久化）═══
   async function handleUkeyOpen() {
-    if (!ukeyPassword) { toast.warning("请输入 U盾口令"); return; }
+    if (!ukeyPassword) { toast.warning("请输入证书口令"); return; }
     setUkeyOpening(true);
     try {
       const uk = (await openUkey(ukeyPassword)).adapter;
@@ -582,16 +582,16 @@ function BidSubmitInner() {
       // 选中平台已绑定证书：优先本地缓存的 certSn（U盾管理页绑定后写入），兜底按公钥匹配 profile.sm2PublicKey
       const profilePub = profile?.sm2PublicKey;
       const cert = certs.find((c) => c.certSn === boundCertSn()) || certs.find((c) => c.publicKey === profilePub);
-      if (!cert) throw new Error("介质内未找到与平台绑定的证书，请先到「U盾管理」页绑定");
+      if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定");
       setUkeyAdapter(uk);
       setUkeyCertSn(cert.certSn);
       setUkeyCertPublicKey(cert.publicKey);
       setUkeyPassword("");
       setUkeyDialogVisible(false);
-      toast.success(`U盾已开锁（${cert.certSn}）`);
+      toast.success(`U盾已解锁（${cert.certSn}）`);
       if (pendingSubmitRef.current) { pendingSubmitRef.current = false; await doSubmit(); }
     } catch (e: any) {
-      toast.error(e?.message || "U盾开锁失败");
+      toast.error(e?.message || "U盾解锁失败");
     } finally {
       setUkeyOpening(false);
     }
@@ -651,7 +651,7 @@ function BidSubmitInner() {
     }
     const items = [
       { label: "供应商资质", detail: isApproved ? "已入库，可投标" : "未通过审核，无法投标", ok: isApproved, required: true },
-      { label: "U盾证书", detail: dualReady ? (ukeyAdapter ? `已开锁（${ukeyCertSn}）` : "已绑定，提交时校验口令") : "未绑定（传统加密投递）", ok: true, required: false },
+      { label: "U盾证书", detail: dualReady ? (ukeyAdapter ? `已解锁（${ukeyCertSn}）` : "已绑定，提交时校验证书口令") : "未绑定（传统加密投递）", ok: true, required: false },
       { label: "投标报价", detail: dualReady ? "密封进双层信封（开标时揭示）" : formatBidPrice(form.bidPrice), ok: !!form.bidPrice, required: true },
       { label: "交货工期", detail: form.deliveryPeriod || "未填写", ok: !!form.deliveryPeriod, required: true },
       { label: "质量承诺", detail: form.qualityCommitment || "未填写", ok: !!form.qualityCommitment, required: false },
@@ -708,7 +708,7 @@ function BidSubmitInner() {
       }
       // U盾保管提示仅在双层加密轨展示
       toast.success(dualReady
-        ? "标书提交成功！请妥善保管 U盾介质导出文件，开标解密与唱标核对需要。"
+        ? "标书提交成功！请妥善保管 U盾备份文件，开标解密与唱标核对需要。"
         : "标书提交成功！");
       router.push("/my-bids");
     } catch (err: any) {
@@ -752,7 +752,7 @@ function BidSubmitInner() {
                 <BAlert type="warning" style={{ marginBottom: 20 }} title={`投标截止：${project.deadline ? dayjs(project.deadline).format("YYYY年MM月DD日 HH:mm") : "--"}，请在截止前完成提交。`} />
               )}
               {canSubmit && dualReady && (
-                <BAlert type="success" style={{ marginBottom: 20 }} title="双层加密信封投递：文件将双层加密上传，报价等唱标字段密封至开标时揭示。提交时需插入 U盾并输入口令完成签名。" />
+                <BAlert type="success" style={{ marginBottom: 20 }} title="双层加密信封投递：文件将双层加密上传，报价等唱标字段密封至开标时揭示。提交时需插入 U盾并输入证书口令完成签名。" />
               )}
               {canSubmit && !dualReady && (
                 <BAlert type="info" style={{ marginBottom: 20 }} title="未绑定 U盾证书，当前按传统加密方式投递。建议先到「U盾管理」页绑定证书，启用双层信封密封。">
@@ -999,23 +999,23 @@ function BidSubmitInner() {
       <SpDialog
         open={ukeyDialogVisible}
         onClose={() => setUkeyDialogVisible(false)}
-        title="U盾口令验证"
-        subtitle="提交双层加密标书需开锁 U盾证书"
+        title="证书口令验证"
+        subtitle="提交双层加密标书需解锁 U盾证书"
         icon={KeyRound}
         width={420}
         footer={
           <>
             <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>开锁并提交</SpButton>
+            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>解锁并提交</SpButton>
           </>
         }
       >
-        <label className="reg-label">U盾口令</label>
+        <label className="reg-label">证书口令</label>
         <SpInput
           type="password"
           value={ukeyPassword}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUkeyPassword(e.target.value)}
-          placeholder="输入 U盾口令"
+          placeholder="输入证书口令"
           onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleUkeyOpen(); }}
         />
         <p className="text-xs mt-3 text-[var(--fg-2)]">口令仅本次会话使用，不会保存。</p>

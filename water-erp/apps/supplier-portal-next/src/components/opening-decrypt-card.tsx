@@ -139,20 +139,20 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
   }, [isOpening, submitted, isDualTrack, pollPackage]);
 
   async function handleUkeyOpen() {
-    if (!ukeyPassword) { toast.warning("请输入 U盾口令"); return; }
+    if (!ukeyPassword) { toast.warning("请输入证书口令"); return; }
     setUkeyOpening(true);
     try {
       const uk = (await openUkey(ukeyPassword)).adapter;
       const certs = await uk.listCertificates();
       const cert = certs.find((c) => c.certSn === boundCertSn()) || certs.find((c) => c.publicKey === pubKeyRef.current);
-      if (!cert) throw new Error("介质内未找到与平台绑定的证书，请先到「U盾管理」页绑定或导入备份介质");
+      if (!cert) throw new Error("U盾内未找到与平台绑定的证书，请先到「U盾管理」页绑定或导入备份");
       setUkeyAdapter(uk);
       setUkeyCertSn(cert.certSn);
       setUkeyPassword("");
       setUkeyDialogVisible(false);
-      toast.success(`U盾已开锁（${cert.certSn}）`);
+      toast.success(`U盾已解锁（${cert.certSn}）`);
     } catch (e: any) {
-      toast.error(e?.message || "U盾开锁失败");
+      toast.error(e?.message || "U盾解锁失败");
     } finally {
       setUkeyOpening(false);
     }
@@ -301,9 +301,9 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
               )}
               <div className="ukey-row">
                 {ukeyCertSn ? (
-                  <span className="ukey-ok">U盾已开锁：{ukeyCertSn}</span>
+                  <span className="ukey-ok">U盾已解锁：{ukeyCertSn}</span>
                 ) : (
-                  <span className="ukey-hint">需使用投递时的 U盾证书（或导入的备份介质）解密</span>
+                  <span className="ukey-hint">需使用投递时的 U盾证书（或导入的备份）解密</span>
                 )}
                 <SpButton variant="primary" loading={decrypting} disabled={sealChecking || !!pkg.paused} onClick={handleDecryptUpload}>
                   {decrypting ? (decryptStage || "解密中…") : "U盾解密并上传"}
@@ -325,19 +325,19 @@ export function OpeningDecryptCard({ projectId, isOpening, submitted, profileSm2
         footer={
           <>
             <SpButton variant="soft" onClick={() => setUkeyDialogVisible(false)}>取消</SpButton>
-            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>开锁</SpButton>
+            <SpButton variant="primary" loading={ukeyOpening} onClick={handleUkeyOpen}>解锁</SpButton>
           </>
         }
       >
-        <p className="ukey-desc">请输入 U盾口令完成介质开锁。</p>
+        <p className="ukey-desc">请输入证书口令完成 U盾解锁。</p>
         <SpInput
           type="password"
           value={ukeyPassword}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUkeyPassword(e.target.value)}
-          placeholder="U盾口令"
+          placeholder="证书口令"
           onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleUkeyOpen(); }}
         />
-        <p className="ukey-hint mt-2">证书未绑定或介质遗失？前往 <Link href="/profile/ukey" className="text-[var(--brand)] font-semibold underline underline-offset-2">U盾管理</Link> 绑定或导入备份介质。</p>
+        <p className="ukey-hint mt-2">证书未绑定或 U盾遗失？前往 <Link href="/profile/ukey" className="text-[var(--brand)] font-semibold underline underline-offset-2">U盾管理</Link> 绑定或导入备份。</p>
       </SpDialog>
     </div>
   );
