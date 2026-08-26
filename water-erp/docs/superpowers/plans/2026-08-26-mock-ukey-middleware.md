@@ -95,9 +95,8 @@ test('issueShield:文件形状与持久化(0600,私钥仅密文)', async () => {
   assert.equal(shield.pinPolicy.retryLeft, 6);
   assert.ok(shield.encPrivKey.ct && shield.encPrivKeyPuk.ct);
   const raw = fs.readFileSync(path.join(slotDir, `${shield.shieldId}.ukey`), 'utf8');
-  assert.ok(!raw.includes(shield.publicKey.slice(4, 20)) || true); // 公钥本就公开;关键是下一条:
-  const kp = sm2.generateKeyPairHex();
-  assert.ok(!raw.includes(kp.privateKey)); // 落盘内容不含任何明文私钥形态(抽样自签对)
+  assert.ok(!raw.includes(puk), 'PUK 不得明文落盘(只存 pukHash)');
+  assert.ok(!raw.includes('123456'), 'PIN 不得明文落盘');
   assert.equal((fs.statSync(path.join(slotDir, `${shield.shieldId}.ukey`)).mode & 0o777), 0o600);
 });
 
@@ -1277,7 +1276,7 @@ script 段(对照原行号):
 
 ```typescript
 // 旧:import { MockUKeyAdapter, type StorageLike, type CertInfo } from '@water-erp/ukey'
-import { MockUKeyAdapter, type CertInfo } from '@water-erp/ukey'
+import { MockUKeyAdapter, VendorUKeyAdapter, type CertInfo } from '@water-erp/ukey'
 import { detectUkey, openUkey, type UkeyKind } from '@/utils/ukey-factory'
 ```
 
