@@ -17,8 +17,13 @@ function parseFlags(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--')) { out[a.slice(2)] = next; i++; }
-      else out[a.slice(2)] = true;
+      if (next === undefined || next.startsWith('--')) {
+        console.error(`参数错误：${a} 需要一个值`);
+        console.log(HELP);
+        process.exit(1);
+      }
+      out[a.slice(2)] = next;
+      i++;
     } else out._.push(a);
   }
   return out;
@@ -37,7 +42,17 @@ async function main() {
   const slotDir = args['slot-dir'] ?? defaultSlotDir();
 
   if (cmd === 'serve') {
-    const srv = await startServer({ port: Number(args.port ?? 0) || undefined, slotDir });
+    let port;
+    if (args.port !== undefined) {
+      port = Number(args.port);
+      if (!Number.isFinite(port)) {
+        console.error(`参数错误：--port 需要数字,收到 "${args.port}"`);
+        console.log(HELP);
+        process.exit(1);
+      }
+      port = port || undefined; // 0 = 用默认端口
+    }
+    const srv = await startServer({ port, slotDir });
     console.log(`[ukeymw] 盾槽 ${slotDir}`);
     console.log(`[ukeymw] 中间件已启动 → http://127.0.0.1:${srv.port}  (Ctrl-C 退出;插拔盾 = 移动槽目录内 .ukey 文件)`);
     process.on('SIGINT', () => { console.log('\n[ukeymw] 已停止(会话全清,重启后须重新开锁)'); srv.close(); process.exit(0); });
