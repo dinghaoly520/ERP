@@ -23,16 +23,19 @@ export class ContactsController {
   }
 
   @Get()
+  @Roles('leader', 'admin', 'staff')
   findMany() {
     return this.contactsService.findMany();
   }
 
   @Get('by-name')
+  @Roles('leader', 'admin', 'staff')
   findByName(@Query('name') name: string) {
     return this.contactsService.findByName(name);
   }
 
   @Get(':id')
+  @Roles('leader', 'admin', 'staff')
   findOne(@Param('id') id: string) {
     return this.contactsService.findOne(id);
   }

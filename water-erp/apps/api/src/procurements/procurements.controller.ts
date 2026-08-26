@@ -27,6 +27,7 @@ export class ProcurementsController {
   ) {}
 
   @Get()
+  @Roles('leader', 'admin')
   async findAll(
     @Query() query: QueryProcurementsDto,
     @Query('companyId') companyId: string | undefined,
@@ -40,6 +41,7 @@ export class ProcurementsController {
   }
 
   @Get('stats')
+  @Roles('leader', 'admin')
   async getStats(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -54,11 +56,13 @@ export class ProcurementsController {
   }
 
   @Get('methods')
+  @Roles('leader', 'admin', 'bid_host', 'staff')
   getMethods() {
     return this.procurementsService.getProcurementMethods();
   }
 
   @Get(':id')
+  @Roles('leader', 'admin', 'bid_host', 'staff')
   async findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const scope = await this.companyScope.resolveScope(user);
     return this.procurementsService.findOne(id, user, this.companyScope.filter(scope));
@@ -75,6 +79,7 @@ export class ProcurementsController {
   }
 
   @Put(':id')
+  @Roles('leader', 'admin', 'bid_host', 'staff')
   async update(
     @Param('id') id: string,
     @Body() updateDto: UpdateProcurementRoundDto,
@@ -85,18 +90,21 @@ export class ProcurementsController {
   }
 
   @Post(':id/recycle')
+  @Roles('leader', 'admin', 'bid_host', 'staff')
   async moveToRecycleBin(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const scope = await this.companyScope.resolveScope(user);
     return this.procurementsService.moveToRecycleBin(id, user, this.companyScope.filter(scope));
   }
 
   @Post(':id/restore')
+  @Roles('leader', 'admin', 'bid_host', 'staff')
   async restoreFromRecycleBin(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const scope = await this.companyScope.resolveScope(user);
     return this.procurementsService.restoreFromRecycleBin(id, user, this.companyScope.filter(scope));
   }
 
   @Delete(':id')
+  @Roles('leader', 'admin', 'bid_host', 'staff')
   async remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const scope = await this.companyScope.resolveScope(user);
     return this.procurementsService.remove(id, user, this.companyScope.filter(scope));
