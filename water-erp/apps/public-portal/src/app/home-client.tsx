@@ -99,7 +99,7 @@ export default function HomeClient({ initialAnnouncements }: { initialAnnounceme
   };
 
   // 从后端 API 按公告类型分别获取，避免全局分页导致各类型数量不均
-  const typeGroups = useMemo(() => ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'], []);
+  const typeGroups = useMemo(() => ['BID_NOTICE', 'CLARIFY_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'], []);
   const [fetchedAnnouncements, setFetchedAnnouncements] = useState<AnnouncementItem[]>(initialAnnouncements);
   const hasInitialData = useRef(initialAnnouncements.length > 0);
   const [announcementsLoading, setAnnouncementsLoading] = useState(initialAnnouncements.length === 0);

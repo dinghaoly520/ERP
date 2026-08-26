@@ -40,4 +40,23 @@ export const bidApi = {
   getRoundQuotes(projectId: string, roundId: string) {
     return api.get<any[]>(`/supplier-portal/projects/${projectId}/rounds/${roundId}/quotes`);
   },
+
+  /* ── W1 招标文件澄清与修改（CTS A-80~A-86，B-011/012）── */
+
+  listTenderClarifications(projectId: string) {
+    return api.get<{
+      questions: Array<{ id: string; supplierName: string; question: string; answer: string | null; status: string; createdAt: string }>;
+      docs: Array<{ id: string; version: number; title: string; content: string; receipt: { receiptedAt: string } | null }>;
+    }>(`/supplier-portal/projects/${projectId}/clarifications`);
+  },
+
+  askTenderClarification(projectId: string, question: string) {
+    return api.post(`/supplier-portal/projects/${projectId}/clarifications`, { question });
+  },
+
+  downloadTenderClarificationDoc(projectId: string, docId: string) {
+    return api.post<{ id: string; version: number; title: string; content: string; fileUrl: string | null }>(
+      `/supplier-portal/projects/${projectId}/clarification-docs/${docId}/download`,
+    );
+  },
 };

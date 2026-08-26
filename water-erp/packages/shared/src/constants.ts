@@ -255,6 +255,16 @@ export const isPassFailCategory = (category: string): boolean => PASS_FAIL_CATEG
  * 存在偏离——依据为集团采购业务规则（内部惯例，无成文条款）；对依法必须招标项目
  * 存在程序瑕疵风险，待制度成文化后更新本引用与 UI 文案。 */
 export const BID_DEADLINE_BEFORE_OPENING_MS = 24 * 3_600_000;
+
+/** B-011（CTS-EBS01 附录B）：投标人对招标文件澄清提问，最迟在投标截止时间前 N 日提出 */
+export const CLARIFY_ASK_MIN_DAYS_BEFORE_DEADLINE = 10;
+/** B-012（CTS-EBS01 附录B）：招标人发出澄清与修改文件，最迟在投标截止时间前 N 日 */
+export const CLARIFY_ISSUE_MIN_DAYS_BEFORE_DEADLINE = 15;
+
+/** B-004（CTS-EBS01 附录B）：招标文件出售开始至开标须不少于 N 日（法定节假日顺延） */
+export const SALE_TO_OPENING_MIN_DAYS = 20;
+/** B-009（CTS-EBS01 附录B）：招标文件发售期须不少于 N 日 */
+export const DOC_SALE_MIN_DAYS = 5;
 /** 截标↔开标关系校验的分钟级容差 */
 export const BID_OPENING_GAP_TOLERANCE_MS = 60_000;
 

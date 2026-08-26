@@ -3,6 +3,7 @@ import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { WorkflowModule } from './workflow/workflow.module';
+import { TenderClarificationModule } from './tender-clarification/tender-clarification.module';
 import { RedisModule } from './redis/redis.module';
 import { VerificationModule } from './verification/verification.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -120,7 +121,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     OpeningHallModule,
     SystemConfigModule,
     BadgeModule,
-    WorkflowModule,
+    WorkflowModule, TenderClarificationModule,
   ],
     controllers: [AppController],
   providers: [

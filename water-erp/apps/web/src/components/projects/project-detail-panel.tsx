@@ -36,6 +36,7 @@ import {
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
 import { ProjectTimelineStrip } from './project-timeline-strip';
+import { TenderClarificationPanel } from './tender-clarification-panel';
 import { ProjectStageTimeline } from './project-stage-timeline';
 import { StageFileList } from './stage-file-list';
 import { TenderWriteModal } from './tender-write-modal';
@@ -1299,6 +1300,9 @@ export function ProjectDetailPanel({
 
         {/* CTS A-47~49 任务计划与团队（hero 与双栏正文之间） */}
         <ProjectPlanSection itemId={item.id} canModify={canModify} currentUserRole={currentUserRole} />
+
+        {/* W1（A-80~86）：澄清与修改工作台 */}
+        <TenderClarificationPanel pmiId={item.id} />
 
         {/* ══════ 双栏正文 —— 列 bg 无外层 px 包裹，文本左缘 = page-hero 左缘(均为 px-5) ══════ */}
         <div className="pb-5">

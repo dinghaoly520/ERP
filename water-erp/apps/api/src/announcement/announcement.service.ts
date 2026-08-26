@@ -1,4 +1,6 @@
 import { Injectable, BadRequestException, ConflictException, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { assertBidNoticeTiming } from '../bid/bid-timing-rules';
+import { parseFlexibleDate } from '../common/parse-date.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
 import { AnnouncementAiService } from './announcement-ai.service';
@@ -35,6 +37,11 @@ export class AnnouncementService {
     });
 
     const status = (dto.status as any) ?? 'DRAFT';
+
+    // W2（B-004/B-009）：依法必招时间规则预检——置于建行之前，违者 400 且不留孤儿公告
+    if (dto.type === 'BID_NOTICE' && status === 'PUBLISHED') {
+      await this.assertBidNoticeTimingGuard(dto);
+    }
 
     // A2（表 B.1）：公告按类型落默认公开范围（可由 dto.metadata.dataClass 覆盖）
     const dataClass = ((dto.metadata as any)?.dataClass as string) ?? ANNOUNCEMENT_TYPE_DATA_CLASS[dto.type] ?? 'public_voluntary';
@@ -241,6 +248,15 @@ export class AnnouncementService {
     const isBidNoticePublish =
       isPublishTransition &&
       (dto.type ?? announcement.type) === 'BID_NOTICE';
+
+    // W2（B-004/B-009）：发布转换预检（依法必招强制；update 路径用库中字段+dto 覆盖取数）
+    if (isBidNoticePublish) {
+      await this.assertBidNoticeTimingGuard({
+        metadata: dto.metadata ?? announcement.metadata,
+        relatedProjectCode: dto.relatedProjectCode ?? announcement.relatedProjectCode,
+        publishDate: dto.publishDate ?? announcement.publishDate ?? new Date(),
+      });
+    }
 
     let result;
     try {
@@ -561,6 +577,37 @@ export class AnnouncementService {
   }
 
   /** 联动：BID_NOTICE 发布时自动创建/同步 BidProject，幂等安全 */
+
+  /** W2（B-004/B-009）采购公告发布时间规则预检：依法必招强制、非依法必招偏离留痕。 */
+  private async assertBidNoticeTimingGuard(dto: { metadata?: any; relatedProjectCode?: string | null; publishDate?: any }) {
+    const meta = AnnouncementService.validateMetadata(dto.metadata);
+    const existing = dto.relatedProjectCode
+      ? await this.prisma.bidProject.findUnique({ where: { projectCode: dto.relatedProjectCode } })
+      : null;
+    const saleStart = dto.publishDate ? new Date(dto.publishDate) : new Date();
+    const openTime = existing?.openTime ?? parseFlexibleDate(meta.openTime) ?? null;
+    const saleEnd = existing?.downloadDeadline
+      ?? parseFlexibleDate(meta.downloadDeadline)
+      ?? existing?.deadline
+      ?? parseFlexibleDate(meta.deadline)
+      ?? null;
+    const legalMandatory = existing?.legalMandatory ?? false;
+    const r = assertBidNoticeTiming({ saleStart, openTime, saleEnd, legalMandatory });
+    if (r.deviated) {
+      // 非依法必招项目偏离放行——监督日志留痕（延续 24h 规则先例）
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId: existing?.id ?? 'announcement-only',
+          time: new Date(), role: '系统', target: dto.relatedProjectCode ?? '(直建)',
+          action: '非依法必招项目时间规则偏离放行',
+          result: `${r.rule}（B-004 售标→开标≥20日/B-009 发售期≥5日）不满足但 legalMandatory=false`,
+          riskFlag: '低',
+        },
+      }).catch(() => undefined);
+    }
+    return r;
+  }
+
   private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null; companyId?: string | null; companyName?: string | null }) {
     if (!this.bidService) return;
     try {

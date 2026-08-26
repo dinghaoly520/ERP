@@ -84,6 +84,7 @@ export const ANNOUNCEMENT_TABS = [
 const TYPE_META: Record<string, { tag: string; color: string }> = {
   BID_NOTICE: { tag: '采购公告', color: '#064ea2' },
   ADDENDUM: { tag: '补遗公告', color: '#e08a00' },
+  CLARIFY_NOTICE: { tag: '澄清与修改', color: '#e08a00' },
   PREQUAL_NOTICE: { tag: '资格预审公告', color: '#0b63ce' },
   PRE_WIN_NOTICE: { tag: '预成交公示', color: '#7bb461' },
   WIN_NOTICE: { tag: '成交公告', color: '#18a56c' },

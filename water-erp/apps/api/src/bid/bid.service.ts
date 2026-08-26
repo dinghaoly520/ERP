@@ -21,6 +21,8 @@ import { BatchCreateScorePointsDto } from './dto/batch-create-score-points.dto';
 import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
+import { assertMinAcceptedInvitees } from './bid-timing-rules';
+import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
@@ -1195,7 +1197,7 @@ export class BidService {
   async openSubmission(id: string, actorId?: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, projectCode: true, projectManagementItemId: true },
+      select: { stage: true, name: true, projectCode: true, projectManagementItemId: true, procurementMethod: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'SUBMIT');
@@ -1211,6 +1213,14 @@ export class BidService {
         error: '尚未发布招标公示，供应商无法获取招标文件，请先在信息发布中心发布招标公告',
         code: 'BID_NOTICE_REQUIRED',
       });
+    }
+
+    // W3/B-006：邀请类采购（邀请招标/谈判）须 ≥3 家已接受邀请方可开放投递
+    if (['邀请招标', '谈判采购'].includes(project.procurementMethod)) {
+      const accepted = await this.prisma.invitationRsvp.count({
+        where: { projectId: id, status: 'ACCEPTED' },
+      });
+      assertMinAcceptedInvitees({ procurementMethod: project.procurementMethod, acceptedCount: accepted });
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -1782,7 +1792,7 @@ export class BidService {
   async startEvaluation(id: string, actorId?: string, evaluationHours?: number) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, procurementMethod: true, roundMode: true },
+      select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'EVALUATING');
@@ -1798,28 +1808,22 @@ export class BidService {
     if (confirmedExperts === 0) {
       throw new BadRequestException({ error: '项目未分配已确认的评审专家，无法启动评标', code: 'NO_EXPERTS_ASSIGNED' });
     }
-    if (confirmedExperts < 3) {
-      throw new BadRequestException({
-        error: `评标委员会已确认正选专家仅 ${confirmedExperts} 人，依法须 5 人以上单数（小项目不少于 3 人）`,
-        code: 'INSUFFICIENT_COMMITTEE_SIZE',
-      });
-    }
-    if (confirmedExperts % 2 === 0) {
-      throw new BadRequestException({
-        error: `评标委员会已确认正选专家 ${confirmedExperts} 人，须为单数`,
-        code: 'EVEN_COMMITTEE_SIZE',
-      });
-    }
-    // P1-7（#15 补全）：评审专家（非采购人代表）不得少于成员总数的三分之二（暂行规定第九条）
     const repCount = await this.prisma.bidExpert.count({
       where: { projectId: id, invitationStatus: 'confirmed', expertRole: '正选', isPurchaserRepresentative: true },
     });
-    if ((confirmedExperts - repCount) * 3 < confirmedExperts * 2) {
-      throw new BadRequestException({
-        error: `评审专家（非采购人代表）${confirmedExperts - repCount}/${confirmedExperts} 人，依法不得少于成员总数的三分之二`,
-        code: 'COMMITTEE_RATIO',
-      });
-    }
+    // W5（B-022）：水利工程建设项目委员会须 7 人以上单数（无小项目例外）；
+    // 水利判定=PMI 采购类别含「水利」或项目名命中水利关键词（PMI 缺失/查询失败退默认口径）
+    const hostPmi = project.projectManagementItemId
+      ? await this.prisma.projectManagementItem
+          .findUnique({ where: { id: project.projectManagementItemId }, select: { procurementCategory: true } })
+          .catch(() => null)
+      : null;
+    assertCommitteeComposition(
+      { confirmed: confirmedExperts, representatives: repCount },
+      isWaterProject(hostPmi, project.name)
+        ? { minSize: MIN_COMMITTEE_WATER, smallProjectExempt: false }
+        : {},
+    );
 
     // G4: 至少一个解密成功且未撤回的供应商，否则评标阶段无供应商可评（死局）
     const evaluableSupplierCount = await this.prisma.bidSupplier.count({
@@ -5804,6 +5808,12 @@ export class BidService {
       where: { projectId },
       orderBy: { createdAt: 'asc' },
     });
+
+    // W11-①（A-101）：投标回执 SM2 签名存档段（有签署才导出）
+    const submissionReceipts = await this.prisma.supplierBidSubmission.findMany({
+      where: { projectId, receiptSignature: { not: Prisma.DbNull } },
+      select: { id: true, supplierId: true, status: true, receiptSignature: true, receiptSignedAt: true },
+    });
     // OpeningHallMessage 不存 supplierName（schema 仅 supplierId）；私聊归属经 BidSupplier 反查
     const hallSupplierNames = new Map(
       (await this.prisma.bidSupplier.findMany({ where: { projectId }, select: { supplierId: true, supplierName: true } }))
@@ -5871,8 +5881,16 @@ export class BidService {
       project.suppliers.forEach(s => lines.push([s.supplierName, s.downloadStatus, s.submitStatus, s.encryptStatus, s.decryptStatus, s.confirmStatus].map(esc).join(',')));
       lines.push('');
       lines.push('=== 开标记录表 ===');
-      lines.push(['供应商', '报价', '工期', '质量目标', '保证金', '解密结果', '确认状态'].map(esc).join(','));
-      project.openingRecords.forEach(r => lines.push([r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.decryptResult, r.confirmStatus].map(esc).join(',')));
+      // W8（A-115）：有 active 开标记录模板则按模板列导出，否则回退内置列
+      const openingTpl = await this.prisma.workTemplate.findFirst({ where: { kind: 'opening_record', isActive: true }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
+      const openingCols = (openingTpl?.content as { columns?: Array<{ key: string; label: string }> } | null)?.columns;
+      if (openingCols && openingCols.length > 0) {
+        lines.push(openingCols.map(c => c.label).map(esc).join(','));
+        project.openingRecords.forEach(r => lines.push(openingCols.map(c => String((r as unknown as Record<string, unknown>)[c.key] ?? '')).map(esc).join(',')));
+      } else {
+        lines.push(['供应商', '报价', '工期', '质量目标', '保证金', '解密结果', '确认状态'].map(esc).join(','));
+        project.openingRecords.forEach(r => lines.push([r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.decryptResult, r.confirmStatus].map(esc).join(',')));
+      }
       lines.push('');
       lines.push('=== 供应商确认/异议记录 ===');
       lines.push(['供应商', '确认状态', '异议原因'].map(esc).join(','));
@@ -5920,6 +5938,14 @@ export class BidService {
       lines.push(['存证摘要-开标大厅消息', sectionDigests.hallMessages].join(','));
       lines.push(['存证摘要-监督日志', sectionDigests.supervisionLogs].join(','));
       lines.push(['存证摘要-澄清答疑', sectionDigests.clarifications].join(','));
+      if (submissionReceipts.length > 0) {
+        lines.push('', '=== 投标回执 SM2 签名（A-101）===');
+        lines.push(['提交ID', '供应商', '签署时间', '算法'].map(esc).join(','));
+        for (const r of submissionReceipts) {
+          const rec = r.receiptSignature as { algorithm?: string } | null;
+          lines.push([r.id, r.supplierId, r.receiptSignedAt?.toISOString() ?? '', rec?.algorithm ?? ''].map(esc).join(','));
+        }
+      }
       lines.push(['存证摘要根（sectionsRoot）', sectionsRoot].join(','));
       if (aiUsage) {
         lines.push('');
@@ -5952,6 +5978,12 @@ export class BidService {
         contact: project.contact,
         stage: project.stage,
       },
+      submissionReceipts: submissionReceipts.map(r => ({
+        submissionId: r.id,
+        supplierId: r.supplierId,
+        signedAt: r.receiptSignedAt?.toISOString() ?? null,
+        receipt: r.receiptSignature as object,
+      })),
       hashChain: {
         algorithm: 'SHA-256' as const,
         genesisHash: genesis,

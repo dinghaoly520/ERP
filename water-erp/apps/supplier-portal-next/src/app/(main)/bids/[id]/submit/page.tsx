@@ -696,9 +696,21 @@ function BidSubmitInner() {
         // 旧轨：E2EE DEK 上传（envelope 不传即旧行为）
         payload.clientDeks = buildClientDeksPayload();
       }
-      await supplierApi.submitBid(projectId, payload);
+      const submitted = await supplierApi.submitBid(projectId, payload);
       draft.clearDraft();
       clearDeks();
+      // W11-①（A-101）：双信封轨投递成功后自动签回执（U盾私钥 SM2 签 canonical，服务端验签存档）
+      // 失败不阻塞投递结果——提示可稍后在「我的投标」补签
+      if (dualReady && ukeyAdapter && ukeyCertSn && submitted?.id) {
+        try {
+          const { canonical } = await supplierApi.getReceiptPayload(submitted.id);
+          const signature = await ukeyAdapter.sign(ukeyCertSn, canonical);
+          await supplierApi.signReceiptSignature(submitted.id, signature);
+          toast.success("投标回执已签署存档（SM2 防抵赖）");
+        } catch (e: unknown) {
+          toast.error("回执签署未完成：" + ((e as Error)?.message || "可稍后补签"));
+        }
+      }
       // U盾保管提示仅在双层加密轨展示
       toast.success(dualReady
         ? "标书提交成功！请妥善保管 U盾介质导出文件，开标解密与唱标核对需要。"

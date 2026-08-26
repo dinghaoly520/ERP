@@ -2,6 +2,8 @@ import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request,
 import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { SupplierPortalService } from './supplier-portal.service';
+import { TenderClarificationService } from '../tender-clarification/tender-clarification.service';
+import { AskClarificationDto } from '../tender-clarification/dto/ask-clarification.dto';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
@@ -26,6 +28,7 @@ export class SupplierPortalController {
     private portalService: SupplierPortalService,
     private prisma: PrismaService,
     private bidDocumentService: BidDocumentService,
+    private clarifications: TenderClarificationService,
     private objectionService: ObjectionService,
     private prequalService: PrequalService,
     private frameworkService: FrameworkService,
@@ -42,6 +45,57 @@ export class SupplierPortalController {
   }
 
   // ─── Profile ───
+
+  /** A-80：供应商就招标文件提出澄清问题（须已下载、截止前 10 日窗口） */
+  /** W11-①（A-101）：取投标回执待签负载（canonical 字符串供 U盾签名） */
+  @Get('bid-submissions/:submissionId/receipt-payload')
+  async getReceiptPayload(@Param('submissionId') submissionId: string, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getReceiptPayloadFor(submissionId, supplierId);
+  }
+
+  /** W11-①（A-101）：提交回执 SM2 签名（服务端验签存档，幂等） */
+  @Post('bid-submissions/:submissionId/receipt-signature')
+  async signReceipt(@Param('submissionId') submissionId: string, @Body() body: { signature: string }, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.signSubmissionReceipt(submissionId, supplierId, body?.signature ?? '');
+  }
+
+  @Post('projects/:id/clarifications')
+  async askClarification(
+    @Param('id') id: string,
+    @Body() dto: AskClarificationDto,
+    @Request() req: any,
+  ) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId: req.user.sub },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new ForbiddenException('非供应商账号');
+    return this.clarifications.askQuestion(id, supplier, dto);
+  }
+
+  /** A-85/A-86：下载澄清文件（下载即回执） */
+  @Post('projects/:id/clarification-docs/:docId/download')
+  async downloadClarificationDoc(
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @Request() req: any,
+  ) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId: req.user.sub },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new ForbiddenException('非供应商账号');
+    return this.clarifications.downloadDoc(id, docId, supplier);
+  }
+
+  /** 供应商视角澄清问答+澄清文件列表（Task 7 实装） */
+  @Get('projects/:id/clarifications')
+  async listClarifications(@Param('id') id: string, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.clarifications.listForSupplier(id, supplierId);
+  }
 
   @Get('profile')
   async getProfile(@Request() req: any) {
@@ -494,6 +548,11 @@ export class SupplierPortalController {
   @Get('bid-documents/:announcementId/download')
   async downloadBidDocument(@Request() req: any, @Param('announcementId') announcementId: string, @Query('password') password: string | undefined, @Res() res: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
+    // W9-②（A-215）：黑名单主体禁止下载招标文件
+    const self = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { status: true } });
+    if (self?.status === 'BLACKLIST') {
+      throw new ForbiddenException({ error: '贵单位已被列入黑名单，无法获取招标文件', code: 'SUPPLIER_BLACKLISTED' });
+    }
     const { buffer, fileName, mimeType } = await this.bidDocumentService.downloadForSupplier(announcementId, supplierId, password);
     res.setHeader('Content-Type', mimeType || 'application/octet-stream');
     res.setHeader('Content-Length', String(buffer.length));

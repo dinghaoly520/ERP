@@ -5,6 +5,7 @@ import { ObjectionController } from './objection.controller';
 import { ObjectionService } from './objection.service';
 import { SignatureService } from '../common/crypto/signature.service';
 import { DualEnvelopeService } from '../common/crypto/dual-envelope.service';
+import { TenderClarificationModule } from '../tender-clarification/tender-clarification.module';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AnnouncementModule } from '../announcement/announcement.module';
@@ -16,7 +17,7 @@ import { FrameworkModule } from '../framework/framework.module';
 import { PerformanceModule } from '../performance/performance.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule, NotificationModule, PrequalModule, FrameworkModule, PerformanceModule],
+  imports: [TenderClarificationModule, AuthModule, PrismaModule, AnnouncementModule, BidBackupModule, BidModule, NotificationModule, PrequalModule, FrameworkModule, PerformanceModule],
   controllers: [SupplierPortalController, ObjectionController],
   providers: [SupplierPortalService, ObjectionService, SignatureService, DualEnvelopeService],
   exports: [SupplierPortalService, ObjectionService, DualEnvelopeService],

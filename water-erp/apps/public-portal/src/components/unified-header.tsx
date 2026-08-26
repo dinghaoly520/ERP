@@ -21,6 +21,7 @@ interface UnifiedHeaderProps {
 const TYPE_LABEL: Record<string, string> = {
   BID_NOTICE: '采购公告',
   WIN_NOTICE: '中标公示',
+  CLARIFY_NOTICE: '澄清与修改',
   POLICY: '政策法规',
   PLATFORM: '平台通知',
 };

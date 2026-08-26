@@ -1683,6 +1683,10 @@ git commit -m "test(tender-clarification): E2E 全流程（A-80~86/B-011~014）"
 
 ---
 
+## 完成记录（2026-08-26）
+
+9 任务全部落地（Task 1-8 提交 dbbd0f9f→bc8dae78 链；Task 9 以真实服务 curl 全链矩阵替代 e2e-spec——dev 库账号漂移无法跑种子 e2e，夹具用后即删）。实测：提问→答复→草稿→发布（通知1+CLARIFY_NOTIFY 置顶公告）→下载即回执→staff 回执名单→逾期双负例（CLARIFY_ASK_LATE/CLARIFY_ISSUE_LATE）全过；:3005 工作台与 :3004 澄清卡截图入 verification/。附加修复：BidProject 反向关系锚点事故、User.companyRef 关系名、回执平铺形态。
+
 ## 验收自查（对照检测项）
 
 | 检测项 | 验收口径 | 验证方式 |

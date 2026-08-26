@@ -442,6 +442,7 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 3. **共享高危文件**（`apps/api/prisma/schema.prisma`、`app.module.ts`、`bid.controller.ts`、`bid-confirm-panel.tsx`、`packages/shared`）：仅在对方工作区干净时修改；schema 改动须在己方提交内附对应迁移。
 4. **每完成一个小步骤即提交**，不留大跨度未提交状态；提交信息注明所属规范（如 `feat(43711):` / `feat(compliance):`）。
 5. 冲突已发生时：外科手术只摘除自己的片段（按块精确匹配），不回滚对方改动，向用户报告。
+6. **改 `schema.prisma` 后提交前必须 `cd apps/api && npx prisma validate`**——校验失败时 `prisma generate` 会静默失败、client 停在旧版，连锁一批"字段不存在"假报错（2026-08-26 实录：反向关系锚点空格不匹配的 no-op 导致）。脚本插入 schema 字段后必须 grep 验证插入成功。
 
 会话 B 的 C3 暂存件：`docs/superpowers/plans/2026-08-26-c3-non-tender-deal-pending.md`（含设计+测试代码，恢复时按文档落地）。
 ## 操作日志法定留存（P1-12，2026-08-25）
