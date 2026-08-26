@@ -99,6 +99,13 @@ export class CatalogController {
     return this.catalogService.getCategory(id);
   }
 
+  @Get('admin/demand-aggregation')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: 'B2（4.1.3.2）：需求归集视图——按品类聚合在立项目录的需求计划' })
+  demandAggregation() {
+    return this.catalogService.demandAggregation();
+  }
+
   @Post('admin/categories')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '创建品类节点' })

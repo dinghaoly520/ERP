@@ -134,6 +134,7 @@ export function getPriceHistory(itemId: string) {
 export interface CategoryNode {
   id: number; name: string; code: string | null; parentId: number | null;
   sortOrder: number; status: string; isLeaf: boolean; icon: string | null;
+  centralizedLevel?: string | null; centralizedThreshold?: number | null;
   children: CategoryNode[];
   attributeTemplates?: AttributeTemplate[];
 }
@@ -148,12 +149,27 @@ export function getCategoryTree() {
   return request<CategoryNode[]>('/api/catalog/categories/tree');
 }
 
-export function createCategory(data: { name: string; code?: string; parentId?: number | null; sortOrder?: number; isLeaf?: boolean; icon?: string }) {
+export function createCategory(data: { name: string; code?: string; parentId?: number | null; sortOrder?: number; isLeaf?: boolean; icon?: string; centralizedLevel?: string; centralizedThreshold?: number | null }) {
   return request<CategoryNode>('/api/catalog/admin/categories', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export function updateCategory(id: number, data: { name?: string; code?: string | null; sortOrder?: number; isLeaf?: boolean; icon?: string | null }) {
+export function updateCategory(id: number, data: { name?: string; code?: string | null; sortOrder?: number; isLeaf?: boolean; icon?: string | null; centralizedLevel?: string | null; centralizedThreshold?: number | null }) {
   return request<CategoryNode>(`/api/catalog/admin/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+/** B2（4.1.3.2）：需求归集视图 */
+export interface DemandAggRow {
+  category: string;
+  count: number;
+  totalBudget: number;
+  centralizedLevel: string | null;
+  centralizedThreshold: number | null;
+  suggestCentralized: boolean;
+  recent: Array<{ projectCode: string | null; title: string; budget: number | null; department: string | null }>;
+}
+
+export function getDemandAggregation() {
+  return request<DemandAggRow[]>('/api/catalog/admin/demand-aggregation');
 }
 
 export function deleteCategory(id: number) {

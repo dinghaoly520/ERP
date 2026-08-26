@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ListChecks } from 'lucide-react';
+import { ListChecks, Check } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { getNotificationMeta, getNotificationLabel, statusTone } from '@water-erp/shared';
 import { portalURL } from '@water-erp/config';
@@ -10,7 +10,7 @@ import { AiPlanningPanel } from '@/components/work-arrangements/ai-planning-pane
 import { Modal } from '@/components/workbench';
 import type { WorkArrangementDailyPlan } from '@/lib/types/work-arrangements';
 import type { NotificationItem } from '@/lib/api/notification';
-import { listNotifications } from '@/lib/api/notification';
+import { listNotifications, markNotificationRead } from '@/lib/api/notification';
 import { handleNotificationClick } from '@/lib/notification-click';
 import { useNotifications } from '@/lib/hooks/use-notifications';
 
@@ -140,7 +140,7 @@ function groupByType(items: EnrichedItem[]): GroupedItem[] {
   return groups;
 }
 
-function AggregatedGroup({ group, router }: { group: Extract<GroupedItem, { kind: 'group' }>; router: ReturnType<typeof useRouter> }) {
+function AggregatedGroup({ group, router, onAckItem }: { group: Extract<GroupedItem, { kind: 'group' }>; router: ReturnType<typeof useRouter>; onAckItem: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const { items, typeLabel, toneColor, toneBg, icon } = group;
   const Icon = (LucideIcons as any)[icon] ?? LucideIcons.Bell;
@@ -188,6 +188,7 @@ function AggregatedGroup({ group, router }: { group: Extract<GroupedItem, { kind
             <NotificationRow
               key={item.id}
               item={item}
+              onAck={onAckItem}
               onClick={() => {
                 handleNotificationClick(item, router);
                 setOpen(false);
@@ -205,18 +206,29 @@ function AggregatedGroup({ group, router }: { group: Extract<GroupedItem, { kind
 function NotificationRow({
   item,
   onClick,
+  onAck,
 }: {
   item: EnrichedItem;
   onClick: () => void;
+  /** 点「已阅」：标记已读并从列表移除（不触发跳转） */
+  onAck?: (id: string) => void;
 }) {
   const Icon = (LucideIcons as any)[item.icon] ?? LucideIcons.Bell;
   return (
-    <button
-      type="button"
+    // 根元素用 div 而非 button：行内要嵌「已阅」按钮（button 不可嵌套 button）
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="group flex flex-col gap-1 border-b border-[#eef3f8] px-4 py-3 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="group flex w-full cursor-pointer flex-col gap-1 border-b border-[#eef3f8] px-4 py-3 text-left transition last:border-b-0 hover:bg-[var(--accent-soft)]/8"
     >
-      {/* Title row: icon + title + neumorphic badge */}
+      {/* Title row: icon + title + badge + 已阅 */}
       <span className="flex items-center gap-3">
         <span
           className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
@@ -229,23 +241,39 @@ function NotificationRow({
           {item.title}
         </span>
 
-        {!item.isRead && (
-          <span
-            className="shrink-0 flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wide"
-            style={{
-              color: item.toneColor,
-              backgroundColor: `color-mix(in oklch, ${item.toneColor} 8%, transparent)`,
-              boxShadow:
-                'inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.75)',
-            }}
-          >
+        <span className="flex shrink-0 items-center gap-2">
+          {!item.isRead && (
             <span
-              className="h-1 w-1 rounded-full"
-              style={{ backgroundColor: item.toneColor }}
-            />
-            待处理
-          </span>
-        )}
+              className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wide"
+              style={{
+                color: item.toneColor,
+                backgroundColor: `color-mix(in oklch, ${item.toneColor} 8%, transparent)`,
+                boxShadow:
+                  'inset 0 1px 0 oklch(1 0 0 / 0.55), 1px 1px 2px oklch(0.55 0.03 258 / 0.1), -1px -1px 2px oklch(1 0 0 / 0.75)',
+              }}
+            >
+              <span
+                className="h-1 w-1 rounded-full"
+                style={{ backgroundColor: item.toneColor }}
+              />
+              待处理
+            </span>
+          )}
+          {onAck && (
+            <button
+              type="button"
+              title="标记已读并从列表移除"
+              className="neu-btn-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAck(item.id);
+              }}
+            >
+              <Check size={11} strokeWidth={2.2} />
+              已阅
+            </button>
+          )}
+        </span>
       </span>
 
       {/* Content row */}
@@ -254,7 +282,7 @@ function NotificationRow({
           {item.content}
         </span>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -289,10 +317,26 @@ export function TaskNotificationCenter({
     return () => { cancelled = true; };
   }, []);
 
+  const refreshItems = () => {
+    listNotifications('all', 1, 50).then((res) => {
+      setDirectItems(res.items);
+      setTotalCount(res.total);
+    }).catch(() => {});
+  };
+
+  // 已阅：标记已读并从列表移除（本面板只显示未读，刷新后也不再出现；
+  // 全量历史仍在通知中心 /notifications 可查）
+  const handleAck = (id: string) => {
+    setDirectItems((prev) => (prev ? prev.filter((i) => i.id !== id) : prev));
+    markNotificationRead(id)
+      .then(refreshItems)
+      .catch(refreshItems);
+  };
+
   const source = directItems && directItems.length > 0 ? directItems : recent;
 
   const allItems = useMemo(
-    () => sortNotifications(source.map(enrich)),
+    () => sortNotifications(source.map(enrich)).filter((i) => !i.isRead),
     [source],
   );
 
@@ -321,9 +365,9 @@ export function TaskNotificationCenter({
           <div className="flex flex-1 flex-col min-h-0 overflow-y-auto">
             {shownGroups.map((g) =>
               g.kind === 'single' ? (
-                <NotificationRow key={g.key} item={g.item} onClick={() => handleNotificationClick(g.item, router)} />
+                <NotificationRow key={g.key} item={g.item} onClick={() => handleNotificationClick(g.item, router)} onAck={handleAck} />
               ) : (
-                <AggregatedGroup key={g.key} group={g} router={router} />
+                <AggregatedGroup key={g.key} group={g} router={router} onAckItem={handleAck} />
               ),
             )}
 
@@ -373,13 +417,14 @@ export function TaskNotificationCenter({
                 <NotificationRow
                   key={g.key}
                   item={g.item}
+                  onAck={handleAck}
                   onClick={() => {
                     handleNotificationClick(g.item, router);
                     setShowAll(false);
                   }}
                 />
               ) : (
-                <AggregatedGroup key={g.key} group={g} router={router} />
+                <AggregatedGroup key={g.key} group={g} router={router} onAckItem={handleAck} />
               ),
             )}
             {allItems.length === 0 && (

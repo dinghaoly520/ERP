@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, getSupplierCommunications, getSupplierDocuments, uploadSupplierDocument, deleteSupplierDocument, updateSupplierTags, uploadSupplierFile, blacklistSupplier, unblacklistSupplier, addSupplierRecord, listSupplierRecords, updateContactPersonnel } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
 import type { CommunicationRecord, SupplierDocumentRecord } from '@/lib/api/supplier';
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
@@ -16,7 +16,7 @@ import { PortraitTab } from '@/components/supplier/portrait-tab';
 
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 
-type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'changes' | 'communications' | 'documents';
+type TabKey = 'info' | 'portrait' | 'contacts' | 'qualifications' | 'evaluations' | 'records' | 'changes' | 'communications' | 'documents';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '待审核', RETURNED: '退回补正', APPROVED: '已入库', REJECTED: '审核不通过', DISABLED: '已停用', BLACKLIST: '黑名单',
@@ -86,8 +86,13 @@ export default function SupplierDetailPage() {
   const [approvalReason, setApprovalReason] = useState('');
   const [approvalLoading, setApprovalLoading] = useState(false);
 
-  // 状态操作弹窗（停用/黑名单，保留 modal）
-  const [actionModal, setActionModal] = useState<{ type: 'disable' | 'blacklist'; supplier: Supplier } | null>(null);
+  // 状态操作弹窗（停用/黑名单/解除黑名单，保留 modal）
+  const [actionModal, setActionModal] = useState<{ type: 'disable' | 'blacklist' | 'unblacklist'; supplier: Supplier } | null>(null);
+  // CTS A-213 奖惩记录
+  const [rewardRecords, setRewardRecords] = useState<Array<{ id: string; projectName: string; recordType: string; recordNote: string | null; effectiveDate: string | null; clientName: string | null; createdAt: string }>>([]);
+  const [recordForm, setRecordForm] = useState({ recordType: 'punishment' as 'reward' | 'punishment', projectName: '', recordNote: '', effectiveDate: '' });
+  // CTS A-216 人员标注
+  const [personnelForm, setPersonnelForm] = useState({ contactId: '', personnelType: '项目经理', certTitle: '' });
   const [actionReason, setActionReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -125,6 +130,7 @@ export default function SupplierDetailPage() {
   const [newDocFile, setNewDocFile] = useState<File | null>(null);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { if (id) void loadRewardRecords(id); }, [id]); // CTS A-213 奖惩记录
   useEffect(() => {
     if (activeTab === 'communications' && communications.length === 0) { setCommLoading(true); getSupplierCommunications(id as string).then(setCommunications).catch(() => {}).finally(() => setCommLoading(false)); }
     if (activeTab === 'documents' && documents.length === 0) { setDocLoading(true); getSupplierDocuments(id as string).then(setDocuments).catch(() => {}).finally(() => setDocLoading(false)); }
@@ -185,16 +191,49 @@ export default function SupplierDetailPage() {
     setApprovalLoading(false);
   };
 
-  // ── 状态操作（停用/黑名单）──
+  // ── 状态操作（停用/黑名单/解除黑名单；CTS A-215 黑名单走专用端点带校验与通知）──
   const handleStatusAction = async () => {
     if (!actionModal || !actionReason.trim()) { toast.error('请填写原因'); return; }
     setActionLoading(true);
     try {
-      await updateSupplierStatus(actionModal.supplier.id, actionModal.type === 'disable' ? 'DISABLED' : 'BLACKLIST', actionReason);
-      toast.success(actionModal.type === 'disable' ? '已停用' : '已加入黑名单');
+      if (actionModal.type === 'disable') {
+        await updateSupplierStatus(actionModal.supplier.id, 'DISABLED', actionReason);
+        toast.success('已停用');
+      } else if (actionModal.type === 'blacklist') {
+        await blacklistSupplier(actionModal.supplier.id, actionReason);
+        toast.success('已加入黑名单并通知供应商');
+      } else {
+        await unblacklistSupplier(actionModal.supplier.id, actionReason);
+        toast.success('已解除黑名单，恢复入库');
+      }
       setActionModal(null); setActionReason(''); loadAll();
     } catch (e: any) { toast.error(e?.message || '操作失败'); }
     setActionLoading(false);
+  };
+
+  // ── CTS A-213 奖惩记录 ──
+  const loadRewardRecords = async (id: string) => {
+    try { setRewardRecords(await listSupplierRecords(id)); } catch { /* 静默 */ }
+  };
+  const handleAddRecord = async () => {
+    if (!supplier) return;
+    if (!recordForm.projectName.trim() || !recordForm.recordNote.trim()) { toast.error('请填写关联项目与奖惩事由'); return; }
+    try {
+      await addSupplierRecord(supplier.id, { recordType: recordForm.recordType, projectName: recordForm.projectName.trim(), recordNote: recordForm.recordNote.trim(), effectiveDate: recordForm.effectiveDate || undefined });
+      toast.success('奖惩记录已录入');
+      setRecordForm({ recordType: 'punishment', projectName: '', recordNote: '', effectiveDate: '' });
+      loadRewardRecords(supplier.id);
+    } catch (e: any) { toast.error(e?.message || '录入失败'); }
+  };
+
+  // ── CTS A-216 人员类别标注 ──
+  const handleMarkPersonnel = async () => {
+    if (!personnelForm.contactId) { toast.error('请选择联系人'); return; }
+    try {
+      await updateContactPersonnel(personnelForm.contactId, { personnelType: personnelForm.personnelType, certTitle: personnelForm.certTitle.trim() || undefined });
+      toast.success('人员类别已标注');
+      loadAll();
+    } catch (e: any) { toast.error(e?.message || '标注失败'); }
   };
 
   // ── 业务标签编辑 ──
@@ -238,6 +277,7 @@ export default function SupplierDetailPage() {
     { key: 'contacts', label: '联系人', count: supplier.contacts?.length },
     { key: 'qualifications', label: '资质材料', count: qualifications.length },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
+    { key: 'records', label: '奖惩记录', count: rewardRecords.length },
     { key: 'changes', label: '变更记录', count: changes.length },
     { key: 'communications', label: '沟通记录' },
     { key: 'documents', label: '文件档案' },
@@ -333,6 +373,10 @@ export default function SupplierDetailPage() {
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="neu-btn-xs is-warning">停用</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
               </>
+            )}
+            {/* CTS A-215：黑名单状态提供解除入口（原因必填留痕） */}
+            {supplier.status === 'BLACKLIST' && (
+              <button onClick={() => { setActionReason(''); setActionModal({ type: 'unblacklist', supplier }); }} className="neu-btn-xs is-success">解除黑名单</button>
             )}
           </div>
         </div>
@@ -704,6 +748,22 @@ export default function SupplierDetailPage() {
 
         {/* ── 联系人 ── */}
         {activeTab === 'contacts' && (
+          <div>
+          {/* CTS A-216 人员类别标注工具条 */}
+          {supplier.contacts && supplier.contacts.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
+              <span className="text-xs font-semibold text-[var(--foreground)]">人员类别标注</span>
+              <select value={personnelForm.contactId} onChange={e => setPersonnelForm(f => ({ ...f, contactId: e.target.value }))} className="neu-input !h-8 text-xs">
+                <option value="">选择联系人</option>
+                {supplier.contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.position ? `（${c.position}）` : ''}</option>)}
+              </select>
+              <select value={personnelForm.personnelType} onChange={e => setPersonnelForm(f => ({ ...f, personnelType: e.target.value }))} className="neu-input !h-8 text-xs">
+                {['法人代表', '项目经理', '技术负责人', '质量安全负责人', '持证人员', '普通联系人'].map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <input value={personnelForm.certTitle} onChange={e => setPersonnelForm(f => ({ ...f, certTitle: e.target.value }))} placeholder="执业资格/证书（如：一级建造师）" className="neu-input !h-8 min-w-[200px] flex-1 text-xs" />
+              <button onClick={handleMarkPersonnel} className="neu-btn-xs">标注</button>
+            </div>
+          )}
           <div className="neu-table-card overflow-hidden">
             {(!supplier.contacts || supplier.contacts.length === 0) ? (
               <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无联系人信息</p>
@@ -711,7 +771,7 @@ export default function SupplierDetailPage() {
               <div className="overflow-x-auto">
                 <table className="workbench-table">
                   <thead>
-                    <tr><th>姓名</th><th>性别</th><th>手机号</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>类型</th></tr>
+                    <tr><th>姓名</th><th>性别</th><th>手机号</th><th>身份证号</th><th>邮箱</th><th>职位</th><th>人员类别</th><th>执业证书</th><th>类型</th></tr>
                   </thead>
                   <tbody>
                     {supplier.contacts.map(c => (
@@ -722,6 +782,8 @@ export default function SupplierDetailPage() {
                         <td className="text-[var(--muted-foreground)] font-mono text-xs">{c.idCard || '—'}</td>
                         <td className="text-[var(--muted-foreground)]">{c.email || '—'}</td>
                         <td className="text-[var(--muted-foreground)]">{c.position || '—'}</td>
+                        <td className="text-[var(--muted-foreground)]">{(c as any).personnelType || '—'}</td>
+                        <td className="text-[var(--muted-foreground)]">{(c as any).certTitle || '—'}</td>
                         <td>
                           {c.isPrimary
                             ? <StatusBadge tone="blue">主要联系人</StatusBadge>
@@ -733,6 +795,48 @@ export default function SupplierDetailPage() {
                 </table>
               </div>
             )}
+          </div>
+          </div>
+        )}
+
+        {/* ── 奖惩记录（CTS A-213）── */}
+        {activeTab === 'records' && (
+          <div>
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-4 py-3">
+              <span className="text-xs font-semibold text-[var(--foreground)]">录入奖惩</span>
+              <select value={recordForm.recordType} onChange={e => setRecordForm(f => ({ ...f, recordType: e.target.value as 'reward' | 'punishment' }))} className="neu-input !h-8 text-xs">
+                <option value="punishment">惩戒</option>
+                <option value="reward">奖励</option>
+              </select>
+              <input value={recordForm.projectName} onChange={e => setRecordForm(f => ({ ...f, projectName: e.target.value }))} placeholder="关联项目/事项名称" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
+              <input value={recordForm.recordNote} onChange={e => setRecordForm(f => ({ ...f, recordNote: e.target.value }))} placeholder="奖惩事由/文号" className="neu-input !h-8 min-w-[160px] flex-1 text-xs" />
+              <input type="date" value={recordForm.effectiveDate} onChange={e => setRecordForm(f => ({ ...f, effectiveDate: e.target.value }))} className="neu-input !h-8 text-xs" />
+              <button onClick={handleAddRecord} className="neu-btn-xs">录入</button>
+            </div>
+            <div className="neu-table-card overflow-hidden">
+              {rewardRecords.length === 0 ? (
+                <p className="text-[var(--muted-foreground)] text-center py-10 text-sm">暂无奖惩记录</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="workbench-table">
+                    <thead>
+                      <tr><th>类型</th><th>关联项目/事项</th><th>事由/文号</th><th>生效日期</th><th>录入时间</th></tr>
+                    </thead>
+                    <tbody>
+                      {rewardRecords.map(r => (
+                        <tr key={r.id}>
+                          <td>{r.recordType === 'reward' ? <StatusBadge tone="green">奖励</StatusBadge> : <StatusBadge tone="red">惩戒</StatusBadge>}</td>
+                          <td className="font-semibold text-[var(--foreground)]">{r.projectName}</td>
+                          <td className="text-[var(--muted-foreground)]">{r.recordNote}</td>
+                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{r.effectiveDate ? new Date(r.effectiveDate).toLocaleDateString('zh-CN') : '—'}</td>
+                          <td className="text-[var(--muted-foreground)] font-mono text-xs">{new Date(r.createdAt).toLocaleString('zh-CN')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

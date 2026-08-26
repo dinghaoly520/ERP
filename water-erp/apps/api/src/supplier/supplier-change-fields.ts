@@ -5,6 +5,7 @@
  * 禁止修改 status / userId / id / creditCode / normalizedName / classificationId 等敏感字段。
  *
  * 聚合字段（bankAccounts / performances）的 newValue 为 JSON 字符串，审批时整体替换子表。
+ * 机构代码 = 统一社会信用代码（敏感不可变），不提供变更入口。
  */
 
 export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
@@ -16,7 +17,6 @@ export const SUPPLIER_CHANGE_ALLOWED_FIELDS = [
   'tags',
   // ── 注册 2.0 扩展字段 ──
   'logoUrl',
-  'organizationCode',
   'country',
   'region',
   'detailedAddress',

@@ -74,6 +74,7 @@ describe('SupplierPortalService', () => {
     creditCode: '91510000MA62K5XX0X',
     enterpriseType: '国有企业',
     legalPerson: '张明',
+    legalPersonIdCard: '510101197501011234',
     registeredAddress: '成都市高新区天府大道北段1700号',
     businessScope: '水利水电工程施工',
     status: 'APPROVED',
@@ -178,16 +179,32 @@ describe('SupplierPortalService', () => {
     });
 
     it('资质齐全的供应商应有较高完整度', async () => {
+      // 注册 2.0 口径（45/15/10/20/10）：mock 需覆盖 17 项基本资料 + 联系人(性别/身份证/主要) + 银行 + 资质(执照/其他/附件) + 业绩
       const fullSupplier = {
         ...mockSupplier,
+        logoUrl: '/api/upload/files/logo-1',
+        organizationCode: '91510100MA6CJK0001',
+        country: '中国',
+        region: '四川省/成都市',
+        detailedAddress: '高新区天府大道 1 号',
+        registeredCapital: '5000 万元',
+        industry: '通用设备制造业',
+        legalPersonPhone: '13800138000',
+        companyEmail: 'hr@company.cn',
+        companyWebsite: 'https://company.cn',
         contacts: [
-          { name: '张经理', phone: '13800138001', isPrimary: true },
-          { name: '王芳', phone: '13800138002', isPrimary: false },
+          { name: '张经理', gender: '男', phone: '13800138001', idCard: '510101199001011234', isPrimary: true },
+          { name: '王芳', gender: '女', phone: '13800138002', idCard: '510101199202021234', isPrimary: false },
         ],
         qualifications: [
-          { type: '营业执照', name: '企业法人营业执照', validTo: new Date('2030-12-31'), status: '有效' },
-          { type: '资质证书', name: '水利水电一级', validTo: new Date('2028-06-30'), status: '有效' },
-          { type: '安全生产许可证', name: '安全生产许可证', validTo: new Date('2027-03-14'), status: '有效' },
+          { type: '营业执照', name: '企业法人营业执照', fileUrl: '/f1', attachments: [{ name: '副本', url: '/f1b' }], validTo: new Date('2030-12-31'), status: '有效' },
+          { type: '资质证书', name: '水利水电一级', fileUrl: '/f2', attachments: [{ name: '证书', url: '/f2b' }], validTo: new Date('2028-06-30'), status: '有效' },
+        ],
+        bankAccounts: [
+          { accountName: '某公司', bankName: '中国银行', accountNo: '1234567890', isDefault: true },
+        ],
+        performances: [
+          { projectName: '某水库工程', proofFiles: [{ name: '合同.pdf', url: '/p1' }] },
         ],
       };
       prisma.supplier.findUnique.mockResolvedValue(fullSupplier);
@@ -198,7 +215,9 @@ describe('SupplierPortalService', () => {
 
       const result = await service.getDashboardStats('user-1');
 
-      expect(result!.profileCompleteness.score).toBeGreaterThanOrEqual(80);
+      // 新口径满分 100：45 + 15 + 10 + 20 + 10
+      expect(result!.profileCompleteness.score).toBe(100);
+      expect(result!.profileCompleteness.missing).toEqual([]);
     });
 
     it('缺少基本信息的供应商应有较低完整度并包含缺失项', async () => {
@@ -225,8 +244,9 @@ describe('SupplierPortalService', () => {
 
       const result = await service.getDashboardStats('user-2');
 
-      expect(result!.profileCompleteness.score).toBeLessThan(30);
-      expect(result!.profileCompleteness.missing.length).toBeGreaterThan(5);
+      // 新口径：17 项基本资料全缺（45）+联系人(15)+银行(10)+资质(20)+业绩(10) 全失 → 0 分、缺失项 ≥ 10
+      expect(result!.profileCompleteness.score).toBe(0);
+      expect(result!.profileCompleteness.missing.length).toBeGreaterThanOrEqual(10);
     });
   });
 

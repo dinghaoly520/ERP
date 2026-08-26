@@ -86,6 +86,9 @@ model User {
   workArrangementTemplates       WorkArrangementTemplate[]
   tenderDocumentHistories        TenderDocumentHistory[]
   createdProjects                ProjectManagementItem[]   @relation("ProjectCreatedBy")
+  submittedProjects              ProjectManagementItem[]   @relation("ProjectSubmittedBy")
+  reviewedProjects               ProjectManagementItem[]   @relation("ProjectReviewedBy")
+  teamMemberships                ProjectTeamMember[]
   reviewTasks                    ReviewTask[]
   importBatches                  ImportBatch[]             @relation("ImportBatchUploadedBy")
   passwordChangeRequests         PasswordChangeRequest[]   @relation("PasswordChangeRequestUser")
@@ -313,6 +316,8 @@ model BidProject {
   openTime                 DateTime
   deadline                 DateTime
   downloadDeadline         DateTime? // 采购文件下载截止（公告截止时间）；超时不可下载
+  sectionNo                String?                   // CTS A-39/40 标段（包）编号（三级映射：PMI=项目、BidProject=招标项目/标段）
+  sectionName              String?
   stage                    BidStage                   @default(DOWNLOAD)
   scoreStandardPublishedAt DateTime?
   riskNote                 String?
@@ -325,18 +330,24 @@ model BidProject {
   companyName              String? // 写时快照（公司改名不扰历史）
   company                  Company?                   @relation(fields: [companyId], references: [id])
   qualification            String?
+  directSourcingReason     String? // 直接采购方式选择理由（GB/T 43711 7.2.2.3：直接采购项目公布理由及拟邀请供应商）
   contact                  String?
   qualityRequirement       String? // 质量目标/标准（项目级统一，唱标带出）
+  qualificationReviewResult String? // B3（7.2.3.6 资格后审）：评审阶段资格复核结果登记（登记制）
   bondRequired             Boolean                    @default(false) // 是否要求投标保证金
   bondAmount               Decimal?                   @db.Decimal(14, 2) // 保证金金额（仅记录，不严格校验）
   encryptionKeyId          String? // Track C: 项目数据密钥引用
   projectManagementItemId  String? // 多轮采购：所属项目管理项
+  frameworkAgreementId     String? // B4（附录 D）：框架协议二阶段项目回链一阶段协议
+  gbProcureCode            String? // A1（B.4.3.3）：国标采购项目编码（21 位组合码；不动业务 projectCode 唯一键）
+  gbSectionCode            String? // A1（B.4.3.4）：标段（标包/份额）编码（24 位；单标段=采购项目编码+001）
   round                    Int                        @default(1) // 采购轮次（再次采购递增）
   currentRoundNo           Int                        @default(1) // P2c: 当前报价轮次(多轮报价)
   roundMode                String? // P2c: null=单轮 | 'negotiation'=谈判 | 'sealed_auction'=竞价
   leaderCoSigned           Boolean                    @default(false) // C2: 组长末签
   leaderCoSignedAt         DateTime? // C2: 末签时间
   evaluationDeadline       DateTime? // E2: 评标截止时间(超时告警)
+  bondReturnedAt           DateTime? // C4（7.5.4.4）：响应担保退还时间（null=未退还；不退的记录见 BidSupervisionLog）
   isExtractionOnly         Boolean                    @default(false) // 自定义抽取影子项目：仅承载专家抽取/通知/确认，不出现在项目管理列表
   // ── 开标主持人指派（R1 硬分流）── null = 未指派（:3007 不可见，:3005 公开池）
   assignedHostUserId       String?
@@ -805,6 +816,7 @@ model BidArchiveItem {
   status     ArchiveStatus @default(NOT_STARTED)
   hashDigest String?
   fileHashes Json? // P1-14：签字包指纹链持久化（archiveAll 写入，verify/export 重算回读——修复恒 mismatch）
+  gbCategory String? // D1（GB/T 43711 4.1.5.1）：对应标准档案类别 key（人工登记项标注）
   archivedAt DateTime?
   project    BidProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt  DateTime      @default(now())
@@ -938,6 +950,186 @@ model ExpertDispute {
   @@index([projectId])
 }
 
+// ── C6（GB/T 43711 4.1.4/4.2.2）：供应商异议/投诉工单（登记制）──
+// 范围收窄：phase ∈ document 采购文件 | prequalification 资格预审 | result 采购结果；
+// 「过程异议」属线上开评标执行域，不在本模型承载。投诉 = escalate 转线下监管处理并登记结果。
+model SupplierObjection {
+  id             String    @id @default(cuid())
+  announcementId String? // 异议对象公告（采购公告/预成交公示等）
+  projectId      String? // 关联采购项目内部 ID（无外键——线下项目仅存业务编号）
+  projectCode    String? // 业务编号快照（展示/反查）
+  supplierId     String
+  supplierName   String
+  userId         String // 供应商登录账号（答复通知收件人）
+  phase          String    @default("result") // document | prequalification | result
+  title          String
+  content        String
+  attachments    Json? // [{name,url}]
+  status         String    @default("open") // open 待答复 | answered 已答复 | complaint 已转投诉 | closed 已办结
+  answer         String?
+  answeredBy     String?
+  answeredByName String?
+  answeredAt     DateTime?
+  escalatedAt    DateTime? // 转投诉时间
+  escalationNote String? // 投诉处理记录（转线下监管的登记）
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([supplierId])
+  @@index([status])
+}
+
+// ── B3（GB/T 43711 7.2.3）：资格预审（登记制——评审线下完成，结果登记入系统）──
+// mode：centralized 集中资格预审（按品类，约定期限内免重复审查）| single 单项资格预审 | post 资格后审（项目字段登记，不用本表）
+// method：qualified 合格制 | limited 有限数量制（limitedCount 取前 N）
+model Prequalification {
+  id                String    @id @default(cuid())
+  title             String
+  announcementId    String? // 关联 PREQUAL_NOTICE 公告
+  projectId         String? // 单项预审挂 BidProject（可空——集中预审独立于项目）
+  catalogCategoryId Int? // 集中预审按品类（期限内免重复审查）
+  mode              String    @default("single") // centralized | single
+  method            String    @default("qualified") // qualified | limited
+  limitedCount      Int?
+  validUntil        DateTime? // 预审合格有效期（集中预审期内免重复审查）
+  status            String    @default("open") // open 接受申请 | reviewing 评审中 | closed 已结束
+  result            Json? // 结论快照 {passed, failed, note, decidedAt}
+  companyId         String?
+  companyName       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  applications PrequalApplication[]
+
+  @@index([catalogCategoryId])
+  @@index([status])
+}
+
+// 预审申请（供应商提交；结果通知 7.2.3.4：合格发通知书、未通过同步告知）
+model PrequalApplication {
+  id          String    @id @default(cuid())
+  prequalId   String
+  supplierId  String
+  supplierName String
+  userId      String // 通知收件人
+  note        String? // 供应商补充说明
+  status      String    @default("pending") // pending | passed | failed
+  notifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  prequal Prequalification @relation(fields: [prequalId], references: [id], onDelete: Cascade)
+
+  @@unique([prequalId, supplierId])
+  @@index([supplierId])
+}
+
+// ── B4（GB/T 43711 附录 D）：框架协议采购两阶段（登记制）──
+// 一阶段：竞争/资格审查线下或既有流程完成 → 入围结果登记 FaEntry（D.2.6 淘汰比例校验）→ 协议生效；
+// 二阶段：从入围集合中二次竞争（线下/既有流程）或按约定规则直接选定 → 登记生成订单合同（Contract.contractType=order）。
+// entryMode：closed 封闭式竞争入围（含价格要素）| open 开放式资格审查（无价格，期内可随时申请）
+// variant（D.2.2）：supplier_only 定商 | supplier_price 定商定价 | supplier_price_qty 定商定价定量
+model FrameworkAgreement {
+  id                String    @id @default(cuid())
+  faCode            String    @unique
+  title             String
+  entryMode         String    @default("closed") // closed | open
+  variant           String    @default("supplier_price") // supplier_only | supplier_price | supplier_price_qty
+  catalogCategoryId Int? // 挂集中采购目录品类
+  projectManagementItemId String? // 发起立项的台账项
+  validFrom         DateTime
+  validUntil        DateTime // 框架协议有效期（D.3.3.4）
+  priceRule         Json? // 计价规则/基准价格（定商定价以上必填）
+  quotaRule         Json? // 数量范围或占比（定商定价定量必填）
+  secondStageRule   String? // 二阶段规则：直接选定条件/二次竞争方式（D.2.4）
+  status            String    @default("drafting") // drafting 草拟 | entry 入围登记中 | active 生效 | expired 已到期 | terminated 终止
+  eliminationCheck  Json? // D.2.6 淘汰比例校验快照
+  changeLog         Json? // 变更记录 [{at, action, note}]（增补/退出/价格调整，D.3.4/D.3.5）
+  companyId         String?
+  companyName       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  entries FaEntry[]
+
+  @@index([status])
+  @@index([catalogCategoryId])
+}
+
+// 入围供应商（一阶段产出；封闭式期内不增、开放式可随时申请——D.2.1）
+model FaEntry {
+  id          String   @id @default(cuid())
+  faId        String
+  supplierId  String? // 库内供应商（可空——线下供应商登记）
+  supplierName String
+  shareRatio  Decimal? @db.Decimal(5, 2) // 份额占比 %（定商定价定量可约定）
+  status      String   @default("active") // active | supplemented（增补进入）| exited（已退出，D.3.4.2）
+  entryAt     DateTime @default(now())
+  exitedAt    DateTime?
+  note        String?
+
+  fa FrameworkAgreement @relation(fields: [faId], references: [id], onDelete: Cascade)
+
+  @@index([faId])
+  @@index([supplierId])
+}
+
+// ── C2（GB/T 43711 7.5.4）：采购合同订立 ──
+// 状态机：drafting 草拟 → internal_review 内审（审计法务）→ signed 已签署 → performing 履行中
+//        → accepted 已验收（C3）| terminated 终止。
+// 7.5.4.3 一致性：合同实质性内容应与采购文件、成交供应商响应文件和成交通知书一致——
+// 签署前必跑 checkContractConsistency（contract-consistency.ts），结果快照存 consistencyResult。
+model Contract {
+  id                      String    @id @default(cuid())
+  contractCode            String    @unique
+  projectId               String? // BidProject 内部 ID（线下成交项目可空，仅存业务编号）
+  projectCode             String // 业务编号快照（展示/公告联动）
+  projectManagementItemId String? // :3005 项目管理台账关联（详情合同 tab 定位）
+  supplierId              String
+  supplierName            String
+  contractType            String    @default("standard") // standard 标准合同 | order 订单（框架协议二阶段）
+  status                  String    @default("drafting") // drafting | internal_review | signed | performing | accepted | terminated
+  amount                  Decimal?  @db.Decimal(15, 2)
+  signDeadline            DateTime? // 成交通知书约定的签约时限（7.5.4.1）
+  signedAt                DateTime?
+  keyTerms                Json? // 标的/数量/质量/价款/履行期限/地点与方式/违约责任/争议解决（7.5.4.2）
+  draftAssetId            String? // 合同文本草稿 FileAsset（keyTerms 生成 DOCX）
+  signedAssetId           String? // 签署版合同扫描件 FileAsset
+  consistencyResult       Json? // 一致性校验结果快照（含 issues 列表与校验时间）
+  reviewNote              String? // 内审意见（审计法务部，4.1.3.2 审批链留痕）
+  companyId               String?
+  companyName             String? // 写时快照（公司改名不扰历史）
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  fulfillments ContractFulfillment[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([projectCode])
+}
+
+// ── C3（GB/T 43711 7.6）：合同履行台账（交付/付款/验收节点）──
+// 7.6.2.1 验收：type=acceptance 的节点完成即登记验收结果，验收报告结构化存 note/proofAssetId。
+model ContractFulfillment {
+  id           String    @id @default(cuid())
+  contractId   String
+  type         String // delivery 交付 | payment 付款 | acceptance 验收
+  title        String
+  dueDate      DateTime?
+  doneDate     DateTime?
+  amount       Decimal?  @db.Decimal(15, 2)
+  status       String    @default("pending") // pending 待办 | done 已完成 | exception 异常
+  proofAssetId String? // 履约证明/验收报告附件（供应商上传或采购人登记）
+  note         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, type])
+}
+
 // ── 专家管理 ──
 
 model ExpertProfile {
@@ -952,6 +1144,11 @@ model ExpertProfile {
   education          String? // 学历（博士/硕士/本科/大专/...）
   licenseNo          String? // 执业资格证号
   availability       String    @default("可用") // 可用 / 占用 / 停用
+  // CTS A-218/222 专家库状态机（入库审核层，与 availability 占用层分离）
+  entryStatus        String    @default("ACTIVE") // PENDING=待审核 | ACTIVE=在库 | SUSPENDED=暂停 | RETIRED=退库
+  statusNote         String? // 暂停/退库事由
+  verifiedById       String? // 审核入库责任人（A-218 信息完整性留痕）
+  verifiedAt         DateTime?
   notes              String?
   retiredAt          DateTime? // Track D: 退库时间（人工确认后写入）
   retireReason       String? // Track D: 退库原因
@@ -1025,6 +1222,7 @@ model Supplier {
   name               String
   normalizedName     String
   creditCode         String?        @unique
+  subjectCode        String?        // A1（B.4.2）：国标交易主体编码（B+统一社会信用代码；无信用代码走 C 类平台赋码）
   enterpriseType     String
   legalPerson        String
   legalPersonIdCard  String? // 法定代表人身份证号（注册必填，存量数据可空）
@@ -1134,6 +1332,8 @@ model SupplierContact {
   idCard     String? // 联系人身份证号（注册必填，存量数据可空）
   email      String?
   position   String? // 部门职务
+  personnelType String? // CTS A-216 人员类别：法人代表/项目经理/技术负责人/质量安全负责人/持证人员/普通联系人
+  certTitle  String? // 执业资格/证书（如：一级建造师(水利水电)）
   isPrimary  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -1165,6 +1365,9 @@ model SupplierPerformance {
   id             String    @id @default(cuid())
   supplierId     String
   projectName    String // 项目名称
+  recordType     String    @default("performance") // CTS A-213: performance=业绩 | reward=奖励 | punishment=惩戒
+  recordNote     String? // 奖惩事由/文号
+  effectiveDate  DateTime? // 奖惩生效日期
   clientName     String? // 业主/客户名称
   contractAmount String? // 合同金额
   signDate       DateTime? // 签订日期
@@ -1267,6 +1470,8 @@ model SupplierEvaluation {
   finalGrade          ExpertLevel // 综合等级 = weighted average
   comment             String?
   evidence            Json?
+  // A4（4.1.1.8）：评价来源——procurement=采购过程评价（原口径）| contract=合同履约验收后评价（C3）
+  evaluationSource    String      @default("procurement")
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
@@ -1358,7 +1563,12 @@ model NotificationDeliveryLog {
 
 enum AnnouncementType {
   BID_NOTICE // 招标公告
-  WIN_NOTICE // 中标公示
+  ADDENDUM // 补遗/澄清公告（GB/T 43711 7.2.6：采购文件澄清修改告知潜在供应商）
+  PREQUAL_NOTICE // 资格预审公告（7.2.3：集中/单项资格预审，供应商提交申请）
+  PRE_WIN_NOTICE // 预成交公示（GB/T 43711 7.5.2.2：公示期 3 日，期满无异议后发布成交公告）
+  WIN_NOTICE // 成交公告（原"中标公示"语义升级为两段式第二段）
+  CONTRACT_NOTICE // 合同公告（7.5.4.5 宜公开：名称/编码、当事人、价款、签约时间、期限）
+  PERFORMANCE_NOTICE // 合同履行结果公告（7.6.2.2）
   POLICY // 政策法规
   PLATFORM // 平台通知
 }
@@ -1387,6 +1597,9 @@ model Announcement {
   companyName        String? // 写时快照（公司改名不扰历史）
   company            Company?           @relation(fields: [companyId], references: [id])
   metadata           Json? // 各类型结构化字段（招标/中标/政策/平台）
+  // A2（表 B.1/B.3）：交易数据集公开范围 + 功能属性分类（默认按公告类型回填，可覆盖）
+  dataClass          String? // public_mandatory 应公开 | public_voluntary 宜公开 | public_conditional 可公开 | confidential 应保密
+  dataDomain         String? // trade 交易过程 | supervision 监管 | rights 权益保护
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -1425,6 +1638,7 @@ model BidDocument {
   price          Decimal? @db.Decimal(12, 2)
   decryptKey     String // AES-256-GCM 密钥:iv:authTag (hex)
   bidProjectId   String? // INVITED 时关联招标项目
+  addendumNo     Int      @default(0) // C5（7.2.6）：补遗序号——每发布一条补遗公告 +1，供应商侧显示"补遗 N 次"
   downloadCount  Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1514,6 +1728,9 @@ model FileAsset {
   key             String   @unique
   originalName    String
   mimeType        String
+  // A2（表 B.1）：按类目默认分级（bid 文件=conditional、递交件=confidential、公告附件=mandatory…）
+  dataClass       String?
+  dataDomain      String?
   size            Int
   sha256          String
   category        String
@@ -1529,6 +1746,7 @@ model FileAsset {
 
   uploader    User?        @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
   expertMemos ExpertMemo[]
+  archiveMeta ArchiveMetadata?
 
   announcementAttachments AnnouncementAttachment[]
   bidDocuments            BidDocument[]
@@ -1666,6 +1884,9 @@ model CatalogCategory {
   status    String            @default("ACTIVE") // ACTIVE | INACTIVE
   isLeaf    Boolean           @default(false)
   icon      String?
+  // ── B2（GB/T 43711 4.1.1.3/4.1.3.2）：分类分级集中采购目录清单 ──
+  centralizedLevel     String?          @default("centralized") // centralized 集中采购 | decentralized 分散采购（null=未分级，按集中处理）
+  centralizedThreshold Decimal?         @db.Decimal(14, 2) // 分级金额阈值（元）：预算 ≥ 阈值走集中采购
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
@@ -2396,6 +2617,7 @@ model Attachment {
   projectManagementStage   ProjectManagementStage? @relation("ProjectManagementStageAttachments", fields: [projectManagementStageId], references: [id])
   uploadedBy               User?                   @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
   versions                 AttachmentVersion[]
+  archiveMeta             ArchiveMetadata?
 
   @@index([attachmentType])
   @@index([projectManagementItemId])
@@ -2449,6 +2671,13 @@ model ProjectManagementItem {
   biddingUnits                String?
   awardedSupplier             String?
   contractAmount              Decimal?                 @db.Decimal(14, 2)
+  // ── B1（GB/T 43711 7.2.1.2 采购方案缺项补全）──
+  implementerName             String? // 采购实施人（授权/委托实施采购的单位/部门，3.2.2）
+  contractPricingType         String? // 合同计价类型（总价/单价/成本加酬金等）
+  sectionPlan                 String? // 标段（标包/份额）划分说明
+  activitySchedule            String? // 采购活动时间安排说明
+  riskMeasures                String? // 风险管控措施
+  gbProjectCode               String? // A1（B.4.3.2）：国标项目编码（18 位组合码，交易平台项目唯一标识）
   archivedAt                  DateTime?
   archiveHook                 String?
   hasProcurementDemand        Boolean                  @default(false)
@@ -2472,14 +2701,133 @@ model ProjectManagementItem {
   paymentPerformance          String?
   attachments                 Attachment[]             @relation("ProjectManagementAttachments")
   createdBy                   User?                    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  // CTS-EBS01 A-36/37 递交与受理留痕：reviewStatus null=未递交 | PENDING | APPROVED | REJECTED（驳回后可改再递交）
+  reviewStatus                String?
+  submittedAt                 DateTime?
+  submittedById               String?
+  submittedBy                 User?                    @relation("ProjectSubmittedBy", fields: [submittedById], references: [id])
+  reviewedAt                  DateTime?
+  reviewedById                String?
+  reviewedBy                  User?                    @relation("ProjectReviewedBy", fields: [reviewedById], references: [id])
+  reviewComment               String?
   stages                      ProjectManagementStage[]
   workArrangements            WorkArrangement[]
   currentRound                Int                      @default(1) // 当前采购轮次（再次采购递增）
   bidProjects                 BidProject[]
+  planItems                   ProjectPlanItem[]
+  teamMembers                 ProjectTeamMember[]
+
+  // ── DA/T 103-2024 归档（一卷单元）──
+  retentionPeriod             ArchiveRetentionPeriod? // 保管期限（§9.3：永久/30年/10年）
+  archiveExportedAt           DateTime? // 最近一次 ASIP 归档信息包导出时间（§8.2）
+  archivePackageKey           String? // ASIP 包在 MinIO 的对象键（一卷一包，重导覆盖）
+  archiveRegistrationKey      String? // 移交接收登记表扫描件（双套制线下签章回传，A.1h 纸电关联）
 
   @@index([status, currentStage])
   @@index([title])
   @@index([createdById])
+}
+
+// ── 归档域（DA/T 103-2024，2026-08-24；主线=项目管理 PMI 为卷）──
+
+/// 保管期限三档（规范 §9.3）
+enum ArchiveRetentionPeriod {
+  PERMANENT // 永久
+  Y30 // 定期 30 年
+  Y10 // 定期 10 年
+}
+
+/// 归档范围表（规范 §6 + 附录 B 共 36 项；驱动阶段闸门/质检勾稽/ASIP 组包）
+model ArchiveScopeItem {
+  id             String   @id @default(cuid())
+  code           String   @unique // 附录 B 序号，如 "2.4"
+  stage          String // 策划|招标|投标|开标|评标|中标|其他（规范七类）
+  materialName   String // 材料名，如 "招标文件"
+  sourceType     String // attachment=系统附件 | fileAsset=开评标回流件 | manual=人工补传 | generated=系统生成
+  attachmentTypes String[] // AttachmentType 映射（sourceType=attachment）
+  stageKeys      String[] // PMI 阶段映射（限定产生阶段；空=任意阶段）
+  fileCategories String[] // FileAsset.category 映射（sourceType=fileAsset，回流件）
+  isRequired     Boolean  @default(true) // 必选材料（缺件阻断阶段完成/检测不合格）
+  keepByTenderer Boolean  @default(true) // 招标人保存（附录 B 三方勾选）
+  keepByBidder   Boolean  @default(false) // 投标人保存
+  keepByAgency   Boolean  @default(false) // 代理/平台机构保存
+  sortOrder      Int      @default(0)
+  metaRecords    ArchiveMetadata[]
+
+  @@index([stage])
+  @@index([sourceType])
+}
+
+/// 档案元数据（规范 §7.2 + 附录 C：对齐 DA/T 46 M22/M28/M32/M33；1:1 挂 Attachment 或回流 FileAsset）
+model ArchiveMetadata {
+  id              String    @id @default(cuid())
+  attachmentId    String?   @unique
+  fileAssetId     String?   @unique // 回流件（FileAsset）归档记录
+  title           String? // M22 题名（"项目名·材料名"）
+  persons         Json? // M28 人名（投标人/中标人等）
+  responsibles    Json? // M32 责任者（招标人/经办部门）
+  formedAt        DateTime? // M33 形成时间
+  sourceModule    String? // 产生模块（stage-attachment/upload/handover…）
+  autoCapturedAt  DateTime? // 自动捕获时间（null=纯手工）
+  archivedAt      DateTime? // 文件级已归档标记（A.2d：防重复归档；可取消重归）
+  scopeItemId     String? // 关联归档范围项（勾稽结果）
+  attachment      Attachment? @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  fileAsset       FileAsset?  @relation(fields: [fileAssetId], references: [id], onDelete: Cascade)
+  scopeItem       ArchiveScopeItem? @relation(fields: [scopeItemId], references: [id])
+
+  @@index([archivedAt])
+  @@index([scopeItemId])
+}
+
+/// 四性检测结果（规范 §8.3/§10.3 + A.1f：完整性/可用性/安全性自动检测，真实性=哈希链弱对齐）
+model ArchiveCheckResult {
+  id            String   @id @default(cuid())
+  pmiId         String
+  overall       String // PASSED | FAILED
+  passedCount   Int      @default(0)
+  failedCount   Int      @default(0)
+  details       Json // [{scopeCode, materialName, check, status, message}]
+  ranAt         DateTime @default(now())
+  ranById       String?
+
+  @@index([pmiId, ranAt])
+}
+
+// CTS A-47/49 招标项目任务计划：条目挂 PMI，整包报审（submit/review 批量流转），双人留痕同 A-36/37 模式
+model ProjectPlanItem {
+  id                      String    @id @default(cuid())
+  projectManagementItemId String
+  content                 String
+  ownerUserId             String?
+  startDate               DateTime?
+  endDate                 DateTime?
+  sortOrder               Int       @default(0)
+  status                  String    @default("DRAFT") // DRAFT | SUBMITTED | APPROVED | REJECTED
+  submittedAt             DateTime?
+  submittedById           String?
+  reviewedAt              DateTime?
+  reviewedById            String?
+  reviewComment           String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  projectManagementItem   ProjectManagementItem @relation(fields: [projectManagementItemId], references: [id], onDelete: Cascade)
+
+  @@index([projectManagementItemId])
+}
+
+// CTS A-48 项目团队：成员与职责分工
+model ProjectTeamMember {
+  id                      String    @id @default(cuid())
+  projectManagementItemId String
+  userId                  String
+  role                    String // 负责人 | 技术 | 商务 | 监督 | 其他
+  duty                    String?
+  createdAt               DateTime  @default(now())
+  projectManagementItem   ProjectManagementItem @relation(fields: [projectManagementItemId], references: [id], onDelete: Cascade)
+  user                    User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectManagementItemId, userId])
+  @@index([projectManagementItemId])
 }
 
 model ProjectManagementStage {

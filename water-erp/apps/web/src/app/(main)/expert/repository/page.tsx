@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts } from '@/lib/api/expert';
+import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus } from '@/lib/api/expert';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { StatusBadge, TableSkeleton } from '@/components/workbench';
 import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-dialog';
@@ -62,6 +62,21 @@ export default function ExpertRepositoryPage() {
 
   // 搜索竞态守卫：递增 requestId，过期响应直接丢弃，避免旧结果覆盖新结果
   const loadReqIdRef = useRef(0);
+  // CTS A-218/222 入库状态操作（暂停/退库须事由；权限由后端 admin/leader 把关）
+  const handleEntryStatus = async (e: ExpertListItem, target: 'ACTIVE' | 'SUSPENDED' | 'RETIRED') => {
+    let reason: string | undefined;
+    if (target !== 'ACTIVE') {
+      const input = window.prompt(target === 'SUSPENDED' ? '请输入暂停事由：' : '请输入退库事由：');
+      if (!input || !input.trim()) return;
+      reason = input.trim();
+    }
+    try {
+      await updateExpertEntryStatus(e.id, { status: target, reason });
+      toast.success('入库状态已更新');
+      load();
+    } catch (err: any) { toast.error(err?.message || '操作失败'); }
+  };
+
   const load = useCallback(async () => {
     const rid = ++loadReqIdRef.current;
     setLoading(true); setErrored(false);
@@ -271,6 +286,7 @@ export default function ExpertRepositoryPage() {
                 <SortableTh label="评价次数" field="_count.expertEvaluations" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <th className="text-center">平均等级</th>
                 <th className="text-center">最近评价</th>
+                <th className="text-center">入库状态</th>
                 <th className="text-center">状态</th>
                 <th className="text-center">操作</th>
               </tr>
@@ -333,11 +349,33 @@ export default function ExpertRepositoryPage() {
                         <span className="text-xs text-[var(--muted-foreground)]">—</span>
                       )}
                     </td>
+                    <td className="text-center" title={e.expertProfile?.statusNote ?? undefined}>
+                      {(() => {
+                        const es = (e.expertProfile?.entryStatus ?? 'ACTIVE');
+                        if (es === 'PENDING') return <StatusBadge tone="orange">待审核</StatusBadge>;
+                        if (es === 'SUSPENDED') return <StatusBadge tone="gray">暂停</StatusBadge>;
+                        if (es === 'RETIRED') return <StatusBadge tone="red">已退库</StatusBadge>;
+                        return <StatusBadge tone="green">在库</StatusBadge>;
+                      })()}
+                    </td>
                     <td className="text-center">{!e.isActive ? <StatusBadge tone="gray">已停用</StatusBadge> : e.expertProfile?.availability === '占用' ? <StatusBadge tone="orange">评审中</StatusBadge> : e.expertProfile?.availability === '停用' ? <StatusBadge tone="gray">已停用</StatusBadge> : <StatusBadge tone="green">可用</StatusBadge>}</td>
                     <td onClick={e => e.stopPropagation()} className="text-center">
                       <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
                         <button onClick={() => setEvalTarget(e)} className="neu-btn-xs is-info">履职评价</button>
                         <button onClick={() => setConfirmToggle(e)} className={e.isActive ? 'neu-btn-xs is-warning' : 'neu-btn-xs is-success'}>{e.isActive ? '停用' : '启用'}</button>
+                        {/* CTS A-218/222 入库状态操作（领导/管理员） */}
+                        {(() => {
+                          const es = (e.expertProfile?.entryStatus ?? 'ACTIVE');
+                          if (es === 'PENDING') return <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">审核入库</button>;
+                          if (es === 'SUSPENDED') return <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">恢复</button>;
+                          if (es === 'RETIRED') return <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">恢复入库</button>;
+                          return (
+                            <>
+                              <button onClick={() => void handleEntryStatus(e, 'SUSPENDED')} className="neu-btn-xs is-warning">暂停</button>
+                              <button onClick={() => void handleEntryStatus(e, 'RETIRED')} className="neu-btn-xs is-danger">退库</button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>

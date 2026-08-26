@@ -12,6 +12,11 @@ export interface ExpertProfile {
   idNumber?: string | null;
   availability: string;
   notes?: string | null;
+  // CTS A-218/222 入库状态机
+  entryStatus?: string | null; // PENDING | ACTIVE | SUSPENDED | RETIRED
+  statusNote?: string | null;
+  verifiedAt?: string | null;
+  retiredAt?: string | null;
 }
 
 export interface ExpertListItem {
@@ -104,6 +109,11 @@ export function createExpert(data: {
 
 export function setExpertAvailability(id: string, available: boolean) {
   return api.patch<{ success: boolean }>(`/expert-admin/${id}/availability`, { available });
+}
+
+/** CTS A-218/222 专家库状态：待审核/在库/暂停/退库（退库/暂停须 reason） */
+export function updateExpertEntryStatus(id: string, body: { status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'RETIRED'; reason?: string }) {
+  return api.patch(`/expert-admin/${id}/status`, body);
 }
 
 export function updateExpertProfile(id: string, data: Record<string, unknown>) {

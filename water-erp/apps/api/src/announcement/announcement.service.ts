@@ -5,6 +5,8 @@ import { AnnouncementAiService } from './announcement-ai.service';
 import { BidService } from '../bid/bid.service';
 import { ProjectManagementService } from '../project-management/project-management.service';
 import { BidDocumentService } from './bid-document.service';
+import { ANNOUNCEMENT_TYPE_LABELS, ANNOUNCEMENT_TYPE_DATA_CLASS, PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
+import { checkBidNoticeElements, type ChecklistWarning } from './bid-notice-checklist';
 
 @Injectable()
 export class AnnouncementService {
@@ -18,10 +20,8 @@ export class AnnouncementService {
     @Optional() private bidDocumentService?: BidDocumentService,
   ) {}
 
-  /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名） */
-  private static readonly TYPE_LABELS: Record<string, string> = {
-    BID_NOTICE: '采购公告', WIN_NOTICE: '中标公告', POLICY: '政策法规', PLATFORM: '平台通知',
-  };
+  /** 公告类型→中文名称（AI 摘要 prompt 期望中文类型名；两段式公示语义收口 shared） */
+  private static readonly TYPE_LABELS: Record<string, string> = { ...ANNOUNCEMENT_TYPE_LABELS };
 
   async create(
     dto: CreateAnnouncementDto,
@@ -35,6 +35,9 @@ export class AnnouncementService {
     });
 
     const status = (dto.status as any) ?? 'DRAFT';
+
+    // A2（表 B.1）：公告按类型落默认公开范围（可由 dto.metadata.dataClass 覆盖）
+    const dataClass = ((dto.metadata as any)?.dataClass as string) ?? ANNOUNCEMENT_TYPE_DATA_CLASS[dto.type] ?? 'public_voluntary';
 
     const result = await this.prisma.announcement.create({
       data: {
@@ -51,10 +54,21 @@ export class AnnouncementService {
         relatedProjectCode: dto.relatedProjectCode,
         authorId,
         status,
+        dataClass,
+        dataDomain: 'trade',
         ...(dto.metadata !== undefined && { metadata: dto.metadata as any }),
       },
       include: { attachments: { include: { fileAsset: { select: { id: true, originalName: true, size: true, mimeType: true } } } } },
     });
+
+    // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设置公示期（登记制路径，
+    // publishDate 可回填线下实际发布日 → 公示期随之起算）
+    if ((dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE') && status === 'PUBLISHED' && !result.publicityEnd) {
+      const end = new Date(result.publishDate || new Date());
+      end.setDate(end.getDate() + 3);
+      await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
+      result.publicityEnd = end;
+    }
 
     // P1: create 端点也触发联动（status=PUBLISHED + BID_NOTICE）
     const isBidNoticePublish = dto.type === 'BID_NOTICE' && status === 'PUBLISHED';
@@ -94,14 +108,31 @@ export class AnnouncementService {
         this.logger.warn(`公告发布通知发送失败 (create): ${(e as Error).message}`),
       );
     }
-    if (isBidNoticePublish) return this.get(result.id);
+    // C5（7.2.6）：补遗公告发布 → 补遗计数 + 已获取文件供应商定向通知（不阻塞发布）
+    if (dto.type === 'ADDENDUM' && status === 'PUBLISHED') {
+      const advice = this.addendumDeadlineAdvice((dto.metadata as Record<string, any>)?.newDeadline);
+      void this.syncAddendum(result.id).catch(e => this.logger.warn(`补遗联动失败: ${(e as Error).message}`));
+      if (advice) Object.assign(result, { deadlineAdvice: advice });
+    }
+    // A3（GB/T 43711 7.2.2.5）：发布采购公告时做要素完整性检查——警告不阻断，
+    // 前端读到 checklistWarnings 后弹确认，放行理由由操作历史（PUBLISH changedFields）留痕。
+    const checklistWarnings: ChecklistWarning[] =
+      status === 'PUBLISHED' && dto.type === 'BID_NOTICE'
+        ? checkBidNoticeElements({ title: dto.title, content: dto.content, metadata: dto.metadata, relatedProjectCode: dto.relatedProjectCode })
+        : [];
 
-    return result;
+    if (isBidNoticePublish) {
+      const detail = await this.get(result.id);
+      return Object.assign(detail, { checklistWarnings });
+    }
+
+    return Object.assign(result, { checklistWarnings });
   }
 
   async list(
     params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number },
     companyFilter: { companyId?: string } = {},
+    opts: { publicVisibilityOnly?: boolean } = {},
   ) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -109,6 +140,11 @@ export class AnnouncementService {
 
     // 公司隔离（2026-08-20）：非 admin 只见本公司公告；admin 可切公司/全部
     const where: any = { ...companyFilter };
+    // A2（表 B.1）：公开门户仅出 应公开/宜公开（存量 null 按"已发布即可见"放行）。
+    // 用 AND 组合——search 分支会覆写 where.OR，不能挂 OR 上
+    if (opts.publicVisibilityOnly) {
+      where.AND = [...(where.AND ?? []), { OR: [{ dataClass: { in: [...PUBLIC_VISIBLE_CLASSES] } }, { dataClass: null }] }];
+    }
     if (params.type) where.type = params.type;
     if (params.status) where.status = params.status;
     if (params.search) {
@@ -139,7 +175,8 @@ export class AnnouncementService {
   async publicList(params: { type?: string; search?: string; page?: number; pageSize?: number }) {
     // 契约（2026-08-20 拍板）：公开门户（:3002）与供应商门户（:3004）**全量展示所有公司公告**——
     // 复用 list() 但不传 companyFilter（默认空 = 无公司过滤）。切勿在此注入公司隔离。
-    const res = await this.list({ ...params, status: 'PUBLISHED' });
+    // A2（表 B.1）：查询层过滤公开级别（total 与 items 同口径）
+    const res = await this.list({ ...params, status: 'PUBLISHED' }, {}, { publicVisibilityOnly: true });
     return { ...res, items: res.items
       .filter((a: any) => a.metadata?.visibility !== 'RESTRICTED')
       .map((a: any) => this.stripForPublic(a)) };
@@ -237,8 +274,9 @@ export class AnnouncementService {
       throw new BadRequestException({ error: '公告不存在或已删除', code: 'NOT_FOUND' });
     }
 
-    // A1: WIN_NOTICE 发布时自动设置公示期（3 个日历日，Wave 1 简化）
-    if (result.type === 'WIN_NOTICE' && targetStatus === 'PUBLISHED' && !result.publicityEnd) {
+    // A1→C1（GB/T 43711 7.5.2）：预成交公示发布时自动设置公示期（3 个日历日）；
+    // WIN_NOTICE 保留同逻辑以兼容存量"中标公示"与手动直发成交公告的路径
+    if ((result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE') && targetStatus === 'PUBLISHED' && !result.publicityEnd) {
       const end = new Date(result.publishDate || new Date());
       end.setDate(end.getDate() + 3);
       await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
@@ -275,9 +313,190 @@ export class AnnouncementService {
         this.logger.warn(`公告发布通知发送失败 (update): ${(e as Error).message}`),
       );
     }
-    if (isBidNoticePublish) return this.get(id);
+    // C5（7.2.6）：update 路径发布补遗公告同样联动
+    if (result.type === 'ADDENDUM' && isPublishTransition) {
+      const effectiveMeta = (dto.metadata ?? announcement.metadata) as Record<string, any> | null;
+      const advice = this.addendumDeadlineAdvice(effectiveMeta?.newDeadline);
+      void this.syncAddendum(result.id).catch(e => this.logger.warn(`补遗联动失败 (update): ${(e as Error).message}`));
+      if (advice) Object.assign(result, { deadlineAdvice: advice });
+    }
+    // A3：update 路径发布采购公告同样做要素检查（用合并后的生效值）
+    const checklistWarnings: ChecklistWarning[] = isBidNoticePublish
+      ? checkBidNoticeElements({
+          title,
+          content,
+          metadata: (dto.metadata ?? announcement.metadata) as Record<string, any> | null,
+          relatedProjectCode: dto.relatedProjectCode ?? announcement.relatedProjectCode,
+        })
+      : [];
 
-    return result;
+    if (isBidNoticePublish) {
+      const detail = await this.get(id);
+      return Object.assign(detail, { checklistWarnings });
+    }
+
+    return Object.assign(result, { checklistWarnings });
+  }
+
+  /**
+   * A3（GB/T 43711 7.2.2.5）：采购公告要素预检（dry-run）。
+   * 前端在提交发布前调用，弹窗展示缺失要素，确认后照常提交。
+   */
+  previewBidNoticeChecklist(dto: Pick<CreateAnnouncementDto, 'title' | 'content' | 'metadata' | 'relatedProjectCode'>) {
+    return { warnings: checkBidNoticeElements(dto) };
+  }
+
+  /**
+   * C5（GB/T 43711 7.2.6）：补遗公告发布联动——
+   * ① 项目采购文件 addendumNo +1（供应商侧显示"补遗 N 次"，提示重新下载）；
+   * ② 已下载/受邀供应商批量站内信（澄清修改应告知潜在供应商）；
+   * ③ 若填写了调整后截止时间且距发布不足 ADDENDUM_MIN_LEAD_DAYS（默认 3 日），
+   *    在响应中给出 deadlineAdvice 提示（不自动改项目时间——调整走项目编辑，避免误伤开标联动）。
+   */
+  private async syncAddendum(announcementId: string) {
+    const ann = await this.prisma.announcement.findUnique({
+      where: { id: announcementId },
+      select: { id: true, title: true, relatedProjectCode: true, metadata: true },
+    });
+    if (!ann) return;
+    const meta = (ann.metadata as Record<string, any>) ?? {};
+    const code = ann.relatedProjectCode || meta.projectCode;
+    if (!code) return;
+
+    const project = await this.prisma.bidProject.findUnique({
+      where: { projectCode: code },
+      select: { id: true, deadline: true },
+    });
+    if (!project) return;
+
+    // ① 采购文件补遗计数（OPEN 文档可能无 bidProjectId，用 announcement 链路兜底找）
+    const bidDoc = (await this.prisma.bidDocument.findFirst({ where: { bidProjectId: project.id } }))
+      ?? (await this.prisma.bidDocument.findFirst({
+        where: { announcement: { relatedProjectCode: code, type: 'BID_NOTICE' } },
+      }));
+    if (bidDoc) {
+      await this.prisma.bidDocument.update({
+        where: { id: bidDoc.id },
+        data: { addendumNo: { increment: 1 } },
+      }).catch(e => this.logger.warn(`补遗计数更新失败 bidDoc=${bidDoc.id}: ${(e as Error).message}`));
+    }
+
+    // ② 通知已下载过文件或受邀的供应商（去重）
+    const [accesses, invited] = await Promise.all([
+      bidDoc
+        ? this.prisma.bidDocumentAccess.findMany({ where: { documentId: bidDoc.id }, select: { supplierId: true } })
+        : Promise.resolve([] as { supplierId: string }[]),
+      this.prisma.bidSupplier.findMany({ where: { projectId: project.id }, select: { supplierId: true } }),
+    ]);
+    const supplierIds = [...new Set(
+      [...accesses.map(a => a.supplierId), ...invited.map(b => b.supplierId)].filter((id): id is string => !!id),
+    )];
+    if (supplierIds.length === 0) return;
+    const suppliers = await this.prisma.supplier.findMany({
+      where: { id: { in: supplierIds } },
+      select: { userId: true },
+    });
+    let sent = 0;
+    for (const s of suppliers) {
+      if (!s.userId) continue;
+      try {
+        await this.prisma.notification.create({
+          data: {
+            userId: s.userId,
+            type: 'ANNOUNCEMENT_PUBLISHED',
+            title: `补遗公告：${ann.title}`,
+            content: `您参与的采购项目发布补遗/澄清公告，请及时查看并按新要求准备响应文件。`,
+            link: `/announcements/${ann.id}`,
+          },
+        });
+        sent++;
+      } catch { /* 单个失败不阻塞 */ }
+    }
+    this.logger.log(`补遗公告通知已发送: ${ann.title}, 收件 ${sent}/${suppliers.length} 家供应商`);
+  }
+
+  /** C5：补遗截止时间充分性提示（7.2.6.2 保证供应商有足够时间编制） */
+  addendumDeadlineAdvice(newDeadline?: string) {
+    if (!newDeadline) return null;
+    const minDays = Number(process.env.ADDENDUM_MIN_LEAD_DAYS ?? 3);
+    const target = new Date(newDeadline);
+    if (Number.isNaN(target.getTime())) return null;
+    const leadMs = target.getTime() - Date.now();
+    if (leadMs < minDays * 86400000) {
+      return `调整后的截止时间距补遗发布不足 ${minDays} 日，GB/T 43711 7.2.6.2 要求保证供应商有足够时间编制响应文件，请确认时限合理（或说明紧急理由）`;
+    }
+    return null;
+  }
+
+  /**
+   * C1（GB/T 43711 7.5.2.5）：预成交公示期满且无异议 → 发布成交公告。
+   * 从 PRE_WIN_NOTICE 派生 WIN_NOTICE（直接落 PUBLISHED），幂等：已存在成交公告则原样返回。
+   */
+  async confirmWinnerNotice(
+    id: string,
+    operator: { operatorId?: string; operatorName?: string; ipAddress?: string; userAgent?: string } = {},
+  ) {
+    const pre = await this.prisma.announcement.findUnique({ where: { id } });
+    if (!pre || pre.type !== 'PRE_WIN_NOTICE') {
+      throw new BadRequestException({ error: '公告不存在或不是预成交公示', code: 'NOT_PRE_WIN_NOTICE' });
+    }
+    if (pre.status !== 'PUBLISHED') {
+      throw new BadRequestException({ error: '预成交公示尚未发布', code: 'NOT_PUBLISHED' });
+    }
+    if (!pre.publicityEnd || new Date() < new Date(pre.publicityEnd)) {
+      throw new BadRequestException({ error: '公示期未满，暂不能发布成交公告', code: 'PUBLICITY_NOT_ENDED' });
+    }
+
+    // 幂等：同项目已存在成交公告则不重复生成
+    const codes = pre.relatedProjectCode ? [pre.relatedProjectCode] : [];
+    const existing = codes.length
+      ? await this.prisma.announcement.findFirst({ where: { relatedProjectCode: { in: codes }, type: 'WIN_NOTICE' } })
+      : null;
+    if (existing) return { winnerNotice: existing, created: false };
+
+    const meta = { ...((pre.metadata as Record<string, any>) ?? {}), derivedFromAnnouncementId: pre.id };
+    const title = pre.title.replace(/^预成交公示[:：]?/, '成交公告：');
+    const content = `预成交公示期满且无异议，预成交供应商即为成交供应商，现予公告。\n\n${pre.content}`;
+
+    const winnerNotice = await this.prisma.announcement.create({
+      data: {
+        title,
+        content,
+        type: 'WIN_NOTICE',
+        status: 'PUBLISHED',
+        publishDate: new Date(),
+        relatedProjectCode: pre.relatedProjectCode,
+        authorId: pre.authorId,
+        companyId: pre.companyId,
+        companyName: pre.companyName,
+        metadata: meta,
+      },
+    });
+
+    // 派生关系双向留痕：公示公告记 UPDATE（changedFields 指向成交公告），成交公告记 CREATE
+    await this.prisma.announcementHistory.createMany({
+      data: [
+        {
+          announcementId: pre.id, action: 'UPDATE', title: pre.title, type: pre.type,
+          status: pre.status, changedFields: ['confirmWinnerNotice', `derived:${winnerNotice.id}`],
+          operatorId: operator.operatorId ?? null, operatorName: operator.operatorName ?? null,
+          ipAddress: operator.ipAddress ?? null, userAgent: operator.userAgent ?? null,
+        },
+        {
+          announcementId: winnerNotice.id, action: 'CREATE', title: winnerNotice.title, type: winnerNotice.type,
+          status: winnerNotice.status, changedFields: [`derivedFrom:${pre.id}`],
+          operatorId: operator.operatorId ?? null, operatorName: operator.operatorName ?? null,
+          ipAddress: operator.ipAddress ?? null, userAgent: operator.userAgent ?? null,
+        },
+      ],
+    }).catch(e => this.logger.warn(`成交公告派生留痕写入失败（不阻塞）: ${(e as Error).message}`));
+
+    // 发布即通知供应商（成交公告对供应商可见）
+    void this.notifySuppliersOnPublish(winnerNotice.id, winnerNotice.title, { ...meta, __type: 'WIN_NOTICE' })
+      .catch(e => this.logger.warn(`成交公告通知发送失败: ${(e as Error).message}`));
+
+    this.logger.log(`预成交公示 ${pre.id} 已确认，生成成交公告 ${winnerNotice.id}`);
+    return { winnerNotice, created: true };
   }
 
   /** 按公告可见范围向供应商用户发送站内通知（发布时调用）。
@@ -306,7 +525,7 @@ export class AnnouncementService {
       userIds = users.map(u => u.id);
     }
 
-    const typeLabel: Record<string, string> = { BID_NOTICE: '采购公告', WIN_NOTICE: '中标公告', POLICY: '政策法规', PLATFORM: '平台通知' };
+    const typeLabel: Record<string, string> = { ...ANNOUNCEMENT_TYPE_LABELS };
     const label = typeLabel[meta.__type] || '公告';
     let sent = 0;
     for (const userId of userIds) {
@@ -487,6 +706,10 @@ export class AnnouncementService {
     contact: { type: 'string' },
     openTime: { type: 'string' },
     deadline: { type: 'string' },
+    // A3（GB/T 43711 7.2.2.3）：直接采购理由随公告同步到 BidProject.directSourcingReason
+    directSourcingReason: { type: 'string' },
+    // C1（7.5.2.2）：预成交公示/成交公告的异议渠道
+    objection: { type: 'string' },
   };
 
   private static validateMetadata(raw: any): Record<string, any> {

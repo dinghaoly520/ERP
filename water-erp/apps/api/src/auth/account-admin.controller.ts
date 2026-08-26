@@ -6,19 +6,23 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from './current-user.decorator';
 import type { AuthenticatedUser } from './auth.types';
-import { AUTHENTICATED_ROLES } from './auth-scope';
+import { AUTHENTICATED_ROLES, INTERNAL_ROLES } from './auth-scope';
 
 /**
  * 管理员「账号管理」（:3005 系统管理，2026-08-21）：
  * 对每一个注册账号可 新增 / 删除 / 修改密码 / 修改权限(角色) / 冻结 / 解冻。
  * 冻结账号登录提示「账号已被冻结」，存量会话被 AuthGuard 即时 401。
+ *
+ * 范围（2026-08-24 收紧）：仅 :3005 采购中心人员账号（INTERNAL_ROLES =
+ * admin/leader/staff/bid_host）。供应商/专家/商城等其他门户账号不在此管理
+ * （供应商归供应商管理中心、专家归专家管理中心）。
  */
 
 class CreateAccountDto {
   @IsString() @IsNotEmpty() username: string;
   @IsString() @IsNotEmpty() displayName: string;
   @IsString() @MinLength(6) password: string;
-  @IsString() @IsIn(AUTHENTICATED_ROLES as readonly string[]) role: string;
+  @IsString() @IsIn(INTERNAL_ROLES as readonly string[], { message: '账号管理仅支持采购中心角色（管理/办公权限等）' }) role: string;
   @IsOptional() @IsString() company?: string;
   @IsOptional() @IsString() departmentName?: string;
   @IsOptional() @IsString() phone?: string;
@@ -27,7 +31,7 @@ class CreateAccountDto {
 
 class UpdateAccountDto {
   @IsOptional() @IsString() @IsNotEmpty() displayName?: string;
-  @IsOptional() @IsString() @IsIn(AUTHENTICATED_ROLES as readonly string[]) role?: string;
+  @IsOptional() @IsString() @IsIn(INTERNAL_ROLES as readonly string[], { message: '账号管理仅支持采购中心角色' }) role?: string;
   @IsOptional() @IsString() company?: string;
   @IsOptional() @IsString() departmentName?: string;
   @IsOptional() @IsString() phone?: string;
@@ -61,9 +65,10 @@ export class AccountAdminController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
-  @ApiOperation({ summary: '账号列表（账号管理页）' })
+  @ApiOperation({ summary: '账号列表（仅 :3005 采购中心人员账号）' })
   list() {
     return this.prisma.user.findMany({
+      where: { role: { in: [...INTERNAL_ROLES] } },
       select: ACCOUNT_SELECT,
       orderBy: { createdAt: 'asc' },
     });

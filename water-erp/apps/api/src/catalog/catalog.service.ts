@@ -514,6 +514,9 @@ export class CatalogService {
       sortOrder: dto.sortOrder ?? 0,
       isLeaf: dto.isLeaf ?? false,
       icon: dto.icon?.trim() || null,
+      // B2（4.1.1.3）：目录分级——默认集中采购，可标记分散并设分级金额阈值
+      centralizedLevel: dto.centralizedLevel ?? 'centralized',
+      centralizedThreshold: dto.centralizedThreshold != null ? dto.centralizedThreshold : null,
     };
     if (data.parentId) {
       const parent = await this.prisma.catalogCategory.findUnique({ where: { id: data.parentId } });
@@ -533,9 +536,60 @@ export class CatalogService {
     if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
     if (dto.isLeaf !== undefined) data.isLeaf = dto.isLeaf;
     if (dto.icon !== undefined) data.icon = dto.icon?.trim() || null;
+    if (dto.centralizedLevel !== undefined) data.centralizedLevel = dto.centralizedLevel ?? 'centralized';
+    if (dto.centralizedThreshold !== undefined) data.centralizedThreshold = dto.centralizedThreshold ?? null;
     const updated = await this.prisma.catalogCategory.update({ where: { id }, data, include: { attributeTemplates: true } });
     await this.safeAudit({ userId, action: 'CATEGORY_UPDATED', resourceType: updated.name, details: { categoryId: id, changedFields: Object.keys(data) } });
     return updated;
+  }
+
+  /**
+   * B2（GB/T 43711 4.1.3.2）：需求归集视图——按采购类别聚合在立项目录的需求计划
+   * （数量/预算合计/最近项目），并携带品类分级（集中/分散+阈值），支撑统一制定集中采购方案。
+   */
+  async demandAggregation() {
+    const items = await this.prisma.projectManagementItem.findMany({
+      where: { status: { in: ['ACTIVE'] } },
+      select: {
+        procurementCategory: true, title: true, projectCode: true,
+        budgetAmount: true, requesterDepartment: true, createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    const categories = await this.prisma.catalogCategory.findMany({
+      select: { name: true, centralizedLevel: true, centralizedThreshold: true },
+    });
+    const catMap = new Map(categories.map(c => [c.name, c]));
+
+    const groups = new Map<string, { count: number; totalBudget: number; recent: Array<{ projectCode: string | null; title: string; budget: number | null; department: string | null }>; level: string | null; threshold: number | null }>();
+    for (const it of items) {
+      const cat = (it.procurementCategory || '其他').trim();
+      const g = groups.get(cat) ?? {
+        count: 0, totalBudget: 0, recent: [],
+        level: catMap.get(cat)?.centralizedLevel ?? null,
+        threshold: catMap.get(cat)?.centralizedThreshold != null ? Number(catMap.get(cat)!.centralizedThreshold) : null,
+      };
+      g.count += 1;
+      g.totalBudget += Number(it.budgetAmount ?? 0);
+      if (g.recent.length < 5) {
+        g.recent.push({ projectCode: it.projectCode, title: it.title, budget: it.budgetAmount != null ? Number(it.budgetAmount) : null, department: it.requesterDepartment });
+      }
+      groups.set(cat, g);
+    }
+
+    return [...groups.entries()]
+      .map(([category, g]) => ({
+        category,
+        count: g.count,
+        totalBudget: g.totalBudget,
+        centralizedLevel: g.level,
+        centralizedThreshold: g.threshold,
+        /** 归集建议：同品类需求 ≥2 或预算超阈值 → 建议集中采购 */
+        suggestCentralized: g.count >= 2 || (g.threshold != null && g.totalBudget >= g.threshold),
+        recent: g.recent,
+      }))
+      .sort((a, b) => b.totalBudget - a.totalBudget);
   }
 
   async deleteCategory(userId: string, id: number) {

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, BadRequestException } from '@nestjs/common';
 import { BidService } from './bid.service';
 import { BidScoreStandardService } from './bid-score-standard.service';
+import { GbCodeService } from '../common/gb-code.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from './clarification-ai.service';
@@ -47,6 +48,7 @@ jest.mock('../upload/minio.client', () => ({
 
 /* BidService 新增构造依赖（Task 12）：Nest 测试模块不自动实例化未注册 provider，
    各 TestingModule 须显式提供——以下为全局默认 mock（decryptOuter 相关 describe 自行覆盖）。 */
+const GB_CODE_SVC = { provide: GbCodeService, useValue: { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => 'GB-PROC-TEST' } };
 const ADMIN_KEY_SVC = {
   provide: AdminKeyService,
   useValue: { readPrivateKey: jest.fn(), getActiveCert: jest.fn(), ensureBootstrap: jest.fn(), generate: jest.fn() },
@@ -170,7 +172,7 @@ describe('BidService — stage transitions', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -2412,7 +2414,7 @@ describe('BidService — decryptSupplier 真实校验', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2450,7 +2452,7 @@ describe('BidService — score items (评分标准)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2623,7 +2625,7 @@ describe('BidService — enterOpeningRecord (唱标录入)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2936,7 +2938,7 @@ describe('BidService — enterOpeningRecord 唱标事件公开广播（合规口
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         { provide: BidGateway, useValue: gatewayMock },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -2986,7 +2988,7 @@ describe('BidService — nudge (催办)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -3132,7 +3134,7 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -3210,8 +3212,8 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
   });
 });
 
-/* ── G1：归档后自动生成中标公示草稿 ── */
-describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
+/* ── G1→C1：归档后自动生成预成交公示草稿（两段式第一段）── */
+describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => {
   let service: BidService;
   let prisma: any;
 
@@ -3281,7 +3283,7 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -3291,12 +3293,12 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
     service = module.get<BidService>(BidService);
   });
 
-  it('归档后自动创建 WIN_NOTICE 草稿', async () => {
+  it('归档后自动创建 PRE_WIN_NOTICE 预成交公示草稿', async () => {
     await service.archiveAll('p1', 'u1');
     expect(prisma.announcement.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          type: 'WIN_NOTICE',
+          type: 'PRE_WIN_NOTICE',
           status: 'DRAFT',
           relatedProjectCode: 'BID-1',
         }),
@@ -3304,13 +3306,13 @@ describe('BidService.archiveAll — 中标公示自动生成 (G1)', () => {
     );
   });
 
-  it('已存在 WIN_NOTICE 时不重复创建（幂等）', async () => {
+  it('已存在预成交公示或成交公告时不重复创建（幂等）', async () => {
     prisma.announcement.findFirst.mockResolvedValue({ id: 'wn1' });
     await service.archiveAll('p1', 'u1');
     expect(prisma.announcement.create).not.toHaveBeenCalled();
   });
 
-  it('中标公示创建失败时不阻塞归档', async () => {
+  it('预成交公示创建失败时不阻塞归档', async () => {
     prisma.announcement.create.mockRejectedValue(new Error('DB down'));
     await expect(service.archiveAll('p1', 'u1')).resolves.toBeDefined();
   });
@@ -3336,7 +3338,7 @@ describe('BidService — createProject 字段写入', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -3386,7 +3388,7 @@ describe('截标↔开标 24h（P0-2）', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -3539,7 +3541,7 @@ describe('BidService — getOpeningRecordDraft', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -3693,7 +3695,7 @@ describe('BidService — generateEvaluationResults 保证金软标记', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -3776,7 +3778,7 @@ describe('BidService — 得分点管理 (ScorePoint CRUD)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -3901,7 +3903,7 @@ describe('BidService — revokeInvalidBid (废标复核撤销)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -3956,7 +3958,7 @@ describe('assignHost (BidService) — Task 2', () => {
     const module = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: {} },
@@ -4035,7 +4037,7 @@ describe('listProjects actor 过滤 (R1 硬分流) — Task 2', () => {
     const module = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: {} },
@@ -4097,7 +4099,7 @@ describe('startOpening 指派前置闸门 (R2) — Task 4', () => {
     const module = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: NotificationService, useValue: {} },
@@ -4174,7 +4176,7 @@ describe('BidService — getAiAnalysisProgress', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -4317,7 +4319,7 @@ describe('BidService — retryAiBidders', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: getQueueToken(QUEUE_NAMES.BIDDER_PROCESSING), useValue: bidderQueue },
@@ -4409,7 +4411,7 @@ describe('BidService — rerunAiAnalysis (N8 存量补建)', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -4546,7 +4548,7 @@ describe('generateEvaluationResults expertRole filter', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -4612,7 +4614,7 @@ describe('generateEvaluationResults expertRole filter', () => {
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: PrismaService, useValue: prisma },
@@ -4784,7 +4786,7 @@ describe('createRound — 供应商准入', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
@@ -4848,7 +4850,7 @@ describe('createRound — 谈判采购评标完成闸门（先评标→再报价
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
@@ -4916,7 +4918,7 @@ describe('submitQuote — 准入校验', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn(), assertScoreStandardComplete: jest.fn() } },
@@ -4967,7 +4969,7 @@ describe('getMinBidders procurement-method-aware', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: {} },
         { provide: ScoreStandardValidator, useValue: {} },
@@ -4995,7 +4997,7 @@ describe('getWinnerCount evaluation-method-aware', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: {} },
         { provide: ScoreStandardValidator, useValue: {} },
@@ -5046,7 +5048,7 @@ describe('checkDisputeTimeout', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: PrismaService, useValue: prisma },
         { provide: ScoreStandardValidator, useValue: {} },
@@ -5101,7 +5103,7 @@ describe('BidService — syncFromAnnouncement 时间合理性校验（P1-15/走�
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -5151,7 +5153,7 @@ describe('BidService — acceptSupplierDanger（解密窗口到期定性，P1-1�
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
       ],
@@ -5239,7 +5241,7 @@ describe('BidService — 解密失败归因矩阵 + 裁决（Task 15, §5.5）',
         { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
-        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC,
+        ADMIN_KEY_SVC, DUAL_ENVELOPE_SVC, GB_CODE_SVC,
         BidScoreStandardService,
         { provide: StorageService, useValue: { upload: jest.fn() } },
         { provide: BidGateway, useValue: gateway },
@@ -5705,6 +5707,7 @@ describe('BidService — decryptOuter 主持端解外层 (dual-v2 · Task 12)', 
     const module = await Test.createTestingModule({
       providers: [
         BidService,
+        GB_CODE_SVC,
         BidScoreStandardService,
         DualEnvelopeService, // 真实 decryptOuterFile（真实双层解密路径）
         SignatureService, // DualEnvelopeService 依赖（无构造依赖的真实实现）

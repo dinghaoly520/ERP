@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { AdminCertController } from './admin-cert.controller';
 import { BidController } from './bid.controller';
 import { BidService } from './bid.service';
+import { GbCodeService } from '../common/gb-code.service';
 import { BidScoreStandardService } from './bid-score-standard.service';
 import { BidSignPacketController } from './bid-sign-packet.controller';
 import { BidSignPacketService } from './bid-sign-packet.service';
@@ -35,7 +36,8 @@ import { SignatureService } from '../common/crypto/signature.service';
     BidBackupModule,
   ],
   controllers: [BidController, BidSignPacketController, AdminCertController],
-  providers: [BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService],
+  providers: [
+    GbCodeService,BidService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService],
   exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService],
 })
 export class BidModule implements OnModuleInit {

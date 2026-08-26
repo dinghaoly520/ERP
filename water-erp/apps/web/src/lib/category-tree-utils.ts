@@ -7,6 +7,9 @@ export interface CategoryNode {
   status: string;
   isLeaf: boolean;
   icon: string | null;
+  /** B2（4.1.1.3）：目录分级 */
+  centralizedLevel?: string | null;
+  centralizedThreshold?: number | null;
   children: CategoryNode[];
   attributeTemplates?: AttributeTemplate[];
 }

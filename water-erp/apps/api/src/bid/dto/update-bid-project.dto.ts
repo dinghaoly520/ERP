@@ -13,4 +13,7 @@ export class UpdateBidProjectDto {
   @IsString() @IsOptional() qualityRequirement?: string;
   @IsBoolean() @IsOptional() bondRequired?: boolean;
   @IsNumber() @IsOptional() bondAmount?: number;
+  // CTS A-39/40 标段（包）标识
+  @IsString() @IsOptional() sectionNo?: string;
+  @IsString() @IsOptional() sectionName?: string;
 }

@@ -29,6 +29,72 @@ export class SchedulerService {
     private announcementService: AnnouncementService,
   ) {}
 
+  /** D2 归档时限扫描（DA/T 103-2024 §8.2/§10.1）：每日 05:00。
+   *  流程终结（定标/合同阶段有件）但迟迟未导出 ASIP 的卷 → 分级提醒：
+   *  - 终结满 ARCHIVE_TRANSFER_DUE_DAYS（默认 270 天，对齐「不晚于次年 3 月 31 日」）→ 提醒经办（staff+leader）
+   *  - 终结满 ARCHIVE_OVERDUE_DAYS（默认 365 天，对齐「不晚于次年 6 月」）→ 升级 leader+admin
+   *  幂等：同卷同类型未消通知已存在则跳过；导出完成即 resolve（ArchiveFlowService）。
+   */
+  @Cron('0 5 * * *')
+  async scanArchiveDeadlines() {
+    const dueDays = Number(process.env.ARCHIVE_TRANSFER_DUE_DAYS) || 270;
+    const overdueDays = Number(process.env.ARCHIVE_OVERDUE_DAYS) || 365;
+
+    // 候选：未回收、未导出、定标/合同阶段已有件
+    const candidates = await this.prisma.projectManagementItem.findMany({
+      where: {
+        status: { not: 'RECYCLED' },
+        archiveExportedAt: null,
+        stages: {
+          some: {
+            stageKey: { in: ['AWARD_DECISION', 'CONTRACT'] },
+            attachments: { some: {} },
+          },
+        },
+      },
+      select: {
+        id: true, title: true, projectCode: true,
+        stages: {
+          where: { stageKey: { in: ['AWARD_DECISION', 'CONTRACT'] }, attachments: { some: {} } },
+          select: { attachments: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } } },
+        },
+      },
+      take: 500,
+    });
+
+    let reminded = 0;
+    for (const item of candidates) {
+      const terminalAt = item.stages
+        .flatMap((st) => st.attachments.map((a) => a.createdAt?.getTime() ?? 0))
+        .sort((a, b) => b - a)[0];
+      if (!terminalAt) continue;
+      const days = Math.floor((Date.now() - terminalAt) / 86400000);
+
+      const type = days >= overdueDays ? 'ARCHIVE_OVERDUE' : days >= dueDays ? 'ARCHIVE_TRANSFER_DUE' : null;
+      if (!type) continue;
+      const link = `/archive?pmi=${item.id}`;
+      const pending = await this.prisma.notification.count({ where: { type, link, resolvedAt: null } });
+      if (pending > 0) continue; // 幂等
+
+      const isOverdue = type === 'ARCHIVE_OVERDUE';
+      const dto = {
+        type,
+        title: isOverdue ? '归档严重逾期' : '归档移交临期提醒',
+        content: `「${item.title}」流程终结已 ${days} 天仍未导出归档信息包（DA/T 103-2024 §8.2 要求不晚于次年 3 月 31 日移交），请尽快完成四性检测与 ASIP 导出。`,
+        link,
+      };
+      if (isOverdue) {
+        await this.notification.sendToRole('leader', dto).catch(() => {});
+        await this.notification.sendToRole('admin', dto).catch(() => {});
+      } else {
+        await this.notification.sendToRole('staff', dto).catch(() => {});
+        await this.notification.sendToRole('leader', dto).catch(() => {});
+      }
+      reminded += 1;
+    }
+    if (reminded > 0) this.logger.warn(`[D2] 归档时限提醒已发 ${reminded} 卷`);
+  }
+
   // R-4：每天扫描过期超 30 天的临时供应商，记录并通知采购端清理（不删数据，由管理员决定）
   @Cron('0 6 * * *')
   async cleanupExpiredTemporarySuppliers() {
@@ -80,6 +146,83 @@ export class SchedulerService {
     }
 
     this.logger.log(`资质到期扫描完成：通知 ${expiring.length} 条`);
+  }
+
+  /** C1（GB/T 43711 7.5.2.5）：每日 08:00 扫描公示期已满、尚未发布成交公告的预成交公示，
+   *  提醒管理端确认发布。幂等：metadata.winnerConfirmRemindedAt 已置或已派生成交公告则跳过，避免每日重复打扰。 */
+  @Cron('0 8 * * *')
+  async remindConfirmableWinnerNotices() {
+    const pres = await this.prisma.announcement.findMany({
+      where: { type: 'PRE_WIN_NOTICE', status: 'PUBLISHED', publicityEnd: { lt: new Date() } },
+      select: { id: true, title: true, relatedProjectCode: true, metadata: true },
+      take: 50,
+    });
+
+    let reminded = 0;
+    for (const pre of pres) {
+      const meta = (pre.metadata as Record<string, any>) ?? {};
+      if (meta.winnerConfirmRemindedAt) continue;
+      if (pre.relatedProjectCode) {
+        const win = await this.prisma.announcement.findFirst({
+          where: { relatedProjectCode: pre.relatedProjectCode, type: 'WIN_NOTICE' },
+          select: { id: true },
+        });
+        if (win) continue;
+      }
+      void this.notification.sendToRole('staff', {
+        type: 'SYSTEM',
+        title: '预成交公示期满待确认',
+        content: `「${pre.title}」公示期已满且无未决异议，请在公告管理中确认发布成交公告（GB/T 43711 7.5.2.5）`,
+      }).catch(() => {});
+      await this.prisma.announcement.update({
+        where: { id: pre.id },
+        data: { metadata: { ...meta, winnerConfirmRemindedAt: new Date().toISOString() } },
+      }).catch(() => {});
+      reminded++;
+    }
+    if (reminded > 0) this.logger.log(`[C1] 预成交公示期满提醒已发 ${reminded} 条`);
+  }
+
+  /** C4（GB/T 43711 7.5.4.4）：每日 08:30 已签署/已验收合同与已归档项目、响应担保未登记退还 → 提醒经办。
+   *  幂等：systemConfig 记 marker（bond_return_reminded_at），同一项目只提醒一次。 */
+  @Cron('30 8 * * *')
+  async remindBondReturns() {
+    const contracts = await this.prisma.contract.findMany({
+      where: { status: { in: ['signed', 'performing', 'accepted'] } },
+      select: { projectId: true },
+    });
+    const signedProjectIds = contracts.map(c => c.projectId).filter((id): id is string => !!id);
+    const projects = await this.prisma.bidProject.findMany({
+      where: {
+        OR: [{ id: { in: signedProjectIds } }, { stage: 'ARCHIVED' }],
+        bondRequired: true,
+        bondReturnedAt: null,
+      },
+      select: { id: true, projectCode: true, name: true },
+      take: 50,
+    });
+    if (projects.length === 0) return;
+
+    const toRemind: { id: string; projectCode: string; name: string }[] = [];
+    for (const p of projects) {
+      const marker = await this.prisma.systemConfig.findUnique({ where: { key: `bond_return_reminded:${p.id}` } });
+      if (marker) continue;
+      toRemind.push(p);
+      await this.prisma.systemConfig.upsert({
+        where: { key: `bond_return_reminded:${p.id}` },
+        update: { value: new Date().toISOString() },
+        create: { key: `bond_return_reminded:${p.id}`, value: new Date().toISOString() },
+      }).catch(() => {});
+    }
+    if (toRemind.length === 0) return;
+
+    const sample = toRemind.slice(0, 5).map(p => p.projectCode).join('、');
+    void this.notification.sendToRole('staff', {
+      type: 'SYSTEM',
+      title: '响应担保待退还提醒',
+      content: `${toRemind.length} 个已签署/归档项目的响应担保尚未登记退还（GB/T 43711 7.5.4.4 按约定及时退还）：${sample}${toRemind.length > 5 ? '…' : ''}。请在项目管理-合同或归档面板登记退还。`,
+    }).catch(() => {});
+    this.logger.log(`[C4] 响应担保退还提醒已发 ${toRemind.length} 项`);
   }
 
   /** 每周一 01:00 扫描专家退库 / 供应商淘汰候选（仅预警通知，不自动改状态——决策 #3）。 */

@@ -13,14 +13,20 @@ import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
-  Paperclip, Lock, Archive, Trash2, Send, X, RefreshCw, History as HistoryIcon,
+  Paperclip, Lock, Archive, Trash2, Send, X, RefreshCw, History as HistoryIcon, MessageSquareWarning,
 } from 'lucide-react';
 import { AnnouncementHistoryModal, AllAnnouncementHistoriesModal } from '@/components/notice/announcement-history-modal';
+import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 
 /* ── 类型/状态映射 ── */
 const typeMeta: Record<AnnouncementType, { label: string; tone: 'blue' | 'green' | 'orange' | 'gray' }> = {
   BID_NOTICE: { label: '采购公告', tone: 'blue' },
-  WIN_NOTICE: { label: '中标公告', tone: 'green' },
+  ADDENDUM: { label: '补遗公告', tone: 'orange' },
+  PREQUAL_NOTICE: { label: '资格预审公告', tone: 'blue' },
+  PRE_WIN_NOTICE: { label: '预成交公示', tone: 'green' },
+  WIN_NOTICE: { label: '成交公告', tone: 'green' },
+  CONTRACT_NOTICE: { label: '合同公告', tone: 'blue' },
+  PERFORMANCE_NOTICE: { label: '履行结果公告', tone: 'green' },
   POLICY: { label: '政策法规', tone: 'orange' },
   PLATFORM: { label: '平台通知', tone: 'gray' },
 };
@@ -45,6 +51,7 @@ export default function NoticePage() {
   const [partAnn, setPartAnn] = useState<AnnouncementListItem | null>(null);
   const [historyAnnId, setHistoryAnnId] = useState<string | null>(null);
   const [showAllHistories, setShowAllHistories] = useState(false);
+  const [showObjections, setShowObjections] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey | null>('publishDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -143,7 +150,7 @@ export default function NoticePage() {
             </div>
             <div>
               <div className="page-hero__title">信息发布中心</div>
-              <div className="page-hero__sub">采购公告、中标公告、政策法规、平台通知的起草与发布管理</div>
+              <div className="page-hero__sub">采购公告、预成交公示、成交公告、政策法规、平台通知的起草与发布管理</div>
             </div>
           </div>
 
@@ -154,6 +161,9 @@ export default function NoticePage() {
             </button>
             <button onClick={() => setShowAllHistories(true)} className="neu-btn-xs">
               <HistoryIcon size={13} /> 公告历史
+            </button>
+            <button onClick={() => setShowObjections(true)} className="neu-btn-xs">
+              <MessageSquareWarning size={13} /> 异议/投诉
             </button>
             <button onClick={() => router.push('/notice/new')} className="neu-btn-soft">
               <PlusCircle size={15} /> 新建信息
@@ -323,6 +333,7 @@ export default function NoticePage() {
       {partAnn && <ParticipantsModal announcement={partAnn} onClose={() => setPartAnn(null)} />}
       {historyAnnId && <AnnouncementHistoryModal announcementId={historyAnnId} onClose={() => setHistoryAnnId(null)} />}
       {showAllHistories && <AllAnnouncementHistoriesModal onClose={() => setShowAllHistories(false)} />}
+      {showObjections && <ObjectionBoardModal onClose={() => setShowObjections(false)} />}
     </div>
   );
 }

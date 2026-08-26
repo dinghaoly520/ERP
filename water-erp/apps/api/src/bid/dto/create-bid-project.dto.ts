@@ -6,6 +6,7 @@ export class CreateBidProjectDto {
   @IsDateString() openTime: string;
   @IsDateString() deadline: string;
   @IsString() @IsOptional() riskNote?: string;
+  @IsString() @IsOptional() projectManagementItemId?: string; // A1：宿主台账项（国标编码复用其 18 位基码）
   @IsNumber() @IsOptional() budget?: number;
   @IsString() @IsOptional() scope?: string;
   @IsString() @IsOptional() qualification?: string;

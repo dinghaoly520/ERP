@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException, ConflictException, OnModuleInit } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { fileCategoryDefaults } from '@water-erp/shared';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
 import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
 import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
@@ -147,6 +148,8 @@ export class UploadService implements OnModuleInit {
         category,
         uploaderId: userId,
         clientEncrypted, // E2EE 标记持久化
+        // A2（表 B.1）：按类目默认分级（递交件=应保密/权益域、采购文件=可公开、内部件=应保密）
+        ...fileCategoryDefaults(category),
       },
     });
 

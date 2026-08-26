@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Shield, Sparkles, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Building2, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, Gavel, Loader2, Megaphone, Paperclip, Pencil, Recycle, RefreshCw, Save, ScrollText, Send, Shield, Sparkles, UploadCloud, UserPlus, X , Layers } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
+import { ProjectPlanSection } from '@/components/projects/project-plan-section';
 import {
   analyzeProjectManagementItem,
   analyzeProjectStep,
@@ -11,6 +12,8 @@ import {
   extractTenderFields,
   reopenProjectStage,
   reprocProject,
+  submitProjectForReview,
+  reviewProjectSubmission,
   fetchProjectAttributions,
   refreshProjectSummary,
   updateProjectStage,
@@ -40,6 +43,8 @@ import { ExpertExtractModal } from './expert-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
 import { AwardFileMaker } from './award-file-maker';
+import { ContractStageModal } from '../contracts/contract-stage-modal';
+import { FrameworkModal } from '../framework/framework-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { Modal, StatusBadge } from '@/components/workbench';
 
@@ -334,6 +339,7 @@ export function ProjectDetailPanel({
   onMoveToRecycleBin,
   canModify = true,
   currentUsername,
+  currentUserRole,
   autoOpenBidConfirm = false,
 }: {
   item: ProjectManagementItem;
@@ -342,6 +348,7 @@ export function ProjectDetailPanel({
   onMoveToRecycleBin: (projectId: string) => Promise<void>;
   canModify?: boolean;
   currentUsername?: string;
+  currentUserRole?: string;
   autoOpenBidConfirm?: boolean;
 }) {
   const [selectedStageKey, setSelectedStageKey] = useState(item.currentStage);
@@ -371,6 +378,10 @@ export function ProjectDetailPanel({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // CTS A-36/37 递交受理
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [reviewComment, setReviewComment] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [analysis, setAnalysis] = useState<ProjectDetailAnalysis | null>(null);
@@ -503,6 +514,8 @@ export function ProjectDetailPanel({
     }
   }, [autoOpenBidConfirm]);
   const [awardFileMakerOpen, setAwardFileMakerOpen] = useState(false);
+  const [contractStageOpen, setContractStageOpen] = useState(false);
+  const [frameworkOpen, setFrameworkOpen] = useState(false);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
 
   // 步骤检查状态 —— 按 stageKey 缓存结果
@@ -842,6 +855,37 @@ export function ProjectDetailPanel({
     }
   };
 
+  // ── CTS-EBS01 A-36/37 递交受理（申报人递交，admin 受理；服务端强制双人留痕）──
+  const handleSubmitForReview = async () => {
+    setReviewBusy(true);
+    setErrorMessage(null);
+    try {
+      await submitProjectForReview(item.id);
+      toast.success('已递交送审，等待受理');
+      await onUpdated();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '递交送审失败。');
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+
+  const handleReviewSubmission = async (approve: boolean) => {
+    setReviewBusy(true);
+    setErrorMessage(null);
+    try {
+      await reviewProjectSubmission(item.id, { approve, comment: reviewComment.trim() || undefined });
+      toast.success(approve ? '已审核通过' : '已驳回，可修改后重新递交');
+      setRejectOpen(false);
+      setReviewComment('');
+      await onUpdated();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '受理审核失败。');
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+
   const moveToRecycleBin = async () => {
     setSubmitting(true);
     setErrorMessage(null);
@@ -1066,10 +1110,44 @@ export function ProjectDetailPanel({
                   <span className="inline-flex items-center gap-1 rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--accent)]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />{selectedStage.stageName}
                   </span>
+                  {item.reviewStatus === 'PENDING' && (
+                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.75_0.14_75)_20%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.5_0.12_75)]" title={item.submittedAt ? `递交：${item.submittedByName ?? ''} ${new Date(item.submittedAt).toLocaleString('zh-CN')}` : undefined}>
+                      待审核
+                    </span>
+                  )}
+                  {item.reviewStatus === 'APPROVED' && (
+                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.72_0.14_155)_18%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.48_0.12_155)]" title={item.reviewedAt ? `受理：${item.reviewedByName ?? ''} ${new Date(item.reviewedAt).toLocaleString('zh-CN')}` : undefined}>
+                      审核通过
+                    </span>
+                  )}
+                  {item.reviewStatus === 'REJECTED' && (
+                    <span className="inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,oklch(0.65_0.17_25)_16%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[oklch(0.5_0.16_25)]" title={item.reviewComment ?? undefined}>
+                      已驳回
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
             <div className="page-hero__right">
+              {/* B4（附录 D）：框架协议两阶段管理（组织形式为框架协议时常用，全程可用） */}
+              <button type="button" onClick={() => setFrameworkOpen(true)} className="neu-btn-soft">
+                <Layers size={15} /> 框架协议
+              </button>
+              {canModify && item.status === 'ACTIVE' && (item.reviewStatus == null || item.reviewStatus === 'REJECTED') && (
+                <button type="button" onClick={() => void handleSubmitForReview()} disabled={reviewBusy || submitting || uploading} className="neu-btn-soft">
+                  <Send size={16} />{item.reviewStatus === 'REJECTED' ? '重新递交审核' : '递交审核'}
+                </button>
+              )}
+              {currentUserRole === 'admin' && item.reviewStatus === 'PENDING' && (
+                <>
+                  <button type="button" onClick={() => void handleReviewSubmission(true)} disabled={reviewBusy} className="neu-btn-soft">
+                    <CheckCircle2 size={16} />审核通过
+                  </button>
+                  <button type="button" onClick={() => setRejectOpen((v) => !v)} disabled={reviewBusy} className="neu-btn-soft is-danger">
+                    <AlertTriangle size={16} />驳回
+                  </button>
+                </>
+              )}
               {canModify && (
                 <button type="button" onClick={() => void moveToRecycleBin()} disabled={submitting || uploading} className="neu-btn-soft is-danger">
                   <Recycle size={16} />移至回收站
@@ -1080,6 +1158,21 @@ export function ProjectDetailPanel({
               </button>
             </div>
           </div>
+
+          {/* CTS A-36/37 驳回理由输入（展开式） */}
+          {rejectOpen && currentUserRole === 'admin' && item.reviewStatus === 'PENDING' && (
+            <div className="mt-3 flex items-start gap-2">
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder="驳回理由（必填，将反馈给申报人）"
+                className="neu-input min-h-[64px] flex-1 resize-none text-sm"
+              />
+              <button type="button" onClick={() => void handleReviewSubmission(false)} disabled={reviewBusy || !reviewComment.trim()} className="neu-btn-soft is-danger shrink-0">
+                {reviewBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}确认驳回
+              </button>
+            </div>
+          )}
 
           {/* ── hairline + 项目简报 ── */}
           <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
@@ -1146,6 +1239,8 @@ export function ProjectDetailPanel({
                   setBidConfirmOpen(true);
                 } else if (stageKey === 'AWARD_DECISION') {
                   setAwardFileMakerOpen(true);
+                } else if (stageKey === 'CONTRACT') {
+                  setContractStageOpen(true);
                 }
               }}
               showArchiveStep={showArchiveStep}
@@ -1197,6 +1292,9 @@ export function ProjectDetailPanel({
             ) : null}
           </div>
         </div>
+
+        {/* CTS A-47~49 任务计划与团队（hero 与双栏正文之间） */}
+        <ProjectPlanSection itemId={item.id} canModify={canModify} currentUserRole={currentUserRole} />
 
         {/* ══════ 双栏正文 —— 列 bg 无外层 px 包裹，文本左缘 = page-hero 左缘(均为 px-5) ══════ */}
         <div className="pb-5">
@@ -1639,7 +1737,7 @@ export function ProjectDetailPanel({
                     : selectedStage.stageKey === 'AWARD_DECISION' && isCurrentStage
                       ? '请上传评标报告和定标文件，确认中标单位信息。'
                     : selectedStage.stageKey === 'CONTRACT' && isCurrentStage
-                      ? '请上传合同文件，并填写合同金额、编号等关键信息。'
+                      ? '请点击流程卡「合同订立」发起结构化合同（校验→内审→签署→公告→履行台账→验收）；亦可直接上传合同文件。'
                     : selectedStage.status === 'COMPLETED'
                       ? '该阶段已完成，仍可继续补充材料，保持归档完整。'
                       : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
@@ -2160,6 +2258,17 @@ export function ProjectDetailPanel({
         onClose={() => setAwardFileMakerOpen(false)}
         project={item}
         onPublished={onUpdated}
+      />
+
+      {/* B4（附录 D）：框架协议采购两阶段 */}
+      <FrameworkModal open={frameworkOpen} onClose={() => setFrameworkOpen(false)} projectManagementItemId={item.id} />
+
+      {/* C2/C3/C4：合同订立·履行·验收（GB/T 43711 7.5.4/7.6） */}
+      <ContractStageModal
+        open={contractStageOpen}
+        onClose={() => setContractStageOpen(false)}
+        item={{ id: item.id, projectCode: item.projectCode || `PMI-${item.id.slice(-6)}`, awardedSupplier: item.awardedSupplier, contractAmount: item.contractAmount }}
+        onUpdated={onUpdated}
       />
 
       {/* AI 提取结果弹窗（cgzxui Modal） */}

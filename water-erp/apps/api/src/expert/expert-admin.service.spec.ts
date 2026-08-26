@@ -219,8 +219,8 @@ describe('ExpertAdminService', () => {
         }),
       };
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', displayName: '甲', isActive: true, expertProfile: { specialty: '施工', availability: '可用', title: '高级工程师', employer: '川西分公司' }, bidExperts: [], _count: { bidExperts: 3 } },
-        { id: 'u2', displayName: '乙', isActive: true, expertProfile: { specialty: '地质', availability: '可用', title: '工程师', employer: '设计院' }, bidExperts: [], _count: { bidExperts: 1 } },
+        { id: 'u1', displayName: '甲', isActive: true, expertProfile: { specialty: '施工', availability: '可用', entryStatus: 'ACTIVE', title: '高级工程师', employer: '川西分公司' }, bidExperts: [], _count: { bidExperts: 3 } },
+        { id: 'u2', displayName: '乙', isActive: true, expertProfile: { specialty: '地质', availability: '可用', entryStatus: 'ACTIVE', title: '工程师', employer: '设计院' }, bidExperts: [], _count: { bidExperts: 1 } },
       ]);
       prisma.expertEvaluation.groupBy = jest.fn().mockResolvedValue([]);
       prisma.expertEvaluation.findMany.mockResolvedValue([]);
@@ -257,7 +257,7 @@ describe('ExpertAdminService', () => {
     it('已分配本项目的专家重复确认 → 替换式重写（非追加模式清旧写新，不拒绝）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [{ id: 'be1' }] },
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [{ id: 'be1' }] },
       ]);
       const res = await service.confirmExtraction('p1', dto(), 'op1');
       expect(res.success).toBe(true);
@@ -271,7 +271,7 @@ describe('ExpertAdminService', () => {
         suppliers: [{ supplier: { name: '川西建设' }, supplierName: '川西建设', confirmStatus: 'CONFIRMED' }],
       });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', employer: '川西建设公司' }, bidExperts: [] },
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE', employer: '川西建设公司' }, bidExperts: [] },
       ]);
       await expect(service.confirmExtraction('p1', dto(), 'op1')).rejects.toBeInstanceOf(BadRequestException);
     });
@@ -286,7 +286,7 @@ describe('ExpertAdminService', () => {
         ],
       });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', employer: '川西建设公司' }, bidExperts: [] },
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE', employer: '川西建设公司' }, bidExperts: [] },
       ]);
       await expect(service.confirmExtraction('p1', dto(), 'op1')).rejects.toMatchObject({
         response: { code: 'EXPERT_CONFLICT' },
@@ -296,7 +296,7 @@ describe('ExpertAdminService', () => {
     it('P1-7：isPurchaserRepresentative 标识随抽取确认持久化（默认 false）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'SUBMIT', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [] },
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
       ]);
       await service.confirmExtraction('p1', {
         projectId: 'p1',
@@ -318,7 +318,7 @@ describe('ExpertAdminService', () => {
     it('P1-6：评标阶段追加模式（append）仍放行补选', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'EVALUATING', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [] },
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
       ]);
       const res = await service.confirmExtraction('p1', { projectId: 'p1', experts: [{ userId: 'u1', expertName: '甲', major: '造价' }], candidates: [], append: true } as any, 'op1');
       expect(res.success).toBe(true);
@@ -328,7 +328,7 @@ describe('ExpertAdminService', () => {
     it('P1-6：SUBMIT 阶段整体重抽仍允许（正常补抽场景）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', stage: 'SUBMIT', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [] },
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
       ]);
       const res = await service.confirmExtraction('p1', dto(), 'op1');
       expect(res.success).toBe(true);
@@ -337,7 +337,7 @@ describe('ExpertAdminService', () => {
     it('成功抽取应写入 BidExpert 与审计日志（同一事务）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', employer: '设计院' }, bidExperts: [] },
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE', employer: '设计院' }, bidExperts: [] },
       ]);
       const res = await service.confirmExtraction('p1', dto(), 'op1');
       expect(res.success).toBe(true);
@@ -353,8 +353,8 @@ describe('ExpertAdminService', () => {
     it('P0-4：创建/更新的正选与候补专家 phoneVerified 均置 true（真实链路签到死锁止血）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [] },
-        { id: 'u2', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' }, bidExperts: [] },
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
+        { id: 'u2', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
       ]);
       const res = await service.confirmExtraction('p1', {
         projectId: 'p1',

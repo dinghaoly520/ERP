@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, UnauthorizedExcepti
 import { randomBytes } from 'node:crypto';
 import { compareSync, hashSync } from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { PASSWORD_PATTERN } from '../common/validators/password-strength';
 
 /**
  * 密码变更/重置申请（2026-08-21 补齐后端实现）：
@@ -17,8 +18,8 @@ export class PasswordRequestsService {
 
   /** 登录用户提交改密申请（个人中心）：校验当前密码，新密码待管理员审批后生效 */
   async submitChange(userId: string, currentPassword: string, newPassword: string) {
-    if (newPassword.length < 6) {
-      throw new BadRequestException({ error: '新密码不少于 6 位', code: 'PASSWORD_TOO_SHORT' });
+    if (!PASSWORD_PATTERN.test(newPassword)) {
+      throw new BadRequestException({ error: '新口令须至少 8 位且同时包含字母与数字', code: 'PASSWORD_WEAK' });
     }
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

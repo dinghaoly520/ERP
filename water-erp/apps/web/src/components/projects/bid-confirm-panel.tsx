@@ -51,6 +51,7 @@ import { EvaluationHandoverBlock } from './bid-confirm/evaluation-handover-block
 import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
+import { ArchiveTemplateCard } from './archive-template-card';
 
 type Props = {
   isOpen: boolean;
@@ -771,6 +772,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 )}
               </SectionCard>
 
+              {/* ▸ D1（GB/T 43711 4.1.5.1）：档案清单对标 + 线下材料人工登记 */}
+              {bpId && <ArchiveTemplateCard bidProjectId={bpId} />}
+
               {/* ▸ 区块5-8（Phase 2 指挥中心）：开标进度 / 归档
                   —— :3007 开标执行数据经同一 API 回流；评标管理/异议裁决/澄清答疑已迁 :3007（分工 v3，2026-08-13） */}
               {/* D1/G2: 专家在线 + 监督时间线 */}
@@ -1212,7 +1216,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
       {!status.hasPublicity ? (
         <div className="exp-alert exp-alert--info flex items-center gap-2 !p-3">
           <Clock size={14} strokeWidth={1.5} className="shrink-0" />
-          <span className="text-xs">尚未发布中标公告</span>
+          <span className="text-xs">尚未发布预成交公示</span>
           {winner?.bidPrice && (
             <span className="ml-2 text-xs font-mono tabular-nums text-[var(--muted-foreground)]">
               中标金额：¥{Number(winner.bidPrice).toLocaleString('zh-CN')}

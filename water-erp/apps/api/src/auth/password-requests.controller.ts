@@ -1,7 +1,8 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../common/validators/password-strength';
 import { Request } from 'express';
 import { PasswordRequestsService } from './password-requests.service';
 import { Public } from '../common/decorators/public.decorator';
@@ -11,7 +12,7 @@ import type { AuthenticatedUser } from './auth.types';
 
 class SubmitChangeDto {
   @IsString() @IsNotEmpty() currentPassword: string;
-  @IsString() @MinLength(6) newPassword: string;
+  @IsString() @Matches(PASSWORD_PATTERN, { message: PASSWORD_POLICY_MESSAGE }) newPassword: string;
 }
 
 class SubmitResetDto {

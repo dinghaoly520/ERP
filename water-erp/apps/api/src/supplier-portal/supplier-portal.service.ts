@@ -2589,6 +2589,8 @@ export class SupplierPortalService {
       include: {
         contacts: true,
         qualifications: true,
+        bankAccounts: true,
+        performances: true,
       },
     });
     if (!supplier) return null;
@@ -2630,6 +2632,14 @@ export class SupplierPortalService {
     };
   }
 
+  /**
+   * 注册 2.0 口径的资料完整度（满分 100）：
+   *   基本信息 45（17 项：含 logo/机构代码/国别/区域/详细地址/注册资本/行业/法人电话/邮箱/官网）
+   *   联系人 15（至少 1 个完整联系人 + 主要联系人 + 联系人身份证 + 性别）
+   *   银行账户 10（至少 1 个户名/开户银行/账号齐全的账户）
+   *   资质信息 20（营业执照 12 + 其他资质 ≥1 项 4 + 附加材料 4）
+   *   主体业绩 10（至少 1 项业绩）
+   */
   private calculateProfileCompleteness(supplier: any): {
     score: number;
     missing: string[];
@@ -2637,63 +2647,95 @@ export class SupplierPortalService {
       basic: { score: number; max: number; filled: number; total: number; missing: string[] };
       contacts: { score: number; max: number; filled: number; total: number; missing: string[]; count: number; hasPrimary: boolean };
       qualifications: { score: number; max: number; filled: number; total: number; missing: string[]; count: number; hasLicense: boolean };
-      classification: { score: number; max: number };
+      bankAccounts: { score: number; max: number; filled: number; total: number; missing: string[]; count: number };
+      performances: { score: number; max: number; filled: number; total: number; missing: string[]; count: number };
     };
   } {
     const missing: string[] = [];
 
-    // Basic info (40 points)
+    // ── 基本信息（45 分，17 项）──
     let basicScore = 0;
-    const basicMax = 40;
+    const basicMax = 45;
     const basicMissing: string[] = [];
-    const basicTotal = 6;
+    const basicTotal = 17;
     let basicFilled = 0;
-    if (supplier.name) { basicScore += 8; basicFilled++; } else basicMissing.push('企业名称');
-    if (supplier.creditCode) { basicScore += 8; basicFilled++; } else basicMissing.push('统一社会信用代码');
-    if (supplier.enterpriseType) { basicScore += 6; basicFilled++; } else basicMissing.push('企业类型');
-    if (supplier.legalPerson) { basicScore += 6; basicFilled++; } else basicMissing.push('法定代表人');
-    if (supplier.registeredAddress) { basicScore += 6; basicFilled++; } else basicMissing.push('注册地址');
-    if (supplier.businessScope) { basicScore += 6; basicFilled++; } else basicMissing.push('经营范围');
+    const basicItems: Array<[string, any, number]> = [
+      ['企业名称', supplier.name, 3],
+      ['统一社会信用代码', supplier.creditCode, 3],
+      ['机构代码', supplier.organizationCode, 3],
+      ['公司体制类型', supplier.enterpriseType, 2],
+      ['法人姓名', supplier.legalPerson, 2],
+      ['法人身份证号', supplier.legalPersonIdCard, 2],
+      ['法人联系电话', supplier.legalPersonPhone, 3],
+      ['注册地址', supplier.registeredAddress, 2],
+      ['详细地址', supplier.detailedAddress, 3],
+      ['经营范围', supplier.businessScope, 2],
+      ['公司logo', supplier.logoUrl, 3],
+      ['国别', supplier.country, 3],
+      ['所属行政区域', supplier.region, 3],
+      ['注册资本', supplier.registeredCapital, 2],
+      ['所属行业', supplier.industry, 3],
+      ['公司邮箱', supplier.companyEmail, 3],
+      ['公司官网', supplier.companyWebsite, 3],
+    ];
+    for (const [label, value, pts] of basicItems) {
+      if (value !== null && value !== undefined && String(value).trim() !== '') { basicScore += pts; basicFilled++; }
+      else basicMissing.push(label);
+    }
     missing.push(...basicMissing);
 
-    // Contacts (20 points)
+    // ── 联系人（15 分）──
     let contactScore = 0;
-    const contactMax = 20;
-    const contactCount: number = supplier.contacts?.length || 0;
+    const contactMax = 15;
+    const contacts: any[] = supplier.contacts || [];
+    const contactCount = contacts.length;
     const contactFilled = contactCount;
     const contactTotal = Math.max(contactCount, 1);
-    let contactHasPrimary = false;
     const contactMissing: string[] = [];
-    if (contactCount > 0) {
-      contactScore += 12;
-      contactHasPrimary = supplier.contacts.some((c: any) => c.isPrimary);
-      if (contactHasPrimary) contactScore += 8; else contactMissing.push('主要联系人');
-    } else {
-      contactMissing.push('联系人');
-    }
+    const hasCompleteContact = contacts.some((c) => c.name?.trim() && /^1\d{10}$/.test(c.phone?.trim() || ''));
+    const contactHasPrimary = contacts.some((c) => c.isPrimary);
+    if (hasCompleteContact) contactScore += 8; else contactMissing.push('联系人');
+    if (contactHasPrimary) contactScore += 3; else contactMissing.push('主要联系人');
+    if (contactCount > 0 && contacts.every((c) => c.idCard?.trim())) contactScore += 2; else contactMissing.push('联系人身份证号');
+    if (contactCount > 0 && contacts.every((c) => c.gender)) contactScore += 2; else contactMissing.push('联系人性别');
     missing.push(...contactMissing);
 
-    // Qualifications (30 points)
+    // ── 银行账户（10 分）──
+    let bankScore = 0;
+    const bankMax = 10;
+    const banks: any[] = supplier.bankAccounts || [];
+    const bankCount = banks.length;
+    const bankMissing: string[] = [];
+    const hasValidBank = banks.some((b) => b.accountName?.trim() && b.bankName?.trim() && b.accountNo?.trim());
+    if (hasValidBank) bankScore += 10; else bankMissing.push('银行账户');
+    missing.push(...bankMissing);
+
+    // ── 资质信息（20 分）──
     let qualScore = 0;
-    const qualMax = 30;
-    const qualCount: number = supplier.qualifications?.length || 0;
+    const qualMax = 20;
+    const quals: any[] = supplier.qualifications || [];
+    const qualCount = quals.length;
     const qualFilled = qualCount;
     const qualTotal = Math.max(qualCount, 1);
-    let qualHasLicense = false;
     const qualMissing: string[] = [];
-    if (qualCount > 0) {
-      qualScore += 15;
-      qualHasLicense = supplier.qualifications.some((q: any) => q.type === '营业执照');
-      if (qualHasLicense) qualScore += 15; else qualMissing.push('营业执照');
-    } else {
-      qualMissing.push('资质材料');
-    }
+    const qualHasLicense = quals.some((q) => q.type === '营业执照' && q.fileUrl);
+    const hasOtherQual = quals.some((q) => q.type !== '营业执照' && q.fileUrl);
+    const allHaveAttachments = qualCount > 0 && quals.every((q) => Array.isArray(q.attachments) && q.attachments.length > 0);
+    if (qualHasLicense) qualScore += 12; else qualMissing.push('营业执照');
+    if (hasOtherQual) qualScore += 4; else qualMissing.push('其他资质');
+    if (allHaveAttachments) qualScore += 4; else qualMissing.push('资质附加材料');
     missing.push(...qualMissing);
 
-    // Classification 已下线：不再作为完整度考核项，默认满分，不计入缺失。
-    const classScore = 10;
+    // ── 主体业绩（10 分）──
+    let perfScore = 0;
+    const perfMax = 10;
+    const perfs: any[] = supplier.performances || [];
+    const perfCount = perfs.length;
+    const perfMissing: string[] = [];
+    if (perfCount > 0) perfScore += 10; else perfMissing.push('主体业绩');
+    missing.push(...perfMissing);
 
-    const score = basicScore + contactScore + qualScore + classScore;
+    const score = basicScore + contactScore + bankScore + qualScore + perfScore;
 
     return {
       score,
@@ -2702,7 +2744,8 @@ export class SupplierPortalService {
         basic: { score: basicScore, max: basicMax, filled: basicFilled, total: basicTotal, missing: basicMissing },
         contacts: { score: contactScore, max: contactMax, filled: contactFilled, total: contactTotal, missing: contactMissing, count: contactCount, hasPrimary: contactHasPrimary },
         qualifications: { score: qualScore, max: qualMax, filled: qualFilled, total: qualTotal, missing: qualMissing, count: qualCount, hasLicense: qualHasLicense },
-        classification: { score: classScore, max: 10 },
+        bankAccounts: { score: bankScore, max: bankMax, filled: hasValidBank ? 1 : 0, total: 1, missing: bankMissing, count: bankCount },
+        performances: { score: perfScore, max: perfMax, filled: perfCount > 0 ? 1 : 0, total: 1, missing: perfMissing, count: perfCount },
       },
     };
   }

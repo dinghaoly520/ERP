@@ -351,6 +351,26 @@ export class AnnouncementController {
     return xff || req.socket?.remoteAddress || req.ip;
   }
 
+  @Post('bid-notice-checklist')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '采购公告要素完整性预检（GB/T 43711 7.2.2.5，dry-run，警告不阻断）' })
+  previewChecklist(@Body() dto: Pick<CreateAnnouncementDto, 'title' | 'content' | 'metadata' | 'relatedProjectCode'>) {
+    return this.announcementService.previewBidNoticeChecklist(dto);
+  }
+
+  @Post(':id/confirm-winner')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '预成交公示期满确认 → 发布成交公告（GB/T 43711 7.5.2.5，两段式第二段）' })
+  async confirmWinner(@Param('id') id: string, @Request() req: any) {
+    await this.assertAnnouncementScope(id, req.user);
+    return this.announcementService.confirmWinnerNotice(id, {
+      operatorId: req.user.sub,
+      operatorName: req.user.username,
+      ipAddress: this.clientIp(req),
+      userAgent: req.headers?.['user-agent'],
+    });
+  }
+
   @Post(':id/generate-summary')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: 'AI 重新生成摘要' })
@@ -362,7 +382,7 @@ export class AnnouncementController {
     const ann = await this.announcementService.get(id);
     if (!ann) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
     if (!ann.content) throw new BadRequestException({ error: '公告无正文内容，无法生成摘要', code: 'NO_CONTENT' });
-    const typeMap: Record<string, string> = { BID_NOTICE:'招标公告', WIN_NOTICE:'中标公示', POLICY:'政策法规', PLATFORM:'平台通知' };
+    const typeMap: Record<string, string> = { BID_NOTICE:'采购公告', PRE_WIN_NOTICE:'预成交公示', WIN_NOTICE:'成交公告', POLICY:'政策法规', PLATFORM:'平台通知' };
     const aiSummary = await this.announcementAiService.summarize({
       title: ann.title,
       type: typeMap[ann.type] ?? ann.type,

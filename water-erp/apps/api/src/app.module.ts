@@ -13,6 +13,9 @@ import { NotificationModule } from './notification/notification.module';
 import { UploadModule } from './upload/upload.module';
 import { AnnouncementModule } from './announcement/announcement.module';
 import { SupplierPortalModule } from './supplier-portal/supplier-portal.module';
+import { ContractModule } from './contract/contract.module';
+import { PrequalModule } from './prequal/prequal.module';
+import { FrameworkModule } from './framework/framework.module';
 import { ExpertModule } from './expert/expert.module';
 import { AiModule } from './ai';
 import { ProcurementModule } from './procurement/procurement.module';
@@ -40,6 +43,8 @@ import { ProgressModule } from './progress/progress.module';
 import { ImportsModule } from './imports/imports.module';
 import { WorkArrangementsModule } from './work-arrangements/work-arrangements.module';
 import { ProjectManagementModule } from './project-management/project-management.module';
+import { ProjectPlanModule } from './project-plan/project-plan.module';
+import { ArchiveModule } from './archive/archive.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { TenderReviewModule } from './tender-review/tender-review.module';
 import { TenderWriteModule } from './tender-write/tender-write.module';
@@ -60,7 +65,10 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
         url: process.env.REDIS_URL || 'redis://localhost:6380',
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
+    // 全局限流（CTS 4.8）；压测/性能验证可经 THROTTLE_LIMIT 临时调高
+    ThrottlerModule.forRoot([
+      { ttl: Number(process.env.THROTTLE_TTL_MS ?? 60000), limit: Number(process.env.THROTTLE_LIMIT ?? 120) },
+    ]),
     PrismaModule,
     CompanyScopeModule,
     RedisModule,
@@ -72,6 +80,9 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     UploadModule,
     AnnouncementModule,
     SupplierPortalModule,
+    ContractModule,
+    PrequalModule,
+    FrameworkModule,
     ExpertModule,
     AiModule,
     ProcurementModule,
@@ -95,6 +106,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     ImportsModule,
     WorkArrangementsModule,
     ProjectManagementModule,
+    ProjectPlanModule,
+    ArchiveModule,
     KnowledgeModule,
     TenderReviewModule,
     TenderWriteModule,

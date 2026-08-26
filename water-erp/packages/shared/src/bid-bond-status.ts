@@ -6,6 +6,10 @@ export const BOND_STATUS = {
   ABNORMAL: '异常',
   /** 项目不要求保证金（bondRequired=false）时的默认档——「不适用」非不合格，仅表示免缴。 */
   NA: '不适用',
+  /** C4（GB/T 43711 7.5.4.4）：签署/归档后按约定及时退还（BidProject.bondReturnedAt 置时）。 */
+  RETURNED: '已退还',
+  /** C4：7.5.3.3 情形（弄虚作假/串通/拒签/不交履约担保）→ 不予退还，必填理由并记监督日志。 */
+  NOT_REFUNDED: '不予退还',
 } as const;
 
 export type BondStatusValue = (typeof BOND_STATUS)[keyof typeof BOND_STATUS];
@@ -16,6 +20,8 @@ export const BOND_STATUS_OPTIONS: BondStatusValue[] = [
   BOND_STATUS.GUARANTEE,
   BOND_STATUS.UNPAID,
   BOND_STATUS.ABNORMAL,
+  BOND_STATUS.RETURNED,
+  BOND_STATUS.NOT_REFUNDED,
   BOND_STATUS.NA,
 ];
 

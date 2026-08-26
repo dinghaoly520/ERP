@@ -6,6 +6,7 @@ import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { portalOrigin } from '@water-erp/config';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { EmbeddingService } from '../local-ai/embedding.service';
 import { LlmService } from '../local-ai/llm.service';
 import { OcrService } from '../local-ai/ocr.service';
@@ -15,6 +16,7 @@ import { ExpertExtractionAiService, rsvpTtlHours } from './expert-extraction-ai.
 import { ExpertCrossConflictService } from './expert-cross-conflict.service';
 import type { LlmSpecialtyQuota, ExpertExtractionLlmResult, ExtractMode } from './expert-extraction-ai.service';
 import type { CreateExpertDto } from './dto/create-expert.dto';
+import { UpdateExpertStatusDto } from './dto/update-expert-status.dto';
 import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import type { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
@@ -416,7 +418,7 @@ export class ExpertAdminService {
     // 合规候选：bid_expert + 可用 + 未分配本项目 + 工作单位不在参与供应商中
     // 重新抽取时不排除本项目已分配的专家（确认时会先清空旧记录），只排除其他项目的占用
     const experts = await this.prisma.user.findMany({
-      where: { role: 'bid_expert', isActive: true, expertProfile: { availability: '可用' } },
+      where: { role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' } },
       include: {
         expertProfile: true,
         bidExperts: { where: { projectId: { not: projectId } }, select: { id: true } },
@@ -750,7 +752,7 @@ export class ExpertAdminService {
       for (const e of (dto.experts ?? [])) {
         const u = users.find(x => x.id === e.userId);
         if (!u) throw new BadRequestException({ error: `专家 ${e.expertName} 不存在`, code: 'EXPERT_NOT_FOUND' });
-        if (u.role !== 'bid_expert' || !u.isActive || u.expertProfile?.availability !== '可用') {
+        if (u.role !== 'bid_expert' || !u.isActive || u.expertProfile?.availability !== '可用' || u.expertProfile?.entryStatus !== 'ACTIVE') {
           throw new BadRequestException({ error: `专家 ${e.expertName} 不符合抽取资格（须为在用评标专家）`, code: 'EXPERT_INELIGIBLE' });
         }
         const emp = u.expertProfile?.employer?.trim();
@@ -1016,7 +1018,7 @@ export class ExpertAdminService {
     // 资格复核：与 confirmExtraction 同标准，避免把抽取后被停用/退库/关联供应商的候补提为正选
     const eligible = candidates.filter(c => {
       const u = c.user;
-      if (!u.isActive || u.expertProfile?.availability !== '可用') return false;
+      if (!u.isActive || u.expertProfile?.availability !== '可用' || u.expertProfile?.entryStatus !== 'ACTIVE') return false;
       const emp = u.expertProfile?.employer?.trim();
       if (emp) {
         for (const sn of supplierNames) {
@@ -1798,6 +1800,45 @@ export class ExpertAdminService {
       }),
     ]);
     return { success: true };
+  }
+
+  /** CTS A-218/222 专家库状态机：PENDING→ACTIVE 记审核留痕；RETIRED 联动账号停用（对齐 confirmRetire） */
+  async updateProfileStatus(userId: string, dto: UpdateExpertStatusDto, actor?: AuthenticatedUser) {
+    if (!actor || !['admin', 'leader'].includes(actor.role)) {
+      throw new ForbiddenException({ error: '仅领导或管理员可变更专家库状态', code: 'EXPERT_STATUS_ROLE_FORBIDDEN' });
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
+    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
+    const profile = await this.prisma.expertProfile.findUnique({ where: { userId }, select: { entryStatus: true } });
+    if (!profile) throw new NotFoundException('专家档案不存在');
+    if (dto.status === 'RETIRED' && !dto.reason?.trim()) {
+      throw new BadRequestException({ error: '退库必须填写事由', code: 'REASON_REQUIRED' });
+    }
+    const ops: Prisma.PrismaPromise<unknown>[] = [
+      this.prisma.expertProfile.updateMany({
+        where: { userId },
+        data: {
+          entryStatus: dto.status,
+          statusNote: dto.reason?.trim() ?? null,
+          ...(dto.status === 'ACTIVE'
+            ? { verifiedById: actor.sub ?? null, verifiedAt: new Date(), retiredAt: null, retireReason: null }
+            : {}),
+          ...(dto.status === 'RETIRED' ? { retiredAt: new Date(), retireReason: dto.reason!.trim() } : {}),
+        },
+      }),
+    ];
+    if (dto.status === 'RETIRED') {
+      ops.push(this.prisma.user.update({ where: { id: userId }, data: { isActive: false } }));
+    }
+    if (dto.status === 'ACTIVE' && profile.entryStatus === 'RETIRED') {
+      // 退库恢复：账号随档案一并重新激活
+      ops.push(this.prisma.user.update({ where: { id: userId }, data: { isActive: true } }));
+    }
+    await this.prisma.$transaction(ops);
+    return this.prisma.expertProfile.findUnique({
+      where: { userId },
+      select: { userId: true, entryStatus: true, statusNote: true, verifiedById: true, verifiedAt: true, retiredAt: true },
+    });
   }
 
   /* ── 统计 / 排名 / 负荷 ── */

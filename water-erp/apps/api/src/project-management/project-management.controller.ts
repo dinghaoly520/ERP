@@ -22,6 +22,7 @@ import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
+import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { ProjectManagementService } from './project-management.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -287,6 +288,24 @@ export class ProjectManagementController {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     return this.projectManagementService.completeProject(id, dto, user?.sub);
+  }
+
+  // CTS-EBS01 A-36/37：项目递交与受理（留痕：申报人/时间、验证人/时间）
+  @Post(':id/submit-review')
+  submitForReview(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.projectManagementService.submitForReview(id, user);
+  }
+
+  @Post(':id/review')
+  review(
+    @Param('id') id: string,
+    @Body() dto: ReviewSubmissionDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.projectManagementService.reviewSubmission(id, dto, user);
   }
 
   @Delete(':id/attachments/:attachmentId')

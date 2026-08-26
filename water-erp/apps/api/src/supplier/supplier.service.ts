@@ -1,11 +1,15 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Inject } from '@nestjs/common';
 import { hashSync } from 'bcryptjs';
 import { Prisma, ExpertLevel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildSubjectCode } from '@water-erp/shared';
 import { NotificationService } from '../notification/notification.service';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
+import { AddSupplierRecordDto } from './dto/add-supplier-record.dto';
+import { UpdateContactPersonnelDto } from './dto/update-contact-personnel.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { CreateQualificationDto } from './dto/create-qualification.dto';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
@@ -64,6 +68,10 @@ export class SupplierService {
   }
 
   async register(dto: RegisterSupplierDto) {
+    // ★ 用户名强制 = 统一社会信用代码（机构代码）：忽略调用方传入的 username。
+    //   creditCode 唯一 → 登录用户名天然唯一。
+    const username = dto.creditCode.trim();
+
     // 检查信用代码是否重复
     const existingCreditCode = await this.prisma.supplier.findUnique({
       where: { creditCode: dto.creditCode },
@@ -74,12 +82,12 @@ export class SupplierService {
 
     // 公司名允许重复，不再按名称查重；唯一标识由统一社会信用代码（creditCode）承担（上方已查重）
 
-    // 检查用户名是否重复
+    // 检查用户名（统一社会信用代码）是否被非供应商角色占用（信用代码唯一性已由上方校验）
     const existingUser = await this.prisma.user.findFirst({
-      where: { username: dto.username, role: 'supplier' },
+      where: { username, role: 'supplier' },
     });
     if (existingUser) {
-      throw new BadRequestException({ error: '用户名已存在', code: 'DUPLICATE_USERNAME' });
+      throw new BadRequestException({ error: '该统一社会信用代码已被注册为登录账号', code: 'DUPLICATE_USERNAME' });
     }
 
     // 法定代表人身份证号查重（软约束：同一法人身份证号不允许重复注册）
@@ -109,7 +117,7 @@ export class SupplierService {
     const { user, supplier } = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          username: dto.username.trim(),
+          username, // = 机构代码
           displayName: dto.displayName,
           email: dto.email,
           passwordHash: hashSync(dto.password, 10),
@@ -126,6 +134,7 @@ export class SupplierService {
           name: dto.name,
           normalizedName: dto.name.trim().toLowerCase(),
           creditCode: dto.creditCode,
+          subjectCode: buildSubjectCode(dto.creditCode), // A1（B.4.2）：B+统一社会信用代码
           enterpriseType: dto.enterpriseType,
           legalPerson: dto.legalPerson,
           legalPersonIdCard: dto.legalPersonIdCard || null,
@@ -134,7 +143,7 @@ export class SupplierService {
           detailedAddress: dto.detailedAddress || null,
           businessScope: dto.businessScope,
           logoUrl: dto.logoUrl || null,
-          organizationCode: dto.organizationCode || null,
+          organizationCode: dto.creditCode.trim(), // 机构代码 = 统一社会信用代码
           country: dto.country || null,
           region: dto.region || null,
           registeredCapital: dto.registeredCapital || null,
@@ -324,12 +333,12 @@ export class SupplierService {
     }
 
     const normalizedName = dto.name.trim().toLowerCase();
-    // 企业名称即登录用户名（同名企业允许重复，但用户名仍须唯一，由下方 existingUser 查重拦截）
-    const username = dto.name.trim();
+    // ★ 用户名强制 = 机构代码（与正式注册一致）
+    const username = dto.creditCode.trim(); // 用户名强制 = 统一社会信用代码（机构代码）
     const existingCredit = await this.prisma.supplier.findUnique({ where: { creditCode: dto.creditCode.trim() } });
     if (existingCredit) throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
     const existingUser = await this.prisma.user.findFirst({ where: { username, role: 'supplier' } });
-    if (existingUser) throw new BadRequestException({ error: '企业名称已被注册', code: 'DUPLICATE_USERNAME' });
+    if (existingUser) throw new BadRequestException({ error: '该机构代码已被注册为登录账号，请更换', code: 'DUPLICATE_USERNAME' });
 
     const { user, supplier } = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -348,6 +357,8 @@ export class SupplierService {
           name: dto.name,
           normalizedName,
           creditCode: dto.creditCode.trim(),
+          subjectCode: buildSubjectCode(dto.creditCode.trim()), // A1（B.4.2）
+          organizationCode: dto.creditCode.trim(), // 机构代码 = 统一社会信用代码
           supplierNo: await this.generateSupplierNo(tx),
           // 临时供应商必填字段留空（DB NOT NULL 用空串满足），不写入占位/虚假内容；
           // 审批通过后由供应商在企业信息中自行补全。
@@ -588,7 +599,7 @@ export class SupplierService {
   }
 
   async get(id: string) {
-    return this.prisma.supplier.findUnique({
+    const supplier = await this.prisma.supplier.findUnique({
       where: { id },
       include: {
         user: { select: { id: true, username: true, displayName: true, email: true, role: true, isActive: true } },
@@ -601,6 +612,15 @@ export class SupplierService {
         changeRecords: { orderBy: { createdAt: 'desc' }, take: 10 },
       },
     });
+    if (!supplier) {
+      // 自愈（2026-08-24）：供应商已被删除（直删库等非常规途径）时，指向它的
+      // 待审批通知成为孤儿——点开 404 且待办计数不减。此处顺带 resolve 掉，
+      // 待办列表下次刷新即消失；审批/拒绝/退回路径本来就会 resolve，不经过这里。
+      await this.notificationService
+        .resolveActionable('SUPPLIER_PENDING', `/supplier/${id}`)
+        .catch(() => undefined);
+    }
+    return supplier;
   }
 
   async getRegisterStatus(userId: string) {
@@ -1421,6 +1441,8 @@ export class SupplierService {
         complianceGrade: dto.complianceGrade,
         comprehensiveGrade: dto.comprehensiveGrade,
         comment: dto.comment,
+        // A4（4.1.1.8）：区分采购过程评价与合同履约评价（C3 验收后触发后者）
+        evaluationSource: dto.evaluationSource === 'contract' ? 'contract' : 'procurement',
         evidence: dto.evidence ?? undefined,
       },
     });
@@ -1431,6 +1453,129 @@ export class SupplierService {
     // 决策 #3：不自动停用。连续低分由 reviewEliminationCandidates()（cron + 人工）产出预警，
     // 实际淘汰须经 admin 调 confirmEliminate() 确认。此处仅返回评价结果。
     return created;
+  }
+
+  /* ── CTS A-213/215/216 投标人信息资源库 ── */
+
+  /** A-215 拉黑：原因必填；审核完结状态才可拉黑；乐观锁防并发（操作留痕走全局 operation-log） */
+  async blacklistSupplier(supplierId: string, reason: string, user?: AuthenticatedUser) {
+    if (!user || !['admin', 'leader'].includes(user.role)) {
+      throw new ForbiddenException({ error: '仅领导或管理员可执行黑名单操作', code: 'BLACKLIST_ROLE_FORBIDDEN' });
+    }
+    if (!reason?.trim()) throw new BadRequestException({ error: '拉黑必须填写原因', code: 'REASON_REQUIRED' });
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true, status: true, userId: true },
+    });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (supplier.status === 'BLACKLIST') {
+      throw new BadRequestException({ error: '该供应商已在黑名单中', code: 'ALREADY_BLACKLISTED' });
+    }
+    if (supplier.status === 'PENDING' || supplier.status === 'RETURNED') {
+      throw new BadRequestException({ error: '审核未完结的供应商不可拉黑，请先完成审核或退回', code: 'INVALID_STATUS' });
+    }
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id: supplierId, status: supplier.status },
+      data: { status: 'BLACKLIST', disableReason: reason.trim() },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictException({ error: '供应商状态已变化，请刷新后重试', code: 'CONCURRENT_UPDATE' });
+    }
+    if (supplier.userId) {
+      void this.notificationService
+        .sendToUser(supplier.userId, ['in_app'], {
+          type: 'SUPPLIER_BLACKLISTED',
+          title: '账号已列入黑名单',
+          content: `贵司已被列入供应商黑名单：${reason.trim()}。如有异议请联系采购中心。`,
+          link: '/notifications',
+        })
+        .catch(() => undefined);
+    }
+    return this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true, status: true, disableReason: true },
+    });
+  }
+
+  /** A-215 解除黑名单：恢复入库；解除原因必填（留痕走 operation-log） */
+  async unblacklistSupplier(supplierId: string, reason: string, user?: AuthenticatedUser) {
+    if (!user || !['admin', 'leader'].includes(user.role)) {
+      throw new ForbiddenException({ error: '仅领导或管理员可执行黑名单操作', code: 'BLACKLIST_ROLE_FORBIDDEN' });
+    }
+    if (!reason?.trim()) throw new BadRequestException({ error: '解除黑名单必须填写原因', code: 'REASON_REQUIRED' });
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true, status: true, userId: true },
+    });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (supplier.status !== 'BLACKLIST') {
+      throw new BadRequestException({ error: '该供应商不在黑名单中', code: 'NOT_BLACKLISTED' });
+    }
+    await this.prisma.supplier.updateMany({
+      where: { id: supplierId, status: 'BLACKLIST' },
+      data: { status: 'APPROVED', disableReason: null },
+    });
+    if (supplier.userId) {
+      void this.notificationService
+        .sendToUser(supplier.userId, ['in_app'], {
+          type: 'SUPPLIER_UNBLACKLISTED',
+          title: '黑名单已解除',
+          content: `贵司黑名单已解除并恢复入库：${reason.trim()}。`,
+          link: '/notifications',
+        })
+        .catch(() => undefined);
+    }
+    return this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true, status: true, disableReason: true },
+    });
+  }
+
+  /** A-213 奖惩记录录入（复用 SupplierPerformance，recordType 区分） */
+  async addSupplierRecord(supplierId: string, dto: AddSupplierRecordDto) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true },
+    });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (!dto.recordNote?.trim()) {
+      throw new BadRequestException({ error: '必须填写奖惩事由', code: 'RECORD_NOTE_REQUIRED' });
+    }
+    return this.prisma.supplierPerformance.create({
+      data: {
+        supplierId,
+        projectName: dto.projectName.trim(),
+        recordType: dto.recordType,
+        recordNote: dto.recordNote.trim(),
+        effectiveDate: dto.effectiveDate ? new Date(dto.effectiveDate) : null,
+        clientName: dto.clientName?.trim() ?? null,
+        contractAmount: dto.contractAmount != null ? String(dto.contractAmount) : null,
+        proofFiles: [],
+      },
+    });
+  }
+
+  /** A-213 奖惩记录列表 */
+  async listSupplierRecords(supplierId: string, recordType?: string) {
+    const type =
+      recordType === 'reward' || recordType === 'punishment' ? recordType : { in: ['reward', 'punishment'] };
+    return this.prisma.supplierPerformance.findMany({
+      where: { supplierId, recordType: type },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** A-216 联系人人员类别/执业证书标注 */
+  async updateContactPersonnel(contactId: string, dto: UpdateContactPersonnelDto) {
+    const contact = await this.prisma.supplierContact.findUnique({ where: { id: contactId }, select: { id: true } });
+    if (!contact) throw new NotFoundException('联系人不存在');
+    return this.prisma.supplierContact.update({
+      where: { id: contactId },
+      data: {
+        ...(dto.personnelType !== undefined && { personnelType: dto.personnelType || null }),
+        ...(dto.certTitle !== undefined && { certTitle: dto.certTitle || null }),
+      },
+    });
   }
 
   /* ── 供应商画像（Track E §3.3） ── */
@@ -2334,7 +2479,7 @@ export class SupplierService {
       try {
         const password = `supplier@2026`;
         const displayName = name.slice(0, 20);
-        const username = `auto_${creditCode.slice(-8)}_${createHash('md5').update(name).digest('hex').slice(0, 4)}`;
+        // 登录账号 = 统一社会信用代码（机构代码）
         await this.register({
           name,
           creditCode,
@@ -2344,7 +2489,7 @@ export class SupplierService {
           registeredAddress: (row[headers.indexOf('注册地址')] || '').trim() || '未知',
           businessScope: (row[headers.indexOf('经营范围')] || '').trim() || '未知',
           displayName,
-          username,
+          organizationCode: creditCode, // 机构代码 = 统一社会信用代码
           password,
           tags: [],
           contacts: [],
