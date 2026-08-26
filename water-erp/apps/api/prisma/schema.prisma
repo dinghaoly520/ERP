@@ -2911,6 +2911,22 @@ model StageComplianceRule {
   @@index([stageKey])
 }
 
+/// W8（CTS A-115/A-147）：开标记录/评标模板。content Json 按 kind 定义：
+/// opening_record → { columns: [{key,label}] }（开标记录导出列与顺序）；evaluation → { items: [...] }（评分项预设）。
+model WorkTemplate {
+  id        String   @id @default(cuid())
+  kind      String // opening_record | evaluation
+  name      String
+  content   Json
+  isActive  Boolean  @default(true) // 同 kind 多个活跃时取最新；停用回退内置默认
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind])
+  @@unique([kind, name])
+}
+
 model ArchiveScopeItem {
   id             String   @id @default(cuid())
   code           String   @unique // 附录 B 序号，如 "2.4"

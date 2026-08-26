@@ -5881,8 +5881,16 @@ export class BidService {
       project.suppliers.forEach(s => lines.push([s.supplierName, s.downloadStatus, s.submitStatus, s.encryptStatus, s.decryptStatus, s.confirmStatus].map(esc).join(',')));
       lines.push('');
       lines.push('=== 开标记录表 ===');
-      lines.push(['供应商', '报价', '工期', '质量目标', '保证金', '解密结果', '确认状态'].map(esc).join(','));
-      project.openingRecords.forEach(r => lines.push([r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.decryptResult, r.confirmStatus].map(esc).join(',')));
+      // W8（A-115）：有 active 开标记录模板则按模板列导出，否则回退内置列
+      const openingTpl = await this.prisma.workTemplate.findFirst({ where: { kind: 'opening_record', isActive: true }, orderBy: { updatedAt: 'desc' } }).catch(() => null);
+      const openingCols = (openingTpl?.content as { columns?: Array<{ key: string; label: string }> } | null)?.columns;
+      if (openingCols && openingCols.length > 0) {
+        lines.push(openingCols.map(c => c.label).map(esc).join(','));
+        project.openingRecords.forEach(r => lines.push(openingCols.map(c => String((r as unknown as Record<string, unknown>)[c.key] ?? '')).map(esc).join(',')));
+      } else {
+        lines.push(['供应商', '报价', '工期', '质量目标', '保证金', '解密结果', '确认状态'].map(esc).join(','));
+        project.openingRecords.forEach(r => lines.push([r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.decryptResult, r.confirmStatus].map(esc).join(',')));
+      }
       lines.push('');
       lines.push('=== 供应商确认/异议记录 ===');
       lines.push(['供应商', '确认状态', '异议原因'].map(esc).join(','));
