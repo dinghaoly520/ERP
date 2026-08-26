@@ -17,7 +17,8 @@ describe('ProjectManagementService 递交受理（CTS A-36/37）', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
+      { onTerminalAttachmentUploaded: async () => undefined } as never, // archiveFlow
+      { getRules: async () => ({ checkpoints: [], source: 'builtin' }) } as never, // stageCompliance
     );
     return { service, prisma };
   };

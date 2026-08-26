@@ -2811,6 +2811,24 @@ model NonTenderDealRecord {
   @@index([pmItemId])
 }
 
+/// C4 阶段合规规则配置化：DB 覆盖层——某阶段有 enabled 行则用 DB 规则，
+/// 空则回退内置代码表（stage-compliance-rules.ts）。支持在线改 criteria/停用单项。
+model StageComplianceRule {
+  id            String   @id @default(cuid())
+  stageKey      String
+  name          String
+  dimension     String
+  criteria      String
+  regulationRef String
+  enabled       Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([stageKey, name])
+  @@index([stageKey])
+}
+
 model ArchiveScopeItem {
   id             String   @id @default(cuid())
   code           String   @unique // 附录 B 序号，如 "2.4"

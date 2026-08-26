@@ -24,6 +24,7 @@ import { DocumentParserService } from '../knowledge/services/document-parser.ser
 import { StorageService } from '../storage/storage.service';
 import { GbCodeService } from '../common/gb-code.service';
 import { ArchiveScopeService } from '../archive/archive-scope.service';
+import { StageComplianceConfigService } from './stage-compliance-config.service';
 import { ArchiveFlowService } from '../archive/archive-flow.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
@@ -156,6 +157,7 @@ export class ProjectManagementService {
     private readonly storage: StorageService,
     private readonly archiveScope: ArchiveScopeService,
     private readonly archiveFlow: ArchiveFlowService,
+    private readonly stageCompliance: StageComplianceConfigService,
   ) {}
 
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
@@ -3869,7 +3871,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // 加载该阶段的合规审查规则
-    const checkpoints = getStageComplianceRules(targetStage.stageKey);
+    // C4：DB 覆盖层优先，空则回退内置表（消费口径不变，仍为 checkpoints 数组）
+    const { checkpoints } = await this.stageCompliance.getRules(targetStage.stageKey);
 
     // 收集当前阶段的文件分析结果（如果有缓存）
     const stageFiles: Array<{ fileName: string; stageMatch: string; contentSummary: string }> = [];

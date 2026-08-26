@@ -11,6 +11,7 @@ const COMMANDS: CommandItem[] = [
   { label: '流程中心', path: '/workflow', keywords: '流程 审批 待办 收件箱 workflow' },
   { label: '单位管理', path: '/admin/companies', keywords: '单位 公司 主数据 业绩 company' },
   { label: '系统健康', path: '/admin/health', keywords: '健康 监控 探活 队列 自声明 health' },
+  { label: '合规规则配置', path: '/admin/compliance-rules', keywords: '合规 规则 阶段 审查 要点 compliance' },
   { label: '供应商审批', path: '/supplier/approval', keywords: '审批 待审 供应商' },
   { label: '供应商库', path: '/supplier/repository', keywords: '库 供应商 列表' },
   { label: '供应商选取', path: '/supplier/selection', keywords: '选取 智能 推荐 AI' },

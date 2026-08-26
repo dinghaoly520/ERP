@@ -449,6 +449,7 @@ describe('ProjectManagementService', () => {
       storage as never,
       archiveScope as never, // archiveScope（DA/T103 归档范围闸门，测试可覆写缺失清单）
       { onTerminalAttachmentUploaded: async () => undefined } as never, // archiveFlow
+      { getRules: async (k: string) => ({ checkpoints: [], source: 'builtin' }) } as never, // stageCompliance
     );
     return {
       service,
