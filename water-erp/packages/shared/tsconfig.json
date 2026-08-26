@@ -8,5 +8,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "exclude": ["**/*.spec.ts"]
+  "exclude": ["dist", "**/*.spec.ts"]
 }
