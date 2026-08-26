@@ -9,7 +9,7 @@
    ④ canonicalEnvelopeHash → verifyEnvelopeMsg（submitBid 验签链）
    ⑤ reupload-dual 重封（sealedFields/fieldsCommit 逐字保留 + 新条目哈希锚点）
 
-   运行：cd apps/supplier-portal && ../api/node_modules/.bin/tsx scripts/dual-selfcheck.ts
+   运行：cd apps/supplier-portal-next && ../api/node_modules/.bin/tsx scripts/dual-selfcheck.ts
    ================================================================= */
 
 import { createRequire } from 'node:module'
