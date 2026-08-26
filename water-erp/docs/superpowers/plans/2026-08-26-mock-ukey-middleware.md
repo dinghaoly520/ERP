@@ -1222,6 +1222,10 @@ Co-Authored-By: Claude Fable 5 <noreponame@anthropic.com>"
 
 ### Task 7: 门户接入(ukey-factory + 三视图探测优先切换)
 
+> **⚠️ 2026-08-26 重定契约**:本节原文以 Vue 版 `apps/supplier-portal` 三视图为目标,该目录已被 `303b5bca`(Vue→Next 迁移)删除。有效契约以控制器重写的 brief 为准:`.superpowers/sdd/2026-08-26-mock-ukey-middleware/task-7-brief.md`(目标 = `apps/supplier-portal-next` 等价三文件,设计意图不变)。以下原文仅留档。
+
+#### 留档原文(Vue 版,已失效)
+
 **Files:**
 - Create: `water-erp/apps/supplier-portal/src/utils/ukey-factory.ts`
 - Modify: `water-erp/apps/supplier-portal/src/views/profile/UkeyManage.vue`
