@@ -102,6 +102,7 @@ describe('SupplierPortalService', () => {
       },
       bidSupplier: {
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn(),
         updateMany: jest.fn(),
         create: jest.fn(),
@@ -114,7 +115,7 @@ describe('SupplierPortalService', () => {
       supplierQualification: { count: jest.fn() },
       notification: { count: jest.fn() },
       user: { findUnique: jest.fn() },
-      announcement: { findFirst: jest.fn() },
+      announcement: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       // PMI 桥接（resolveDisplayCode/listBidProjects 经 projectManagementItemId/projectCode 关联）
       projectManagementItem: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
       bidDocument: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -790,6 +791,31 @@ describe('SupplierPortalService', () => {
   });
 
   describe('listBidProjects', () => {
+    it('D5（A-215）黑名单主体：列表空 + blacklisted 标记（展示层过滤）', async () => {
+      prisma.supplier.findUnique.mockResolvedValueOnce({ status: 'BLACKLIST' });
+      const result = await service.listBidProjects(1, 20, {}, 'sup-1');
+      expect(result.items).toHaveLength(0);
+      expect(result.blacklisted).toBe(true);
+      expect(prisma.bidProject.findMany).not.toHaveBeenCalled();
+    });
+
+    it('D5 正常主体：不走黑名单短路', async () => {
+      prisma.supplier.findUnique.mockResolvedValueOnce({ status: 'APPROVED' });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidDocument.findMany.mockResolvedValue([]);
+      prisma.announcement.findMany.mockResolvedValue([]);
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+      prisma.bidProject.count.mockResolvedValue(1);
+      prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', name: '项目一', stage: 'SUBMIT' }]);
+      prisma.bidProject.groupBy.mockResolvedValue([]);
+      const result = await service.listBidProjects(1, 20, {}, 'sup-1');
+      // 无受邀/无公开可见集 → 0 项属正常；关键是未走黑名单短路（查询执行了、无 blacklisted 标记）
+      expect(result.blacklisted).toBeUndefined();
+      expect(prisma.supplier.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'sup-1' } }),
+      );
+    });
+
     it('返回招标项目列表，仅公开字段 + 投标方数量', async () => {
       prisma.bidProject.count.mockResolvedValue(1);
       prisma.bidProject.findMany.mockResolvedValue([{ id: 'p1', name: '项目一', stage: 'SUBMIT' }]);

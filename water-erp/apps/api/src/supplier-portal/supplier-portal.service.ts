@@ -503,6 +503,15 @@ export class SupplierPortalService {
     const skip = (page - 1) * pageSize;
     const now = new Date();
     const kw = filters.search?.trim();
+
+    // D5（CTS-EBS01 A-215）展示层闸门：黑名单主体不展示投标机会列表。
+    // 仅做可见性过滤——投递等执行链端点的资格闸门不在本期范围（收窄路线图约定）。
+    if (supplierId) {
+      const self = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { status: true } });
+      if (self?.status === 'BLACKLIST') {
+        return { total: 0, page, pageSize, items: [], scopeCounts: { open: 0, invited: 0 }, blacklisted: true };
+      }
+    }
     const baseWhere: any = {
       isExtractionOnly: false, // 排除自定义抽取的影子项目（不进供应商投标机会列表）
       stage: { not: 'ARCHIVED' }, // 不展示已归档项目
