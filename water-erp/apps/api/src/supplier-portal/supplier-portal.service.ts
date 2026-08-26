@@ -1065,10 +1065,14 @@ export class SupplierPortalService {
     }
 
     // P0-3：临时供应商权限过期禁止投标（登录拦截外的业务侧兜底，防投标后过期）
+    // W9-②（CTS A-215）：黑名单主体禁止投递——业务侧兜底（登录不拦，投递/下载硬拒）
     const self = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { isTemporary: true, temporaryExpiresAt: true },
+      select: { isTemporary: true, temporaryExpiresAt: true, status: true },
     });
+    if (self?.status === 'BLACKLIST') {
+      throw new ForbiddenException({ error: '贵单位已被列入黑名单，禁止参与投标', code: 'SUPPLIER_BLACKLISTED' });
+    }
     if (self?.isTemporary && self.temporaryExpiresAt && self.temporaryExpiresAt < new Date()) {
       throw new BadRequestException({ error: '临时供应商权限已过期，无法投标', code: 'TEMPORARY_EXPIRED' });
     }

@@ -548,6 +548,11 @@ export class SupplierPortalController {
   @Get('bid-documents/:announcementId/download')
   async downloadBidDocument(@Request() req: any, @Param('announcementId') announcementId: string, @Query('password') password: string | undefined, @Res() res: any) {
     const supplierId = await this.getSupplierId(req.user.sub);
+    // W9-②（A-215）：黑名单主体禁止下载招标文件
+    const self = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { status: true } });
+    if (self?.status === 'BLACKLIST') {
+      throw new ForbiddenException({ error: '贵单位已被列入黑名单，无法获取招标文件', code: 'SUPPLIER_BLACKLISTED' });
+    }
     const { buffer, fileName, mimeType } = await this.bidDocumentService.downloadForSupplier(announcementId, supplierId, password);
     res.setHeader('Content-Type', mimeType || 'application/octet-stream');
     res.setHeader('Content-Length', String(buffer.length));
