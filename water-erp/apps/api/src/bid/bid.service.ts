@@ -5813,6 +5813,12 @@ export class BidService {
       where: { projectId },
       orderBy: { createdAt: 'asc' },
     });
+
+    // W11-①（A-101）：投标回执 SM2 签名存档段（有签署才导出）
+    const submissionReceipts = await this.prisma.supplierBidSubmission.findMany({
+      where: { projectId, receiptSignature: { not: Prisma.DbNull } },
+      select: { id: true, supplierId: true, status: true, receiptSignature: true, receiptSignedAt: true },
+    });
     // OpeningHallMessage 不存 supplierName（schema 仅 supplierId）；私聊归属经 BidSupplier 反查
     const hallSupplierNames = new Map(
       (await this.prisma.bidSupplier.findMany({ where: { projectId }, select: { supplierId: true, supplierName: true } }))
@@ -5929,6 +5935,14 @@ export class BidService {
       lines.push(['存证摘要-开标大厅消息', sectionDigests.hallMessages].join(','));
       lines.push(['存证摘要-监督日志', sectionDigests.supervisionLogs].join(','));
       lines.push(['存证摘要-澄清答疑', sectionDigests.clarifications].join(','));
+      if (submissionReceipts.length > 0) {
+        lines.push('', '=== 投标回执 SM2 签名（A-101）===');
+        lines.push(['提交ID', '供应商', '签署时间', '算法'].map(esc).join(','));
+        for (const r of submissionReceipts) {
+          const rec = r.receiptSignature as { algorithm?: string } | null;
+          lines.push([r.id, r.supplierId, r.receiptSignedAt?.toISOString() ?? '', rec?.algorithm ?? ''].map(esc).join(','));
+        }
+      }
       lines.push(['存证摘要根（sectionsRoot）', sectionsRoot].join(','));
       if (aiUsage) {
         lines.push('');
@@ -5961,6 +5975,12 @@ export class BidService {
         contact: project.contact,
         stage: project.stage,
       },
+      submissionReceipts: submissionReceipts.map(r => ({
+        submissionId: r.id,
+        supplierId: r.supplierId,
+        signedAt: r.receiptSignedAt?.toISOString() ?? null,
+        receipt: r.receiptSignature as object,
+      })),
       hashChain: {
         algorithm: 'SHA-256' as const,
         genesisHash: genesis,

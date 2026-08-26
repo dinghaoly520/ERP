@@ -149,6 +149,61 @@ export class SupplierPortalService {
 
   private readonly logger = new Logger(SupplierPortalService.name);
 
+  /* ── W11-①（CTS A-101）：投标回执 SM2 签名（防抵赖）── */
+
+  /** 规范化回执负载（稳定键序，客户端签名与服务端验签共用同一串）。 */
+  private canonicalReceiptPayload(payload: Record<string, unknown>): string {
+    const keys = Object.keys(payload).sort();
+    return JSON.stringify(keys.reduce((acc, k) => { acc[k] = payload[k]; return acc; }, {} as Record<string, unknown>));
+  }
+
+  /** 取回执待签负载（供应商本人；负载以 DB 为准重建，不信任客户端传入）。 */
+  async getReceiptPayloadFor(submissionId: string, supplierId: string) {
+    const sub = await this.prisma.supplierBidSubmission.findUnique({ where: { id: submissionId } });
+    if (!sub || sub.supplierId !== supplierId) {
+      throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
+    }
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
+    if (!supplier?.sm2PublicKey) {
+      throw new BadRequestException({ error: '供应商未绑定 SM2 公钥（U盾证书），无法签署回执', code: 'SM2_PUBLIC_KEY_MISSING' });
+    }
+    const envelope = sub.envelope as { fieldsCommit?: string } | null;
+    const payload = {
+      v: 1,
+      submissionId: sub.id,
+      projectId: sub.projectId,
+      supplierId: sub.supplierId,
+      filesCommit: envelope?.fieldsCommit ?? sub.fileHash ?? null,
+      receivedAt: sub.createdAt.toISOString(),
+    };
+    return { payload, canonical: this.canonicalReceiptPayload(payload) };
+  }
+
+  /** 提交回执签名：服务端重建负载 → SM2/SM3 验签 → 存档（幂等）。 */
+  async signSubmissionReceipt(submissionId: string, supplierId: string, signature: string) {
+    const sub = await this.prisma.supplierBidSubmission.findUnique({ where: { id: submissionId } });
+    if (!sub || sub.supplierId !== supplierId) {
+      throw new ForbiddenException({ error: '回执归属校验失败', code: 'NOT_YOUR_SUBMISSION' });
+    }
+    if (sub.receiptSignature) return sub; // 幂等：已签署直接返回
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { sm2PublicKey: true } });
+    if (!supplier?.sm2PublicKey) {
+      throw new BadRequestException({ error: '供应商未绑定 SM2 公钥（U盾证书），无法签署回执', code: 'SM2_PUBLIC_KEY_MISSING' });
+    }
+    const { payload, canonical } = await this.getReceiptPayloadFor(submissionId, supplierId);
+    const valid = this.signatureService.verify(canonical, signature, supplier.sm2PublicKey);
+    if (!valid) {
+      throw new BadRequestException({ error: '回执签名验证失败（SM2）', code: 'RECEIPT_SIGNATURE_INVALID' });
+    }
+    return this.prisma.supplierBidSubmission.update({
+      where: { id: submissionId },
+      data: {
+        receiptSignature: { payload, signature, algorithm: 'SM2/SM3', verifiedAt: new Date().toISOString() },
+        receiptSignedAt: new Date(),
+      },
+    });
+  }
+
   /**
    * 校验投标文件归属：引用的 FileAsset 必须存在、由当前用户上传、且分类为 bid_document。
    * 防止供应商盗用他人/其他分类文件作为投标文件。

@@ -47,6 +47,20 @@ export class SupplierPortalController {
   // ─── Profile ───
 
   /** A-80：供应商就招标文件提出澄清问题（须已下载、截止前 10 日窗口） */
+  /** W11-①（A-101）：取投标回执待签负载（canonical 字符串供 U盾签名） */
+  @Get('bid-submissions/:submissionId/receipt-payload')
+  async getReceiptPayload(@Param('submissionId') submissionId: string, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.getReceiptPayloadFor(submissionId, supplierId);
+  }
+
+  /** W11-①（A-101）：提交回执 SM2 签名（服务端验签存档，幂等） */
+  @Post('bid-submissions/:submissionId/receipt-signature')
+  async signReceipt(@Param('submissionId') submissionId: string, @Body() body: { signature: string }, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.portalService.signSubmissionReceipt(submissionId, supplierId, body?.signature ?? '');
+  }
+
   @Post('projects/:id/clarifications')
   async askClarification(
     @Param('id') id: string,

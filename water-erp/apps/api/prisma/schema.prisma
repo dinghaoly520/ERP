@@ -1761,6 +1761,9 @@ model SupplierBidSubmission {
   signedAt             DateTime? // 签名时间
   // ── 双信封 v2（dual-envelope）──
   envelope          Json?    // dual-v2 信封（version/certSn/adminCertId/files/sealedFields/fieldsCommit）
+  // W11-①（CTS A-101）：投标回执 SM2 签名（防抵赖）——{ payload, signature, algorithm, verifiedAt }
+  receiptSignature Json?
+  receiptSignedAt  DateTime?
   envelopeVersion   String?  // 'dual-v2' | null(旧轨)
   hostDecryptAuthorized Boolean @default(false) // P1-1：旧轨投递时投标人勾选「同意平台在开标环节代解密」的授权记录（办法第30条留痕；新轨供应商自解无需）
   decryptedPrice    String?  // 解密上传后经 fieldsCommit 验证的报价

@@ -80,6 +80,14 @@ export const supplierApi = {
   submitBid(projectId: string, data: any) {
     return api.post<any>(`/supplier-portal/bid-submissions/${projectId}/submit`, data);
   },
+  /** W11-①（A-101）：投标回执 SM2 签名——取待签负载/提交签名 */
+  getReceiptPayload(submissionId: string) {
+    return api.get<{ payload: Record<string, unknown>; canonical: string }>(`/supplier-portal/bid-submissions/${submissionId}/receipt-payload`);
+  },
+  signReceiptSignature(submissionId: string, signature: string) {
+    return api.post(`/supplier-portal/bid-submissions/${submissionId}/receipt-signature`, { signature });
+  },
+
   withdrawSubmission(submissionId: string) {
     return api.post<any>(`/supplier-portal/bid-submissions/${submissionId}/withdraw`);
   },
