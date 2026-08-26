@@ -1,17 +1,19 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../common/validators/password-strength';
 import { Request } from 'express';
 import { PasswordRequestsService } from './password-requests.service';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { AnyRole } from '../common/decorators/any-role.decorator';
 import { CurrentUser } from './current-user.decorator';
 import type { AuthenticatedUser } from './auth.types';
 
 class SubmitChangeDto {
   @IsString() @IsNotEmpty() currentPassword: string;
-  @IsString() @MinLength(6) newPassword: string;
+  @IsString() @Matches(PASSWORD_PATTERN, { message: PASSWORD_POLICY_MESSAGE }) newPassword: string;
 }
 
 class SubmitResetDto {
@@ -48,6 +50,7 @@ export class PasswordRequestsController {
   // ── 用户端 ──
 
   @Post('password-change-requests')
+  @AnyRole()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: '提交修改密码申请（管理员审批后生效）' })
   submitChange(@CurrentUser('sub') userId: string, @Body() dto: SubmitChangeDto) {
@@ -55,6 +58,7 @@ export class PasswordRequestsController {
   }
 
   @Post('profile-change-requests')
+  @AnyRole()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: '提交资料变更申请（个人中心所有资料修改一律走审批）' })
   submitProfileChange(@CurrentUser('sub') userId: string, @Body() dto: SubmitProfileChangeDto) {

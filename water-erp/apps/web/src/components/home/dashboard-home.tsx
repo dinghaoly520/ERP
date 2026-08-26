@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
+import { AwardResultPanel } from "@/components/home/award-result-panel";
+import { PerformancePanel } from "@/components/home/performance-panel";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import {
   fetchDashboardAnalysis,
@@ -524,6 +526,8 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         <div className="min-h-[280px]"><MethodPieChartPanel profile={data} index={11} reducedMotion={reducedMotion}/></div>
         <div className="min-h-[280px]"><NonAwardDonutPanel profile={data} index={12} reducedMotion={reducedMotion}/></div>
       </div>
+      <AwardResultPanel/>
+      <PerformancePanel/>
       <TrendChartPanel profile={data} index={15} reducedMotion={reducedMotion}/>
     </motion.div>
   </>;

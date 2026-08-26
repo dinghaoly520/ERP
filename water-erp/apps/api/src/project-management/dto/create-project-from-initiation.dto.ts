@@ -143,6 +143,27 @@ export class CreateProjectFromInitiationDto {
   @IsOptional()
   supplierRequirements!: string;
 
+  // B1（GB/T 43711 7.2.1.2）：采购方案其余要素
+  @IsString()
+  @IsOptional()
+  implementerName?: string;
+
+  @IsString()
+  @IsOptional()
+  contractPricingType?: string;
+
+  @IsString()
+  @IsOptional()
+  sectionPlan?: string;
+
+  @IsString()
+  @IsOptional()
+  activitySchedule?: string;
+
+  @IsString()
+  @IsOptional()
+  riskMeasures?: string;
+
   @IsString()
   @IsOptional()
   initiationDate?: string;

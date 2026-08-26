@@ -183,6 +183,9 @@ export const NOTIFICATION_META: Record<string, NotificationMeta> = {
   PRICE_REVIEW:            { icon: 'Tag',               tone: 'purple', actionable: true  },
   CATALOG_APPLICATION:     { icon: 'ShoppingBag',       tone: 'gray',   actionable: false },
   USER_REGISTRATION_PENDING: { icon: 'UserPlus',        tone: 'blue',   actionable: true  },
+  ARCHIVE_READY:            { icon: 'FileArchive',       tone: 'orange', actionable: true  },
+  ARCHIVE_TRANSFER_DUE:     { icon: 'CalendarClock',     tone: 'orange', actionable: true  },
+  ARCHIVE_OVERDUE:          { icon: 'AlertTriangle',     tone: 'red',    actionable: true  },
   ACCOUNT_SECURITY_FEEDBACK: { icon: 'ShieldAlert',     tone: 'red',    actionable: true  },
   SYSTEM:                  { icon: 'Bell',              tone: 'gray',   actionable: false },
 };
@@ -203,6 +206,9 @@ export const NOTIFICATION_LABEL: Record<string, string> = {
   PRICE_REVIEW: '价格复核',
   CATALOG_APPLICATION: '目录申请',
   USER_REGISTRATION_PENDING: '注册审核',
+  ARCHIVE_READY: '归档待办',
+  ARCHIVE_TRANSFER_DUE: '归档移交临期',
+  ARCHIVE_OVERDUE: '归档严重逾期',
   ACCOUNT_SECURITY_FEEDBACK: '账号安全反馈',
   SYSTEM: '系统通知',
 };

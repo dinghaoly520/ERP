@@ -358,6 +358,21 @@ export function invalidateBid(bidProjectId: string, bidSupplierId: string, reaso
 }
 
 /** A1: 公示状态查询 */
+/** D2（4.1.5.2）：档案移交登记（清单快照+签收留痕） */
+export function registerArchiveTransfer(projectId: string, data: { receivedByName: string; note?: string; confirm?: boolean }) {
+  return api.post(`/bid/projects/${projectId}/archive-transfer`, data);
+}
+
+/** D3（8.2/8.3）：监管数据时间线（监督+审计+操作日志聚合） */
+export function getRegulatoryTimeline(projectId: string) {
+  return api.get<{ project: { name: string; projectCode: string }; entries: Array<{ at: string; source: string; actor: string; action: string; detail: string; risk?: string }>; counts: { supervision: number; audit: number; operation: number } }>(`/bid/projects/${projectId}/regulatory-timeline`);
+}
+
+/** D3：监管数据包导出（JSON 下载） */
+export function downloadRegulatoryExport(projectId: string) {
+  return api.get<unknown>(`/bid/projects/${projectId}/regulatory-export`);
+}
+
 export function getPublicityStatus(bidProjectId: string) {
   return api.get<{ hasPublicity: boolean; publicityEnd: string | null; canIssueAward: boolean }>(
     `/bid/projects/${bidProjectId}/publicity-status`,
@@ -599,4 +614,24 @@ export interface SignPacketResponse {
 
 export function getSignPacket(bidProjectId: string) {
   return api.get<SignPacketResponse>(`/bid/projects/${bidProjectId}/sign-packet`);
+}
+
+/* ── C3 转非招标方式成交登记（A-199）：流标项目改用非招标方式后的成交结果 ── */
+
+export type NonTenderDealRecord = {
+  id: string; bidProjectId: string; pmItemId: string | null;
+  method: string; winnerSupplierId: string | null; winnerName: string;
+  dealAmount: string | null; fileAssetId: string | null; note: string | null;
+  recordedAt: string; createdAt: string;
+};
+
+export async function registerNonTenderDeal(
+  bidProjectId: string,
+  body: { method: string; winnerName: string; winnerSupplierId?: string; dealAmount?: number; fileAssetId?: string; note?: string },
+) {
+  return api.post<NonTenderDealRecord>(`/bid/projects/${bidProjectId}/non-tender-deal`, body);
+}
+
+export async function getNonTenderDeal(bidProjectId: string) {
+  return api.get<NonTenderDealRecord | null>(`/bid/projects/${bidProjectId}/non-tender-deal`);
 }

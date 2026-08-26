@@ -23,14 +23,22 @@ export interface AnnouncementItem {
 /* ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）── */
 export interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
+  ADDENDUM: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'newDeadline', label: '调整后递交截止', date: true },
+  ],
   BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
     { key: 'downloadDeadline', label: '采购文件下载时间' },
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
     { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
   ],
+  PRE_WIN_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
+    { key: 'period', label: '工期/交货期/服务期限' }, { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
+  ],
   WIN_NOTICE: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '中标供应商' }, { key: 'amount', label: '中标金额' },
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },
     { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' }, { key: 'experts', label: '评审专家' },
     { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
   ],
@@ -62,7 +70,12 @@ export function formatMetaValue(field: MetaField, raw: any): string {
 export const ANNOUNCEMENT_TABS = [
   { key: '', label: '全部' },
   { key: 'BID_NOTICE', label: '采购公告', color: '#064ea2' },
-  { key: 'WIN_NOTICE', label: '中标公示', color: '#18a56c' },
+  { key: 'ADDENDUM', label: '补遗公告', color: '#e08a00' },
+  { key: 'PREQUAL_NOTICE', label: '资格预审', color: '#0b63ce' },
+  { key: 'PRE_WIN_NOTICE', label: '预成交公示', color: '#7bb461' },
+  { key: 'WIN_NOTICE', label: '成交公告', color: '#18a56c' },
+  { key: 'CONTRACT_NOTICE', label: '合同公告', color: '#064ea2' },
+  { key: 'PERFORMANCE_NOTICE', label: '履行结果公告', color: '#4c9a7a' },
   { key: 'POLICY', label: '政策法规', color: '#d43030' },
   { key: 'PLATFORM', label: '平台通知', color: '#f5a623' },
 ];
@@ -70,7 +83,12 @@ export const ANNOUNCEMENT_TABS = [
 /* ── 类型→标签/颜色 映射 ── */
 const TYPE_META: Record<string, { tag: string; color: string }> = {
   BID_NOTICE: { tag: '采购公告', color: '#064ea2' },
-  WIN_NOTICE: { tag: '中标公示', color: '#18a56c' },
+  ADDENDUM: { tag: '补遗公告', color: '#e08a00' },
+  PREQUAL_NOTICE: { tag: '资格预审公告', color: '#0b63ce' },
+  PRE_WIN_NOTICE: { tag: '预成交公示', color: '#7bb461' },
+  WIN_NOTICE: { tag: '成交公告', color: '#18a56c' },
+  CONTRACT_NOTICE: { tag: '合同公告', color: '#064ea2' },
+  PERFORMANCE_NOTICE: { tag: '履行结果公告', color: '#4c9a7a' },
   POLICY:     { tag: '政策法规', color: '#d43030' },
   PLATFORM:   { tag: '平台通知', color: '#f5a623' },
 };
@@ -92,7 +110,7 @@ function toAnnouncementItem(a: any): AnnouncementItem {
     title: a.title,
     desc: a.aiSummary || a.summary || a.content?.slice(0, 120) || '',
     code: a.relatedProjectCode || '',
-    deadlineLabel: a.type === 'WIN_NOTICE' ? '公示截止' : '报名截止',
+    deadlineLabel: a.type === 'WIN_NOTICE' || a.type === 'PRE_WIN_NOTICE' ? '公示截止' : '报名截止',
     deadline: '',
     content: a.content || '',
     aiSummary: a.aiSummary || undefined,
@@ -134,7 +152,7 @@ export async function fetchPublicAnnouncement(id: string): Promise<AnnouncementI
    直接请求 API 绝对地址（服务端无法用相对 /api），按类型各取 5 条，
    失败返回空数组，绝不抛错以免阻塞首屏渲染。 */
 export async function fetchAnnouncementsServer(apiBase: string): Promise<AnnouncementItem[]> {
-  const types = ['BID_NOTICE', 'WIN_NOTICE', 'POLICY', 'PLATFORM'];
+  const types = ['BID_NOTICE', 'ADDENDUM', 'PREQUAL_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE', 'CONTRACT_NOTICE', 'PERFORMANCE_NOTICE', 'POLICY', 'PLATFORM'];
   const settled = await Promise.all(
     types.map(type =>
       fetch(`${apiBase}/api/announcements/public?type=${type}&pageSize=5`, { cache: 'no-store' })

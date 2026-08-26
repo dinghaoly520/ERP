@@ -228,6 +228,46 @@ export function updateSupplierStatus(id: string, status: 'DISABLED' | 'BLACKLIST
   return api.patch<Supplier>(`/supplier/${id}/status?status=${status}`, { reason });
 }
 
+// ── CTS A-213/215/216 投标人信息资源库 ──
+
+/** A-215 拉黑（带校验闸与供应商通知，区别于通用状态更新） */
+export function blacklistSupplier(id: string, reason: string) {
+  return api.post<Supplier>(`/supplier/${id}/blacklist`, { reason });
+}
+
+/** A-215 解除黑名单（恢复入库） */
+export function unblacklistSupplier(id: string, reason: string) {
+  return api.post<Supplier>(`/supplier/${id}/unblacklist`, { reason });
+}
+
+export type SupplierRewardPunishment = {
+  id: string;
+  projectName: string;
+  recordType: 'reward' | 'punishment' | 'performance';
+  recordNote: string | null;
+  effectiveDate: string | null;
+  clientName: string | null;
+  createdAt: string;
+};
+
+/** A-213 录入奖惩记录 */
+export function addSupplierRecord(
+  id: string,
+  body: { recordType: 'reward' | 'punishment'; projectName: string; recordNote: string; effectiveDate?: string; clientName?: string },
+) {
+  return api.post<SupplierRewardPunishment>(`/supplier/${id}/records`, body);
+}
+
+/** A-213 奖惩记录列表 */
+export function listSupplierRecords(id: string, recordType?: 'reward' | 'punishment') {
+  return api.get<SupplierRewardPunishment[]>(`/supplier/${id}/records${recordType ? `?recordType=${recordType}` : ''}`);
+}
+
+/** A-216 标注联系人人员类别/执业证书 */
+export function updateContactPersonnel(contactId: string, body: { personnelType?: string; certTitle?: string }) {
+  return api.patch(`/supplier/contacts/${contactId}/personnel`, body);
+}
+
 // 变更记录列表
 export function getSupplierChanges(id: string) {
   return api.get<SupplierChangeRecord[]>(`/supplier/${id}/changes`);

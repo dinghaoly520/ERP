@@ -12,14 +12,24 @@ import { Upload, PlusCircle, Save, Send } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, DEFAULT_PUBLISH_CONFIG, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
 
-type NoticeType = 'POLICY' | 'PLATFORM';
+type NoticeType = 'POLICY' | 'PLATFORM' | 'PRE_WIN_NOTICE' | 'ADDENDUM';
 
 const typeLabel: Record<NoticeType, string> = {
-  POLICY: '政策法规', PLATFORM: '平台通知',
+  POLICY: '政策法规', PLATFORM: '平台通知', PRE_WIN_NOTICE: '预成交公示', ADDENDUM: '补遗公告',
 };
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 const TYPE_META: Record<NoticeType, MetaField[]> = {
+  // C5（GB/T 43711 7.2.6）：采购文件澄清/修改 → 补遗公告（发布后自动通知已获取文件的供应商）
+  ADDENDUM: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'newDeadline', label: '调整后递交截止', date: true },
+  ],
+  // C1（GB/T 43711 7.5.2.2）：线下完成评审的项目由此登记预成交公示（线上归档项目自动生成草稿）
+  PRE_WIN_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
+    { key: 'period', label: '工期/交货期/服务期限' }, { key: 'objection', label: '异议渠道', area: true },
+  ],
   POLICY: [
     { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
     { key: 'scope', label: '适用范围', area: true },
@@ -73,6 +83,10 @@ export default function NewNoticePage() {
     for (const f of TYPE_META[type]) if (metadata[f.key]?.trim()) meta[f.key] = metadata[f.key].trim();
     const finalMeta = configToMetadata(publishConfig, meta);
     const payload: any = { title, content, type, summary, status: actualStatus, isTop, publishDate, metadata: finalMeta };
+    // C1：登记的预成交公示挂项目编号，供期满确认派生成交公告时幂等去重与项目反查
+    if (type === 'PRE_WIN_NOTICE' && meta.projectCode) payload.relatedProjectCode = meta.projectCode;
+    // C5：补遗公告挂项目编号，供发布联动（补遗计数 + 供应商定向通知）
+    if (type === 'ADDENDUM' && meta.projectCode) payload.relatedProjectCode = meta.projectCode;
     try {
       const saved = await createAnnouncement(payload);
       setAnnId(saved.id);

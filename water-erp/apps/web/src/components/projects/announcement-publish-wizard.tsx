@@ -8,6 +8,7 @@ import {
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import {
   createAnnouncement,
+  previewBidNoticeChecklist,
   addAttachment,
   uploadFile,
   parseAnnouncementFields,
@@ -93,6 +94,8 @@ function buildCanonicalMeta(
   }
 
   if (isSingleSource) {
+    // ── A3（GB/T 43711 7.2.2.3）：直接采购理由（论证意见）入 canonical meta，随公告同步 BidProject.directSourcingReason ──
+    put('directSourcingReason', d.argumentOpinion);
     // ── 直接采购时间逻辑 ──
     // 开标时间 = 采购时间；投标截止 = 采购时间前 DEADLINE_HOURS_BEFORE_OPENING 小时（源自共享常量 BID_DEADLINE_BEFORE_OPENING_MS）；采购文件下载时间 = 公示时间（公示期限起止）
     // 采购时间：优先 draft 字段，兜底项目 bidOpeningTime（中文格式需转 datetime-local）
@@ -689,7 +692,24 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         if (downloadMode === 'encrypted') meta.downloadPassword = downloadPassword;
         if (downloadMode === 'paid') meta.paidAmount = paidAmount;
       }
+      // A3（GB/T 43711 7.2.2.5）：即时发布前做公告要素预检——警告不阻断，由经办确认放行
       const status: AnnouncementStatus = publishTiming !== 'now' ? 'DRAFT' : 'PUBLISHED';
+      if (status === 'PUBLISHED') {
+        try {
+          const { warnings } = await previewBidNoticeChecklist({
+            title,
+            content: textContent.trim() || title,
+            metadata: meta as Record<string, any>,
+            relatedProjectCode: project?.projectCode || undefined,
+          });
+          if (warnings.length > 0) {
+            const lines = warnings.map(w => `· ${w.item}（${w.clause}）：${w.message}`).join('\n');
+            if (!confirm(`按 GB/T 43711 7.2.2.5 检出 ${warnings.length} 项公告要素缺失：\n${lines}\n\n确认仍要发布？`)) return;
+          }
+        } catch {
+          /* 预检失败不阻断发布（dry-run 尽力而为） */
+        }
+      }
       const saved = await createAnnouncement({
         title,
         content,

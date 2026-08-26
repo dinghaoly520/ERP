@@ -55,6 +55,7 @@ export default function BidListPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [projects, setProjects] = useState<any[]>([]);
+  const [blacklisted, setBlacklisted] = useState(false);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -76,6 +77,7 @@ export default function BidListPage() {
       try {
         const res: any = await bidApi.listProjects({ page: pg, pageSize, search: se, scope: filterScope || undefined });
         const items = Array.isArray(res) ? res : res.items || [];
+        setBlacklisted(!!res.blacklisted);
         setProjects(items);
         setTotal(res.total ?? items.length);
       } catch {
@@ -178,6 +180,13 @@ export default function BidListPage() {
             sub="按项目类别快速筛选与进入详情，持续关注最新招标公告。"
             actions={<span className="page-hero__stat page-hero__stat--info">共 {total} 个</span>}
           />
+
+          {blacklisted && (
+            <div className="mb-3 flex items-start gap-2 rounded-[14px] bg-[#fff7f5] px-4 py-3 text-[13px] leading-relaxed text-[#b3261e]">
+              <TriangleAlert size={15} className="mt-0.5 shrink-0" />
+              <span>贵单位已被列入黑名单，暂不可参与投标。如有疑问请联系采购中心。</span>
+            </div>
+          )}
 
           <div className="bid-toolbar">
             <div className="bid-search">

@@ -695,3 +695,6 @@
   transition: background 0.15s ease;
 }
 .mb-detail-btn:hover { background: color-mix(in oklab, var(--brand) 14%, transparent); }
+
+/* dual-v2 密封报价展示 */
+.mb-card-meta-item.sealed { color: oklch(0.5 0.14 252); font-weight: 600; }

@@ -43,6 +43,7 @@ import {
   type BidWorkspace,
 } from '@/lib/api/bid';
 import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
+import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
 import { generateFieldContent } from '@/lib/api/tender-sample';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
 import { ArchiveBlock } from './bid-confirm/archive-block';
@@ -51,6 +52,7 @@ import { EvaluationHandoverBlock } from './bid-confirm/evaluation-handover-block
 import { NudgeUnsubmittedModal } from './bid-confirm/nudge-unsubmitted-modal';
 import { ScoreStandardEditor } from './score-standard/score-standard-editor';
 import { StatusBadge, Modal } from '@/components/workbench';
+import { ArchiveTemplateCard } from './archive-template-card';
 
 type Props = {
   isOpen: boolean;
@@ -777,6 +779,9 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                 )}
               </SectionCard>
 
+              {/* ▸ D1（GB/T 43711 4.1.5.1）：档案清单对标 + 线下材料人工登记 */}
+              {bpId && <ArchiveTemplateCard bidProjectId={bpId} />}
+
               {/* ▸ 区块5-8（Phase 2 指挥中心）：开标进度 / 归档
                   —— :3007 开标执行数据经同一 API 回流；评标管理/异议裁决/澄清答疑已迁 :3007（分工 v3，2026-08-13） */}
               {/* D1/G2: 专家在线 + 监督时间线 */}
@@ -787,12 +792,38 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
                   accent="var(--stage-evaluation)"
                   accentSoft="var(--stage-evaluation-soft)"
                   action={
-                    expertOnlineCount > 0 ? (
-                      <span className="flex items-center gap-1 text-xs font-semibold text-[var(--success)]">
-                        <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
-                        专家在线 {expertOnlineCount} 人
-                      </span>
-                    ) : undefined
+                    <div className="flex items-center gap-2">
+                      {expertOnlineCount > 0 && (
+                        <span className="flex items-center gap-1 text-xs font-semibold text-[var(--success)]">
+                          <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
+                          专家在线 {expertOnlineCount} 人
+                        </span>
+                      )}
+                      {/* D2/D3（GB/T 43711 4.1.5.2/8.2）：档案移交登记 + 监管数据包导出 */}
+                      {bidProject?.stage === 'ARCHIVED' && (
+                        <>
+                          <button type="button" className="neu-btn-xs !text-[10px]" onClick={async () => {
+                            const receivedByName = prompt('档案移交接收方（档案管理部门/接收人）：');
+                            if (!receivedByName) return;
+                            try {
+                              await registerArchiveTransfer(bpId, { receivedByName, confirm: true });
+                              showToast('档案移交已登记（含清单快照与签收留痕）');
+                              void load();
+                            } catch (e: any) { showToast(e?.message || '移交失败', 'err'); }
+                          }}>档案移交</button>
+                          <button type="button" className="neu-btn-xs !text-[10px]" onClick={async () => {
+                            try {
+                              const data = await downloadRegulatoryExport(bpId);
+                              const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url; a.download = `supervision-${bpId}.json`; a.click();
+                              URL.revokeObjectURL(url);
+                            } catch (e: any) { showToast(e?.message || '导出失败', 'err'); }
+                          }}>监管数据包</button>
+                        </>
+                      )}
+                    </div>
                   }
                 >
                   {/* G2: 监督日志表（全量滚动 + 风险高亮） */}
@@ -1217,7 +1248,7 @@ function PublicityBanner({ bidProjectId, detail }: { bidProjectId: string; detai
       {!status.hasPublicity ? (
         <div className="exp-alert exp-alert--info flex items-center gap-2 !p-3">
           <Clock size={14} strokeWidth={1.5} className="shrink-0" />
-          <span className="text-xs">尚未发布中标公告</span>
+          <span className="text-xs">尚未发布预成交公示</span>
           {winner?.bidPrice && (
             <span className="ml-2 text-xs font-mono tabular-nums text-[var(--muted-foreground)]">
               中标金额：¥{Number(winner.bidPrice).toLocaleString('zh-CN')}

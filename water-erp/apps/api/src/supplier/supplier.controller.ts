@@ -6,9 +6,12 @@ import { SupplierService } from './supplier.service';
 import { OwnerGuard } from './owner.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { AnyRole } from '../common/decorators/any-role.decorator';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
+import { AddSupplierRecordDto } from './dto/add-supplier-record.dto';
+import { UpdateContactPersonnelDto } from './dto/update-contact-personnel.dto';
 import { UpdateSupplierStatusDto } from './dto/update-supplier-status.dto';
 import { CreateChangeRequestDto } from './dto/create-change-request.dto';
 import { ApproveChangeDto } from './dto/approve-change.dto';
@@ -89,7 +92,8 @@ export class SupplierController {
   }
 
   @Get('register/status')
-  @ApiOperation({ summary: '查询供应商注册状态' })
+  @AnyRole()
+  @ApiOperation({ summary: '查询供应商注册状态（按登录用户自查；未登录走 /public 变体）' })
   async getRegisterStatus(@Request() req: any) {
     return this.supplierService.getRegisterStatus(req.user.sub);
   }
@@ -120,6 +124,7 @@ export class SupplierController {
   }
 
   @Get('stats')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '供应商统计数据（Dashboard用）' })
   async getStats() {
     return this.supplierService.getStats();
@@ -245,6 +250,7 @@ export class SupplierController {
 
   // ─── 供应商多分类标签 ───
   @Get(':id/classifications')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '获取供应商的分类标签列表' })
   async getSupplierClassifications(@Param('id') id: string) {
     return this.supplierService.getSupplierClassifications(id);
@@ -277,6 +283,7 @@ export class SupplierController {
   }
 
   @Get('negotiation-config/:projectId')
+  @Roles('supplier')
   @ApiOperation({ summary: '供应商端读取谈判采购配置' })
   async getNegotiationConfig(@Param('projectId') projectId: string) {
     return this.supplierService.getNegotiationConfig(projectId);
@@ -490,6 +497,42 @@ export class SupplierController {
   @ApiOperation({ summary: '人工确认供应商淘汰' })
   async confirmEliminate(@Param('id') id: string, @Body() body: { reason: string }, @Request() req: any) {
     return this.supplierService.confirmEliminate(id, body.reason, req.user?.sub);
+  }
+
+  // ── CTS A-213/215/216 投标人信息资源库 ──
+  @Post(':id/blacklist')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: 'CTS A-215 拉入黑名单（原因必填，通知供应商）' })
+  async blacklist(@Param('id') id: string, @Body() body: { reason: string }, @Request() req: any) {
+    return this.supplierService.blacklistSupplier(id, body.reason, req.user);
+  }
+
+  @Post(':id/unblacklist')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: 'CTS A-215 解除黑名单（恢复入库，解除原因必填）' })
+  async unblacklist(@Param('id') id: string, @Body() body: { reason: string }, @Request() req: any) {
+    return this.supplierService.unblacklistSupplier(id, body.reason, req.user);
+  }
+
+  @Post(':id/records')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: 'CTS A-213 录入奖惩记录' })
+  async addRecord(@Param('id') id: string, @Body() dto: AddSupplierRecordDto) {
+    return this.supplierService.addSupplierRecord(id, dto);
+  }
+
+  @Get(':id/records')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: 'CTS A-213 奖惩记录列表（?recordType=reward|punishment）' })
+  async listRecords(@Param('id') id: string, @Query('recordType') recordType?: string) {
+    return this.supplierService.listSupplierRecords(id, recordType);
+  }
+
+  @Patch('contacts/:contactId/personnel')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: 'CTS A-216 标注联系人人员类别/执业证书' })
+  async updateContactPersonnel(@Param('contactId') contactId: string, @Body() dto: UpdateContactPersonnelDto) {
+    return this.supplierService.updateContactPersonnel(contactId, dto);
   }
 
   @Get(':id/timeline')

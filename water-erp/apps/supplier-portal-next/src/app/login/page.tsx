@@ -144,7 +144,7 @@ function LoginForm() {
                   id="lp-username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="用户名 / 企业名称"
+                  placeholder="统一社会信用代码（登录账号）"
                   autoComplete="username"
                 />
               </div>

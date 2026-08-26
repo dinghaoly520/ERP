@@ -22,7 +22,9 @@ import { CompleteProjectDto } from './dto/complete-project.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { UpdateExtractedInfoDto } from './dto/update-extracted-info.dto';
+import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
+import { TimelineService } from './timeline.service';
 import { ProjectManagementService } from './project-management.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UseGuards } from '@nestjs/common';
@@ -36,6 +38,7 @@ export class ProjectManagementController {
   constructor(
     private readonly projectManagementService: ProjectManagementService,
     private readonly companyScope: CompanyScopeService,
+    private readonly timelineService: TimelineService,
   ) {}
 
   @Get()
@@ -237,6 +240,12 @@ export class ProjectManagementController {
     );
   }
 
+  /** B3（A-204）：项目时间信息轴——六类节点聚合（立项/获取文件/截标/开标/签约/归档） */
+  @Get(':id/timeline')
+  getTimeline(@Param('id') id: string) {
+    return this.timelineService.getTimeline(id);
+  }
+
   @Get(':id/summary')
   getProjectSummary(@Param('id') id: string) {
     return this.projectManagementService.getProjectSummary(id);
@@ -287,6 +296,24 @@ export class ProjectManagementController {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     return this.projectManagementService.completeProject(id, dto, user?.sub);
+  }
+
+  // CTS-EBS01 A-36/37：项目递交与受理（留痕：申报人/时间、验证人/时间）
+  @Post(':id/submit-review')
+  submitForReview(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.projectManagementService.submitForReview(id, user);
+  }
+
+  @Post(':id/review')
+  review(
+    @Param('id') id: string,
+    @Body() dto: ReviewSubmissionDto,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
+    return this.projectManagementService.reviewSubmission(id, dto, user);
   }
 
   @Delete(':id/attachments/:attachmentId')

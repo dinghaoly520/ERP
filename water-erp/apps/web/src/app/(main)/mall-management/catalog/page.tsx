@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, Suspense } from 'react';
 import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  ShoppingCart, Package, RefreshCw, ChevronUp, X, Search, GitBranch,
+  ShoppingCart, Package, RefreshCw, ChevronUp, X, Search, GitBranch, Layers,
   PenLine, CheckCircle, TrendingUp, TrendingDown, Bell, Archive, Building2, FileText,
   Upload, Download, Plus, Leaf, Folder,
   Zap, AlertTriangle, Radar, Sparkles, MousePointerClick,
@@ -43,6 +43,7 @@ import { buildDynamicFields, extractAttributeValues, type DynamicField } from '@
 import { CategoryTree } from '@/components/catalog/CategoryTree';
 import { CategoryTreeSelect } from '@/components/catalog/CategoryTreeSelect';
 import { CategoryFormDialog } from '@/components/catalog/CategoryFormDialog';
+import { getDemandAggregation, type DemandAggRow } from '@/lib/api/catalog-admin';
 import { AttributeValueEditor } from '@/components/catalog/AttributeValueEditor';
 import { AttributeTemplateEditor } from '@/components/catalog/AttributeTemplateEditor';
 import { PriceTrendChart } from '@/components/catalog/PriceTrendChart';
@@ -62,6 +63,7 @@ const INTERNAL_ROLES = ['admin', 'leader', 'staff'] as const;
 const TABS: { key: string; label: string; icon: LucideIcon; roles?: readonly string[] }[] = [
   { key: 'items', label: '目录列表', icon: Package },
   { key: 'tree', label: '品类树', icon: GitBranch, roles: INTERNAL_ROLES },
+  { key: 'demand', label: '需求归集', icon: Layers, roles: INTERNAL_ROLES }, // B2（4.1.3.2）
   { key: 'entry', label: '价格录入', icon: PenLine },
   // 以下 6 个页签的数据接口均为内部角色闸门（@Roles），非内部角色进入即 403 刷屏 → 直接隐藏
   { key: 'approval', label: '价格审批', icon: CheckCircle, roles: INTERNAL_ROLES },
@@ -518,6 +520,60 @@ function ItemEditDialog({ item, onClose, onSaved }: { item: CatalogItem; onClose
 
 // ── 品类树 Tab ──
 
+/** B2（GB/T 43711 4.1.3.2）：需求归集——按品类聚合在立项的需求计划，辅助统一制定集中采购方案 */
+function DemandAggTab() {
+  const [rows, setRows] = useState<DemandAggRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getDemandAggregation().then(setRows).catch(e => setError(e instanceof Error ? e.message : '加载失败'));
+  }, []);
+
+  if (error) return <div className="wb-panel"><div className="wb-panel-body text-sm text-[var(--danger)]">{error}</div></div>;
+  if (rows === null) return <div className="wb-panel"><div className="wb-panel-body py-16 text-center text-sm text-[var(--muted-foreground)]">加载中…</div></div>;
+  if (rows.length === 0) return <div className="wb-panel"><div className="wb-panel-body py-16 text-center text-sm text-[var(--muted-foreground)]">暂无在立项的采购需求</div></div>;
+
+  return (
+    <div className="wb-panel">
+      <div className="wb-panel-body">
+        <div className="mb-3 text-xs text-[var(--muted-foreground)]">
+          按采购类别归集各需求人的在立项需求计划（GB/T 43711 4.1.3.2）——同品类需求 ≥2 项或预算超分级阈值的，建议统一制定集中采购方案。
+        </div>
+        <div className="space-y-2.5">
+          {rows.map(r => (
+            <div key={r.category} className="rounded-[12px] bg-[var(--surface)] p-4 shadow-[inset_0_1px_0_oklch(1_0_0/0.55),1px_1px_2px_oklch(0.55_0.03_258/0.06),-1px_-1px_1px_oklch(1_0_0/0.7)]">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-bold">{r.category}</span>
+                {r.suggestCentralized && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: 'color-mix(in oklch, var(--accent) 12%, transparent)', color: 'var(--accent-strong)' }}>建议集中采购</span>}
+                <span className="text-[11px] text-[var(--muted-foreground)]">
+                  {r.centralizedLevel === 'decentralized' ? '目录分级：分散采购' : r.centralizedLevel ? '目录分级：集中采购' : '目录未分级'}
+                  {r.centralizedThreshold != null && `（阈值 ¥${r.centralizedThreshold.toLocaleString('zh-CN')}）`}
+                </span>
+                <span className="ml-auto flex items-center gap-3 text-xs">
+                  <span className="text-[var(--muted-foreground)]">{r.count} 项需求</span>
+                  <span className="font-black tabular-nums text-[var(--success)]">¥{r.totalBudget.toLocaleString('zh-CN')}</span>
+                </span>
+              </div>
+              {r.recent.length > 0 && (
+                <div className="mt-2 flex flex-col gap-1">
+                  {r.recent.map(p => (
+                    <div key={p.projectCode ?? p.title} className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+                      <span className="font-mono">{p.projectCode ?? '—'}</span>
+                      <span className="truncate max-w-[320px] text-[var(--foreground)]/80">{p.title}</span>
+                      <span>{p.department ?? ''}</span>
+                      {p.budget != null && <span className="tabular-nums">¥{p.budget.toLocaleString('zh-CN')}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CategoryTreeTab({ canManage }: { canManage: boolean }) {
   const { tree, loading, error, refresh } = useCategoryTree();
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -525,7 +581,7 @@ function CategoryTreeTab({ canManage }: { canManage: boolean }) {
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'create-root' | 'create-child' | 'edit'>('create-root');
   const [formParentId, setFormParentId] = useState<number | null>(null);
-  const [formInitial, setFormInitial] = useState<{ name: string; code: string; isLeaf: boolean; icon: string } | undefined>();
+  const [formInitial, setFormInitial] = useState<{ name: string; code: string; isLeaf: boolean; icon: string; centralizedLevel: string; centralizedThreshold: string } | undefined>();
   const [attrEditorOpen, setAttrEditorOpen] = useState(false);
   const [attrNode, setAttrNode] = useState<CategoryNode | null>(null);
   const [moveNode, setMoveNode] = useState<CategoryNode | null>(null);
@@ -536,7 +592,7 @@ function CategoryTreeTab({ canManage }: { canManage: boolean }) {
 
   const handleAddRoot = () => { setFormMode('create-root'); setFormParentId(null); setFormInitial(undefined); setFormOpen(true); };
   const handleAddChild = (p: CategoryNode) => { setFormMode('create-child'); setFormParentId(p.id); setFormInitial(undefined); setFormOpen(true); };
-  const handleEdit = (node: CategoryNode) => { setFormMode('edit'); setFormParentId(node.id); setFormInitial({ name: node.name, code: node.code || '', isLeaf: node.isLeaf, icon: node.icon || '' }); setFormOpen(true); };
+  const handleEdit = (node: CategoryNode) => { setFormMode('edit'); setFormParentId(node.id); setFormInitial({ name: node.name, code: node.code || '', isLeaf: node.isLeaf, icon: node.icon || '', centralizedLevel: node.centralizedLevel || 'centralized', centralizedThreshold: node.centralizedThreshold != null ? String(node.centralizedThreshold) : '' }); setFormOpen(true); };
   const handleDelete = async (node: CategoryNode) => {
     // 前置检查：叶子品类下若有目录项、或存在子品类，提示先迁移，避免误删导致目录项孤儿
     let itemCount = 0;
@@ -567,7 +623,7 @@ function CategoryTreeTab({ canManage }: { canManage: boolean }) {
       toast.success('已移动'); setMoveNode(null); refresh();
     } catch (e: any) { toast.error(e.message); } finally { setMoveSaving(false); }
   };
-  const handleSave = async (data: { name: string; code: string; isLeaf: boolean; icon: string }) => {
+  const handleSave = async (data: { name: string; code: string; isLeaf: boolean; icon: string; centralizedLevel: string; centralizedThreshold: number | null }) => {
     if (formMode === 'edit' && formParentId) await updateCategory(formParentId, data);
     else await createCategory({ ...data, parentId: formParentId });
     toast.success(formMode === 'edit' ? '已更新' : '已创建'); refresh();
@@ -1907,6 +1963,7 @@ function CatalogManagementPageInner() {
         <div key={activeTab}>
           {activeTab === 'items' && <ItemsTab canManage={canManage} />}
           {activeTab === 'tree' && <CategoryTreeTab canManage={canManage} />}
+          {activeTab === 'demand' && <DemandAggTab />}
           {activeTab === 'entry' && <EntryTab canManage={canManage} roleReady={roleReady} />}
           {activeTab === 'approval' && <ApprovalTab canManage={canManage} />}
           {activeTab === 'trends' && <TrendsTab />}

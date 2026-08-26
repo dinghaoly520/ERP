@@ -1,5 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { GB_ARCHIVE_CATEGORIES } from '@water-erp/shared';
+import { buildArchiveTemplate } from './archive-template';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BidGateway } from './bid.gateway';
@@ -27,6 +29,7 @@ import { openField } from '../common/crypto/field-crypto';
 import { isPeriodMismatch, isPriceMismatch, resolveExpectedInYuan } from './opening-compare.util';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { generateProjectCode } from '../common/project-code.util';
+import { GbCodeService } from '../common/gb-code.service';
 import { assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
@@ -74,6 +77,7 @@ export type DecryptOuterResult =
 export class BidService {
   constructor(
     private prisma: PrismaService,
+    private gbCode: GbCodeService,
     private notificationService: NotificationService,
     private readonly scoreStandardValidator: ScoreStandardValidator,
     private readonly scoreStandard: BidScoreStandardService,
@@ -621,6 +625,11 @@ export class BidService {
 
   async createProject(dto: CreateBidProjectDto) {
     const projectCode = await generateProjectCode(this.prisma, dto.procurementMethod);
+    // A1（B.4.3.3/4）：分配国标编码——有 PMI 宿主复用其 18 位基码，否则自立
+    const host = dto.projectManagementItemId
+      ? await this.prisma.projectManagementItem.findUnique({ where: { id: dto.projectManagementItemId }, select: { gbProjectCode: true } })
+      : null;
+    const gbCodes = await this.gbCode.allocateProcureCode(host?.gbProjectCode ?? null).catch(() => null);
     // 截标↔开标 24h（P0-2）：双字段提供 → align 校验；缺 deadline → 按规则派生
     // （DTO 层 openTime/deadline 均为必填，此分支为服务层防御；缺 openTime 保持原行为不动）
     const openTime = new Date(dto.openTime);
@@ -635,6 +644,7 @@ export class BidService {
       data: {
         name: dto.name,
         projectCode,
+        ...(gbCodes ?? {}),
         procurementMethod: dto.procurementMethod,
         evaluationMethod: getEvaluationDefault(dto.procurementMethod).evaluationMethod,
         roundMode: dto.procurementMethod === '谈判采购' ? 'negotiation'
@@ -678,6 +688,11 @@ export class BidService {
   ) {
     const procurementMethod = metadata.method || '公开招标';
     const projectCode = await generateProjectCode(this.prisma, procurementMethod);
+    // A1（B.4.3.3/4）：国标采购项目编码 + 标段编码（宿主 PMI 的 18 位码优先复用）
+    const host = metadata.projectManagementItemId
+      ? await this.prisma.projectManagementItem.findUnique({ where: { id: metadata.projectManagementItemId }, select: { gbProjectCode: true } })
+      : null;
+    const gbCodes = await this.gbCode.allocateProcureCode(host?.gbProjectCode).catch(() => null);
     const openTime = parseFlexibleDate(metadata.openTime) ?? (announcement.publishDate || new Date());
     // 截标↔开标 24h（P0-2）：metadata.deadline 缺省 → 派生（替换原 +7 天兜底）；提供 → align 校验
     const parsedDeadline = parseFlexibleDate(metadata.deadline);
@@ -704,9 +719,12 @@ export class BidService {
         deadline,
         downloadDeadline,
         riskNote: '（来自公告自动创建）',
+        ...(gbCodes ?? {}),
         budget: metadata.budget != null ? Number(metadata.budget) : null,
         scope: metadata.scope || null,
         qualification: metadata.qualification || null,
+        // A3（7.2.2.3）：直接采购理由随公告建项落库，供公告/详情公示
+        directSourcingReason: metadata.directSourcingReason || null,
         contact: metadata.contact || null,
         stage: 'DOWNLOAD',
         // 公司归属：跟随公告（admin 代发时项目归公告所属公司，而非操作人）
@@ -769,6 +787,7 @@ export class BidService {
         ...(metadata.budget !== undefined && { budget: Number(metadata.budget) }),
         ...(metadata.scope !== undefined && { scope: metadata.scope }),
         ...(metadata.qualification !== undefined && { qualification: metadata.qualification }),
+        ...(metadata.directSourcingReason !== undefined && { directSourcingReason: metadata.directSourcingReason }),
         ...(metadata.contact !== undefined && { contact: metadata.contact }),
       },
     });
@@ -843,6 +862,8 @@ export class BidService {
         ...(dto.qualityRequirement !== undefined && { qualityRequirement: dto.qualityRequirement }),
         ...(dto.bondRequired !== undefined && { bondRequired: dto.bondRequired }),
         ...(dto.bondAmount !== undefined && { bondAmount: dto.bondAmount }),
+        ...(dto.sectionNo !== undefined && { sectionNo: dto.sectionNo }),
+        ...(dto.sectionName !== undefined && { sectionName: dto.sectionName }),
       },
     });
 
@@ -4593,6 +4614,191 @@ export class BidService {
     }
   }
 
+  /**
+   * D2（GB/T 43711 4.1.5.2）：档案移交登记——清单快照（含指纹与保存期）+ 双方签收留痕。
+   */
+  async registerArchiveTransfer(
+    projectId: string,
+    dto: { receivedByName: string; note?: string; confirm?: boolean },
+    operator: { userId: string; username: string },
+  ) {
+    if (!dto.receivedByName?.trim()) throw new BadRequestException({ error: '请填写接收方', code: 'BAD_PARAMS' });
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true, projectCode: true, stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage !== 'ARCHIVED') {
+      throw new BadRequestException({ error: '项目归档后方可移交', code: 'NOT_ARCHIVED' });
+    }
+    const items = await this.prisma.bidArchiveItem.findMany({
+      where: { projectId, status: 'ARCHIVED' },
+      select: { id: true, name: true, hashDigest: true, retentionUntil: true },
+    });
+    if (items.length === 0) throw new BadRequestException({ error: '无已归档材料可移交', code: 'NO_ITEMS' });
+
+    const transfer = await this.prisma.archiveTransfer.create({
+      data: {
+        projectId,
+        transferredByName: operator.username,
+        receivedByName: dto.receivedByName.trim(),
+        itemCount: items.length,
+        scope: items.map(i => ({
+          itemId: i.id, name: i.name,
+          hashDigest: i.hashDigest,
+          retentionUntil: i.retentionUntil?.toISOString() ?? null,
+        })) as any,
+        confirmedAt: dto.confirm ? new Date() : null,
+        note: dto.note?.trim() || null,
+      },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: operator.username, target: project.name,
+        action: '档案移交登记', result: `${items.length} 项 → ${dto.receivedByName.trim()}${dto.confirm ? '（已确认接收）' : '（待确认）'}`,
+        riskFlag: '无',
+      },
+    }).catch(() => {});
+    return transfer;
+  }
+
+  /** D2：移交确认（接收方二次确认制） */
+  async confirmArchiveTransfer(transferId: string, operator: { userId: string; username: string }) {
+    const transfer = await this.prisma.archiveTransfer.findUnique({ where: { id: transferId } });
+    if (!transfer) throw new BadRequestException({ error: '移交记录不存在', code: 'NOT_FOUND' });
+    if (transfer.confirmedAt) return transfer;
+    return this.prisma.archiveTransfer.update({
+      where: { id: transferId },
+      data: { confirmedAt: new Date() },
+    });
+  }
+
+  /**
+   * D3（GB/T 43711 8.2/8.3）：监管数据时间线——按项目聚合 监督日志 + 审计日志 + 操作日志（事前/事中/事后追溯）。
+   */
+  async supervisionTimeline(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectCode: true, name: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const [logs, audits, operations] = await Promise.all([
+      this.prisma.bidSupervisionLog.findMany({ where: { projectId }, orderBy: { time: 'desc' }, take: 200 }),
+      this.prisma.auditLog.findMany({
+        where: { OR: [{ resourceId: projectId }, { details: { path: ['$'], string_contains: projectId } } as any] },
+        orderBy: { createdAt: 'desc' }, take: 100,
+      }).catch(() => []),
+      this.prisma.operationLog.findMany({
+        where: { OR: [{ path: { contains: projectId } }, { query: { contains: projectId } }] },
+        orderBy: { createdAt: 'desc' }, take: 150,
+      }).catch(() => [] as any[]),
+    ]);
+
+    type Entry = { at: string; source: string; actor: string; action: string; detail: string; risk?: string };
+    const entries: Entry[] = [
+      ...logs.map(l => ({
+        at: l.time.toISOString(), source: '监督日志', actor: l.role,
+        action: l.action, detail: `${l.target ?? ''}：${l.result ?? ''}`.trim(), risk: l.riskFlag,
+      })),
+      ...audits.map(a => ({
+        at: a.createdAt.toISOString(), source: '审计日志',
+        actor: (a as any).user?.displayName ?? '—',
+        action: a.action, detail: a.resourceType ?? '',
+      })),
+      ...operations.map(o => ({
+        at: o.createdAt.toISOString(), source: '操作日志',
+        actor: o.username ?? '—',
+        action: `${o.method} ${o.path}`.slice(0, 80), detail: o.statusCode >= 400 ? `HTTP ${o.statusCode}${o.error ? ' ' + o.error.slice(0, 60) : ''}` : `HTTP ${o.statusCode} ${o.durationMs}ms`,
+      })),
+    ].sort((a, b) => b.at.localeCompare(a.at));
+
+    return { project, entries, counts: { supervision: logs.length, audit: audits.length, operation: operations.length } };
+  }
+
+  /** D3：监管数据包导出（JSON——公告+档案对标+移交+时间线，事前预警/事后追溯一体） */
+  async supervisionExport(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectCode: true, gbProcureCode: true, name: true, procurementMethod: true, stage: true, createdAt: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const [announcements, transfers, timeline, archiveItems] = await Promise.all([
+      this.prisma.announcement.findMany({
+        where: { relatedProjectCode: project.projectCode },
+        select: { title: true, type: true, status: true, publishDate: true, dataClass: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.archiveTransfer.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
+      this.supervisionTimeline(projectId),
+      this.prisma.bidArchiveItem.findMany({
+        where: { projectId },
+        select: { name: true, status: true, hashDigest: true, archivedAt: true, retentionUntil: true, gbCategory: true },
+        orderBy: { archivedAt: 'asc' },
+      }),
+    ]);
+
+    return {
+      exportedAt: new Date().toISOString(),
+      standard: 'GB/T 43711—2024 第 8 章（8.2/8.3 事前预警、事中控制、事后追溯）',
+      project,
+      announcements,
+      archive: { items: archiveItems, gbTemplate: await this.getArchiveTemplate(projectId) },
+      transfers,
+      supervisionTimeline: timeline,
+    };
+  }
+
+  /**
+   * D1（GB/T 43711 4.1.5.1）：档案清单对标——标准 13 类满足度（线上数据自动判定 + 人工登记缺口）。
+   */
+  async getArchiveTemplate(projectId: string) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectCode: true, projectManagementItemId: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    return buildArchiveTemplate(this.prisma as any, project);
+  }
+
+  /**
+   * D1：人工登记档案材料（线下预审资料/争议文件等）——
+   * 按 GB 类别建归档项（幂等：同类别已有未归档项则更新），附件走既有 /upload 后传 fileAssetId 引用。
+   */
+  async registerManualArchiveItem(
+    projectId: string,
+    dto: { categoryKey: string; fileAssetId?: string; note?: string },
+    actor?: { userId: string; username: string },
+  ) {
+    const cat = GB_ARCHIVE_CATEGORIES.find(c => c.key === dto.categoryKey);
+    if (!cat) throw new BadRequestException({ error: '档案类别不合法', code: 'BAD_CATEGORY' });
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+
+    const existing = await this.prisma.bidArchiveItem.findFirst({
+      where: { projectId, gbCategory: cat.key, status: { not: 'ARCHIVED' } },
+      select: { id: true },
+    });
+
+    const name = `${cat.name}${dto.note ? `（${dto.note.trim().slice(0, 30)}）` : ''}`;
+    const item = existing
+      ? await this.prisma.bidArchiveItem.update({ where: { id: existing.id }, data: { name, ownerRole: '采购人' } })
+      : await this.prisma.bidArchiveItem.create({
+          data: { projectId, name, ownerRole: '采购人', gbCategory: cat.key, status: 'PENDING_CONFIRM' },
+        });
+
+    await this.prisma.bidSupervisionLog.create({
+      data: {
+        projectId, time: new Date(), role: actor?.username ?? '采购人', target: project.name,
+        action: '档案人工登记', result: `${cat.name}${dto.fileAssetId ? '（附材料）' : ''}`, riskFlag: '无',
+      },
+    }).catch(() => {});
+
+    this.logger.log(`[D1] 档案人工登记：${project.name} / ${cat.name}`);
+    return item;
+  }
+
   /** P1-E：项目级 AI 建议采纳率（仅统计已确认报告的专家 delta；返回总体 + 按评分项） */
   async getAiAdoption(projectId: string) {
     const deltas = await this.prisma.bidScoreDelta.findMany({
@@ -4829,6 +5035,8 @@ export class BidService {
       );
 
       // 逐项归档更新（各自哈希）+ 项目状态变更 + 监督日志
+      // D2（4.1.5.2）：保存期 = 归档日 + 15 年（期内不可销毁；到期由档案部门依规处置）
+      const retentionUntil = new Date(now.getTime() + 15 * 365.25 * 24 * 3600 * 1000);
       for (const item of archiveItems) {
         await tx.bidArchiveItem.update({
           where: { id: item.id },
@@ -4838,6 +5046,7 @@ export class BidService {
             // P1-14：签字包指纹链持久化——verify/export 重算经 spread 回读，修复恒 mismatch
             ...(item.name === '评标签字包' && signFileHashes ? { fileHashes: signFileHashes } : {}),
             archivedAt: now,
+            retentionUntil,
           },
         });
       }
@@ -4887,8 +5096,9 @@ export class BidService {
   }
 
   /**
-   * 归档后自动生成中标公示草稿（G1）。幂等。
+   * 归档后自动生成预成交公示草稿（G1→C1，GB/T 43711 7.5.2.2 两段式第一段）。幂等。
    * 直接写 announcement 表（避免与 AnnouncementService 循环依赖）。
+   * 公示期满无异议后由 AnnouncementService.confirmWinnerNotice 派生成成交公告。
    */
   private async ensureWinnerNotice(projectId: string) {
     const project = await this.prisma.bidProject.findUnique({
@@ -4899,13 +5109,14 @@ export class BidService {
     });
     if (!project) return;
     if (!project.evaluationResults || project.evaluationResults.length === 0) {
-      this.logger.warn(`项目 ${project.projectCode} 无评标结果，跳过中标公示生成`);
+      this.logger.warn(`项目 ${project.projectCode} 无评标结果，跳过预成交公示生成`);
       return;
     }
 
-    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试，避免去重失效导致重复生成中标公示
+    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试；
+    // 已有预成交公示或成交公告（存量两段式/直发）均视为已生成，避免重复
     const existing = await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'WIN_NOTICE' },
+      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
       select: { id: true },
     });
     if (existing) return;
@@ -4918,22 +5129,28 @@ export class BidService {
 
     await this.prisma.announcement.create({
       data: {
-        title: `中标公示：${project.name}`,
-        content: `项目编号 ${project.projectCode}（${project.name}）已完成评标并归档。中标候选人：${winner?.supplierName ?? '—'}。${winnerPrice ? `中标金额：¥${winnerPrice}元。` : ''}`,
-        type: 'WIN_NOTICE',
+        title: `预成交公示：${project.name}`,
+        content: `项目编号 ${project.projectCode}（${project.name}）已完成评审并归档，现将预成交供应商予以公示。`
+          + `预成交供应商：${winner?.supplierName ?? '—'}。`
+          + `${winnerPrice ? `预成交价格：¥${winnerPrice}元。` : ''}`
+          + `公示期为3个日历日，公示期内如无异议，预成交供应商即为成交供应商。`
+          + `供应商对公示内容有异议的，请在公示期内通过供应商门户公告页向采购人在线提出。`,
+        type: 'PRE_WIN_NOTICE',
         status: 'DRAFT',
         relatedProjectCode: project.projectCode,
         metadata: {
           projectCode: project.projectCode,
           winner: winner ? { supplierName: winner.supplierName, totalScore: Number(winner.totalScore), averageScore: Number(winner.averageScore), price: winnerPrice } : null,
           candidates: candidates.map(c => ({ rank: c.rank, supplierName: c.supplierName, totalScore: Number(c.totalScore), averageScore: Number(c.averageScore) })),
+          publicityPeriod: '3个日历日',
+          objection: '公示期内通过供应商门户向采购人在线提出异议',
         },
       },
     });
-    this.logger.log(`已自动生成中标公示草稿：${project.projectCode}`);
+    this.logger.log(`已自动生成预成交公示草稿：${project.projectCode}`);
   }
 
-  /** 查询项目关联的中标公示（G1，草稿或已发布）；无则返回 null */
+  /** 查询项目关联的预成交公示/成交公告（G1→C1，草稿或已发布）；无则返回 null */
   async getWinnerNotice(projectId: string) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
@@ -4942,7 +5159,7 @@ export class BidService {
     if (!project) return null;
     // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试
     return this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'WIN_NOTICE' },
+      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
     });
   }
 
@@ -4954,11 +5171,18 @@ export class BidService {
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
 
-    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试
-    const notice = await this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: await this.resolveAnnouncementCodes(project) }, type: 'WIN_NOTICE' },
-      select: { status: true, publishDate: true, publicityEnd: true },
-    });
+    // C1（7.5.2）：优先取预成交公示（两段式第一段）；无则回落存量 WIN_NOTICE（老"中标公示"，
+    // 其 publicityEnd 语义同为公示期），保证在途项目平滑过渡
+    const codes = await this.resolveAnnouncementCodes(project);
+    const notice =
+      (await this.prisma.announcement.findFirst({
+        where: { relatedProjectCode: { in: codes }, type: 'PRE_WIN_NOTICE' },
+        select: { status: true, publishDate: true, publicityEnd: true },
+      })) ??
+      (await this.prisma.announcement.findFirst({
+        where: { relatedProjectCode: { in: codes }, type: 'WIN_NOTICE' },
+        select: { status: true, publishDate: true, publicityEnd: true },
+      }));
 
     if (!notice || notice.status !== 'PUBLISHED') {
       return { hasPublicity: false, publicityEnd: null, canIssueAward: false };
@@ -4985,6 +5209,58 @@ export class BidService {
     if (dto.priceFormulaConfig !== undefined) data.priceFormulaConfig = dto.priceFormulaConfig as any;
 
     return this.prisma.bidProject.update({ where: { id: projectId }, data, select: { id: true, ceilingPrice: true, evaluationMethod: true, priceFormulaConfig: true } });
+  }
+
+  /** B3（GB/T 43711 7.2.3.6）：资格后审复核结果登记（登记制——评审线下完成，结果留痕） */
+  async registerQualificationReview(projectId: string, result: string) {
+    if (!result?.trim()) throw new BadRequestException({ error: '请填写复核结果', code: 'RESULT_REQUIRED' });
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const updated = await this.prisma.bidProject.update({
+      where: { id: projectId },
+      data: { qualificationReviewResult: result.trim() },
+      select: { id: true, qualificationReviewResult: true },
+    });
+    await this.prisma.bidSupervisionLog.create({
+      data: { projectId, time: new Date(), role: '采购人', action: '资格后审复核登记', target: project.name, result: result.trim().slice(0, 200), riskFlag: '无' },
+    }).catch(() => {});
+    return updated;
+  }
+
+  /**
+   * C4（GB/T 43711 7.5.4.4）：登记响应担保退还 / 不予退还。
+   * 不予退还必填理由（7.5.3.3 情形：弄虚作假/串通/失去履约能力/不交履约担保/拒签）→ 监督日志高风险留痕。
+   */
+  async markBondReturned(
+    projectId: string,
+    dto: { returned: boolean; reason?: string },
+  ) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true, projectCode: true, bondRequired: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (!project.bondRequired) throw new BadRequestException({ error: '该项目未要求响应担保', code: 'NO_BOND' });
+    if (!dto.returned && !dto.reason?.trim()) {
+      throw new BadRequestException({ error: '不予退还必须填写理由（对应 7.5.3.3 情形）', code: 'REASON_REQUIRED' });
+    }
+
+    const updated = await this.prisma.bidProject.update({
+      where: { id: projectId },
+      data: { bondReturnedAt: dto.returned ? new Date() : null },
+      select: { id: true, projectCode: true, bondReturnedAt: true },
+    });
+
+    if (!dto.returned) {
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '采购人',
+          action: '响应担保不予退还', target: project.name,
+          result: dto.reason!.trim(), riskFlag: '高',
+        },
+      }).catch(e => this.logger.warn(`保证金不退留痕失败: ${(e as Error).message}`));
+    }
+    return updated;
   }
 
   /** A3: 推送中标通知书给中标供应商 */

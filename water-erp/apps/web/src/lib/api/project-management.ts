@@ -50,6 +50,12 @@ export type InitiationFields = {
   procurementOrganizationForm?: string;
   isAnnualBudget?: boolean;
   createdById?: string;
+  // B1（GB/T 43711 7.2.1.2 采购方案要素，选填）
+  implementerName?: string;
+  contractPricingType?: string;
+  sectionPlan?: string;
+  activitySchedule?: string;
+  riskMeasures?: string;
 };
 
 function parseErrorMessage(error: unknown) {
@@ -121,6 +127,29 @@ export async function reprocProject(projectId: string) {
     credentials: 'include',
   });
   return parseJsonResponse<{ round: number; inserted: number }>(response);
+}
+
+/** CTS-EBS01 A-36/37 创建人递交项目送审（驳回后可重新递交） */
+export async function submitProjectForReview(projectId: string) {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/submit-review`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  return parseJsonResponse<ProjectManagementItem>(response);
+}
+
+/** CTS-EBS01 A-36/37 受理审核（admin；驳回须填理由） */
+export async function reviewProjectSubmission(
+  projectId: string,
+  payload: { approve: boolean; comment?: string },
+) {
+  const response = await fetch(`${API_BASE}/project-management/${projectId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  return parseJsonResponse<ProjectManagementItem>(response);
 }
 
 /** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */

@@ -10,8 +10,11 @@ import { SpPageHero } from "@/components/sp-page-hero";
 import { EmptyState, LoadingBlock, SpButton, SpDialog, SpInput } from "@/components/ui";
 import "@/styles/pages/announcements.css";
 
-const typeLabel: Record<string, string> = { BID_NOTICE: "采购公告", WIN_NOTICE: "中标公告", POLICY: "政策法规", PLATFORM: "平台通知" };
-const typeTagType: Record<string, string> = { BID_NOTICE: "primary", WIN_NOTICE: "success", POLICY: "warning", PLATFORM: "info" };
+const typeLabel: Record<string, string> = {
+  BID_NOTICE: "采购公告", ADDENDUM: "补遗公告", PRE_WIN_NOTICE: "预成交公示", WIN_NOTICE: "成交公告",
+  CONTRACT_NOTICE: "合同公告", PERFORMANCE_NOTICE: "履行结果公告", POLICY: "政策法规", PLATFORM: "平台通知",
+};
+const typeTagType: Record<string, string> = { BID_NOTICE: "primary", PRE_WIN_NOTICE: "success", WIN_NOTICE: "success", POLICY: "warning", PLATFORM: "info" };
 
 // ── 结构化元数据字段定义（与采购管理工作台 :3005 保持一致）──
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
@@ -21,6 +24,14 @@ const ANNO_TYPE_META: Record<string, MetaField[]> = {
     { key: "downloadDeadline", label: "采购文件下载时间" },
     { key: "deadline", label: "报名/投标截止", date: true }, { key: "openTime", label: "开标时间", date: true }, { key: "contact", label: "联系方式" },
     { key: "scope", label: "采购内容/范围", area: true }, { key: "qualification", label: "投标人资格要求", area: true },
+  ],
+  ADDENDUM: [
+    { key: "projectCode", label: "项目编号" }, { key: "changes", label: "澄清/修改内容", area: true },
+    { key: "newDeadline", label: "调整后递交截止", date: true },
+  ],
+  PRE_WIN_NOTICE: [
+    { key: "projectCode", label: "项目编号" }, { key: "winner", label: "预成交供应商" }, { key: "amount", label: "预成交价格" },
+    { key: "period", label: "工期/交货期/服务期限" }, { key: "publicityPeriod", label: "公示期" }, { key: "objection", label: "异议渠道", area: true },
   ],
   WIN_NOTICE: [
     { key: "projectCode", label: "项目编号" }, { key: "winner", label: "中标供应商" }, { key: "amount", label: "中标金额" },

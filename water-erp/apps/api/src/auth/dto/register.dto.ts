@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsOptional, IsEmail, IsIn, Matches, MinLength } from 'class-validator';
+import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 
 export class RegisterDto {
   @IsString()
@@ -10,7 +11,7 @@ export class RegisterDto {
   displayName: string; // 姓名
 
   @IsString()
-  @MinLength(6)
+  @Matches(PASSWORD_PATTERN, { message: PASSWORD_POLICY_MESSAGE })
   password: string;
 
   @IsString()

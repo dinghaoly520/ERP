@@ -1,5 +1,6 @@
 import { IsString, IsNotEmpty, IsEmail, IsOptional, ValidateNested, IsArray, ArrayMinSize, ArrayMaxSize, Matches, MaxLength, MinLength, Length } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PASSWORD_PATTERN, PASSWORD_POLICY_MESSAGE } from '../../common/validators/password-strength';
 import { RegisterContactDto } from './register-contact.dto';
 import { CreateQualificationDto } from './create-qualification.dto';
 import { RegisterBankAccountDto } from './register-bank-account.dto';
@@ -27,11 +28,12 @@ export class RegisterSupplierDto {
   @IsString() @IsNotEmpty()
   businessScope: string;
 
-  // ── 注册 2.0：基本信息扩展（选填）──
+  // ── 注册 2.0：基本信息扩展 ──
   @IsString() @IsOptional() @MaxLength(255)
   logoUrl?: string;
 
-  @IsString() @IsOptional() @MaxLength(50)
+  /** 机构代码 = 统一社会信用代码（同义字段，冗余存储）。登录用户名强制取 creditCode，此字段可不传 */
+  @IsString() @IsOptional() @MaxLength(20)
   organizationCode?: string;
 
   @IsString() @IsOptional() @MaxLength(50)
@@ -58,13 +60,13 @@ export class RegisterSupplierDto {
   @IsString() @IsOptional() @MaxLength(200)
   companyWebsite?: string;
 
-  @IsString() @IsNotEmpty() @MaxLength(50)
-  username: string;
+  @IsString() @IsOptional() @MaxLength(50)
+  username?: string; // 已废弃：登录用户名强制取 organizationCode，此字段仅向后兼容保留
 
   @IsString() @IsNotEmpty() @MaxLength(50)
   displayName: string;
 
-  @IsString() @IsNotEmpty() @MinLength(6)
+  @IsString() @IsNotEmpty() @Matches(PASSWORD_PATTERN, { message: PASSWORD_POLICY_MESSAGE })
   password: string;
 
   @IsEmail() @IsOptional()

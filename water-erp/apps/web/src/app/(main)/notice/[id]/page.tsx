@@ -7,7 +7,7 @@ import {
   getAnnouncement, updateAnnouncement, deleteAnnouncement,
   listAttachments, addAttachment, removeAttachment, uploadFile,
   getBidDocument, uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument,
-  generateSummary,
+  generateSummary, confirmWinnerNotice,
 } from '@/lib/api/announcement';
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, AnnouncementAttachment, BidDocumentManage } from '@/lib/api/announcement';
 import { getSupplierList } from '@/lib/api/supplier';
@@ -16,13 +16,14 @@ import { StatusBadge } from '@/components/workbench';
 import { ArrowLeft, Pencil, X, Trash2, Megaphone, Upload, Sparkles } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
+import { DATA_CLASS_LABELS } from '@water-erp/shared';
 
 /* ── 类型/状态标签 ── */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
-  BID_NOTICE: 'blue', WIN_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray',
+  BID_NOTICE: 'blue', ADDENDUM: 'orange', PREQUAL_NOTICE: 'blue', PRE_WIN_NOTICE: 'green', WIN_NOTICE: 'green', CONTRACT_NOTICE: 'blue', PERFORMANCE_NOTICE: 'green', POLICY: 'orange', PLATFORM: 'gray',
 };
 const typeLabel: Record<AnnouncementType, string> = {
-  BID_NOTICE: '采购公告', WIN_NOTICE: '中标公告', POLICY: '政策法规', PLATFORM: '平台通知',
+  BID_NOTICE: '采购公告', ADDENDUM: '补遗公告', PREQUAL_NOTICE: '资格预审公告', PRE_WIN_NOTICE: '预成交公示', WIN_NOTICE: '成交公告', CONTRACT_NOTICE: '合同公告', PERFORMANCE_NOTICE: '履行结果公告', POLICY: '政策法规', PLATFORM: '平台通知',
 };
 const statusTone: Record<AnnouncementStatus, 'green' | 'gray'> = {
   DRAFT: 'gray', PUBLISHED: 'green', ARCHIVED: 'gray',
@@ -33,16 +34,34 @@ const statusLabel: Record<AnnouncementStatus, string> = {
 
 interface MetaField { key: string; label: string; area?: boolean; date?: boolean }
 const TYPE_META: Record<AnnouncementType, MetaField[]> = {
+  PREQUAL_NOTICE: [
+    { key: 'title', label: '预审名称' }, { key: 'validUntil', label: '申请截止', date: true },
+  ],
+  ADDENDUM: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'changes', label: '澄清/修改内容', area: true },
+    { key: 'newDeadline', label: '调整后递交截止', date: true },
+  ],
   BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
     { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
     { key: 'downloadDeadline', label: '采购文件下载时间' },
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
   ],
+  PRE_WIN_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
+    { key: 'period', label: '工期/交货期/服务期限' }, { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
+  ],
   WIN_NOTICE: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '中标供应商' }, { key: 'amount', label: '中标金额' },
+    { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },
     { key: 'period', label: '工期/交货期' }, { key: 'quality', label: '质量标准' }, { key: 'experts', label: '评审专家' },
     { key: 'publicityPeriod', label: '公示期' }, { key: 'objection', label: '异议渠道', area: true },
+  ],
+  CONTRACT_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'contractCode', label: '合同编号' }, { key: 'supplierName', label: '成交供应商' },
+    { key: 'amount', label: '合同价款' }, { key: 'signedAt', label: '签约时间', date: true },
+  ],
+  PERFORMANCE_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'supplierName', label: '成交供应商' }, { key: 'result', label: '履行结果' },
   ],
   POLICY: [
     { key: 'docNo', label: '文号' }, { key: 'issuer', label: '发布机关' }, { key: 'effectiveDate', label: '生效日期' },
@@ -117,6 +136,12 @@ export default function NoticeDetailPage() {
             <StatusBadge tone={statusTone[ann.status]}>{statusLabel[ann.status]}</StatusBadge>
             <StatusBadge tone={typeTone[ann.type]}>{typeLabel[ann.type]}</StatusBadge>
             {ann.isTop && <StatusBadge tone="red">置顶</StatusBadge>}
+            {ann.dataClass && (
+              <StatusBadge tone={ann.dataClass === 'confidential' ? 'red' : ann.dataClass === 'public_mandatory' ? 'green' : 'gray'}>
+                {DATA_CLASS_LABELS[ann.dataClass as keyof typeof DATA_CLASS_LABELS] ?? ann.dataClass}
+              </StatusBadge>
+            )}
+            {ann.type === 'PRE_WIN_NOTICE' && ann.status === 'PUBLISHED' && <ConfirmWinnerButton ann={ann} />}
             {!editing ? (
               <>
                 <button onClick={() => setEditing(true)} className="neu-btn-soft"><Pencil size={14} /> 编辑</button>
@@ -198,6 +223,36 @@ function renderMeta(ann: AnnouncementListItem) {
         ))}
       </div>
       </div>
+  );
+}
+
+/* ════════════ C1：预成交公示期满 → 发布成交公告（GB/T 43711 7.5.2.5 两段式第二段） ════════════ */
+function ConfirmWinnerButton({ ann }: { ann: AnnouncementListItem }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const publicityEnded = !!ann.publicityEnd && new Date(ann.publicityEnd).getTime() <= Date.now();
+
+  const handleConfirm = async () => {
+    if (!confirm('公示期已满且无异议，确认发布成交公告？确认后将生成成交公告并通知供应商。')) return;
+    setBusy(true);
+    try {
+      const { winnerNotice } = await confirmWinnerNotice(ann.id);
+      toast.success('成交公告已发布');
+      router.push(`/notice/${winnerNotice.id}`);
+    } catch (e: any) {
+      toast.error(e?.message || '发布成交公告失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!publicityEnded) {
+    return <StatusBadge tone="gray">公示期至 {ann.publicityEnd ? new Date(ann.publicityEnd).toLocaleDateString('zh-CN') : '—'}</StatusBadge>;
+  }
+  return (
+    <button onClick={handleConfirm} disabled={busy} className="neu-btn-primary !h-[30px] !px-3 !text-xs disabled:opacity-50">
+      {busy ? '发布中…' : '发布成交公告'}
+    </button>
   );
 }
 

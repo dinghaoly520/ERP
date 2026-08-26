@@ -2,7 +2,7 @@ import { api } from '../api';
 
 /* ── 信息发布中心视图模型 ── */
 
-export type AnnouncementType = 'BID_NOTICE' | 'WIN_NOTICE' | 'POLICY' | 'PLATFORM';
+export type AnnouncementType = 'BID_NOTICE' | 'ADDENDUM' | 'PREQUAL_NOTICE' | 'PRE_WIN_NOTICE' | 'WIN_NOTICE' | 'CONTRACT_NOTICE' | 'PERFORMANCE_NOTICE' | 'POLICY' | 'PLATFORM';
 export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 
 export interface AnnouncementAttachment {
@@ -27,6 +27,11 @@ export interface AnnouncementListItem {
   viewCount: number;
   relatedProjectCode?: string;
   metadata?: Record<string, any>;
+  /** C1：预成交公示截止时间（发布时自动 = publishDate + 3 日历日） */
+  publicityEnd?: string;
+  /** A2（表 B.1）：数据公开范围四级 */
+  dataClass?: string;
+  dataDomain?: string;
   createdAt: string;
   attachments?: AnnouncementAttachment[];
   bidDocument?: { id: string; title: string; accessScope: string; requirePayment: boolean; price: number | null; downloadCount: number } | null;
@@ -127,7 +132,19 @@ export function createAnnouncement(data: {
   title: string; content: string; type: AnnouncementType;
   summary?: string; publishDate?: string; isTop?: boolean; relatedProjectCode?: string; metadata?: Record<string, any>; status?: AnnouncementStatus;
 }) {
-  return api.post<AnnouncementListItem>('/announcements', data);
+  return api.post<AnnouncementListItem & { checklistWarnings?: Array<{ item: string; clause: string; message: string }> }>('/announcements', data);
+}
+
+/** A3（GB/T 43711 7.2.2.5）：采购公告发布前要素预检（dry-run，警告不阻断） */
+export function previewBidNoticeChecklist(payload: {
+  title: string; content: string; metadata?: Record<string, any>; relatedProjectCode?: string;
+}) {
+  return api.post<{ warnings: Array<{ item: string; clause: string; message: string }> }>('/announcements/bid-notice-checklist', payload);
+}
+
+/** C1（GB/T 43711 7.5.2.5）：预成交公示期满确认 → 发布成交公告 */
+export function confirmWinnerNotice(id: string) {
+  return api.post<{ winnerNotice: AnnouncementListItem; created: boolean }>(`/announcements/${id}/confirm-winner`, {});
 }
 
 export function updateAnnouncement(id: string, data: Partial<{

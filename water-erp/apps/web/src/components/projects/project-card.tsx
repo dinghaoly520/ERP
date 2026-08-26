@@ -58,6 +58,21 @@ export function ProjectCard({
           <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3 py-1 text-[11px] font-semibold text-[color:var(--accent)] transition-colors duration-200 group-hover:bg-[color-mix(in_oklch,var(--accent)_18%,transparent)]">
             {PROJECT_MANAGEMENT_STATUS_LABELS[item.status]}
           </span>
+          {item.reviewStatus === 'PENDING' && (
+            <span className="rounded-full bg-[color-mix(in_oklch,oklch(0.75_0.14_75)_22%,transparent)] px-3 py-1 text-[11px] font-semibold text-[oklch(0.5_0.12_75)]">
+              待审核
+            </span>
+          )}
+          {item.reviewStatus === 'APPROVED' && (
+            <span className="rounded-full bg-[color-mix(in_oklch,oklch(0.72_0.14_155)_18%,transparent)] px-3 py-1 text-[11px] font-semibold text-[oklch(0.48_0.12_155)]">
+              审核通过
+            </span>
+          )}
+          {item.reviewStatus === 'REJECTED' && (
+            <span className="rounded-full bg-[color-mix(in_oklch,oklch(0.65_0.17_25)_16%,transparent)] px-3 py-1 text-[11px] font-semibold text-[oklch(0.5_0.16_25)]">
+              已驳回
+            </span>
+          )}
           {item.createdByName && (
             <span className="text-[11px] text-[color:var(--muted-foreground)] bg-[oklch(1_0_0_/_0.4)] rounded-full px-2 py-0.5">
               经办人：{item.createdByName}

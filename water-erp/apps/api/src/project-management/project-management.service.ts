@@ -22,8 +22,13 @@ import { patchDocx, ConcurrentEditError } from './docx/html-to-docx.patcher';
 import { Document, Packer } from 'docx';
 import { DocumentParserService } from '../knowledge/services/document-parser.service';
 import { StorageService } from '../storage/storage.service';
+import { GbCodeService } from '../common/gb-code.service';
+import { ArchiveScopeService } from '../archive/archive-scope.service';
+import { StageComplianceConfigService } from './stage-compliance-config.service';
+import { ArchiveFlowService } from '../archive/archive-flow.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CompleteProjectDto } from './dto/complete-project.dto';
+import { ReviewSubmissionDto } from './dto/review-submission.dto';
 import { CreateProjectFromInitiationDto } from './dto/create-project-from-initiation.dto';
 import { QueryProjectManagementDto } from './dto/query-project-management.dto';
 import { getEvaluationDefault } from '../bid/evaluation-method.config';
@@ -146,9 +151,13 @@ export class ProjectManagementService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly gbCode: GbCodeService,
     private readonly aiService: AiService,
     private readonly documentParser: DocumentParserService,
     private readonly storage: StorageService,
+    private readonly archiveScope: ArchiveScopeService,
+    private readonly archiveFlow: ArchiveFlowService,
+    private readonly stageCompliance: StageComplianceConfigService,
   ) {}
 
   async list(query: QueryProjectManagementDto, user?: AuthenticatedUser) {
@@ -194,6 +203,8 @@ export class ProjectManagementService {
           include: { attachments: true },
         },
         createdBy: true,
+        submittedBy: true,
+        reviewedBy: true,
       },
     });
 
@@ -201,6 +212,8 @@ export class ProjectManagementService {
       ...item,
       budgetAmount: Number(item.budgetAmount),
       createdByName: item.createdBy?.displayName || item.createdBy?.username || null,
+      submittedByName: item.submittedBy?.displayName || item.submittedBy?.username || null,
+      reviewedByName: item.reviewedBy?.displayName || item.reviewedBy?.username || null,
     }));
   }
 
@@ -256,6 +269,7 @@ export class ProjectManagementService {
       where: { createdAt: { gte: startOfDay, lte: endOfDay } },
     });
     const projectCode = `${procurementMethodPrefix(dto.procurementMethod)}-${ymd}${String(todayCount + 1).padStart(2, '0')}`;
+      const gbProjectCode = await this.gbCode.allocateProjectCode().catch(() => null); // A1（B.4.3.2）
 
     // 阶段集：全套 + 方法过滤（与 create 流程同口径）
     const needsPublicAnnouncement = ['竞价采购', '直接采购', '邀请招标'].includes(dto.procurementMethod);
@@ -268,6 +282,7 @@ export class ProjectManagementService {
     const item = await tx.projectManagementItem.create({
       data: {
         projectCode,
+        ...(gbProjectCode ? { gbProjectCode } : {}),
         title: dto.title,
         requesterName,
         requesterDepartment,
@@ -730,10 +745,12 @@ export class ProjectManagementService {
         where: { createdAt: { gte: startOfDay, lte: endOfDay } },
       });
       const projectCode = `${procurementMethodPrefix(dto.procurementMethod)}-${ymd}${String(todayCount + 1).padStart(2, '0')}`;
+      const gbProjectCode = await this.gbCode.allocateProjectCode().catch(() => null); // A1（B.4.3.2）
 
       const project = await tx.projectManagementItem.create({
         data: {
           projectCode,
+          ...(gbProjectCode ? { gbProjectCode } : {}),
           title: dto.procurementTitle,
           requesterName: dto.requesterName,
           requesterDepartment: dto.requesterDepartment,
@@ -744,6 +761,12 @@ export class ProjectManagementService {
           isAnnualBudget: dto.isAnnualBudget,
           projectReason: dto.projectReason,
           supplierRequirements: dto.supplierRequirements,
+          // B1：采购方案要素（7.2.1.2）
+          implementerName: dto.implementerName ?? null,
+          contractPricingType: dto.contractPricingType ?? null,
+          sectionPlan: dto.sectionPlan ?? null,
+          activitySchedule: dto.activitySchedule ?? null,
+          riskMeasures: dto.riskMeasures ?? null,
           initiationDate: dto.initiationDate ? new Date(dto.initiationDate) : null,
           currentStage: firstActiveStage,
           status: PROJECT_MANAGEMENT_STATUS.ACTIVE,
@@ -1154,6 +1177,11 @@ export class ProjectManagementService {
         uploadedById: attachment.uploadedById,
       },
     });
+
+    // DA/T 103-2024 §8.1 归档时点：定标/合同阶段上传件即流程终结信号 → 归档待办（fire-and-forget）
+    if (stageKey === 'AWARD_DECISION' || stageKey === 'CONTRACT') {
+      void this.archiveFlow.onTerminalAttachmentUploaded(projectId);
+    }
 
     // Return updated extracted info so frontend can display immediately
     const updatedItem = await this.prisma.projectManagementItem.findUnique({
@@ -2872,6 +2900,57 @@ ${JSON.stringify(algorithmResult, null, 2)}
     };
   }
 
+  // ── CTS-EBS01 A-36/37 项目递交与受理留痕（申报人/时间、验证人/时间，双人分离）──
+
+  /** 创建人递交项目送审；REJECTED 修正后可重新递交 */
+  async submitForReview(projectId: string, user?: AuthenticatedUser) {
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { reviewStatus: true },
+    });
+    if (!item) throw new NotFoundException('未找到对应项目。');
+    if (item.reviewStatus === 'PENDING') {
+      throw new BadRequestException({ error: '该项目已递交待审核，请勿重复递交', code: 'ALREADY_SUBMITTED' });
+    }
+    if (item.reviewStatus === 'APPROVED') {
+      throw new BadRequestException({ error: '该项目已审核通过，无需再次递交', code: 'ALREADY_APPROVED' });
+    }
+    return this.prisma.projectManagementItem.update({
+      where: { id: projectId },
+      data: { reviewStatus: 'PENDING', submittedAt: new Date(), submittedById: user?.sub ?? null, reviewComment: null },
+    });
+  }
+
+  /** leader/admin 受理审核；申报人与审核人分离（admin 复核不受限） */
+  async reviewSubmission(projectId: string, dto: ReviewSubmissionDto, user?: AuthenticatedUser) {
+    if (!user || !['leader', 'admin'].includes(user.role)) {
+      throw new ForbiddenException({ error: '仅领导或管理员可受理审核', code: 'REVIEW_ROLE_FORBIDDEN' });
+    }
+    const item = await this.prisma.projectManagementItem.findUnique({
+      where: { id: projectId },
+      select: { reviewStatus: true, submittedById: true },
+    });
+    if (!item) throw new NotFoundException('未找到对应项目。');
+    if (item.reviewStatus !== 'PENDING') {
+      throw new BadRequestException({ error: '该项目不在待审核状态', code: 'NOT_PENDING_REVIEW' });
+    }
+    if (user.role !== 'admin' && item.submittedById === user.sub) {
+      throw new BadRequestException({ error: '申报人与审核人不得为同一人，请由领导或管理员受理', code: 'SELF_REVIEW_FORBIDDEN' });
+    }
+    if (!dto.approve && !dto.comment?.trim()) {
+      throw new BadRequestException({ error: '驳回必须填写理由', code: 'REJECT_REASON_REQUIRED' });
+    }
+    return this.prisma.projectManagementItem.update({
+      where: { id: projectId },
+      data: {
+        reviewStatus: dto.approve ? 'APPROVED' : 'REJECTED',
+        reviewedAt: new Date(),
+        reviewedById: user.sub,
+        reviewComment: dto.comment?.trim() || null,
+      },
+    });
+  }
+
   async updateStage(
     projectId: string,
     stageKey: string,
@@ -2904,9 +2983,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // P1-12：阶段完成最小实质校验（与 UI 步骤检查口径一致——此前 0 文件/0 邀请/0 专家可空完成，
     // 一路放行到开标确认才发现缺前置，返工成本高）
     if (dto.status === PROJECT_STAGE_STATUS.COMPLETED) {
-      if (stageKey === 'TENDER_DOCUMENT') {
-        const files = await this.prisma.attachment.count({ where: { projectManagementStageId: stage.id } });
-        if (files === 0) throw new BadRequestException('采购文件阶段需至少上传 1 份文件（或在线编写保存）后再标记完成');
+      // DA/T 103-2024 前端控制（§4.1 + A.1a）：按归档范围表检查该阶段必选材料
+      // （范围表 attachment 源必选项 = TENDER_DOCUMENT/AWARD_DECISION/CONTRACT 三处，与下方专项检查口径互补）
+      const gateMissing = await this.archiveScope.checkStageGate(projectId, stageKey);
+      if (gateMissing.length > 0) {
+        throw new BadRequestException(
+          `该阶段归档必选材料缺失（DA/T 103-2024 附录B）：${gateMissing.join('、')}，请上传后再标记完成`,
+        );
       }
       if (stageKey === 'SUPPLIER_INVITATION') {
         const rsvps = await this.prisma.invitationRsvp.count({ where: { projectId } });
@@ -3153,6 +3236,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
       budgetAmount?: number;
       projectReason?: string;
       supplierRequirements?: string;
+      implementerName?: string;
+      contractPricingType?: string;
+      sectionPlan?: string;
+      activitySchedule?: string;
+      riskMeasures?: string;
     },
   ) {
     const project = await this.prisma.projectManagementItem.findUnique({
@@ -3194,6 +3282,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (dto.contractAmount !== undefined) {
       updateData.contractAmount = dto.contractAmount;
+    }
+
+    // B1（7.2.1.2）：采购方案要素可编辑
+    for (const key of ['implementerName', 'contractPricingType', 'sectionPlan', 'activitySchedule', 'riskMeasures'] as const) {
+      if (dto[key] !== undefined) {
+        updateData[key] = dto[key] || null;
+      }
     }
 
     if (dto.demandProject !== undefined) {
@@ -3776,7 +3871,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // 加载该阶段的合规审查规则
-    const checkpoints = getStageComplianceRules(targetStage.stageKey);
+    // C4：DB 覆盖层优先，空则回退内置表（消费口径不变，仍为 checkpoints 数组）
+    const { checkpoints } = await this.stageCompliance.getRules(targetStage.stageKey);
 
     // 收集当前阶段的文件分析结果（如果有缓存）
     const stageFiles: Array<{ fileName: string; stageMatch: string; contentSummary: string }> = [];
@@ -4484,7 +4580,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
   async deletePermanently(projectId: string, user?: AuthenticatedUser) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { id: true, status: true, createdById: true },
+      select: { id: true, status: true, createdById: true, archiveExportedAt: true, updatedAt: true },
     });
 
     if (!project) {
@@ -4498,6 +4594,24 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (project.status !== PROJECT_MANAGEMENT_STATUS.RECYCLED) {
       throw new BadRequestException('请先将项目移入回收站后再彻底删除。');
+    }
+
+    // ── DA/T 103-2024 §8.5 保留策略（S1）──
+    // ① 已导出归档信息包（ASIP）的卷 = 已移交档案，平台侧禁止物理删除；
+    //    如确需重做，先由 leader/admin 在归档管理页取消归档标记并清除导出记录。
+    if (project.archiveExportedAt) {
+      throw new ConflictException(
+        `该项目已于 ${project.archiveExportedAt.toLocaleDateString('zh-CN')} 导出归档信息包（DA/T 103-2024 档案保留），禁止彻底删除。`,
+      );
+    }
+    // ② 回收站起算不足 3 年：电子文件在原平台至少保留 3 年（即使未归档）
+    const recycledSince = Date.now() - project.updatedAt.getTime();
+    const THREE_YEARS_MS = 3 * 365 * 86400000;
+    if (recycledSince < THREE_YEARS_MS) {
+      const daysLeft = Math.ceil((THREE_YEARS_MS - recycledSince) / 86400000);
+      throw new ConflictException(
+        `依据 DA/T 103-2024 §8.5，电子文件在平台至少保留 3 年；该项目回收尚不足 3 年（余 ${Math.floor(daysLeft / 30)} 个月），暂不能彻底删除。`,
+      );
     }
 
     await this.prisma.projectManagementItem.delete({

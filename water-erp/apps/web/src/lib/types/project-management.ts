@@ -188,6 +188,13 @@ export type ProjectManagementItem = {
   awardedSupplier?: string | null;
   contractAmount?: number | null;
   archivedAt?: string | null;
+  // CTS-EBS01 A-36/37 递交受理留痕
+  reviewStatus?: string | null; // null=未递交 | PENDING | APPROVED | REJECTED
+  submittedAt?: string | null;
+  submittedByName?: string | null;
+  reviewedAt?: string | null;
+  reviewedByName?: string | null;
+  reviewComment?: string | null;
   createdById?: string | null;
   createdByName?: string | null;
   createdAt?: string;

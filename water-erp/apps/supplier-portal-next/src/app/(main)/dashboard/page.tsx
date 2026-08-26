@@ -16,9 +16,11 @@ import {
   CheckCircle2,
   Clock,
   Folder,
+  Landmark,
   Medal,
   Phone,
   TriangleAlert,
+  Trophy,
 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { supplierApi } from "@/lib/api/supplier";
@@ -143,6 +145,8 @@ export default function DashboardPage() {
       { key: "basic", label: "基本资料", ...cats.basic, icon: Building2, color: "#064ea2" },
       { key: "contacts", label: "联系人", ...cats.contacts, icon: Phone, color: "#0a5eb8" },
       { key: "qualifications", label: "资质材料", ...cats.qualifications, icon: Medal, color: "#059669" },
+      ...(cats.bankAccounts ? [{ key: "bankAccounts", label: "银行账户", ...cats.bankAccounts, icon: Landmark, color: "#b45309" }] : []),
+      ...(cats.performances ? [{ key: "performances", label: "主体业绩", ...cats.performances, icon: Trophy, color: "#7c3aed" }] : []),
     ];
   }, [stats]);
 
@@ -150,6 +154,8 @@ export default function DashboardPage() {
     if (cat.key === "basic") return `${cat.filled}/${cat.total} 项`;
     if (cat.key === "contacts") return `${cat.count ?? cat.filled} 人`;
     if (cat.key === "qualifications") return `${cat.count ?? cat.filled} 项`;
+    if (cat.key === "bankAccounts") return `${cat.count ?? cat.filled} 个`;
+    if (cat.key === "performances") return `${cat.count ?? cat.filled} 项`;
     return `${cat.filled}/${cat.total}`;
   }
   const profileScore = stats?.profileCompleteness?.score ?? 0;

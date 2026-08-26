@@ -198,12 +198,31 @@ jobs:
           echo "api failed to start"; tail -30 /tmp/api-e2e.log; exit 1
 
       - name: Dual-envelope crypto symmetry selfcheck
-        working-directory: water-erp/apps/supplier-portal
+        working-directory: water-erp/apps/supplier-portal-next
         run: ../api/node_modules/.bin/tsx scripts/dual-selfcheck.ts
 
       - name: New-track e2e (55 checks)
-        working-directory: water-erp/apps/supplier-portal
+        working-directory: water-erp/apps/supplier-portal-next
         run: E2E_API=http://localhost:4001 ../api/node_modules/.bin/tsx scripts/e2e-dual-envelope.ts
+
+      # RolesGuard 默认拒绝抽查（2026-08-26 翻转后的回归闸）：supplier 打管理端点必 403，admin 正常
+      - name: RolesGuard default-deny spot check (supplier 403 / admin 200)
+        run: |
+          set -e
+          BASE=http://localhost:4001/api
+          curl -s -c /tmp/sup.jar -H 'Content-Type: application/json' -H 'X-Portal: supplier' \
+            -d '{"username":"四川水发建设有限公司","password":"supplier@2026"}' "$BASE/auth/login" > /dev/null
+          curl -s -c /tmp/admin.jar -H 'Content-Type: application/json' -H 'X-Portal: web' \
+            -d '{"username":"Swhi-CGZX-admin","password":"Swhi-CGZX-admin@2026"}' "$BASE/auth/login" > /dev/null
+          check() { # $1 method  $2 jar  $3 path  $4 expect  $5 desc  $6 portal
+            code=$(curl -s -o /dev/null -w '%{http_code}' -b "$2" -H "X-Portal: $6" -X "$1" "$BASE$3")
+            echo "$5 → $code (expect $4)"
+            [ "$code" = "$4" ] || { echo "GUARD SPOT-CHECK FAILED: $5"; exit 1; }
+          }
+          check GET  /tmp/sup.jar   /operation-log/archive 403 'supplier GET /operation-log/archive' supplier
+          check POST /tmp/sup.jar   /catalog/admin/items    403 'supplier POST /catalog/admin/items'    supplier
+          check GET  /tmp/admin.jar /operation-log/archive 200 'admin GET /operation-log/archive'      web
+          echo 'guard spot-check: all assertions passed'
 
       - name: Legacy-track regression (13 checks, snapshot-based)
         working-directory: water-erp/scripts

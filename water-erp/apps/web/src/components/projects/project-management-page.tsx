@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
+import { AlertCircle, Archive, CheckCircle2, ClipboardCopy, FolderOpen, Plus, Recycle, Search, X } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -254,6 +255,11 @@ export function ProjectManagementPage() {
                 </div>
               </div>
               <div className="page-hero__right">
+                {/* CTS A-200/201 · DA/T 103-2024 归档管理入口（卷台账/四性/ASIP） */}
+                <Link href="/archive" className="neu-btn-soft">
+                  <Archive size={16} />
+                  归档管理
+                </Link>
                 <button
                   type="button"
                   onClick={() => setShowRecycleBin(true)}
@@ -407,6 +413,7 @@ export function ProjectManagementPage() {
               onMoveToRecycleBin={handleMoveToRecycleBin}
               canModify={canModifyProject(selectedItem)}
               currentUsername={currentUser?.username}
+              currentUserRole={currentUser?.role}
               autoOpenBidConfirm={autoBidConfirm}
             />,
             document.getElementById('app-main') || document.body,

@@ -1,7 +1,7 @@
 # RolesGuard 默认拒绝 · 设计 Spec
 
 > 日期：2026-08-26
-> 状态：待审阅
+> 状态：已实施（2026-08-26 落地于 feat/rolesguard-default-deny，翻转 commit aa41b293；扫描 673/673 清零 + CI guard 抽查闸）
 > 依据：架构审计（2026-08-14）安全 P0 首项「RolesGuard 默认放行」；本次实测 20 controller / ~298 handler 无覆盖
 > 用户决策（2026-08-26 确认）：①默认拒 + `@AnyRole()` 显式标记；②角色归类以前端调用面 + e2e 验证为准
 

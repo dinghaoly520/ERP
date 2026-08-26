@@ -21,7 +21,7 @@ Run workspace commands from `water-erp/`.
 | **API** | `apps/api` | NestJS 11 + Prisma | 4001 | REST API backend; Swagger at `/api/docs` |
 | **信息门户** | `apps/public-portal` | Next.js 16 App Router | 3002 | Public landing page, announcements, policies, login entry for all roles |
 | **采购商城** | `apps/mall` | Next.js 16 App Router | 3003 | E-commerce procurement mall — catalog browsing, procurement, favorites |
-| **供应商门户** | `apps/supplier-portal` | Vue 3 + Vite | 3004 | Supplier self-service — registration, bidding, qualifications, profile |
+| **供应商门户** | `apps/supplier-portal-next` | Next.js 16 App Router | 3004 | Supplier self-service — registration 2.0（六部分向导）, bidding（dual-v2 双信封）, U盾管理, qualifications, profile |
 | **采购管理工作台** | `apps/web` | Next.js 16 App Router | 3005 | Admin/internal staff — announcements, supplier management, expert admin, mall management |
 | **专家门户** | `apps/expert-portal` | Next.js 16 App Router | 3006 | Bid expert workstation — project review, identity verification, scoring, reports |
 | **开评标管理端** | `apps/bid-portal` | Next.js 16 App Router | 3007 | **开标+评标全过程执行终端（现场）**：开标任务板 + 开标大厅（组建会话/解密/唱标/异议/监督视图）+ 评标管理（启动评标/评分矩阵/生成结果/异议裁决/澄清答疑）+ 评标签字包（打印·手写签字·回传登记）+ 评标回流包。评标前准备与评标后归档归 :3005 |
@@ -59,11 +59,13 @@ The e-commerce procurement platform for browsing and purchasing from the central
 **Login cookie:** `token_mall`.  
 **Target audience:** Mall procurement staff.
 
-### 供应商门户 (`supplier-portal`, :3004)
+### 供应商门户 (`supplier-portal-next`, :3004)
+
+**Migration note (2026-08-25):** fully rewritten from Vue 3 to Next.js 16 + React 19 + Tailwind v4 (same stack as all other portals); the old `apps/supplier-portal` Vue directory has been deleted.
 
 Self-service portal for suppliers. Supports registration (with enterprise info + qualification uploads), browsing bid opportunities, submitting encrypted bids, viewing bid progress, managing company profile/contacts/qualifications, and requesting change approvals.
 
-**Tech:** The only Vue 3 portal — uses Element Plus UI, Pinia state management, and Vue Router.  
+**Tech:** Next.js 16 App Router + React 19 + Tailwind v4（视图类名沿用迁移时的 sp-*/reg-* 体系，样式在 globals.css + `src/styles/pages/*.css` 分组）。**登录用户名 = 统一社会信用代码（机构代码）**——注册/临时注册/Excel 导入三处后端强制，`organizationCode` 仅作冗余同步存储。  
 **Access:** Requires login as `supplier` role.  
 **Login cookie:** `token_supplier`.  
 **Target audience:** Registered suppliers and new suppliers registering.
@@ -269,7 +271,7 @@ Each portal uses an independent login session via named httpOnly cookies:
 
 **Key insight:** bid_portal (:3007) uses its own `token_bid` cookie (auth port-roles 体系：:3006 登录分流时非 bid_expert 角色写 `token_bid` 后跳 :3007；旧文档「共用 token_web」已过时). The bid portal's login redirects through the expert portal (:3006) login page, which sets `token_bid`.
 
-The auth chain is `AuthGuard (global) → RolesGuard (global)`, registered via `APP_GUARD` in `AppModule`. `AuthGuard` extracts + verifies the JWT; `RolesGuard` checks `@Roles(...)` metadata. `@Public()` skips auth; no `@Roles` means any authenticated user can access.
+The auth chain is `AuthGuard (global) → RolesGuard (global)`, registered via `APP_GUARD` in `AppModule`. `AuthGuard` extracts + verifies the JWT; `RolesGuard` checks `@Roles(...)` metadata. `@Public()` skips auth; `@AnyRole()` = any authenticated user（认证边界语义，非授权）。**RolesGuard 默认拒绝（2026-08-26）**：路由无 `@Roles`/`@AnyRole`/`@Public` 任一 → 403 `NO_ROLE_CONFIGURED`；新路由必须显式标注其一。排障：`apps/api` 下 `npx tsx scripts/list-uncovered-routes.ts [--json out.json]` 列未覆盖路由；CI e2e 内置 supplier 403 抽查闸。curl 调试须带 `X-Portal` 头（否则 portal 识别回退旧 `token` cookie → 401 而非 403，勿误判守卫）。spec：`water-erp/docs/superpowers/specs/2026-08-26-roles-guard-default-deny-design.md`
 
 **Cookie resolution** is handled by `apps/api/src/auth/portal-cookie.ts`: portal is detected from `X-Portal` header → `Origin`/`Referer` port → falls back to legacy `token` cookie. This allows the API to serve multiple portals with independent sessions on `localhost` (where cookies are shared across ports).
 
@@ -393,7 +395,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 ### Frontend Conventions
 
 - Shared workbench components live in `packages/ui` (`@water-erp/ui`). Consuming apps must add `@source "../../node_modules/@water-erp/ui"` to their `globals.css` (Tailwind v4 requirement).
-- Next.js portals use React 19 + Tailwind CSS v4; supplier portal uses Vue 3 + Element Plus + Pinia.
+- All portals (incl. supplier) use Next.js 16 + React 19 + Tailwind CSS v4.
 - **Design system** (see `.impeccable.md`): industrial precision aesthetic — 1px hairline dividers, monospace numerals, layered navy→ice blue palette, Lucide 1.5px-stroke icons, `rounded-2xl` cards, `rounded-xl` buttons. The signature component treatment is a **neumorphic raised-border system** (directional light/dark shadow pairs derived from the page BG `oklch(0.975 0.012 258)`; never flat omnidirectional `box-shadow`) — buttons raise on hover, inset on active. Anti-patterns: no gradient buttons, no emoji-as-icons, no Material-style elevation shadows, no generic admin-template look. (`docs/glass-morphism-design-system.md` is an earlier, superseded direction; `.impeccable.md` is current.)
 - No mock data fallbacks — show real DB data, loading, or empty states.
 
@@ -422,6 +424,23 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **BID_DUAL_ENVELOPE=false 应急语义**：flag 关时新轨投递（envelope.version='dual-v2'）被显式 400 `DUAL_DISABLED` 拒收——供应商须按旧流程（clientDeks）重新投递；回退前应公告通知投标人。
 - **管理方密钥轮转**：`POST /api/bid/admin-cert/generate` 置旧证 inactive；历史信封按 `envelope.adminCertId` 定位旧私钥（keystore 目录每证一文件，保留至其覆盖提交全部归档）。
 
+## 并行会话协作约定（2026-08-26 起生效）
+
+两个 Claude 会话并行实施不同规范计划，**分工与避让规则如下（双方必须遵守）**：
+
+| 会话 | 负责范围 | 计划文档 |
+|------|---------|---------|
+| 会话 A（GB/T 43711） | GB/T 43711 规范全部工作项 | `docs/plans/GB-T-43711规范完善任务计划-2026-08-24.md` |
+| 会话 B（CTS/DA-T103） | CTS-EBS01 + DA/T 103 收窄路线图剩余项（A/B/C/D 域） | `docs/superpowers/plans/2026-08-24-system-pm-process-archive-roadmap.md` |
+
+规则：
+1. **一方工作时另一方不动工作区**（不改代码、不跑会写盘的命令）。开工前先 `git status` 确认对方无未提交改动；对方有改动则等待其提交。
+2. **禁用 `git add -A` / `git add .`**——只 add 自己明确改动的文件路径，防止卷入对方半成品。
+3. **共享高危文件**（`apps/api/prisma/schema.prisma`、`app.module.ts`、`bid.controller.ts`、`bid-confirm-panel.tsx`、`packages/shared`）：仅在对方工作区干净时修改；schema 改动须在己方提交内附对应迁移。
+4. **每完成一个小步骤即提交**，不留大跨度未提交状态；提交信息注明所属规范（如 `feat(43711):` / `feat(compliance):`）。
+5. 冲突已发生时：外科手术只摘除自己的片段（按块精确匹配），不回滚对方改动，向用户报告。
+
+会话 B 的 C3 暂存件：`docs/superpowers/plans/2026-08-26-c3-non-tender-deal-pending.md`（含设计+测试代码，恢复时按文档落地）。
 ## 操作日志法定留存（P1-12，2026-08-25）
 
 - **OperationLog**：过期月分区 DROP 前先归档到 MinIO（`operation-log-archive/<yyyy_mm>.jsonl.gz`，gzip JSON-lines + SHA-256），清单表 `OperationLogArchive`（month 唯一/rowCount/objectKey/sha256/sizeBytes）；归档失败**不 DROP**（下轮重试，宁可超保留期不可损毁）。`OPERATION_LOG_ARCHIVE_ENABLED=false` 可回退旧行为（直接 DROP），但启动时 warn 不满足办法第42条≥15年留存。

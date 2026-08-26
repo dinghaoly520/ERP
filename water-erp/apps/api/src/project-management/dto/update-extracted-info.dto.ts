@@ -29,6 +29,27 @@ export class UpdateExtractedInfoDto {
   @IsNumber()
   contractAmount?: number;
 
+  // B1（GB/T 43711 7.2.1.2 采购方案要素）
+  @IsOptional()
+  @IsString()
+  implementerName?: string;
+
+  @IsOptional()
+  @IsString()
+  contractPricingType?: string;
+
+  @IsOptional()
+  @IsString()
+  sectionPlan?: string;
+
+  @IsOptional()
+  @IsString()
+  activitySchedule?: string;
+
+  @IsOptional()
+  @IsString()
+  riskMeasures?: string;
+
   @IsOptional()
   @IsString()
   demandProject?: string;

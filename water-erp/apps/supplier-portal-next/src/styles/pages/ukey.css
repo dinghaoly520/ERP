@@ -1,0 +1,62 @@
+/* ═══════════════════════════════════════════════════════════════════
+   U盾管理页样式（移植自 Vue supplier-portal profile/UkeyManage.vue <style scoped>）
+   类名与 Vue 版逐字一致；基础层（.page-container / .neu-card / .sp-error-block /
+   neu-btn-* / .neu-input / 弹窗 .gdlg-*）来自 globals.css，此处只放页面私有规则。
+   React 改写追加（文末标注）：el-tag 原生等价、导出弹窗表单行。
+═════════════════════════════════════════════════════════════════ */
+
+.ukey-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+@media (max-width: 1100px) { .ukey-grid { grid-template-columns: 1fr; } }
+
+.detail-card { padding: 24px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; box-shadow: inset 0 -1px 0 var(--hairline); }
+.card-title { font-size: 15px; font-weight: 800; color: var(--foreground); }
+
+.ukey-state {
+  font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 8px;
+  color: var(--muted-foreground); background: color-mix(in oklab, var(--hairline) 40%, transparent);
+}
+.ukey-state.open { color: var(--success); background: color-mix(in oklab, var(--success) 12%, transparent); }
+
+.open-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.import-row { display: flex; gap: 10px; margin-top: 8px; }
+.file-hint { font-size: 12px; color: var(--muted-foreground); }
+
+.cert-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.cert-list { display: flex; flex-direction: column; gap: 8px; }
+.cert-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; border-radius: 10px; background: var(--surface);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5), 1px 1px 3px oklch(0.55 0.03 258 / 0.06), -1px -1px 2px oklch(1 0 0 / 0.6);
+}
+.cert-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cert-sn { font-size: 12px; font-weight: 700; color: var(--brand); font-family: 'SF Mono', 'JetBrains Mono', monospace; }
+.cert-dn { font-size: 13px; font-weight: 600; color: var(--foreground); }
+.cert-time { font-size: 11px; color: var(--muted-foreground); }
+.cert-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.ukey-empty {
+  padding: 28px 16px; text-align: center; font-size: 13px; color: var(--muted-foreground);
+  border: 1px dashed var(--hairline); border-radius: 12px;
+}
+.ukey-security-note {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin-top: 16px; padding-top: 14px; box-shadow: inset 0 1px 0 var(--hairline);
+  font-size: 12px; line-height: 1.6; color: var(--muted-foreground);
+}
+.ukey-security-note svg { flex-shrink: 0; margin-top: 2px; color: var(--brand); }
+.export-desc { margin: 0 0 14px; font-size: 13px; color: var(--muted-foreground); line-height: 1.6; }
+
+/* ═══ React 改写追加：el-tag 原生等价（plain 效果，对齐 Element Plus 色板）═══ */
+.ukey-tag {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 9px;
+  border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 1;
+  border: 1px solid; white-space: nowrap;
+}
+.ukey-tag--success { color: #67c23a; background: #f0f9eb; border-color: #e1f3d8; }
+.ukey-tag--info { color: #909399; background: #f4f4f5; border-color: #e9e9eb; }
+
+/* ═══ React 改写追加：导出弹窗表单行（el-form label-width=90px 等价）═══ */
+.export-form { display: flex; flex-direction: column; gap: 12px; }
+.export-form-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 4px; }
+.export-form-row label { font-size: 13px; font-weight: 600; color: var(--foreground); }

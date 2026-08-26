@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useBidWebSocket } from "@/hooks/use-bid-websocket";
 import { ChatPanel } from "@/components/chat-panel";
 import { EmptyState, SpButton, SpDialog, SpTextarea } from "@/components/ui";
+import { OpeningDecryptCard } from "@/components/opening-decrypt-card";
 import "@/styles/pages/opening.css";
 import "@/styles/pages/bid-components.css"; // ChatPanel（chat-panel / cp-*）样式
 
@@ -32,6 +33,7 @@ export default function OpeningHallPage() {
   const [loadError, setLoadError] = useState(false);
   const [loadErrorMsg, setLoadErrorMsg] = useState("");
   const [profileError, setProfileError] = useState(false);
+  const [profileSm2PublicKey, setProfileSm2PublicKey] = useState("");
   const [bootstrapping, setBootstrapping] = useState(false);
   // 异议弹窗（ElMessageBox.prompt 的样式化等价）：textarea + 必填校验
   const [disputeOpen, setDisputeOpen] = useState(false);
@@ -87,6 +89,7 @@ export default function OpeningHallPage() {
       const profile = await supplierApi.getProfile();
       setSupplierId(profile?.id ?? "");
       setSupplierName(profile?.name ?? "");
+      setProfileSm2PublicKey(profile?.sm2PublicKey ?? "");
       const err = !profile?.id;
       setProfileError(err);
       return err;
@@ -311,6 +314,15 @@ export default function OpeningHallPage() {
             {!isOpening && stage && <div className="stage-hint">大厅互动仅在开标阶段开放。</div>}
           </div>
         </section>
+
+        {/* ═══ 双信封 v2：解密我的投标（OPENING 阶段轮询 opening-package；旧轨自动隐藏）═══ */}
+        <OpeningDecryptCard
+          projectId={projectId}
+          isOpening={isOpening}
+          submitted={!!record?.submitted}
+          profileSm2PublicKey={profileSm2PublicKey}
+          onDecrypted={() => { refresh().catch(() => {}); }}
+        />
 
         {/* 唱标记录总表：自开标起向本项目全体投标人公开（《电子招标投标办法》第30条），
              WS opening:record:updated → refresh() 实时更新；本司行按 bidSupplierId 高亮 */}

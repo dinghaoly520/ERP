@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, BadRequestException } from '@nestjs/common';
 import { BidService } from './bid.service';
 import { BidScoreStandardService } from './bid-score-standard.service';
+import { GbCodeService } from '../common/gb-code.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ClarificationAiService } from './clarification-ai.service';
@@ -48,6 +49,7 @@ async function buildService(prisma: any) {
       BidService,
       BidScoreStandardService,
       { provide: PrismaService, useValue: prisma },
+      { provide: GbCodeService, useValue: { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => 'GB-PROC-TEST' } },
       { provide: NotificationService, useValue: { sendToRole: jest.fn().mockResolvedValue(undefined) } },
       { provide: ScoreStandardValidator, useValue: { assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
       // 与 bid.service.spec.ts 同口径（BidService 构造器第 4 参）

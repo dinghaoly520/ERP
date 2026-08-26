@@ -23,6 +23,10 @@ export class CreateEvaluationDto {
   @IsString() @IsOptional()
   comment?: string;
 
+  /** A4（4.1.1.8）：评价来源——procurement 采购过程（默认）| contract 合同履约验收后（C3） */
+  @IsString() @IsOptional()
+  evaluationSource?: 'procurement' | 'contract';
+
   @IsOptional()
   evidence?: Record<string, string>;
 }

@@ -439,17 +439,24 @@ describe('ProjectManagementService', () => {
       delete: jest.fn(),
     };
 
+    const archiveScope = { checkStageGate: jest.fn().mockResolvedValue([]) };
+
     const service = new ProjectManagementService(
       prisma as never,
+      { allocateProjectCode: async () => 'GB-TEST', allocateProcureCode: async () => 'GB-PROC-TEST' } as never, // gbCode
       aiService as never,
       documentParser as never,
       storage as never,
+      archiveScope as never, // archiveScope（DA/T103 归档范围闸门，测试可覆写缺失清单）
+      { onTerminalAttachmentUploaded: async () => undefined } as never, // archiveFlow
+      { getRules: async (k: string) => ({ checkpoints: [], source: 'builtin' }) } as never, // stageCompliance
     );
     return {
       service,
       prisma,
       aiService,
       documentParser,
+      archiveScope,
       readFileMock,
       writeFileMock,
       mkdirMock,
@@ -1195,12 +1202,12 @@ describe('ProjectManagementService', () => {
   describe('updateStage 阶段完成实质校验（P1-12）', () => {
     const completing = { status: 'COMPLETED' } as any;
 
-    it('TENDER_DOCUMENT 完成 + 0 附件 → 400', async () => {
-      const { service, prisma } = makeService();
+    it('TENDER_DOCUMENT 完成 + 归档范围必选材料缺失 → 400（DA/T103 前端控制）', async () => {
+      const { service, prisma, archiveScope } = makeService();
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'TENDER_DOCUMENT' });
-      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'TENDER_DOCUMENT' });
-      prisma.attachment = { count: jest.fn().mockResolvedValue(0) };
-      await expect(service.updateStage('pm-01', 'TENDER_DOCUMENT', completing)).rejects.toThrow('至少上传 1 份文件');
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ currentStage: 'TENDER_DOCUMENT', stages: [] });
+      archiveScope.checkStageGate.mockResolvedValueOnce(['采购文件']);
+      await expect(service.updateStage('pm-01', 'TENDER_DOCUMENT', completing)).rejects.toThrow('归档必选材料缺失');
     });
 
     it('SUPPLIER_INVITATION 完成 + 0 邀请回执 → 400', async () => {

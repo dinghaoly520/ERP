@@ -10,6 +10,7 @@ import { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import { ExtractionNotifyDto } from './dto/extraction-notify.dto';
 import { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
 import { SetAvailabilityDto, ConfirmRetireDto } from './dto/expert-status.dto';
+import { UpdateExpertStatusDto } from './dto/update-expert-status.dto';
 import {
   UpdateExpertProfileDto,
   GenerateNotificationDto,
@@ -326,6 +327,13 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '人工确认专家退库' })
   confirmRetire(@Param('id') id: string, @Body() dto: ConfirmRetireDto) {
     return this.expertAdminService.confirmRetire(id, dto.reason);
+  }
+
+  @Patch(':id/status')
+  @Roles('admin', 'leader')
+  @ApiOperation({ summary: 'CTS A-218/222 专家库状态：待审核/在库/暂停/退库（审核留痕 verifiedBy/At）' })
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateExpertStatusDto, @Request() req: any) {
+    return this.expertAdminService.updateProfileStatus(id, dto, req.user);
   }
 
   @Post('projects/:projectId/experts/:expertId/unconfirm-report')

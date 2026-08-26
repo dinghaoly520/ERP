@@ -239,6 +239,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Get('rules/extract/tasks/:taskId')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Poll extraction task status' })
   async getExtractionTask(@Param('taskId') taskId: string) {
     const task = await this.prisma.extractionTask.findUnique({
@@ -249,6 +250,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Get('rules/extract/active')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Find active extraction task for a knowledge base' })
   async getActiveExtraction(@Query('knowledgeBaseId') knowledgeBaseId: string) {
     const task = await this.prisma.extractionTask.findFirst({
@@ -270,6 +272,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Get('rules')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'List compliance rules' })
   async listRules(
     @Query('knowledgeBaseId') knowledgeBaseId?: string,
@@ -449,6 +452,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Post('review/tasks/:id/stop')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Stop a running review task' })
   async stopTask(
     @Param('id') id: string,
@@ -470,6 +474,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Delete('review/tasks/:id')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Delete review task' })
   async deleteTask(
     @Param('id') id: string,
@@ -485,6 +490,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Get('review/stats/today')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Get today\'s review stats for current user' })
   async getTodayStats(@CurrentUser() user: AuthenticatedUser | undefined) {
     const now = new Date();
@@ -517,6 +523,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Get('review/tasks')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'List review tasks' })
   async listTasks(@CurrentUser() user: AuthenticatedUser | undefined) {
     // 管理员可以看到所有任务，普通用户只能看到自己的任务
@@ -529,6 +536,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Get('review/tasks/:id')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Get review task result' })
   async getTask(
     @Param('id') id: string,
@@ -543,6 +551,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   @Patch('review/tasks/:id/issues/resolve')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Accept or reject an issue suggestion' })
   async resolveIssue(
     @Param('id') id: string,
@@ -830,6 +839,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   // ── Download modified document ──
 
   @Get('review/tasks/:id/download')
+  @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Download the modified document' })
   async downloadModifiedDocument(
     @Param('id') id: string,

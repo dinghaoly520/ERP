@@ -686,3 +686,7 @@ select.qpn-inp { padding: 0 36px 0 14px; appearance: none; cursor: pointer; }
 .crp-file-add { cursor: pointer; }
 
 @media (max-width: 768px) { .crp-row-grid { grid-template-columns: 1fr; } .perf-grid { grid-template-columns: 1fr; } }
+
+/* ── 银行账户表格：内容居中显示 ── */
+.prof-bank-table th, .prof-bank-table td { text-align: center; vertical-align: middle; }
+.prof-bank-table th:last-child { width: 90px; }

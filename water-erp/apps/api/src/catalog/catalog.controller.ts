@@ -13,6 +13,7 @@ export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
 
   @Get()
+  @Roles('admin', 'leader', 'staff', 'mall')
   @ApiOperation({ summary: '采购目录列表' })
   async list(@Query() query: CatalogAdminListQueryDto, @Request() req: any) {
     return this.catalogService.list(query, req.user?.role);
@@ -88,15 +89,24 @@ export class CatalogController {
   // ── 品类树管理 ──
 
   @Get('categories/tree')
+  @Roles('admin', 'leader', 'staff', 'mall')
   @ApiOperation({ summary: '获取完整品类树' })
   async categoryTree() {
     return this.catalogService.getCategoryTree();
   }
 
   @Get('categories/:id')
+  @Roles('admin', 'leader', 'staff', 'mall')
   @ApiOperation({ summary: '获取品类节点详情' })
   async categoryDetail(@Param('id', new ParseIntPipe()) id: number) {
     return this.catalogService.getCategory(id);
+  }
+
+  @Get('admin/demand-aggregation')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: 'B2（4.1.3.2）：需求归集视图——按品类聚合在立项目录的需求计划' })
+  demandAggregation() {
+    return this.catalogService.demandAggregation();
   }
 
   @Post('admin/categories')
@@ -137,6 +147,7 @@ export class CatalogController {
   // ── 属性模板 ──
 
   @Get('categories/:id/attribute-templates')
+  @Roles('admin', 'leader', 'staff', 'mall')
   @ApiOperation({ summary: '获取品类的属性模板列表' })
   async categoryAttributeTemplates(@Param('id', new ParseIntPipe()) id: number) {
     return this.catalogService.getCategory(id);
@@ -219,7 +230,7 @@ export class CatalogController {
 
   // ── 目录项关联 ──
 
-  @Get('items/:id/relations') async listItemRelations(@Param('id') id: string, @Request() req: any) { return this.catalogService.listItemRelations(id, req.user?.role); }
+  @Get('items/:id/relations') @Roles('admin', 'leader', 'staff', 'mall') async listItemRelations(@Param('id') id: string, @Request() req: any) { return this.catalogService.listItemRelations(id, req.user?.role); }
   @Post('admin/items/:id/relations') @Roles('admin', 'leader', 'staff') async createItemRelation(@Request() req: any, @Param('id') id: string, @Body() dto: CreateItemRelationDto) { return this.catalogService.createItemRelation(req.user.sub, id, dto); }
   @Delete('admin/items/:id/relations/:relationId') @Roles('admin', 'leader', 'staff') async deleteItemRelation(@Param('relationId', new ParseIntPipe()) relationId: number) { return this.catalogService.deleteItemRelation(relationId); }
 
@@ -263,6 +274,7 @@ export class CatalogController {
   }
 
   @Get('favorites')
+  @Roles('mall')
   @ApiOperation({ summary: '我的收藏目录' })
   async favorites(@Request() req: any) {
     return this.catalogService.listFavorites(req.user.sub, req.user?.role);
@@ -289,6 +301,7 @@ export class CatalogController {
   }
 
   @Post(':id/favorite')
+  @Roles('mall')
   @ApiOperation({ summary: '收藏 / 取消收藏' })
   async toggleFavorite(@Request() req: any, @Param('id') id: string) {
     return this.catalogService.toggleFavorite(req.user.sub, id);
@@ -315,13 +328,14 @@ export class CatalogController {
   @Post('admin/items/:id/attachments') @Roles('admin', 'leader', 'staff') async uploadAttachment(@Param('id') id: string, @Body() dto: CreateAttachmentDto) { return this.catalogService.createAttachment(id, dto.fileName, dto.fileUrl, dto.fileType, dto.fileSize); }
   @Delete('admin/attachments/:id') @Roles('admin', 'leader', 'staff') async deleteAttachment(@Param('id') id: string) { return this.catalogService.deleteAttachment(id); }
 
-  @Post(':id/subscribe') async subscribe(@Request() req: any, @Param('id') id: string) { return this.catalogService.subscribe(req.user.sub, id); }
-  @Delete(':id/subscribe') async unsubscribe(@Request() req: any, @Param('id') id: string) { return this.catalogService.unsubscribe(req.user.sub, id); }
+  @Post(':id/subscribe') @Roles('admin', 'leader', 'staff') async subscribe(@Request() req: any, @Param('id') id: string) { return this.catalogService.subscribe(req.user.sub, id); }
+  @Delete(':id/subscribe') @Roles('admin', 'leader', 'staff') async unsubscribe(@Request() req: any, @Param('id') id: string) { return this.catalogService.unsubscribe(req.user.sub, id); }
   @Get('admin/subscriptions') @Roles('admin', 'leader', 'staff') async subscriptions(@Request() req: any) { return this.catalogService.listSubscriptions(req.user.sub); }
 
   @Get('admin/price-radar') @Roles('admin', 'leader', 'staff') async priceRadar(@Query('categoryId') categoryId?: string) { return this.catalogService.priceRadar(categoryId ? Number(categoryId) : undefined); }
 
   @Get(':id')
+  @Roles('admin', 'leader', 'staff', 'mall')
   @ApiOperation({ summary: '采购目录详情' })
   async get(@Param('id') id: string, @Request() req: any) {
     return this.catalogService.get(id, req.user?.role);

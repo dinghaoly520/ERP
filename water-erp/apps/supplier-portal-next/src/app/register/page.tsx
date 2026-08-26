@@ -124,7 +124,7 @@ export default function RegisterPage() {
   // 用户名固定取「机构代码」、联系人/邮箱在第二步维护，故此处仅保留密码
   const [account, setAccount] = useState({ password: "", confirmPassword: "" });
   const [basic, setBasic] = useState({
-    logoUrl: "", name: "", creditCode: "", organizationCode: "", country: "中国", region: "",
+    logoUrl: "", name: "", creditCode: "", country: "中国", region: "",
     detailedAddress: "", registeredAddress: "", registeredCapital: "", enterpriseType: "", industry: "",
     businessScope: "", legalPerson: "", legalPersonIdCard: "", legalPersonPhone: "", companyEmail: "", companyWebsite: "",
   });
@@ -153,7 +153,7 @@ export default function RegisterPage() {
   if (!recoveredRef.current && typeof window !== "undefined") {
     recoveredRef.current = true;
     const d = draft.restoreDraft() as any;
-    if (d && (d.basic?.name || d.basic?.organizationCode)) setShowRecovery(true);
+    if (d && (d.basic?.name || d.basic?.creditCode)) setShowRecovery(true);
   }
   function acceptRecovery() {
     const d = draft.restoreDraft() as any;
@@ -198,10 +198,6 @@ export default function RegisterPage() {
   function validate(): boolean {
     const e: Record<string, string> = {};
     if (step === 0) {
-      // 用户名 = 机构代码：必填且满足登录账号长度约束
-      const oc = basic.organizationCode.trim();
-      if (!oc) e.organizationCode = "请输入机构代码（将作为登录账号）";
-      else if (oc.length < 4 || oc.length > 20) e.organizationCode = "机构代码须4-20个字符（将作为登录账号）";
       if (!account.password) e.password = "请输入密码";
       else if (account.password.length < 6) e.password = "密码不少于6位";
       if (account.confirmPassword !== account.password) e.confirmPassword = "两次输入的密码不一致";
@@ -295,7 +291,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const ok = await register({
-        username: basic.organizationCode.trim(), // 用户名固定为机构代码
+        username: basic.creditCode.trim(), // 用户名 = 统一社会信用代码（机构代码）
         // 账号展示名取主要联系人（第二步），邮箱同
         displayName: (contacts.find((c) => c.isPrimary && c.name.trim()) || contacts.find((c) => c.name.trim()))?.name.trim() || basic.legalPerson.trim(),
         password: account.password,
@@ -308,7 +304,6 @@ export default function RegisterPage() {
         registeredAddress: basic.registeredAddress.trim(),
         businessScope: basic.businessScope.trim(),
         logoUrl: basic.logoUrl || undefined,
-        organizationCode: basic.organizationCode.trim() || undefined,
         country: basic.country.trim() || undefined,
         region: basic.region.trim() || undefined,
         detailedAddress: basic.detailedAddress.trim() || undefined,
@@ -459,7 +454,7 @@ export default function RegisterPage() {
                   <span className="reg-hint">机构代码即登录用户名，密码不保存在草稿中</span>
                 </div>
                 <div className="reg-form-grid">
-                  {item("organizationCode", "机构代码", inp(basic.organizationCode, (s) => setBasic((b) => ({ ...b, organizationCode: s })), "如：JCWY-2015-088", { maxLength: 20 }), true)}
+                  {item("creditCode", "统一社会信用代码（登录账号）", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s })), "18 位代码，即登录用户名", { maxLength: 18, onBlur: checkCreditCode }), true)}
                   {item("password", "登录密码", (
                     <input className="reg-inp" type="password" value={account.password} placeholder="不少于6位" autoComplete="new-password"
                       onChange={(e) => setAccount((a) => ({ ...a, password: e.target.value }))} />
@@ -489,9 +484,8 @@ export default function RegisterPage() {
 
                 <div className="reg-form-grid">
                   {item("name", "公司名称", inp(basic.name, (s) => setBasic((b) => ({ ...b, name: s })), "营业执照上的企业全称"), true)}
-                  {item("creditCode", "统一社会信用代码", inp(basic.creditCode, (s) => setBasic((b) => ({ ...b, creditCode: s })), "18位代码", { maxLength: 18, onBlur: checkCreditCode }), true)}
-                  {item("organizationCode", "机构代码", (
-                    <input className="reg-inp" value={basic.organizationCode} disabled readOnly placeholder="同步登录账号中的机构代码" />
+                  {item("creditCode", "统一社会信用代码", (
+                    <input className="reg-inp" value={basic.creditCode} disabled readOnly placeholder="同步登录账号中的统一社会信用代码" />
                   ))}
                   {item("country", "国别", inp(basic.country, (s) => setBasic((b) => ({ ...b, country: s })), "中国"))}
                   {item("region", "所属行政区域", inp(basic.region, (s) => setBasic((b) => ({ ...b, region: s })), "如：四川省/成都市/双流区"))}
@@ -745,7 +739,7 @@ export default function RegisterPage() {
               <div className="reg-ov-sec">
                 <h4>登录账号</h4>
                 <dl className="reg-ov-grid">
-                  <div className="reg-ov-item"><dt>登录用户名（机构代码）</dt><dd>{basic.organizationCode || "—"}</dd></div>
+                  <div className="reg-ov-item"><dt>登录用户名（统一社会信用代码）</dt><dd className="reg-mono">{basic.creditCode || "—"}</dd></div>
                 </dl>
               </div>
               <div className="reg-ov-sec">

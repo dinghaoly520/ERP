@@ -13,7 +13,7 @@ const client = createApiClient({
   baseUrl: process.env.NEXT_PUBLIC_API_BASE || '/api',
   // tab 级会话 token（sessionStorage 各标签页独立）：同浏览器登录不同账号互不覆盖；
   // token 内 sid 与库中比对实现同账号仅一处在线
-  extraHeaders: () => {
+  extraHeaders: (): Record<string, string> => {
     const token = getWebToken();
     return token ? { 'X-Web-Token': token } : {};
   },
@@ -27,7 +27,7 @@ const client = createApiClient({
 
 export const api = {
   get: <T>(path: string) => client.get<T>(path),
-  post: <T>(path: string, body: unknown, init?: RequestInit) => client.post<T>(path, body, init),
+  post: <T>(path: string, body?: unknown, init?: RequestInit) => client.post<T>(path, body, init),
   postForm: <T>(path: string, body: FormData) => client.postForm<T>(path, body),
   put: <T>(path: string, body: unknown) => client.put<T>(path, body),
   patch: <T>(path: string, body: unknown) => client.patch<T>(path, body),

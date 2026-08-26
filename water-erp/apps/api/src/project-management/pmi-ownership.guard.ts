@@ -22,6 +22,11 @@ export class PmiOwnershipGuard implements CanActivate {
     const user = req.user;
     if (user?.role === 'admin') return true;
 
+    // CTS A-36/37 受理审核：leader 需审核他人递交的项目（申报人与审核人分离），仅放行 /review 端点
+    if (user?.role === 'leader' && typeof req.path === 'string' && req.path.endsWith('/review')) {
+      return true;
+    }
+
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id },
       select: { createdById: true },
