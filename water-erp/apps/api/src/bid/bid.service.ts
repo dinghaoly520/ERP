@@ -22,6 +22,7 @@ import { CreateOpeningRecordDto } from './dto/create-opening-record.dto';
 import { ResolveOpeningDisputeDto } from './dto/resolve-opening-dispute.dto';
 import { UpsertSupervisionAnnotationDto } from './dto/upsert-supervision-annotation.dto';
 import { assertMinAcceptedInvitees } from './bid-timing-rules';
+import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
 import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { encryptBuffer, decryptBuffer, streamToBuffer, verifyIntegrity, classifyDecryptOutcome } from './bid-submission.crypto';
@@ -1791,7 +1792,7 @@ export class BidService {
   async startEvaluation(id: string, actorId?: string, evaluationHours?: number) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
-      select: { stage: true, name: true, procurementMethod: true, roundMode: true },
+      select: { stage: true, name: true, procurementMethod: true, roundMode: true, projectManagementItemId: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     assertBidStageTransition(project.stage, 'EVALUATING');
@@ -1807,28 +1808,22 @@ export class BidService {
     if (confirmedExperts === 0) {
       throw new BadRequestException({ error: '项目未分配已确认的评审专家，无法启动评标', code: 'NO_EXPERTS_ASSIGNED' });
     }
-    if (confirmedExperts < 3) {
-      throw new BadRequestException({
-        error: `评标委员会已确认正选专家仅 ${confirmedExperts} 人，依法须 5 人以上单数（小项目不少于 3 人）`,
-        code: 'INSUFFICIENT_COMMITTEE_SIZE',
-      });
-    }
-    if (confirmedExperts % 2 === 0) {
-      throw new BadRequestException({
-        error: `评标委员会已确认正选专家 ${confirmedExperts} 人，须为单数`,
-        code: 'EVEN_COMMITTEE_SIZE',
-      });
-    }
-    // P1-7（#15 补全）：评审专家（非采购人代表）不得少于成员总数的三分之二（暂行规定第九条）
     const repCount = await this.prisma.bidExpert.count({
       where: { projectId: id, invitationStatus: 'confirmed', expertRole: '正选', isPurchaserRepresentative: true },
     });
-    if ((confirmedExperts - repCount) * 3 < confirmedExperts * 2) {
-      throw new BadRequestException({
-        error: `评审专家（非采购人代表）${confirmedExperts - repCount}/${confirmedExperts} 人，依法不得少于成员总数的三分之二`,
-        code: 'COMMITTEE_RATIO',
-      });
-    }
+    // W5（B-022）：水利工程建设项目委员会须 7 人以上单数（无小项目例外）；
+    // 水利判定=PMI 采购类别含「水利」或项目名命中水利关键词（PMI 缺失/查询失败退默认口径）
+    const hostPmi = project.projectManagementItemId
+      ? await this.prisma.projectManagementItem
+          .findUnique({ where: { id: project.projectManagementItemId }, select: { procurementCategory: true } })
+          .catch(() => null)
+      : null;
+    assertCommitteeComposition(
+      { confirmed: confirmedExperts, representatives: repCount },
+      isWaterProject(hostPmi, project.name)
+        ? { minSize: MIN_COMMITTEE_WATER, smallProjectExempt: false }
+        : {},
+    );
 
     // G4: 至少一个解密成功且未撤回的供应商，否则评标阶段无供应商可评（死局）
     const evaluableSupplierCount = await this.prisma.bidSupplier.count({
