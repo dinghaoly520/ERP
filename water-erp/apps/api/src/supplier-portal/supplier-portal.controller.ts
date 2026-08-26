@@ -2,6 +2,8 @@ import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Request,
 import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { SupplierPortalService } from './supplier-portal.service';
+import { TenderClarificationService } from '../tender-clarification/tender-clarification.service';
+import { AskClarificationDto } from '../tender-clarification/dto/ask-clarification.dto';
 import { BidDocumentService } from '../announcement/bid-document.service';
 import { CreateContactDto } from '../supplier/dto/create-contact.dto';
 import { UpdateContactDto } from '../supplier/dto/update-contact.dto';
@@ -26,6 +28,7 @@ export class SupplierPortalController {
     private portalService: SupplierPortalService,
     private prisma: PrismaService,
     private bidDocumentService: BidDocumentService,
+    private clarifications: TenderClarificationService,
     private objectionService: ObjectionService,
     private prequalService: PrequalService,
     private frameworkService: FrameworkService,
@@ -42,6 +45,28 @@ export class SupplierPortalController {
   }
 
   // ─── Profile ───
+
+  /** A-80：供应商就招标文件提出澄清问题（须已下载、截止前 10 日窗口） */
+  @Post('projects/:id/clarifications')
+  async askClarification(
+    @Param('id') id: string,
+    @Body() dto: AskClarificationDto,
+    @Request() req: any,
+  ) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { userId: req.user.sub },
+      select: { id: true, name: true },
+    });
+    if (!supplier) throw new ForbiddenException('非供应商账号');
+    return this.clarifications.askQuestion(id, supplier, dto);
+  }
+
+  /** 供应商视角澄清问答+澄清文件列表（Task 7 实装） */
+  @Get('projects/:id/clarifications')
+  async listClarifications(@Param('id') id: string, @Request() req: any) {
+    const supplierId = await this.getSupplierId(req.user.sub);
+    return this.clarifications.listForSupplier(id, supplierId);
+  }
 
   @Get('profile')
   async getProfile(@Request() req: any) {
