@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { ANY_ROLE_KEY } from '../decorators/any-role.decorator';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -15,14 +16,31 @@ export class RolesGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
+    // @AnyRole() — 任何已登录用户（认证边界，非授权）
+    const hasAnyRole = this.reflector.getAllAndOverride<boolean>(ANY_ROLE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (hasAnyRole) {
+      const { user } = context.switchToHttp().getRequest();
+      if (!user) {
+        throw new ForbiddenException({ error: '未登录', code: 'UNAUTHORIZED' });
+      }
+      return true;
+    }
+
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    // No @Roles decorator means public access (AuthGuard handles auth)
+    // 三者皆无（@Public/@AnyRole/@Roles）→ 默认拒绝（2026-08-26 Task 8 翻转）
+    // 新路由必须显式标注其一；排障见 scripts/list-uncovered-routes.ts
     if (!requiredRoles || requiredRoles.length === 0) {
-      return true;
+      throw new ForbiddenException({
+        error: '路由未配置角色元数据，默认拒绝',
+        code: 'NO_ROLE_CONFIGURED',
+      });
     }
 
     const { user } = context.switchToHttp().getRequest();

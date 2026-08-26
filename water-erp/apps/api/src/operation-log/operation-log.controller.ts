@@ -1,6 +1,7 @@
 import { Controller, Get, Query, Param, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Roles } from '../common/decorators/roles.decorator';
+import { AnyRole } from '../common/decorators/any-role.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { OperationLogService } from './operation-log.service';
@@ -43,6 +44,7 @@ export class OperationLogController {
   }
 
   @Get('my')
+  @AnyRole()
   @ApiOperation({ summary: '查询当前用户的操作日志' })
   async findMine(@CurrentUser() user: AuthenticatedUser, @Query() q: OperationLogQuery) {
     return this.service.findMine(user.sub, this.normalize(q));

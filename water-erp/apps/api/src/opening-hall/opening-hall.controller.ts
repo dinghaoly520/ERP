@@ -38,17 +38,20 @@ export class OpeningHallController {
   }
 
   @Get(':projectId/presence')
+  @Roles('supplier', 'admin', 'bid_host', 'leader', 'staff')
   async presence(@Request() req: any, @Param('projectId') projectId: string) {
     return this.svc.presence(projectId, await this.actor(req));
   }
 
   @Post(':projectId/messages')
+  @Roles('supplier', 'admin', 'bid_host', 'leader', 'staff')
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   async send(@Request() req: any, @Param('projectId') projectId: string, @Body() dto: SendMessageDto) {
     return this.svc.sendMessage(await this.actor(req), projectId, dto);
   }
 
   @Get(':projectId/messages')
+  @Roles('supplier', 'admin', 'bid_host', 'leader', 'staff')
   async list(
     @Request() req: any,
     @Param('projectId') projectId: string,
@@ -66,11 +69,13 @@ export class OpeningHallController {
   }
 
   @Get(':projectId/unread')
+  @Roles('supplier', 'admin', 'bid_host', 'leader', 'staff')
   async unread(@Request() req: any, @Param('projectId') projectId: string) {
     return this.svc.unreadCounts(await this.actor(req), projectId);
   }
 
   @Post(':projectId/read')
+  @Roles('supplier', 'admin', 'bid_host', 'leader', 'staff')
   async read(@Request() req: any, @Param('projectId') projectId: string, @Body() dto: MarkReadDto) {
     return this.svc.markRead(await this.actor(req), projectId, dto.roomKey, dto.lastMessageId);
   }

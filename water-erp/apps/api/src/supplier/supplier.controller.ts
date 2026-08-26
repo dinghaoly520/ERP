@@ -6,6 +6,7 @@ import { SupplierService } from './supplier.service';
 import { OwnerGuard } from './owner.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { AnyRole } from '../common/decorators/any-role.decorator';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
@@ -91,7 +92,8 @@ export class SupplierController {
   }
 
   @Get('register/status')
-  @ApiOperation({ summary: '查询供应商注册状态' })
+  @AnyRole()
+  @ApiOperation({ summary: '查询供应商注册状态（按登录用户自查；未登录走 /public 变体）' })
   async getRegisterStatus(@Request() req: any) {
     return this.supplierService.getRegisterStatus(req.user.sub);
   }
@@ -122,6 +124,7 @@ export class SupplierController {
   }
 
   @Get('stats')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '供应商统计数据（Dashboard用）' })
   async getStats() {
     return this.supplierService.getStats();
@@ -247,6 +250,7 @@ export class SupplierController {
 
   // ─── 供应商多分类标签 ───
   @Get(':id/classifications')
+  @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '获取供应商的分类标签列表' })
   async getSupplierClassifications(@Param('id') id: string) {
     return this.supplierService.getSupplierClassifications(id);
@@ -279,6 +283,7 @@ export class SupplierController {
   }
 
   @Get('negotiation-config/:projectId')
+  @Roles('supplier')
   @ApiOperation({ summary: '供应商端读取谈判采购配置' })
   async getNegotiationConfig(@Param('projectId') projectId: string) {
     return this.supplierService.getNegotiationConfig(projectId);

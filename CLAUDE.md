@@ -271,7 +271,7 @@ Each portal uses an independent login session via named httpOnly cookies:
 
 **Key insight:** bid_portal (:3007) uses its own `token_bid` cookie (auth port-roles 体系：:3006 登录分流时非 bid_expert 角色写 `token_bid` 后跳 :3007；旧文档「共用 token_web」已过时). The bid portal's login redirects through the expert portal (:3006) login page, which sets `token_bid`.
 
-The auth chain is `AuthGuard (global) → RolesGuard (global)`, registered via `APP_GUARD` in `AppModule`. `AuthGuard` extracts + verifies the JWT; `RolesGuard` checks `@Roles(...)` metadata. `@Public()` skips auth; no `@Roles` means any authenticated user can access.
+The auth chain is `AuthGuard (global) → RolesGuard (global)`, registered via `APP_GUARD` in `AppModule`. `AuthGuard` extracts + verifies the JWT; `RolesGuard` checks `@Roles(...)` metadata. `@Public()` skips auth; `@AnyRole()` = any authenticated user（认证边界语义，非授权）。**RolesGuard 默认拒绝（2026-08-26）**：路由无 `@Roles`/`@AnyRole`/`@Public` 任一 → 403 `NO_ROLE_CONFIGURED`；新路由必须显式标注其一。排障：`apps/api` 下 `npx tsx scripts/list-uncovered-routes.ts [--json out.json]` 列未覆盖路由；CI e2e 内置 supplier 403 抽查闸。curl 调试须带 `X-Portal` 头（否则 portal 识别回退旧 `token` cookie → 401 而非 403，勿误判守卫）。spec：`water-erp/docs/superpowers/specs/2026-08-26-roles-guard-default-deny-design.md`
 
 **Cookie resolution** is handled by `apps/api/src/auth/portal-cookie.ts`: portal is detected from `X-Portal` header → `Origin`/`Referer` port → falls back to legacy `token` cookie. This allows the API to serve multiple portals with independent sessions on `localhost` (where cookies are shared across ports).
 
