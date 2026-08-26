@@ -2,7 +2,8 @@ import { BadRequestException, ForbiddenException, Injectable, Logger } from '@ne
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { AnnouncementService } from '../announcement/announcement.service';
-import { assertAskWithinWindow } from './clarification-timing.util';
+import { assertAskWithinWindow, assertIssueWithinWindow } from './clarification-timing.util';
+import { CreateClarificationDocDto } from './dto/create-clarification-doc.dto';
 import { AskClarificationDto } from './dto/ask-clarification.dto';
 
 /**
@@ -62,14 +63,126 @@ export class TenderClarificationService {
     });
   }
 
-  /** 管理端：问答 + 澄清文件 + 回执（docs 由 Task 5 填充）。 */
+  /** 管理端：问答 + 澄清文件（含回执名单）。 */
   async listForStaff(projectId: string) {
-    const questions = await this.prisma.tenderClarification.findMany({
-      where: { projectId },
-      orderBy: { createdAt: 'desc' },
-    });
-    return { questions, docs: [] };
+    const [questions, docs] = await Promise.all([
+      this.prisma.tenderClarification.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.tenderClarificationDoc.findMany({
+        where: { projectId },
+        orderBy: { version: 'asc' },
+        include: { receipts: { include: { supplier: { select: { name: true } } } } },
+      }),
+    ]);
+    return { questions, docs };
   }
+
+  /** A-82/A-83：新建澄清与修改文件（草稿，版本号项目内自增）。 */
+  async createDoc(projectId: string, dto: CreateClarificationDocDto, createdBy: string) {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true } });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    return this.prisma.$transaction(async (tx) => {
+      const last = await tx.tenderClarificationDoc.findFirst({
+        where: { projectId },
+        orderBy: { version: 'desc' },
+        select: { version: true },
+      });
+      return tx.tenderClarificationDoc.create({
+        data: {
+          projectId,
+          version: (last?.version ?? 0) + 1,
+          title: dto.title,
+          content: dto.content ?? '',
+          fileAssetId: dto.fileAssetId ?? null,
+          createdBy,
+        },
+      });
+    });
+  }
+
+  /** A-82：发布澄清与修改文件（B-012 十五日窗；Task 6 追加通知/公告副作用）。 */
+  async publishDoc(
+    projectId: string,
+    docId: string,
+    actorId?: string,
+    companyStamp: { companyId?: string; companyName?: string } = {},
+  ) {
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { id: true, projectCode: true, name: true, deadline: true },
+    });
+    if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const doc = await this.prisma.tenderClarificationDoc.findUnique({ where: { id: docId } });
+    if (!doc || doc.projectId !== projectId) {
+      throw new BadRequestException({ error: '澄清文件不存在', code: 'NOT_FOUND' });
+    }
+    if (doc.status === '已发布') return doc; // 幂等
+
+    assertIssueWithinWindow(project.deadline);
+
+    const updated = await this.prisma.tenderClarificationDoc.update({
+      where: { id: docId },
+      data: { status: '已发布', publishedAt: new Date() },
+    });
+
+    const notified = await this.notifyDownloaders(project, updated); // Task 6 实装
+    await this.publishClarifyNotice(project, updated, actorId, companyStamp); // Task 6 实装
+    return { ...updated, notifiedCount: notified };
+  }
+
+  /** A-82：修改澄清文件（仅草稿；已发布锁定防篡改）。 */
+  async updateDoc(projectId: string, docId: string, dto: Partial<CreateClarificationDocDto>) {
+    const doc = await this.prisma.tenderClarificationDoc.findUnique({ where: { id: docId } });
+    if (!doc || doc.projectId !== projectId) {
+      throw new BadRequestException({ error: '澄清文件不存在', code: 'NOT_FOUND' });
+    }
+    if (doc.status !== '草稿') {
+      throw new BadRequestException({ error: '已发布的澄清文件不可修改（防篡改），请新建下一版', code: 'DOC_LOCKED' });
+    }
+    return this.prisma.tenderClarificationDoc.update({
+      where: { id: docId },
+      data: {
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.content !== undefined && { content: dto.content }),
+        ...(dto.fileAssetId !== undefined && { fileAssetId: dto.fileAssetId }),
+      },
+    });
+  }
+
+  /** A-82：删除澄清文件（仅草稿）。 */
+  async deleteDoc(projectId: string, docId: string) {
+    const doc = await this.prisma.tenderClarificationDoc.findUnique({ where: { id: docId } });
+    if (!doc || doc.projectId !== projectId) {
+      throw new BadRequestException({ error: '澄清文件不存在', code: 'NOT_FOUND' });
+    }
+    if (doc.status !== '草稿') {
+      throw new BadRequestException({ error: '已发布的澄清文件不可删除', code: 'DOC_LOCKED' });
+    }
+    await this.prisma.tenderClarificationDoc.delete({ where: { id: docId } });
+    return { ok: true };
+  }
+
+  /** 当前用户公司归属（公告写时快照用；无归属返回空对象）。 */
+  async userCompany(userId: string): Promise<{ companyId?: string; companyName?: string }> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { companyId: true, companyRef: { select: { name: true } } },
+    });
+    if (!u?.companyId) return {};
+    return { companyId: u.companyId, companyName: u.companyRef?.name };
+  }
+
+  /** B-013：通知已获取招标文件的供应商（Task 6 实装）。 */
+  private async notifyDownloaders(_project: { id: string; name: string }, _doc: { id: string; version: number; title: string }): Promise<number> {
+    return 0;
+  }
+
+  /** B-014：发布置顶澄清公告（Task 6 实装）。 */
+  private async publishClarifyNotice(
+    _project: { id: string; name: string; projectCode: string },
+    _doc: { id: string; version: number; title: string; content: string },
+    _authorId?: string,
+    _companyStamp: { companyId?: string; companyName?: string } = {},
+  ): Promise<void> {}
 
   /** 供应商视角列表（Task 7 完整实现）。 */
   async listForSupplier(_projectId: string, _supplierId: string) {

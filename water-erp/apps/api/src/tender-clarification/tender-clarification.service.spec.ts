@@ -89,3 +89,65 @@ describe('TenderClarificationService.answer（A-81）', () => {
     expect(prisma.tenderClarification.update).not.toHaveBeenCalled();
   });
 });
+
+describe('TenderClarificationService 版本化澄清文件（A-82/A-83/B-012）', () => {
+  const dto = { title: '关于第 3.2 条资质要求的澄清', content: '资质要求含安全生产许可证。' };
+
+  it('createDoc 版本号从上一版递增', async () => {
+    const create = jest.fn().mockResolvedValue({ id: 'd2', version: 2 });
+    const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p1' }) },
+      $transaction: jest.fn((fn: any) => fn({
+        tenderClarificationDoc: { findFirst: jest.fn().mockResolvedValue({ version: 1 }), create },
+      })),
+    };
+    const r = await makeService(prisma).createDoc('p1', dto, 'u1');
+    expect(r.version).toBe(2);
+    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ version: 2, title: dto.title }) });
+  });
+
+  it('publishDoc：截止前 14 日被拒 CLARIFY_ISSUE_LATE', async () => {
+    const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p1', projectCode: 'PC-1', name: 'n', deadline: new Date(Date.now() + 14 * DAY) }) },
+      tenderClarificationDoc: { findUnique: jest.fn().mockResolvedValue({ id: 'd1', projectId: 'p1', status: '草稿', version: 1, title: 't', content: 'c' }) },
+    };
+    await expect(makeService(prisma).publishDoc('p1', 'd1')).rejects.toMatchObject({
+      response: { code: 'CLARIFY_ISSUE_LATE' },
+    });
+  });
+
+  it('publishDoc：窗口内发布置为已发布且幂等', async () => {
+    const prisma = {
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p1', projectCode: 'PC-1', name: 'n', deadline: new Date(Date.now() + 20 * DAY) }) },
+      tenderClarificationDoc: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({ id: 'd1', projectId: 'p1', status: '草稿', version: 1, title: 't', content: 'c' })
+          .mockResolvedValueOnce({ id: 'd1', projectId: 'p1', status: '已发布', version: 1, title: 't', content: 'c' }),
+        update: jest.fn().mockResolvedValue({ id: 'd1', status: '已发布', publishedAt: new Date() }),
+      },
+    };
+    const svc = makeService(prisma);
+    const first = await svc.publishDoc('p1', 'd1');
+    expect(first.status).toBe('已发布');
+    const again = await svc.publishDoc('p1', 'd1');
+    expect(prisma.tenderClarificationDoc.update).toHaveBeenCalledTimes(1);
+    expect(again.id).toBe('d1');
+  });
+
+  it('updateDoc/deleteDoc：草稿可改删、已发布 DOC_LOCKED', async () => {
+    const prisma = {
+      tenderClarificationDoc: {
+        findUnique: jest.fn()
+          .mockResolvedValueOnce({ id: 'd1', projectId: 'p1', status: '草稿' })
+          .mockResolvedValueOnce({ id: 'd1', projectId: 'p1', status: '已发布' })
+          .mockResolvedValueOnce({ id: 'd1', projectId: 'p1', status: '已发布' }),
+        update: jest.fn().mockResolvedValue({ id: 'd1', title: '新标题' }),
+        delete: jest.fn(),
+      },
+    };
+    const svc = makeService(prisma);
+    await expect(svc.updateDoc('p1', 'd1', { title: '新标题' })).resolves.toMatchObject({ title: '新标题' });
+    await expect(svc.updateDoc('p1', 'd1', { title: 'x' })).rejects.toMatchObject({ response: { code: 'DOC_LOCKED' } });
+    await expect(svc.deleteDoc('p1', 'd1')).rejects.toMatchObject({ response: { code: 'DOC_LOCKED' } });
+  });
+});
