@@ -194,7 +194,8 @@ async function main() {
   const ukeys: Record<string, any> = {}
   const certs: Record<string, any> = {}
   for (const who of parties) {
-    sessions[who.username] = await login(who.username, who.password, 'supplier')
+    // main 2026-08-26 起 supplier 注册强制 username=creditCode（忽略传入 username）——登录须用信用代码
+    sessions[who.username] = await login(regBodies[who.username].creditCode, who.password, 'supplier')
     ukeys[who.username] = await MockUKeyAdapter.open({ storage: memStorage(), password: '123456' })
     certs[who.username] = await ukeys[who.username].createCertificate(who.name)
     const bind = await call('POST', '/api/supplier-portal/profile/cert', {
