@@ -1,0 +1,13 @@
+{
+  "name": "ukey-middleware",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mock CA U盾本地中间件(全仿真:盾文件插拔/PIN 会话/锁死 PUK/发行 CLI)——协议见 docs/superpowers/specs/2026-08-26-mock-ukey-middleware-design.md §5",
+  "bin": { "ukeymw": "src/cli.mjs" },
+  "scripts": {
+    "serve": "node src/cli.mjs serve",
+    "test": "node --test 'src/**/*.test.mjs'"
+  },
+  "dependencies": { "sm-crypto": "^0.4.0" }
+}
