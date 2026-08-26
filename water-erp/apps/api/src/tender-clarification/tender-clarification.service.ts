@@ -73,7 +73,14 @@ export class TenderClarificationService {
         include: { receipts: { include: { supplier: { select: { name: true } } } } },
       }),
     ]);
-    return { questions, docs };
+    return {
+      questions,
+      docs: docs.map((d) => ({
+        ...d,
+        // 回执平铺（与 web 端 ClarificationDocReceipt 类型一致）
+        receipts: d.receipts.map((r) => ({ supplierName: r.supplier?.name ?? '未知供应商', receiptedAt: r.receiptedAt })),
+      })),
+    };
   }
 
   /** A-82/A-83：新建澄清与修改文件（草稿，版本号项目内自增）。 */
