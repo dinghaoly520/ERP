@@ -70,7 +70,7 @@ export function OpeningSignBlock({ projectId }: { projectId: string }) {
     <div className="neu-card-static p-4">
       <div className="mb-2 flex items-center gap-2">
         <FileSignature size={16} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
-        <h3 className="text-sm font-semibold text-[color:var(--foreground)]">开标记录签字（办法第32条）</h3>
+        <h3 className="text-sm font-semibold text-[color:var(--foreground)]">开标记录签字</h3>
       </div>
       <p className="mb-3 text-xs text-[color:var(--muted-foreground)]">
         开标记录待签署。签字页可与评标签字包一并打印；扫描件在此上传，到齐后自动登记存档。
