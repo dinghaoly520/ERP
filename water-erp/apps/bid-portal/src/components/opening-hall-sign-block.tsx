@@ -71,14 +71,14 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
       <div className="mb-2 flex items-center gap-2">
         <FileSignature size={16} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
         <h3 className="text-sm font-semibold text-[color:var(--foreground)]">开标记录签字</h3>
+        <button type="button" onClick={onGenerate} disabled={busy} className="neu-btn-soft ml-auto !h-[28px] !text-[11px]">
+          <Printer size={12} /> 下载签字页
+        </button>
       </div>
       <p className="mb-3 text-xs text-[color:var(--muted-foreground)]">
         开标记录待签署。签字页可与评标签字包一并打印；扫描件在此上传，到齐后自动登记存档。
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={onGenerate} disabled={busy} className="neu-btn-soft !h-[34px] !text-xs">
-          <Printer size={13} /> 下载签字页
-        </button>
         <button type="button" onClick={() => onUpload('host')} disabled={busy} className="neu-btn-soft !h-[34px] !text-xs">
           <Upload size={13} /> 上传主持人签字{status.hostScanUploaded ? '✓' : ''}
         </button>
