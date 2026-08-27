@@ -146,6 +146,10 @@ export class OpeningSignService {
     if (!session.hostSignScanFileId) {
       throw new BadRequestException({ error: '主持人签字扫描未上传，无法登记', code: 'HOST_SCAN_MISSING' });
     }
+    // 到齐才登记：有监督人时监督件必到（否则提前闭环后补传不再重建包——alreadyRegistered 早退，签字链缺监督段）
+    if (session.supervisor && !session.supervisorSignScanFileId) {
+      throw new BadRequestException({ error: '本项目有监督人，需主持人+监督人签字扫描均上传后再登记', code: 'SUPERVISOR_SCAN_MISSING' });
+    }
 
     // 幂等：已登记 → 直接返回现状
     if (session.openingSignRegisteredAt) {
