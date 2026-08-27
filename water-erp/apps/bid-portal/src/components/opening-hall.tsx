@@ -15,6 +15,7 @@ import { DECRYPT_LABEL, BOND_STATUS_OPTIONS } from '@water-erp/shared';
 import { toast } from 'sonner';
 import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
+import { useBidUser } from '@/hooks/use-bid-user';
 
 /** cgzxui 裸面板（取代 @water-erp/ui SectionCard 的 p-0 用法）——无边框玻璃静态卡 */
 function Card({ className = '', children }: { className?: string; children: React.ReactNode }) {
@@ -94,6 +95,9 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   // 受控展示组件：project 数据与实时事件由工作区页（page.tsx）持有并经 props 下传；
   // 本组件只保留开标执行交互态，写操作成功后调 onRefresh() 触发页级 refetch。
   const projectId = project.id;
+  // 「前往采购管理工作台」跳转仅对能实际操作 :3005 的角色有意义——bid_host 登 :3005
+  // 按 PORTAL_ROLE_PRIORITY.web 解析为 bid_host、采购功能 403，按钮对现场主持人是死链（分工告知文本保留）
+  const canGoWeb = useBidUser()?.role !== 'bid_host';
   const [startOpen, setStartOpen] = useState(false);
   // ═══ New UX state ═══
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
@@ -501,10 +505,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.13_251)]">该项目尚未确定开标</h2>
             <p className="text-xs text-[color:var(--muted-foreground)]">确定开标（阶段流转）由采购管理工作台（:3005）统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
           </div>
-          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-            className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
-            前往采购管理工作台 <ExternalLink size={13} />
-          </a>
+          {canGoWeb && (
+            <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+              className="neu-btn-primary !h-[38px] flex-shrink-0 text-xs">
+              前往采购管理工作台 <ExternalLink size={13} />
+            </a>
+          )}
         </div>
       )}
       {(project.stage === 'EVALUATING' || project.stage === 'ARCHIVED' || project.stage === 'ABORTED') && (
@@ -518,10 +524,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 : `本项目已进入${project.stage === 'EVALUATING' ? '评标阶段' : '归档状态'}，评标管理与评标签字请在本工作区对应 tab 操作；完整归档与公示请在采购管理工作台（:3005）操作。`}
             </p>
           </div>
-          <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
-            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
-            前往采购管理工作台 <ExternalLink size={13} />
-          </a>
+          {canGoWeb && (
+            <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
+              className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
+              前往采购管理工作台 <ExternalLink size={13} />
+            </a>
+          )}
         </div>
       )}
 
@@ -548,10 +556,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.1_155)]">开标资料已移交</h2>
             <p className="text-xs text-[color:var(--muted-foreground)]">移交时间 {new Date(session.handoverAt).toLocaleString('zh-CN')}。开标文件包已回传采购管理工作台，后续启动评标 / 归档请前往 :3005 开标确认面板。</p>
           </div>
-          <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"
-            className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
-            前往采购管理工作台 <ExternalLink size={13} />
-          </a>
+          {canGoWeb && (
+            <a href={portalURL('web', `/projects`)} target="_blank" rel="noopener"
+              className="neu-btn-primary is-success !h-[38px] flex-shrink-0 text-xs">
+              前往采购管理工作台 <ExternalLink size={13} />
+            </a>
+          )}
         </div>
       )}
       {(!!session?.handoverAt || project.stage === 'EVALUATING' || project.stage === 'ARCHIVED') && (
