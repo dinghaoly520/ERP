@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Upload, X } from 'lucide-react';
-import { registerSign, uploadExpertScan, type SignPacketExpertRow, type SignPacketResponse } from '@/lib/api/sign-packet';
+import { Loader2, X } from 'lucide-react';
+import { registerSign, type SignPacketExpertRow, type SignPacketResponse } from '@/lib/api/sign-packet';
 
 type StatusChoice = 'SIGNED' | 'REFUSED_DISSENT' | 'DEEMED_AGREED';
 
@@ -20,7 +20,6 @@ export default function SignRegisterDialog({
   const [status, setStatus] = useState<StatusChoice>(expert.signStatus === 'PENDING' ? 'SIGNED' : (expert.signStatus as StatusChoice));
   const [opinion, setOpinion] = useState(expert.dissentingOpinion ?? '');
   const [reason, setReason] = useState(expert.dissentingReason ?? '');
-  const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,9 +32,6 @@ export default function SignRegisterDialog({
     }
     setBusy('submit');
     try {
-      if (file) {
-        await uploadExpertScan(projectId, expert.expertId, file);
-      }
       const res = await registerSign(projectId, expert.expertId, {
         status,
         dissentingOpinion: opinion.trim() || undefined,
@@ -106,18 +102,6 @@ export default function SignRegisterDialog({
             />
           </div>
         )}
-
-        {/* 扫描件上传 */}
-        <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-[var(--hairline)] px-3 py-2.5 text-xs text-[var(--muted-foreground)] hover:border-[var(--accent)]">
-          <Upload size={13} />
-          {file ? file.name : '上传该专家签字页/不同意见书扫描件（jpg/png/pdf ≤10MB，可选）'}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,application/pdf"
-            className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
 
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-xl border border-[var(--hairline)] px-4 py-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">取消</button>
