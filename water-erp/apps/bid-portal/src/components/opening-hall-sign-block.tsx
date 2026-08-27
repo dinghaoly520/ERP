@@ -67,9 +67,9 @@ export function OpeningSignBlock({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--card)] p-4">
+    <div className="neu-card-static p-4">
       <div className="mb-2 flex items-center gap-2">
-        <FileSignature size={16} strokeWidth={1.5} className="text-[var(--primary)]" />
+        <FileSignature size={16} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
         <h3 className="text-sm font-semibold text-[color:var(--foreground)]">开标记录签字（办法第32条）</h3>
       </div>
       <p className="mb-3 text-xs text-[color:var(--muted-foreground)]">

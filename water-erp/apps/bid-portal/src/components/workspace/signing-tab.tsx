@@ -65,7 +65,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
     return (
       <div className="space-y-4">
         <OpeningSignBlock projectId={projectId} />
-        <div className="rounded-2xl border border-[var(--hairline)] p-10 text-center">
+        <div className="neu-card-static p-10 text-center">
           <PenLine size={28} className="mx-auto mb-3 text-[var(--muted-foreground)]" strokeWidth={1.5} />
           <p className="text-sm font-semibold text-[var(--foreground)]">评标结果尚未生成</p>
           <p className="mt-1 text-xs text-[var(--muted-foreground)]">请在「评标管理」完成 3 步生成向导后，再来生成签字包。</p>
@@ -85,7 +85,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
 
       {/* 生成/下载区 */}
       {!data.packet ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--hairline)] p-4">
+        <div className="neu-card-static flex flex-wrap items-center gap-3 p-4">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[var(--foreground)]">尚未生成签字包</p>
             <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">将快照当前评标数据，生成《评标报告》+ 专家声明签字页 + 个人评分确认表等全套证据包 PDF。</p>
@@ -94,7 +94,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
             type="button"
             disabled={busy !== null || !data.canGenerate}
             onClick={() => void run('generate', () => generateSignPacket(projectId))}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--hairline)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] disabled:opacity-40"
+            className="neu-btn-primary !h-[34px] !text-xs"
           >
             {busy === 'generate' ? <Loader2 size={13} className="animate-spin" /> : <Fingerprint size={13} />}
             生成签字包
@@ -102,7 +102,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
           {!data.canGenerate && <span className="text-[11px] text-[var(--muted-foreground)]">当前阶段 {stage} 不可生成</span>}
         </div>
       ) : (
-        <div className="rounded-2xl border border-[var(--hairline)] p-4">
+        <div className="neu-card-static p-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--foreground)]">
@@ -123,7 +123,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 href={data.packet.downloadUrl}
                 target="_blank"
                 rel="noopener"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--hairline)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] hover:border-[var(--accent)]"
+                className="neu-btn-soft !h-[34px] !text-xs"
               >
                 <FileDown size={13} /> 下载签字包
               </a>
@@ -131,7 +131,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
                 type="button"
                 disabled={busy !== null || closed}
                 onClick={() => { if (window.confirm('重新生成将覆盖旧包并重置全部签字登记，确认？')) void run('generate', () => generateSignPacket(projectId)); }}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--hairline)] px-3 py-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--danger)] disabled:opacity-40"
+                className="neu-btn-soft !h-[34px] !text-xs hover:!text-[var(--danger)]"
               >
                 <RefreshCw size={13} /> 重新生成
               </button>
