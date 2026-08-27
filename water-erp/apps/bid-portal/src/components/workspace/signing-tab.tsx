@@ -35,6 +35,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
   /** 文件名 → 回传目标路由（含专家名/关键词匹配；先到先得，重复与未识别留待单传）。hasPacket=false 时不含主报告页（该端点依赖签字包存在） */
   const routeFiles = (files: File[], experts: SignPacketExpertRow[], hasPacket: boolean) => {
     const taken = new Set<string>();
+    const pool = experts.filter((e) => e.role === EXPERT_ROLE.REGULAR); // 候补不参与签字，不进路由候选
     return files.map((f) => {
       const name = f.name.toLowerCase();
       const match = (kw: string) => name.includes(kw);
@@ -43,7 +44,7 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
       if (!target && (match('监督人') || match('监督') || match('supervisor'))) target = { key: 'supervisor', label: '监督人签字（开标记录）' };
       if (!target && hasPacket && (match('报告') || match('共签') || match('声明'))) target = { key: 'report', label: '主报告签字页（共签）' };
       if (!target) {
-        const expert = experts.find((e) => e.name && name.includes(e.name.toLowerCase()));
+        const expert = pool.find((e) => e.name && name.includes(e.name.toLowerCase()));
         if (expert) target = { key: `expert:${expert.expertId}`, label: `专家·${expert.name}` };
       }
       if (!target) return { file: f.name, target: '', status: 'unmatched' as const, note: '未识别（文件名不含主持人/监督人/报告/专家名）' };
@@ -75,9 +76,15 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         results.push({ file: f.name, target: label || targetKey, status: 'fail', note: e?.message ?? '上传失败' });
       }
     }
-    // 开标记录件到齐即自动登记（与签字卡同一口径；无监督人场景主持人件即齐）
-    if (hostRouted && results.every((x) => x.status !== 'fail')) {
-      try { await registerOpeningSign(projectId); } catch { /* 有监督人且未到齐等场景按需单传后再看 */ }
+    // 开标记录件到齐即自动登记（与签字卡同一口径；登记成败只取决于主持人/监督人项，不连累专家件）
+    const openingFail = results.some((x) => (x.target.startsWith('主持人') || x.target.startsWith('监督人')) && x.status === 'fail');
+    if (hostRouted && !openingFail) {
+      try {
+        await registerOpeningSign(projectId);
+        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'ok' });
+      } catch (e: any) {
+        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '有监督人且未到齐等场景请单独补传' });
+      }
     }
     setBatchResult(results);
     setSignRefreshTick((t) => t + 1);
@@ -105,8 +112,14 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
       if (e.role !== EXPERT_ROLE.REGULAR) continue;
       await apply(`专家·${e.name}`, () => uploadExpertScan(projectId, e.expertId, file));
     }
-    if (results.some((x) => x.target.startsWith('主持人')) && results.every((x) => x.status !== 'fail')) {
-      try { await registerOpeningSign(projectId); } catch { /* 未到齐等场景由清单呈现 */ }
+    const openingFail2 = results.some((x) => (x.target.startsWith('主持人') || x.target.startsWith('监督人')) && x.status === 'fail');
+    if (results.some((x) => x.target.startsWith('主持人')) && !openingFail2) {
+      try {
+        await registerOpeningSign(projectId);
+        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'ok' });
+      } catch (e: any) {
+        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '未到齐等场景请单独补传' });
+      }
     }
     setBatchResult(results);
     setSignRefreshTick((t) => t + 1);
@@ -177,7 +190,8 @@ export default function SigningTab({ projectId, stage }: { projectId: string; st
         onChange={(e) => {
           const fs = [...(e.target.files ?? [])];
           e.target.value = '';
-          if (fs.length === 1) void onCombinedUpload(fs[0]);
+          // 单文件：文件名能命中路由（主持人/监督人/报告/正选专家名）→ 按路由传；完全无命中 → 视为合并扫描件
+          if (fs.length === 1 && routeFiles(fs, data?.experts ?? [], !!data?.packet)[0].status !== 'ok') void onCombinedUpload(fs[0]);
           else void onBatchUpload(fs);
         }}
       />
