@@ -1942,8 +1942,12 @@ export class SupplierPortalService {
       } else {
         const decryptedAssets: Record<string, string> = {};
         for (const { role, buf } of uploaded) {
-          const asset = await tx.fileAsset.create({
-            data: {
+          // objectKey 确定性（project+bidSupplier+role）——DANGER 后「重置解密机会」重试会复用同 key：
+          // upsert 而非裸 create，否则撞 key @unique（P2002）令终局事务整体回滚、供应商卡 RUNNING
+          //（completeOpening 终审 Important #2 同款模式）
+          const asset = await tx.fileAsset.upsert({
+            where: { key: objectKeyOf(role) },
+            create: {
               key: objectKeyOf(role),
               originalName: `${role}.plain`,
               mimeType: 'application/octet-stream',
@@ -1952,6 +1956,11 @@ export class SupplierPortalService {
               category: 'bid_decrypted',
               clientEncrypted: false,
               encrypted: false,
+              uploaderId: supplier.userId,
+            },
+            update: {
+              size: buf.length,
+              sha256: await sha256Hex(buf),
               uploaderId: supplier.userId,
             },
           });

@@ -1949,7 +1949,9 @@ describe('SupplierPortalService', () => {
       // 补齐本 describe 需要的模型桩（外层 shared prisma mock 无这些方法）
       prisma.bidSupplier.findUnique = jest.fn();
       prisma.supplierBidSubmission.updateMany = jest.fn().mockResolvedValue({ count: 1 });
-      prisma.fileAsset.create = jest.fn();
+      prisma.fileAsset.create = jest.fn(); // 存量桩保留(其他路径防御)
+      // decrypt-upload 明文资产走 upsert(确定性 key 重试安全)——排队 id 断言亦挂此处
+      prisma.fileAsset.upsert = jest.fn().mockImplementation(({ create }: any) => Promise.resolve({ id: `fa-${String(create.key).split('/').pop()}`, key: create.key }));
       prisma.bidOpeningRecord.upsert = jest.fn().mockResolvedValue({});
       prisma.bidOpeningRecord.create = jest.fn();
 
@@ -1981,7 +1983,7 @@ describe('SupplierPortalService', () => {
         };
         return rows[where.id] ?? null;
       });
-      prisma.fileAsset.create.mockResolvedValueOnce({ id: 'dec-t' }).mockResolvedValueOnce({ id: 'dec-b' });
+      prisma.fileAsset.upsert.mockResolvedValueOnce({ id: 'dec-t' }).mockResolvedValueOnce({ id: 'dec-b' });
     });
 
     it('opening-package：成员+OPENING+窗口开+外层已解 → 文件包（ciphertextSha256/kselfByRole/sealedFields）+ 幂等写 packageFetchedAt', async () => {
@@ -2036,16 +2038,18 @@ describe('SupplierPortalService', () => {
       expect(minioClient.putObject).toHaveBeenNthCalledWith(1, MINIO_BUCKET, 'bid-decrypted/project-1/bs-1/technical.plain', plainT, plainT.length, { 'Content-Type': 'application/octet-stream' });
       expect(minioClient.putObject).toHaveBeenNthCalledWith(2, MINIO_BUCKET, 'bid-decrypted/project-1/bs-1/business.plain', plainB, plainB.length, { 'Content-Type': 'application/octet-stream' });
 
-      expect(prisma.fileAsset.create).toHaveBeenNthCalledWith(1, {
-        data: expect.objectContaining({
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        where: { key: 'bid-decrypted/project-1/bs-1/technical.plain' },
+        create: expect.objectContaining({
           key: 'bid-decrypted/project-1/bs-1/technical.plain',
           category: 'bid_decrypted', clientEncrypted: false, encrypted: false,
           uploaderId: 'user-1', sha256: await sha256Hex(plainT), size: plainT.length,
         }),
-      });
-      expect(prisma.fileAsset.create).toHaveBeenNthCalledWith(2, {
-        data: expect.objectContaining({ key: 'bid-decrypted/project-1/bs-1/business.plain', sha256: await sha256Hex(plainB) }),
-      });
+      }));
+      expect(prisma.fileAsset.upsert).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        where: { key: 'bid-decrypted/project-1/bs-1/business.plain' },
+        create: expect.objectContaining({ key: 'bid-decrypted/project-1/bs-1/business.plain', sha256: await sha256Hex(plainB) }),
+      }));
 
       expect(prisma.supplierBidSubmission.update).toHaveBeenCalledWith({
         where: { supplierId_projectId: { supplierId: 'supplier-1', projectId: 'project-1' } },
